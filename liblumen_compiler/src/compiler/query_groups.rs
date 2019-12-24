@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::thread::ThreadId;
 
+use liblumen_codegen::codegen::CompiledModule;
 use liblumen_codegen::llvm;
 use liblumen_codegen::mlir;
-use liblumen_codegen::codegen::CompiledModule;
 use liblumen_incremental::ParserDatabase;
 use liblumen_incremental::{InternedInput, QueryResult};
 
@@ -23,7 +23,11 @@ pub trait CodegenDatabase: CodegenDatabaseBase {
     ) -> QueryResult<Arc<mlir::Module>>;
 
     #[salsa::invoke(queries::generate_mlir)]
-    fn generate_mlir(&self, thread_id: ThreadId, input: InternedInput) -> QueryResult<Arc<mlir::Module>>;
+    fn generate_mlir(
+        &self,
+        thread_id: ThreadId,
+        input: InternedInput,
+    ) -> QueryResult<Arc<mlir::Module>>;
 
     #[salsa::invoke(queries::get_eir_dialect_module)]
     fn get_eir_dialect_module(
@@ -51,7 +55,6 @@ pub trait CodegenDatabase: CodegenDatabaseBase {
         thread_id: ThreadId,
         input: InternedInput,
     ) -> QueryResult<Arc<llvm::Module>>;
-
 
     #[salsa::invoke(queries::compile)]
     fn compile(&self, input: InternedInput) -> QueryResult<Arc<CompiledModule>>;

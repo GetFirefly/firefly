@@ -1,8 +1,8 @@
-use std::sync::Once;
 use std::ffi::CString;
+use std::sync::Once;
 
-use liblumen_session::{Options, OptLevel};
-use liblumen_target::{PanicStrategy, MergeFunctions};
+use liblumen_session::{OptLevel, Options};
+use liblumen_target::{MergeFunctions, PanicStrategy};
 
 use crate::ffi::{CodeGenOptLevel, CodeGenOptSize};
 
@@ -12,7 +12,11 @@ pub fn init(options: &Options) {
     unsafe {
         // Before we touch LLVM, make sure that multithreading is enabled.
         INIT.call_once(|| {
-            assert_eq!(llvm_sys::core::LLVMIsMultithreaded(), 1, "expected LLVM to be compiled with multithreading enabled");
+            assert_eq!(
+                llvm_sys::core::LLVMIsMultithreaded(),
+                1,
+                "expected LLVM to be compiled with multithreading enabled"
+            );
             configure_llvm(options);
         });
     }
@@ -38,18 +42,23 @@ unsafe fn configure_llvm(options: &Options) {
             llvm_c_strs.push(s);
         };
         add("lumen"); // fake program name
-        if options.debugging_opts.time_llvm_passes { add("-time-passes"); }
-        match options.debugging_opts.merge_functions
-                .unwrap_or(options.target.options.merge_functions) {
-            MergeFunctions::Disabled |
-            MergeFunctions::Trampolines => {}
+        if options.debugging_opts.time_llvm_passes {
+            add("-time-passes");
+        }
+        match options
+            .debugging_opts
+            .merge_functions
+            .unwrap_or(options.target.options.merge_functions)
+        {
+            MergeFunctions::Disabled | MergeFunctions::Trampolines => {}
             MergeFunctions::Aliases => {
                 add("-mergefunc-use-aliases");
             }
         }
 
-        if options.target.target_os == "emscripten" &&
-            options.codegen_opts.panic.unwrap_or(PanicStrategy::Unwind) == PanicStrategy::Unwind {
+        if options.target.target_os == "emscripten"
+            && options.codegen_opts.panic.unwrap_or(PanicStrategy::Unwind) == PanicStrategy::Unwind
+        {
             add("-enable-emscripten-cxx-exceptions");
         }
 
@@ -89,9 +98,7 @@ pub fn to_llvm_opt_settings(cfg: OptLevel) -> (CodeGenOptLevel, CodeGenOptSize) 
 
 pub fn llvm_version() -> String {
     // Can be called without initializing LLVM
-    unsafe {
-        format!("{}.{}", LLVMLumenVersionMajor(), LLVMLumenVersionMinor())
-    }
+    unsafe { format!("{}.{}", LLVMLumenVersionMajor(), LLVMLumenVersionMinor()) }
 }
 
 extern "C" {

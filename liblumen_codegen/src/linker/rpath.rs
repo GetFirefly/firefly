@@ -1,7 +1,7 @@
-use std::env;
-use std::path::{Path, PathBuf};
-use std::fs;
 use std::collections::HashSet;
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use log::debug;
 
@@ -25,7 +25,10 @@ pub fn get_rpath_flags(config: &mut RPathConfig<'_>) -> Vec<String> {
     debug!("preparing the RPATH!");
 
     let libs = config.used_libs.clone();
-    let libs = libs.iter().filter_map(|&(_, ref l)| l.option()).collect::<Vec<_>>();
+    let libs = libs
+        .iter()
+        .filter_map(|&(_, ref l)| l.option())
+        .collect::<Vec<_>>();
     let rpaths = get_rpaths(config, &libs);
     let mut flags = rpaths_to_flags(&rpaths);
 
@@ -87,9 +90,10 @@ fn get_rpaths(config: &mut RPathConfig<'_>, libs: &[PathBuf]) -> Vec<String> {
     rpaths
 }
 
-fn get_rpaths_relative_to_output(config: &mut RPathConfig<'_>,
-                                 libs: &[PathBuf]) -> Vec<String> {
-    libs.iter().map(|a| get_rpath_relative_to_output(config, a)).collect()
+fn get_rpaths_relative_to_output(config: &mut RPathConfig<'_>, libs: &[PathBuf]) -> Vec<String> {
+    libs.iter()
+        .map(|a| get_rpath_relative_to_output(config, a))
+        .collect()
 }
 
 fn get_rpath_relative_to_output(config: &mut RPathConfig<'_>, lib: &Path) -> String {
@@ -106,10 +110,18 @@ fn get_rpath_relative_to_output(config: &mut RPathConfig<'_>, lib: &Path) -> Str
     let mut output = cwd.join(&config.output_file);
     output.pop(); // strip filename
     let output = fs::canonicalize(&output).unwrap_or(output);
-    let relative = path_relative_from(&lib, &output).unwrap_or_else(||
-        panic!("couldn't create relative path from {:?} to {:?}", output, lib));
+    let relative = path_relative_from(&lib, &output).unwrap_or_else(|| {
+        panic!(
+            "couldn't create relative path from {:?} to {:?}",
+            output, lib
+        )
+    });
     // FIXME (#9639): This needs to handle non-utf8 paths
-    format!("{}/{}", prefix, relative.to_str().expect("non-utf8 component in path"))
+    format!(
+        "{}/{}",
+        prefix,
+        relative.to_str().expect("non-utf8 component in path")
+    )
 }
 
 // This routine is adapted from the *old* Path's `path_relative_from`
@@ -154,12 +166,13 @@ fn path_relative_from(path: &Path, base: &Path) -> Option<PathBuf> {
     }
 }
 
-
 fn get_install_prefix_rpath(config: &mut RPathConfig<'_>) -> String {
     let path = (config.get_install_prefix_lib_path)();
     let path = env::current_dir().unwrap().join(&path);
     // FIXME (#9639): This needs to handle non-utf8 paths
-    path.to_str().expect("non-utf8 component in rpath").to_owned()
+    path.to_str()
+        .expect("non-utf8 component in rpath")
+        .to_owned()
 }
 
 fn minimize_rpaths(rpaths: &[String]) -> Vec<String> {

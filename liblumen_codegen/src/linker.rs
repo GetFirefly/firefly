@@ -1,15 +1,17 @@
-mod command;
 mod archive;
+mod builtin;
+mod command;
 mod link;
 mod rpath;
-mod builtin;
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use log::warn;
 
-use liblumen_session::{ProjectType, LinkerPluginLto, OptLevel, DebugInfo, DiagnosticsHandler, Options};
+use liblumen_session::{
+    DebugInfo, DiagnosticsHandler, LinkerPluginLto, OptLevel, Options, ProjectType,
+};
 use liblumen_target::{LinkerFlavor, LldFlavor};
 
 use self::command::Command;
@@ -48,9 +50,7 @@ pub struct LinkerInfo {
 
 impl LinkerInfo {
     pub fn new() -> LinkerInfo {
-        Self {
-            exports: vec![],
-        }
+        Self { exports: vec![] }
     }
 
     pub fn to_linker<'a>(
@@ -59,31 +59,27 @@ impl LinkerInfo {
         options: &'a Options,
         diagnostics: &'a DiagnosticsHandler,
         flavor: LinkerFlavor,
-    ) -> Box<dyn Linker+'a> {
+    ) -> Box<dyn Linker + 'a> {
         match flavor {
-            LinkerFlavor::Gcc =>  {
-                Box::new(GccLinker {
-                    cmd,
-                    options,
-                    diagnostics,
-                    info: self,
-                    hinted_static: false,
-                    is_ld: false,
-                }) as Box<dyn Linker>
-            }
+            LinkerFlavor::Gcc => Box::new(GccLinker {
+                cmd,
+                options,
+                diagnostics,
+                info: self,
+                hinted_static: false,
+                is_ld: false,
+            }) as Box<dyn Linker>,
 
-            LinkerFlavor::Lld(LldFlavor::Ld) |
-            LinkerFlavor::Lld(LldFlavor::Ld64) |
-            LinkerFlavor::Ld => {
-                Box::new(GccLinker {
-                    cmd,
-                    options,
-                    diagnostics,
-                    info: self,
-                    hinted_static: false,
-                    is_ld: true,
-                }) as Box<dyn Linker>
-            }
+            LinkerFlavor::Lld(LldFlavor::Ld)
+            | LinkerFlavor::Lld(LldFlavor::Ld64)
+            | LinkerFlavor::Ld => Box::new(GccLinker {
+                cmd,
+                options,
+                diagnostics,
+                info: self,
+                hinted_static: false,
+                is_ld: true,
+            }) as Box<dyn Linker>,
 
             LinkerFlavor::Lld(LldFlavor::Wasm) => {
                 Box::new(WasmLd::new(cmd, options, self)) as Box<dyn Linker>
@@ -92,7 +88,7 @@ impl LinkerInfo {
             LinkerFlavor::Lld(LldFlavor::Link)
             | LinkerFlavor::Msvc
             | LinkerFlavor::Em
-            | LinkerFlavor::PtxLinker => { unimplemented!("unsupported linker flavor") },
+            | LinkerFlavor::PtxLinker => unimplemented!("unsupported linker flavor"),
         }
     }
 }
@@ -154,7 +150,8 @@ impl<'a> GccLinker<'a> {
     ///
     /// These arguments need to be prepended with `-Wl`, when a GCC-style linker is used.
     fn linker_arg<S>(&mut self, arg: S) -> &mut Self
-        where S: AsRef<OsStr>
+    where
+        S: AsRef<OsStr>,
     {
         if !self.is_ld {
             let mut os = OsString::from("-Wl,");
@@ -173,10 +170,8 @@ impl<'a> GccLinker<'a> {
         // platforms where currently this is guaranteed to *not* be the case:
         //
         // * On OSX they have their own linker, not binutils'
-        // * For WebAssembly the only functional linker is LLD, which doesn't
-        //   support hint flags
-        !self.options.target.options.is_like_osx &&
-            self.options.target.arch != "wasm32"
+        // * For WebAssembly the only functional linker is LLD, which doesn't support hint flags
+        !self.options.target.options.is_like_osx && self.options.target.arch != "wasm32"
     }
 
     // Some platforms take hints about whether a library is static or dynamic.
@@ -184,7 +179,9 @@ impl<'a> GccLinker<'a> {
     // was flagged "static" (most defaults are dynamic) to ensure that if
     // libfoo.a and libfoo.so both exist that the right one is chosen.
     fn hint_static(&mut self) {
-        if !self.takes_hints() { return }
+        if !self.takes_hints() {
+            return;
+        }
         if !self.hinted_static {
             self.linker_arg("-Bstatic");
             self.hinted_static = true;
@@ -192,7 +189,9 @@ impl<'a> GccLinker<'a> {
     }
 
     fn hint_dynamic(&mut self) {
-        if !self.takes_hints() { return }
+        if !self.takes_hints() {
+            return;
+        }
         if self.hinted_static {
             self.linker_arg("-Bdynamic");
             self.hinted_static = false;
@@ -238,28 +237,58 @@ impl<'a> Linker for GccLinker<'a> {
         self.hint_static();
         self.cmd.arg(format!("-l{}", lib));
     }
-    fn link_rlib(&mut self, lib: &Path) { self.hint_static(); self.cmd.arg(lib); }
+    fn link_rlib(&mut self, lib: &Path) {
+        self.hint_static();
+        self.cmd.arg(lib);
+    }
     fn include_path(&mut self, path: &Path) {
         if !path.exists() {
-            warn!("invalid include path, not found: {}", path.to_string_lossy());
+            warn!(
+                "invalid include path, not found: {}",
+                path.to_string_lossy()
+            );
             return;
         }
         if !path.is_dir() {
-            warn!("invalid include path, not a directory: {}", path.to_string_lossy());
+            warn!(
+                "invalid include path, not a directory: {}",
+                path.to_string_lossy()
+            );
             return;
         }
         self.cmd.arg("-L").arg(path);
     }
-    fn framework_path(&mut self, path: &Path) { self.cmd.arg("-F").arg(path); }
-    fn output_filename(&mut self, path: &Path) { self.cmd.arg("-o").arg(path); }
-    fn add_object(&mut self, path: &Path) { self.cmd.arg(path); }
-    fn position_independent_executable(&mut self) { self.cmd.arg("-pie"); }
-    fn no_position_independent_executable(&mut self) { self.cmd.arg("-no-pie"); }
-    fn full_relro(&mut self) { self.linker_arg("-zrelro"); self.linker_arg("-znow"); }
-    fn partial_relro(&mut self) { self.linker_arg("-zrelro"); }
-    fn no_relro(&mut self) { self.linker_arg("-znorelro"); }
-    fn build_static_executable(&mut self) { self.cmd.arg("-static"); }
-    fn args(&mut self, args: &[String]) { self.cmd.args(args); }
+    fn framework_path(&mut self, path: &Path) {
+        self.cmd.arg("-F").arg(path);
+    }
+    fn output_filename(&mut self, path: &Path) {
+        self.cmd.arg("-o").arg(path);
+    }
+    fn add_object(&mut self, path: &Path) {
+        self.cmd.arg(path);
+    }
+    fn position_independent_executable(&mut self) {
+        self.cmd.arg("-pie");
+    }
+    fn no_position_independent_executable(&mut self) {
+        self.cmd.arg("-no-pie");
+    }
+    fn full_relro(&mut self) {
+        self.linker_arg("-zrelro");
+        self.linker_arg("-znow");
+    }
+    fn partial_relro(&mut self) {
+        self.linker_arg("-zrelro");
+    }
+    fn no_relro(&mut self) {
+        self.linker_arg("-znorelro");
+    }
+    fn build_static_executable(&mut self) {
+        self.cmd.arg("-static");
+    }
+    fn args(&mut self, args: &[String]) {
+        self.cmd.args(args);
+    }
 
     fn link_rust_dylib(&mut self, lib: &str, _path: &Path) {
         self.hint_dynamic();
@@ -281,14 +310,18 @@ impl<'a> Linker for GccLinker<'a> {
         self.hint_static();
         let target = &self.options.target;
         if !target.options.is_like_osx {
-            self.linker_arg("--whole-archive").cmd.arg(format!("-l{}", lib));
+            self.linker_arg("--whole-archive")
+                .cmd
+                .arg(format!("-l{}", lib));
             self.linker_arg("--no-whole-archive");
         } else {
             // -force_load is the macOS equivalent of --whole-archive, but it
             // involves passing the full path to the library to link.
             self.linker_arg("-force_load");
             match archive::find_library(lib, search_path, &self.options) {
-                Ok(ref lib) => { self.linker_arg(lib); },
+                Ok(ref lib) => {
+                    self.linker_arg(lib);
+                }
                 Err(err) => self.diagnostics.fatal(err).raise(),
             }
         }
@@ -336,18 +369,23 @@ impl<'a> Linker for GccLinker<'a> {
     }
 
     fn optimize(&mut self) {
-        if !self.options.target.options.linker_is_gnu { return }
+        if !self.options.target.options.linker_is_gnu {
+            return;
+        }
 
         // GNU-style linkers support optimization with -O. GNU ld doesn't
         // need a numeric argument, but other linkers do.
-        if self.options.opt_level == OptLevel::Default ||
-           self.options.opt_level == OptLevel::Aggressive {
+        if self.options.opt_level == OptLevel::Default
+            || self.options.opt_level == OptLevel::Aggressive
+        {
             self.linker_arg("-O1");
         }
     }
 
     fn pgo_gen(&mut self) {
-        if !self.options.target.options.linker_is_gnu { return }
+        if !self.options.target.options.linker_is_gnu {
+            return;
+        }
 
         // If we're doing PGO generation stuff and on a GNU-like linker, use the
         // "-u" flag to properly pull in the profiler runtime bits.
@@ -391,7 +429,8 @@ impl<'a> Linker for GccLinker<'a> {
             // purely to support rustbuild right now, we should get a more
             // principled solution at some point to force the compiler to pass
             // the right `-Wl,-install_name` with an `@rpath` in it.
-            if self.options.codegen_opts.rpath || self.options.debugging_opts.osx_rpath_install_name {
+            if self.options.codegen_opts.rpath || self.options.debugging_opts.osx_rpath_install_name
+            {
                 self.linker_arg("-install_name");
                 let mut v = OsString::from("@rpath/");
                 v.push(out_filename.file_name().unwrap());
@@ -403,17 +442,20 @@ impl<'a> Linker for GccLinker<'a> {
                 // The output filename already contains `dll_suffix` so
                 // the resulting import library will have a name in the
                 // form of libfoo.dll.a
-                let implib_name = out_filename
-                    .file_name()
-                    .and_then(|file| file.to_str())
-                    .map(|file| format!("{}{}{}",
-                         self.options.target.options.staticlib_prefix,
-                         file,
-                         self.options.target.options.staticlib_suffix));
+                let implib_name =
+                    out_filename
+                        .file_name()
+                        .and_then(|file| file.to_str())
+                        .map(|file| {
+                            format!(
+                                "{}{}{}",
+                                self.options.target.options.staticlib_prefix,
+                                file,
+                                self.options.target.options.staticlib_suffix
+                            )
+                        });
                 if let Some(implib_name) = implib_name {
-                    let implib = out_filename
-                        .parent()
-                        .map(|dir| dir.join(&implib_name));
+                    let implib = out_filename.parent().map(|dir| dir.join(&implib_name));
                     if let Some(implib) = implib {
                         self.linker_arg(&format!("--out-implib,{}", (*implib).to_str().unwrap()));
                     }
@@ -464,7 +506,6 @@ impl<'a> Linker for GccLinker<'a> {
     }
 }
 
-
 pub struct WasmLd<'a> {
     cmd: Command,
     options: &'a Options,
@@ -476,30 +517,33 @@ impl<'a> WasmLd<'a> {
         // If the atomics feature is enabled for wasm then we need a whole bunch
         // of flags:
         //
-        // * `--shared-memory` - the link won't even succeed without this, flags
-        //   the one linear memory as `shared`
+        // * `--shared-memory` - the link won't even succeed without this, flags the one linear
+        //   memory as `shared`
         //
-        // * `--max-memory=1G` - when specifying a shared memory this must also
-        //   be specified. We conservatively choose 1GB but users should be able
-        //   to override this with `-C link-arg`.
+        // * `--max-memory=1G` - when specifying a shared memory this must also be specified. We
+        //   conservatively choose 1GB but users should be able to override this with `-C link-arg`.
         //
-        // * `--import-memory` - it doesn't make much sense for memory to be
-        //   exported in a threaded module because typically you're
-        //   sharing memory and instantiating the module multiple times. As a
-        //   result if it were exported then we'd just have no sharing.
+        // * `--import-memory` - it doesn't make much sense for memory to be exported in a threaded
+        //   module because typically you're sharing memory and instantiating the module multiple
+        //   times. As a result if it were exported then we'd just have no sharing.
         //
-        // * `--passive-segments` - all memory segments should be passive to
-        //   prevent each module instantiation from reinitializing memory.
+        // * `--passive-segments` - all memory segments should be passive to prevent each module
+        //   instantiation from reinitializing memory.
         //
-        // * `--export=__wasm_init_memory` - when using `--passive-segments` the
-        //   linker will synthesize this function, and so we need to make sure
-        //   that our usage of `--export` below won't accidentally cause this
-        //   function to get deleted.
+        // * `--export=__wasm_init_memory` - when using `--passive-segments` the linker will
+        //   synthesize this function, and so we need to make sure that our usage of `--export`
+        //   below won't accidentally cause this function to get deleted.
         //
-        // * `--export=*tls*` - when `#[thread_local]` symbols are used these
-        //   symbols are how the TLS segments are initialized and configured.
-        let target_features = options.codegen_opts.target_features.as_ref().map(|s| s.as_str()).unwrap_or("");
-        let atomics = target_features.contains("+atomics") || options.target.options.features.contains("+atomics");
+        // * `--export=*tls*` - when `#[thread_local]` symbols are used these symbols are how the
+        //   TLS segments are initialized and configured.
+        let target_features = options
+            .codegen_opts
+            .target_features
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("");
+        let atomics = target_features.contains("+atomics")
+            || options.target.options.features.contains("+atomics");
         if atomics {
             cmd.arg("--shared-memory");
             cmd.arg("--max-memory=1073741824");
@@ -544,20 +588,15 @@ impl<'a> Linker for WasmLd<'a> {
         self.cmd.arg(path);
     }
 
-    fn position_independent_executable(&mut self) {
-    }
+    fn position_independent_executable(&mut self) {}
 
-    fn full_relro(&mut self) {
-    }
+    fn full_relro(&mut self) {}
 
-    fn partial_relro(&mut self) {
-    }
+    fn partial_relro(&mut self) {}
 
-    fn no_relro(&mut self) {
-    }
+    fn no_relro(&mut self) {}
 
-    fn build_static_executable(&mut self) {
-    }
+    fn build_static_executable(&mut self) {}
 
     fn args(&mut self, args: &[String]) {
         self.cmd.args(args);
@@ -592,18 +631,15 @@ impl<'a> Linker for WasmLd<'a> {
             // Currently LLD doesn't support `Os` and `Oz`, so pass through `O2`
             // instead.
             OptLevel::Size => "-O2",
-            OptLevel::SizeMin => "-O2"
+            OptLevel::SizeMin => "-O2",
         });
     }
 
-    fn pgo_gen(&mut self) {
-    }
+    fn pgo_gen(&mut self) {}
 
-    fn debuginfo(&mut self) {
-    }
+    fn debuginfo(&mut self) {}
 
-    fn no_default_libraries(&mut self) {
-    }
+    fn no_default_libraries(&mut self) {}
 
     fn build_dylib(&mut self, _out_filename: &Path) {
         self.cmd.arg("--no-entry");
@@ -622,11 +658,9 @@ impl<'a> Linker for WasmLd<'a> {
         self.cmd.arg("--export=__data_end");
     }
 
-    fn subsystem(&mut self, _subsystem: &str) {
-    }
+    fn subsystem(&mut self, _subsystem: &str) {}
 
-    fn no_position_independent_executable(&mut self) {
-    }
+    fn no_position_independent_executable(&mut self) {}
 
     fn finalize(&mut self) -> Command {
         ::std::mem::replace(&mut self.cmd, Command::new(""))

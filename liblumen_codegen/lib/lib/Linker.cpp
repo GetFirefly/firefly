@@ -105,7 +105,8 @@ static Flavor parseFlavor(std::vector<const char *> &v) {
   // Parse -flavor option.
   if (v.size() > 1 && v[1] == StringRef("-flavor")) {
     if (v.size() <= 2) {
-      llvm::errs() << "missing linker arg value for '-flavor'" << "\n";
+      llvm::errs() << "missing linker arg value for '-flavor'"
+                   << "\n";
       return Flavor::Invalid;
     }
     Flavor f = getFlavor(v[2]);
@@ -144,7 +145,8 @@ extern "C" int LLVMLumenLink(int argc, const char **argv) {
   case Wasm:
     return !wasm::link(args, canExitEarly(), llvm::outs(), llvm::errs());
   default:
-    llvm::errs() << "Compiler provided invalid linker name. This is a bug!" << "\n";
+    llvm::errs() << "Compiler provided invalid linker name. This is a bug!"
+                 << "\n";
     return 1;
   }
 }

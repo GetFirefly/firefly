@@ -5,10 +5,12 @@ use liblumen_util::error::FatalError;
 
 use crate::mlir;
 
-use super::Value;
 use super::string::{self, RustString};
+use super::Value;
 
-extern { pub type SMDiagnostic; }
+extern "C" {
+    pub type SMDiagnostic;
+}
 
 pub type DiagnosticInfo = llvm_sys::LLVMDiagnosticInfo;
 pub type LLVMDiagnosticHandler = unsafe extern "C" fn(&DiagnosticInfo, *mut libc::c_void);
@@ -23,7 +25,7 @@ extern "C" {
         loc_line_out: &mut libc::c_uint,
         loc_column_out: &mut libc::c_uint,
         loc_filename_out: &RustString,
-        message_out: &RustString
+        message_out: &RustString,
     );
 
     #[allow(improper_ctypes)]
@@ -35,8 +37,11 @@ extern "C" {
     #[allow(improper_ctypes)]
     pub fn MLIRGetDiagnosticEngine(context: &mlir::Context) -> &'static mut mlir::DiagnosticEngine;
     #[allow(improper_ctypes)]
-    pub fn MLIRRegisterDiagnosticHandler(context: &mlir::Context, handler: *const DiagnosticsHandler, callback: &MLIRDiagnosticHandler);
-
+    pub fn MLIRRegisterDiagnosticHandler(
+        context: &mlir::Context,
+        handler: *const DiagnosticsHandler,
+        callback: &MLIRDiagnosticHandler,
+    );
 
     #[allow(improper_ctypes)]
     pub fn MLIRWriteDiagnosticToString(d: &mlir::DiagnosticInfo, s: &RustString);
@@ -97,11 +102,7 @@ pub struct OptimizationDiagnostic<'a> {
 }
 impl<'a> OptimizationDiagnostic<'a> {
     #[allow(unused)]
-    unsafe fn unpack(
-        kind: OptimizationDiagnosticKind, 
-        di: &'a DiagnosticInfo
-    ) -> Self 
-    {
+    unsafe fn unpack(kind: OptimizationDiagnosticKind, di: &'a DiagnosticInfo) -> Self {
         let mut function: Option<&Value> = None;
         let mut line = 0;
         let mut column = 0;
@@ -120,9 +121,12 @@ impl<'a> OptimizationDiagnostic<'a> {
                         filename,
                         message,
                     )
-                }).ok()
-            }).ok()
-        }).ok();
+                })
+                .ok()
+            })
+            .ok()
+        })
+        .ok();
 
         let mut filename = filename.unwrap_or_default();
         if filename.is_empty() {
@@ -144,7 +148,7 @@ impl<'a> OptimizationDiagnostic<'a> {
 pub enum Diagnostic<'a> {
     Optimization(OptimizationDiagnostic<'a>),
     Linker(&'a DiagnosticInfo),
-    Unknown(&'a DiagnosticInfo)
+    Unknown(&'a DiagnosticInfo),
 }
 
 extern "C" {

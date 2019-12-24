@@ -1,8 +1,10 @@
 use std::cell::RefCell;
-use std::string::FromUtf8Error;
 use std::slice;
+use std::string::FromUtf8Error;
 
-extern { pub type Twine; }
+extern "C" {
+    pub type Twine;
+}
 
 #[repr(C)]
 pub struct RustString {
@@ -17,9 +19,11 @@ extern "C" {
 /// Appending to a Rust string -- used by RawRustStringOstream
 #[no_mangle]
 #[allow(improper_ctypes)]
-pub unsafe extern "C" fn LLVMRustStringWriteImpl(rs: &RustString,
-                                                 ptr: *const libc::c_char,
-                                                 size: libc::size_t) {
+pub unsafe extern "C" fn LLVMRustStringWriteImpl(
+    rs: &RustString,
+    ptr: *const libc::c_char,
+    size: libc::size_t,
+) {
     let slice = slice::from_raw_parts(ptr as *const u8, size as usize);
     rs.bytes.borrow_mut().extend_from_slice(slice);
 }

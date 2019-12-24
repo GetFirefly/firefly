@@ -1,15 +1,15 @@
+use std::ops::Deref;
 use std::sync::Arc;
 use std::thread::{self, ThreadId};
-use std::ops::Deref;
 
 use anyhow::anyhow;
 
 use log::debug;
 
-use liblumen_session::{OutputType, Input, InputType};
-use liblumen_codegen::{self as codegen, llvm, codegen::CompiledModule};
 use liblumen_codegen::mlir::{self, Dialect};
+use liblumen_codegen::{self as codegen, codegen::CompiledModule, llvm};
 use liblumen_incremental::{InternedInput, QueryResult};
+use liblumen_session::{Input, InputType, OutputType};
 
 use crate::compiler::query_groups::*;
 
@@ -19,7 +19,7 @@ macro_rules! to_query_result {
             $db.diagnostics().error(e);
             ()
         })?
-    }
+    };
 }
 
 /// Create context for MLIR
@@ -49,8 +49,15 @@ where
             debug!("parsing mlir from file for {:?} on {:?}", input, thread_id);
             to_query_result!(db, context.parse_file(path))
         }
-        Input::Str { ref name, ref input, .. } => {
-            debug!("parsing mlir from string for {:?} on {:?}", input, thread_id);
+        Input::Str {
+            ref name,
+            ref input,
+            ..
+        } => {
+            debug!(
+                "parsing mlir from string for {:?} on {:?}",
+                input, thread_id
+            );
             to_query_result!(db, context.parse_string(input, name))
         }
     };
@@ -97,12 +104,19 @@ where
         }
         InputType::Unknown(None) => {
             debug!("unknown input type for {:?} on {:?}", input, thread_id);
-            db.diagnostics().error(anyhow!("invalid input, expected .erl or .mlir"));
+            db.diagnostics()
+                .error(anyhow!("invalid input, expected .erl or .mlir"));
             Err(())
         }
         InputType::Unknown(Some(ref ext)) => {
-            debug!("unsupported input type '{}' for {:?} on {:?}", ext, input, thread_id);
-            db.diagnostics().error(anyhow!("invalid input extension ({}), expected .erl or .mlir", ext));
+            debug!(
+                "unsupported input type '{}' for {:?} on {:?}",
+                ext, input, thread_id
+            );
+            db.diagnostics().error(anyhow!(
+                "invalid input extension ({}), expected .erl or .mlir",
+                ext
+            ));
             Err(())
         }
     }
@@ -122,7 +136,10 @@ where
 
     // Lower to LLVM dialect
     let (opt, _size) = codegen::ffi::util::to_llvm_opt_settings(options.opt_level);
-    debug!("lowering mlir to llvm dialect for {:?} on {:?} with opt-level={}", input, thread_id, opt);
+    debug!(
+        "lowering mlir to llvm dialect for {:?} on {:?} with opt-level={}",
+        input, thread_id, opt
+    );
     to_query_result!(db, module.lower(&context, Dialect::LLVM, opt));
 
     // Emit LLVM dialect
@@ -148,7 +165,11 @@ where
     let options = db.options();
     let diagnostics = db.diagnostics();
     debug!("constructing new target machine for thread {:?}", thread_id);
-    Arc::new(codegen::target::create_target_machine(&options, diagnostics, false))
+    Arc::new(codegen::target::create_target_machine(
+        &options,
+        diagnostics,
+        false,
+    ))
 }
 
 pub(super) fn get_llvm_module<C>(
@@ -167,7 +188,10 @@ where
 
     // Convert to LLVM IR
     let (opt, size) = codegen::ffi::util::to_llvm_opt_settings(options.opt_level);
-    debug!("generating llvm for {:?} on {:?} with opt-level={} and size-level={}", input, thread_id, opt, size);
+    debug!(
+        "generating llvm for {:?} on {:?} with opt-level={} and size-level={}",
+        input, thread_id, opt, size
+    );
     let target_machine = codegen::target::create_target_machine(&options, diagnostics, false);
     debug!("using target machine {:?}", &target_machine);
     let module = to_query_result!(db, mlir_module.lower_to_llvm_ir(opt, size, &target_machine));
@@ -176,10 +200,15 @@ where
     db.maybe_emit_file_with_opts(&options, input, &module)?;
 
     // Emit LLVM bitcode
-    db.maybe_emit_file_with_callback_and_opts(&options, input, OutputType::LLVMBitcode, |outfile| {
-        debug!("emitting llvm bitcode for {:?}", input);
-        module.emit_bc(outfile)
-    })?;
+    db.maybe_emit_file_with_callback_and_opts(
+        &options,
+        input,
+        OutputType::LLVMBitcode,
+        |outfile| {
+            debug!("emitting llvm bitcode for {:?}", input);
+            module.emit_bc(outfile)
+        },
+    )?;
 
     Ok(Arc::new(module))
 }
@@ -195,7 +224,10 @@ where
     let diagnostics = db.diagnostics();
 
     diagnostics.success("Compiling", input_info.source_name());
-    debug!("compiling {:?} ({:?}) on thread {:?}", input, &input_info, thread_id);
+    debug!(
+        "compiling {:?} ({:?}) on thread {:?}",
+        input, &input_info, thread_id
+    );
 
     // Get LLVM IR module
     // We provide the current thread ID as part of the query, since the context
@@ -210,13 +242,19 @@ where
     })?;
 
     // Emit object file
-    let obj_path = db.maybe_emit_file_with_callback_and_opts(&options, input, OutputType::Object, |outfile| {
-        debug!("emitting object file for {:?}", input);
-        module.emit_obj(outfile)
-    })?;
+    let obj_path = db.maybe_emit_file_with_callback_and_opts(
+        &options,
+        input,
+        OutputType::Object,
+        |outfile| {
+            debug!("emitting object file for {:?}", input);
+            module.emit_obj(outfile)
+        },
+    )?;
 
     // Gather compiled module metadata
-    let bc_path = options.output_types
+    let bc_path = options
+        .output_types
         .maybe_emit(&input_info, OutputType::LLVMBitcode)
         .map(|filename| db.output_dir().join(filename));
 

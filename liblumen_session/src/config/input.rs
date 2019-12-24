@@ -1,6 +1,6 @@
-use std::fmt;
 use std::borrow::Cow;
 use std::convert::{From, TryFrom, TryInto};
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use libeir_diagnostics::FileName;
@@ -12,10 +12,7 @@ pub enum InputType {
     Unknown(Option<String>),
 }
 impl InputType {
-    const TYPES: &'static [InputType] = &[
-        InputType::Erlang,
-        InputType::MLIR,
-    ];
+    const TYPES: &'static [InputType] = &[InputType::Erlang, InputType::MLIR];
 
     pub fn is_valid(path: &Path) -> bool {
         if !path.exists() || !path.is_file() {
@@ -30,7 +27,11 @@ impl InputType {
     }
 
     pub fn list() -> String {
-        Self::TYPES.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", ")
+        Self::TYPES
+            .iter()
+            .map(|t| t.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 impl fmt::Display for InputType {
@@ -72,7 +73,7 @@ impl Input {
                 Some("mlir") => InputType::MLIR,
                 Some(t) => InputType::Unknown(Some(t.to_string())),
                 None => InputType::Unknown(None),
-            }
+            },
             Input::Str { ref name, .. } => {
                 if name.ends_with(".erl") {
                     InputType::Erlang

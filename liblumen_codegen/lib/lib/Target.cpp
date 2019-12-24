@@ -105,7 +105,8 @@ extern "C" LLVMTargetMachineRef LLVMLumenCreateTargetMachine(
   Optional<CodeModel::Model> CM;
   if (LumenCM != LLVMLumenCodeModel::None)
     CM = fromRust(LumenCM);
-  return wrap(TheTarget->createTargetMachine(Trip.getTriple(), CPU, Feature, Options, RM, CM, OptLevel));
+  return wrap(TheTarget->createTargetMachine(Trip.getTriple(), CPU, Feature,
+                                             Options, RM, CM, OptLevel));
 }
 
 extern "C" void LLVMLumenDisposeTargetMachine(LLVMTargetMachineRef TM) {

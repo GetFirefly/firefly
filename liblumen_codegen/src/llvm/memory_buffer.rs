@@ -1,15 +1,15 @@
-use std::io;
-use std::slice;
-use std::ptr;
-use std::mem::{self, MaybeUninit};
+use std::convert::{AsMut, AsRef};
 use std::ffi::CString;
-use std::path::Path;
-use std::convert::{AsRef, AsMut};
+use std::io;
 use std::marker::PhantomData;
+use std::mem::{self, MaybeUninit};
+use std::path::Path;
+use std::ptr;
+use std::slice;
 
 use anyhow::anyhow;
 
-use llvm_sys::core::{LLVMGetBufferStart, LLVMGetBufferSize, LLVMDisposeMemoryBuffer};
+use llvm_sys::core::{LLVMDisposeMemoryBuffer, LLVMGetBufferSize, LLVMGetBufferStart};
 
 use crate::llvm::string::LLVMString;
 
@@ -48,10 +48,14 @@ impl<'a> MemoryBuffer<'a> {
 
         let file = file.as_ref();
         if !file.exists() || !file.is_file() {
-            return Err(anyhow!("unable to create memory buffer from {}: not a file", file.to_string_lossy()));
+            return Err(anyhow!(
+                "unable to create memory buffer from {}: not a file",
+                file.to_string_lossy()
+            ));
         }
-        let file = file.to_str()
-            .ok_or_else(|| anyhow!("unable to create memory buffer from file: path is not valid utf-8"))?;
+        let file = file.to_str().ok_or_else(|| {
+            anyhow!("unable to create memory buffer from file: path is not valid utf-8")
+        })?;
 
         let path = CString::new(file)
             .map_err(|e| anyhow!("unable to create memory buffer from file: {}", e))?;
@@ -63,13 +67,16 @@ impl<'a> MemoryBuffer<'a> {
             LLVMCreateMemoryBufferWithContentsOfFile(
                 path.as_ptr() as *const libc::c_char,
                 &mut buffer,
-                err_string.as_mut_ptr()
+                err_string.as_mut_ptr(),
             )
         };
 
         if failed != 0 {
             let err_string = unsafe { err_string.assume_init() };
-            return Err(anyhow!("unable to create memory buffer from file: {}", LLVMString::new(err_string)));
+            return Err(anyhow!(
+                "unable to create memory buffer from file: {}",
+                LLVMString::new(err_string)
+            ));
         }
 
         Ok(MemoryBuffer::new(buffer))
@@ -83,13 +90,15 @@ impl<'a> MemoryBuffer<'a> {
         let mut buffer = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
 
-        let failed = unsafe {
-            LLVMCreateMemoryBufferWithSTDIN(&mut buffer, err_string.as_mut_ptr())
-        };
+        let failed =
+            unsafe { LLVMCreateMemoryBufferWithSTDIN(&mut buffer, err_string.as_mut_ptr()) };
 
         if failed != 0 {
             let err_string = unsafe { err_string.assume_init() };
-            return Err(anyhow!("unable to create memory buffer from stdin: {}", LLVMString::new(err_string)));
+            return Err(anyhow!(
+                "unable to create memory buffer from stdin: {}",
+                LLVMString::new(err_string)
+            ));
         }
 
         Ok(MemoryBuffer::new(buffer))
@@ -106,7 +115,7 @@ impl<'a> MemoryBuffer<'a> {
                 input.as_ptr() as *const libc::c_char,
                 input.len(),
                 name.as_ptr(),
-                /*requiresNullTerminator=*/false as libc::c_int,
+                /* requiresNullTerminator= */ false as libc::c_int,
             )
         };
 
@@ -123,9 +132,7 @@ impl<'a> MemoryBuffer<'a> {
 
     /// Gets the byte size of this `MemoryBuffer`.
     pub fn get_size(&self) -> usize {
-        unsafe {
-            LLVMGetBufferSize(self.buffer)
-        }
+        unsafe { LLVMGetBufferSize(self.buffer) }
     }
 
     /// Copies the buffer to the given writer.
@@ -137,9 +144,7 @@ impl<'a> MemoryBuffer<'a> {
 
 impl<'a> AsRef<llvm_sys::LLVMMemoryBuffer> for MemoryBuffer<'a> {
     fn as_ref(&self) -> &llvm_sys::LLVMMemoryBuffer {
-        unsafe {
-            mem::transmute::<MemoryBufferRef, &'a llvm_sys::LLVMMemoryBuffer>(self.buffer)
-        }
+        unsafe { mem::transmute::<MemoryBufferRef, &'a llvm_sys::LLVMMemoryBuffer>(self.buffer) }
     }
 }
 impl<'a> AsMut<llvm_sys::LLVMMemoryBuffer> for MemoryBuffer<'a> {
@@ -160,7 +165,7 @@ impl<'a> Clone for MemoryBuffer<'a> {
             LLVMCreateMemoryBufferWithMemoryRangeCopy(
                 slice.as_ptr() as *const libc::c_char,
                 slice.len(),
-                name.as_ptr()
+                name.as_ptr(),
             )
         };
 
@@ -170,8 +175,6 @@ impl<'a> Clone for MemoryBuffer<'a> {
 
 impl<'a> Drop for MemoryBuffer<'a> {
     fn drop(&mut self) {
-        unsafe {
-            LLVMDisposeMemoryBuffer(self.buffer)
-        }
+        unsafe { LLVMDisposeMemoryBuffer(self.buffer) }
     }
 }

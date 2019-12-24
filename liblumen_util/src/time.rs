@@ -1,6 +1,6 @@
 use std::cell::Cell;
-use std::time::{Duration, Instant};
 use std::fmt;
+use std::time::{Duration, Instant};
 
 use crate::mem;
 

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use liblumen_session::{DiagnosticsHandler, Emit, Input, InputType, OutputType, Options};
+use liblumen_session::{DiagnosticsHandler, Emit, Input, InputType, Options, OutputType};
 use liblumen_session::{IRModule, ParsedModule};
 use liblumen_util::seq::Seq;
 
@@ -83,11 +83,7 @@ pub trait ParserDatabaseBase: InternerDatabase {
     where
         F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>;
 
-    fn emit_file_with_callback<F>(
-        &self,
-        outfile: PathBuf,
-        callback: F,
-    ) -> QueryResult<PathBuf>
+    fn emit_file_with_callback<F>(&self, outfile: PathBuf, callback: F) -> QueryResult<PathBuf>
     where
         F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
     {

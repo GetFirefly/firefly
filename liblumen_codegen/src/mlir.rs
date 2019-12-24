@@ -83,7 +83,11 @@ impl Context {
     }
 
     pub fn parse_string<I: AsRef<[u8]>>(&self, name: &str, input: I) -> Result<Module> {
-        debug_assert_eq!(self.thread_id, thread::current().id(), "contexts cannot be shared across threads");
+        debug_assert_eq!(
+            self.thread_id,
+            thread::current().id(),
+            "contexts cannot be shared across threads"
+        );
         let buffer = MemoryBuffer::create_from_slice(input.as_ref(), name);
         let result = unsafe { MLIRParseBuffer(self.as_ref(), buffer.into_mut()) };
         if result.is_null() {
@@ -94,7 +98,11 @@ impl Context {
     }
 
     pub fn as_ref(&self) -> ContextRef {
-        debug_assert_eq!(self.thread_id, thread::current().id(), "contexts cannot be shared across threads");
+        debug_assert_eq!(
+            self.thread_id,
+            thread::current().id(),
+            "contexts cannot be shared across threads"
+        );
         self.context
     }
 }
@@ -121,9 +129,7 @@ impl Module {
     }
 
     pub fn lower(&self, context: &Context, dialect: Dialect, opt: CodeGenOptLevel) -> Result<()> {
-        let result = unsafe {
-            MLIRLowerModule(context.as_ref(), self.as_ref(), dialect, opt)
-        };
+        let result = unsafe { MLIRLowerModule(context.as_ref(), self.as_ref(), dialect, opt) };
         if !result.is_null() {
             self.0.replace(result);
             return Ok(());
@@ -136,16 +142,9 @@ impl Module {
         opt: CodeGenOptLevel,
         size: CodeGenOptSize,
         target_machine: &llvm::TargetMachine,
-    ) -> Result<llvm::Module>
-    {
-        let result = unsafe {
-            MLIRLowerToLLVMIR(
-                self.as_ref(),
-                opt,
-                size,
-                target_machine.as_ref(),
-            )
-        };
+    ) -> Result<llvm::Module> {
+        let result =
+            unsafe { MLIRLowerToLLVMIR(self.as_ref(), opt, size, target_machine.as_ref()) };
         if result.is_null() {
             Err(anyhow!("lowering to llvm failed"))
         } else {
@@ -180,9 +179,8 @@ impl Emit for Module {
     fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
         let fd = util::fs::get_file_descriptor(f);
         let mut err_string = MaybeUninit::uninit();
-        let failed = unsafe {
-            MLIREmitToFileDescriptor(self.as_ref(), fd, err_string.as_mut_ptr())
-        };
+        let failed =
+            unsafe { MLIREmitToFileDescriptor(self.as_ref(), fd, err_string.as_mut_ptr()) };
 
         if failed {
             let err_string = LLVMString::new(unsafe { err_string.assume_init() });
@@ -213,7 +211,7 @@ extern "C" {
         context: ContextRef,
         module: ModuleRef,
         dialect: Dialect,
-        opt: CodeGenOptLevel
+        opt: CodeGenOptLevel,
     ) -> *mut ModuleImpl;
 
     pub fn MLIRLowerToLLVMIR(
@@ -227,14 +225,14 @@ extern "C" {
     pub fn MLIREmitToFileDescriptor(
         M: ModuleRef,
         fd: os::unix::io::RawFd,
-        error_message: *mut *mut libc::c_char
+        error_message: *mut *mut libc::c_char,
     ) -> bool;
 
     #[cfg(windows)]
     pub fn MLIREmitToFileDescriptor(
         M: ModuleRef,
         fd: os::windows::io::RawHandle,
-        error_message: *mut *mut libc::c_char
+        error_message: *mut *mut libc::c_char,
     ) -> bool;
 
     pub fn MLIREmitToMemoryBuffer(M: ModuleRef) -> llvm::memory_buffer::MemoryBufferRef;

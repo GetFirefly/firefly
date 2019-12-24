@@ -60,9 +60,7 @@ where
             Ok(Arc::new(seq![interned]))
         }
         // Read all files in a directory
-        &FileName::Real(ref path) if path.exists() && path.is_dir() => {
-            find_sources(db, path)
-        }
+        &FileName::Real(ref path) if path.exists() && path.is_dir() => find_sources(db, path),
         // Invalid virtual file
         &FileName::Virtual(_) => {
             db.diagnostics().io_error(IoError::new(

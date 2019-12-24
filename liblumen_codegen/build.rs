@@ -3,9 +3,9 @@ extern crate cmake;
 extern crate which;
 
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -38,19 +38,14 @@ fn main() {
 
     let llvm_config = env::var_os("LLVM_CONFIG")
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            llvm_prefix
-                .as_path()
-                .join("bin/llvm-config")
-                .to_path_buf()
-        });
+        .unwrap_or_else(|| llvm_prefix.as_path().join("bin/llvm-config").to_path_buf());
     println!("cargo:rerun-if-changed={}", llvm_config.display());
     println!("cargo:rerun-if-env-changed=LLVM_CONFIG");
 
     if let Err(_) = which::which("cmake") {
         fail(
             "Unable to locate CMake!\n\
-            It is required for the build, make sure you have a recent version installed."
+             It is required for the build, make sure you have a recent version installed.",
         );
     }
 
@@ -59,7 +54,7 @@ fn main() {
         use_ninja = false;
         warn(
             "Unable to locate Ninja, your CMake builds may take unncessarily long.\n\
-            It is highly recommended that you install Ninja."
+             It is highly recommended that you install Ninja.",
         );
     }
 
@@ -78,25 +73,26 @@ fn main() {
         .very_verbose(false)
         .build();
 
-    let cwd = env::current_dir()
-        .expect("unable to access current directory");
+    let cwd = env::current_dir().expect("unable to access current directory");
 
     rerun_if_changed_anything_in_dir(&cwd.join("lib"));
 
     let link_libs = read_link_libs(llvm_config.as_path(), cwd.as_path());
 
-    let compile_commands_src = outdir
-        .join("build")
-        .join("compile_commands.json");
-    let compile_commands_dest = cwd
-        .join("lib")
-        .join("compile_commands.json");
+    let compile_commands_src = outdir.join("build").join("compile_commands.json");
+    let compile_commands_dest = cwd.join("lib").join("compile_commands.json");
 
     fs::copy(compile_commands_src, compile_commands_dest)
         .expect("unable to copy compile_commands.json!");
 
-    println!("cargo:rustc-link-search=native={}", llvm_prefix.join("lib").display());
-    println!("cargo:rustc-link-search=native={}/build/lib", outdir.display());
+    println!(
+        "cargo:rustc-link-search=native={}",
+        llvm_prefix.join("lib").display()
+    );
+    println!(
+        "cargo:rustc-link-search=native={}/build/lib",
+        outdir.display()
+    );
     println!("cargo:rustc-link-lib=static=Lumen");
 
     for link_lib in link_libs {
@@ -160,14 +156,15 @@ pub fn rerun_if_changed_anything_in_dir(dir: &Path) {
     }
 }
 
-
 /// Invoke the specified binary as llvm-config for a dylib build
 fn llvm_config_dylib<S: AsRef<OsStr>>(binary: S, args: &[&str]) -> io::Result<String> {
     Command::new(binary)
         .arg("--link-shared")
         .args(args)
         .output()
-        .map(|output| String::from_utf8(output.stdout).expect("Output from llvm-config was not valid UTF-8"))
+        .map(|output| {
+            String::from_utf8(output.stdout).expect("Output from llvm-config was not valid UTF-8")
+        })
 }
 
 /// Invoke the specified binary as llvm-config for a static build
@@ -176,7 +173,9 @@ fn llvm_config_static<S: AsRef<OsStr>>(binary: S, args: &[&str]) -> io::Result<S
         .arg("--link-static")
         .args(args)
         .output()
-        .map(|output| String::from_utf8(output.stdout).expect("Output from llvm-config was not valid UTF-8"))
+        .map(|output| {
+            String::from_utf8(output.stdout).expect("Output from llvm-config was not valid UTF-8")
+        })
 }
 
 fn has_dylib_components(llvm_config: &Path) -> bool {
@@ -199,7 +198,7 @@ fn cleanup_link_lib(lib: &str) -> Option<&str> {
     } else if lib.ends_with(".lib") {
         // Some MSVC libraries just come up with `.lib` tacked on, so trim it
         Some(lib.trim_end_matches(".lib"))
-    }  else {
+    } else {
         None
     };
 
@@ -215,7 +214,15 @@ fn read_link_libs(llvm_config: &Path, cwd: &Path) -> Vec<String> {
     let mut link_libs = Vec::new();
 
     // LLVM
-    let libargs = &["--system-libs", "--libs", "core", "support", "all-targets", "executionengine", "linker"];
+    let libargs = &[
+        "--system-libs",
+        "--libs",
+        "core",
+        "support",
+        "all-targets",
+        "executionengine",
+        "linker",
+    ];
     if env::var_os("LLVM_BUILD_STATIC").is_some() || !has_dylib_components(llvm_config) {
         let libs = llvm_config_static(llvm_config, libargs).unwrap();
         for l in libs.split(' ') {
@@ -249,13 +256,12 @@ fn read_link_libs(llvm_config: &Path, cwd: &Path) -> Vec<String> {
         "lldMachO",
         "lldMinGW",
         "lldDriver",
-    ] { link_libs.push(lib.to_string()); }
+    ] {
+        link_libs.push(lib.to_string());
+    }
 
     // MLIR
-    let liblumen_cmakelists_path = cwd
-        .join("lib")
-        .join("lib")
-        .join("CMakeLists.txt");
+    let liblumen_cmakelists_path = cwd.join("lib").join("lib").join("CMakeLists.txt");
     let liblumen_cmake_lists = fs::read_to_string(liblumen_cmakelists_path).unwrap();
     let mut started = false;
     for line in liblumen_cmake_lists.lines() {
@@ -312,7 +318,10 @@ fn print_libcpp_flags(llvm_config: &Path, target: &str) {
         if let Some(s) = llvm_static_stdcpp {
             assert!(!cxxflags.contains("stdlib=libc++"));
             let path = PathBuf::from(s);
-            println!("cargo:rustc-link-search=native={}", path.parent().unwrap().display());
+            println!(
+                "cargo:rustc-link-search=native={}",
+                path.parent().unwrap().display()
+            );
             if target.contains("windows") {
                 println!("cargo:rustc-link-lib=static-nobundle={}", stdcppname);
             } else {

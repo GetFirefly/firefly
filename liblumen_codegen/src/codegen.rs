@@ -34,7 +34,6 @@ impl CompiledModule {
     }
 }
 
-
 #[derive(Debug)]
 pub struct CodegenResults {
     pub project_name: String,

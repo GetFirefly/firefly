@@ -38,11 +38,12 @@ bool LLVMEmitToFileDescriptor(LLVMModuleRef m, int fd, char **errorMessage) {
 
 #if defined(_WIN32)
 bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, HANDLE handle,
-                              char **errorMessage) {
+                                     char **errorMessage) {
   raw_win32_handle_ostream stream(handle, /*shouldClose=*/false,
                                   /*unbuffered=*/false);
 #else
-bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, int fd, char **errorMessage) {
+bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, int fd,
+                                     char **errorMessage) {
   raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false);
 #endif
   Module *mod = unwrap(m);

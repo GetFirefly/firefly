@@ -125,9 +125,7 @@ impl DiagnosticsHandler {
         self.emitter
             .emit(Some(color), &format!("{:>12} ", prefix))
             .unwrap();
-        self.emitter
-            .emit(None, &format!("{}\n", message))
-            .unwrap()
+        self.emitter.emit(None, &format!("{}\n", message)).unwrap()
     }
 
     fn write_info<M: Display>(&self, color: ColorSpec, message: M) {

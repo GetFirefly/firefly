@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use log::debug;
 use anyhow::anyhow;
+use log::debug;
 
 use liblumen_session::Options;
 
@@ -9,26 +9,32 @@ pub fn find_library(
     name: &str,
     search_paths: &[PathBuf],
     options: &Options,
-) -> anyhow::Result<PathBuf>
-{
+) -> anyhow::Result<PathBuf> {
     // On Windows, static libraries sometimes show up as libfoo.a and other
     // times show up as foo.lib
-    let oslibname = format!("{}{}{}",
-                            options.target.options.staticlib_prefix,
-                            name,
-                            options.target.options.staticlib_suffix);
+    let oslibname = format!(
+        "{}{}{}",
+        options.target.options.staticlib_prefix, name, options.target.options.staticlib_suffix
+    );
     let unixlibname = format!("lib{}.a", name);
 
     for path in search_paths {
         debug!("looking for {} inside {:?}", name, path);
         let test = path.join(&oslibname);
-        if test.exists() { return Ok(test) }
+        if test.exists() {
+            return Ok(test);
+        }
         if oslibname != unixlibname {
             let test = path.join(&unixlibname);
-            if test.exists() { return Ok(test) }
+            if test.exists() {
+                return Ok(test);
+            }
         }
     }
-    return Err(anyhow!("could not find native static library `{}`, perhaps an -L flag is missing?", name));
+    return Err(anyhow!(
+        "could not find native static library `{}`, perhaps an -L flag is missing?",
+        name
+    ));
 }
 
 pub trait ArchiveBuilder<'a> {

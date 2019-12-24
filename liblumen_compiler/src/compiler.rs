@@ -2,18 +2,18 @@ mod intern;
 mod queries;
 mod query_groups;
 
-use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use log::debug;
 
-use salsa::Snapshot;
 pub use salsa::ParallelDatabase;
+use salsa::Snapshot;
 
 use libeir_diagnostics::{CodeMap, Diagnostic};
 
-pub use liblumen_incremental::{ParserDatabase, ParserDatabaseBase};
 use liblumen_incremental::{InternedInput, InternerStorage};
+pub use liblumen_incremental::{ParserDatabase, ParserDatabaseBase};
 use liblumen_incremental::{ParserStorage, QueryResult};
 use liblumen_session::{DiagnosticsHandler, Emit, Options, OutputType};
 
@@ -49,13 +49,11 @@ impl salsa::Database for CompilerDatabase {
 }
 impl salsa::ParallelDatabase for CompilerDatabase {
     fn snapshot(&self) -> Snapshot<Self> {
-        Snapshot::new(
-            CompilerDatabase {
-                runtime: self.runtime.snapshot(self),
-                codemap: self.codemap.clone(),
-                diagnostics: self.diagnostics.clone(),
-            }
-        )
+        Snapshot::new(CompilerDatabase {
+            runtime: self.runtime.snapshot(self),
+            codemap: self.codemap.clone(),
+            diagnostics: self.diagnostics.clone(),
+        })
     }
 }
 

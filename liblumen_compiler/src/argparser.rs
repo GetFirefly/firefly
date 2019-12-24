@@ -184,10 +184,12 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("link-library")
-                .help("Link the generated binary to the specified native library NAME.\n\
-                       The optional KIND can be one of: static, dylib (default), or framework.\n\
-                       \n\
-                       Example: `lumen compile -lc ...` will link against the system libc")
+                .help(
+                    "Link the generated binary to the specified native library NAME.\n\
+                     The optional KIND can be one of: static, dylib (default), or framework.\n\
+                     \n\
+                     Example: `lumen compile -lc ...` will link against the system libc",
+                )
                 .next_line_help(true)
                 .short("l")
                 .takes_value(true)

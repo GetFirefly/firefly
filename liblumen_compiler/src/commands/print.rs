@@ -5,9 +5,9 @@ use clap::ArgMatches;
 
 use libeir_diagnostics::Emitter;
 
+use liblumen_codegen as codegen;
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_target::{self as target, Target};
-use liblumen_codegen as codegen;
 
 use crate::commands::*;
 

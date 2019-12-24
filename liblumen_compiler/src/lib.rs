@@ -1,7 +1,7 @@
 pub mod argparser;
+mod commands;
 mod compiler;
 mod driver;
-mod commands;
 
 pub use self::driver::{run_compiler, run_compiler_with_emitter};
 

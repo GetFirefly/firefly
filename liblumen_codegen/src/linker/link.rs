@@ -1,30 +1,30 @@
 use std::ascii;
 use std::char;
+use std::env;
+use std::ffi::{CString, OsString};
 use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Output, Stdio, ExitStatus};
+use std::process::{ExitStatus, Output, Stdio};
 use std::str;
-use std::env;
-use std::ffi::{CString, OsString};
 
-use log::{info, warn};
-use cc::windows_registry;
-use tempfile::{Builder as TempFileBuilder};
 use anyhow::anyhow;
+use cc::windows_registry;
+use log::{info, warn};
+use tempfile::Builder as TempFileBuilder;
 
 use liblumen_session::filesearch;
 use liblumen_session::search_paths::PathKind;
-use liblumen_session::{Options, DebugInfo, Sanitizer, ProjectType, DiagnosticsHandler};
-use liblumen_target::{PanicStrategy, RelroLevel, LinkerFlavor};
-use liblumen_util::fs::{NativeLibraryKind, fix_windows_verbatim_for_gcc};
+use liblumen_session::{DebugInfo, DiagnosticsHandler, Options, ProjectType, Sanitizer};
+use liblumen_target::{LinkerFlavor, PanicStrategy, RelroLevel};
+use liblumen_util::fs::{fix_windows_verbatim_for_gcc, NativeLibraryKind};
 use liblumen_util::time::time;
 
 use crate::codegen::CodegenResults;
 use crate::linker::command::Command;
-use crate::linker::Linker;
 use crate::linker::rpath::{self, RPathConfig};
+use crate::linker::Linker;
 
 /// Performs the linkage portion of the compilation phase. This will generate all
 /// of the requested outputs for this compilation session.
@@ -32,22 +32,29 @@ pub fn link_binary(
     options: &Options,
     diagnostics: &DiagnosticsHandler,
     codegen_results: &CodegenResults,
-) -> anyhow::Result<()>
-{
+) -> anyhow::Result<()> {
     let project_type = options.project_type;
     if invalid_output_for_target(options) {
-        panic!("invalid output type `{:?}` for target os `{}`", project_type, options.target.triple());
+        panic!(
+            "invalid output type `{:?}` for target os `{}`",
+            project_type,
+            options.target.triple()
+        );
     }
 
     for obj in codegen_results.modules.iter().filter_map(|m| m.object()) {
         check_file_is_writeable(obj)?;
     }
 
-    let tmpdir = TempFileBuilder::new().prefix("lumen").tempdir()
+    let tmpdir = TempFileBuilder::new()
+        .prefix("lumen")
+        .tempdir()
         .map_err(|err| anyhow!("couldn't create a temp dir: {}", err))?;
 
     let output_dir = options.output_dir();
-    let output_file = options.output_file.as_ref()
+    let output_file = options
+        .output_file
+        .as_ref()
         .map(|of| of.clone())
         .unwrap_or_else(|| {
             let name = PathBuf::from(options.project_name.as_str());
@@ -62,7 +69,9 @@ pub fn link_binary(
         });
 
     match project_type {
-        ProjectType::Staticlib => { unimplemented!("static libraries are not yet supported!"); }
+        ProjectType::Staticlib => {
+            unimplemented!("static libraries are not yet supported!");
+        }
         _ => {
             link_natively(
                 options,
@@ -98,8 +107,7 @@ fn link_natively(
     output_file: &Path,
     codegen_results: &CodegenResults,
     tmpdir: &Path,
-) -> anyhow::Result<()>
-{
+) -> anyhow::Result<()> {
     info!("preparing {:?} to {:?}", project_type, output_file);
     let (linker, flavor) = linker_and_flavor(options)?;
 
@@ -144,15 +152,19 @@ fn link_natively(
 
     if options.target.options.is_like_emscripten {
         cmd.arg("-s");
-        cmd.arg(if options.codegen_opts.panic == Some(PanicStrategy::Abort) {
-            "DISABLE_EXCEPTION_CATCHING=1"
-        } else {
-            "DISABLE_EXCEPTION_CATCHING=0"
-        });
+        cmd.arg(
+            if options.codegen_opts.panic == Some(PanicStrategy::Abort) {
+                "DISABLE_EXCEPTION_CATCHING=1"
+            } else {
+                "DISABLE_EXCEPTION_CATCHING=0"
+            },
+        );
     }
 
     {
-        let mut linker = codegen_results.linker_info.to_linker(cmd, &options, diagnostics, flavor);
+        let mut linker = codegen_results
+            .linker_info
+            .to_linker(cmd, &options, diagnostics, flavor);
         link_args(
             &mut *linker,
             flavor,
@@ -193,14 +205,30 @@ fn link_natively(
     diagnostics.abort_if_errors();
 
     if options.target.options.is_like_osx {
-        use_system_linker(options, diagnostics, pname, cmd, flavor, output_file, tmpdir)
+        use_system_linker(
+            options,
+            diagnostics,
+            pname,
+            cmd,
+            flavor,
+            output_file,
+            tmpdir,
+        )
     } else {
         // For non-Darwin targets, try to use LLD if possible
         match flavor {
-            LinkerFlavor::Gcc
-            | LinkerFlavor::Msvc
-            | LinkerFlavor::Lld(_) => use_builtin_linker(options, diagnostics, cmd, output_file),
-            _ => use_system_linker(options, diagnostics, pname, cmd, flavor, output_file, tmpdir),
+            LinkerFlavor::Gcc | LinkerFlavor::Msvc | LinkerFlavor::Lld(_) => {
+                use_builtin_linker(options, diagnostics, cmd, output_file)
+            }
+            _ => use_system_linker(
+                options,
+                diagnostics,
+                pname,
+                cmd,
+                flavor,
+                output_file,
+                tmpdir,
+            ),
         }
     }
 }
@@ -210,15 +238,18 @@ fn use_builtin_linker(
     diagnostics: &DiagnosticsHandler,
     cmd: Command,
     output_file: &Path,
-) -> anyhow::Result<()>
-{
+) -> anyhow::Result<()> {
     let result = time(options.debugging_opts.time_passes, "running linker", || {
         // Convert args to a vector of C strings, compatible with our FFI interface
-        let argv = cmd.as_vec()
+        let argv = cmd
+            .as_vec()
             .iter()
             .map(|os| CString::new(os.to_str().unwrap()).unwrap())
             .collect::<Vec<_>>();
-        info!("invoking builtin linker: {:?}", argv.iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>());
+        info!(
+            "invoking builtin linker: {:?}",
+            argv.iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>()
+        );
         crate::linker::builtin::link(argv.as_slice())
     });
 
@@ -242,9 +273,12 @@ fn use_builtin_linker(
         return Ok(());
     }
 
-    diagnostics.error_str(&format!("linking with the builtin linker failed\n\
-                                    \n\
-                                    {:?}", &cmd));
+    diagnostics.error_str(&format!(
+        "linking with the builtin linker failed\n\
+         \n\
+         {:?}",
+        &cmd
+    ));
     diagnostics.abort_if_errors();
 
     Ok(())
@@ -257,9 +291,8 @@ fn use_system_linker(
     mut cmd: Command,
     flavor: LinkerFlavor,
     output_file: &Path,
-    tmpdir: &Path
-) -> anyhow::Result<()>
-{
+    tmpdir: &Path,
+) -> anyhow::Result<()> {
     // Invoke the system linker
     info!("invoking system linker: {:?}", &cmd);
     let retry_on_segfault = env::var("LUMEN_RETRY_LINKER_ON_SEGFAULT").is_ok();
@@ -275,7 +308,7 @@ fn use_system_linker(
             Err(_) => break,
         };
         if output.status.success() {
-            break
+            break;
         }
         let mut out = output.stderr.clone();
         out.extend(&output.stdout);
@@ -287,12 +320,16 @@ fn use_system_linker(
         // if the linker doesn't support -no-pie then it should not default to
         // linking executables as pie. Different versions of gcc seem to use
         // different quotes in the error message so don't check for them.
-        if options.target.options.linker_is_gnu &&
-           flavor != LinkerFlavor::Ld &&
-           (out.contains("unrecognized command line option") ||
-            out.contains("unknown argument")) &&
-           out.contains("-no-pie") &&
-           cmd.get_args().iter().any(|e| e.to_string_lossy() == "-no-pie") {
+        if options.target.options.linker_is_gnu
+            && flavor != LinkerFlavor::Ld
+            && (out.contains("unrecognized command line option")
+                || out.contains("unknown argument"))
+            && out.contains("-no-pie")
+            && cmd
+                .get_args()
+                .iter()
+                .any(|e| e.to_string_lossy() == "-no-pie")
+        {
             info!("linker output: {:?}", out);
             warn!("Linker does not support -no-pie command line option. Retrying without.");
             for arg in cmd.take_args() {
@@ -320,16 +357,15 @@ fn use_system_linker(
         // seems that no one currently knows a fix for this so in the meantime
         // we're left with this...
         if !retry_on_segfault || i > 3 {
-            break
+            break;
         }
         let msg_segv = "clang: error: unable to execute command: Segmentation fault: 11";
-        let msg_bus  = "clang: error: unable to execute command: Bus error: 10";
+        let msg_bus = "clang: error: unable to execute command: Bus error: 10";
         if out.contains(msg_segv) || out.contains(msg_bus) {
             warn!(
                 "looks like the linker segfaulted when we tried to call it, \
                  automatically retrying again. cmd = {:?}, out = {}.",
-                cmd,
-                out,
+                cmd, out,
             );
             continue;
         }
@@ -339,9 +375,7 @@ fn use_system_linker(
                 "looks like the linker hit an illegal instruction when we \
                  tried to call it, automatically retrying again. cmd = {:?}, ]\
                  out = {}, status = {}.",
-                cmd,
-                out,
-                output.status,
+                cmd, out, output.status,
             );
             continue;
         }
@@ -361,28 +395,35 @@ fn use_system_linker(
     match prog {
         Ok(prog) => {
             fn escape_string(s: &[u8]) -> String {
-                str::from_utf8(s).map(|s| s.to_owned())
-                    .unwrap_or_else(|_| {
-                        let mut x = "Non-UTF-8 output: ".to_string();
-                        x.extend(s.iter()
-                                  .flat_map(|&b| ascii::escape_default(b))
-                                  .map(char::from));
-                        x
-                    })
+                str::from_utf8(s).map(|s| s.to_owned()).unwrap_or_else(|_| {
+                    let mut x = "Non-UTF-8 output: ".to_string();
+                    x.extend(
+                        s.iter()
+                            .flat_map(|&b| ascii::escape_default(b))
+                            .map(char::from),
+                    );
+                    x
+                })
             }
             if !prog.status.success() {
                 let mut output = prog.stderr.clone();
                 output.extend_from_slice(&prog.stdout);
-                diagnostics.error_str(&format!("linking with `{}` failed: {}\n\
-                                                \n\
-                                                {:?}\n\
-                                                \n\
-                                                {}", pname.display(), prog.status, &cmd, &escape_string(&output)));
+                diagnostics.error_str(&format!(
+                    "linking with `{}` failed: {}\n\
+                     \n\
+                     {:?}\n\
+                     \n\
+                     {}",
+                    pname.display(),
+                    prog.status,
+                    &cmd,
+                    &escape_string(&output)
+                ));
                 diagnostics.abort_if_errors();
             }
             info!("linker stderr:\n{}", escape_string(&prog.stderr));
             info!("linker stdout:\n{}", escape_string(&prog.stdout));
-        },
+        }
         Err(e) => {
             let linker_not_found = e.kind() == io::ErrorKind::NotFound;
 
@@ -416,16 +457,17 @@ fn use_system_linker(
         }
     }
 
-
     // On macOS, debuggers need this utility to get run to do some munging of
     // the symbols. Note, though, that if the object files are being preserved
     // for their debug information there's no need for us to run dsymutil.
-    if options.target.options.is_like_osx &&
-        options.debug_info != DebugInfo::None &&
-        !preserve_objects_for_their_debuginfo(options)
+    if options.target.options.is_like_osx
+        && options.debug_info != DebugInfo::None
+        && !preserve_objects_for_their_debuginfo(options)
     {
         if let Err(e) = Command::new("dsymutil").arg(output_file).output() {
-            diagnostics.fatal_str(&format!("failed to run dsymutil: {}", e)).raise();
+            diagnostics
+                .fatal_str(&format!("failed to run dsymutil: {}", e))
+                .raise();
         }
     }
 
@@ -451,12 +493,13 @@ pub fn get_linker(options: &Options, linker: &Path, flavor: LinkerFlavor) -> (Pa
         _ => match flavor {
             LinkerFlavor::Lld(f) => Command::lld(linker, f),
             LinkerFlavor::Msvc
-                if options.codegen_opts.linker.is_none() && options.target.options.linker.is_none() =>
+                if options.codegen_opts.linker.is_none()
+                    && options.target.options.linker.is_none() =>
             {
                 Command::new(msvc_tool.as_ref().map(|t| t.path()).unwrap_or(linker))
-            },
+            }
             _ => Command::new(linker),
-        }
+        },
     };
 
     // UWP apps have API restrictions enforced during Store submissions.
@@ -475,10 +518,13 @@ pub fn get_linker(options: &Options, linker: &Path, flavor: LinkerFlavor) -> (Pa
                 };
                 if let Some(ref a) = arch {
                     let mut arg = OsString::from("/LIBPATH:");
-                    arg.push(format!("{}\\lib\\{}\\store", root_lib_path.display(), a.to_string()));
+                    arg.push(format!(
+                        "{}\\lib\\{}\\store",
+                        root_lib_path.display(),
+                        a.to_string()
+                    ));
                     cmd.arg(&arg);
-                }
-                else {
+                } else {
                     warn!("arch is not supported");
                 }
             } else {
@@ -491,8 +537,9 @@ pub fn get_linker(options: &Options, linker: &Path, flavor: LinkerFlavor) -> (Pa
 
     // The compiler's sysroot often has some bundled tools, so add it to the
     // PATH for the child.
-    let mut new_path = options.host_filesearch(PathKind::All)
-                           .get_tools_search_paths();
+    let mut new_path = options
+        .host_filesearch(PathKind::All)
+        .get_tools_search_paths();
     let mut msvc_changed_path = false;
     if options.target.options.is_like_msvc {
         if let Some(ref tool) = msvc_tool {
@@ -530,12 +577,23 @@ pub fn linker_and_flavor(options: &Options) -> anyhow::Result<(PathBuf, LinkerFl
             // Only the linker flavor is known; use the default linker for the selected flavor
             (None, Some(flavor)) => {
                 let prog = match flavor {
-                    LinkerFlavor::Em  => if cfg!(windows) { "emcc.bat" } else { "emcc" },
+                    LinkerFlavor::Em => {
+                        if cfg!(windows) {
+                            "emcc.bat"
+                        } else {
+                            "emcc"
+                        }
+                    }
                     LinkerFlavor::Gcc => "cc",
                     LinkerFlavor::Ld => "ld",
                     LinkerFlavor::Msvc => "link.exe",
                     LinkerFlavor::Lld(_) => "lld",
-                    f => return Err(anyhow!("invalid linker flavor '{}': flavor is unimplemented", f)),
+                    f => {
+                        return Err(anyhow!(
+                            "invalid linker flavor '{}': flavor is unimplemented",
+                            f
+                        ))
+                    }
                 };
                 Ok(Some((PathBuf::from(prog), flavor)))
             }
@@ -543,9 +601,7 @@ pub fn linker_and_flavor(options: &Options) -> anyhow::Result<(PathBuf, LinkerFl
                 let stem = linker
                     .file_stem()
                     .and_then(|stem| stem.to_str())
-                    .ok_or_else(|| {
-                        anyhow!("couldn't extract file stem from specified linker")
-                    })?;
+                    .ok_or_else(|| anyhow!("couldn't extract file stem from specified linker"))?;
 
                 let flavor = if stem == "emcc" {
                     LinkerFlavor::Em
@@ -567,14 +623,18 @@ pub fn linker_and_flavor(options: &Options) -> anyhow::Result<(PathBuf, LinkerFl
                 };
 
                 Ok(Some((linker, flavor)))
-            },
+            }
             (None, None) => Ok(None),
         }
     }
 
     // linker and linker flavor specified via command line have precedence over what the target
     // specification specifies
-    if let Some(ret) = infer_from(options, options.codegen_opts.linker.clone(), options.codegen_opts.linker_flavor)? {
+    if let Some(ret) = infer_from(
+        options,
+        options.codegen_opts.linker.clone(),
+        options.codegen_opts.linker_flavor,
+    )? {
         return Ok(ret);
     }
 
@@ -586,7 +646,9 @@ pub fn linker_and_flavor(options: &Options) -> anyhow::Result<(PathBuf, LinkerFl
         return Ok(ret);
     }
 
-    Err(anyhow!("Not enough information provided to determine how to invoke the linker"))
+    Err(anyhow!(
+        "Not enough information provided to determine how to invoke the linker"
+    ))
 }
 
 /// Returns a boolean indicating whether we should preserve the object files on
@@ -595,13 +657,13 @@ pub fn linker_and_flavor(options: &Options) -> anyhow::Result<(PathBuf, LinkerFl
 pub fn preserve_objects_for_their_debuginfo(options: &Options) -> bool {
     // If the objects don't have debuginfo there's nothing to preserve.
     if options.debug_info == DebugInfo::None {
-        return false
+        return false;
     }
 
     // If we're only producing artifacts that are archives, no need to preserve
     // the objects as they're losslessly contained inside the archives.
     if options.project_type != ProjectType::Staticlib {
-        return false
+        return false;
     }
 
     // If we're on OSX then the equivalent of split dwarf is turned on by
@@ -633,19 +695,21 @@ pub fn preserve_objects_for_their_debuginfo(options: &Options) -> bool {
 }
 
 pub fn archive_search_paths(options: &Options) -> Vec<PathBuf> {
-    options.target_filesearch(PathKind::Native).search_path_dirs()
+    options
+        .target_filesearch(PathKind::Native)
+        .search_path_dirs()
 }
 
 pub fn get_file_path(options: &Options, name: &str) -> PathBuf {
     let fs = options.target_filesearch(PathKind::Native);
     let file_path = fs.get_lib_path().join(name);
     if file_path.exists() {
-        return file_path
+        return file_path;
     }
     for search_path in fs.search_paths() {
         let file_path = search_path.dir.join(name);
         if file_path.exists() {
-            return file_path
+            return file_path;
         }
     }
     PathBuf::from(name)
@@ -655,9 +719,8 @@ pub fn exec_linker(
     options: &Options,
     cmd: &mut Command,
     output_file: &Path,
-    tmpdir: &Path
-) -> io::Result<Output>
-{
+    tmpdir: &Path,
+) -> io::Result<Output> {
     // When attempting to spawn the linker we run a risk of blowing out the
     // size limits for spawning a new process with respect to the arguments
     // we pass on the command line.
@@ -668,7 +731,12 @@ pub fn exec_linker(
     // accepted on all linkers and the linker will read all its options out of
     // there instead of looking at the command line.
     if !cmd.very_likely_to_exceed_some_spawn_limit() {
-        match cmd.command().stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+        match cmd
+            .command()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
             Ok(child) => {
                 let output = child.wait_with_output();
                 flush_linked_file(&output, output_file)?;
@@ -677,7 +745,7 @@ pub fn exec_linker(
             Err(ref e) if command_line_too_big(e) => {
                 info!("command line to linker was too big: {}", e);
             }
-            Err(e) => return Err(e)
+            Err(e) => return Err(e),
         }
     }
 
@@ -685,10 +753,13 @@ pub fn exec_linker(
     let mut cmd2 = cmd.clone();
     let mut args = String::new();
     for arg in cmd2.take_args() {
-        args.push_str(&Escape {
-            arg: arg.to_str().unwrap(),
-            is_like_msvc: options.target.options.is_like_msvc,
-        }.to_string());
+        args.push_str(
+            &Escape {
+                arg: arg.to_str().unwrap(),
+                is_like_msvc: options.target.options.is_like_msvc,
+            }
+            .to_string(),
+        );
         args.push_str("\n");
     }
     let file = tmpdir.join("linker-arguments");
@@ -717,8 +788,10 @@ pub fn exec_linker(
     }
 
     #[cfg(windows)]
-    fn flush_linked_file(command_output: &io::Result<Output>, output_file: &Path) -> io::Result<()>
-    {
+    fn flush_linked_file(
+        command_output: &io::Result<Output>,
+        output_file: &Path,
+    ) -> io::Result<()> {
         // On Windows, under high I/O load, output buffers are sometimes not flushed,
         // even long after process exit, causing nasty, non-reproducible output bugs.
         //
@@ -795,14 +868,15 @@ pub fn exec_linker(
     }
 }
 
-fn link_args(cmd: &mut dyn Linker,
-             flavor: LinkerFlavor,
-             options: &Options,
-             project_type: ProjectType,
-             _tmpdir: &Path,
-             output_file: &Path,
-             codegen_results: &CodegenResults) -> anyhow::Result<()> {
-
+fn link_args(
+    cmd: &mut dyn Linker,
+    flavor: LinkerFlavor,
+    options: &Options,
+    project_type: ProjectType,
+    _tmpdir: &Path,
+    output_file: &Path,
+    codegen_results: &CodegenResults,
+) -> anyhow::Result<()> {
     // Linker plugins should be specified early in the list of arguments
     cmd.linker_plugin_lto();
 
@@ -820,8 +894,7 @@ fn link_args(cmd: &mut dyn Linker,
     }
     cmd.output_filename(output_file);
 
-    if project_type == ProjectType::Executable &&
-       options.target.options.is_like_windows {
+    if project_type == ProjectType::Executable && options.target.options.is_like_windows {
         if let Some(ref s) = codegen_results.windows_subsystem {
             cmd.subsystem(s.as_str());
         }
@@ -851,9 +924,16 @@ fn link_args(cmd: &mut dyn Linker,
 
         if t.options.position_independent_executables {
             let empty_vec = Vec::new();
-            let args = options.codegen_opts.linker_args.as_ref().unwrap_or(&empty_vec);
+            let args = options
+                .codegen_opts
+                .linker_args
+                .as_ref()
+                .unwrap_or(&empty_vec);
             let more_args = &options.codegen_opts.linker_arg;
-            let mut args = args.iter().chain(more_args.iter()).chain(used_link_args.iter());
+            let mut args = args
+                .iter()
+                .chain(more_args.iter())
+                .chain(used_link_args.iter());
 
             if is_pic(options) && !options.crt_static() && !args.any(|x| *x == "-static") {
                 position_independent_executable = true;
@@ -866,8 +946,7 @@ fn link_args(cmd: &mut dyn Linker,
             // recent versions of gcc can be configured to generate position
             // independent executables by default. We have to pass -no-pie to
             // explicitly turn that off. Not applicable to ld.
-            if options.target.options.linker_is_gnu
-                && flavor != LinkerFlavor::Ld {
+            if options.target.options.linker_is_gnu && flavor != LinkerFlavor::Ld {
                 cmd.no_position_independent_executable();
             }
         }
@@ -880,15 +959,14 @@ fn link_args(cmd: &mut dyn Linker,
     match relro_level {
         RelroLevel::Full => {
             cmd.full_relro();
-        },
+        }
         RelroLevel::Partial => {
             cmd.partial_relro();
-        },
+        }
         RelroLevel::Off => {
             cmd.no_relro();
-        },
-        RelroLevel::None => {
-        },
+        }
+        RelroLevel::None => {}
     }
 
     // Pass optimization flags down to the linker.
@@ -904,8 +982,11 @@ fn link_args(cmd: &mut dyn Linker,
     // figure out which subset we wanted.
     //
     // This is all naturally configurable via the standard methods as well.
-    if !options.codegen_opts.default_linker_libraries.unwrap_or(false) &&
-        t.options.no_default_libraries
+    if !options
+        .codegen_opts
+        .default_linker_libraries
+        .unwrap_or(false)
+        && t.options.no_default_libraries
     {
         cmd.no_default_libraries();
     }
@@ -1002,13 +1083,16 @@ pub fn add_local_native_libraries(
     cmd: &mut dyn Linker,
     options: &Options,
     codegen_results: &CodegenResults,
-) -> anyhow::Result<()>
-{
+) -> anyhow::Result<()> {
     let filesearch = options.target_filesearch(PathKind::All);
     for search_path in filesearch.search_paths() {
         match search_path.kind {
-            PathKind::Framework => { cmd.framework_path(&search_path.dir); }
-            _ => { cmd.include_path(&fix_windows_verbatim_for_gcc(&search_path.dir)); }
+            PathKind::Framework => {
+                cmd.framework_path(&search_path.dir);
+            }
+            _ => {
+                cmd.include_path(&fix_windows_verbatim_for_gcc(&search_path.dir));
+            }
         }
     }
 
@@ -1023,11 +1107,13 @@ pub fn add_local_native_libraries(
             NativeLibraryKind::NativeUnknown => cmd.link_dylib(name.as_str()),
             NativeLibraryKind::NativeFramework => cmd.link_framework(name.as_str()),
             NativeLibraryKind::NativeStaticNobundle => cmd.link_staticlib(name.as_str()),
-            NativeLibraryKind::NativeStatic => cmd.link_whole_staticlib(name.as_str(), &search_path),
+            NativeLibraryKind::NativeStatic => {
+                cmd.link_whole_staticlib(name.as_str(), &search_path)
+            }
             NativeLibraryKind::NativeRawDylib => {
                 // FIXME(#58713): Proper handling for raw dylibs.
                 return Err(anyhow!("raw_dylib feature not yet implemented"));
-            },
+            }
         }
     }
 
@@ -1042,11 +1128,13 @@ pub fn add_local_native_libraries(
             NativeLibraryKind::NativeUnknown => cmd.link_dylib(name.as_str()),
             NativeLibraryKind::NativeFramework => cmd.link_framework(name.as_str()),
             NativeLibraryKind::NativeStaticNobundle => cmd.link_staticlib(name.as_str()),
-            NativeLibraryKind::NativeStatic => cmd.link_whole_staticlib(name.as_str(), &search_path),
+            NativeLibraryKind::NativeStatic => {
+                cmd.link_whole_staticlib(name.as_str(), &search_path)
+            }
             NativeLibraryKind::NativeRawDylib => {
                 // FIXME(#58713): Proper handling for raw dylibs.
                 return Err(anyhow!("raw_dylib feature not yet implemented"));
-            },
+            }
         }
     }
 
@@ -1068,10 +1156,10 @@ pub fn invalid_output_for_target(options: &Options) -> bool {
     match project_type {
         ProjectType::Cdylib | ProjectType::Dylib => {
             if !options.target.options.dynamic_linking {
-                return true
+                return true;
             }
             if options.crt_static() && !options.target.options.crt_static_allows_dylibs {
-                return true
+                return true;
             }
         }
         _ => {}
@@ -1084,7 +1172,7 @@ pub fn invalid_output_for_target(options: &Options) -> bool {
     }
     if !options.target.options.executables {
         if project_type == ProjectType::Executable {
-            return true
+            return true;
         }
     }
 
@@ -1103,8 +1191,11 @@ pub fn remove(path: &Path) -> anyhow::Result<()> {
 // read-only file.  We should be consistent.
 pub fn check_file_is_writeable(file: &Path) -> anyhow::Result<()> {
     if !is_writeable(file) {
-        return Err(anyhow!(format!("output file {} is not writeable -- check its \
-                            permissions", file.display())));
+        return Err(anyhow!(format!(
+            "output file {} is not writeable -- check its \
+             permissions",
+            file.display()
+        )));
     }
     Ok(())
 }
@@ -1112,6 +1203,6 @@ pub fn check_file_is_writeable(file: &Path) -> anyhow::Result<()> {
 fn is_writeable(p: &Path) -> bool {
     match p.metadata() {
         Err(..) => true,
-        Ok(m) => !m.permissions().readonly()
+        Ok(m) => !m.permissions().readonly(),
     }
 }

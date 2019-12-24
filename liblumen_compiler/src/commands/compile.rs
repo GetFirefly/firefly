@@ -1,29 +1,29 @@
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, mpsc::channel};
+use std::sync::{mpsc::channel, Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::anyhow;
 
 use clap::ArgMatches;
 
-use executors::Executor;
 use executors::crossbeam_channel_pool::ThreadPool;
+use executors::Executor;
 
 use log::debug;
 
 use libeir_diagnostics::{CodeMap, Emitter};
 
+use liblumen_codegen::linker::{self, LinkerInfo};
 use liblumen_codegen::{
     self as codegen,
     codegen::{CodegenResults, ProjectInfo},
 };
-use liblumen_codegen::linker::{self, LinkerInfo};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_target::{self as target, Target};
 use liblumen_util::time::HumanDuration;
 
-use crate::compiler::{prelude::*, *};
 use crate::commands::*;
+use crate::compiler::{prelude::*, *};
 
 pub fn handle_command<'a>(
     c_opts: CodegenOptions,
@@ -66,7 +66,9 @@ pub fn handle_command<'a>(
     // Parse sources
     let num_inputs = inputs.len();
     if num_inputs < 1 {
-        db.diagnostics().fatal_str("No input sources found!").raise();
+        db.diagnostics()
+            .fatal_str("No input sources found!")
+            .raise();
     }
 
     let start = Instant::now();
@@ -80,9 +82,12 @@ pub fn handle_command<'a>(
             let thread_id = std::thread::current().id();
             debug!("starting to compile on thread {:?}", thread_id);
             let compilation_result = snapshot.compile(input);
-            debug!("compilation finished on thread {:?} {:?}", thread_id, &compilation_result);
+            debug!(
+                "compilation finished on thread {:?} {:?}",
+                thread_id, &compilation_result
+            );
             tx.send(compilation_result)
-              .expect("worker failed: unable to send compiled module back to main thread");
+                .expect("worker failed: unable to send compiled module back to main thread");
         });
     }
 
@@ -102,7 +107,10 @@ pub fn handle_command<'a>(
     loop {
         match rx.recv() {
             Ok(compile_result) => {
-                debug!("received compilation result from worker: {:?}", &compile_result);
+                debug!(
+                    "received compilation result from worker: {:?}",
+                    &compile_result
+                );
                 if let Ok(compiled_module) = compile_result {
                     diagnostics.success("Compiled", &compiled_module.name());
                     codegen_results.modules.push(compiled_module);
@@ -135,6 +143,9 @@ pub fn handle_command<'a>(
     }
 
     let duration = HumanDuration::since(start);
-    diagnostics.success("Finished", &format!("built {} in {:#}", options.project_name, duration));
+    diagnostics.success(
+        "Finished",
+        &format!("built {} in {:#}", options.project_name, duration),
+    );
     Ok(())
 }

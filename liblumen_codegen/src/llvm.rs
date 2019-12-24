@@ -1,12 +1,12 @@
-pub(crate) mod string;
 pub(crate) mod memory_buffer;
+pub(crate) mod string;
 
-use std::ptr;
+use std::convert::{AsMut, AsRef};
 use std::fmt;
-use std::os;
-use std::convert::{AsRef, AsMut};
 use std::mem::MaybeUninit;
+use std::os;
 use std::path::Path;
+use std::ptr;
 
 use anyhow::anyhow;
 use llvm_sys::target_machine::LLVMCodeGenFileType;
@@ -16,8 +16,8 @@ use liblumen_util as util;
 
 use super::Result;
 
-use self::string::LLVMString;
 use self::memory_buffer::MemoryBuffer;
+use self::string::LLVMString;
 
 pub type ContextImpl = llvm_sys::LLVMContext;
 pub type ContextRef = llvm_sys::prelude::LLVMContextRef;
@@ -59,29 +59,45 @@ pub struct Context {
 impl Context {
     pub fn new() -> Self {
         let context = unsafe { llvm_sys::core::LLVMContextCreate() };
-        Self {
-            context,
-        }
+        Self { context }
     }
 }
 impl Context {
-    pub fn parse_string<I: AsRef<[u8]>>(&mut self, input: I, name: &str, tm: TargetMachineRef) -> Result<Module> {
+    pub fn parse_string<I: AsRef<[u8]>>(
+        &mut self,
+        input: I,
+        name: &str,
+        tm: TargetMachineRef,
+    ) -> Result<Module> {
         let buffer = MemoryBuffer::create_from_slice(input.as_ref(), name);
         self.parse_buffer(buffer, tm)
     }
 
-    pub fn parse_file<P: AsRef<Path>>(&mut self, filename: P, tm: TargetMachineRef) -> Result<Module> {
+    pub fn parse_file<P: AsRef<Path>>(
+        &mut self,
+        filename: P,
+        tm: TargetMachineRef,
+    ) -> Result<Module> {
         let buffer = MemoryBuffer::create_from_file(filename)?;
         self.parse_buffer(buffer, tm)
     }
 
-    pub fn parse_buffer(&mut self, mut buffer: MemoryBuffer<'_>, tm: TargetMachineRef) -> Result<Module> {
+    pub fn parse_buffer(
+        &mut self,
+        mut buffer: MemoryBuffer<'_>,
+        tm: TargetMachineRef,
+    ) -> Result<Module> {
         use llvm_sys::ir_reader::LLVMParseIRInContext;
-       
+
         let mut module: *mut ModuleImpl = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
         let result = unsafe {
-            LLVMParseIRInContext(self.context, buffer.as_mut(), &mut module, err_string.as_mut_ptr())
+            LLVMParseIRInContext(
+                self.context,
+                buffer.as_mut(),
+                &mut module,
+                err_string.as_mut_ptr(),
+            )
         };
 
         if result != 0 {
@@ -138,13 +154,7 @@ impl Module {
     pub fn emit_ir(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
         let fd = util::fs::get_file_descriptor(f);
         let mut err_string = MaybeUninit::uninit();
-        let failed = unsafe {
-            LLVMEmitToFileDescriptor(
-                self.module,
-                fd,
-                err_string.as_mut_ptr()
-            )
-        };
+        let failed = unsafe { LLVMEmitToFileDescriptor(self.module, fd, err_string.as_mut_ptr()) };
 
         if failed {
             let err_string = LLVMString::new(unsafe { err_string.assume_init() });
@@ -158,13 +168,8 @@ impl Module {
     pub fn emit_bc(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
         let fd = util::fs::get_file_descriptor(f);
         let mut err_string = MaybeUninit::uninit();
-        let failed = unsafe {
-            LLVMEmitBitcodeToFileDescriptor(
-                self.module,
-                fd,
-                err_string.as_mut_ptr()
-            )
-        };
+        let failed =
+            unsafe { LLVMEmitBitcodeToFileDescriptor(self.module, fd, err_string.as_mut_ptr()) };
 
         if failed {
             let err_string = LLVMString::new(unsafe { err_string.assume_init() });
@@ -184,7 +189,11 @@ impl Module {
         self.emit_file(f, LLVMCodeGenFileType::LLVMObjectFile)
     }
 
-    fn emit_file(&self, f: &mut std::fs::File, file_type: LLVMCodeGenFileType) -> anyhow::Result<()> {
+    fn emit_file(
+        &self,
+        f: &mut std::fs::File,
+        file_type: LLVMCodeGenFileType,
+    ) -> anyhow::Result<()> {
         use crate::ffi::target::LLVMTargetMachineEmitToFileDescriptor;
 
         let fd = util::fs::get_file_descriptor(f);
@@ -195,7 +204,7 @@ impl Module {
                 self.module,
                 fd,
                 file_type,
-                err_string.as_mut_ptr()
+                err_string.as_mut_ptr(),
             )
         };
 
@@ -237,27 +246,27 @@ extern "C" {
     pub fn LLVMEmitToFileDescriptor(
         M: ModuleRef,
         fd: os::unix::io::RawFd,
-        error_message: *mut *mut libc::c_char
+        error_message: *mut *mut libc::c_char,
     ) -> bool;
 
     #[cfg(windows)]
     pub fn LLVMEmitToFileDescriptor(
         M: ModuleRef,
         fd: os::windows::io::RawHandle,
-        error_message: *mut *mut libc::c_char
+        error_message: *mut *mut libc::c_char,
     ) -> bool;
 
     #[cfg(not(windows))]
     pub fn LLVMEmitBitcodeToFileDescriptor(
         M: ModuleRef,
         fd: os::unix::io::RawFd,
-        error_message: *mut *mut libc::c_char
+        error_message: *mut *mut libc::c_char,
     ) -> bool;
 
     #[cfg(windows)]
     pub fn LLVMEmitBitcodeToFileDescriptor(
         M: ModuleRef,
         fd: os::windows::io::RawHandle,
-        error_message: *mut *mut libc::c_char
+        error_message: *mut *mut libc::c_char,
     ) -> bool;
 }

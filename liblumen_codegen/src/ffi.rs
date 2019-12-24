@@ -1,7 +1,7 @@
-pub mod target;
-pub mod passes;
 pub mod diagnostics;
+pub mod passes;
 pub mod string;
+pub mod target;
 pub mod util;
 
 pub use self::util::init;

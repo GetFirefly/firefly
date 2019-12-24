@@ -1,5 +1,5 @@
-use std::fmt;
 use std::ffi::CStr;
+use std::fmt;
 use std::ops::Deref;
 
 #[derive(Eq)]
@@ -14,9 +14,7 @@ impl LLVMString {
         use llvm_sys::core::LLVMCreateMessage;
 
         debug_assert_eq!(string.as_bytes()[string.as_bytes().len() - 1], 0);
-        let ptr = unsafe {
-            LLVMCreateMessage(string.as_ptr() as *const _)
-        };
+        let ptr = unsafe { LLVMCreateMessage(string.as_ptr() as *const _) };
         LLVMString::new(ptr)
     }
 
@@ -30,9 +28,7 @@ impl Deref for LLVMString {
     type Target = CStr;
 
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            CStr::from_ptr(self.0)
-        }
+        unsafe { CStr::from_ptr(self.0) }
     }
 }
 impl fmt::Debug for LLVMString {

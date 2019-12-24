@@ -1,11 +1,11 @@
-pub(crate) mod print;
 pub(crate) mod compile;
+pub(crate) mod print;
 
 use std::sync::{Arc, Mutex};
 
 use libeir_diagnostics::{CodeMap, Emitter};
 
-use liblumen_session::{DiagnosticsHandler, DiagnosticsConfig, Options};
+use liblumen_session::{DiagnosticsConfig, DiagnosticsHandler, Options};
 
 pub(super) fn default_diagnostics_handler(
     options: &Options,

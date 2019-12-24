@@ -19,9 +19,7 @@ use crate::distribution::nodes;
 
 #[native_implemented_function(list_to_pid/1)]
 pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
-    let cons: Boxed<Cons> = string
-        .try_into()
-        .with_context(|| format!("string ({}) must be a non-empty list", string))?;
+    let cons = term_try_into_non_empty_list!(string)?;
 
     let prefix_tail = skip_char(cons, '<').context("first character must be '<'")?;
     let prefix_tail_cons: Boxed<Cons> = prefix_tail

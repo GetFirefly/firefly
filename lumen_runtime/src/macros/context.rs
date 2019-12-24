@@ -16,6 +16,12 @@ macro_rules! term_try_into_map_or_badmap {
     };
 }
 
+macro_rules! term_try_into_non_empty_list {
+    ($name:ident) => {
+        crate::context::term_try_into_non_empty_list(stringify!($name), $name)
+    };
+}
+
 macro_rules! term_try_into_tuple {
     ($name:ident) => {
         crate::context::term_try_into_tuple(stringify!($name), $name)

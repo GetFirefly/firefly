@@ -12,10 +12,7 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_badarg!(
-                    native(list),
-                    format!("list ({}) must be a non-empty list", list)
-                );
+                prop_assert_is_not_non_empty_list!(native(list), list);
 
                 Ok(())
             })
@@ -25,7 +22,9 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_empty_list_errors_badarg() {
-    assert_badarg!(native(Term::NIL), "list ([]) must be a non-empty list");
+    let list = Term::NIL;
+
+    assert_is_not_non_empty_list!(native(list), list);
 }
 
 #[test]

@@ -126,6 +126,16 @@ macro_rules! prop_assert_is_not_atom {
 }
 
 #[cfg(test)]
+macro_rules! prop_assert_is_not_binary {
+    ($actual:expr, $name:ident) => {
+        prop_assert_is_not_binary!($actual, stringify!($name), $name)
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_is_not_type!($actual, $name, $value, "a binary")
+    };
+}
+
+#[cfg(test)]
 macro_rules! prop_assert_is_not_boolean {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_boolean!($actual, stringify!($name), $name)

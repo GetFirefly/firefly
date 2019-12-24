@@ -19,10 +19,7 @@ fn without_binary_errors_badarg() {
                     strategy::term::is_encoding(),
                 ),
                 |(binary, encoding)| {
-                    prop_assert_badarg!(
-                        native(binary, encoding),
-                        format!("binary ({}) must be a binary", binary)
-                    );
+                    prop_assert_is_not_binary!(native(binary, encoding), binary);
 
                     Ok(())
                 },

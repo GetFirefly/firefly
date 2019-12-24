@@ -22,6 +22,10 @@ pub fn term_is_not_boolean(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "a boolean")
 }
 
+pub fn term_is_not_binary(name: &str, value: Term) -> String {
+    term_is_not_type(name, value, "a binary")
+}
+
 pub fn term_is_not_integer(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "an integer")
 }

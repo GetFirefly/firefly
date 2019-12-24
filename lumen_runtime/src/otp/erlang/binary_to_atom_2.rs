@@ -8,6 +8,8 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
 // use proptest completely for wasm32
 //
@@ -29,7 +31,7 @@ macro_rules! maybe_aligned_maybe_binary_to_atom {
             }
         } else {
             Err(NotABinary)
-                .with_context(|| format!("bitstring ({}) is not a binary", $binary))
+                .with_context(|| term_is_not_binary("bitstring", $binary))
                 .map_err(From::from)
         }
     };
@@ -50,7 +52,7 @@ pub fn native(binary: Term, encoding: Term) -> exception::Result<Term> {
             maybe_aligned_maybe_binary_to_atom!(binary, match_context)
         }
         _ => Err(TypeError)
-            .with_context(|| format!("binary ({}) must be a binary", binary))
+            .with_context(|| term_is_not_binary("binary", binary))
             .map_err(From::from),
     }
 }

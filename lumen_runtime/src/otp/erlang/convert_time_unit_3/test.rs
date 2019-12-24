@@ -50,9 +50,9 @@ fn with_integer_time_without_unit_from_unit_errors_badarg() {
                     unit_term(arc_process.clone()),
                 ),
                 |(time, from_unit, to_unit)| {
-                    prop_assert_badarg!(
+                    prop_assert_is_not_time_unit!(
                         native(&arc_process, time, from_unit, to_unit),
-                        format!("from_unit ({}) must be a time unit", from_unit)
+                        from_unit
                     );
 
                     Ok(())
@@ -73,9 +73,9 @@ fn with_integer_time_with_unit_from_unit_without_unit_to_unit_errors_badarg() {
                     is_not_unit_term(arc_process.clone()),
                 ),
                 |(time, from_unit, to_unit)| {
-                    prop_assert_badarg!(
+                    prop_assert_is_not_time_unit!(
                         native(&arc_process, time, from_unit, to_unit),
-                        format!("to_unit ({}) must be a time unit", to_unit)
+                        to_unit
                     );
 
                     Ok(())

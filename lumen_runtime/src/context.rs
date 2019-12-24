@@ -6,6 +6,8 @@ use liblumen_alloc::erts::exception::{self, badmap};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
+use crate::time;
+
 pub fn term_is_not_type(name: &str, value: Term, r#type: &str) -> String {
     format!("{} ({}) is not {}", name, value, r#type)
 }
@@ -48,6 +50,10 @@ pub fn term_is_not_in_one_based_range(index: Term, max: usize) -> String {
         index,
         &format!("a 1-based integer between 1-{}", max),
     )
+}
+
+pub fn term_is_not_time_unit(name: &str, value: Term) -> String {
+    term_is_not_type(name, value, "a time unit")
 }
 
 pub fn term_is_not_tuple(name: &str, value: Term) -> String {
@@ -112,6 +118,12 @@ pub fn term_try_into_one_based_index(index: Term) -> anyhow::Result<OneBasedInde
     index
         .try_into()
         .with_context(|| term_is_not_one_based_index(index))
+}
+
+pub fn term_try_into_time_unit(name: &str, value: Term) -> anyhow::Result<time::Unit> {
+    value
+        .try_into()
+        .with_context(|| term_is_not_time_unit(name, value))
 }
 
 pub fn term_try_into_tuple(name: &str, value: Term) -> anyhow::Result<Boxed<Tuple>> {

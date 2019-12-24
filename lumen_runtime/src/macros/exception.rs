@@ -183,6 +183,16 @@ macro_rules! prop_assert_is_not_non_empty_list {
 }
 
 #[cfg(test)]
+macro_rules! prop_assert_is_not_time_unit {
+    ($actual:expr, $name:ident) => {
+        prop_assert_is_not_time_unit!($actual, stringify!($name), $name)
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_is_not_type!($actual, $name, $value, "a time unit")
+    };
+}
+
+#[cfg(test)]
 macro_rules! prop_assert_is_not_tuple {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_tuple!($actual, stringify!($name), $name)

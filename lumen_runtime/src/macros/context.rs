@@ -22,6 +22,12 @@ macro_rules! term_try_into_non_empty_list {
     };
 }
 
+macro_rules! term_try_into_time_unit {
+    ($name:ident) => {
+        crate::context::term_try_into_time_unit(stringify!($name), $name)
+    };
+}
+
 macro_rules! term_try_into_tuple {
     ($name:ident) => {
         crate::context::term_try_into_tuple(stringify!($name), $name)

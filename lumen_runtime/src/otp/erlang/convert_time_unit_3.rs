@@ -28,12 +28,8 @@ pub fn native(
     let time_big_int: BigInt = time
         .try_into()
         .with_context(|| format!("time ({}) must be an integer", time))?;
-    let from_unit_unit: time::Unit = from_unit
-        .try_into()
-        .with_context(|| format!("from_unit ({}) must be a time unit", from_unit))?;
-    let to_unit_unit: time::Unit = to_unit
-        .try_into()
-        .with_context(|| format!("to_unit ({}) must be a time unit", to_unit))?;
+    let from_unit_unit = term_try_into_time_unit!(from_unit)?;
+    let to_unit_unit = term_try_into_time_unit!(to_unit)?;
     let converted_big_int = time::convert(time_big_int, from_unit_unit, to_unit_unit);
     let converted_term = process.integer(converted_big_int)?;
 

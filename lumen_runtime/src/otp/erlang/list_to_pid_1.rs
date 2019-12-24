@@ -22,39 +22,30 @@ pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
     let cons = term_try_into_non_empty_list!(string)?;
 
     let prefix_tail = skip_char(cons, '<').context("first character must be '<'")?;
-    let prefix_tail_cons: Boxed<Cons> = prefix_tail
-        .try_into()
-        .with_context(|| format!("string ({}) is missing 'node.number.serial>'", string))?;
+    let prefix_tail_cons =
+        try_into_non_empty_list_or_missing(string, prefix_tail, "node.number.serial>")?;
 
     let (node_id, node_tail) =
         next_decimal(prefix_tail_cons).context("node id must be a decimal integer")?;
-    let node_tail_cons: Boxed<Cons> = node_tail
-        .try_into()
-        .with_context(|| format!("string ({}) is missing '.number.serial>'", string))?;
+    let node_tail_cons = try_into_non_empty_list_or_missing(string, node_tail, ".number.serial>")?;
 
     let first_separator_tail =
         skip_char(node_tail_cons, '.').context("a '.' must separate the node id and number")?;
-    let first_separator_tail_cons: Boxed<Cons> = first_separator_tail
-        .try_into()
-        .with_context(|| format!("string ({}) is missing 'number.serial>'", string))?;
+    let first_separator_tail_cons =
+        try_into_non_empty_list_or_missing(string, first_separator_tail, "number.serial>")?;
 
     let (number, number_tail) =
         next_decimal(first_separator_tail_cons).context("number must be a decimal integer")?;
-    let number_tail_cons: Boxed<Cons> = number_tail
-        .try_into()
-        .with_context(|| format!("string ({}) is missing '.serial>", string))?;
+    let number_tail_cons = try_into_non_empty_list_or_missing(string, number_tail, ".serial>")?;
 
     let second_separator_tail =
         skip_char(number_tail_cons, '.').context("a '.' must separate the number and serial")?;
-    let second_separator_tail_cons: Boxed<Cons> = second_separator_tail
-        .try_into()
-        .with_context(|| format!("string ({}) is missing 'serial>'", string))?;
+    let second_separator_tail_cons =
+        try_into_non_empty_list_or_missing(string, second_separator_tail, "serial>")?;
 
     let (serial, serial_tail) =
         next_decimal(second_separator_tail_cons).context("serial must be a decimal integer")?;
-    let serial_tail_cons: Boxed<Cons> = serial_tail
-        .try_into()
-        .with_context(|| format!("string ({}) is missing '>'", string))?;
+    let serial_tail_cons = try_into_non_empty_list_or_missing(string, serial_tail, ">")?;
 
     let suffix_tail = skip_char(serial_tail_cons, '>').context("last character must be '>'")?;
 
@@ -80,6 +71,18 @@ pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
 }
 
 // Private
+
+fn try_into_non_empty_list_or_missing(
+    string: Term,
+    tail: Term,
+    format: &str,
+) -> anyhow::Result<Boxed<Cons>> {
+    tail.try_into().with_context(|| missing(string, format))
+}
+
+fn missing(string: Term, format: &str) -> String {
+    format!("string ({}) is missing '{}'", string, format)
+}
 
 fn next_decimal(cons: Boxed<Cons>) -> InternalResult<(usize, Term)> {
     next_decimal_digit(cons)

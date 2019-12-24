@@ -25,9 +25,8 @@ pub(super) fn create_diagnostics_handler(
         warnings_as_errors: options.warnings_as_errors,
         no_warn: options.no_warn,
     };
-    DiagnosticsHandler::new(emitter, config)
+    DiagnosticsHandler::new(config, codemap, emitter)
 }
-
 
 pub(super) fn default_emitter(codemap: Arc<Mutex<CodeMap>>, options: &Options) -> Arc<dyn Emitter> {
     use libeir_diagnostics::{NullEmitter, StandardStreamEmitter};

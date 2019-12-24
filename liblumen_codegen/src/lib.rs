@@ -9,7 +9,6 @@ pub mod mlir;
 pub use self::ffi::passes::print_passes;
 pub use self::ffi::target::{self, print_target_cpus, print_target_features};
 pub use self::ffi::util::llvm_version;
-pub use self::mlir::generate_mlir;
 
 use liblumen_session::Options;
 

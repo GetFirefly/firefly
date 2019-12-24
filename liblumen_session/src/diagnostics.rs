@@ -1,11 +1,12 @@
 use std::error::Error;
+use std::ffi::CString;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use libeir_diagnostics::emitter::{cyan, white, green_bold, yellow, yellow_bold};
-use libeir_diagnostics::{ColorSpec, Diagnostic, Emitter, Severity};
+use libeir_diagnostics::emitter::{cyan, green_bold, white, yellow, yellow_bold};
+use libeir_diagnostics::{ByteSpan, CodeMap, ColorSpec, Diagnostic, Emitter, Severity};
 use liblumen_util::error::{FatalError, Verbosity};
 
 #[derive(Debug, Copy, Clone)]
@@ -14,9 +15,22 @@ pub struct DiagnosticsConfig {
     pub no_warn: bool,
 }
 
+#[repr(C)]
+pub struct Location {
+    pub file: CString,
+    pub line: u32,
+    pub column: u32,
+}
+impl Location {
+    pub fn new(file: CString, line: u32, column: u32) -> Self {
+        Self { file, line, column }
+    }
+}
+
 #[derive(Clone)]
 pub struct DiagnosticsHandler {
     emitter: Arc<dyn Emitter>,
+    codemap: Arc<Mutex<CodeMap>>,
     warnings_as_errors: bool,
     no_warn: bool,
     err_count: Arc<AtomicUsize>,
@@ -26,13 +40,38 @@ pub struct DiagnosticsHandler {
 unsafe impl Send for DiagnosticsHandler {}
 unsafe impl Sync for DiagnosticsHandler {}
 impl DiagnosticsHandler {
-    pub fn new(emitter: Arc<dyn Emitter>, config: DiagnosticsConfig) -> Self {
+    pub fn new(
+        config: DiagnosticsConfig,
+        codemap: Arc<Mutex<CodeMap>>,
+        emitter: Arc<dyn Emitter>,
+    ) -> Self {
         Self {
             emitter,
+            codemap,
             warnings_as_errors: config.warnings_as_errors,
             no_warn: config.no_warn,
             err_count: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    pub fn location(&self, span: ByteSpan) -> Option<Location> {
+        let codemap = self.codemap.lock().unwrap();
+        let start = span.start();
+        codemap
+            .find_file(start)
+            .map(|fm| {
+                (
+                    CString::new(fm.name.to_string()).unwrap(),
+                    fm.location(start).unwrap(),
+                )
+            })
+            .map(|(file, (li, ci))| {
+                Location::new(
+                    file,
+                    li.number().to_usize() as u32,
+                    ci.number().to_usize() as u32,
+                )
+            })
     }
 
     pub fn has_errors(&self) -> bool {

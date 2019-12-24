@@ -6,6 +6,13 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm-c/Types.h"
+#include "llvm/Support/CBindingWrapping.h"
+
+namespace llvm {
+class MemoryBuffer;
+}
+
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::MemoryBuffer, LLVMMemoryBufferRef);
 
 extern "C" bool LLVMEmitToFileDescriptor(LLVMModuleRef m,
 #if defined(_WIN32)

@@ -1,31 +1,37 @@
-use std::ffi::CString;
-use std::convert::AsRef;
-use std::mem::MaybeUninit;
-use std::path::Path;
-use std::os;
-use std::ptr;
-use std::fmt;
+pub mod builder;
+
 use std::cell::RefCell;
+use std::convert::AsRef;
+use std::ffi::CString;
+use std::fmt;
+use std::mem::MaybeUninit;
+use std::os;
+use std::path::Path;
+use std::ptr;
 use std::thread::{self, ThreadId};
 
 use anyhow::anyhow;
 
-use libeir_ir as eir;
-
 use liblumen_session::{Emit, Options, OutputType};
 use liblumen_util as util;
 
-use crate::llvm::{self, TargetMachineRef, string::LLVMString};
-use crate::llvm::memory_buffer::{MemoryBuffer, MemoryBufferRef};
-use crate::ffi::{CodeGenOptLevel, CodeGenOptSize};
 use super::Result;
+use crate::ffi::{CodeGenOptLevel, CodeGenOptSize};
+use crate::llvm::memory_buffer::{MemoryBuffer, MemoryBufferRef};
+use crate::llvm::{self, string::LLVMString, TargetMachineRef};
 
-extern { pub type ContextImpl; }
-extern { pub type DiagnosticEngine; }
-extern { pub type DiagnosticInfo; }
-extern { pub type Location; }
-extern { pub type ModuleBuilder; }
-extern { pub type ModuleImpl; }
+extern "C" {
+    pub type ContextImpl;
+}
+extern "C" {
+    pub type DiagnosticEngine;
+}
+extern "C" {
+    pub type DiagnosticInfo;
+}
+extern "C" {
+    pub type ModuleImpl;
+}
 
 pub type ContextRef = *mut ContextImpl;
 pub type ModuleRef = *mut ModuleImpl;
@@ -58,20 +64,15 @@ unsafe impl Sync for Context {}
 impl Context {
     pub fn new(thread_id: ThreadId) -> Self {
         let context = unsafe { MLIRCreateContext() };
-        Self {
-            context,
-            thread_id,
-        }
-    }
-
-    pub fn new_module(&self, name: &str) -> &'static ModuleBuilder {
-        debug_assert_eq!(self.thread_id, thread::current().id(), "contexts cannot be shared across threads");
-        let module_name = CString::new(name).unwrap();
-        unsafe { MLIRCreateModuleBuilder(self.as_ref(), module_name.as_ptr()) }
+        Self { context, thread_id }
     }
 
     pub fn parse_file<P: AsRef<Path>>(&self, filename: P) -> Result<Module> {
-        debug_assert_eq!(self.thread_id, thread::current().id(), "contexts cannot be shared across threads");
+        debug_assert_eq!(
+            self.thread_id,
+            thread::current().id(),
+            "contexts cannot be shared across threads"
+        );
         let s = filename.as_ref().to_string_lossy().into_owned();
         let f = CString::new(s)?;
         let result = unsafe { MLIRParseFile(self.as_ref(), f.as_ptr()) };
@@ -194,15 +195,6 @@ impl Emit for Module {
 extern "C" {
     pub fn MLIRCreateContext() -> ContextRef;
 
-    pub fn MLIRCreateModuleBuilder(context: ContextRef, name: *const libc::c_char) -> &'static mut ModuleBuilder;
-
-    pub fn MLIRCreateLocation(
-        context: ContextRef,
-        filename: *const libc::c_char,
-        line: libc::c_uint,
-        column: libc::c_uint
-    ) -> &'static mut Location;
-
     pub fn MLIRParseFile(context: ContextRef, filename: *const libc::c_char) -> *mut ModuleImpl;
 
     pub fn MLIRParseBuffer(context: ContextRef, buffer: MemoryBufferRef) -> *mut ModuleImpl;
@@ -236,13 +228,4 @@ extern "C" {
     ) -> bool;
 
     pub fn MLIREmitToMemoryBuffer(M: ModuleRef) -> llvm::memory_buffer::MemoryBufferRef;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn EIRSpanToMLIRLocation(_start: libc::c_uint, _end: libc::c_uint) -> &'static Location {
-    unimplemented!()
-}
-
-pub fn generate_mlir(_options: &Options, _module: &eir::Module) -> Result<Module> {
-    unimplemented!();
 }

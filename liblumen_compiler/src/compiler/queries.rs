@@ -65,14 +65,19 @@ where
 }
 
 /// Convert EIR to MLIR/EIR
-pub(super) fn generate_mlir<C>(db: &C, thread_id: ThreadId, input: InternedInput) -> QueryResult<Arc<mlir::Module>>
+pub(super) fn generate_mlir<C>(
+    db: &C,
+    thread_id: ThreadId,
+    input: InternedInput,
+) -> QueryResult<Arc<mlir::Module>>
 where
     C: CodegenDatabase,
 {
-    let options = db.options();
     let module = db.input_eir(input)?;
+    let context = db.mlir_context(thread_id);
+    let options = db.options();
     debug!("generating mlir for {:?} on {:?}", input, thread_id);
-    match codegen::generate_mlir(&options, &module) {
+    match mlir::builder::build(&module, &context, &options) {
         Ok(mlir_module) => {
             db.maybe_emit_file_with_opts(&options, input, &mlir_module)?;
             Ok(Arc::new(mlir_module))

@@ -15,10 +15,7 @@ fn without_reference_errors_badarg() {
             .run(
                 &strategy::term::is_not_reference(arc_process.clone()),
                 |reference| {
-                    prop_assert_badarg!(
-                        native(&arc_process, reference),
-                        format!("reference ({}) must be a reference", reference)
-                    );
+                    prop_assert_is_not_local_reference!(native(&arc_process, reference), reference);
 
                     Ok(())
                 },

@@ -19,9 +19,9 @@ fn without_reference_errors_badarg() {
                 |reference| {
                     let options = Term::NIL;
 
-                    prop_assert_badarg!(
+                    prop_assert_is_not_local_reference!(
                         native(&arc_process, reference, options),
-                        format!("reference ({}) must be a reference", reference)
+                        reference
                     );
 
                     Ok(())

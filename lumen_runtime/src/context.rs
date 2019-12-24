@@ -56,6 +56,10 @@ pub fn term_is_not_in_one_based_range(index: Term, max: usize) -> String {
     )
 }
 
+pub fn term_is_not_reference(name: &str, value: Term) -> String {
+    term_is_not_type(name, value, "a reference")
+}
+
 pub fn term_is_not_time_unit(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "a time unit")
 }
@@ -96,6 +100,12 @@ pub fn term_try_into_isize(name: &str, value: Term) -> anyhow::Result<isize> {
     value
         .try_into()
         .with_context(|| term_is_not_integer(name, value))
+}
+
+pub fn term_try_into_local_reference(name: &str, value: Term) -> anyhow::Result<Boxed<Reference>> {
+    value
+        .try_into()
+        .with_context(|| term_is_not_reference(name, value))
 }
 
 pub fn term_try_into_map(name: &str, value: Term) -> anyhow::Result<Boxed<Map>> {

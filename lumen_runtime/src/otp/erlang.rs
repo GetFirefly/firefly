@@ -331,7 +331,7 @@ fn start_timer(
     if time.is_integer() {
         let reference_frame_milliseconds: Milliseconds = time
             .try_into()
-            .with_context(|| format!("time ({}) is not a non-negative integer", time))?;
+            .with_context(|| term_is_not_non_negative_integer("time", time))?;
 
         let absolute_milliseconds = match options.reference_frame {
             ReferenceFrame::Relative => {

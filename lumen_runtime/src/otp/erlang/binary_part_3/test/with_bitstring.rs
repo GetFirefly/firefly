@@ -16,9 +16,9 @@ fn without_integer_start_without_integer_length_errors_badarg() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(binary, start, length)| {
-                    prop_assert_badarg!(
+                    prop_assert_is_not_non_negative_integer!(
                         native(&arc_process, binary, start, length),
-                        format!("start ({}) must be a non-negative integer", start)
+                        start
                     );
 
                     Ok(())
@@ -39,9 +39,9 @@ fn without_integer_start_with_integer_length_errors_badarg() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(binary, start, length)| {
-                    prop_assert_badarg!(
+                    prop_assert_is_not_non_negative_integer!(
                         native(&arc_process, binary, start, length),
-                        format!("start ({}) must be a non-negative integer", start)
+                        start
                     );
 
                     Ok(())
@@ -92,9 +92,9 @@ fn with_negative_start_with_valid_length_errors_badarg() {
                         )
                     }),
                 |(binary, start, length)| {
-                    prop_assert_badarg!(
+                    prop_assert_is_not_non_negative_integer!(
                         native(&arc_process, binary, start, length),
-                        format!("start ({}) must be a non-negative integer", start)
+                        start
                     );
 
                     Ok(())

@@ -40,6 +40,10 @@ pub fn term_is_not_non_empty_list(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "a non-empty list")
 }
 
+pub fn term_is_not_non_negative_integer(name: &str, value: Term) -> String {
+    term_is_not_type(name, value, "a non-negative integer")
+}
+
 pub fn term_is_not_one_based_index(index: Term) -> String {
     format!("index ({}) is not a 1-based integer", index)
 }

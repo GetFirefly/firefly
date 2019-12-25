@@ -56,7 +56,7 @@ task:
     CIRRUS_SHELL: powershell
     CARGO_HOME: $USERPROFILE\.cargo
     PATH: $PATH;$CARGO_HOME\bin
-  install_rustup_script: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly"
+  install_rustup_script: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly-x86_64-pc-windows-msvc"
   build_script: cargo build
   # `*_test_script`s in order of crate dependency graph
   liblumen_arena_test_script: |

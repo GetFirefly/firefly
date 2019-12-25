@@ -18,9 +18,9 @@ fn without_non_negative_integer_time_errors_badarg() {
                     let destination = arc_process.pid_term();
                     let options = options(&arc_process);
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        "supported option is {:abs, bool}"
                     );
 
                     Ok(())

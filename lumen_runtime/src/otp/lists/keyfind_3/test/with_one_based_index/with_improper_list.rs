@@ -9,10 +9,7 @@ fn without_found_errors_badarg() {
         let tail = Atom::str_to_term("tail");
         let tuple_list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
-        assert_eq!(
-            native(key, one_based_index, tuple_list),
-            Err(badarg!().into())
-        );
+        assert_badarg!(native(key, one_based_index, tuple_list), "improper list");
     });
 }
 

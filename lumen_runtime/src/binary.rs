@@ -1,10 +1,12 @@
-use core::convert::{TryFrom, TryInto};
 use core::ops::Range;
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::{self, Exception};
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::Process;
+use std::backtrace::Backtrace;
+
+use thiserror::Error;
+
+use liblumen_alloc::erts::exception::{ArcError, Exception, InternalException};
+
+pub mod to_term;
 
 pub(crate) struct PartRange {
     pub byte_offset: usize,
@@ -21,92 +23,72 @@ pub(crate) fn start_length_to_part_range(
     start: usize,
     length: isize,
     available_byte_count: usize,
-) -> exception::Result<PartRange> {
-    if length >= 0 {
-        let non_negative_length = length as usize;
+) -> Result<PartRange, PartRangeError> {
+    if start <= available_byte_count {
+        if length >= 0 {
+            let non_negative_length = length as usize;
+            let end = start + non_negative_length;
 
-        if (start <= available_byte_count) && (start + non_negative_length <= available_byte_count)
-        {
-            Ok(PartRange {
-                byte_offset: start,
-                byte_len: non_negative_length,
-            })
+            if end <= available_byte_count {
+                Ok(PartRange {
+                    byte_offset: start,
+                    byte_len: non_negative_length,
+                })
+            } else {
+                Err(PartRangeError::EndNonNegativeLength {
+                    end,
+                    available_byte_count,
+                    backtrace: Backtrace::capture(),
+                })
+            }
         } else {
-            Err(badarg!().into())
+            let start_isize = start as isize;
+            let end = start_isize + length;
+
+            if 0 <= start_isize + length {
+                let byte_offset = (start_isize + length) as usize;
+                let byte_len = (-length) as usize;
+
+                Ok(PartRange {
+                    byte_offset,
+                    byte_len,
+                })
+            } else {
+                Err(PartRangeError::EndNegativeLength {
+                    end,
+                    backtrace: Backtrace::capture(),
+                })
+            }
         }
     } else {
-        let start_isize = start as isize;
-
-        if (start <= available_byte_count) && (0 <= start_isize + length) {
-            let byte_offset = (start_isize + length) as usize;
-            let byte_len = (-length) as usize;
-
-            Ok(PartRange {
-                byte_offset,
-                byte_len,
-            })
-        } else {
-            Err(badarg!().into())
-        }
+        Err(PartRangeError::Start {
+            start,
+            available_byte_count,
+            backtrace: Backtrace::capture(),
+        })
     }
 }
 
-pub trait ToTerm {
-    fn to_term(&self, options: ToTermOptions, process: &Process) -> exception::Result<Term>;
+#[derive(Debug, Error)]
+pub enum PartRangeError {
+    #[error("start ({start}) exceeds available_byte_count ({available_byte_count})")]
+    Start {
+        start: usize,
+        available_byte_count: usize,
+        backtrace: Backtrace,
+    },
+    #[error("end ({end}) exceeds available_byte_count ({available_byte_count})")]
+    EndNonNegativeLength {
+        end: usize,
+        available_byte_count: usize,
+        backtrace: Backtrace,
+    },
+    #[error("end ({end}) is less than or equal to 0")]
+    EndNegativeLength { end: isize, backtrace: Backtrace },
 }
 
-pub struct ToTermOptions {
-    pub existing: bool,
-    pub used: bool,
-}
-
-impl ToTermOptions {
-    fn put_option_term(&mut self, option: Term) -> exception::Result<&ToTermOptions> {
-        let atom: Atom = option.try_into()?;
-
-        match atom.name() {
-            "safe" => {
-                self.existing = true;
-
-                Ok(self)
-            }
-            "used" => {
-                self.used = true;
-
-                Ok(self)
-            }
-            _ => Err(badarg!().into()),
-        }
-    }
-}
-
-impl TryFrom<Term> for ToTermOptions {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<ToTermOptions, Self::Error> {
-        let mut options: ToTermOptions = Default::default();
-        let mut options_term = term;
-
-        loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
-
-                    continue;
-                }
-                _ => return Err(badarg!().into()),
-            };
-        }
-    }
-}
-
-impl Default for ToTermOptions {
-    fn default() -> ToTermOptions {
-        ToTermOptions {
-            existing: false,
-            used: false,
-        }
+impl From<PartRangeError> for Exception {
+    fn from(err: PartRangeError) -> Self {
+        InternalException::from(ArcError::from_err(err)).into()
     }
 }

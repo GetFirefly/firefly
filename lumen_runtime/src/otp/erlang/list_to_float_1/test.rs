@@ -3,8 +3,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::list_to_float_1::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -14,7 +12,10 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                prop_assert_badarg!(
+                    native(&arc_process, list),
+                    format!("list ({}) is not a a list", list)
+                );
 
                 Ok(())
             })
@@ -28,10 +29,18 @@ fn with_list_with_integer_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &any::<isize>().prop_map(|integer| {
-                    arc_process.charlist_from_str(&integer.to_string()).unwrap()
+                    let string = integer.to_string();
+
+                    (
+                        string.clone(),
+                        arc_process.charlist_from_str(&string).unwrap(),
+                    )
                 }),
-                |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                |(string, list)| {
+                    prop_assert_badarg!(
+                        native(&arc_process, list),
+                        format!("float string ({}) does not contain decimal point", string)
+                    );
 
                     Ok(())
                 },
@@ -68,7 +77,10 @@ fn with_list_with_less_than_min_f64_errors_badarg() {
     with_process_arc(|arc_process| {
         let list = arc_process.charlist_from_str("-1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0").unwrap();
 
-        assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+        assert_badarg!(
+            native(&arc_process, list),
+            "Erlang does not support infinities"
+        );
     });
 }
 
@@ -77,6 +89,9 @@ fn with_list_with_greater_than_max_f64_errors_badarg() {
     with_process_arc(|arc_process| {
         let list = arc_process.charlist_from_str("1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0").unwrap();
 
-        assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+        assert_badarg!(
+            native(&arc_process, list),
+            "Erlang does not support infinities"
+        );
     });
 }

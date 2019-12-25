@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
+use anyhow::*;
 use cranelift_entity::EntityRef;
 use libeir_ir::{Block, FunctionIndex};
 
@@ -82,7 +83,12 @@ pub fn return_throw(arc_process: &Arc<Process>) -> code::Result {
 
     let reason = argument_vec[1];
     let stacktrace = Some(argument_vec[2]);
-    let exception = exception::raise(class, reason, exception::Location::default(), stacktrace);
+    let exception = exception::raise(
+        class,
+        reason,
+        stacktrace,
+        anyhow!("explicit raise from Erlang").into(),
+    );
     code::result_from_exception(arc_process, exception.into())
 }
 

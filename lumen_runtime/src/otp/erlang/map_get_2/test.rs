@@ -2,8 +2,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::{badkey, badmap};
-
 use crate::otp::erlang::map_get_2::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -18,9 +16,11 @@ fn without_map_errors_badmap() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(map, key)| {
-                    prop_assert_eq!(
+                    prop_assert_badmap!(
                         native(&arc_process, key, map),
-                        Err(badmap!(&arc_process, map))
+                        &arc_process,
+                        map,
+                        format!("map ({}) is not a map", map)
                     );
 
                     Ok(())
@@ -62,9 +62,11 @@ fn with_map_without_key_errors_badkey() {
                     )
                 }),
             |(arc_process, map, key)| {
-                prop_assert_eq!(
+                prop_assert_badkey!(
                     native(&arc_process, key, map),
-                    Err(badkey!(&arc_process, key))
+                    &arc_process,
+                    key,
+                    format!("key ({}) does not exist in map ({})", key, map)
                 );
 
                 Ok(())

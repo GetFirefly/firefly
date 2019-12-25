@@ -7,7 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -15,6 +16,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::binary::{start_length_to_part_range, PartRange};
+use crate::context::*;
 
 #[native_implemented_function(binary_part/3)]
 pub fn native(
@@ -23,8 +25,10 @@ pub fn native(
     start: Term,
     length: Term,
 ) -> exception::Result<Term> {
-    let start_usize: usize = start.try_into()?;
-    let length_isize: isize = length.try_into()?;
+    let start_usize: usize = start
+        .try_into()
+        .with_context(|| term_is_not_non_negative_integer("start", start))?;
+    let length_isize = term_try_into_isize!(length)?;
 
     match binary.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => {
@@ -81,6 +85,11 @@ pub fn native(
                     .map_err(|error| error.into())
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!(
+                "binary ({}) must be a binary or bitstring with at least 1 full byte",
+                binary
+            ))
+            .map_err(From::from),
     }
 }

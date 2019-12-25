@@ -7,7 +7,6 @@ use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarith;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -25,9 +24,12 @@ fn without_number_augend_errors_badarith() {
                     strategy::term::is_number(arc_process.clone()),
                 ),
                 |(augend, addend)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, augend, addend),
-                        Err(badarith!().into())
+                        format!(
+                            "augend ({}) and addend ({}) aren't both numbers",
+                            augend, addend
+                        )
                     );
 
                     Ok(())

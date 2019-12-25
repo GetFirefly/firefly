@@ -4,8 +4,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::is_function_2::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;

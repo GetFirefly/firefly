@@ -3,7 +3,6 @@ mod with_integer;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::integer_to_binary_1::native;
@@ -16,8 +15,11 @@ fn without_integer_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term::is_not_integer(arc_process.clone()),
-                |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+                |integer| {
+                    prop_assert_badarg!(
+                        native(&arc_process, integer),
+                        format!("integer ({}) is not an integer", integer)
+                    );
 
                     Ok(())
                 },

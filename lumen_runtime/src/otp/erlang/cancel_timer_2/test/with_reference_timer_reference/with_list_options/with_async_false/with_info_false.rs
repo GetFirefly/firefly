@@ -9,9 +9,12 @@ fn without_local_reference_errors_badarg() {
             .run(
                 &strategy::term::is_not_local_reference(arc_process.clone()),
                 |timer_reference| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, timer_reference, options(&arc_process)),
-                        Err(badarg!().into())
+                        format!(
+                            "timer_reference ({}) is not a local reference",
+                            timer_reference
+                        )
                     );
 
                     Ok(())

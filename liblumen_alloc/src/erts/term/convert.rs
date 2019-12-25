@@ -2,7 +2,7 @@ use core::convert::{From, Infallible, TryInto};
 
 use thiserror::Error;
 
-use crate::erts::exception::Exception;
+use crate::erts::exception::InternalResult;
 
 use super::arch::{arch_32, arch_64, arch_x86_64};
 use super::integer::TryIntoIntegerError;
@@ -41,7 +41,7 @@ macro_rules! impl_term_conversions {
         }
 
         impl Encode<$raw> for AnyPid {
-            fn encode(&self) -> Result<$raw, crate::erts::exception::Exception> {
+            fn encode(&self) -> InternalResult<$raw> {
                 match self {
                     AnyPid::Local(pid) => pid.encode(),
                     AnyPid::External(pid) => pid.encode(),
@@ -225,7 +225,7 @@ macro_rules! impl_term_conversions {
         }
 
         impl TryInto<Vec<u8>> for $raw {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
                 self.decode().unwrap().try_into()

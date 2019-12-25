@@ -71,9 +71,13 @@ fn with_greater_than_byte_len_errors_badarg() {
                     let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
                     let position = arc_process.integer(index).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, position),
-                        Err(badarg!().into())
+                        format!(
+                            "index ({}) exceeds full byte length ({})",
+                            index,
+                            byte_vec.len()
+                        )
                     );
 
                     Ok(())

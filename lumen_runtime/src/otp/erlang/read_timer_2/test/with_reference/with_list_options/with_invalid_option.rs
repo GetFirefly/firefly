@@ -10,9 +10,12 @@ fn without_reference_errors_badarg() {
                     options(arc_process.clone()),
                 ),
                 |(timer_reference, options)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, timer_reference, options),
-                        Err(badarg!().into())
+                        format!(
+                            "timer_reference ({}) is not a local reference",
+                            timer_reference
+                        )
                     );
 
                     Ok(())
@@ -103,6 +106,9 @@ where
         let timer_reference = process.next_reference().unwrap();
         let options = process.cons(option(process), Term::NIL).unwrap();
 
-        assert_badarg!(native(process, timer_reference, options));
+        assert_badarg!(
+            native(process, timer_reference, options),
+            "supported option is {:async, bool}"
+        );
     });
 }

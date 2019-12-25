@@ -11,21 +11,19 @@ fn without_tuple_in_init_list_errors_badarg() {
                     Just(arc_process.clone()),
                     (0_usize..255_usize),
                     strategy::term(arc_process.clone()),
-                    (
-                        Just(arc_process.clone()),
-                        strategy::term::is_not_tuple(arc_process.clone()),
-                    )
-                        .prop_map(|(arc_process, element)| {
-                            arc_process.list_from_slice(&[element]).unwrap()
-                        }),
+                    strategy::term::is_not_tuple(arc_process.clone()),
                 )
             }),
-            |(arc_process, arity_usize, default_value, init_list)| {
+            |(arc_process, arity_usize, default_value, element)| {
                 let arity = arc_process.integer(arity_usize).unwrap();
+                let init_list = arc_process.list_from_slice(&[element]).unwrap();
 
-                prop_assert_eq!(
+                prop_assert_badarg!(
                     native(&arc_process, arity, default_value, init_list),
-                    Err(badarg!().into())
+                    format!(
+                        "init list ({}) element ({}) is not {{position :: pos_integer(), term()}}",
+                        init_list, element
+                    )
                 );
 
                 Ok(())

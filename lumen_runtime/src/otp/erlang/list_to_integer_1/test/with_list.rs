@@ -70,18 +70,12 @@ fn with_big_integer_returns_big_integer() {
 #[test]
 fn with_non_decimal_errors_badarg() {
     with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::containing_bytes(
-                    "FF".as_bytes().to_owned(),
-                    arc_process.clone(),
-                ),
-                |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+        let string = "FF";
+        let list = arc_process.charlist_from_str(&string).unwrap();
 
-                    Ok(())
-                },
-            )
-            .unwrap();
+        assert_badarg!(
+            native(&arc_process, list),
+            format!("string ({}) is not base 10", string)
+        );
     });
 }

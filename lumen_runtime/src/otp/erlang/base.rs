@@ -1,7 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::Exception;
+use anyhow::*;
+
 use liblumen_alloc::erts::term::prelude::*;
 
 // 2-36
@@ -16,35 +16,22 @@ impl Base {
         self.0 as u32
     }
 
-    const MIN_BASE: u8 = 2;
-    const MAX_BASE: u8 = 36;
+    const MIN: u8 = 2;
+    const MAX: u8 = 36;
 }
+
+const CONTEXT: &str = "base must be an integer in 2-36";
 
 impl TryFrom<Term> for Base {
-    type Error = Exception;
+    type Error = anyhow::Error;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.decode().unwrap().try_into()
-    }
-}
+        let base_u8: u8 = term.try_into().context(CONTEXT)?;
 
-impl TryFrom<TypedTerm> for Base {
-    type Error = Exception;
-
-    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
-        match typed_term {
-            TypedTerm::SmallInteger(small_integer) => {
-                let small_integer_isize: isize = small_integer.into();
-
-                if (Self::MIN_BASE as isize) <= small_integer_isize
-                    && small_integer_isize <= (Self::MAX_BASE as isize)
-                {
-                    Ok(Base(small_integer_isize as u8))
-                } else {
-                    Err(badarg!().into())
-                }
-            }
-            _ => Err(badarg!().into()),
+        if (Self::MIN <= base_u8) && (base_u8 <= Self::MAX) {
+            Ok(Self(base_u8))
+        } else {
+            Err(TryIntoIntegerError::OutOfRange).context(CONTEXT)
         }
     }
 }

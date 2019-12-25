@@ -13,11 +13,10 @@ fn unregistered_errors_badarg() {
                         .tuple_from_slice(&[name, erlang::node_0::native()])
                         .unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, destination, message),
-                        Err(badarg!().into())
+                        format!("name ({}) not registered", name)
                     );
-                    assert_badarg!(native(&arc_process, destination, message));
 
                     Ok(())
                 },

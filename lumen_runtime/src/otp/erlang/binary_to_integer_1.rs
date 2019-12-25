@@ -18,5 +18,5 @@ use crate::otp::erlang::string_to_integer::decimal_string_to_integer;
 pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {
     let string: String = binary_to_string(binary)?;
 
-    decimal_string_to_integer(process, &string)
+    decimal_string_to_integer(process, &string).map_err(From::from)
 }

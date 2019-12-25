@@ -5,16 +5,16 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 #[native_implemented_function(is_function/2)]
 fn native(term: Term, arity: Term) -> exception::Result<Term> {
-    let arity_arity: u8 = arity.try_into()?;
+    let arity_arity = term_try_into_arity(arity)?;
 
     Ok(term.decode()?.is_function_with_arity(arity_arity).into())
 }

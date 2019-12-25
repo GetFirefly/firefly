@@ -15,8 +15,10 @@ use crate::send::{send, Sent};
 
 #[native_implemented_function(send/2)]
 pub fn native(process: &Process, destination: Term, message: Term) -> exception::Result<Term> {
-    send(destination, message, Default::default(), process).map(|sent| match sent {
-        Sent::Sent => message,
+    let sent = send(destination, message, Default::default(), process)?;
+
+    match sent {
+        Sent::Sent => Ok(message),
         _ => unreachable!(),
-    })
+    }
 }

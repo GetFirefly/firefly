@@ -1,13 +1,16 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
+use proptest::{prop_assert, prop_assert_eq};
+
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::message::{self, Message};
-use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::{exception, Node};
+use liblumen_alloc::erts::Node;
 
 use crate::process::spawn::options::Options;
-use crate::scheduler::{with_process, Scheduler, Spawned};
+use crate::scheduler::{Scheduler, Spawned};
 use crate::test::r#loop;
 
 pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
@@ -20,13 +23,6 @@ pub fn count_ones(term: Term) -> u32 {
         TypedTerm::BigInteger(n) => n.as_ref().count_ones(),
         _ => panic!("Can't count 1s in non-integer"),
     }
-}
-
-pub fn errors_badarg<F>(actual: F)
-where
-    F: FnOnce(&Process) -> exception::Result<Term>,
-{
-    with_process(|process| assert_badarg!(actual(&process)))
 }
 
 pub fn external_arc_node() -> Arc<Node> {
@@ -94,6 +90,53 @@ pub fn process(parent_process: &Process, options: Options) -> Spawned {
     let code = r#loop::code;
 
     Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()
+}
+
+pub fn prop_assert_exits<
+    F: Fn(Option<Term>) -> proptest::test_runner::TestCaseResult,
+    S: AsRef<str>,
+>(
+    process: &Process,
+    expected_reason: Term,
+    prop_assert_stacktrace: F,
+    source_substring: S,
+) -> proptest::test_runner::TestCaseResult {
+    match *process.status.read() {
+        Status::Exiting(ref runtime_exception) => {
+            prop_assert_eq!(runtime_exception.reason(), Some(expected_reason));
+            prop_assert_stacktrace(runtime_exception.stacktrace())?;
+
+            let source_string = format!("{:?}", runtime_exception.source());
+
+            let source_substring: &str = source_substring.as_ref();
+
+            prop_assert!(
+                source_string.contains(source_substring),
+                "source ({}) does not contain `{}`",
+                source_string,
+                source_substring
+            );
+
+            Ok(())
+        }
+        ref status => Err(proptest::test_runner::TestCaseError::fail(format!(
+            "Child process did not exit.  Status is {:?}",
+            status
+        ))),
+    }
+}
+
+pub fn prop_assert_exits_badarity<S: AsRef<str>>(
+    process: &Process,
+    fun: Term,
+    args: Term,
+    source_substring: S,
+) -> proptest::test_runner::TestCaseResult {
+    let tag = atom!("badarity");
+    let fun_args = process.tuple_from_slice(&[fun, args]).unwrap();
+    let reason = process.tuple_from_slice(&[tag, fun_args]).unwrap();
+
+    prop_assert_exits(process, reason, |_| Ok(()), source_substring)
 }
 
 pub fn receive_message(process: &Process) -> Option<Term> {

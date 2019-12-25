@@ -1,7 +1,5 @@
 use super::*;
 
-use liblumen_alloc::badkey;
-
 #[test]
 fn without_key_errors_badkey() {
     TestRunner::new(Config::with_source_file(file!()))
@@ -26,9 +24,11 @@ fn without_key_errors_badkey() {
                     )
                 }),
             |(arc_process, key, map)| {
-                prop_assert_eq!(
+                prop_assert_badkey!(
                     native(&arc_process, key, map),
-                    Err(badkey!(&arc_process, key))
+                    &arc_process,
+                    key,
+                    format!("map ({}) does not have key ({})", map, key)
                 );
 
                 Ok(())

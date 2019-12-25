@@ -2,7 +2,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::size_1::native;
@@ -22,8 +21,14 @@ fn without_tuple_or_bitstring_errors_badarg() {
                         }),
                 )
             }),
-            |(arc_process, term)| {
-                prop_assert_eq!(native(&arc_process, term), Err(badarg!().into()));
+            |(arc_process, binary_or_tuple)| {
+                prop_assert_badarg!(
+                    native(&arc_process, binary_or_tuple),
+                    format!(
+                        "binary_or_tuple ({}) is neither a binary nor a tuple",
+                        binary_or_tuple
+                    )
+                );
 
                 Ok(())
             },

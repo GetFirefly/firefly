@@ -20,9 +20,12 @@ fn without_atom_or_pid_destination_errors_badarg() {
                     let time = arc_process.integer(milliseconds).unwrap();
                     let options = options(&arc_process);
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        format!(
+                            "destination ({}) is neither a registered name (atom) nor a local pid",
+                            destination
+                        )
                     );
 
                     Ok(())

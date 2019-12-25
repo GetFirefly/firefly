@@ -5,7 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -14,8 +13,8 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(from_list/1)]
 pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
-    match Map::from_list(list) {
-        Some(hash_map) => Ok(process.map_from_hash_map(hash_map)?),
-        None => Err(badarg!().into()),
-    }
+    let hash_map = Map::from_list(list)?;
+    let map = process.map_from_hash_map(hash_map)?;
+
+    Ok(map)
 }

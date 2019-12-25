@@ -1,6 +1,6 @@
 use super::*;
 
-use proptest::strategy::Strategy;
+use proptest::strategy::{Just, Strategy};
 
 mod with_binary_subbinary;
 mod with_byte;
@@ -12,9 +12,15 @@ fn without_byte_binary_or_list_element_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &is_not_byte_binary_nor_list(arc_process.clone())
-                    .prop_map(|element| arc_process.cons(element, Term::NIL).unwrap()),
-                |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    .prop_map(|element| (arc_process.cons(element, Term::NIL).unwrap(), element)),
+                |(iolist, element)| {
+                    prop_assert_badarg!(
+                        native(&arc_process, iolist),
+                        format!(
+                            "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
+                            iolist, element
+                        )
+                    );
 
                     Ok(())
                 },
@@ -40,16 +46,33 @@ fn with_subbinary_with_bit_count_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &strategy::term::binary::sub::is_not_binary(arc_process.clone())
-                    .prop_map(|element| arc_process.cons(element, Term::NIL).unwrap()),
-                |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                &strategy::term::binary::sub::is_not_binary(arc_process.clone()),
+                |element| {
+                    let iolist = arc_process.list_from_slice(&[element]).unwrap();
+
+                    prop_assert_badarg!(
+                        native(&arc_process, iolist),
+                        format!(
+                            "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
+                            iolist, element
+                        )
+                    );
 
                     Ok(())
                 },
             )
             .unwrap();
     });
+}
+
+fn is_integer_is_not_byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        strategy::term::integer::negative(arc_process.clone()),
+        (Just(arc_process.clone()), (256..=SmallInteger::MAX_VALUE))
+            .prop_map(|(arc_process, i)| arc_process.integer(i).unwrap()),
+        strategy::term::integer::big::positive(arc_process)
+    ]
+    .boxed()
 }
 
 fn is_not_byte_binary_nor_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

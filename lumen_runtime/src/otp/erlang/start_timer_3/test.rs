@@ -4,7 +4,6 @@ use proptest::strategy::{BoxedStrategy, Just};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
@@ -29,9 +28,9 @@ fn without_non_negative_integer_time_error_badarg() {
                 |(time, message)| {
                     let destination = arc_process.pid_term();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(arc_process.clone(), time, destination, message),
-                        Err(badarg!().into())
+                        format!("time ({}) is not a non-negative integer", time)
                     );
 
                     Ok(())

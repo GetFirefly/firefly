@@ -1,8 +1,11 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
+use anyhow::*;
+
 use liblumen_core::locks::RwLock;
 
+use liblumen_alloc::erts::exception::{self, ArcError};
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::Process;
@@ -97,7 +100,19 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
             Process::call_code(arc_process)
         }
-        None => undef(arc_process, module, function, argument_list),
+        None => undef(
+            arc_process,
+            module,
+            function,
+            argument_list,
+            anyhow!(
+                ":{}.{}/{} is not exported",
+                module_atom.name(),
+                function_atom.name(),
+                arity
+            )
+            .into(),
+        ),
     }
 }
 
@@ -122,9 +137,10 @@ fn undef(
     module: Term,
     function: Term,
     arguments: Term,
+    source: ArcError,
 ) -> code::Result {
     arc_process.reduce();
-    let exception = liblumen_alloc::undef!(arc_process, module, function, arguments);
+    let exception = exception::undef(arc_process, module, function, arguments, Term::NIL, source);
     code::result_from_exception(arc_process, exception)
 }
 

@@ -2,8 +2,6 @@ use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert_eq, prop_oneof};
 
-use liblumen_alloc::badarith;
-
 use crate::otp::erlang::negate_1::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -15,7 +13,10 @@ fn without_number_errors_badarith() {
             .run(
                 &strategy::term::is_not_number(arc_process.clone()),
                 |number| {
-                    prop_assert_eq!(native(&arc_process, number), Err(badarith!().into()));
+                    prop_assert_badarith!(
+                        native(&arc_process, number),
+                        format!("number ({}) is neither an integer nor a float", number)
+                    );
 
                     Ok(())
                 },

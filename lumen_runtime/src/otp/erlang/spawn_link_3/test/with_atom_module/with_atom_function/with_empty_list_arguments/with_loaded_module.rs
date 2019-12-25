@@ -16,7 +16,7 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
 
     let arguments = Term::NIL;
 
-    let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);
+    let result = native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -41,15 +41,12 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
         arc_process.current_module_function_arity(),
         Some(apply_3::module_function_arity())
     );
-
-    match *arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: RuntimeException = undef!(&arc_process, module, function, arguments)
-                .try_into()
-                .unwrap();
-
-            assert_eq!(runtime_exception, &runtime_undef);
-        }
-        ref status => panic!("Process status ({:?}) is not exiting.", status),
-    };
+    assert_exits_undef(
+        &arc_process,
+        module,
+        function,
+        arguments,
+        // Typo
+        ":erlang.sel/0 is not exported",
+    );
 }

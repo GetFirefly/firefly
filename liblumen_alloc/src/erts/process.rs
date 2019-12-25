@@ -5,7 +5,7 @@ pub mod gc;
 mod heap;
 mod mailbox;
 mod monitor;
-mod priority;
+pub mod priority;
 
 use core::alloc::Layout;
 use core::any::Any;
@@ -20,6 +20,7 @@ use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
 
 use ::alloc::sync::Arc;
 
+use anyhow::*;
 use hashbrown::{HashMap, HashSet};
 use intrusive_collections::{LinkedList, UnsafeRef};
 
@@ -27,7 +28,7 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::exception::{self, AllocResult, RuntimeException};
+use crate::erts::exception::{AllocResult, ArcError, InternalResult, RuntimeException};
 use crate::erts::module_function_arity::Arity;
 use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
 use crate::erts::term::prelude::*;
@@ -519,7 +520,7 @@ impl Process {
         node: Arc<Node>,
         number: usize,
         serial: usize,
-    ) -> exception::Result<Term> {
+    ) -> InternalResult<Term> {
         self.acquire_heap()
             .external_pid(node, number, serial)
             .map(|pid| pid.into())
@@ -936,7 +937,7 @@ impl Process {
 
         let code_result = match option_code {
             Some(code) => code(arc_process),
-            None => Ok(arc_process.exit_normal()),
+            None => Ok(arc_process.exit_normal(anyhow!("Out of code").into())),
         };
 
         arc_process.stop_running();
@@ -968,13 +969,13 @@ impl Process {
         self.run_reductions.fetch_add(1, Ordering::AcqRel);
     }
 
-    pub fn exit(&self, reason: Term) {
+    pub fn exit(&self, reason: Term, source: ArcError) {
         self.reduce();
-        self.exception(exit!(reason));
+        self.exception(exit!(reason, source));
     }
 
-    pub fn exit_normal(&self) {
-        self.exit(atom!("normal"));
+    pub fn exit_normal(&self, source: ArcError) {
+        self.exit(atom!("normal"), source);
     }
 
     pub fn is_exiting(&self) -> bool {

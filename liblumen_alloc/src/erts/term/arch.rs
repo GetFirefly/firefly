@@ -30,7 +30,7 @@ macro_rules! impl_boxable {
             }
         }
         impl crate::erts::term::encoding::Encode<$raw> for $typ {
-            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+            fn encode(&self) -> crate::erts::exception::InternalResult<$raw> {
                 Ok(<$raw>::encode_box(self as *const $typ))
             }
         }
@@ -65,7 +65,7 @@ macro_rules! impl_unsized_boxable {
             }
         }
         impl crate::erts::term::encoding::Encode<$raw> for $typ {
-            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+            fn encode(&self) -> crate::erts::exception::InternalResult<$raw> {
                 Ok(<$raw>::encode_box(self as *const $typ))
             }
         }
@@ -105,7 +105,7 @@ macro_rules! impl_literal {
             }
         }
         impl crate::erts::term::encoding::Encode<$raw> for $typ {
-            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+            fn encode(&self) -> crate::erts::exception::InternalResult<$raw> {
                 Ok(<$raw>::encode_literal(self as *const $typ))
             }
         }
@@ -144,7 +144,7 @@ macro_rules! impl_list {
             }
         }
         impl crate::erts::term::encoding::Encode<$raw> for Cons {
-            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+            fn encode(&self) -> crate::erts::exception::InternalResult<$raw> {
                 Ok(<$raw>::encode_list(self as *const Cons))
             }
         }

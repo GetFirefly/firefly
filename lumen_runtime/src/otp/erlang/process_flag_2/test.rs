@@ -4,8 +4,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::process_flag_2::native;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::strategy;
@@ -20,7 +18,7 @@ fn without_atom_flag_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(flag, value)| {
-                    prop_assert_eq!(native(&arc_process, flag, value), Err(badarg!().into()));
+                    prop_assert_is_not_atom!(native(&arc_process, flag, value), flag);
 
                     Ok(())
                 },

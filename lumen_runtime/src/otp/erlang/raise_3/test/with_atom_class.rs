@@ -5,7 +5,8 @@ use std::convert::TryInto;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::exception::Class;
+use liblumen_alloc::erts::exception::{Class, Exception};
+use proptest::test_runner::TestCaseError;
 
 #[test]
 fn without_class_errors_badarg() {
@@ -24,7 +25,10 @@ fn without_class_errors_badarg() {
                     strategy::term::list::proper(arc_process.clone()),
                 ),
                 |(class, reason, stacktrace)| {
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        "supported exception classes are error, exit, or throw"
+                    );
 
                     Ok(())
                 },
@@ -44,7 +48,10 @@ fn with_class_without_list_stacktrace_errors_badarg() {
                     strategy::term::is_not_list(arc_process.clone()),
                 ),
                 |(class, reason, stacktrace)| {
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                    );
 
                     Ok(())
                 },
@@ -65,12 +72,7 @@ fn with_class_with_empty_list_stacktrace_raises() {
                 |((class_variant, class), reason)| {
                     let stacktrace = Term::NIL;
 
-                    prop_assert_eq!(
-                        native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
-                    );
-
-                    Ok(())
+                    prop_assert_raises(class_variant, class, reason, stacktrace)
                 },
             )
             .unwrap();
@@ -106,7 +108,10 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                    );
 
                     Ok(())
                 },
@@ -134,7 +139,10 @@ fn with_class_with_stacktrace_with_atom_module_without_atom_function_errors_bada
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                    );
 
                     Ok(())
                 },
@@ -163,7 +171,10 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                    );
 
                     Ok(())
                 },
@@ -198,7 +209,10 @@ fn with_class_with_stacktrace_with_mfa_with_file_without_charlist_errors_badarg(
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                    );
 
                     Ok(())
                 },
@@ -233,7 +247,10 @@ fn with_class_with_stacktrace_with_mfa_with_non_positive_line_with_errors_badarg
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                    );
 
                     Ok(())
                 },
@@ -273,7 +290,10 @@ fn with_class_with_stacktrace_with_mfa_with_invalid_location_errors_badarg() {
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                    );
 
                     Ok(())
                 },
@@ -301,12 +321,7 @@ fn with_atom_module_with_atom_function_with_arity_raises() {
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(
-                        native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
-                    );
-
-                    Ok(())
+                    prop_assert_raises(class_variant, class, reason, stacktrace)
                 },
             )
             .unwrap();
@@ -332,12 +347,7 @@ fn with_atom_module_with_atom_function_with_arguments_raises() {
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(
-                        native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
-                    );
-
-                    Ok(())
+                    prop_assert_raises(class_variant, class, reason, stacktrace)
                 },
             )
             .unwrap();
@@ -364,12 +374,7 @@ fn with_mfa_with_empty_location_raises() {
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(
-                        native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
-                    );
-
-                    Ok(())
+                    prop_assert_raises(class_variant, class, reason, stacktrace)
                 },
             )
             .unwrap();
@@ -402,12 +407,7 @@ fn with_mfa_with_file_raises() {
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(
-                        native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
-                    );
-
-                    Ok(())
+                    prop_assert_raises(class_variant, class, reason, stacktrace)
                 },
             )
             .unwrap();
@@ -447,12 +447,7 @@ fn with_mfa_with_positive_line_raises() {
                             .unwrap()])
                         .unwrap();
 
-                    prop_assert_eq!(
-                        native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
-                    );
-
-                    Ok(())
+                    prop_assert_raises(class_variant, class, reason, stacktrace)
                 },
             )
             .unwrap();
@@ -503,12 +498,7 @@ fn with_mfa_with_file_and_line_raises() {
                         .unwrap()])
                     .unwrap();
 
-                prop_assert_eq!(
-                    native(class, reason, stacktrace),
-                    Err(raise!(class_variant, reason, stacktrace).into())
-                );
-
-                Ok(())
+                prop_assert_raises(class_variant, class, reason, stacktrace)
             },
         )
         .unwrap();
@@ -528,4 +518,21 @@ fn class_variant_and_term() -> BoxedStrategy<(Class, Term)> {
     ]
     .prop_map(|(class_variant, string)| (class_variant, atom!(&string)))
     .boxed()
+}
+
+fn prop_assert_raises(
+    class_variant: Class,
+    class: Term,
+    reason: Term,
+    stacktrace: Term,
+) -> Result<(), TestCaseError> {
+    if let Err(Exception::Runtime(ref runtime_exception)) = native(class, reason, stacktrace) {
+        prop_assert_eq!(runtime_exception.class(), Some(class_variant));
+        prop_assert_eq!(runtime_exception.reason(), Some(reason));
+        prop_assert_eq!(runtime_exception.stacktrace(), Some(stacktrace));
+
+        Ok(())
+    } else {
+        Err(proptest::test_runner::TestCaseError::fail("not a raise"))
+    }
 }

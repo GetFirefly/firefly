@@ -13,9 +13,9 @@ fn without_atom_function_errors_badarg() {
                     strategy::term::list::proper(arc_process.clone()),
                 ),
                 |(module, function, arguments)| {
-                    prop_assert_eq!(
-                        spawn_link_3::native(&arc_process, module, function, arguments),
-                        Err(badarg!().into())
+                    prop_assert_is_not_atom!(
+                        native(&arc_process, module, function, arguments),
+                        function
                     );
 
                     Ok(())

@@ -7,7 +7,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, fixnum};
+use liblumen_alloc::fixnum;
 
 use crate::otp::erlang::make_tuple_3::native;
 use crate::scheduler::with_process_arc;
@@ -25,9 +25,9 @@ fn without_arity_errors_badarg() {
                 |(arity, default_value)| {
                     let init_list = Term::NIL;
 
-                    prop_assert_eq!(
+                    prop_assert_is_not_arity!(
                         native(&arc_process, arity, default_value, init_list),
-                        Err(badarg!().into())
+                        arity
                     );
 
                     Ok(())

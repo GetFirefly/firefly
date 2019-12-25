@@ -21,7 +21,7 @@ fn without_valid_option_errors_badarg() {
                         .prop_map(|option| arc_process.list_from_slice(&[option]).unwrap()),
                 ),
                 |(float, options)| {
-                    prop_assert_eq!(native(&arc_process, float, options), Err(badarg!().into()));
+                    prop_assert_badarg!(native(&arc_process, float, options), "supported options are compact, {:decimal, 0..253}, or {:scientific, 0..249}");
 
                     Ok(())
                 },

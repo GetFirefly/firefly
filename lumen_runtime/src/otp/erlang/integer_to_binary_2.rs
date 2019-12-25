@@ -15,9 +15,8 @@ use crate::otp::erlang::integer_to_string::base_integer_to_string;
 
 #[native_implemented_function(integer_to_binary/2)]
 pub fn native(process: &Process, integer: Term, base: Term) -> exception::Result<Term> {
-    base_integer_to_string(base, integer).and_then(|string| {
-        process
-            .binary_from_str(&string)
-            .map_err(|alloc| alloc.into())
-    })
+    let string = base_integer_to_string(base, integer)?;
+    let binary = process.binary_from_str(&string)?;
+
+    Ok(binary)
 }

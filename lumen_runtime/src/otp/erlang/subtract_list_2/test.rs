@@ -3,8 +3,6 @@ mod with_proper_list_minuend;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::subtract_list_2::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -19,9 +17,9 @@ fn without_proper_list_minuend_errors_badarg() {
                     strategy::term::is_list(arc_process.clone()),
                 ),
                 |(minuend, subtrahend)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, minuend, subtrahend),
-                        Err(badarg!().into())
+                        format!("minuend ({}) is not a proper list", minuend)
                     );
 
                     Ok(())

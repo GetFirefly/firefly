@@ -13,9 +13,10 @@ fn without_atom_registered_name_errors_badarg() {
                         .tuple_from_slice(&[registered_name, node_0::native()])
                         .unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_is_not_atom!(
                         native(&arc_process, r#type(), identifier),
-                        Err(badarg!().into())
+                        "registered name",
+                        registered_name
                     );
 
                     Ok(())

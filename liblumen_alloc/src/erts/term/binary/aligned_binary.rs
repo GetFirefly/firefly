@@ -3,7 +3,8 @@ use core::fmt;
 use core::hash;
 use core::str;
 
-use crate::erts::exception::Exception;
+use anyhow::*;
+
 use crate::erts::term::prelude::Boxed;
 
 use super::prelude::{Binary, BinaryLiteral, HeapBin, IndexByte, MaybePartialByte, ProcBin};
@@ -140,18 +141,18 @@ macro_rules! impl_aligned_binary {
         }
 
         impl TryInto<String> for &$t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             fn try_into(self) -> Result<String, Self::Error> {
-                match str::from_utf8(self.as_bytes()) {
-                    Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!().into()),
-                }
+                let s = str::from_utf8(self.as_bytes())
+                    .with_context(|| format!("binary ({}) cannot be converted to String", self))?;
+
+                Ok(s.to_owned())
             }
         }
 
         impl TryInto<String> for Boxed<$t> {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             fn try_into(self) -> Result<String, Self::Error> {
                 self.as_ref().try_into()
@@ -159,7 +160,7 @@ macro_rules! impl_aligned_binary {
         }
 
         impl TryInto<Vec<u8>> for &$t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
@@ -168,7 +169,7 @@ macro_rules! impl_aligned_binary {
         }
 
         impl TryInto<Vec<u8>> for Boxed<$t> {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
@@ -184,22 +185,22 @@ impl_aligned_binary!(BinaryLiteral);
 
 // We can't make this part of `impl_aligned_binary` because
 // we can't implement TryInto directly for dynamically-sized types,
-// only through references, so we implement them seperately.
+// only through references, so we implement them separately.
 macro_rules! impl_aligned_try_into {
     ($t:ty) => {
         impl TryInto<String> for $t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             fn try_into(self) -> Result<String, Self::Error> {
-                match str::from_utf8(self.as_bytes()) {
-                    Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!().into()),
-                }
+                let s = str::from_utf8(self.as_bytes())
+                    .with_context(|| format!("binary ({}) cannot be converted to String", self))?;
+
+                Ok(s.to_owned())
             }
         }
 
         impl TryInto<Vec<u8>> for $t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {

@@ -6,13 +6,13 @@ fn without_proper_list_subtrahend_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::is_list(arc_process.clone()),
-                    strategy::term::is_not_proper_list(arc_process.clone()),
+                    strategy::term::list::proper(arc_process.clone()),
+                    strategy::term::list::improper(arc_process.clone()),
                 ),
                 |(minuend, subtrahend)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, minuend, subtrahend),
-                        Err(badarg!().into())
+                        format!("subtrahend ({}) is not a proper list", subtrahend)
                     );
 
                     Ok(())

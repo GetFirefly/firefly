@@ -5,7 +5,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{BoxedStrategy, Just};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarith;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -25,9 +24,12 @@ fn without_integer_dividend_errors_badarith() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(dividend, divisor)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        format!(
+                            "dividend ({}) and divisor ({}) are not both numbers",
+                            dividend, divisor
+                        )
                     );
 
                     Ok(())
@@ -47,9 +49,12 @@ fn with_integer_dividend_without_integer_divisor_errors_badarith() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(dividend, divisor)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        format!(
+                            "dividend ({}) and divisor ({}) are not both numbers",
+                            dividend, divisor
+                        )
                     );
 
                     Ok(())
@@ -69,9 +74,9 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
                     Just(arc_process.integer(0).unwrap()),
                 ),
                 |(dividend, divisor)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        format!("divisor ({}) cannot be zero", divisor)
                     );
 
                     Ok(())

@@ -8,17 +8,20 @@ fn with_different_process_errors_badarg() {
                 &(
                     milliseconds(),
                     strategy::term(arc_process.clone()),
-                    options(arc_process.clone()),
+                    abs_value(arc_process.clone()),
                 ),
-                |(milliseconds, message, options)| {
+                |(milliseconds, message, abs_value)| {
                     let time = arc_process.integer(milliseconds).unwrap();
 
                     let destination_arc_process = process::test(&arc_process);
                     let destination = destination_arc_process.pid_term();
 
-                    prop_assert_eq!(
+                    let options = options(abs_value, &arc_process);
+
+                    prop_assert_is_not_boolean!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        "abs value",
+                        abs_value
                     );
 
                     Ok(())
@@ -37,16 +40,18 @@ fn with_same_process_errors_badarg() {
                     Just(milliseconds),
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone()),
-                    options(arc_process),
+                    abs_value(arc_process),
                 )
             }),
-            |(milliseconds, arc_process, message, options)| {
+            |(milliseconds, arc_process, message, abs_value)| {
                 let time = arc_process.integer(milliseconds).unwrap();
                 let destination = arc_process.pid_term();
+                let options = options(abs_value, &arc_process);
 
-                prop_assert_eq!(
+                prop_assert_is_not_boolean!(
                     native(arc_process.clone(), time, destination, message, options),
-                    Err(badarg!().into())
+                    "abs value",
+                    abs_value
                 );
 
                 Ok(())
@@ -63,15 +68,17 @@ fn without_process_errors_badarg() {
                 &(
                     milliseconds(),
                     strategy::term(arc_process.clone()),
-                    options(arc_process.clone()),
+                    abs_value(arc_process.clone()),
                 ),
-                |(milliseconds, message, options)| {
+                |(milliseconds, message, abs_value)| {
                     let time = arc_process.integer(milliseconds).unwrap();
                     let destination = Pid::next_term();
+                    let options = options(abs_value, &arc_process);
 
-                    prop_assert_eq!(
+                    prop_assert_is_not_boolean!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        "abs value",
+                        abs_value
                     );
 
                     Ok(())

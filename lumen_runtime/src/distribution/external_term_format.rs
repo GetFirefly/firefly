@@ -27,21 +27,61 @@ mod u16;
 mod u32;
 mod u64;
 mod u8;
+pub mod version;
 
+use std::backtrace::Backtrace;
 use std::convert::TryInto;
+use std::fmt::{self, Display};
 use std::sync::Arc;
 
+use anyhow::*;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use thiserror::Error;
 
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::{ArcError, InternalException, InternalResult};
 use liblumen_alloc::erts::term::closure::Creator;
 use liblumen_alloc::erts::term::prelude::{Pid as LocalPid, *};
 use liblumen_alloc::erts::{Node, Process};
-use liblumen_alloc::{badarg, CloneToProcess};
+use liblumen_alloc::CloneToProcess;
 
 use super::nodes::node;
 
-pub const VERSION_NUMBER: u8 = 131;
+pub fn try_split_at(bytes: &[u8], mid: usize) -> InternalResult<(&[u8], &[u8])> {
+    let available = bytes.len();
+
+    if mid <= available {
+        Ok(bytes.split_at(mid))
+    } else {
+        {
+            Err(DecodeError::NotEnoughBytes {
+                available,
+                needed: mid,
+                backtrace: Backtrace::capture(),
+            }
+            .into())
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum DecodeError {
+    #[error("needed {needed} bytes, but only {available} available")]
+    NotEnoughBytes {
+        needed: usize,
+        available: usize,
+        backtrace: Backtrace,
+    },
+    #[error("unexpected version ({version})")]
+    UnexpectedVersion { version: u8, backtrace: Backtrace },
+    #[error("unexpected tag ({tag})")]
+    UnexpectedTag { tag: Tag, backtrace: Backtrace },
+}
+
+impl From<DecodeError> for InternalException {
+    fn from(decode_error: DecodeError) -> Self {
+        ArcError::from_err(decode_error).into()
+    }
+}
 
 #[derive(Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
@@ -78,14 +118,19 @@ pub enum Tag {
 }
 
 impl Tag {
-    pub fn decode(bytes: &[u8]) -> Result<(Self, &[u8]), Exception> {
+    pub fn decode(bytes: &[u8]) -> InternalResult<(Self, &[u8])> {
         let (tag_u8, after_tag_bytes) = u8::decode(bytes)?;
-        let result_tag: Result<Tag, _> = tag_u8.try_into();
+        let tag = tag_u8
+            .try_into()
+            .with_context(|| format!("tag ({})", tag_u8))?;
 
-        match result_tag {
-            Ok(tag) => Ok((tag, after_tag_bytes)),
-            Err(_) => Err(badarg!().into()),
-        }
+        Ok((tag, after_tag_bytes))
+    }
+}
+
+impl Display for Tag {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -95,17 +140,22 @@ pub enum Pid {
 }
 
 impl Pid {
-    fn decode(safe: bool, bytes: &[u8]) -> Result<(Self, &[u8]), Exception> {
+    fn decode(safe: bool, bytes: &[u8]) -> InternalResult<(Self, &[u8])> {
         let (tag, after_tag_bytes) = Tag::decode(bytes)?;
 
         match tag {
             Tag::PID => pid::decode_pid(safe, after_tag_bytes),
             Tag::NewPID => new_pid::decode_pid(safe, after_tag_bytes),
-            _ => Err(badarg!().into()),
+            _ => Err(DecodeError::UnexpectedTag {
+                tag,
+                backtrace: Backtrace::capture(),
+            })
+            .with_context(|| format!("Expected tags are {:?} or {:?}", Tag::PID, Tag::NewPID))
+            .map_err(|error| error.into()),
         }
     }
 
-    fn new(arc_node: Arc<Node>, id: u32, serial: u32) -> Result<Self, Exception> {
+    fn new(arc_node: Arc<Node>, id: u32, serial: u32) -> Result<Self, InvalidPidError> {
         let pid = if arc_node == node::arc_node() {
             let local_pid = LocalPid::new(id as usize, serial as usize)?;
 
@@ -143,7 +193,7 @@ fn decode_vec_term<'a>(
     safe: bool,
     bytes: &'a [u8],
     len: usize,
-) -> Result<(Vec<Term>, &'a [u8]), Exception> {
+) -> InternalResult<(Vec<Term>, &'a [u8])> {
     let mut element_vec: Vec<Term> = Vec::with_capacity(len);
     let mut remaining_bytes = bytes;
 

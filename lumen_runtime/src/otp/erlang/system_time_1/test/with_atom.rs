@@ -5,7 +5,12 @@ use std::time::Duration;
 
 #[test]
 fn with_invalid_unit_errors_badarg() {
-    errors_badarg(|_| Atom::str_to_term("invalid"));
+    with_process(|process| {
+        assert_badarg!(
+            native(process, atom!("invalid")),
+            "atom (invalid) is not supported"
+        );
+    });
 }
 
 #[test]

@@ -179,6 +179,27 @@ pub fn total_byte_len(term: Term) -> usize {
     }
 }
 
+pub fn without_boolean_left_errors_badarg(
+    source_file: &'static str,
+    native: fn(Term, Term) -> exception::Result<Term>,
+) {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(source_file))
+            .run(
+                &(
+                    super::strategy::term::is_not_boolean(arc_process.clone()),
+                    super::strategy::term::is_boolean(),
+                ),
+                |(left_boolean, right_boolean)| {
+                    prop_assert_is_not_boolean!(native(left_boolean, right_boolean), left_boolean);
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
 pub fn without_number_errors_badarg(
     source_file: &'static str,
     native: fn(&Process, Term) -> exception::Result<Term>,

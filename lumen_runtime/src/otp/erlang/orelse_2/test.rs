@@ -14,21 +14,7 @@ use crate::test::{external_arc_node, strategy};
 
 #[test]
 fn without_boolean_left_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_boolean(arc_process.clone()),
-                    strategy::term::is_boolean(),
-                ),
-                |(boolean, term)| {
-                    prop_assert_is_not_boolean!(native(boolean, term), boolean);
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+    crate::test::without_boolean_left_errors_badarg(file!(), native);
 }
 
 #[test]

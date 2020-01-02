@@ -5,9 +5,6 @@ use super::*;
 use proptest::prop_assert;
 use proptest::strategy::Strategy;
 
-use liblumen_alloc::badarity;
-use liblumen_alloc::erts::exception::Exception;
-
 use crate::scheduler::Scheduler;
 
 #[test]
@@ -21,9 +18,12 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
                     (1_u8..=255_u8),
                 )
                     .prop_map(|(module, function, arity)| {
-                        strategy::term::export_closure(&arc_process, module, function, arity)
+                        (
+                            strategy::term::export_closure(&arc_process, module, function, arity),
+                            arity,
+                        )
                     }),
-                |function| {
+                |(function, arity)| {
                     let result = native(&arc_process, function);
 
                     prop_assert!(result.is_ok());
@@ -42,22 +42,17 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
                     prop_assert!(scheduler.run_once());
                     prop_assert!(scheduler.run_once());
 
-                    match *child_arc_process.status.read() {
-                        Status::Exiting(ref exception) => {
-                            prop_assert_eq!(
-                                Exception::Runtime(exception.clone()),
-                                badarity!(&child_arc_process, function, Term::NIL)
-                            );
-                        }
-                        ref status => {
-                            return Err(proptest::test_runner::TestCaseError::fail(format!(
-                                "Child process did not exit.  Status is {:?}",
-                                status
-                            )))
-                        }
-                    }
-
-                    Ok(())
+                    let args = Term::NIL;
+                    let source_substring = format!(
+                        "arguments ([]) length (0) does not match arity ({}) of function ({})",
+                        arity, function
+                    );
+                    prop_assert_exits_badarity(
+                        &child_arc_process,
+                        function,
+                        args,
+                        &source_substring,
+                    )
                 },
             )
             .unwrap();

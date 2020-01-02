@@ -15,7 +15,11 @@ fn without_boolean_value_errors_badarg() {
             .run(
                 &strategy::term::is_not_boolean(arc_process.clone()),
                 |value| {
-                    prop_assert_eq!(native(&arc_process, flag(), value), Err(badarg!().into()));
+                    prop_assert_is_not_boolean!(
+                        native(&arc_process, flag(), value),
+                        "trap_exit value",
+                        value
+                    );
 
                     Ok(())
                 },

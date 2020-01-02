@@ -8,12 +8,13 @@ mod test;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::Alloc;
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::{badarity, Alloc};
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, badarity};
 
 use liblumen_alloc::ModuleFunctionArity;
 
@@ -29,14 +30,21 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
         Ok(function_boxed_closure) => {
             let mut argument_vec = Vec::new();
 
-            match arguments.decode().unwrap() {
+            match arguments.decode()? {
                 TypedTerm::Nil => (),
                 TypedTerm::List(argument_boxed_cons) => {
                     for result in argument_boxed_cons.into_iter() {
                         match result {
                             Ok(element) => argument_vec.push(element),
                             Err(_) => {
-                                arc_process.exception(badarg!());
+                                arc_process.exception(
+                                    anyhow!(ImproperListError)
+                                        .context(format!(
+                                            "arguments ({}) is not a proper list",
+                                            arguments
+                                        ))
+                                        .into(),
+                                );
 
                                 return Ok(());
                             }
@@ -44,13 +52,20 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                     }
                 }
                 _ => {
-                    arc_process.exception(badarg!());
+                    arc_process.exception(
+                        anyhow!(TypeError)
+                            .context(format!("arguments ({}) is not a list", arguments))
+                            .into(),
+                    );
 
                     return Ok(());
                 }
             }
 
-            if argument_vec.len() == (function_boxed_closure.arity() as usize) {
+            let arguments_len = argument_vec.len();
+            let arity = function_boxed_closure.arity() as usize;
+
+            if arguments_len == arity {
                 function_boxed_closure.place_frame_with_arguments(
                     arc_process,
                     Placement::Replace,
@@ -59,12 +74,28 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
                 Process::call_code(arc_process)
             } else {
-                let exception = badarity!(arc_process, function, arguments);
+                let exception = badarity(
+                    arc_process,
+                    function,
+                    arguments,
+                    anyhow!(
+                        "arguments ({}) length ({}) does not match arity ({}) of function ({})",
+                        arguments,
+                        arguments_len,
+                        arity,
+                        function
+                    )
+                    .into(),
+                );
                 code::result_from_exception(arc_process, exception)
             }
         }
         Err(_) => {
-            arc_process.exception(badarg!());
+            arc_process.exception(
+                anyhow!(TypeError)
+                    .context(format!("function ({}) is not a function", function))
+                    .into(),
+            );
 
             Ok(())
         }

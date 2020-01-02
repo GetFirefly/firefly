@@ -15,14 +15,16 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                     milliseconds(),
                     strategy::term::is_not_send_after_destination(arc_process.clone()),
                     strategy::term(arc_process.clone()),
-                    options(arc_process.clone()),
+                    abs_value(arc_process.clone()),
                 ),
-                |(milliseconds, destination, message, options)| {
+                |(milliseconds, destination, message, abs_value)| {
                     let time = arc_process.integer(milliseconds).unwrap();
+                    let options = options(abs_value, &arc_process);
 
-                    prop_assert_eq!(
+                    prop_assert_is_not_boolean!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        "abs value",
+                        abs_value
                     );
 
                     Ok(())

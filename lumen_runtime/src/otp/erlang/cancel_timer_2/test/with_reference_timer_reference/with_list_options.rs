@@ -12,9 +12,9 @@ fn with_invalid_option() {
                 let timer_reference = arc_process.next_reference().unwrap();
                 let options = arc_process.cons(option, Term::NIL).unwrap();
 
-                prop_assert_eq!(
+                prop_assert_badarg!(
                     native(&arc_process, timer_reference, options),
-                    Err(badarg!().into())
+                    format!("supported options are {{:async, bool}} or {{:info, bool}}")
                 );
 
                 Ok(())

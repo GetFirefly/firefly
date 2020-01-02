@@ -1,10 +1,10 @@
 mod with_local_pid;
 
-use proptest::prop_assert_eq;
+use anyhow::*;
+
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -22,7 +22,10 @@ fn without_pid_or_port_errors_badarg() {
                         !(pid_or_port.is_pid() || pid_or_port.is_port())
                     }),
                 |pid_or_port| {
-                    prop_assert_eq!(native(&arc_process, pid_or_port), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, pid_or_port),
+                        format!("pid_or_port ({}) is neither a pid nor a port", pid_or_port)
+                    );
 
                     Ok(())
                 },

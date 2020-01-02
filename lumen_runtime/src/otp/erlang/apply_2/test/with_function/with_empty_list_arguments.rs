@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use proptest::strategy::Strategy;
 
-use liblumen_alloc::badarity;
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
@@ -22,9 +21,12 @@ fn without_arity_errors_badarity() {
                     (1_u8..=255_u8),
                 )
                     .prop_map(|(module, function, arity)| {
-                        export_closure(&arc_process.clone(), module, function, arity)
+                        (
+                            arity,
+                            export_closure(&arc_process.clone(), module, function, arity),
+                        )
                     }),
-                |function| {
+                |(arity, function)| {
                     let Ready {
                         arc_process: child_arc_process,
                         result,
@@ -46,7 +48,16 @@ fn without_arity_errors_badarity() {
                     )
                     .unwrap();
 
-                    prop_assert_eq!(result, Err(badarity!(&arc_process, function, Term::NIL)));
+                    prop_assert_badarity!(
+                        result,
+                        &arc_process,
+                        function,
+                        Term::NIL,
+                        format!(
+                            "arguments ([]) length (0) does not match arity ({}) of function ({})",
+                            arity, function
+                        )
+                    );
 
                     mem::drop(child_arc_process);
 

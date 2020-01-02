@@ -5,8 +5,6 @@ use proptest::test_runner::{Config, TestRunner};
 
 use radix_fmt::radix;
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::list_to_integer_2::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -21,7 +19,10 @@ fn without_list_errors_badarg() {
                     strategy::term::is_base(arc_process.clone()),
                 ),
                 |(list, base)| {
-                    prop_assert_eq!(native(&arc_process, list, base), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, list, base),
+                        format!("list ({}) is not a list", list)
+                    );
 
                     Ok(())
                 },
@@ -36,11 +37,15 @@ fn with_list_without_base_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::is_list(arc_process.clone()),
+                    any::<isize>()
+                        .prop_map(|i| arc_process.charlist_from_str(&i.to_string()).unwrap()),
                     strategy::term::is_not_base(arc_process.clone()),
                 ),
                 |(list, base)| {
-                    prop_assert_eq!(native(&arc_process, list, base), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, list, base),
+                        "base must be an integer in 2-36"
+                    );
 
                     Ok(())
                 },
@@ -96,12 +101,16 @@ fn with_list_without_integer_in_base_errors_badarg() {
                     let string = String::from_utf8(vec![invalid_digit]).unwrap();
 
                     (
+                        string.clone(),
                         arc_process.charlist_from_str(&string).unwrap(),
                         arc_process.integer(base).unwrap(),
                     )
                 }),
-                |(list, base)| {
-                    prop_assert_eq!(native(&arc_process, list, base), Err(badarg!().into()));
+                |(string, list, base)| {
+                    prop_assert_badarg!(
+                        native(&arc_process, list, base),
+                        format!("string ({}) is not in base ({})", string, base)
+                    );
 
                     Ok(())
                 },

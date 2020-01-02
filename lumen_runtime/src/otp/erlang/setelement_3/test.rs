@@ -1,8 +1,10 @@
+use std::convert::TryInto;
+
 use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::setelement_3::native;
 use crate::scheduler::with_process_arc;
@@ -21,10 +23,7 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple, index, element)| {
-                prop_assert_eq!(
-                    native(&arc_process, index, tuple, element),
-                    Err(badarg!().into())
-                );
+                prop_assert_is_not_tuple!(native(&arc_process, index, tuple, element), tuple);
 
                 Ok(())
             },
@@ -34,24 +33,31 @@ fn without_tuple_errors_badarg() {
 
 #[test]
 fn with_tuple_without_valid_index_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
+                    Just(arc_process.clone()),
                     strategy::term::tuple::without_index(arc_process.clone()),
                     strategy::term(arc_process.clone()),
-                ),
-                |((tuple, index), element)| {
-                    prop_assert_eq!(
-                        native(&arc_process, index, tuple, element),
-                        Err(badarg!().into())
-                    );
+                )
+            }),
+            |(arc_process, (tuple, index), element)| {
+                let boxed_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                prop_assert_badarg!(
+                    native(&arc_process, index, tuple, element),
+                    format!(
+                        "index ({}) is not a 1-based integer between 1-{}",
+                        index,
+                        boxed_tuple.len()
+                    )
+                );
+
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]

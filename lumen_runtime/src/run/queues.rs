@@ -5,6 +5,8 @@ use core::hash::Hash;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::process::{Priority, Process, Status};
 
 use crate::run::queues::delayed::Delayed;
@@ -78,7 +80,7 @@ impl Queues {
             }
             PushBack => {
                 if arc_process.code_stack_len() == 0 {
-                    arc_process.exit_normal();
+                    arc_process.exit_normal(anyhow!("Out of code").into());
                     Some(arc_process)
                 } else {
                     self.enqueue(arc_process);

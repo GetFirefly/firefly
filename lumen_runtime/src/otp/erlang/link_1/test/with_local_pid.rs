@@ -26,7 +26,7 @@ fn with_non_existent_pid_errors_noproc() {
 
         assert_eq!(
             native(process, Pid::next_term()),
-            Err(error!(Atom::str_to_term("noproc")).into())
+            Err(error!(Atom::str_to_term("noproc"), anyhow!("Test").into()).into())
         );
 
         assert_eq!(link_count(process), link_count_before);

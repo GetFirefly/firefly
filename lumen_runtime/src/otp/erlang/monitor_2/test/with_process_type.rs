@@ -21,9 +21,9 @@ fn without_process_identifier_errors_badarg() {
             .run(
                 &is_not_process_identifier(arc_process.clone()),
                 |process_identifier| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, r#type(), process_identifier),
-                        Err(badarg!().into())
+                        "process identifier must be `pid | registered_name() | {registered_name(), node()}`"
                     );
 
                     Ok(())
@@ -34,19 +34,14 @@ fn without_process_identifier_errors_badarg() {
 }
 
 fn is_not_process_identifier(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    strategy::term(arc_process)
-        .prop_filter(
-            "Process identifier cannot be a pid, atom, or {atom, atom}",
-            |process_identifier| match process_identifier.decode().unwrap() {
-                TypedTerm::Atom(_) | TypedTerm::Pid(_) => false,
-                TypedTerm::ExternalPid(_) => false,
-                TypedTerm::Tuple(tuple) => {
-                    tuple.len() != 2 || !(tuple[0].is_atom() && tuple[1].is_atom())
-                }
-                _ => true,
-            },
-        )
-        .boxed()
+    prop_oneof![
+        strategy::term::is_list(arc_process.clone()),
+        strategy::term::local_reference(arc_process.clone()),
+        strategy::term::is_function(arc_process.clone()),
+        strategy::term::is_number(arc_process.clone()),
+        strategy::term::is_bitstring(arc_process.clone())
+    ]
+    .boxed()
 }
 
 fn r#type() -> Term {

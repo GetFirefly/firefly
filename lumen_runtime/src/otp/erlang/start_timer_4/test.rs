@@ -8,7 +8,7 @@ use proptest::strategy::{BoxedStrategy, Just};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -27,14 +27,20 @@ fn without_proper_list_options_errors_badarg() {
                 &(
                     strategy::term::integer::non_negative(arc_process.clone()),
                     strategy::term(arc_process.clone()),
-                    strategy::term::is_not_proper_list(arc_process.clone()),
+                    strategy::term::is_not_list(arc_process.clone()),
                 ),
-                |(time, message, options)| {
+                |(time, message, tail)| {
                     let destination = arc_process.pid_term();
+                    let option = arc_process
+                        .tuple_from_slice(&[atom!("abs"), true.into()])
+                        .unwrap();
+                    let options = arc_process
+                        .improper_list_from_slice(&[option], tail)
+                        .unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        "improper list"
                     );
 
                     Ok(())

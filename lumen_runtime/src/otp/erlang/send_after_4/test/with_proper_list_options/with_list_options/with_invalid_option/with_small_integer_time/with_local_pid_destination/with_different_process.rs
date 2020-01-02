@@ -14,9 +14,9 @@ fn sends_message_when_timer_expires() {
 
                     let options = options(&arc_process);
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        "supported option is {:abs, bool}"
                     );
 
                     Ok(())

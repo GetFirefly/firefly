@@ -1,19 +1,19 @@
 use std::mem;
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
 use crate::distribution::nodes::node;
 
 use super::{arc_node, u16, u32, u64};
+use crate::distribution::external_term_format::try_split_at;
 
 pub fn decode<'a>(
     process: &Process,
     safe: bool,
     bytes: &'a [u8],
-) -> Result<(Term, &'a [u8]), Exception> {
+) -> InternalResult<(Term, &'a [u8])> {
     let (u32_len_u16, after_len_bytes) = u16::decode(bytes)?;
     let len_usize = (u32_len_u16 as usize) * mem::size_of::<u32>();
 
@@ -21,9 +21,8 @@ pub fn decode<'a>(
     // TODO use creation to differentiate respawned nodes
     let (_creation, after_creation_bytes) = u32::decode(after_node_bytes)?;
 
-    if len_usize <= after_creation_bytes.len() {
+    try_split_at(after_creation_bytes, len_usize).and_then(|(id_bytes, after_id_bytes)| {
         if arc_node == node::arc_node() {
-            let (id_bytes, after_id_bytes) = after_creation_bytes.split_at(len_usize);
             let (scheduler_id_u32, after_scheduler_id_bytes) = u32::decode(id_bytes)?;
             let (number_u64, _) = u64::decode(after_scheduler_id_bytes)?;
 
@@ -34,7 +33,5 @@ pub fn decode<'a>(
         } else {
             unimplemented!()
         }
-    } else {
-        Err(badarg!().into())
-    }
+    })
 }

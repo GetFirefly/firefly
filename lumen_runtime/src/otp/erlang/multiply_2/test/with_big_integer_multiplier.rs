@@ -10,9 +10,12 @@ fn without_number_multiplicand_errors_badarith() {
                     strategy::term::is_not_number(arc_process.clone()),
                 ),
                 |(multiplier, multiplicand)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, multiplier, multiplicand),
-                        Err(badarith!().into())
+                        format!(
+                            "multiplier ({}) and multiplicand ({}) aren't both numbers",
+                            multiplier, multiplicand
+                        )
                     );
 
                     Ok(())

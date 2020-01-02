@@ -7,9 +7,10 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::Term;
-use liblumen_alloc::{badarg, raise};
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::{self, *};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -19,11 +20,17 @@ use crate::stacktrace;
 pub fn native(class: Term, reason: Term, stacktrace: Term) -> exception::Result<Term> {
     let class_class: exception::Class = class.try_into()?;
 
-    let runtime_exception = if stacktrace::is(stacktrace) {
-        raise!(class_class, reason, stacktrace)
+    if stacktrace::is(stacktrace) {
+        Err(raise(
+            class_class,
+            reason,
+            Some(stacktrace),
+            anyhow!("explicit raise from Erlang").into(),
+        )
+        .into())
     } else {
-        badarg!()
-    };
-
-    Err(runtime_exception.into())
+        Err(TypeError)
+            .context(format!("stacktrace ({}) is not a stacktrace", stacktrace))
+            .map_err(From::from)
+    }
 }

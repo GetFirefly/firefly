@@ -1,9 +1,10 @@
+use std::convert::TryInto;
+
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::atom_to_binary_2::native;
@@ -20,7 +21,7 @@ fn without_atom_errors_badarg() {
                     strategy::term::is_encoding(),
                 ),
                 |(atom, encoding)| {
-                    prop_assert_eq!(native(&arc_process, atom, encoding), Err(badarg!().into()));
+                    prop_assert_is_not_atom!(native(&arc_process, atom, encoding), atom);
 
                     Ok(())
                 },
@@ -30,16 +31,40 @@ fn without_atom_errors_badarg() {
 }
 
 #[test]
-fn with_atom_without_encoding_errors_badarg() {
+fn with_atom_without_atom_encoding_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
                     strategy::term::atom(),
-                    strategy::term::is_not_encoding(arc_process.clone()),
+                    strategy::term::is_not_atom(arc_process.clone()),
                 ),
                 |(atom, encoding)| {
-                    prop_assert_eq!(native(&arc_process, atom, encoding), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, atom, encoding),
+                        format!("invalid encoding name value: `{}` is not an atom", encoding)
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
+#[test]
+fn with_atom_with_atom_without_name_encoding_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::atom(),
+                    strategy::term::atom::is_not_encoding(),
+                ),
+                |(atom, encoding)| {
+                    let encoding_atom: Atom = encoding.try_into().unwrap();
+
+                    prop_assert_badarg!(native(&arc_process, atom, encoding), format!("invalid atom encoding name: '{}' is not one of the supported values (latin1, unicode, or utf8)", encoding_atom.name()));
 
                     Ok(())
                 },

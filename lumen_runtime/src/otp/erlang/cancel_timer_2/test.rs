@@ -2,10 +2,8 @@ mod with_reference_timer_reference;
 
 use std::convert::TryInto;
 
-use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -26,9 +24,12 @@ fn without_reference_timer_reference_errors_badarg() {
                 |timer_reference| {
                     let options = Term::NIL;
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, timer_reference, options),
-                        Err(badarg!().into())
+                        format!(
+                            "timer_reference ({}) is not a local reference",
+                            timer_reference
+                        )
                     );
 
                     Ok(())
@@ -48,9 +49,9 @@ fn with_reference_timer_reference_without_list_options_errors_badarg() {
                     strategy::term::is_not_list(arc_process.clone()),
                 ),
                 |(timer_reference, options)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, timer_reference, options),
-                        Err(badarg!().into())
+                        "improper list"
                     );
 
                     Ok(())

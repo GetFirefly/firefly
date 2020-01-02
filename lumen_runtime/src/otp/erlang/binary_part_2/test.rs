@@ -6,7 +6,6 @@ use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -30,9 +29,12 @@ fn without_bitstring_errors_badarg() {
                             .unwrap()
                     };
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_length),
-                        Err(badarg!().into())
+                        format!(
+                            "binary ({}) must be a binary or bitstring with at least 1 full byte",
+                            binary
+                        )
                     );
 
                     Ok(())

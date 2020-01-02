@@ -59,10 +59,16 @@ fn with_different_local_pid_right_returns_true() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
             &(strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
-                |(number, serial)| {
+                |(left_number, serial)| {
+                    let right_number = if left_number > 0 {
+                        left_number - 1
+                    } else {
+                        left_number + 1
+                    };
+
                     (
-                        Pid::make_term(number, serial).unwrap(),
-                        Pid::make_term(number + 1, serial).unwrap(),
+                        Pid::make_term(right_number, serial).unwrap(),
+                        Pid::make_term(left_number, serial).unwrap(),
                     )
                 },
             ),

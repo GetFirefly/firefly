@@ -3,7 +3,9 @@ mod label_2;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::Alloc;
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::*;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -28,7 +30,7 @@ pub fn place_frame_with_arguments(
     last: Term,
     acc: Term,
     reducer: Term,
-) -> Result<(), Alloc> {
+) -> AllocResult<()> {
     process.stack_push(reducer)?;
     process.stack_push(acc)?;
     process.stack_push(last)?;
@@ -65,11 +67,19 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
                     result_from_exception(
                         arc_process,
-                        liblumen_alloc::badarity!(arc_process, reducer, argument_list),
+                        badarity(
+                            arc_process,
+                            reducer,
+                            argument_list,
+                            anyhow!("reducer").into(),
+                        ),
                     )
                 }
             }
-            _ => result_from_exception(arc_process, liblumen_alloc::badfun!(arc_process, reducer)),
+            _ => result_from_exception(
+                arc_process,
+                badfun(arc_process, reducer, anyhow!("reducer").into()),
+            ),
         }
     }
     // defp reduce_range_inc(first, last, acc, fun) do

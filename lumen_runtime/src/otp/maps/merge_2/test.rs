@@ -4,8 +4,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badmap;
-
 use crate::otp::maps::merge_2::native;
 use crate::test::strategy;
 
@@ -21,10 +19,7 @@ fn without_map_map_1_errors_badmap() {
                 )
             }),
             |(arc_process, map1, map2)| {
-                prop_assert_eq!(
-                    native(&arc_process, map1, map2),
-                    Err(badmap!(&arc_process, map1))
-                );
+                prop_assert_badmap!(native(&arc_process, map1, map2), &arc_process, map1);
 
                 Ok(())
             },

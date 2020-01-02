@@ -2,8 +2,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::is_record_2::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -37,7 +35,7 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_not_atom(arc_process.clone()),
                 ),
                 |(tuple, record_tag)| {
-                    prop_assert_eq!(native(tuple, record_tag), Err(badarg!().into()));
+                    prop_assert_is_not_atom!(native(tuple, record_tag), "record tag", record_tag);
 
                     Ok(())
                 },
@@ -82,7 +80,7 @@ fn with_non_empty_tuple_without_atom_with_first_element_errors_badarg() {
                         )
                     }),
                 |(tuple, record_tag)| {
-                    prop_assert_eq!(native(tuple, record_tag), Err(badarg!().into()));
+                    prop_assert_is_not_atom!(native(tuple, record_tag), "record tag", record_tag);
 
                     Ok(())
                 },

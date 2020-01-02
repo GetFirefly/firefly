@@ -5,7 +5,6 @@ use std::mem;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::Term;
@@ -44,7 +43,10 @@ fn without_function_errors_badarg() {
                     )
                     .unwrap();
 
-                    prop_assert_eq!(result, Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        result,
+                        format!("function ({}) is not a function", function)
+                    );
 
                     mem::drop(child_arc_proces);
 

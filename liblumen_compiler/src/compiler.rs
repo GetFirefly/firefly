@@ -116,9 +116,14 @@ impl Compiler {
     // Compiles a .erl file to Erlang AST
     fn parse_erl(&self, parser: &mut Parser, file: &Path) -> Result<Module> {
         use libeir_syntax_erl::ast;
+        let codemap = parser.config.codemap.clone();
         match parser.parse_file::<&Path, ast::Module>(file) {
             Ok(ast) => {
-                let (res, messages) = libeir_syntax_erl::lower_module(&ast);
+                let (res, messages) = {
+                    // TODO: Revisit this if the same codemap is used across threads
+                    let codemap_guard = codemap.lock().unwrap();
+                    libeir_syntax_erl::lower_module(&*codemap_guard, &ast)
+                };
                 for msg in messages.iter() {
                     self.diagnostic(&msg.to_diagnostic());
                 }

@@ -2,10 +2,11 @@ mod with_function;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Status;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -22,7 +23,10 @@ fn without_function_errors_badarg() {
             .run(
                 &strategy::term::is_not_function(arc_process.clone()),
                 |function| {
-                    prop_assert_eq!(native(&arc_process, function), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, function),
+                        format!("function ({}) is not a function", function)
+                    );
 
                     Ok(())
                 },

@@ -1,8 +1,10 @@
+use std::convert::TryInto;
+
 use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::delete_element_2::native;
 use crate::scheduler::with_process_arc;
@@ -20,7 +22,7 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple, index)| {
-                prop_assert_eq!(native(&arc_process, index, tuple,), Err(badarg!().into()));
+                prop_assert_is_not_tuple!(native(&arc_process, index, tuple), tuple);
 
                 Ok(())
             },
@@ -35,7 +37,16 @@ fn with_tuple_without_integer_between_1_and_the_length_inclusive_errors_badarg()
             .run(
                 &strategy::term::tuple::without_index(arc_process.clone()),
                 |(tuple, index)| {
-                    prop_assert_eq!(native(&arc_process, index, tuple), Err(badarg!().into()));
+                    let tuple_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
+
+                    prop_assert_badarg!(
+                        native(&arc_process, index, tuple),
+                        format!(
+                            "index ({}) is not a 1-based integer between 1-{}",
+                            index,
+                            tuple_tuple.len()
+                        )
+                    );
 
                     Ok(())
                 },

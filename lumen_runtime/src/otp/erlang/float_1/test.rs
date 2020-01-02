@@ -2,8 +2,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::float_1::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -15,7 +13,10 @@ fn without_number_errors_badarg() {
             .run(
                 &strategy::term::is_not_number(arc_process.clone()),
                 |number| {
-                    prop_assert_eq!(native(&arc_process, number), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, number),
+                        format!("number ({}) must be an integer or float", number)
+                    );
 
                     Ok(())
                 },

@@ -7,6 +7,7 @@ use super::*;
 
 use std::sync::Arc;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::Atom;
 
@@ -22,13 +23,14 @@ fn without_proper_list_for_options_errors_badarg() {
             .run(
                 &(
                     strategy::term::is_reference(arc_process.clone()),
-                    strategy::term::is_not_proper_list(arc_process.clone()),
+                    strategy::term::is_not_list(arc_process.clone()),
                 ),
-                |(reference, options)| {
-                    prop_assert_eq!(
-                        native(&arc_process, reference, options),
-                        Err(badarg!().into())
-                    );
+                |(reference, tail)| {
+                    let options = arc_process
+                        .improper_list_from_slice(&[atom!("flush")], tail)
+                        .unwrap();
+
+                    prop_assert_badarg!(native(&arc_process, reference, options), "improper list");
 
                     Ok(())
                 },
@@ -49,9 +51,9 @@ fn with_unknown_option_errors_badarg() {
                 |(reference, option)| {
                     let options = arc_process.list_from_slice(&[option]).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, reference, options),
-                        Err(badarg!().into())
+                        "supported options are :flush or :info"
                     );
 
                     Ok(())

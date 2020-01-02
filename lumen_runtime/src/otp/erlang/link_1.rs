@@ -5,10 +5,12 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use anyhow::*;
+
+use liblumen_alloc::error;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, error};
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -16,7 +18,7 @@ use crate::registry::pid_to_process;
 
 #[native_implemented_function(link/1)]
 fn native(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
-    match pid_or_port.decode().unwrap() {
+    match pid_or_port.decode()? {
         TypedTerm::Pid(pid) => {
             if pid == process.pid() {
                 Ok(true.into())
@@ -27,13 +29,22 @@ fn native(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
 
                         Ok(true.into())
                     }
-                    None => Err(error!(Atom::str_to_term("noproc")).into()),
+                    None => Err(error!(
+                        Atom::str_to_term("noproc"),
+                        anyhow!("pid ({}) doesn't refer to an alive local process", pid).into()
+                    )
+                    .into()),
                 }
             }
         }
         TypedTerm::Port(_) => unimplemented!(),
         TypedTerm::ExternalPid(_) => unimplemented!(),
         TypedTerm::ExternalPort(_) => unimplemented!(),
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!(
+                "pid_or_port ({}) is neither a pid nor a port",
+                pid_or_port
+            ))
+            .map_err(From::from),
     }
 }

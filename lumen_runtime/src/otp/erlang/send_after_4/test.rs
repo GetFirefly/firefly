@@ -4,11 +4,11 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use proptest::strategy::{BoxedStrategy, Just};
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -27,14 +27,23 @@ fn without_proper_list_options_errors_badarg() {
                 &(
                     strategy::term::integer::non_negative(arc_process.clone()),
                     strategy::term(arc_process.clone()),
-                    strategy::term::is_not_proper_list(arc_process.clone()),
+                    strategy::term::is_not_list(arc_process.clone()).prop_map(|tail| {
+                        arc_process
+                            .cons(
+                                arc_process
+                                    .tuple_from_slice(&[atom!("abs"), false.into()])
+                                    .unwrap(),
+                                tail,
+                            )
+                            .unwrap()
+                    }),
                 ),
                 |(time, message, options)| {
                     let destination = arc_process.pid_term();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(arc_process.clone(), time, destination, message, options,),
-                        Err(badarg!().into())
+                        "improper list"
                     );
 
                     Ok(())

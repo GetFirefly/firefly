@@ -1,17 +1,23 @@
 use super::*;
 
 #[test]
-fn without_byte_binary_or_list_element_errors_badarg() {
+fn with_integer_without_byte_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
                     strategy::term::binary::heap(arc_process.clone()),
-                    is_not_byte_binary_nor_list(arc_process.clone()),
+                    is_integer_is_not_byte(arc_process.clone()),
                 )
-                    .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
-                |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    .prop_map(|(head, tail)| (arc_process.cons(head, tail).unwrap(), tail)),
+                |(iolist, element)| {
+                    prop_assert_badarg!(
+                        native(&arc_process, iolist),
+                        format!(
+                            "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
+                            iolist, element
+                        )
+                    );
 
                     Ok(())
                 },
@@ -46,9 +52,12 @@ fn with_byte_errors_badarg() {
                     strategy::term::binary::heap(arc_process.clone()),
                     byte(arc_process.clone()),
                 )
-                    .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
-                |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    .prop_map(|(head, tail)| (arc_process.cons(head, tail).unwrap(), tail)),
+                |(iolist, tail)| {
+                    prop_assert_badarg!(
+                        native(&arc_process, iolist),
+                        format!("iolist ({}) tail ({}) cannot be a byte", iolist, tail)
+                    );
 
                     Ok(())
                 },

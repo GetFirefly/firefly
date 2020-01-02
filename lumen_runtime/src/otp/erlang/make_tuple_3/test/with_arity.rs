@@ -9,17 +9,26 @@ fn without_proper_list_init_list_errors_badarg() {
             &strategy::process().prop_flat_map(|arc_process| {
                 (
                     Just(arc_process.clone()),
-                    (0_usize..255_usize),
+                    (1_usize..255_usize),
                     strategy::term(arc_process.clone()),
-                    strategy::term::is_not_proper_list(arc_process),
+                    strategy::term(arc_process.clone()),
+                    strategy::term::is_not_list(arc_process),
                 )
             }),
-            |(arc_process, arity_usize, default_value, init_list)| {
+            |(arc_process, arity_usize, default_value, element, tail)| {
                 let arity = arc_process.integer(arity_usize).unwrap();
+                let init_list = arc_process
+                    .cons(
+                        arc_process
+                            .tuple_from_slice(&[arc_process.integer(1).unwrap(), element])
+                            .unwrap(),
+                        tail,
+                    )
+                    .unwrap();
 
-                prop_assert_eq!(
+                prop_assert_badarg!(
                     native(&arc_process, arity, default_value, init_list),
-                    Err(badarg!().into())
+                    format!("init_list ({}) is improper", init_list)
                 );
 
                 Ok(())

@@ -1,11 +1,13 @@
 use super::*;
 
+use anyhow::*;
+
 use liblumen_alloc::{atom, exit};
 
 #[test]
 fn without_stacktrace_returns_empty_list() {
     with_process(|process| {
-        process.exception(exit!(atom!("reason")));
+        process.exception(exit!(atom!("reason"), anyhow!("Test").into()));
 
         assert_eq!(native(process), Term::NIL);
     });
@@ -34,7 +36,7 @@ fn with_stacktrace_returns_stacktrace() {
 
         let stacktrace = process.list_from_slice(&[stack_item]).unwrap();
 
-        process.exception(exit!(atom!("reason"), stacktrace));
+        process.exception(exit!(atom!("reason"), stacktrace, anyhow!("Test").into()));
 
         assert_eq!(native(process), stacktrace);
     })

@@ -9,11 +9,21 @@ fn without_proper_list_errors_badarg() {
             &strategy::process().prop_flat_map(|arc_process| {
                 (
                     Just(arc_process.clone()),
-                    strategy::term::is_not_proper_list(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
+                    strategy::term::is_not_list(arc_process.clone()),
                 )
             }),
-            |(arc_process, list)| {
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+            |(arc_process, key, value, tail)| {
+                let entry = arc_process.tuple_from_slice(&[key, value]).unwrap();
+                let list = arc_process
+                    .improper_list_from_slice(&[entry], tail)
+                    .unwrap();
+
+                prop_assert_badarg!(
+                    native(&arc_process, list),
+                    format!("list ({}) is improper", list)
+                );
 
                 Ok(())
             },
@@ -31,9 +41,13 @@ fn without_tuple_list_errors_badarg() {
                     strategy::term::is_not_tuple(arc_process.clone()),
                 )
             }),
-            |(arc_process, term)| {
-                let list = arc_process.list_from_slice(&[term]).unwrap();
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+            |(arc_process, element)| {
+                let list = arc_process.list_from_slice(&[element]).unwrap();
+
+                prop_assert_badarg!(
+                    native(&arc_process, list),
+                    format!("element ({}) of list ({}) is not a tuple", element, list)
+                );
 
                 Ok(())
             },

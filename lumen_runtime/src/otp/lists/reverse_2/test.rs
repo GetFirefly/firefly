@@ -3,7 +3,6 @@ mod with_proper_list;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::lists::reverse_2::native;
@@ -20,7 +19,10 @@ fn without_proper_list_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(list, tail)| {
-                    prop_assert_eq!(native(&arc_process, list, tail), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, list, tail),
+                        format!("list ({}) is not a proper list", list)
+                    );
 
                     Ok(())
                 },

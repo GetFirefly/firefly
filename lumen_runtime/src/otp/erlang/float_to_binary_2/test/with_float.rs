@@ -14,10 +14,14 @@ fn without_proper_list_options_errors_badarg() {
             .run(
                 &(
                     strategy::term::float(arc_process.clone()),
-                    strategy::term::is_not_proper_list(arc_process.clone()),
+                    strategy::term::is_not_list(arc_process.clone()),
                 ),
-                |(float, options)| {
-                    prop_assert_eq!(native(&arc_process, float, options), Err(badarg!().into()));
+                |(float, tail)| {
+                    let options = arc_process
+                        .improper_list_from_slice(&[atom!("compact")], tail)
+                        .unwrap();
+
+                    prop_assert_badarg!(native(&arc_process, float, options), "improper list");
 
                     Ok(())
                 },

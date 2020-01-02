@@ -1,36 +1,43 @@
 use core::convert::{TryFrom, TryInto};
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::{self, Exception};
+use anyhow::*;
+
 use liblumen_alloc::erts::term::prelude::*;
+
+use crate::proplist::TryPropListFromTermError;
 
 pub struct Options {
     pub r#async: bool,
     pub info: bool,
 }
 
+const SUPPORTED_OPTIONS_CONTEXT: &str = "supported options are {:async, bool} or {:info, bool}";
+
 impl Options {
-    fn put_option_term(&mut self, option: Term) -> exception::Result<&Options> {
-        let tuple: Boxed<Tuple> = option.try_into()?;
+    fn put_option_term(&mut self, option: Term) -> Result<&Options, anyhow::Error> {
+        let tuple: Boxed<Tuple> = option.try_into().context(SUPPORTED_OPTIONS_CONTEXT)?;
 
         if tuple.len() == 2 {
-            let atom: Atom = tuple[0].try_into()?;
+            let atom: Atom = tuple[0]
+                .try_into()
+                .map_err(|_| TryPropListFromTermError::KeywordKeyType)?;
 
             match atom.name() {
                 "async" => {
-                    self.r#async = tuple[1].try_into()?;
+                    self.r#async = tuple[1].try_into().context("async value must be a bool")?;
 
                     Ok(self)
                 }
                 "info" => {
-                    self.info = tuple[1].try_into()?;
+                    self.info = tuple[1].try_into().context("info value must be a bool")?;
 
                     Ok(self)
                 }
-                _ => Err(badarg!().into()),
+                name => Err(TryPropListFromTermError::KeywordKeyName(name))
+                    .context(SUPPORTED_OPTIONS_CONTEXT),
             }
         } else {
-            Err(badarg!().into())
+            Err(TryPropListFromTermError::TupleNotPair.into())
         }
     }
 }
@@ -45,22 +52,24 @@ impl Default for Options {
 }
 
 impl TryFrom<Term> for Options {
-    type Error = Exception;
+    type Error = anyhow::Error;
 
-    fn try_from(term: Term) -> Result<Options, Self::Error> {
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
         let mut options: Options = Default::default();
         let mut options_term = term;
 
         loop {
-            match options_term.decode()? {
+            match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
+                    options
+                        .put_option_term(cons.head)
+                        .with_context(|| SUPPORTED_OPTIONS_CONTEXT)?;
                     options_term = cons.tail;
 
                     continue;
                 }
-                _ => return Err(badarg!().into()),
+                _ => return Err(ImproperListError).context(SUPPORTED_OPTIONS_CONTEXT),
             }
         }
     }

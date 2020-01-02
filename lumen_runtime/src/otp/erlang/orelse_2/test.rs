@@ -4,7 +4,6 @@ mod with_true_left;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -22,8 +21,8 @@ fn without_boolean_left_errors_badarg() {
                     strategy::term::is_not_boolean(arc_process.clone()),
                     strategy::term::is_boolean(),
                 ),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), Err(badarg!().into()));
+                |(boolean, term)| {
+                    prop_assert_is_not_boolean!(native(boolean, term), boolean);
 
                     Ok(())
                 },

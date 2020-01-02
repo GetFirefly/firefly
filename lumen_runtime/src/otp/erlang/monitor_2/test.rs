@@ -2,11 +2,10 @@ mod with_process_type;
 
 use std::sync::Arc;
 
-use proptest::prop_assert_eq;
+use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -19,9 +18,9 @@ fn without_supported_type_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&unsupported_type(arc_process.clone()), |r#type| {
-                prop_assert_eq!(
+                prop_assert_badarg!(
                     native(&arc_process, r#type, arc_process.pid_term()),
-                    Err(badarg!().into())
+                    "supported types are :port, :process, or :time_offset"
                 );
 
                 Ok(())

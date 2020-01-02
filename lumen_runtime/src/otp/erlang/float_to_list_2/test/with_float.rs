@@ -15,7 +15,7 @@ fn without_proper_list_options_errors_badarg() {
                     strategy::term::is_not_proper_list(arc_process.clone()),
                 ),
                 |(float, options)| {
-                    prop_assert_eq!(native(&arc_process, float, options), Err(badarg!().into()));
+                    prop_assert_badarg!(native(&arc_process, float, options), "supported options are compact, {:decimal, 0..253}, or {:scientific, 0..249}");
 
                     Ok(())
                 },

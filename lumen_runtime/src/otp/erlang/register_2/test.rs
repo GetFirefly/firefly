@@ -3,10 +3,8 @@ mod with_atom_name;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::{Atom, Encoded, Pid};
 
 use crate::otp::erlang;
@@ -25,10 +23,7 @@ fn without_atom_name_errors_badarg() {
                     strategy::term::pid_or_port(arc_process.clone()),
                 ),
                 |(name, pid_or_port)| {
-                    prop_assert_eq!(
-                        native(arc_process.clone(), name, pid_or_port,),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_is_not_atom!(native(arc_process.clone(), name, pid_or_port), name);
 
                     Ok(())
                 },

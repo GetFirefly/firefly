@@ -5,7 +5,8 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -24,12 +25,18 @@ pub fn native(process: &Process, list: Term, tail: Term) -> exception::Result<Te
                     Ok(element) => {
                         reversed = process.cons(element, reversed)?;
                     }
-                    Err(_) => return Err(badarg!().into()),
+                    Err(_) => {
+                        return Err(ImproperListError)
+                            .context(format!("list ({}) is not a proper list", list))
+                            .map_err(From::from)
+                    }
                 }
             }
 
             Ok(reversed)
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!("list ({}) is not a proper list", list))
+            .map_err(From::from),
     }
 }

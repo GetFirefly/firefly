@@ -6,7 +6,6 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -30,9 +29,12 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                 )
             }),
             |(arc_process, destination, message)| {
-                prop_assert_eq!(
+                prop_assert_badarg!(
                     native(&arc_process, destination, message),
-                    Err(badarg!().into())
+                    format!(
+                "destination ({}) is not registered_name (atom), {{registered_name, node}}, or pid",
+                destination
+            )
                 );
 
                 Ok(())

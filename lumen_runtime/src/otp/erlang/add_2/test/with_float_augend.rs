@@ -12,9 +12,12 @@ fn without_number_addend_errors_badarith() {
                     strategy::term::is_not_number(arc_process.clone()),
                 ),
                 |(augend, addend)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, augend, addend),
-                        Err(badarith!().into())
+                        format!(
+                            "augend ({}) and addend ({}) aren't both numbers",
+                            augend, addend
+                        )
                     );
 
                     Ok(())

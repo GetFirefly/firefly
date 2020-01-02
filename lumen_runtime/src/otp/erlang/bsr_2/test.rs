@@ -7,7 +7,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{BoxedStrategy, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarith;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Encoded;
 
@@ -26,9 +25,9 @@ fn without_integer_integer_errors_badarith() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(integer, shift)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, integer, shift),
-                        Err(badarith!().into())
+                        format!("integer ({}) is not an integer", integer)
                     );
 
                     Ok(())
@@ -48,9 +47,9 @@ fn with_integer_integer_without_integer_shift_errors_badarith() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(integer, shift)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, integer, shift),
-                        Err(badarith!().into())
+                        format!("shift ({}) is not an integer", shift)
                     );
 
                     Ok(())

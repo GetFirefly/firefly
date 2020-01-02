@@ -5,7 +5,10 @@ fn without_process() {
     with_process_arc(|process_arc| {
         let pid_or_port = Pid::next_term();
 
-        assert_badarg!(native(process_arc, registered_name(), pid_or_port,));
+        assert_badarg!(
+            native(process_arc, registered_name(), pid_or_port),
+            format!("{} is not a pid of an alive process", pid_or_port)
+        );
     });
 }
 

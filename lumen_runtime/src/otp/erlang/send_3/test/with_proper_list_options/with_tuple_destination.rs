@@ -23,9 +23,9 @@ fn without_arity_2_errors_badarg() {
                     valid_options(arc_process.clone()),
                 ),
                 |(destination, message, options)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, destination, message, options),
-                        Err(badarg!().into())
+                        format!("destination ({}) is a tuple, but not 2-arity", destination)
                     );
 
                     Ok(())

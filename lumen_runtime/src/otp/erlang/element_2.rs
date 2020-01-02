@@ -5,18 +5,23 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
+use anyhow::*;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 /// `element/2`
 #[native_implemented_function(element/2)]
 pub fn native(index: Term, tuple: Term) -> exception::Result<Term> {
-    let tuple_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let index: OneBasedIndex = index.try_into()?;
+    let tuple_tuple = term_try_into_tuple!(tuple)?;
+    let one_based_index = term_try_into_one_based_index(index)?;
 
-    tuple_tuple.get_element(index).map_err(|error| error.into())
+    tuple_tuple
+        .get_element(one_based_index)
+        .with_context(|| format!("index ({})", index))
+        .map_err(From::from)
 }

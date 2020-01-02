@@ -4,7 +4,6 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::make_tuple_2::native;
@@ -21,10 +20,7 @@ fn without_arity_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(arity, initial_value)| {
-                    prop_assert_eq!(
-                        native(&arc_process, arity, initial_value),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_is_not_arity!(native(&arc_process, arity, initial_value), arity);
 
                     Ok(())
                 },

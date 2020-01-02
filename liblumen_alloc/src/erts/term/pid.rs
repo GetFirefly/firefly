@@ -7,6 +7,8 @@ use core::hash::{Hash, Hasher};
 
 use alloc::sync::Arc;
 
+use std::backtrace::Backtrace;
+
 use liblumen_core::locks::RwLock;
 
 use lazy_static::lazy_static;
@@ -131,10 +133,16 @@ impl Pid {
             if serial <= Self::SERIAL_MAX {
                 Ok((number, serial))
             } else {
-                Err(InvalidPidError::Serial)
+                Err(InvalidPidError::Serial {
+                    serial,
+                    backtrace: Backtrace::capture(),
+                })
             }
         } else {
-            Err(InvalidPidError::Number)
+            Err(InvalidPidError::Number {
+                number,
+                backtrace: Backtrace::capture(),
+            })
         }
     }
 
@@ -329,10 +337,10 @@ impl TryFrom<TypedTerm> for Boxed<ExternalPid> {
 
 #[derive(Error, Debug)]
 pub enum InvalidPidError {
-    #[error("invalid pid: number out of range")]
-    Number,
+    #[error("invalid pid: number ({}) out of range (0-{})", .number, Pid::NUMBER_MAX)]
+    Number { number: usize, backtrace: Backtrace },
     #[error("invalid pid: serial out of range")]
-    Serial,
+    Serial { serial: usize, backtrace: Backtrace },
 }
 
 struct Counter {

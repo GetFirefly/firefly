@@ -15,7 +15,7 @@ fn without_supported_flag_errors_badarg() {
             .run(
                 &(unsupported_flag_atom(), strategy::term(arc_process.clone())),
                 |(flag, value)| {
-                    prop_assert_eq!(native(&arc_process, flag, value), Err(badarg!().into()));
+                    prop_assert_badarg!(native(&arc_process, flag, value), "supported flags are error_handler, max_heap_size, message_queue_data, min_bin_vheap_size, min_heap_size, priority, save_calls, sensitive, and trap_exit");
 
                     Ok(())
                 },

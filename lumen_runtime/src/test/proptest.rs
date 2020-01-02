@@ -1,3 +1,4 @@
+use proptest::test_runner::{Config, TestRunner};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
@@ -7,10 +8,10 @@ use liblumen_alloc::atom;
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::Node;
+use liblumen_alloc::erts::{exception, Node};
 
 use crate::process::spawn::options::Options;
-use crate::scheduler::{Scheduler, Spawned};
+use crate::scheduler::{with_process_arc, Scheduler, Spawned};
 use crate::test::r#loop;
 
 pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
@@ -176,6 +177,27 @@ pub fn total_byte_len(term: Term) -> usize {
         TypedTerm::SubBinary(subbinary) => subbinary.total_byte_len(),
         typed_term => panic!("{:?} does not have a total_byte_len", typed_term),
     }
+}
+
+pub fn without_number_errors_badarg(
+    source_file: &'static str,
+    native: fn(&Process, Term) -> exception::Result<Term>,
+) {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(source_file))
+            .run(
+                &super::strategy::term::is_not_number(arc_process.clone()),
+                |number| {
+                    prop_assert_badarg!(
+                        native(&arc_process, number),
+                        format!("number ({}) is not an integer or float", number)
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 pub enum FirstSecond {

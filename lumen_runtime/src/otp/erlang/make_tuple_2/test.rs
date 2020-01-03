@@ -7,26 +7,25 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::make_tuple_2::native;
-use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_arity_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_arity(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(arity, initial_value)| {
-                    prop_assert_is_not_arity!(native(&arc_process, arity, initial_value), arity);
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_arity(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, arity, initial_value)| {
+            prop_assert_is_not_arity!(native(&arc_process, arity, initial_value), arity);
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

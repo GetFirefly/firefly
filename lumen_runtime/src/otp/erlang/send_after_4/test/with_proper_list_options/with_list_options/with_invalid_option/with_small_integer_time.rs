@@ -8,28 +8,28 @@ mod with_local_pid_destination;
 
 #[test]
 fn without_atom_pid_or_tuple_destination_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    milliseconds(),
-                    strategy::term::is_not_send_after_destination(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(milliseconds, destination, message)| {
-                    let time = arc_process.integer(milliseconds).unwrap();
-                    let options = options(&arc_process);
-
-                    prop_assert_badarg!(
-                        native(arc_process.clone(), time, destination, message, options),
-                        "supported option is {:abs, bool}"
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                milliseconds(),
+                strategy::term::is_not_send_after_destination(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, milliseconds, destination, message)| {
+            let time = arc_process.integer(milliseconds).unwrap();
+            let options = options(&arc_process);
+
+            prop_assert_badarg!(
+                native(arc_process.clone(), time, destination, message, options),
+                "supported option is {:abs, bool}"
+            );
+
+            Ok(())
+        },
+    );
 }
 
 fn milliseconds() -> BoxedStrategy<Milliseconds> {

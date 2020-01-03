@@ -26,4 +26,4 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::are_exactly_equal_2::native;
 use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};

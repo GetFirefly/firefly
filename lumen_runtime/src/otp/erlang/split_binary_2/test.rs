@@ -6,26 +6,26 @@ use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::split_binary_2::native;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_bitstring_binary_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_bitstring(arc_process.clone()),
-                    strategy::term::integer::non_negative(arc_process.clone()),
-                ),
-                |(binary, position)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, binary, position),
-                        format!("binary ({}) is not a bitstring", binary)
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_bitstring(arc_process.clone()),
+                strategy::term::integer::non_negative(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary, position)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary, position),
+                format!("binary ({}) is not a bitstring", binary)
+            );
+
+            Ok(())
+        },
+    );
 }

@@ -59,21 +59,20 @@ fn with_greater_float_second_returns_second() {
 
 #[test]
 fn without_second_number_returns_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::integer::big(arc_process.clone()),
-                    strategy::term::is_not_number(arc_process.clone()),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), second);
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                strategy::term::integer::big(arc_process.clone()),
+                strategy::term::is_not_number(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), second);
+
+            Ok(())
+        },
+    );
 }
 
 fn max<R>(second: R, which: FirstSecond)

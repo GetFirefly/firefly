@@ -3,25 +3,22 @@ use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::number_or_badarith_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_number_errors_badarith() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_number(arc_process.clone()),
-                |number| {
-                    prop_assert_badarith!(
-                        native(number),
-                        format!("number ({}) is not an integer or a float", number)
-                    );
+    run(
+        file!(),
+        |arc_process| strategy::term::is_not_number(arc_process.clone()),
+        |number| {
+            prop_assert_badarith!(
+                native(number),
+                format!("number ({}) is not an integer or a float", number)
+            );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]

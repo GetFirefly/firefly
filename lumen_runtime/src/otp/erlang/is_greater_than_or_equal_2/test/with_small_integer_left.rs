@@ -48,21 +48,20 @@ fn with_greater_float_right_returns_false() {
 
 #[test]
 fn without_number_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::integer::small(arc_process.clone()),
-                    strategy::term::is_not_number(arc_process.clone()),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                strategy::term::integer::small(arc_process.clone()),
+                strategy::term::is_not_number(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), false.into());
+
+            Ok(())
+        },
+    );
 }
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)

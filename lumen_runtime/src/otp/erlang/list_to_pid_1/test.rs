@@ -1,29 +1,31 @@
 use std::sync::Arc;
 
-use proptest::test_runner::{Config, TestRunner};
+use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
 use crate::distribution::nodes;
 use crate::otp::erlang::list_to_pid_1::native;
-use crate::scheduler::{with_process, with_process_arc};
-use crate::test::strategy;
+use crate::scheduler::with_process;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_list(arc_process.clone()),
-                |string| {
-                    prop_assert_is_not_non_empty_list!(native(&arc_process, string), string);
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, string)| {
+            prop_assert_is_not_non_empty_list!(native(&arc_process, string), string);
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

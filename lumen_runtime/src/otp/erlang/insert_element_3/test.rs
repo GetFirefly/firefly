@@ -9,8 +9,7 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::term::prelude::{Boxed, Tuple};
 
 use crate::otp::erlang::insert_element_3::native;
-use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_tuple_errors_badarg() {
@@ -75,40 +74,38 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
 
 #[test]
 fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tuple_with_element() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(1_usize..=4_usize)
-                    .prop_flat_map(|len| {
-                        (
-                            proptest::collection::vec(
-                                strategy::term(arc_process.clone()),
-                                len..=len,
-                            ),
-                            0..=len,
-                            strategy::term(arc_process.clone()),
-                        )
-                    })
-                    .prop_map(|(element_vec, zero_based_index, element)| {
-                        (
-                            element_vec.clone(),
-                            zero_based_index,
-                            arc_process.tuple_from_slice(&element_vec).unwrap(),
-                            arc_process.integer(zero_based_index + 1).unwrap(),
-                            element,
-                        )
-                    }),
-                |(mut element_vec, element_vec_index, tuple, index, element)| {
-                    element_vec.insert(element_vec_index, element);
+    run(
+        file!(),
+        |arc_process| {
+            (Just(arc_process.clone()), 1_usize..=4_usize)
+                .prop_flat_map(|(arc_process, len)| {
+                    (
+                        Just(arc_process.clone()),
+                        proptest::collection::vec(strategy::term(arc_process.clone()), len..=len),
+                        0..=len,
+                        strategy::term(arc_process.clone()),
+                    )
+                })
+                .prop_map(|(arc_process, element_vec, zero_based_index, element)| {
+                    (
+                        arc_process.clone(),
+                        element_vec.clone(),
+                        zero_based_index,
+                        arc_process.tuple_from_slice(&element_vec).unwrap(),
+                        arc_process.integer(zero_based_index + 1).unwrap(),
+                        element,
+                    )
+                })
+        },
+        |(arc_process, mut element_vec, element_vec_index, tuple, index, element)| {
+            element_vec.insert(element_vec_index, element);
 
-                    prop_assert_eq!(
-                        native(&arc_process, index, tuple, element),
-                        Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
-                    );
+            prop_assert_eq!(
+                native(&arc_process, index, tuple, element),
+                Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
+            );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

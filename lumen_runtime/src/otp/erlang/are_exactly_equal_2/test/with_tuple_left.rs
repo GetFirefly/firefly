@@ -37,27 +37,23 @@ fn with_same_tuple_right_returns_true() {
 
 #[test]
 fn with_same_value_tuple_right_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &proptest::collection::vec(
-                    strategy::term(arc_process.clone()),
-                    strategy::size_range(),
-                )
+    run(
+        file!(),
+        |arc_process| {
+            proptest::collection::vec(strategy::term(arc_process.clone()), strategy::size_range())
                 .prop_map(move |vec| {
                     (
                         arc_process.tuple_from_slice(&vec).unwrap(),
                         arc_process.tuple_from_slice(&vec).unwrap(),
                     )
-                }),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
+                })
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), true.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]

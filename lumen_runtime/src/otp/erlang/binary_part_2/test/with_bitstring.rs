@@ -29,32 +29,32 @@ fn without_tuple_start_length_errors_badarg() {
 
 #[test]
 fn with_tuple_without_arity_2_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_bitstring(arc_process.clone()),
-                    strategy::term::tuple(arc_process.clone()).prop_filter(
-                        "Tuple must not be arity 2",
-                        |start_length| {
-                            let tuple: Boxed<Tuple> = (*start_length).try_into().unwrap();
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_bitstring(arc_process.clone()),
+                strategy::term::tuple(arc_process.clone()).prop_filter(
+                    "Tuple must not be arity 2",
+                    |start_length| {
+                        let tuple: Boxed<Tuple> = (*start_length).try_into().unwrap();
 
-                            tuple.len() != 2
-                        },
-                    ),
+                        tuple.len() != 2
+                    },
                 ),
-                |(binary, start_length)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, binary, start_length),
-                        format!(
-                            "start_length ({}) is a tuple, but not 2-arity",
-                            start_length
-                        )
-                    );
-
-                    Ok(())
-                },
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary, start_length)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary, start_length),
+                format!(
+                    "start_length ({}) is a tuple, but not 2-arity",
+                    start_length
+                )
+            );
+
+            Ok(())
+        },
+    );
 }

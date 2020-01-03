@@ -4,10 +4,14 @@ use proptest::strategy::Just;
 
 #[test]
 fn without_function_arity_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::function::arity_u8().prop_flat_map(|arity_u8| {
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::function::arity_u8(),
+            )
+                .prop_flat_map(|(arc_process, arity_u8)| {
                     (
                         strategy::term::is_function_with_arity(arc_process.clone(), arity_u8),
                         (Just(arc_process.clone()), 0..=255_u8, Just(arity_u8))
@@ -17,23 +21,26 @@ fn without_function_arity_returns_false() {
                             )
                             .prop_map(|(arc_process, u, _)| arc_process.integer(u).unwrap()),
                     )
-                }),
-                |(function, arity)| {
-                    prop_assert_eq!(native(function, arity), Ok(false.into()));
+                })
+        },
+        |(function, arity)| {
+            prop_assert_eq!(native(function, arity), Ok(false.into()));
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_function_arity_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::function::arity_u8().prop_flat_map(|arity_usize| {
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::function::arity_u8(),
+            )
+                .prop_flat_map(|(arc_process, arity_usize)| {
                     (
                         strategy::term::is_function_with_arity(
                             arc_process.clone(),
@@ -41,13 +48,12 @@ fn with_function_arity_returns_true() {
                         ),
                         Just(arc_process.integer(arity_usize).unwrap()),
                     )
-                }),
-                |(function, arity)| {
-                    prop_assert_eq!(native(function, arity), Ok(true.into()));
+                })
+        },
+        |(function, arity)| {
+            prop_assert_eq!(native(function, arity), Ok(true.into()));
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

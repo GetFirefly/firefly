@@ -10,22 +10,24 @@ use crate::test::{has_message, has_no_message};
 
 #[test]
 fn without_boolean_value_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_boolean(arc_process.clone()),
-                |value| {
-                    prop_assert_is_not_boolean!(
-                        native(&arc_process, flag(), value),
-                        "trap_exit value",
-                        value
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_boolean(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, value)| {
+            prop_assert_is_not_boolean!(
+                native(&arc_process, flag(), value),
+                "trap_exit value",
+                value
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

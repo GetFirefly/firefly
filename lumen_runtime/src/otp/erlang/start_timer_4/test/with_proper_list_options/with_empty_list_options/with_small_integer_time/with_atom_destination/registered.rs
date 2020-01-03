@@ -2,54 +2,57 @@ use super::*;
 
 #[test]
 fn with_different_process_sends_message_when_timer_expires() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(milliseconds(), strategy::term(arc_process.clone())),
-                |(milliseconds, message)| {
-                    let destination_arc_process = process::test(&arc_process);
-                    let destination = registered_name();
-
-                    prop_assert_eq!(
-                        erlang::register_2::native(
-                            arc_process.clone(),
-                            destination,
-                            destination_arc_process.pid_term(),
-                        ),
-                        Ok(true.into())
-                    );
-
-                    let time = arc_process.integer(milliseconds).unwrap();
-
-                    let result = native(arc_process.clone(), time, destination, message, OPTIONS);
-
-                    prop_assert!(
-                        result.is_ok(),
-                        "Timer reference not returned.  Got {:?}",
-                        result
-                    );
-
-                    let timer_reference = result.unwrap();
-
-                    prop_assert!(timer_reference.is_boxed_local_reference());
-
-                    let timeout_message = arc_process
-                        .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
-                        .unwrap();
-
-                    prop_assert!(!has_message(&destination_arc_process, timeout_message));
-
-                    thread::sleep(Duration::from_millis(milliseconds + 1));
-
-                    timer::timeout();
-
-                    prop_assert!(has_message(&destination_arc_process, timeout_message));
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                milliseconds(),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, milliseconds, message)| {
+            let destination_arc_process = process::test(&arc_process);
+            let destination = registered_name();
+
+            prop_assert_eq!(
+                erlang::register_2::native(
+                    arc_process.clone(),
+                    destination,
+                    destination_arc_process.pid_term(),
+                ),
+                Ok(true.into())
+            );
+
+            let time = arc_process.integer(milliseconds).unwrap();
+
+            let result = native(arc_process.clone(), time, destination, message, OPTIONS);
+
+            prop_assert!(
+                result.is_ok(),
+                "Timer reference not returned.  Got {:?}",
+                result
+            );
+
+            let timer_reference = result.unwrap();
+
+            prop_assert!(timer_reference.is_boxed_local_reference());
+
+            let timeout_message = arc_process
+                .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
+                .unwrap();
+
+            prop_assert!(!has_message(&destination_arc_process, timeout_message));
+
+            thread::sleep(Duration::from_millis(milliseconds + 1));
+
+            timer::timeout();
+
+            prop_assert!(has_message(&destination_arc_process, timeout_message));
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

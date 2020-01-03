@@ -5,75 +5,87 @@ use crate::otp::erlang::binary_to_integer_1;
 
 #[test]
 fn with_small_integer_returns_binary() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::integer::small::isize(), |integer_isize| {
-                let integer = arc_process.integer(integer_isize).unwrap();
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::integer::small::isize(),
+            )
+        },
+        |(arc_process, integer_isize)| {
+            let integer = arc_process.integer(integer_isize).unwrap();
 
-                let result = native(&arc_process, integer);
+            let result = native(&arc_process, integer);
 
-                prop_assert!(result.is_ok());
+            prop_assert!(result.is_ok());
 
-                let term = result.unwrap();
+            let term = result.unwrap();
 
-                prop_assert!(term.is_binary());
+            prop_assert!(term.is_binary());
 
-                let string: String = binary_to_string(term).unwrap();
+            let string: String = binary_to_string(term).unwrap();
 
-                prop_assert_eq!(string, integer_isize.to_string());
+            prop_assert_eq!(string, integer_isize.to_string());
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_big_integer_returns_binary() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::integer::big::isize(), |integer_isize| {
-                let integer = arc_process.integer(integer_isize).unwrap();
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::integer::big::isize(),
+            )
+        },
+        |(arc_process, integer_isize)| {
+            let integer = arc_process.integer(integer_isize).unwrap();
 
-                let result = native(&arc_process, integer);
+            let result = native(&arc_process, integer);
 
-                prop_assert!(result.is_ok());
+            prop_assert!(result.is_ok());
 
-                let term = result.unwrap();
+            let term = result.unwrap();
 
-                prop_assert!(term.is_binary());
+            prop_assert!(term.is_binary());
 
-                let string: String = binary_to_string(term).unwrap();
+            let string: String = binary_to_string(term).unwrap();
 
-                prop_assert_eq!(string, integer_isize.to_string());
+            prop_assert_eq!(string, integer_isize.to_string());
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn dual_of_binary_to_integer_1() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_integer(arc_process.clone()),
-                |integer| {
-                    let result_binary = native(&arc_process, integer);
-
-                    prop_assert!(result_binary.is_ok());
-
-                    let binary = result_binary.unwrap();
-
-                    prop_assert_eq!(
-                        binary_to_integer_1::native(&arc_process, binary),
-                        Ok(integer)
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, integer)| {
+            let result_binary = native(&arc_process, integer);
+
+            prop_assert!(result_binary.is_ok());
+
+            let binary = result_binary.unwrap();
+
+            prop_assert_eq!(
+                binary_to_integer_1::native(&arc_process, binary),
+                Ok(integer)
+            );
+
+            Ok(())
+        },
+    );
 }

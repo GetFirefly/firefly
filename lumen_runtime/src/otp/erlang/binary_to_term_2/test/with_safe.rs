@@ -6,22 +6,23 @@ fn with_binary_encoding_atom_that_does_not_exist_errors_badarg() {
     let byte_vec = vec![
         131, 100, 0, 14, 110, 111, 110, 95, 101, 120, 105, 115, 116, 101, 110, 116, 95, 48,
     ];
-
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                |binary| {
-                    prop_assert_badarg!(
-                        native(&arc_process, binary, options(&arc_process)),
-                        "tried to convert to an atom that doesn't exist"
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::containing_bytes(byte_vec.clone(), arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary, options(&arc_process)),
+                "tried to convert to an atom that doesn't exist"
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -31,22 +32,23 @@ fn with_binary_encoding_list_containing_atom_that_does_not_exist_errors_badarg()
         131, 108, 0, 0, 0, 1, 100, 0, 14, 110, 111, 110, 95, 101, 120, 105, 115, 116, 101, 110,
         116, 95, 49, 106,
     ];
-
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                |binary| {
-                    prop_assert_badarg!(
-                        native(&arc_process, binary, options(&arc_process)),
-                        "tried to convert to an atom that doesn't exist"
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::containing_bytes(byte_vec.clone(), arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary, options(&arc_process)),
+                "tried to convert to an atom that doesn't exist"
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -56,21 +58,23 @@ fn with_binary_encoding_small_tuple_containing_atom_that_does_not_exist_errors_b
         131, 104, 1, 100, 0, 14, 110, 111, 110, 95, 101, 120, 105, 115, 116, 101, 110, 116, 95, 50,
     ];
 
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                |binary| {
-                    prop_assert_badarg!(
-                        native(&arc_process, binary, options(&arc_process)),
-                        "tried to convert to an atom that doesn't exist"
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::containing_bytes(byte_vec.clone(), arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary, options(&arc_process)),
+                "tried to convert to an atom that doesn't exist"
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -81,21 +85,23 @@ fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
         159, 152, 136,
     ];
 
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                |binary| {
-                    prop_assert_badarg!(
-                        native(&arc_process, binary, options(&arc_process)),
-                        "tried to convert to an atom that doesn't exist"
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::containing_bytes(byte_vec.clone(), arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary, options(&arc_process)),
+                "tried to convert to an atom that doesn't exist"
+            );
+
+            Ok(())
+        },
+    );
 }
 
 fn options(process: &Process) -> Term {

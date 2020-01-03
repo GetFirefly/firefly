@@ -1,23 +1,22 @@
 use proptest::prop_assert_eq;
-use proptest::test_runner::{Config, TestRunner};
+use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::tl_1::native;
-use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_is_not_non_empty_list!(native(list), list);
+    run(
+        file!(),
+        |arc_process| strategy::term::is_not_list(arc_process.clone()),
+        |list| {
+            prop_assert_is_not_non_empty_list!(native(list), list);
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -29,21 +28,21 @@ fn with_empty_list_errors_badarg() {
 
 #[test]
 fn with_list_returns_tail() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(head, tail)| {
-                    let list = arc_process.cons(head, tail).unwrap();
-
-                    prop_assert_eq!(native(list), Ok(tail));
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, head, tail)| {
+            let list = arc_process.cons(head, tail).unwrap();
+
+            prop_assert_eq!(native(list), Ok(tail));
+
+            Ok(())
+        },
+    );
 }

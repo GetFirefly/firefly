@@ -2,52 +2,52 @@ use super::*;
 
 #[test]
 fn with_float_minuend_with_integer_subtrahend_returns_float() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::float(arc_process.clone()),
-                    strategy::term::is_integer(arc_process.clone()),
-                ),
-                |(minuend, subtrahend)| {
-                    let result = native(&arc_process, minuend, subtrahend);
-
-                    prop_assert!(result.is_ok());
-
-                    let difference = result.unwrap();
-
-                    prop_assert!(difference.is_boxed_float());
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::float(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, minuend, subtrahend)| {
+            let result = native(&arc_process, minuend, subtrahend);
+
+            prop_assert!(result.is_ok());
+
+            let difference = result.unwrap();
+
+            prop_assert!(difference.is_boxed_float());
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_float_minuend_with_float_subtrahend_returns_float() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::float(arc_process.clone()),
-                    strategy::term::float(arc_process.clone()),
-                ),
-                |(minuend, subtrahend)| {
-                    let result = native(&arc_process, minuend, subtrahend);
-
-                    prop_assert!(result.is_ok());
-
-                    let difference = result.unwrap();
-
-                    prop_assert!(difference.is_boxed_float());
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::float(arc_process.clone()),
+                strategy::term::float(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, minuend, subtrahend)| {
+            let result = native(&arc_process, minuend, subtrahend);
+
+            prop_assert!(result.is_ok());
+
+            let difference = result.unwrap();
+
+            prop_assert!(difference.is_boxed_float());
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

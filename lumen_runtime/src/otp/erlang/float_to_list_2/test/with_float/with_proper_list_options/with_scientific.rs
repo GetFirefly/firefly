@@ -256,7 +256,7 @@ fn exponent_is_at_least_2_digits() {
 }
 
 fn digits(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    (Just(arc_process), 0..=249)
+    (Just(arc_process.clone()), 0..=249)
         .prop_map(|(arc_process, u)| arc_process.integer(u).unwrap())
         .boxed()
 }

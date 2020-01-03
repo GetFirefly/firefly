@@ -8,25 +8,33 @@ mod with_heap_binary;
 
 #[test]
 fn without_byte_binary_or_list_element_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &is_not_byte_binary_nor_list(arc_process.clone())
-                    .prop_map(|element| (arc_process.cons(element, Term::NIL).unwrap(), element)),
-                |(iolist, element)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, iolist),
-                        format!(
-                            "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
-                            iolist, element
-                        )
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                is_not_byte_binary_nor_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, element)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.cons(element, Term::NIL).unwrap(),
+                        element,
+                    )
+                })
+        },
+        |(arc_process, iolist, element)| {
+            prop_assert_badarg!(
+                native(&arc_process, iolist),
+                format!(
+                    "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
+                    iolist, element
+                )
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -43,26 +51,28 @@ fn with_empty_list_element_returns_empty_binary() {
 
 #[test]
 fn with_subbinary_with_bit_count_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::sub::is_not_binary(arc_process.clone()),
-                |element| {
-                    let iolist = arc_process.list_from_slice(&[element]).unwrap();
-
-                    prop_assert_badarg!(
-                        native(&arc_process, iolist),
-                        format!(
-                            "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
-                            iolist, element
-                        )
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::sub::is_not_binary(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, element)| {
+            let iolist = arc_process.list_from_slice(&[element]).unwrap();
+
+            prop_assert_badarg!(
+                native(&arc_process, iolist),
+                format!(
+                    "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
+                    iolist, element
+                )
+            );
+
+            Ok(())
+        },
+    );
 }
 
 fn is_integer_is_not_byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

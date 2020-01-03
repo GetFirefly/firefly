@@ -18,49 +18,49 @@ use crate::test::{has_message, monitor_count, monitored_count};
 
 #[test]
 fn without_proper_list_for_options_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_reference(arc_process.clone()),
-                    strategy::term::is_not_list(arc_process.clone()),
-                ),
-                |(reference, tail)| {
-                    let options = arc_process
-                        .improper_list_from_slice(&[atom!("flush")], tail)
-                        .unwrap();
-
-                    prop_assert_badarg!(native(&arc_process, reference, options), "improper list");
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_reference(arc_process.clone()),
+                strategy::term::is_not_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, reference, tail)| {
+            let options = arc_process
+                .improper_list_from_slice(&[atom!("flush")], tail)
+                .unwrap();
+
+            prop_assert_badarg!(native(&arc_process, reference, options), "improper list");
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_unknown_option_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_reference(arc_process.clone()),
-                    unknown_option(arc_process.clone()),
-                ),
-                |(reference, option)| {
-                    let options = arc_process.list_from_slice(&[option]).unwrap();
-
-                    prop_assert_badarg!(
-                        native(&arc_process, reference, options),
-                        "supported options are :flush or :info"
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_reference(arc_process.clone()),
+                unknown_option(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, reference, option)| {
+            let options = arc_process.list_from_slice(&[option]).unwrap();
+
+            prop_assert_badarg!(
+                native(&arc_process, reference, options),
+                "supported options are :flush or :info"
+            );
+
+            Ok(())
+        },
+    );
 }
 
 fn unknown_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

@@ -15,7 +15,7 @@ pub fn improper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (
         proptest::collection::vec(strategy::term(arc_process.clone()), size_range),
         strategy::term::is_not_list(arc_process.clone()),
-        Just(arc_process),
+        Just(arc_process.clone()),
     )
         .prop_map(|(vec, tail, arc_process)| {
             arc_process.improper_list_from_slice(&vec, tail).unwrap()

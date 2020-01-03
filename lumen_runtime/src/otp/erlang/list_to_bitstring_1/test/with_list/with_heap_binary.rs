@@ -2,25 +2,31 @@ use super::*;
 
 #[test]
 fn without_byte_bitstring_or_list_element_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::binary::heap(arc_process.clone()),
-                    is_not_byte_bitstring_nor_list(arc_process.clone()),
-                )
-                    .prop_map(|(head, tail)| (arc_process.cons(head, tail).unwrap(), tail)),
-                |(bitstring_list, element)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, bitstring_list),
-                        element_context(bitstring_list, element)
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::heap(arc_process.clone()),
+                is_not_byte_bitstring_nor_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, head, tail)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.cons(head, tail).unwrap(),
+                        tail,
+                    )
+                })
+        },
+        |(arc_process, bitstring_list, element)| {
+            prop_assert_badarg!(
+                native(&arc_process, bitstring_list),
+                element_context(bitstring_list, element)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

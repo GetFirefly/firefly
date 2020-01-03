@@ -3,31 +3,30 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::map_get_2::native;
-use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_map_errors_badmap() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_map(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(map, key)| {
-                    prop_assert_badmap!(
-                        native(&arc_process, key, map),
-                        &arc_process,
-                        map,
-                        format!("map ({}) is not a map", map)
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_map(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, map, key)| {
+            prop_assert_badmap!(
+                native(&arc_process, key, map),
+                &arc_process,
+                map,
+                format!("map ({}) is not a map", map)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -77,26 +76,27 @@ fn with_map_without_key_errors_badkey() {
 
 #[test]
 fn with_map_with_key_returns_value() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                )
-                    .prop_map(|(key, value)| {
-                        (
-                            arc_process.map_from_slice(&[(key, value)]).unwrap(),
-                            key,
-                            value,
-                        )
-                    }),
-                |(map, key, value)| {
-                    prop_assert_eq!(native(&arc_process, key, map), Ok(value));
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, key, value)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.map_from_slice(&[(key, value)]).unwrap(),
+                        key,
+                        value,
+                    )
+                })
+        },
+        |(arc_process, map, key, value)| {
+            prop_assert_eq!(native(&arc_process, key, map), Ok(value));
+
+            Ok(())
+        },
+    );
 }

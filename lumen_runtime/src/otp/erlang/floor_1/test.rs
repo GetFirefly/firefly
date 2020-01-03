@@ -4,6 +4,7 @@ use num_bigint::BigInt;
 
 use num_traits::Num;
 
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
@@ -11,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::{Encoded, Float};
 
 use crate::otp::erlang::floor_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_number_errors_badarg() {
@@ -20,15 +21,20 @@ fn without_number_errors_badarg() {
 
 #[test]
 fn with_integer_returns_integer() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_integer(arc_process.clone()), |number| {
-                prop_assert_eq!(native(&arc_process, number), Ok(number));
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
+            )
+        },
+        |(arc_process, number)| {
+            prop_assert_eq!(native(&arc_process, number), Ok(number));
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]

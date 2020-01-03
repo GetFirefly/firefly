@@ -4,45 +4,47 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_atom_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::atom(),
-                    strategy::term::is_not_atom(arc_process.clone()),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                strategy::term::atom(),
+                strategy::term::is_not_atom(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), false.into());
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_same_atom_returns_true() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(&strategy::term::atom(), |operand| {
+    run(
+        file!(),
+        |_| strategy::term::atom(),
+        |operand| {
             prop_assert_eq!(native(operand, operand), true.into());
 
             Ok(())
-        })
-        .unwrap();
+        },
+    );
 }
 
 #[test]
 fn with_different_atom_returns_false() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &(strategy::term::atom(), strategy::term::atom())
-                .prop_filter("Atoms must be different", |(left, right)| left != right),
-            |(left, right)| {
-                prop_assert_eq!(native(left, right), false.into());
+    run(
+        file!(),
+        |_| {
+            (strategy::term::atom(), strategy::term::atom())
+                .prop_filter("Atoms must be different", |(left, right)| left != right)
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), false.into());
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }

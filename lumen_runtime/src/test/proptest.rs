@@ -2,6 +2,8 @@ use proptest::test_runner::{Config, TestRunner};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::TestCaseResult;
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::atom;
@@ -11,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{exception, Node};
 
 use crate::process::spawn::options::Options;
-use crate::scheduler::{with_process_arc, Scheduler, Spawned};
+use crate::scheduler::{Scheduler, Spawned};
 use crate::test::r#loop;
 
 pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
@@ -161,6 +163,19 @@ pub fn registered_name() -> Term {
     )
 }
 
+pub fn run<S: Strategy, F: Fn(Arc<Process>) -> S>(
+    source_file: &'static str,
+    arc_process_fun: F,
+    test: impl Fn(S::Value) -> TestCaseResult,
+) {
+    TestRunner::new(Config::with_source_file(source_file))
+        .run(
+            &super::strategy::process().prop_flat_map(arc_process_fun),
+            test,
+        )
+        .unwrap();
+}
+
 pub fn timeout_message(timer_reference: Term, message: Term, process: &Process) -> Term {
     timer_message("timeout", timer_reference, message, process)
 }
@@ -183,42 +198,43 @@ pub fn without_boolean_left_errors_badarg(
     source_file: &'static str,
     native: fn(Term, Term) -> exception::Result<Term>,
 ) {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(source_file))
-            .run(
-                &(
-                    super::strategy::term::is_not_boolean(arc_process.clone()),
-                    super::strategy::term::is_boolean(),
-                ),
-                |(left_boolean, right_boolean)| {
-                    prop_assert_is_not_boolean!(native(left_boolean, right_boolean), left_boolean);
-
-                    Ok(())
-                },
+    run(
+        source_file,
+        |arc_process| {
+            (
+                super::strategy::term::is_not_boolean(arc_process.clone()),
+                super::strategy::term::is_boolean(),
             )
-            .unwrap();
-    });
+        },
+        |(left_boolean, right_boolean)| {
+            prop_assert_is_not_boolean!(native(left_boolean, right_boolean), left_boolean);
+
+            Ok(())
+        },
+    );
 }
 
 pub fn without_number_errors_badarg(
     source_file: &'static str,
     native: fn(&Process, Term) -> exception::Result<Term>,
 ) {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(source_file))
-            .run(
-                &super::strategy::term::is_not_number(arc_process.clone()),
-                |number| {
-                    prop_assert_badarg!(
-                        native(&arc_process, number),
-                        format!("number ({}) is not an integer or float", number)
-                    );
-
-                    Ok(())
-                },
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_not_number(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, number)| {
+            prop_assert_badarg!(
+                native(&arc_process, number),
+                format!("number ({}) is not an integer or float", number)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 pub enum FirstSecond {

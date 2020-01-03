@@ -5,8 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::size_1::native;
-use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_tuple_or_bitstring_errors_badarg() {
@@ -38,50 +37,55 @@ fn without_tuple_or_bitstring_errors_badarg() {
 
 #[test]
 fn with_tuple_returns_arity() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(0_usize..=3_usize).prop_flat_map(|size| {
-                    (
-                        Just(size),
-                        strategy::term::tuple::intermediate(
-                            strategy::term(arc_process.clone()),
-                            (size..=size).into(),
-                            arc_process.clone(),
-                        ),
-                    )
-                }),
-                |(size, term)| {
-                    prop_assert_eq!(
-                        native(&arc_process, term),
-                        Ok(arc_process.integer(size).unwrap())
-                    );
+    run(
+        file!(),
+        |arc_process| {
+            (Just(arc_process.clone()), 0_usize..=3_usize).prop_flat_map(|(arc_process, size)| {
+                (
+                    Just(arc_process.clone()),
+                    Just(size),
+                    strategy::term::tuple::intermediate(
+                        strategy::term(arc_process.clone()),
+                        (size..=size).into(),
+                        arc_process.clone(),
+                    ),
+                )
+            })
+        },
+        |(arc_process, size, term)| {
+            prop_assert_eq!(
+                native(&arc_process, term),
+                Ok(arc_process.integer(size).unwrap())
+            );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_bitstring_is_byte_len() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_bitstring(arc_process.clone()), |term| {
-                let full_byte_len = match term.decode().unwrap() {
-                    TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
-                    TypedTerm::SubBinary(subbinary) => subbinary.full_byte_len(),
-                    _ => unreachable!(),
-                };
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_bitstring(arc_process.clone()),
+            )
+        },
+        |(arc_process, term)| {
+            let full_byte_len = match term.decode().unwrap() {
+                TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
+                TypedTerm::SubBinary(subbinary) => subbinary.full_byte_len(),
+                _ => unreachable!(),
+            };
 
-                prop_assert_eq!(
-                    native(&arc_process, term),
-                    Ok(arc_process.integer(full_byte_len).unwrap())
-                );
+            prop_assert_eq!(
+                native(&arc_process, term),
+                Ok(arc_process.integer(full_byte_len).unwrap())
+            );
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

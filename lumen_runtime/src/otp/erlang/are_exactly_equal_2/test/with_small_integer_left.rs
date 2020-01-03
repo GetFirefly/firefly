@@ -24,58 +24,53 @@ fn without_small_integer_returns_false() {
 
 #[test]
 fn with_same_small_integer_right_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::integer::small(arc_process.clone()),
-                |operand| {
-                    prop_assert_eq!(native(operand, operand), true.into());
+    run(
+        file!(),
+        |arc_process| strategy::term::integer::small(arc_process.clone()),
+        |operand| {
+            prop_assert_eq!(native(operand, operand), true.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_same_value_small_integer_right_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
-                    (
-                        arc_process.integer(i).unwrap(),
-                        arc_process.integer(i).unwrap(),
-                    )
-                }),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
+    run(
+        file!(),
+        |arc_process| {
+            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
+                (
+                    arc_process.integer(i).unwrap(),
+                    arc_process.integer(i).unwrap(),
+                )
+            })
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), true.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_different_small_integer_right_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
-                    (
-                        arc_process.integer(i).unwrap(),
-                        arc_process.integer(i + 1).unwrap(),
-                    )
-                }),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
+    run(
+        file!(),
+        |arc_process| {
+            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
+                (
+                    arc_process.integer(i).unwrap(),
+                    arc_process.integer(i + 1).unwrap(),
+                )
+            })
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), false.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

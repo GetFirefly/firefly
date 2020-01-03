@@ -4,10 +4,10 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn with_number_atom_reference_function_port_pid_tuple_map_or_list_second_returns_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    run(
+        file!(),
+        |arc_process| {
+            (
                     strategy::term::binary::heap(arc_process.clone()),
                     strategy::term(arc_process.clone()).prop_filter(
                         "Second must be number, atom, reference, function, port, pid, tuple, map, or list",
@@ -21,15 +21,14 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_second_returns
                                 || second.is_boxed_tuple()
                                 || second.is_list()
                         }),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), second);
+                )
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), second);
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]

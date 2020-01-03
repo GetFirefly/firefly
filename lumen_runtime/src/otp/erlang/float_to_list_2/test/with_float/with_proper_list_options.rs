@@ -5,29 +5,37 @@ use super::*;
 
 use std::sync::Arc;
 
-use proptest::strategy::{BoxedStrategy, Strategy};
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::TypedTerm;
 
 #[test]
 fn without_valid_option_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::float(arc_process.clone()),
-                    is_not_option(arc_process.clone())
-                        .prop_map(|option| arc_process.list_from_slice(&[option]).unwrap()),
-                ),
-                |(float, options)| {
-                    prop_assert_badarg!(native(&arc_process, float, options), "supported options are compact, {:decimal, 0..253}, or {:scientific, 0..249}");
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::float(arc_process.clone()),
+                (
+                    Just(arc_process.clone()),
+                    is_not_option(arc_process.clone()),
+                )
+                    .prop_map(|(arc_process, option)| {
+                        arc_process.list_from_slice(&[option]).unwrap()
+                    }),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, float, options)| {
+            prop_assert_badarg!(
+                native(&arc_process, float, options),
+                "supported options are compact, {:decimal, 0..253}, or {:scientific, 0..249}"
+            );
+
+            Ok(())
+        },
+    );
 }
 
 fn is_not_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

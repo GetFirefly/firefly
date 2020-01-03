@@ -4,25 +4,25 @@ use super::*;
 
 #[test]
 fn without_atom_module_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_atom(arc_process.clone()),
-                    strategy::term::atom(),
-                    strategy::term::list::proper(arc_process.clone()),
-                ),
-                |(module, function, arguments)| {
-                    prop_assert_is_not_atom!(
-                        native(&arc_process, module, function, arguments, OPTIONS),
-                        module
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_atom(arc_process.clone()),
+                strategy::term::atom(),
+                strategy::term::list::proper(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, module, function, arguments)| {
+            prop_assert_is_not_atom!(
+                native(&arc_process, module, function, arguments, OPTIONS),
+                module
+            );
+
+            Ok(())
+        },
+    );
 }
 
 const OPTIONS: Term = Term::NIL;

@@ -1,32 +1,30 @@
 use proptest::prop_assert_eq;
-use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::is_pid_1::native;
-use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_pid_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_not_pid(arc_process.clone()), |term| {
-                prop_assert_eq!(native(term), false.into());
+    run(
+        file!(),
+        |arc_process| strategy::term::is_not_pid(arc_process.clone()),
+        |term| {
+            prop_assert_eq!(native(term), false.into());
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_pid_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_pid(arc_process.clone()), |term| {
-                prop_assert_eq!(native(term), true.into());
+    run(
+        file!(),
+        |arc_process| strategy::term::is_pid(arc_process.clone()),
+        |term| {
+            prop_assert_eq!(native(term), true.into());
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

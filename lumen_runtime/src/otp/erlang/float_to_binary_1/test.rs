@@ -1,5 +1,6 @@
 mod with_float;
 
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
@@ -7,23 +8,25 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::float_to_binary_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_float_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_float(arc_process.clone()),
-                |float| {
-                    prop_assert_badarg!(
-                        native(&arc_process, float),
-                        format!("float ({}) is not a float", float)
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_float(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, float)| {
+            prop_assert_badarg!(
+                native(&arc_process, float),
+                format!("float ({}) is not a float", float)
+            );
+
+            Ok(())
+        },
+    );
 }

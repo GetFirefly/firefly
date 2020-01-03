@@ -14,20 +14,24 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::send_after_4::native;
-use crate::scheduler::with_process_arc;
-use crate::test::{has_message, registered_name, strategy};
+use crate::test::{has_message, registered_name, run, strategy};
 use crate::time::Milliseconds;
 use crate::{process, timer};
 
 #[test]
 fn without_proper_list_options_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::integer::non_negative(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                    strategy::term::is_not_list(arc_process.clone()).prop_map(|tail| {
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::integer::non_negative(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                (
+                    Just(arc_process.clone()),
+                    strategy::term::is_not_list(arc_process.clone()),
+                )
+                    .prop_map(|(arc_process, tail)| {
                         arc_process
                             .cons(
                                 arc_process
@@ -37,18 +41,17 @@ fn without_proper_list_options_errors_badarg() {
                             )
                             .unwrap()
                     }),
-                ),
-                |(time, message, options)| {
-                    let destination = arc_process.pid_term();
-
-                    prop_assert_badarg!(
-                        native(arc_process.clone(), time, destination, message, options,),
-                        "improper list"
-                    );
-
-                    Ok(())
-                },
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, time, message, options)| {
+            let destination = arc_process.pid_term();
+
+            prop_assert_badarg!(
+                native(arc_process.clone(), time, destination, message, options,),
+                "improper list"
+            );
+
+            Ok(())
+        },
+    );
 }

@@ -1,13 +1,13 @@
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
-use proptest::strategy::Strategy;
+use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::list_to_atom_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::strategy;
+use crate::test::{run, strategy};
 
 #[test]
 fn without_list_errors_badarg() {
@@ -46,26 +46,25 @@ fn with_improper_list_errors_badarg() {
 
 #[test]
 fn with_non_empty_proper_list_returns_atom() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &any::<String>().prop_map(|string| {
-                    let codepoint_terms: Vec<Term> = string
-                        .chars()
-                        .map(|c| arc_process.integer(c).unwrap())
-                        .collect();
-                    let list = arc_process.list_from_slice(&codepoint_terms).unwrap();
+    run(
+        file!(),
+        |arc_process| {
+            (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, string)| {
+                let codepoint_terms: Vec<Term> = string
+                    .chars()
+                    .map(|c| arc_process.integer(c).unwrap())
+                    .collect();
+                let list = arc_process.list_from_slice(&codepoint_terms).unwrap();
 
-                    (list, string)
-                }),
-                |(list, string)| {
-                    let atom = Atom::str_to_term(&string);
+                (list, string)
+            })
+        },
+        |(list, string)| {
+            let atom = Atom::str_to_term(&string);
 
-                    prop_assert_eq!(native(list), Ok(atom));
+            prop_assert_eq!(native(list), Ok(atom));
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

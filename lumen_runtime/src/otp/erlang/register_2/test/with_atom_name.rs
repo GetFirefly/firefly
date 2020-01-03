@@ -4,23 +4,25 @@ mod without_registered_name;
 
 #[test]
 fn without_atom_name_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::pid_or_port(arc_process.clone()),
-                |pid_or_port| {
-                    let name = Atom::str_to_term("undefined");
-
-                    prop_assert_badarg!(
-                        native(arc_process.clone(), name, pid_or_port),
-                        "undefined is not an allowed registered name"
-                    );
-
-                    Ok(())
-                },
+    run(
+        file!(),
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::pid_or_port(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, pid_or_port)| {
+            let name = Atom::str_to_term("undefined");
+
+            prop_assert_badarg!(
+                native(arc_process.clone(), name, pid_or_port),
+                "undefined is not an allowed registered name"
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

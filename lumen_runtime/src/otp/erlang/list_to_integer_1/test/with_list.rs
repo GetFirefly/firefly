@@ -6,8 +6,7 @@ use liblumen_alloc::erts::term::prelude::SmallInteger;
 
 #[test]
 fn with_small_integer_returns_small_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -44,8 +43,7 @@ fn with_small_integer_returns_small_integer() {
 
 #[test]
 fn with_big_integer_returns_big_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

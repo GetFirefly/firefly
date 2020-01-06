@@ -7,12 +7,11 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::atom_to_binary_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_atom_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -30,8 +29,7 @@ fn without_atom_errors_badarg() {
 
 #[test]
 fn with_atom_without_atom_encoding_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -52,8 +50,7 @@ fn with_atom_without_atom_encoding_errors_badarg() {
 
 #[test]
 fn with_atom_with_atom_without_name_encoding_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -73,8 +70,7 @@ fn with_atom_with_atom_without_name_encoding_errors_badarg() {
 
 #[test]
 fn with_atom_with_encoding_atom_returns_name_in_binary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

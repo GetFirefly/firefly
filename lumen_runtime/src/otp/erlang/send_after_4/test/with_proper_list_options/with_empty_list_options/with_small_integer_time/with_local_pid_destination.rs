@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_different_process_sends_message_when_timer_expires() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -43,8 +42,7 @@ fn with_different_process_sends_message_when_timer_expires() {
 
 #[test]
 fn with_same_process_sends_message_when_timer_expires() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -82,8 +80,7 @@ fn with_same_process_sends_message_when_timer_expires() {
 
 #[test]
 fn without_process_sends_nothing_when_timer_expires() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

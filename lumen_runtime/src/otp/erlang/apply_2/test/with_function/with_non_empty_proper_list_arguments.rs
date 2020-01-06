@@ -11,8 +11,7 @@ use crate::test::strategy::term::export_closure;
 
 #[test]
 fn without_arity_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -75,8 +74,7 @@ fn without_arity_errors_badarg() {
 
 #[test]
 fn with_arity_returns_function_return() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

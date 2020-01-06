@@ -10,7 +10,7 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::prelude::{Encoded, Float};
 
 use crate::otp::erlang::trunc_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarg() {
@@ -19,8 +19,7 @@ fn without_number_errors_badarg() {
 
 #[test]
 fn with_integer_returns_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -37,8 +36,7 @@ fn with_integer_returns_integer() {
 
 #[test]
 fn with_float_truncates_to_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -59,8 +59,7 @@ fn with_greater_float_second_returns_first() {
 
 #[test]
 fn without_second_number_returns_first() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::integer::big(arc_process.clone()),

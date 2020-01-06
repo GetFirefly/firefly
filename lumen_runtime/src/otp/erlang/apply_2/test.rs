@@ -10,12 +10,11 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::future::{run_until_ready, Ready};
 use crate::otp::erlang::apply_2::place_frame_with_arguments;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_function_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::is_not_function(arc_process.clone()),
         |function| {
             let Ready {

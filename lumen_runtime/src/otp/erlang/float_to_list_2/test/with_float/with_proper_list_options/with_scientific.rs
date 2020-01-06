@@ -150,9 +150,8 @@ fn returns_list_with_coefficient_e_exponent() {
 
 #[test]
 fn always_includes_e() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term::float(arc_process.clone()),
@@ -164,7 +163,7 @@ fn always_includes_e() {
                             .unwrap()
                     }),
                 )
-            }),
+            },
             |(arc_process, float, options)| {
                 let result = native(&arc_process, float, options);
 
@@ -177,15 +176,13 @@ fn always_includes_e() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn always_includes_sign_of_exponent() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term::float(arc_process.clone()),
@@ -197,7 +194,7 @@ fn always_includes_sign_of_exponent() {
                             .unwrap()
                     }),
                 )
-            }),
+            },
             |(arc_process, float, options)| {
                 let result = native(&arc_process, float, options);
 
@@ -215,15 +212,13 @@ fn always_includes_sign_of_exponent() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn exponent_is_at_least_2_digits() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term::float(arc_process.clone()),
@@ -235,7 +230,7 @@ fn exponent_is_at_least_2_digits() {
                             .unwrap()
                     }),
                 )
-            }),
+            },
             |(arc_process, float, options)| {
                 let result = native(&arc_process, float, options);
 
@@ -251,8 +246,7 @@ fn exponent_is_at_least_2_digits() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 fn digits(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

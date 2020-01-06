@@ -5,8 +5,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_list_or_bitstring_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             strategy::term(arc_process.clone())
                 .prop_filter("Right cannot be a list or bitstring", |right| {

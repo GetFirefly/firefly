@@ -4,31 +4,28 @@ use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::is_record_2::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_returns_false() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     strategy::term::is_not_tuple(arc_process.clone()),
                     strategy::term::atom(),
                 )
-            }),
+            },
             |(tuple, record_tag)| {
                 prop_assert_eq!(native(tuple, record_tag), Ok(false.into()));
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn with_tuple_without_atom_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::tuple(arc_process.clone()),
@@ -60,8 +57,7 @@ fn with_empty_tuple_with_atom_returns_false() {
 
 #[test]
 fn with_non_empty_tuple_without_atom_with_first_element_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -90,8 +86,7 @@ fn with_non_empty_tuple_without_atom_with_first_element_errors_badarg() {
 
 #[test]
 fn with_non_empty_tuple_with_atom_without_record_tag_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -123,8 +118,7 @@ fn with_non_empty_tuple_with_atom_without_record_tag_returns_false() {
 
 #[test]
 fn with_non_empty_tuple_with_atom_with_record_tag_returns_ok() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

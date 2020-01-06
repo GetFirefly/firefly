@@ -14,12 +14,11 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::otp::erlang::spawn_link_1::native;
 use crate::registry::pid_to_process;
 use crate::test::strategy::term::function;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_function_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

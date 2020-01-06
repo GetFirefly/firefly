@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_bitstring_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::binary::heap(arc_process.clone()),
@@ -23,8 +22,7 @@ fn without_bitstring_right_returns_false() {
 
 #[test]
 fn with_same_heap_binary_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::binary::heap(arc_process.clone()),
         |operand| {
             prop_assert_eq!(native(operand, operand), true.into());
@@ -36,8 +34,7 @@ fn with_same_heap_binary_right_returns_true() {
 
 #[test]
 fn with_same_value_heap_binary_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), strategy::byte_vec()).prop_map(|(arc_process, byte_vec)| {
                 (
@@ -56,8 +53,7 @@ fn with_same_value_heap_binary_right_returns_true() {
 
 #[test]
 fn with_different_heap_binary_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::binary::heap(arc_process.clone()),
@@ -77,8 +73,7 @@ fn with_different_heap_binary_right_returns_false() {
 
 #[test]
 fn with_subbinary_right_with_same_bytes_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -104,8 +99,7 @@ fn with_subbinary_right_with_same_bytes_returns_true() {
 
 #[test]
 fn with_subbinary_right_with_different_bytes_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

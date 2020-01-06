@@ -1,10 +1,9 @@
 use crate::otp::erlang::not_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_boolean_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::is_not_boolean(arc_process.clone()),
         |boolean| {
             prop_assert_is_not_boolean!(native(boolean), boolean);

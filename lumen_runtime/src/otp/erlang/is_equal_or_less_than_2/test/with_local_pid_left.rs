@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_number_atom_reference_function_or_port_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::pid::local(),
@@ -43,21 +42,19 @@ fn with_external_pid_right_returns_true() {
 
 #[test]
 fn with_list_or_bitstring_returns_true() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     strategy::term::pid::local(),
                     strategy::term::list_or_bitstring(arc_process),
                 )
-            }),
+            },
             |(left, right)| {
                 prop_assert_eq!(native(left, right), true.into());
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)

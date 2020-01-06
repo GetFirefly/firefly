@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn without_number_addend_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -27,8 +26,7 @@ fn without_number_addend_errors_badarith() {
 
 #[test]
 fn with_zero_small_integer_returns_same_big_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -47,8 +45,7 @@ fn with_zero_small_integer_returns_same_big_integer() {
 
 #[test]
 fn that_is_positive_with_positive_small_integer_addend_returns_greater_big_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -74,8 +71,7 @@ fn that_is_positive_with_positive_small_integer_addend_returns_greater_big_integ
 
 #[test]
 fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -116,8 +112,7 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
 
 #[test]
 fn with_float_addend_with_underflow_returns_min_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -139,8 +134,7 @@ fn with_float_addend_with_underflow_returns_min_float() {
 
 #[test]
 fn with_float_addend_with_overflow_returns_max_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -1,44 +1,40 @@
 use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
-use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::size_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_or_bitstring_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Term must not be a tuple or bitstring", |term| {
-                            !(term.is_boxed_tuple() || term.is_bitstring())
-                        }),
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone())
+                    .prop_filter("Term must not be a tuple or bitstring", |term| {
+                        !(term.is_boxed_tuple() || term.is_bitstring())
+                    }),
+            )
+        },
+        |(arc_process, binary_or_tuple)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary_or_tuple),
+                format!(
+                    "binary_or_tuple ({}) is neither a binary nor a tuple",
+                    binary_or_tuple
                 )
-            }),
-            |(arc_process, binary_or_tuple)| {
-                prop_assert_badarg!(
-                    native(&arc_process, binary_or_tuple),
-                    format!(
-                        "binary_or_tuple ({}) is neither a binary nor a tuple",
-                        binary_or_tuple
-                    )
-                );
+            );
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_tuple_returns_arity() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), 0_usize..=3_usize).prop_flat_map(|(arc_process, size)| {
                 (
@@ -65,8 +61,7 @@ fn with_tuple_returns_arity() {
 
 #[test]
 fn with_bitstring_is_byte_len() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

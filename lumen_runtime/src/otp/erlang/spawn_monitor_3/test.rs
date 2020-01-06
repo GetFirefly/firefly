@@ -17,12 +17,11 @@ use crate::otp::erlang::spawn_monitor_3::native;
 use crate::process;
 use crate::registry::pid_to_process;
 use crate::scheduler::Scheduler;
-use crate::test::{assert_exits_undef, has_message, run, strategy};
+use crate::test::{assert_exits_undef, has_message, strategy};
 
 #[test]
 fn without_atom_module_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

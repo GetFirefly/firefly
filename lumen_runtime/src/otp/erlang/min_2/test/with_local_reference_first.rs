@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_number_or_atom_second_returns_second() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::local_reference(arc_process.clone()),
@@ -40,8 +39,7 @@ fn with_greater_local_reference_second_returns_first() {
 
 #[test]
 fn with_function_port_pid_tuple_map_list_or_bitstring_second_returns_first() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::local_reference(arc_process.clone()),

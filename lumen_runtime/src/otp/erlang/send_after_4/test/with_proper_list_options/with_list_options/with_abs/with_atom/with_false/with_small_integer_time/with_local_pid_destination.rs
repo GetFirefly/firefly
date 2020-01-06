@@ -2,15 +2,14 @@ use super::*;
 
 #[test]
 fn with_different_process_sends_message_when_timer_expires() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     milliseconds(),
                     Just(arc_process.clone()),
                     strategy::term(arc_process),
                 )
-            }),
+            },
             |(milliseconds, arc_process, message)| {
                 let time = arc_process.integer(milliseconds).unwrap();
 
@@ -39,8 +38,7 @@ fn with_different_process_sends_message_when_timer_expires() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]

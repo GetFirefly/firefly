@@ -2,12 +2,11 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 
 use crate::otp::erlang::tuple_to_list_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -24,8 +23,7 @@ fn without_tuple_errors_badarg() {
 
 #[test]
 fn with_tuple_returns_list() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

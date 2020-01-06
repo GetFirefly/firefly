@@ -16,12 +16,11 @@ use crate::otp::erlang::spawn_opt_2::native;
 use crate::registry::pid_to_process;
 use crate::scheduler::Scheduler;
 use crate::test::strategy::term::function;
-use crate::test::{prop_assert_exits_badarity, run, strategy};
+use crate::test::{prop_assert_exits_badarity, strategy};
 
 #[test]
 fn without_function_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

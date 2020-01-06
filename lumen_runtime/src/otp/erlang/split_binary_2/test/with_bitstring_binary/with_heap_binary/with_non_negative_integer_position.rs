@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn with_less_than_byte_len_returns_binary_prefix_and_suffix_binary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), 2_usize..=4_usize).prop_flat_map(
                 |(arc_process, byte_len)| {
@@ -39,8 +38,7 @@ fn with_less_than_byte_len_returns_binary_prefix_and_suffix_binary() {
 
 #[test]
 fn with_byte_len_returns_subbinary_and_empty_suffix() {
-    run(
-        file!(),
+    run!(
         |arc_process| (Just(arc_process.clone()), strategy::byte_vec()),
         |(arc_process, byte_vec)| {
             let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
@@ -60,8 +58,7 @@ fn with_byte_len_returns_subbinary_and_empty_suffix() {
 
 #[test]
 fn with_greater_than_byte_len_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), strategy::byte_vec()).prop_flat_map(
                 |(arc_process, byte_vec)| {

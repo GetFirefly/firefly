@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_external_pid_left_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::pid::external(arc_process.clone()),
@@ -25,8 +24,7 @@ fn without_external_pid_left_returns_false() {
 
 #[test]
 fn with_same_external_pid_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::pid::external(arc_process.clone()),
         |operand| {
             prop_assert_eq!(native(operand, operand), true.into());
@@ -38,8 +36,7 @@ fn with_same_external_pid_right_returns_true() {
 
 #[test]
 fn with_same_value_external_pid_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -66,8 +63,7 @@ fn with_same_value_external_pid_right_returns_true() {
 
 #[test]
 fn with_different_external_pid_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::pid::external(arc_process.clone()),

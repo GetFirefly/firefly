@@ -11,14 +11,13 @@ use crate::process;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::with_process;
 use crate::test::{has_message, receive_message, timeout_message};
-use crate::test::{run, strategy};
+use crate::test::strategy;
 use crate::time::Milliseconds;
 use crate::timer;
 
 #[test]
 fn without_reference_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

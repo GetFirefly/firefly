@@ -27,12 +27,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::are_equal_after_conversion_2::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_numbers_are_not_equal_after_conversion_if_not_equal_before_conversion() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_not_number(arc_process.clone()),

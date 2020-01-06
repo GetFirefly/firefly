@@ -5,12 +5,11 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::binary_to_term_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -174,8 +173,7 @@ fn with_binary_returns_term<T>(byte_vec: Vec<u8>, term: T)
 where
     T: Fn(&Process) -> Term,
 {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

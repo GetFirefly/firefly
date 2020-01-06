@@ -7,8 +7,7 @@ use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
 #[test]
 fn without_list_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
@@ -26,8 +25,7 @@ fn without_list_right_returns_false() {
 
 #[test]
 fn with_same_list_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
         |operand| {
             prop_assert_eq!(native(operand, operand), true.into());
@@ -39,8 +37,7 @@ fn with_same_list_right_returns_true() {
 
 #[test]
 fn with_same_value_list_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             let size_range: SizeRange = NON_EMPTY_RANGE_INCLUSIVE.clone().into();
 

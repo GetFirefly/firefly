@@ -4,16 +4,15 @@ use proptest::strategy::Just;
 
 #[test]
 fn without_proper_list_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                     strategy::term::is_not_list(arc_process.clone()),
                 )
-            }),
+            },
             |(arc_process, key, value, tail)| {
                 let entry = arc_process.tuple_from_slice(&[key, value]).unwrap();
                 let list = arc_process
@@ -27,20 +26,18 @@ fn without_proper_list_errors_badarg() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn without_tuple_list_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term::is_not_tuple(arc_process.clone()),
                 )
-            }),
+            },
             |(arc_process, element)| {
                 let list = arc_process.list_from_slice(&[element]).unwrap();
 
@@ -51,20 +48,18 @@ fn without_tuple_list_errors_badarg() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn with_two_element_tuple_list_returns_value() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                 )
-            }),
+            },
             |(arc_process, key)| {
                 let value = atom!("value");
                 let tuple = arc_process.tuple_from_slice(&[key, value]).unwrap();
@@ -74,20 +69,18 @@ fn with_two_element_tuple_list_returns_value() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn with_duplicate_keys_preserves_last_value() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                 )
-            }),
+            },
             |(arc_process, key)| {
                 let value1 = atom!("value1");
                 let value2 = atom!("value2");
@@ -99,6 +92,5 @@ fn with_duplicate_keys_preserves_last_value() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }

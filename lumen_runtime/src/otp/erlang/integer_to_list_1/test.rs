@@ -6,12 +6,11 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::integer_to_list_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_integer_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

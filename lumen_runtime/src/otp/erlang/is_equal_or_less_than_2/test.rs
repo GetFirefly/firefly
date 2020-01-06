@@ -15,7 +15,7 @@ mod with_tuple_left;
 use std::sync::Arc;
 
 use proptest::prop_assert_eq;
-use proptest::strategy::{BoxedStrategy, Strategy};
+use proptest::strategy::BoxedStrategy;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::process::Process;
@@ -23,7 +23,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::is_equal_or_less_than_2::native;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::{external_arc_node, run, strategy};
+use crate::test::{external_arc_node, strategy};
 
 #[test]
 fn with_same_left_and_right_returns_true() {

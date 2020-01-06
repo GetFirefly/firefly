@@ -5,8 +5,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn with_small_integer_divisor_returns_small_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -31,8 +30,7 @@ fn with_small_integer_divisor_returns_small_integer() {
 
 #[test]
 fn with_big_integer_divisor_returns_dividend() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

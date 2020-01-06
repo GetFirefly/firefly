@@ -4,12 +4,11 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::exception::{Exception, RuntimeException};
 
 use crate::otp::erlang::error_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn errors_with_reason_and_arguments() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term(arc_process.clone()),

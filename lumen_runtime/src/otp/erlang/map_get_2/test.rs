@@ -3,12 +3,11 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::map_get_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_map_errors_badmap() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -76,8 +75,7 @@ fn with_map_without_key_errors_badkey() {
 
 #[test]
 fn with_map_with_key_returns_value() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

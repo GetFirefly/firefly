@@ -3,12 +3,11 @@ use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::number_or_badarith_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::is_not_number(arc_process.clone()),
         |number| {
             prop_assert_badarith!(

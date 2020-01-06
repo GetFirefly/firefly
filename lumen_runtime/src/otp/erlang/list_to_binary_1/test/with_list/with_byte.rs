@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_integer_without_byte_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -34,8 +33,7 @@ fn with_integer_without_byte_errors_badarg() {
 
 #[test]
 fn with_empty_list_returns_1_byte_binary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<u8>()).prop_map(|(arc_process, byte)| {
                 (
@@ -59,8 +57,7 @@ fn with_empty_list_returns_1_byte_binary() {
 
 #[test]
 fn with_byte_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -137,8 +134,7 @@ fn with_subbinary_without_bitcount_returns_binary() {
 
 #[test]
 fn with_subbinary_with_bitcount_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

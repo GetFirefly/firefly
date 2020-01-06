@@ -7,12 +7,11 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::raise_3::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_atom_class_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_not_atom(arc_process.clone()),

@@ -4,22 +4,20 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_map_right_returns_true() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     strategy::term::map(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right cannot be a map", |right| !right.is_boxed_map()),
                 )
-            }),
+            },
             |(left, right)| {
                 prop_assert_eq!(native(left, right), true.into());
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
@@ -39,9 +37,8 @@ fn with_same_map_right_returns_false() {
 
 #[test]
 fn with_same_value_map_right_returns_false() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 let key_or_value = strategy::term(arc_process.clone());
                 proptest::collection::hash_map(
                     key_or_value.clone(),
@@ -57,32 +54,29 @@ fn with_same_value_map_right_returns_false() {
                         heap.map_from_slice(&entry_vec).unwrap(),
                     )
                 })
-            }),
+            },
             |(left, right)| {
                 prop_assert_eq!(native(left.into(), right.into()), false.into());
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn with_different_map_right_returns_true() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     strategy::term::map(arc_process.clone()),
                     strategy::term::map(arc_process.clone()),
                 )
                     .prop_filter("Maps must be different", |(left, right)| left != right)
-            }),
+            },
             |(left, right)| {
                 prop_assert_eq!(native(left, right), true.into());
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }

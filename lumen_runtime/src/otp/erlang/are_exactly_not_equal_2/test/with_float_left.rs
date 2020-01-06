@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_float_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::float(arc_process.clone()),
@@ -36,8 +35,7 @@ fn with_same_float_returns_false() {
 
 #[test]
 fn with_same_value_float_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<f64>()).prop_map(|(arc_process, f)| {
                 (arc_process.float(f).unwrap(), arc_process.float(f).unwrap())
@@ -53,8 +51,7 @@ fn with_same_value_float_right_returns_false() {
 
 #[test]
 fn with_different_float_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<f64>()).prop_map(|(arc_process, f)| {
                 (

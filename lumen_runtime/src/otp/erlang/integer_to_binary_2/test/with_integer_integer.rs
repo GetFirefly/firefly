@@ -7,8 +7,7 @@ use crate::otp::erlang::binary_to_integer_2;
 
 #[test]
 fn without_base_base_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -29,8 +28,7 @@ fn without_base_base_errors_badarg() {
 
 #[test]
 fn with_base_base_returns_binary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -58,8 +56,7 @@ fn with_base_base_returns_binary() {
 #[test]
 fn with_negative_integer_returns_binary_in_base_with_negative_sign_in_front_of_non_negative_binary()
 {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -96,8 +93,7 @@ fn with_negative_integer_returns_binary_in_base_with_negative_sign_in_front_of_n
 
 #[test]
 fn is_dual_of_binary_to_integer_2() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

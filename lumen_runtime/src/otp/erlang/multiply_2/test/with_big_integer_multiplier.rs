@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn without_number_multiplicand_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -27,8 +26,7 @@ fn without_number_multiplicand_errors_badarith() {
 
 #[test]
 fn with_integer_multiplicand_returns_big_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

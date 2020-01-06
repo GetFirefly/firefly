@@ -10,12 +10,11 @@ use liblumen_alloc::erts::term::prelude::Pid;
 
 use crate::otp::erlang::is_process_alive_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_pid_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

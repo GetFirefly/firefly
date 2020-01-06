@@ -1,12 +1,11 @@
 use proptest::prop_assert_eq;
 
 use crate::otp::erlang::andalso_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_boolean_left_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_not_boolean(arc_process.clone()),
@@ -23,26 +22,18 @@ fn without_boolean_left_errors_badarg() {
 
 #[test]
 fn with_false_left_returns_false() {
-    run(
-        file!(),
-        |arc_process| strategy::term(arc_process.clone()),
-        |right| {
-            prop_assert_eq!(native(false.into(), right), Ok(false.into()));
+    run!(|arc_process| strategy::term(arc_process.clone()), |right| {
+        prop_assert_eq!(native(false.into(), right), Ok(false.into()));
 
-            Ok(())
-        },
-    );
+        Ok(())
+    },);
 }
 
 #[test]
 fn with_true_left_returns_right() {
-    run(
-        file!(),
-        |arc_process| strategy::term(arc_process.clone()),
-        |right| {
-            prop_assert_eq!(native(true.into(), right), Ok(right));
+    run!(|arc_process| strategy::term(arc_process.clone()), |right| {
+        prop_assert_eq!(native(true.into(), right), Ok(right));
 
-            Ok(())
-        },
-    );
+        Ok(())
+    },);
 }

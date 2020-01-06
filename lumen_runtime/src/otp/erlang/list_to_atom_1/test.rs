@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::list_to_atom_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
@@ -46,8 +46,7 @@ fn with_improper_list_errors_badarg() {
 
 #[test]
 fn with_non_empty_proper_list_returns_atom() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, string)| {
                 let codepoint_terms: Vec<Term> = string

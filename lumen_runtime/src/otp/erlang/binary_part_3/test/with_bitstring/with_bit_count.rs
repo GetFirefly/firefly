@@ -5,8 +5,7 @@ use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
 #[test]
 fn with_positive_start_and_positive_length_returns_subbinary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -65,8 +64,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
 
 #[test]
 fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_without_bit_count() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -122,8 +120,7 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
 
 #[test]
 fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

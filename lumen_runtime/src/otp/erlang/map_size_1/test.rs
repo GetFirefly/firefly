@@ -4,12 +4,11 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::map_size_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_map_errors_badmap() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -31,8 +30,7 @@ fn without_map_errors_badmap() {
 
 #[test]
 fn with_map_returns_number_of_entries() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

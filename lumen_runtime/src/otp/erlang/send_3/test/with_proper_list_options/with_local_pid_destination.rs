@@ -4,8 +4,7 @@ mod with_different_process;
 
 #[test]
 fn without_process_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -28,8 +27,7 @@ fn without_process_errors_badarg() {
 
 #[test]
 fn with_same_process_adds_process_message_to_mailbox_and_returns_ok() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

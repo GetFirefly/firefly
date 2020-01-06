@@ -10,13 +10,12 @@ use liblumen_alloc::erts::term::prelude::{Atom, Encoded, Pid};
 use crate::otp::erlang;
 use crate::otp::erlang::register_2::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{registered_name, run, strategy};
+use crate::test::{registered_name, strategy};
 use crate::{process, registry};
 
 #[test]
 fn without_atom_name_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

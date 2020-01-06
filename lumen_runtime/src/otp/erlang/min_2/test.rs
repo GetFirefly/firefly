@@ -22,12 +22,11 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::otp::erlang::min_2::native;
 use crate::scheduler::with_process;
 use crate::test::FirstSecond::*;
-use crate::test::{external_arc_node, run, strategy, FirstSecond};
+use crate::test::{external_arc_node, strategy, FirstSecond};
 
 #[test]
 fn min_is_first_if_first_is_less_than_or_equal_to_second() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term(arc_process.clone()),

@@ -9,12 +9,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::subtract_2::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_minuend_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -38,8 +37,7 @@ fn without_number_minuend_errors_badarith() {
 
 #[test]
 fn with_number_minuend_without_number_subtrahend_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -63,8 +61,7 @@ fn with_number_minuend_without_number_subtrahend_errors_badarith() {
 
 #[test]
 fn with_integer_minuend_with_integer_subtrahend_returns_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -88,8 +85,7 @@ fn with_integer_minuend_with_integer_subtrahend_returns_integer() {
 
 #[test]
 fn with_integer_minuend_with_float_subtrahend_returns_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

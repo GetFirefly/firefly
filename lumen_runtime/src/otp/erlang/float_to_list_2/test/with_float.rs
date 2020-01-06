@@ -7,8 +7,7 @@ use proptest::arbitrary::any;
 
 #[test]
 fn without_proper_list_options_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

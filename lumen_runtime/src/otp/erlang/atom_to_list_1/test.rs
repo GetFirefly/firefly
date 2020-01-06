@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::atom_to_list_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_atom_errors_badarg() {
@@ -25,8 +25,7 @@ fn without_atom_errors_badarg() {
 #[test]
 #[ignore]
 fn with_atom_returns_chars_in_list() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<String>())
                 .prop_map(|(arc_process, string)| (arc_process, Atom::str_to_term(&string), string))

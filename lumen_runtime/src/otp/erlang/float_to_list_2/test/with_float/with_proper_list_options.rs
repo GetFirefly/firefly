@@ -12,8 +12,7 @@ use liblumen_alloc::erts::term::prelude::TypedTerm;
 
 #[test]
 fn without_valid_option_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

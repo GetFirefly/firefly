@@ -7,8 +7,7 @@ mod without_bit_count;
 
 #[test]
 fn without_integer_start_without_integer_length_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -30,8 +29,7 @@ fn without_integer_start_without_integer_length_errors_badarg() {
 
 #[test]
 fn without_integer_start_with_integer_length_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -53,8 +51,7 @@ fn without_integer_start_with_integer_length_errors_badarg() {
 
 #[test]
 fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -73,8 +70,7 @@ fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
 
 #[test]
 fn with_negative_start_with_valid_length_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -104,8 +100,7 @@ fn with_negative_start_with_valid_length_errors_badarg() {
 
 #[test]
 fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -134,8 +129,7 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
 
 #[test]
 fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -177,8 +171,7 @@ fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
 
 #[test]
 fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -220,8 +213,7 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
 
 #[test]
 fn with_positive_start_and_negative_length_returns_subbinary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

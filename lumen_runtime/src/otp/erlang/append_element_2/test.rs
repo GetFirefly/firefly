@@ -6,12 +6,11 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::prelude::{Boxed, Tuple};
 
 use crate::otp::erlang::append_element_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -29,8 +28,7 @@ fn without_tuple_errors_badarg() {
 
 #[test]
 fn with_tuple_returns_tuple_with_new_element_at_end() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

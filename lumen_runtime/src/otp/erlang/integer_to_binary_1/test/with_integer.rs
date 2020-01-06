@@ -5,8 +5,7 @@ use crate::otp::erlang::binary_to_integer_1;
 
 #[test]
 fn with_small_integer_returns_binary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -35,8 +34,7 @@ fn with_small_integer_returns_binary() {
 
 #[test]
 fn with_big_integer_returns_binary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -65,8 +63,7 @@ fn with_big_integer_returns_binary() {
 
 #[test]
 fn dual_of_binary_to_integer_1() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

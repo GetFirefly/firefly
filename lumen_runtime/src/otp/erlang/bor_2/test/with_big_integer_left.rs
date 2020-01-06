@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_integer_right_returns_bitwise_and() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

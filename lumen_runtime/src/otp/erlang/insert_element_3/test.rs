@@ -4,40 +4,36 @@ use num_bigint::BigInt;
 
 use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
-use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::{Boxed, Tuple};
 
 use crate::otp::erlang::insert_element_3::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    strategy::term::is_not_tuple(arc_process.clone()),
-                    strategy::term::is_integer(arc_process.clone()),
-                    strategy::term(arc_process),
-                )
-            }),
-            |(arc_process, tuple, index, element)| {
-                prop_assert_is_not_tuple!(native(&arc_process, index, tuple, element), tuple);
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_tuple(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
+                strategy::term(arc_process),
+            )
+        },
+        |(arc_process, tuple, index, element)| {
+            prop_assert_is_not_tuple!(native(&arc_process, index, tuple, element), tuple);
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::process().prop_flat_map(|arc_process| {
-                    (
+    run!(
+        |arc_process| {
+            (
                         Just(arc_process.clone()),
                         strategy::term::tuple::non_empty(arc_process.clone()),
                         strategy::term(arc_process.clone()),
@@ -57,25 +53,27 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
                                 _ => true,
                             }
                         })
-                }),
-                |(arc_process, tuple, index, element)| {
-                    let boxed_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
+        },
+        |(arc_process, tuple, index, element)| {
+            let boxed_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
 
-                    prop_assert_badarg!(
-                        native(&arc_process, index, tuple, element),
-                        format!("index ({}) is not a 1-based integer between 1-{}", index, boxed_tuple.len() + 1)
-                    );
+            prop_assert_badarg!(
+                native(&arc_process, index, tuple, element),
+                format!(
+                    "index ({}) is not a 1-based integer between 1-{}",
+                    index,
+                    boxed_tuple.len() + 1
+                )
+            );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tuple_with_element() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), 1_usize..=4_usize)
                 .prop_flat_map(|(arc_process, len)| {

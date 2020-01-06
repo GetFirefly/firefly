@@ -53,8 +53,7 @@ fn with_greater_float_second_returns_second() {
 
 #[test]
 fn without_number_second_returns_second() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::integer::small(arc_process.clone()),

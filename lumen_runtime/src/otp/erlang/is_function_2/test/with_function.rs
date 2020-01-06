@@ -4,8 +4,7 @@ use super::*;
 
 #[test]
 fn without_non_negative_arity_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_function(arc_process.clone()),

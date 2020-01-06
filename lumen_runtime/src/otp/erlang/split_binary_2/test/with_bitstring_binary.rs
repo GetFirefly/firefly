@@ -5,8 +5,7 @@ mod with_subbinary;
 
 #[test]
 fn without_non_negative_integer_position_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

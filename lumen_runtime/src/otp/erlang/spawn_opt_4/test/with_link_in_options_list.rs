@@ -4,8 +4,7 @@ use super::*;
 
 #[test]
 fn without_atom_module_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

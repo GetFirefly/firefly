@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_small_integer_or_float_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::integer::small(arc_process.clone()),
@@ -25,8 +24,7 @@ fn without_small_integer_or_float_returns_true() {
 
 #[test]
 fn with_same_small_integer_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::integer::small(arc_process.clone()),
         |operand| {
             prop_assert_eq!(native(operand, operand), false.into());
@@ -38,8 +36,7 @@ fn with_same_small_integer_right_returns_false() {
 
 #[test]
 fn with_same_value_small_integer_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
                 let mut heap = arc_process.acquire_heap();
@@ -57,8 +54,7 @@ fn with_same_value_small_integer_right_returns_false() {
 
 #[test]
 fn with_different_small_integer_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
                 let mut heap = arc_process.acquire_heap();
@@ -76,8 +72,7 @@ fn with_different_small_integer_right_returns_true() {
 
 #[test]
 fn with_same_value_float_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             strategy::term::small_integer_float_integral_i64().prop_map(move |i| {
                 let mut heap = arc_process.acquire_heap();
@@ -95,8 +90,7 @@ fn with_same_value_float_right_returns_false() {
 
 #[test]
 fn with_different_value_float_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             strategy::term::small_integer_float_integral_i64().prop_map(move |i| {
                 let mut heap = arc_process.acquire_heap();

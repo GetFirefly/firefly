@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_number_addend_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -29,8 +28,7 @@ fn without_number_addend_errors_badarith() {
 
 #[test]
 fn with_small_integer_addend_returns_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -54,8 +52,7 @@ fn with_small_integer_addend_returns_float() {
 
 #[test]
 fn with_big_integer_addend_returns_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -79,8 +76,7 @@ fn with_big_integer_addend_returns_float() {
 
 #[test]
 fn with_float_addend_without_underflow_or_overflow_returns_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<f64>())
                 .prop_flat_map(|(arc_process, augend_f64)| {

@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_atom_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::atom(),
@@ -22,21 +21,16 @@ fn without_atom_returns_false() {
 
 #[test]
 fn with_same_atom_returns_true() {
-    run(
-        file!(),
-        |_| strategy::term::atom(),
-        |operand| {
-            prop_assert_eq!(native(operand, operand), true.into());
+    run!(|_| strategy::term::atom(), |operand| {
+        prop_assert_eq!(native(operand, operand), true.into());
 
-            Ok(())
-        },
-    );
+        Ok(())
+    },);
 }
 
 #[test]
 fn with_different_atom_returns_false() {
-    run(
-        file!(),
+    run!(
         |_| {
             (strategy::term::atom(), strategy::term::atom())
                 .prop_filter("Atoms must be different", |(left, right)| left != right)

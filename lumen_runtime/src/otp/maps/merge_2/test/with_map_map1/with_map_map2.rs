@@ -9,16 +9,15 @@ use liblumen_alloc::erts::term::prelude::{Boxed, Map};
 
 #[test]
 fn with_same_key_in_map1_and_map2_uses_value_from_map2() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                 )
-            }),
+            },
             |(arc_process, key, value1, value2)| {
                 let map1 = arc_process.map_from_slice(&[(key, value1)]).unwrap();
                 let map2 = arc_process.map_from_slice(&[(key, value2)]).unwrap();
@@ -35,8 +34,7 @@ fn with_same_key_in_map1_and_map2_uses_value_from_map2() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]

@@ -12,12 +12,11 @@ use liblumen_alloc::erts::term::prelude::Encoded;
 use crate::otp::erlang;
 use crate::otp::erlang::bsr_2::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_integer_integer_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -38,8 +37,7 @@ fn without_integer_integer_errors_badarith() {
 
 #[test]
 fn with_integer_integer_without_integer_shift_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -60,8 +58,7 @@ fn with_integer_integer_without_integer_shift_errors_badarith() {
 
 #[test]
 fn with_integer_integer_with_zero_shift_returns_same_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -80,8 +77,7 @@ fn with_integer_integer_with_zero_shift_returns_same_integer() {
 
 #[test]
 fn with_integer_integer_with_integer_shift_is_the_same_as_bsl_with_negated_shift() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -4,8 +4,7 @@ mod with_atom_function;
 
 #[test]
 fn without_atom_function_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

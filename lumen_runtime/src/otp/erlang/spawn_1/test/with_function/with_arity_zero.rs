@@ -10,8 +10,7 @@ use liblumen_alloc::exit;
 
 #[test]
 fn without_environment_runs_function_in_child_process() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -75,8 +74,7 @@ fn without_environment_runs_function_in_child_process() {
 
 #[test]
 fn with_environment_runs_function_in_child_process() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

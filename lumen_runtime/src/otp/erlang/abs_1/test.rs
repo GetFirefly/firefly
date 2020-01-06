@@ -4,7 +4,7 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::abs_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarg() {
@@ -13,8 +13,7 @@ fn without_number_errors_badarg() {
 
 #[test]
 fn with_number_returns_non_negative() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

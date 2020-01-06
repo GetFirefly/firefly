@@ -1,18 +1,16 @@
 use std::convert::TryInto;
 
-use proptest::strategy::{Just, Strategy};
-use proptest::test_runner::{Config, TestRunner};
+use proptest::strategy::Just;
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::make_tuple_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_arity_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -30,39 +28,37 @@ fn without_arity_errors_badarg() {
 
 #[test]
 fn with_arity_returns_tuple_with_arity_copies_of_initial_value() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    (0_usize..255_usize),
-                    strategy::term(arc_process),
-                )
-            }),
-            |(arc_process, arity_usize, initial_value)| {
-                let arity = arc_process.integer(arity_usize).unwrap();
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                (0_usize..255_usize),
+                strategy::term(arc_process),
+            )
+        },
+        |(arc_process, arity_usize, initial_value)| {
+            let arity = arc_process.integer(arity_usize).unwrap();
 
-                let result = native(&arc_process, arity, initial_value);
+            let result = native(&arc_process, arity, initial_value);
 
-                prop_assert!(result.is_ok());
+            prop_assert!(result.is_ok());
 
-                let tuple_term = result.unwrap();
+            let tuple_term = result.unwrap();
 
-                prop_assert!(tuple_term.is_boxed());
+            prop_assert!(tuple_term.is_boxed());
 
-                let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
-                prop_assert!(boxed_tuple.is_ok());
+            let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
+            prop_assert!(boxed_tuple.is_ok());
 
-                let tuple = boxed_tuple.unwrap();
+            let tuple = boxed_tuple.unwrap();
 
-                prop_assert_eq!(tuple.len(), arity_usize);
+            prop_assert_eq!(tuple.len(), arity_usize);
 
-                for element in tuple.iter() {
-                    prop_assert_eq!(element, &initial_value);
-                }
+            for element in tuple.iter() {
+                prop_assert_eq!(element, &initial_value);
+            }
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }

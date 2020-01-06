@@ -6,9 +6,8 @@ use proptest::prop_oneof;
 
 #[test]
 fn without_arity_2_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     (1_usize..=3_usize),
@@ -23,7 +22,7 @@ fn without_arity_2_errors_badarg() {
                         },
                     ),
                 )
-            }),
+            },
             |(arc_process, arity_usize, default_value, element)| {
                 let arity = arc_process.integer(arity_usize).unwrap();
                 let init_list = arc_process.list_from_slice(&[element]).unwrap();
@@ -38,6 +37,5 @@ fn without_arity_2_errors_badarg() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }

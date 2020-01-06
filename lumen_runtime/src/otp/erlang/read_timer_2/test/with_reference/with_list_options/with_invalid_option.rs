@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn without_reference_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

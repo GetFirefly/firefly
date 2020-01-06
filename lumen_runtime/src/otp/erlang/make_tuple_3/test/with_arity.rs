@@ -4,9 +4,8 @@ use super::*;
 
 #[test]
 fn without_proper_list_init_list_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     (1_usize..255_usize),
@@ -14,7 +13,7 @@ fn without_proper_list_init_list_errors_badarg() {
                     strategy::term(arc_process.clone()),
                     strategy::term::is_not_list(arc_process),
                 )
-            }),
+            },
             |(arc_process, arity_usize, default_value, element, tail)| {
                 let arity = arc_process.integer(arity_usize).unwrap();
                 let init_list = arc_process
@@ -33,21 +32,19 @@ fn without_proper_list_init_list_errors_badarg() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn with_empty_list_init_list_returns_tuple_with_arity_copies_of_default_value() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     (0_usize..255_usize),
                     strategy::term(arc_process),
                 )
-            }),
+            },
             |(arc_process, arity_usize, default_value)| {
                 let arity = arc_process.integer(arity_usize).unwrap();
                 let init_list = Term::NIL;
@@ -72,6 +69,5 @@ fn with_empty_list_init_list_returns_tuple_with_arity_copies_of_default_value() 
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }

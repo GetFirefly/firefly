@@ -7,8 +7,7 @@ use crate::test::strategy::module_function_arity;
 
 #[test]
 fn without_list_arguments_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_function(arc_process.clone()),
@@ -49,8 +48,7 @@ fn without_list_arguments_errors_badarg() {
 
 #[test]
 fn with_list_without_proper_arguments_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_function(arc_process.clone()),

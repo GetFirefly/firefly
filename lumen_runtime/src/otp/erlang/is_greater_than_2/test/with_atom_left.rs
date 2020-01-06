@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn with_number_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::atom(),
@@ -42,8 +41,7 @@ fn with_greater_atom_returns_false() {
 
 #[test]
 fn without_number_or_atom_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::atom(),

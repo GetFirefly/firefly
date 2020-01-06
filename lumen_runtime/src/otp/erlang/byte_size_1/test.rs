@@ -2,12 +2,11 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 
 use crate::otp::erlang::byte_size_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -27,8 +26,7 @@ fn without_bitstring_errors_badarg() {
 
 #[test]
 fn with_heap_binary_is_byte_count() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), strategy::byte_vec()).prop_map(|(arc_process, byte_vec)| {
                 (
@@ -51,8 +49,7 @@ fn with_heap_binary_is_byte_count() {
 
 #[test]
 fn with_subbinary_without_bit_count_is_byte_count() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), strategy::byte_vec()).prop_flat_map(
                 |(arc_process, byte_vec)| {
@@ -80,8 +77,7 @@ fn with_subbinary_without_bit_count_is_byte_count() {
 
 #[test]
 fn with_subbinary_with_bit_count_is_byte_count_plus_one() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -5,8 +5,7 @@ use crate::otp::erlang::list_to_string::list_to_string;
 
 #[test]
 fn with_small_integer_returns_list() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -35,8 +34,7 @@ fn with_small_integer_returns_list() {
 
 #[test]
 fn with_big_integer_returns_list() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -65,8 +63,7 @@ fn with_big_integer_returns_list() {
 
 #[test]
 fn is_dual_of_list_to_integer_1() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

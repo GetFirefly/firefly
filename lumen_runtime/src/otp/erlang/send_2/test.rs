@@ -14,13 +14,12 @@ use crate::otp::erlang::send_2::native;
 use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
-    external_arc_node, has_heap_message, has_process_message, registered_name, run, strategy,
+    external_arc_node, has_heap_message, has_process_message, registered_name, strategy,
 };
 
 #[test]
 fn without_atom_pid_or_tuple_destination_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

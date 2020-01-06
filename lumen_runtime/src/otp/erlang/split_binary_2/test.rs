@@ -6,12 +6,11 @@ use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::split_binary_2::native;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_bitstring_binary_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

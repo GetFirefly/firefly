@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_local_pid_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::pid::local(),
@@ -23,21 +22,16 @@ fn without_local_pid_right_returns_false() {
 
 #[test]
 fn with_same_local_pid_returns_true() {
-    run(
-        file!(),
-        |_| strategy::term::pid::local(),
-        |operand| {
-            prop_assert_eq!(native(operand, operand), true.into());
+    run!(|_| strategy::term::pid::local(), |operand| {
+        prop_assert_eq!(native(operand, operand), true.into());
 
-            Ok(())
-        },
-    );
+        Ok(())
+    },);
 }
 
 #[test]
 fn with_same_value_local_pid_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |_| {
             (strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
                 |(number, serial)| {
@@ -58,8 +52,7 @@ fn with_same_value_local_pid_right_returns_true() {
 
 #[test]
 fn with_different_local_pid_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |_| {
             (strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
                 |(number, serial)| {

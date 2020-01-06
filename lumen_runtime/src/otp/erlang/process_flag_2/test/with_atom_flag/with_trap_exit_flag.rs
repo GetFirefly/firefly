@@ -10,8 +10,7 @@ use crate::test::{has_message, has_no_message};
 
 #[test]
 fn without_boolean_value_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

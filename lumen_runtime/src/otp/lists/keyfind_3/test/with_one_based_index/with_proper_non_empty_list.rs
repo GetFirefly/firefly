@@ -14,9 +14,8 @@ fn without_found_returns_false() {
 
 #[test]
 fn with_non_tuple_in_list_with_found_returns_tuple() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     proptest::collection::vec(strategy::term(arc_process.clone()), 0..=1),
@@ -41,21 +40,19 @@ fn with_non_tuple_in_list_with_found_returns_tuple() {
                             (key, index_one_based_term, tuple_list, tuple_with_key)
                         },
                     )
-            }),
+            },
             |(key, one_based_index, tuple_list, tuple_with_key)| {
                 prop_assert_eq!(native(key, one_based_index, tuple_list), Ok(tuple_with_key));
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn with_shorter_tuple_in_list_with_found_returns_tuple() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     proptest::collection::vec(strategy::term(arc_process.clone()), 0..=1),
@@ -95,14 +92,13 @@ fn with_shorter_tuple_in_list_with_found_returns_tuple() {
                             (key, index_one_based_term, tuple_list, tuple_with_key)
                         },
                     )
-            }),
+            },
             |(key, one_based_index, tuple_list, tuple_with_key)| {
                 prop_assert_eq!(native(key, one_based_index, tuple_list), Ok(tuple_with_key));
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]

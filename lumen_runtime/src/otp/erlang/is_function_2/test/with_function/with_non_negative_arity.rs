@@ -4,8 +4,7 @@ use proptest::strategy::Just;
 
 #[test]
 fn without_function_arity_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -33,8 +32,7 @@ fn without_function_arity_returns_false() {
 
 #[test]
 fn with_function_arity_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

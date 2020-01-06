@@ -7,12 +7,11 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::get_keys_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_entries_returns_empty_list() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

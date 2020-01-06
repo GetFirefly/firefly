@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_big_integer_or_float_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::integer::big(arc_process.clone()),
@@ -25,8 +24,7 @@ fn without_big_integer_or_float_returns_true() {
 
 #[test]
 fn with_same_big_integer_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::integer::big(arc_process.clone()),
         |operand| {
             prop_assert_eq!(native(operand, operand), false.into());
@@ -38,8 +36,7 @@ fn with_same_big_integer_returns_false() {
 
 #[test]
 fn with_different_big_integer_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::integer::big(arc_process.clone()),
@@ -61,8 +58,7 @@ fn with_different_big_integer_right_returns_true() {
 fn with_same_value_float_right_returns_false() {
     match strategy::term::big_integer_float_integral_i64() {
         Some(ref strategy) => {
-            run(
-                file!(),
+            run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
                         (
@@ -86,8 +82,7 @@ fn with_same_value_float_right_returns_false() {
 fn with_different_value_float_right_returns_true() {
     match strategy::term::big_integer_float_integral_i64() {
         Some(ref strategy) => {
-            run(
-                file!(),
+            run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
                         (

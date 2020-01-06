@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_positive_start_and_positive_length_returns_subbinary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -52,8 +51,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
 
 #[test]
 fn with_size_start_and_negative_size_length_returns_binary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -87,8 +85,7 @@ fn with_size_start_and_negative_size_length_returns_binary() {
 
 #[test]
 fn with_zero_start_and_size_length_returns_binary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

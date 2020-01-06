@@ -6,12 +6,11 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::bit_size_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -31,8 +30,7 @@ fn without_bitstring_errors_badarg() {
 
 #[test]
 fn with_heap_binary_is_eight_times_byte_count() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -61,8 +59,7 @@ fn with_heap_binary_is_eight_times_byte_count() {
 
 #[test]
 fn with_subbinary_is_eight_times_byte_count_plus_bit_count() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

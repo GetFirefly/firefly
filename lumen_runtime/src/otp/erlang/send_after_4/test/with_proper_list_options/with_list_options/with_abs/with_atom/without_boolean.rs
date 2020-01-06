@@ -7,8 +7,7 @@ mod with_small_integer_time;
 
 #[test]
 fn without_non_negative_integer_time_error_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

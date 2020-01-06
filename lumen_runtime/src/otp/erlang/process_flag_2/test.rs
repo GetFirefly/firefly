@@ -6,12 +6,11 @@ use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::process_flag_2::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_atom_flag_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

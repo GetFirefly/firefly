@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::length_1::native;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
@@ -37,8 +37,7 @@ fn with_empty_list_is_zero() {
 
 #[test]
 fn with_improper_list_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -58,8 +57,7 @@ fn with_improper_list_errors_badarg() {
 
 #[test]
 fn with_non_empty_proper_list_is_number_of_elements() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             let size_range: SizeRange = strategy::NON_EMPTY_RANGE_INCLUSIVE.clone().into();
 

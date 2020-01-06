@@ -6,12 +6,11 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::binary_to_list_3::native;
 use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -34,8 +33,7 @@ fn without_binary_errors_badarg() {
 
 #[test]
 fn with_binary_without_integer_start_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -58,8 +56,7 @@ fn with_binary_without_integer_start_errors_badarg() {
 
 #[test]
 fn with_binary_with_positive_integer_start_without_integer_stop_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -81,8 +78,7 @@ fn with_binary_with_positive_integer_start_without_integer_stop_errors_badarg() 
 
 #[test]
 fn with_binary_with_start_less_than_or_equal_to_stop_returns_list_of_bytes() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -173,8 +169,7 @@ fn with_binary_with_start_less_than_or_equal_to_stop_returns_list_of_bytes() {
 
 #[test]
 fn with_binary_with_start_greater_than_stop_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -1,10 +1,9 @@
 use crate::otp::erlang::throw_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn throws_reason() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term(arc_process.clone()),
         |reason| {
             let actual = native(reason);

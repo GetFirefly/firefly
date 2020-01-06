@@ -4,12 +4,11 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::put_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_key_returns_undefined_for_previous_value() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -34,8 +33,7 @@ fn without_key_returns_undefined_for_previous_value() {
 
 #[test]
 fn with_key_returns_previous_value() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -10,12 +10,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::multiply_2::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_multiplier_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

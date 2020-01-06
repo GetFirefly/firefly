@@ -13,12 +13,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::list_to_binary_1::native;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -38,8 +38,7 @@ fn with_greater_float_second_returns_second() {
 
 #[test]
 fn without_number_returns_second() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::float(arc_process.clone()),

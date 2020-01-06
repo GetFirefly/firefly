@@ -6,8 +6,7 @@ fn with_binary_encoding_atom_that_does_not_exist_errors_badarg() {
     let byte_vec = vec![
         131, 100, 0, 14, 110, 111, 110, 95, 101, 120, 105, 115, 116, 101, 110, 116, 95, 48,
     ];
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -32,8 +31,7 @@ fn with_binary_encoding_list_containing_atom_that_does_not_exist_errors_badarg()
         131, 108, 0, 0, 0, 1, 100, 0, 14, 110, 111, 110, 95, 101, 120, 105, 115, 116, 101, 110,
         116, 95, 49, 106,
     ];
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -58,8 +56,7 @@ fn with_binary_encoding_small_tuple_containing_atom_that_does_not_exist_errors_b
         131, 104, 1, 100, 0, 14, 110, 111, 110, 95, 101, 120, 105, 115, 116, 101, 110, 116, 95, 50,
     ];
 
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -85,8 +82,7 @@ fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
         159, 152, 136,
     ];
 
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

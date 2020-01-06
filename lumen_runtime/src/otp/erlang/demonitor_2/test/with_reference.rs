@@ -18,8 +18,7 @@ use crate::test::{has_message, monitor_count, monitored_count};
 
 #[test]
 fn without_proper_list_for_options_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -41,8 +40,7 @@ fn without_proper_list_for_options_errors_badarg() {
 
 #[test]
 fn with_unknown_option_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

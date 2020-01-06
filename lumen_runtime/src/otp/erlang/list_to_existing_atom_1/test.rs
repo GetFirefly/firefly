@@ -5,12 +5,11 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::list_to_existing_atom_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::is_not_list(arc_process.clone()),
         |list| {
             prop_assert_badarg!(native(list), format!("list ({}) is not a list", list));
@@ -32,8 +31,7 @@ fn with_empty_list() {
 
 #[test]
 fn with_improper_list_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -55,8 +53,7 @@ fn with_improper_list_errors_badarg() {
 
 #[test]
 fn with_list_without_existing_atom_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, suffix)| {
                 let string = strategy::term::non_existent_atom(&suffix);
@@ -83,8 +80,7 @@ fn with_list_without_existing_atom_errors_badarg() {
 // collisions due to Unicode escapes.  Could be a normalization/canonicalization issue?
 #[ignore]
 fn with_list_with_existing_atom_returns_atom() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, string)| {
                 let codepoint_terms: Vec<Term> = string

@@ -146,8 +146,7 @@ fn returns_binary_with_coefficient_e_exponent() {
 
 #[test]
 fn always_includes_e() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -180,8 +179,7 @@ fn always_includes_e() {
 
 #[test]
 fn always_includes_sign_of_exponent() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -219,8 +217,7 @@ fn always_includes_sign_of_exponent() {
 
 #[test]
 fn exponent_is_at_least_2_digits() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

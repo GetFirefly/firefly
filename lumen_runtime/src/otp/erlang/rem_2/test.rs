@@ -11,12 +11,11 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::otp::erlang::rem_2::native;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::with_process;
-use crate::test::{external_arc_node, run, strategy};
+use crate::test::{external_arc_node, strategy};
 
 #[test]
 fn without_integer_dividend_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -40,8 +39,7 @@ fn without_integer_dividend_errors_badarith() {
 
 #[test]
 fn with_integer_dividend_without_integer_divisor_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -65,8 +63,7 @@ fn with_integer_dividend_without_integer_divisor_errors_badarith() {
 
 #[test]
 fn with_integer_dividend_with_zero_divisor_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

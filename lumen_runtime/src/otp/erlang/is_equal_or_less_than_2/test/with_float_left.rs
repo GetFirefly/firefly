@@ -48,8 +48,7 @@ fn with_greater_float_right_returns_true() {
 
 #[test]
 fn without_number_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::float(arc_process.clone()),

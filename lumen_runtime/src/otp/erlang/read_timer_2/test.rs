@@ -15,15 +15,14 @@ use crate::process;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::with_process;
 use crate::test::{
-    external_arc_node, has_message, receive_message, run, strategy, timeout_message, timer_message,
+    external_arc_node, has_message, receive_message, strategy, timeout_message, timer_message,
 };
 use crate::time::Milliseconds;
 use crate::timer;
 
 #[test]
 fn without_reference_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -47,8 +46,7 @@ fn without_reference_errors_badarg() {
 
 #[test]
 fn with_reference_without_list_options_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

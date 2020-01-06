@@ -5,8 +5,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_non_empty_list_or_bitstring_second_returns_second() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             strategy::term(arc_process.clone())
                 .prop_filter("Second cannot be a list or bitstring", |second| {
@@ -25,8 +24,7 @@ fn without_non_empty_list_or_bitstring_second_returns_second() {
 
 #[test]
 fn with_non_empty_list_or_bitstring_second_returns_first() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             prop_oneof![
                 strategy::term::list::non_empty_maybe_improper(arc_process.clone()),

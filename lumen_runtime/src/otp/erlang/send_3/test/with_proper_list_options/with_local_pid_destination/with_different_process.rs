@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn without_locked_adds_process_message_to_mailbox_and_returns_ok() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -29,8 +28,7 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_ok() {
 
 #[test]
 fn with_locked_adds_process_message_to_mailbox_and_returns_ok() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

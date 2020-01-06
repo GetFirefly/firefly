@@ -4,28 +4,25 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_bitstring_right_returns_false() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     strategy::term::binary::sub(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be a binary", |v| !v.is_bitstring()),
                 )
-            }),
+            },
             |(left, right)| {
                 prop_assert_eq!(native(left, right), false.into());
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]
 fn with_heap_binary_right_with_same_bytes_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -51,8 +48,7 @@ fn with_heap_binary_right_with_same_bytes_returns_true() {
 
 #[test]
 fn with_heap_binary_right_with_different_bytes_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -80,8 +76,7 @@ fn with_heap_binary_right_with_different_bytes_returns_false() {
 
 #[test]
 fn with_same_subbinary_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::binary::sub(arc_process.clone()),
         |operand| {
             prop_assert_eq!(native(operand, operand), true.into());
@@ -161,8 +156,7 @@ fn with_same_value_subbinary_right_returns_true() {
 
 #[test]
 fn with_different_subbinary_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::binary::sub(arc_process.clone()),

@@ -2,11 +2,10 @@ use super::*;
 
 #[test]
 fn with_different_node_returns_nosuspend() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (Just(arc_process.clone()), strategy::term(arc_process))
-            }),
+            },
             |(arc_process, message)| {
                 let name = registered_name();
 
@@ -27,6 +26,5 @@ fn with_different_node_returns_nosuspend() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }

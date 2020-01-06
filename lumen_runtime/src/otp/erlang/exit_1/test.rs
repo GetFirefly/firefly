@@ -5,12 +5,11 @@ use proptest::prop_assert_eq;
 use liblumen_alloc::exit;
 
 use crate::otp::erlang::exit_1;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn exits_with_reason() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term(arc_process.clone()),
         |reason| {
             prop_assert_eq!(

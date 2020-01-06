@@ -4,7 +4,6 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Just};
-use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::process::Process;
@@ -13,12 +12,11 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::otp::erlang;
 use crate::otp::erlang::send_3::native;
 use crate::process;
-use crate::test::{has_heap_message, has_process_message, registered_name, run, strategy};
+use crate::test::{has_heap_message, has_process_message, registered_name, strategy};
 
 #[test]
 fn without_list_options_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

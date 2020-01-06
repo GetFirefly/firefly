@@ -5,12 +5,11 @@ use proptest::prop_assert_eq;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::binary_to_atom_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_not_binary(arc_process.clone()),
@@ -27,8 +26,7 @@ fn without_binary_errors_badarg() {
 
 #[test]
 fn with_binary_without_atom_encoding_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_binary(arc_process.clone()),
@@ -48,8 +46,7 @@ fn with_binary_without_atom_encoding_errors_badarg() {
 
 #[test]
 fn with_binary_with_atom_without_name_encoding_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_binary(arc_process.clone()),
@@ -71,8 +68,7 @@ fn with_binary_with_atom_without_name_encoding_errors_badarg() {
 
 #[test]
 fn with_utf8_binary_with_encoding_returns_atom_with_binary_name() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::binary::is_utf8(arc_process.clone()),

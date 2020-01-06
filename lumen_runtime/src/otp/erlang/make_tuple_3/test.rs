@@ -10,12 +10,11 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::fixnum;
 
 use crate::otp::erlang::make_tuple_3::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_arity_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

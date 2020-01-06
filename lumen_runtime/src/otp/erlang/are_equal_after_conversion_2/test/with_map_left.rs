@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_map_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::map(arc_process.clone()),
@@ -23,8 +22,7 @@ fn without_map_right_returns_false() {
 
 #[test]
 fn with_same_map_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::map(arc_process.clone()),
         |operand| {
             prop_assert_eq!(native(operand, operand), true.into());
@@ -36,8 +34,7 @@ fn with_same_map_right_returns_true() {
 
 #[test]
 fn with_same_value_map_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             let key_or_value = strategy::term(arc_process.clone());
 
@@ -66,8 +63,7 @@ fn with_same_value_map_right_returns_true() {
 
 #[test]
 fn with_different_map_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::map(arc_process.clone()),

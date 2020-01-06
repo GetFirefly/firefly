@@ -5,12 +5,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::unique_integer_1::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_proper_list_of_options_errors_badargs() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

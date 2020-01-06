@@ -8,12 +8,11 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::otp::erlang::binary_to_term_1;
 use crate::otp::erlang::term_to_binary_1::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn roundtrips_through_binary_to_term() {
-    run(
-        file!(),
+    run!(
         |arc_process| (Just(arc_process.clone()), strategy::term(arc_process)),
         |(arc_process, term)| {
             let result_binary = native(&arc_process, term);

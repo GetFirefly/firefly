@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_list_or_bitstring_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_list(arc_process.clone()),
@@ -66,8 +65,7 @@ fn with_greater_list_right_returns_false() {
 
 #[test]
 fn with_bitstring_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_list(arc_process.clone()),

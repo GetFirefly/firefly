@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_number_second_returns_second() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::atom(),
@@ -40,8 +39,7 @@ fn with_greater_atom_returns_first() {
 
 #[test]
 fn without_number_or_atom_returns_first() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::atom(),

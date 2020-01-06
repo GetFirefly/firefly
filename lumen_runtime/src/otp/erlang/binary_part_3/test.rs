@@ -8,12 +8,11 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::binary_part_3::native;
-use crate::test::{run, strategy, total_byte_len};
+use crate::test::{strategy, total_byte_len};
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

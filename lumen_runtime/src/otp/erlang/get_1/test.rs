@@ -6,7 +6,7 @@ use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::get_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_key_returns_undefined() {
@@ -23,8 +23,7 @@ fn without_key_returns_undefined() {
 
 #[test]
 fn with_key_returns_value() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

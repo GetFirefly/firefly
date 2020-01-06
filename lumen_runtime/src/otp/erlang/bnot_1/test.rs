@@ -9,12 +9,11 @@ use liblumen_alloc::erts::term::prelude::{Encoded, TypedTerm};
 
 use crate::otp::erlang::bnot_1::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_integer_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -34,8 +33,7 @@ fn without_integer_errors_badarith() {
 
 #[test]
 fn with_small_integer_returns_small_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -88,8 +86,7 @@ fn with_big_integer_inverts_bits() {
 
 #[test]
 fn with_big_integer_returns_big_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

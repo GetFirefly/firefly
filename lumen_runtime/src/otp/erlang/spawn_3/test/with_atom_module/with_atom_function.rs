@@ -5,8 +5,7 @@ mod with_non_empty_proper_list_arguments;
 
 #[test]
 fn without_proper_list_arguments_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -3,19 +3,17 @@ mod with_bitstring;
 use std::convert::TryInto;
 
 use proptest::strategy::Just;
-use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::binary_part_2::native;
-use crate::test::{run, strategy, total_byte_len};
+use crate::test::{strategy, total_byte_len};
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn sends_message_when_timer_expires() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

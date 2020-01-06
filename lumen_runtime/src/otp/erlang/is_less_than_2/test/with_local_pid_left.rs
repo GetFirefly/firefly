@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_number_atom_reference_function_or_port_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::pid::local(),
@@ -48,8 +47,7 @@ fn with_external_pid_right_returns_true() {
 
 #[test]
 fn with_tuple_map_list_or_bitstring_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::pid::local(),

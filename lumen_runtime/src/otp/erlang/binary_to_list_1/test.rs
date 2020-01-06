@@ -4,12 +4,11 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::binary_to_list_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -26,8 +25,7 @@ fn without_binary_errors_badarg() {
 
 #[test]
 fn with_binary_returns_list_of_bytes() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), strategy::byte_vec()).prop_flat_map(
                 |(arc_process, byte_vec)| {

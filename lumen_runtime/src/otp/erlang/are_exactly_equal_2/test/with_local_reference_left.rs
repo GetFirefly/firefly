@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_local_reference_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::local_reference(arc_process.clone()),
@@ -25,8 +24,7 @@ fn without_local_reference_right_returns_false() {
 
 #[test]
 fn with_same_local_reference_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::local_reference(arc_process.clone()),
         |operand| {
             prop_assert_eq!(native(operand, operand), true.into());
@@ -38,8 +36,7 @@ fn with_same_local_reference_right_returns_true() {
 
 #[test]
 fn with_different_local_reference_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             proptest::prelude::any::<u64>().prop_map(move |number| {
                 (

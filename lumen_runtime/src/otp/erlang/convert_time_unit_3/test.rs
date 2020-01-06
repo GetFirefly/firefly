@@ -13,13 +13,12 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::convert_time_unit_3::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 use crate::time::Unit::{self, *};
 
 #[test]
 fn without_integer_time_returns_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -41,8 +40,7 @@ fn without_integer_time_returns_badarg() {
 
 #[test]
 fn with_integer_time_without_unit_from_unit_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -64,8 +62,7 @@ fn with_integer_time_without_unit_from_unit_errors_badarg() {
 
 #[test]
 fn with_integer_time_with_unit_from_unit_without_unit_to_unit_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -84,8 +81,7 @@ fn with_integer_time_with_unit_from_unit_without_unit_to_unit_errors_badarg() {
 
 #[test]
 fn with_small_integer_time_valid_units_returns_converted_value() {
-    run(
-        file!(),
+    run!(
         |arc_process| (Just(arc_process.clone()), from_unit(), to_unit()),
         |(arc_process, from_unit, to_unit)| {
             // not using `proptest` for time to allow math to be hard-coded and not copy the

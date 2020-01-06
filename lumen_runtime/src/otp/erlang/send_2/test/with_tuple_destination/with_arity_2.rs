@@ -6,8 +6,7 @@ use crate::process::SchedulerDependentAlloc;
 
 #[test]
 fn without_atom_name_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -4,12 +4,11 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::erase_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_key_returns_undefined() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -26,8 +25,7 @@ fn without_key_returns_undefined() {
 
 #[test]
 fn with_key_returns_value_and_removes_key_from_dictionary() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

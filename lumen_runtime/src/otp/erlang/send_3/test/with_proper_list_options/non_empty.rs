@@ -8,8 +8,7 @@ mod with_nosuspend;
 
 #[test]
 fn with_invalid_option_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

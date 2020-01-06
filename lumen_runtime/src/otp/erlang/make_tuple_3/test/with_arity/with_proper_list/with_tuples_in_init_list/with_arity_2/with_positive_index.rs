@@ -2,9 +2,8 @@ use super::*;
 
 #[test]
 fn with_positive_index_greater_than_length_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     (1_usize..3_usize),
@@ -23,7 +22,7 @@ fn with_positive_index_greater_than_length_errors_badarg() {
                             )
                         },
                     )
-            }),
+            },
             |(arc_process, arity_usize, default_value, position, element)| {
                 let arity = arc_process.integer(arity_usize).unwrap();
                 let init = arc_process.tuple_from_slice(&[position, element]).unwrap();
@@ -36,8 +35,7 @@ fn with_positive_index_greater_than_length_errors_badarg() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 #[test]

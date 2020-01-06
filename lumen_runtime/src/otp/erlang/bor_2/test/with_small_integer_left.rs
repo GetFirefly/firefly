@@ -17,8 +17,7 @@ fn with_small_integer_right_returns_small_integer() {
 
 #[test]
 fn with_integer_right_returns_bitwise_or() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

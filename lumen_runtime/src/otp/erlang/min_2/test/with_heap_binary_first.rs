@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_second() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                     strategy::term::binary::heap(arc_process.clone()),

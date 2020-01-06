@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_number_atom_reference_function_port_or_pid_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::tuple(arc_process.clone()),
@@ -89,21 +88,19 @@ fn with_greater_size_tuple_returns_false() {
 
 #[test]
 fn with_map_list_or_bitstring_returns_false() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     strategy::term::tuple(arc_process.clone()),
                     strategy::term::map_list_or_bitstring(arc_process.clone()),
                 )
-            }),
+            },
             |(left, right)| {
                 prop_assert_eq!(native(left, right), false.into());
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 fn is_greater_than<R>(right: R, expected: bool)

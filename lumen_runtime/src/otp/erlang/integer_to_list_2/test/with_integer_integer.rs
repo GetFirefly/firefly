@@ -6,8 +6,7 @@ use proptest::strategy::{Just, Strategy};
 
 #[test]
 fn without_base_base_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -28,8 +27,7 @@ fn without_base_base_errors_badarg() {
 
 #[test]
 fn with_base_base_returns_list() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -56,8 +54,7 @@ fn with_base_base_returns_list() {
 
 #[test]
 fn with_negative_integer_returns_list_in_base_with_negative_sign_in_front_of_non_negative_list() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

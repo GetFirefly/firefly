@@ -2,12 +2,11 @@ use proptest::strategy::{Just, Strategy};
 use proptest::{prop_assert_eq, prop_oneof};
 
 use crate::otp::erlang::negate_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -27,8 +26,7 @@ fn without_number_errors_badarith() {
 
 #[test]
 fn with_integer_returns_integer_of_opposite_sign() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -50,8 +48,7 @@ fn with_integer_returns_integer_of_opposite_sign() {
 
 #[test]
 fn with_float_returns_float_of_opposite_sign() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

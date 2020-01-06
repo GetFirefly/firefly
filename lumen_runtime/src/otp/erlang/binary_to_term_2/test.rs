@@ -8,7 +8,7 @@ use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang;
 use crate::otp::erlang::binary_to_term_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() {
@@ -17,8 +17,7 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
         131, 100, 0, 5, 104, 101, 108, 108, 111, 119, 111, 114, 108, 100,
     ];
 
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

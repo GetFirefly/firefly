@@ -10,12 +10,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::divide_2::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_dividend_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -36,8 +35,7 @@ fn without_number_dividend_errors_badarith() {
 
 #[test]
 fn with_number_dividend_without_number_divisor_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -58,8 +56,7 @@ fn with_number_dividend_without_number_divisor_errors_badarith() {
 
 #[test]
 fn with_number_dividend_with_zero_divisor_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -80,8 +77,7 @@ fn with_number_dividend_with_zero_divisor_errors_badarith() {
 
 #[test]
 fn with_number_dividend_without_zero_number_divisor_returns_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

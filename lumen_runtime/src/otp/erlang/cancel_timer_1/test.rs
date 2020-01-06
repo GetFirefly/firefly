@@ -9,14 +9,13 @@ use crate::otp::erlang;
 use crate::otp::erlang::cancel_timer_1::native;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::with_process;
-use crate::test::{has_message, receive_message, run, strategy, timeout_message};
+use crate::test::{has_message, receive_message, strategy, timeout_message};
 use crate::time::Milliseconds;
 use crate::{process, timer};
 
 #[test]
 fn without_reference_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

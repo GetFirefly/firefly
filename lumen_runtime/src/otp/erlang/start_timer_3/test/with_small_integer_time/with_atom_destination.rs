@@ -4,8 +4,7 @@ mod registered;
 
 #[test]
 fn unregistered_sends_nothing_when_timer_expires() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

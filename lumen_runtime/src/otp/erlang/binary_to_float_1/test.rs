@@ -3,12 +3,11 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 
 use crate::otp::erlang::binary_to_float_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -28,8 +27,7 @@ fn without_binary_errors_badarg() {
 
 #[test]
 fn with_binary_with_integer_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<isize>()).prop_flat_map(|(arc_process, integer)| {
                 (
@@ -54,8 +52,7 @@ fn with_binary_with_integer_errors_badarg() {
 
 #[test]
 fn with_binary_with_f64_returns_floats() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<f64>()).prop_flat_map(|(arc_process, f)| {
                 let byte_vec = format!("{:?}", f).as_bytes().to_owned();
@@ -80,8 +77,7 @@ fn with_binary_with_f64_returns_floats() {
 
 #[test]
 fn with_binary_with_less_than_min_f64_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), strategy::term::binary::containing_bytes("-1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0".as_bytes().to_owned(), arc_process.clone()))
         },
@@ -98,8 +94,7 @@ fn with_binary_with_less_than_min_f64_errors_badarg() {
 
 #[test]
 fn with_binary_with_greater_than_max_f64_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), strategy::term::binary::containing_bytes("1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0".as_bytes().to_owned(), arc_process.clone()))
         },

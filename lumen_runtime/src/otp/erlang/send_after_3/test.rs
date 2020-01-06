@@ -8,7 +8,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::send_after_3::native;
-use crate::test::{has_message, registered_name, run, strategy};
+use crate::test::{has_message, registered_name, strategy};
 use crate::time::Milliseconds;
 use crate::{process, timer};
 
@@ -17,8 +17,7 @@ use crate::{process, timer};
 
 #[test]
 fn without_non_negative_integer_time_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

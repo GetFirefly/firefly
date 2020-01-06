@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn with_different_process_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

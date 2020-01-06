@@ -8,12 +8,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::bitstring_to_list_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -142,8 +141,7 @@ fn with_subbinary_without_bit_count_returns_list_of_integer() {
 
 #[test]
 fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_count() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -8,12 +8,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::monotonic_time_1::native;
 use crate::scheduler::with_process;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_atom_or_integer_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

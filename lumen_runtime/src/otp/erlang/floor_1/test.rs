@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::{Encoded, Float};
 
 use crate::otp::erlang::floor_1::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarg() {
@@ -21,8 +21,7 @@ fn without_number_errors_badarg() {
 
 #[test]
 fn with_integer_returns_integer() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

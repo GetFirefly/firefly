@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_empty_list_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(Term::NIL),

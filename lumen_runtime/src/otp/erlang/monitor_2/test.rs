@@ -11,12 +11,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::monitor_2::native;
 use crate::scheduler::with_process_arc;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_supported_type_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

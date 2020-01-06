@@ -6,8 +6,7 @@ mod with_arity_2;
 
 #[test]
 fn without_arity_2_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

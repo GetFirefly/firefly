@@ -8,13 +8,11 @@ use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
 
-use crate::test::run;
 use crate::test::strategy::term::export_closure;
 
 #[test]
 fn without_arity_errors_badarity() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -72,8 +70,7 @@ fn without_arity_errors_badarity() {
 
 #[test]
 fn with_arity_returns_function_return() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

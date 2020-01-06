@@ -12,16 +12,15 @@ mod with_tuple_destination;
 
 #[test]
 fn without_atom_pid_or_tuple_destination_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
+    run!(
+            |arc_process| {
                 (
                     Just(arc_process.clone()),
                     strategy::term::is_not_destination(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                     valid_options(arc_process),
                 )
-            }),
+            },
             |(arc_process, destination, message, options)| {
                 prop_assert_badarg!(
                     native(&arc_process, destination, message, options),
@@ -30,8 +29,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
 
                 Ok(())
             },
-        )
-        .unwrap();
+        );        
 }
 
 fn valid_options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

@@ -4,12 +4,11 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 
 use crate::otp::erlang::is_function_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_function_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::is_not_function(arc_process.clone()),

@@ -10,8 +10,7 @@ use proptest::test_runner::TestCaseError;
 
 #[test]
 fn without_class_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::atom().prop_filter(
@@ -38,8 +37,7 @@ fn without_class_errors_badarg() {
 
 #[test]
 fn with_class_without_list_stacktrace_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 class(),
@@ -60,8 +58,7 @@ fn with_class_without_list_stacktrace_errors_badarg() {
 
 #[test]
 fn with_class_with_empty_list_stacktrace_raises() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 class_variant_and_term(),
@@ -78,8 +75,7 @@ fn with_class_with_empty_list_stacktrace_raises() {
 
 #[test]
 fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -119,8 +115,7 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
 
 #[test]
 fn with_class_with_stacktrace_with_atom_module_without_atom_function_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -151,8 +146,7 @@ fn with_class_with_stacktrace_with_atom_module_without_atom_function_errors_bada
 #[test]
 fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_or_arguments_errors_badarg(
 ) {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -182,8 +176,7 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
 
 #[test]
 fn with_class_with_stacktrace_with_mfa_with_file_without_charlist_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -220,8 +213,7 @@ fn with_class_with_stacktrace_with_mfa_with_file_without_charlist_errors_badarg(
 
 #[test]
 fn with_class_with_stacktrace_with_mfa_with_non_positive_line_with_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -258,8 +250,7 @@ fn with_class_with_stacktrace_with_mfa_with_non_positive_line_with_errors_badarg
 
 #[test]
 fn with_class_with_stacktrace_with_mfa_with_invalid_location_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -301,8 +292,7 @@ fn with_class_with_stacktrace_with_mfa_with_invalid_location_errors_badarg() {
 
 #[test]
 fn with_atom_module_with_atom_function_with_arity_raises() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -327,8 +317,7 @@ fn with_atom_module_with_atom_function_with_arity_raises() {
 
 #[test]
 fn with_atom_module_with_atom_function_with_arguments_raises() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -353,8 +342,7 @@ fn with_atom_module_with_atom_function_with_arguments_raises() {
 
 #[test]
 fn with_mfa_with_empty_location_raises() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -380,8 +368,7 @@ fn with_mfa_with_empty_location_raises() {
 
 #[test]
 fn with_mfa_with_file_raises() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -413,8 +400,7 @@ fn with_mfa_with_file_raises() {
 
 #[test]
 fn with_mfa_with_positive_line_raises() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -454,8 +440,7 @@ fn with_mfa_with_positive_line_raises() {
 
 #[test]
 fn with_mfa_with_file_and_line_raises() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

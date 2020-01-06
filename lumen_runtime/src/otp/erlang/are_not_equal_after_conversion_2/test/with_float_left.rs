@@ -4,8 +4,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_small_integer_or_big_integer_or_float_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::float(arc_process.clone()),
@@ -36,8 +35,7 @@ fn with_same_float_returns_false() {
 
 #[test]
 fn with_same_value_float_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<f64>()).prop_map(|(arc_process, f)| {
                 (arc_process.float(f).unwrap(), arc_process.float(f).unwrap())
@@ -53,8 +51,7 @@ fn with_same_value_float_right_returns_false() {
 
 #[test]
 fn with_different_float_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 strategy::term::float(arc_process.clone()),
@@ -74,8 +71,7 @@ fn with_different_float_right_returns_true() {
 
 #[test]
 fn with_same_value_small_integer_right_returns_false() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -98,8 +94,7 @@ fn with_same_value_small_integer_right_returns_false() {
 
 #[test]
 fn with_different_value_small_integer_right_returns_true() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -124,8 +119,7 @@ fn with_different_value_small_integer_right_returns_true() {
 fn with_same_value_big_integer_right_returns_false() {
     match strategy::term::big_integer_float_integral_i64() {
         Some(ref strategy) => {
-            run(
-                file!(),
+            run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
                         (
@@ -149,8 +143,7 @@ fn with_same_value_big_integer_right_returns_false() {
 fn with_different_value_big_integer_right_returns_true() {
     match strategy::term::big_integer_float_integral_i64() {
         Some(ref strategy) => {
-            run(
-                file!(),
+            run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
                         (

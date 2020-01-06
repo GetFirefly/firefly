@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn without_byte_bitstring_or_list_element_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn with_float_minuend_with_integer_subtrahend_returns_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -27,8 +26,7 @@ fn with_float_minuend_with_integer_subtrahend_returns_float() {
 
 #[test]
 fn with_float_minuend_with_float_subtrahend_returns_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

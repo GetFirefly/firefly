@@ -8,8 +8,7 @@ mod with_local_pid_destination;
 
 #[test]
 fn without_atom_pid_or_tuple_destination_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

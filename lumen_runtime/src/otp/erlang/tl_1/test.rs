@@ -4,12 +4,11 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::tl_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| strategy::term::is_not_list(arc_process.clone()),
         |list| {
             prop_assert_is_not_non_empty_list!(native(list), list);
@@ -28,8 +27,7 @@ fn with_empty_list_errors_badarg() {
 
 #[test]
 fn with_list_returns_tail() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

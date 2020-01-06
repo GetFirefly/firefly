@@ -2,7 +2,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 
 use crate::otp::erlang::float_1::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarg() {
@@ -11,8 +11,7 @@ fn without_number_errors_badarg() {
 
 #[test]
 fn with_integer_returns_float_with_same_value() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -36,8 +35,7 @@ fn with_integer_returns_float_with_same_value() {
 
 #[test]
 fn with_float_returns_same_float() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

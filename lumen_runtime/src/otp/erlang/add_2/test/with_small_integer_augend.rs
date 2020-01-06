@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn without_number_addend_errors_badarith() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

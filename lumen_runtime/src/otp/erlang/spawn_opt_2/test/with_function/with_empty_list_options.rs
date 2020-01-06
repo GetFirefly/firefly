@@ -6,8 +6,7 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

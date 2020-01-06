@@ -4,8 +4,7 @@ mod registered;
 
 #[test]
 fn unregistered_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),

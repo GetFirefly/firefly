@@ -5,12 +5,11 @@ use proptest::strategy::{Just, Strategy};
 use radix_fmt::radix;
 
 use crate::otp::erlang::list_to_integer_2::native;
-use crate::test::{run, strategy};
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -31,8 +30,7 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_list_without_base_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -55,8 +53,7 @@ fn with_list_without_base_errors_badarg() {
 
 #[test]
 fn with_list_with_integer_in_base_returns_integers() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (
                 Just(arc_process.clone()),
@@ -92,8 +89,7 @@ fn with_list_with_integer_in_base_returns_integers() {
 
 #[test]
 fn with_list_without_integer_in_base_errors_badarg() {
-    run(
-        file!(),
+    run!(
         |arc_process| {
             (Just(arc_process.clone()), strategy::base::base()).prop_map(|(arc_process, base)| {
                 let invalid_digit = match base {

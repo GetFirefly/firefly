@@ -16,8 +16,10 @@ use liblumen_alloc::erts::{exception, Node};
 use crate::process::spawn::options::Options;
 use crate::scheduler::{Scheduler, Spawned};
 use crate::test::r#loop;
+use crate::test::strategy::term::binary;
+use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
 
-pub fn arc_process_binary_to_arc_process_binary_two_less_than_length_start(
+pub fn arc_process_subbinary_to_arc_process_subbinary_two_less_than_length_start(
     (arc_process, binary): (Arc<Process>, Term),
 ) -> (
     impl Strategy<Value = Arc<Process>>,
@@ -34,6 +36,31 @@ pub fn arc_process_binary_to_arc_process_binary_two_less_than_length_start(
         Just(binary),
         (1..=(byte_count - 2)),
     )
+}
+
+pub fn arc_process_to_arc_process_subbinary_zero_start_byte_count_length(
+    arc_process: Arc<Process>,
+) -> impl Strategy<Value = (Arc<Process>, Term, Term, Term)> {
+    (
+        Just(arc_process.clone()),
+        binary::sub::with_size_range(
+            byte_offset(),
+            bit_offset(),
+            byte_count(),
+            (1_u8..=7_u8).boxed(),
+            arc_process.clone(),
+        ),
+    )
+        .prop_map(|(arc_process, binary)| {
+            let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
+
+            (
+                arc_process.clone(),
+                binary,
+                arc_process.integer(0).unwrap(),
+                arc_process.integer(subbinary.full_byte_len()).unwrap(),
+            )
+        })
 }
 
 pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {

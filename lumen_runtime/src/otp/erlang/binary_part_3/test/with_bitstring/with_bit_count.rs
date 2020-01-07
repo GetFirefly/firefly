@@ -1,9 +1,12 @@
 use super::*;
 
-use crate::test::arc_process_binary_to_arc_process_binary_two_less_than_length_start;
 use crate::test::strategy::term::binary;
-use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
+use crate::test::strategy::term::binary::sub::{bit_offset, byte_offset};
 use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
+use crate::test::{
+    arc_process_subbinary_to_arc_process_subbinary_two_less_than_length_start,
+    arc_process_to_arc_process_subbinary_zero_start_byte_count_length,
+};
 
 #[test]
 fn with_positive_start_and_positive_length_returns_subbinary() {
@@ -19,7 +22,9 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                     arc_process.clone(),
                 ),
             )
-                .prop_flat_map(arc_process_binary_to_arc_process_binary_two_less_than_length_start)
+                .prop_flat_map(
+                    arc_process_subbinary_to_arc_process_subbinary_two_less_than_length_start,
+                )
                 .prop_flat_map(|(arc_process, binary, start)| {
                     let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
 
@@ -76,28 +81,7 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
 #[test]
 fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
     run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                binary::sub::with_size_range(
-                    byte_offset(),
-                    bit_offset(),
-                    byte_count(),
-                    (1_u8..=7_u8).boxed(),
-                    arc_process.clone(),
-                ),
-            )
-                .prop_map(|(arc_process, binary)| {
-                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
-
-                    (
-                        arc_process.clone(),
-                        binary,
-                        arc_process.integer(0).unwrap(),
-                        arc_process.integer(subbinary.full_byte_len()).unwrap(),
-                    )
-                })
-        },
+        arc_process_to_arc_process_subbinary_zero_start_byte_count_length,
         returns_subbinary_without_bit_count,
     );
 }

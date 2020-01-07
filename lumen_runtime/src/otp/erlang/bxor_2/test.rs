@@ -38,26 +38,7 @@ fn without_integer_left_errors_badarith() {
 
 #[test]
 fn without_integer_left_without_integer_right_errors_badarith() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_integer(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-            )
-        },
-        |(arc_process, left, right)| {
-            prop_assert_badarith!(
-                native(&arc_process, left, right),
-                format!(
-                    "left_integer ({}) and right_integer ({}) are not both integers",
-                    left, right
-                )
-            );
-
-            Ok(())
-        },
-    );
+    crate::test::with_integer_left_without_integer_right_errors_badarith(file!(), native);
 }
 
 #[test]

@@ -313,6 +313,46 @@ pub fn with_positive_start_and_positive_length_returns_subbinary(
     );
 }
 
+pub fn with_positive_start_and_negative_length_returns_subbinary(
+    source_file: &'static str,
+    returns_subbinary: fn((Arc<Process>, Term, Term, Term)) -> TestCaseResult,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_bitstring::with_byte_len_range(
+                    (2..=4).into(),
+                    arc_process.clone(),
+                ),
+            )
+                .prop_flat_map(|(arc_process, binary)| {
+                    let byte_len = total_byte_len(binary);
+
+                    (Just(arc_process.clone()), Just(binary), (1..byte_len))
+                })
+                .prop_flat_map(|(arc_process, binary, start)| {
+                    (
+                        Just(arc_process.clone()),
+                        Just(binary),
+                        Just(start),
+                        (-(start as isize))..=(-1),
+                    )
+                })
+                .prop_map(|(arc_process, binary, start, length)| {
+                    (
+                        arc_process.clone(),
+                        binary,
+                        arc_process.integer(start).unwrap(),
+                        arc_process.integer(length).unwrap(),
+                    )
+                })
+        },
+        returns_subbinary,
+    );
+}
+
 pub fn with_size_start_and_negative_size_length_returns_binary(
     source_file: &'static str,
     returns_binary: fn((Arc<Process>, Term, Term, Term)) -> TestCaseResult,

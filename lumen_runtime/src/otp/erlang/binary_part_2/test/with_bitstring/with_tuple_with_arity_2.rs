@@ -149,37 +149,8 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
 
 #[test]
 fn with_positive_start_and_negative_length_returns_subbinary() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_bitstring::with_byte_len_range(
-                    (2..=4).into(),
-                    arc_process.clone(),
-                ),
-            )
-                .prop_flat_map(|(arc_process, binary)| {
-                    let byte_len = total_byte_len(binary);
-
-                    (Just(arc_process.clone()), Just(binary), (1..byte_len))
-                })
-                .prop_flat_map(|(arc_process, binary, start)| {
-                    (
-                        Just(arc_process.clone()),
-                        Just(binary),
-                        Just(start),
-                        (-(start as isize))..=(-1),
-                    )
-                })
-                .prop_map(|(arc_process, binary, start, length)| {
-                    (
-                        arc_process.clone(),
-                        binary,
-                        arc_process.integer(start).unwrap(),
-                        arc_process.integer(length).unwrap(),
-                    )
-                })
-        },
+    crate::test::with_positive_start_and_negative_length_returns_subbinary(
+        file!(),
         returns_subbinary,
     );
 }

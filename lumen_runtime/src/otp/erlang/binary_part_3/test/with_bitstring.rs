@@ -69,21 +69,7 @@ fn with_negative_start_with_valid_length_errors_badarg() {
 #[test]
 fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
     run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_bitstring(arc_process.clone()),
-            )
-                .prop_flat_map(|(arc_process, binary)| {
-                    (
-                        Just(arc_process.clone()),
-                        Just(binary),
-                        Just(arc_process.integer(total_byte_len(binary) + 1).unwrap()),
-                        (Just(arc_process.clone()), 0..=total_byte_len(binary))
-                            .prop_map(|(arc_process, length)| arc_process.integer(length).unwrap()),
-                    )
-                })
-        },
+        strategy::with_start_greater_than_size_with_non_negative_length,
         |(arc_process, binary, start, length)| {
             prop_assert_badarg!(
                 native(&arc_process, binary, start, length),

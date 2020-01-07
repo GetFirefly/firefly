@@ -102,6 +102,24 @@ pub fn with_non_negative_integer_start_without_integer_length(
     )
 }
 
+pub fn with_start_greater_than_size_with_non_negative_length(
+    arc_process: Arc<Process>,
+) -> impl Strategy<Value = (Arc<Process>, Term, Term, Term)> {
+    (
+        Just(arc_process.clone()),
+        term::is_bitstring(arc_process.clone()),
+    )
+        .prop_flat_map(|(arc_process, binary)| {
+            (
+                Just(arc_process.clone()),
+                Just(binary),
+                Just(arc_process.integer(total_byte_len(binary) + 1).unwrap()),
+                (Just(arc_process.clone()), 0..=total_byte_len(binary))
+                    .prop_map(|(arc_process, length)| arc_process.integer(length).unwrap()),
+            )
+        })
+}
+
 pub fn without_integer_start_with_integer_length(
     arc_process: Arc<Process>,
 ) -> (

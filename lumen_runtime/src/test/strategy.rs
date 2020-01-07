@@ -66,6 +66,22 @@ pub fn term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+pub fn without_integer_start_without_integer_length(
+    arc_process: Arc<Process>,
+) -> (
+    impl Strategy<Value = Arc<Process>>,
+    impl Strategy<Value = Term>,
+    impl Strategy<Value = Term>,
+    impl Strategy<Value = Term>,
+) {
+    (
+        Just(arc_process.clone()),
+        term::is_bitstring(arc_process.clone()),
+        term::is_not_integer(arc_process.clone()),
+        term::is_not_integer(arc_process.clone()),
+    )
+}
+
 const DEPTH: u32 = 3;
 const MAX_LEN: usize = 3;
 const RANGE_INCLUSIVE: RangeInclusive<usize> = 0..=MAX_LEN;

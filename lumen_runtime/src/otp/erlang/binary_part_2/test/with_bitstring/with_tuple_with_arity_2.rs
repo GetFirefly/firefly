@@ -8,14 +8,7 @@ mod without_bit_count;
 #[test]
 fn without_integer_start_without_integer_length_errors_badarg() {
     run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_bitstring(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-            )
-        },
+        strategy::without_integer_start_without_integer_length,
         |(arc_process, binary, start, length)| {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 

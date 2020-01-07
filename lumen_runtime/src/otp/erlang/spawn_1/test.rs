@@ -15,20 +15,5 @@ use crate::test::{prop_assert_exits_badarity, strategy};
 
 #[test]
 fn without_function_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_not_function(arc_process.clone()),
-            )
-        },
-        |(arc_process, function)| {
-            prop_assert_badarg!(
-                native(&arc_process, function),
-                format!("function ({}) is not a function", function)
-            );
-
-            Ok(())
-        },
-    );
+    crate::test::without_function_errors_badarg(file!(), native);
 }

@@ -214,6 +214,29 @@ pub fn without_boolean_left_errors_badarg(
     );
 }
 
+pub fn without_function_errors_badarg(
+    source_file: &'static str,
+    native: fn(&Process, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_not_function(arc_process.clone()),
+            )
+        },
+        |(arc_process, function)| {
+            prop_assert_badarg!(
+                native(&arc_process, function),
+                format!("function ({}) is not a function", function)
+            );
+
+            Ok(())
+        },
+    );
+}
+
 pub fn without_number_errors_badarg(
     source_file: &'static str,
     native: fn(&Process, Term) -> exception::Result<Term>,

@@ -423,6 +423,26 @@ pub fn without_boolean_left_errors_badarg(
     );
 }
 
+pub fn without_binary_with_encoding_is_not_binary(
+    source_file: &'static str,
+    native: fn(Term, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                super::strategy::term::is_not_binary(arc_process.clone()),
+                super::strategy::term::is_encoding(),
+            )
+        },
+        |(binary, encoding)| {
+            prop_assert_is_not_binary!(native(binary, encoding), binary);
+
+            Ok(())
+        },
+    );
+}
+
 pub fn without_function_errors_badarg(
     source_file: &'static str,
     native: fn(&Process, Term) -> exception::Result<Term>,

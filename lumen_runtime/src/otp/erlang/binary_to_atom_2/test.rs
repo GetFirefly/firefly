@@ -9,19 +9,7 @@ use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                strategy::term::is_not_binary(arc_process.clone()),
-                strategy::term::is_encoding(),
-            )
-        },
-        |(binary, encoding)| {
-            prop_assert_is_not_binary!(native(binary, encoding), binary);
-
-            Ok(())
-        },
-    );
+    crate::test::without_binary_with_encoding_is_not_binary(file!(), native);
 }
 
 #[test]

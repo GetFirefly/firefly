@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use proptest::prop_assert_eq;
 
 use liblumen_alloc::erts::term::prelude::*;
@@ -19,24 +17,7 @@ fn with_binary_without_atom_encoding_errors_badarg() {
 
 #[test]
 fn with_binary_with_atom_without_name_encoding_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                strategy::term::is_binary(arc_process.clone()),
-                strategy::term::atom::is_not_encoding(),
-            )
-        },
-        |(binary, encoding)| {
-            let encoding_atom: Atom = encoding.try_into().unwrap();
-
-            prop_assert_badarg!(
-                        native(binary, encoding),
-                        format!("invalid atom encoding name: '{0}' is not one of the supported values (latin1, unicode, or utf8)", encoding_atom.name())
-                    );
-
-            Ok(())
-        },
-    );
+    crate::test::with_binary_with_atom_without_name_encoding_errors_badarg(file!(), native);
 }
 
 #[test]

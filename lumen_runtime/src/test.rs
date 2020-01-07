@@ -15,8 +15,12 @@ pub use self::proptest::*;
 use std::convert::TryInto;
 
 use liblumen_alloc::atom;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
+
+use crate::process::SchedulerDependentAlloc;
+use crate::scheduler::with_process;
 
 pub fn assert_exits<F: Fn(Option<Term>)>(
     process: &Process,
@@ -76,4 +80,12 @@ pub fn badarity_reason(process: &Process, function: Term, args: Term) -> Term {
     let fun_args = process.tuple_from_slice(&[function, args]).unwrap();
 
     process.tuple_from_slice(&[tag, fun_args]).unwrap()
+}
+
+pub fn without_timer_returns_false(native: fn(&Process, Term) -> exception::Result<Term>) {
+    with_process(|process| {
+        let timer_reference = process.next_reference().unwrap();
+
+        assert_eq!(native(process, timer_reference), Ok(false.into()));
+    });
 }

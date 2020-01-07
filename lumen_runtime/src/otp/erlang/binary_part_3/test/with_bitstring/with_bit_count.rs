@@ -69,33 +69,7 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                     )
                 })
         },
-        |(arc_process, binary, start, length)| {
-            let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
-
-            let expected_returned_binary_bytes: Vec<u8> = subbinary.full_byte_iter().collect();
-            let expected_returned_binary = arc_process
-                .binary_from_bytes(&expected_returned_binary_bytes)
-                .unwrap();
-
-            prop_assert_eq!(
-                native(&arc_process, binary, start, length),
-                Ok(expected_returned_binary)
-            );
-
-            let returned = native(&arc_process, binary, start, length).unwrap();
-
-            let returned_subbinary_result: core::result::Result<Boxed<SubBinary>, _> =
-                returned.try_into();
-
-            prop_assert!(returned_subbinary_result.is_ok());
-
-            let returned_subbinary = returned_subbinary_result.unwrap();
-            let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
-
-            prop_assert_eq!(returned_subbinary.original(), subbinary.original());
-
-            Ok(())
-        },
+        returns_subbinary_without_bit_count,
     );
 }
 
@@ -124,32 +98,35 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
                     )
                 })
         },
-        |(arc_process, binary, start, length)| {
-            let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
-
-            let expected_returned_binary_bytes: Vec<u8> = subbinary.full_byte_iter().collect();
-            let expected_returned_binary = arc_process
-                .binary_from_bytes(&expected_returned_binary_bytes)
-                .unwrap();
-
-            prop_assert_eq!(
-                native(&arc_process, binary, start, length),
-                Ok(expected_returned_binary)
-            );
-
-            let returned = native(&arc_process, binary, start, length).unwrap();
-
-            let returned_subbinary_result: core::result::Result<Boxed<SubBinary>, _> =
-                returned.try_into();
-
-            prop_assert!(returned_subbinary_result.is_ok());
-
-            let returned_subbinary = returned_subbinary_result.unwrap();
-            let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
-
-            prop_assert_eq!(returned_subbinary.original(), subbinary.original());
-
-            Ok(())
-        },
+        returns_subbinary_without_bit_count,
     );
+}
+
+fn returns_subbinary_without_bit_count(
+    (arc_process, binary, start, length): (Arc<Process>, Term, Term, Term),
+) -> TestCaseResult {
+    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
+
+    let expected_returned_binary_bytes: Vec<u8> = subbinary.full_byte_iter().collect();
+    let expected_returned_binary = arc_process
+        .binary_from_bytes(&expected_returned_binary_bytes)
+        .unwrap();
+
+    prop_assert_eq!(
+        native(&arc_process, binary, start, length),
+        Ok(expected_returned_binary)
+    );
+
+    let returned = native(&arc_process, binary, start, length).unwrap();
+
+    let returned_subbinary_result: core::result::Result<Boxed<SubBinary>, _> = returned.try_into();
+
+    prop_assert!(returned_subbinary_result.is_ok());
+
+    let returned_subbinary = returned_subbinary_result.unwrap();
+    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
+
+    prop_assert_eq!(returned_subbinary.original(), subbinary.original());
+
+    Ok(())
 }

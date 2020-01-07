@@ -8,20 +8,5 @@ use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_not_binary(arc_process.clone()),
-            )
-        },
-        |(arc_process, binary)| {
-            prop_assert_badarg!(
-                native(&arc_process, binary),
-                format!("binary ({}) must be a binary", binary)
-            );
-
-            Ok(())
-        },
-    );
+    crate::test::without_binary_errors_badarg(file!(), native);
 }

@@ -64,23 +64,7 @@ fn with_size_start_and_negative_size_length_returns_binary() {
 
 #[test]
 fn with_zero_start_and_size_length_returns_binary() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_binary(arc_process.clone()),
-            )
-                .prop_map(|(arc_process, binary)| {
-                    (
-                        arc_process.clone(),
-                        binary,
-                        arc_process.integer(0).unwrap(),
-                        arc_process.integer(total_byte_len(binary)).unwrap(),
-                    )
-                })
-        },
-        returns_binary,
-    );
+    crate::test::with_zero_start_and_size_length_returns_binary(file!(), returns_binary);
 }
 
 fn returns_binary(

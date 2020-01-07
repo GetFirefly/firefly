@@ -268,6 +268,30 @@ pub fn with_integer_left_without_integer_right_errors_badarith(
     );
 }
 
+pub fn with_zero_start_and_size_length_returns_binary(
+    source_file: &'static str,
+    returns_binary: fn((Arc<Process>, Term, Term, Term)) -> TestCaseResult,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_binary(arc_process.clone()),
+            )
+                .prop_map(|(arc_process, binary)| {
+                    (
+                        arc_process.clone(),
+                        binary,
+                        arc_process.integer(0).unwrap(),
+                        arc_process.integer(total_byte_len(binary)).unwrap(),
+                    )
+                })
+        },
+        returns_binary,
+    );
+}
+
 pub fn without_boolean_left_errors_badarg(
     source_file: &'static str,
     native: fn(Term, Term) -> exception::Result<Term>,

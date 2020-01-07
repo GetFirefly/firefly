@@ -14,22 +14,7 @@ fn without_binary_errors_badarg() {
 
 #[test]
 fn with_binary_without_atom_encoding_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                strategy::term::is_binary(arc_process.clone()),
-                strategy::term::is_not_atom(arc_process),
-            )
-        },
-        |(binary, encoding)| {
-            prop_assert_badarg!(
-                native(binary, encoding),
-                format!("invalid encoding name value: `{}` is not an atom", encoding)
-            );
-
-            Ok(())
-        },
-    );
+    crate::test::with_binary_without_atom_encoding_errors_badarg(file!(), native);
 }
 
 #[test]

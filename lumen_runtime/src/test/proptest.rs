@@ -241,6 +241,29 @@ pub fn total_byte_len(term: Term) -> usize {
     }
 }
 
+pub fn with_binary_without_atom_encoding_errors_badarg(
+    source_file: &'static str,
+    native: fn(Term, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                super::strategy::term::is_binary(arc_process.clone()),
+                super::strategy::term::is_not_atom(arc_process),
+            )
+        },
+        |(binary, encoding)| {
+            prop_assert_badarg!(
+                native(binary, encoding),
+                format!("invalid encoding name value: `{}` is not an atom", encoding)
+            );
+
+            Ok(())
+        },
+    );
+}
+
 pub fn with_integer_left_without_integer_right_errors_badarith(
     source_file: &'static str,
     native: fn(&Process, Term, Term) -> exception::Result<Term>,

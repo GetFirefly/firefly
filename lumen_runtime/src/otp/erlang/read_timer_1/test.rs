@@ -10,8 +10,8 @@ use crate::otp::erlang::read_timer_1::native;
 use crate::process;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::with_process;
-use crate::test::{has_message, receive_message, timeout_message};
 use crate::test::strategy;
+use crate::test::{has_message, receive_message, timeout_message};
 use crate::time::Milliseconds;
 use crate::timer;
 

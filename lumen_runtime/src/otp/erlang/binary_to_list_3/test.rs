@@ -5,8 +5,8 @@ use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::binary_to_list_3::native;
-use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 use crate::test::strategy;
+use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
 #[test]
 fn without_binary_errors_badarg() {

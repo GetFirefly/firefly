@@ -1,11 +1,14 @@
 mod with_function;
 
 use std::mem;
+use std::sync::Arc;
 
 use proptest::prop_assert_eq;
+use proptest::strategy::Strategy;
 
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::future::Ready;

@@ -9,6 +9,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
+use crate::test::total_byte_len;
 
 pub mod base;
 pub mod byte_vec;
@@ -64,6 +65,25 @@ pub fn term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
             },
         )
         .boxed()
+}
+
+pub fn with_negative_start_with_valid_length(
+    arc_process: Arc<Process>,
+) -> impl Strategy<Value = (Arc<Process>, Term, Term, Term)> {
+    (
+        Just(arc_process.clone()),
+        term::is_bitstring(arc_process.clone()),
+        term::integer::small::negative(arc_process.clone()),
+    )
+        .prop_flat_map(|(arc_process, binary, start)| {
+            (
+                Just(arc_process.clone()),
+                Just(binary),
+                Just(start),
+                (Just(arc_process.clone()), 0..=total_byte_len(binary))
+                    .prop_map(|(arc_process, length)| arc_process.integer(length).unwrap()),
+            )
+        })
 }
 
 pub fn with_non_negative_integer_start_without_integer_length(

@@ -54,34 +54,18 @@ fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
 
 #[test]
 fn with_negative_start_with_valid_length_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_bitstring(arc_process.clone()),
-                strategy::term::integer::small::negative(arc_process.clone()),
-            )
-                .prop_flat_map(|(arc_process, binary, start)| {
-                    (
-                        Just(arc_process.clone()),
-                        Just(binary),
-                        Just(start),
-                        (Just(arc_process.clone()), 0..=total_byte_len(binary))
-                            .prop_map(|(arc_process, length)| arc_process.integer(length).unwrap()),
-                    )
-                })
-        },
-        |(arc_process, binary, start, length)| {
-            let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
+    run!(strategy::with_negative_start_with_valid_length, |(
+        arc_process,
+        binary,
+        start,
+        length,
+    )| {
+        let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-            prop_assert_is_not_non_negative_integer!(
-                native(&arc_process, binary, start_length),
-                start
-            );
+        prop_assert_is_not_non_negative_integer!(native(&arc_process, binary, start_length), start);
 
-            Ok(())
-        },
-    );
+        Ok(())
+    },);
 }
 
 #[test]

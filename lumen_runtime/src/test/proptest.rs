@@ -1,9 +1,10 @@
-use proptest::test_runner::{Config, TestRunner};
+use std::convert::TryInto;
+
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use proptest::strategy::{Just, Strategy};
-use proptest::test_runner::TestCaseResult;
+use proptest::test_runner::{Config, TestCaseResult, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::atom;
@@ -15,6 +16,25 @@ use liblumen_alloc::erts::{exception, Node};
 use crate::process::spawn::options::Options;
 use crate::scheduler::{Scheduler, Spawned};
 use crate::test::r#loop;
+
+pub fn arc_process_binary_to_arc_process_binary_two_less_than_length_start(
+    (arc_process, binary): (Arc<Process>, Term),
+) -> (
+    impl Strategy<Value = Arc<Process>>,
+    impl Strategy<Value = Term>,
+    impl Strategy<Value = usize>,
+) {
+    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
+    let byte_count = subbinary.full_byte_len();
+
+    // `start` must be 2 less than `byte_count` so that `length` can be at least 1
+    // and still get a full byte
+    (
+        Just(arc_process.clone()),
+        Just(binary),
+        (1..=(byte_count - 2)),
+    )
+}
 
 pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
     timer_message("cancel_timer", timer_reference, result, process)

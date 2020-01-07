@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::test::arc_process_binary_to_arc_process_binary_two_less_than_length_start;
 use crate::test::strategy::term::binary;
 use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
 use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
@@ -18,18 +19,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                     arc_process.clone(),
                 ),
             )
-                .prop_flat_map(|(arc_process, binary)| {
-                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
-                    let byte_count = subbinary.full_byte_len();
-
-                    // `start` must be 2 less than `byte_count` so that `length` can be at least 1
-                    // and still get a full byte
-                    (
-                        Just(arc_process.clone()),
-                        Just(binary),
-                        (1..=(byte_count - 2)),
-                    )
-                })
+                .prop_flat_map(arc_process_binary_to_arc_process_binary_two_less_than_length_start)
                 .prop_flat_map(|(arc_process, binary, start)| {
                     let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
                     let byte_count = subbinary.full_byte_len();

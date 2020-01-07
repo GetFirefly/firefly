@@ -2,26 +2,7 @@ use super::*;
 
 #[test]
 fn without_number_addend_errors_badarith() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::integer::small(arc_process.clone()),
-                strategy::term::is_not_number(arc_process.clone()),
-            )
-        },
-        |(arc_process, augend, addend)| {
-            prop_assert_badarith!(
-                native(&arc_process, augend, addend),
-                format!(
-                    "augend ({}) and addend ({}) aren't both numbers",
-                    augend, addend
-                )
-            );
-
-            Ok(())
-        },
-    );
+    super::without_number_addend_errors_badarith(file!(), strategy::term::integer::small);
 }
 
 #[test]

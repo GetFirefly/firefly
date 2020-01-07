@@ -22,24 +22,19 @@ fn without_integer_start_without_integer_length_errors_badarg() {
 
 #[test]
 fn without_integer_start_with_integer_length_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_bitstring(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-                strategy::term::is_integer(arc_process.clone()),
-            )
-        },
-        |(arc_process, binary, start, length)| {
-            prop_assert_is_not_non_negative_integer!(
-                native(&arc_process, binary, start, length),
-                start
-            );
+    run!(strategy::without_integer_start_with_integer_length, |(
+        arc_process,
+        binary,
+        start,
+        length,
+    )| {
+        prop_assert_is_not_non_negative_integer!(
+            native(&arc_process, binary, start, length),
+            start
+        );
 
-            Ok(())
-        },
-    );
+        Ok(())
+    },);
 }
 
 #[test]

@@ -10,25 +10,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
 
 #[test]
 fn with_size_start_and_negative_size_length_returns_binary() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_binary::with_byte_len_range(1..=4, arc_process.clone()),
-            )
-                .prop_map(|(arc_process, binary)| {
-                    let byte_len = total_byte_len(binary);
-
-                    (
-                        arc_process.clone(),
-                        binary,
-                        arc_process.integer(byte_len).unwrap(),
-                        arc_process.integer(-(byte_len as isize)).unwrap(),
-                    )
-                })
-        },
-        returns_binary,
-    );
+    crate::test::with_size_start_and_negative_size_length_returns_binary(file!(), returns_binary);
 }
 
 #[test]

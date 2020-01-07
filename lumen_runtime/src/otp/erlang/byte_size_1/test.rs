@@ -6,22 +6,7 @@ use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_not_bitstring(arc_process.clone()),
-            )
-        },
-        |(arc_process, bitstring)| {
-            prop_assert_badarg!(
-                native(&arc_process, bitstring),
-                format!("bitstring ({}) is not a bitstring", bitstring)
-            );
-
-            Ok(())
-        },
-    );
+    crate::test::without_bitstring_errors_badarg(file!(), native);
 }
 
 #[test]

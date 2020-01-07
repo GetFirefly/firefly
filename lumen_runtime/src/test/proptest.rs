@@ -514,6 +514,29 @@ pub fn without_binary_with_encoding_is_not_binary(
     );
 }
 
+pub fn without_bitstring_errors_badarg(
+    source_file: &'static str,
+    native: fn(&Process, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_not_bitstring(arc_process.clone()),
+            )
+        },
+        |(arc_process, bitstring)| {
+            prop_assert_badarg!(
+                native(&arc_process, bitstring),
+                format!("bitstring ({}) is not a bitstring", bitstring)
+            );
+
+            Ok(())
+        },
+    );
+}
+
 pub fn without_function_errors_badarg(
     source_file: &'static str,
     native: fn(&Process, Term) -> exception::Result<Term>,

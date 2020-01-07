@@ -39,17 +39,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                     )
                 })
         },
-        |(arc_process, binary, start, length)| {
-            let result = native(&arc_process, binary, start, length);
-
-            prop_assert!(result.is_ok());
-
-            let returned = result.unwrap();
-
-            prop_assert!(returned.is_boxed_subbinary());
-
-            Ok(())
-        },
+        returns_subbinary,
     );
 }
 

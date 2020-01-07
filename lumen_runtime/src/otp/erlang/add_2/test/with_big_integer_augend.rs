@@ -1,5 +1,9 @@
 use super::*;
 
+use std::sync::Arc;
+
+use proptest::strategy::Strategy;
+
 #[test]
 fn without_number_addend_errors_badarith() {
     run!(
@@ -45,53 +49,15 @@ fn with_zero_small_integer_returns_same_big_integer() {
 
 #[test]
 fn that_is_positive_with_positive_small_integer_addend_returns_greater_big_integer() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::integer::big::positive(arc_process.clone()),
-                strategy::term::integer::small::positive(arc_process.clone()),
-            )
-        },
-        |(arc_process, augend, addend)| {
-            let result = native(&arc_process, augend, addend);
-
-            prop_assert!(result.is_ok());
-
-            let sum = result.unwrap();
-
-            prop_assert!(augend < sum);
-            prop_assert!(addend < sum);
-            prop_assert!(sum.is_boxed_bigint());
-
-            Ok(())
-        },
+    that_is_positive_with_addend_returns_greater_big_integer(
+        strategy::term::integer::small::positive,
     );
 }
 
 #[test]
 fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::integer::big::positive(arc_process.clone()),
-                strategy::term::integer::big::positive(arc_process.clone()),
-            )
-        },
-        |(arc_process, augend, addend)| {
-            let result = native(&arc_process, augend, addend);
-
-            prop_assert!(result.is_ok());
-
-            let sum = result.unwrap();
-
-            prop_assert!(augend < sum);
-            prop_assert!(addend < sum);
-            prop_assert!(sum.is_boxed_bigint());
-
-            Ok(())
-        },
+    that_is_positive_with_addend_returns_greater_big_integer(
+        strategy::term::integer::big::positive,
     );
 }
 
@@ -148,6 +114,35 @@ fn with_float_addend_with_overflow_returns_max_float() {
                 native(&arc_process, augend, addend),
                 Ok(arc_process.float(std::f64::MAX).unwrap())
             );
+
+            Ok(())
+        },
+    );
+}
+
+fn that_is_positive_with_addend_returns_greater_big_integer<S, F>(addend_strategy: F)
+where
+    F: Fn(Arc<Process>) -> S,
+    S: Strategy<Value = Term>,
+{
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::integer::big::positive(arc_process.clone()),
+                addend_strategy(arc_process),
+            )
+        },
+        |(arc_process, augend, addend)| {
+            let result = native(&arc_process, augend, addend);
+
+            prop_assert!(result.is_ok());
+
+            let sum = result.unwrap();
+
+            prop_assert!(augend < sum);
+            prop_assert!(addend < sum);
+            prop_assert!(sum.is_boxed_bigint());
 
             Ok(())
         },

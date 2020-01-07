@@ -88,34 +88,7 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
 #[test]
 fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
     run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_bitstring::with_byte_len_range(
-                    strategy::NON_EMPTY_RANGE_INCLUSIVE.into(),
-                    arc_process.clone(),
-                ),
-            )
-                .prop_flat_map(|(arc_process, binary)| {
-                    (
-                        Just(arc_process.clone()),
-                        Just(binary),
-                        0..total_byte_len(binary),
-                    )
-                })
-                .prop_map(|(arc_process, binary, start)| {
-                    let length = -((start as isize) + 1);
-                    let end = (start as isize) + length;
-
-                    (
-                        arc_process.clone(),
-                        binary,
-                        arc_process.integer(start).unwrap(),
-                        arc_process.integer(length).unwrap(),
-                        end,
-                    )
-                })
-        },
+        strategy::with_start_less_than_size_with_negative_length_past_start,
         |(arc_process, binary, start, length, end)| {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 

@@ -120,6 +120,37 @@ pub fn with_start_greater_than_size_with_non_negative_length(
         })
 }
 
+pub fn with_start_less_than_size_with_negative_length_past_start(
+    arc_process: Arc<Process>,
+) -> impl Strategy<Value = (Arc<Process>, Term, Term, Term, isize)> {
+    (
+        Just(arc_process.clone()),
+        term::is_bitstring::with_byte_len_range(
+            NON_EMPTY_RANGE_INCLUSIVE.into(),
+            arc_process.clone(),
+        ),
+    )
+        .prop_flat_map(|(arc_process, binary)| {
+            (
+                Just(arc_process.clone()),
+                Just(binary),
+                0..total_byte_len(binary),
+            )
+        })
+        .prop_map(|(arc_process, binary, start)| {
+            let length = -((start as isize) + 1);
+            let end = (start as isize) + length;
+
+            (
+                arc_process.clone(),
+                binary,
+                arc_process.integer(start).unwrap(),
+                arc_process.integer(length).unwrap(),
+                end,
+            )
+        })
+}
+
 pub fn without_integer_start_with_integer_length(
     arc_process: Arc<Process>,
 ) -> (

@@ -8,7 +8,7 @@ use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::future::{run_until_ready, Ready};
+use crate::future::Ready;
 use crate::otp::erlang::apply_2::place_frame_with_arguments;
 use crate::test::strategy;
 
@@ -21,23 +21,7 @@ fn without_function_errors_badarg() {
                 arc_process: child_arc_proces,
                 result,
                 ..
-            } = run_until_ready(
-                Default::default(),
-                |child_process| {
-                    let child_function = function.clone_to_process(child_process);
-                    let child_arguments = Term::NIL;
-
-                    place_frame_with_arguments(
-                        child_process,
-                        Placement::Push,
-                        child_function,
-                        child_arguments,
-                    )
-                    .map_err(|e| e.into())
-                },
-                5_000,
-            )
-            .unwrap();
+            } = run_until_ready(function, Term::NIL);
 
             prop_assert_badarg!(result, format!("function ({}) is not a function", function));
 
@@ -46,4 +30,24 @@ fn without_function_errors_badarg() {
             Ok(())
         },
     );
+}
+
+fn run_until_ready(function: Term, arguments: Term) -> Ready {
+    crate::future::run_until_ready(
+        Default::default(),
+        |child_process| {
+            let child_function = function.clone_to_process(child_process);
+            let child_arguments = arguments.clone_to_process(child_process);
+
+            place_frame_with_arguments(
+                child_process,
+                Placement::Push,
+                child_function,
+                child_arguments,
+            )
+            .map_err(|e| e.into())
+        },
+        5_000,
+    )
+    .unwrap()
 }

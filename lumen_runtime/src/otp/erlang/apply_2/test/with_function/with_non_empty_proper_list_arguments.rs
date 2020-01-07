@@ -36,23 +36,7 @@ fn without_arity_errors_badarg() {
             let Ready {
                 arc_process: child_arc_process,
                 result,
-            } = run_until_ready(
-                Default::default(),
-                |child_process| {
-                    let child_function = function.clone_to_process(child_process);
-                    let child_arguments = arguments.clone_to_process(child_process);
-
-                    place_frame_with_arguments(
-                        child_process,
-                        Placement::Push,
-                        child_function,
-                        child_arguments,
-                    )
-                    .map_err(|e| e.into())
-                },
-                5_000,
-            )
-            .unwrap();
+            } = run_until_ready(function, arguments);
 
             prop_assert_badarity!(
                 result,
@@ -107,23 +91,7 @@ fn with_arity_returns_function_return() {
             let Ready {
                 arc_process: child_arc_process,
                 result,
-            } = run_until_ready(
-                Default::default(),
-                |child_process| {
-                    let child_function = function.clone_to_process(child_process);
-                    let child_arguments = arguments.clone_to_process(child_process);
-
-                    place_frame_with_arguments(
-                        child_process,
-                        Placement::Push,
-                        child_function,
-                        child_arguments,
-                    )
-                    .map_err(|e| e.into())
-                },
-                5_000,
-            )
-            .unwrap();
+            } = run_until_ready(function, arguments);
 
             prop_assert_eq!(result, Ok(argument));
 

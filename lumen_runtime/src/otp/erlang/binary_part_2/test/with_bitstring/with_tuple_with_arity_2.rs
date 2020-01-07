@@ -41,14 +41,7 @@ fn without_integer_start_with_integer_length_errors_badarg() {
 #[test]
 fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
     run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_bitstring(arc_process.clone()),
-                strategy::term::integer::non_negative(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-            )
-        },
+        strategy::with_non_negative_integer_start_without_integer_length,
         |(arc_process, binary, start, length)| {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 

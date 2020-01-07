@@ -40,14 +40,7 @@ fn without_integer_start_with_integer_length_errors_badarg() {
 #[test]
 fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
     run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_bitstring(arc_process.clone()),
-                strategy::term::integer::non_negative(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-            )
-        },
+        strategy::with_non_negative_integer_start_without_integer_length,
         |(arc_process, binary, start, length)| {
             prop_assert_is_not_integer!(native(&arc_process, binary, start, length), length);
 

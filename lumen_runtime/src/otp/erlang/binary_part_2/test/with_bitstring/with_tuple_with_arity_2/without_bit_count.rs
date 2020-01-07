@@ -58,20 +58,7 @@ fn with_size_start_and_negative_size_length_returns_binary() {
                     )
                 })
         },
-        |(arc_process, binary, start, length)| {
-            let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
-
-            prop_assert_eq!(native(&arc_process, binary, start_length), Ok(binary));
-
-            let returned_binary = native(&arc_process, binary, start_length).unwrap();
-
-            prop_assert_eq!(
-                returned_binary.is_boxed_subbinary(),
-                binary.is_boxed_subbinary()
-            );
-
-            Ok(())
-        },
+        returns_binary,
     );
 }
 
@@ -92,19 +79,23 @@ fn with_zero_start_and_size_length_returns_binary() {
                     )
                 })
         },
-        |(arc_process, binary, start, length)| {
-            let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
-
-            prop_assert_eq!(native(&arc_process, binary, start_length), Ok(binary));
-
-            let returned_binary = native(&arc_process, binary, start_length).unwrap();
-
-            prop_assert_eq!(
-                returned_binary.is_boxed_subbinary(),
-                binary.is_boxed_subbinary()
-            );
-
-            Ok(())
-        },
+        returns_binary,
     );
+}
+
+fn returns_binary(
+    (arc_process, binary, start, length): (Arc<Process>, Term, Term, Term),
+) -> TestCaseResult {
+    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
+
+    prop_assert_eq!(native(&arc_process, binary, start_length), Ok(binary));
+
+    let returned_binary = native(&arc_process, binary, start_length).unwrap();
+
+    prop_assert_eq!(
+        returned_binary.is_boxed_subbinary(),
+        binary.is_boxed_subbinary()
+    );
+
+    Ok(())
 }

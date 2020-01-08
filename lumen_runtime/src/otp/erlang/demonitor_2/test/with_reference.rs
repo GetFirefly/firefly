@@ -12,7 +12,7 @@ use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::exit_1;
-use crate::process;
+use crate::process::{self, SchedulerDependentAlloc};
 use crate::scheduler::Scheduler;
 use crate::test::{has_message, monitor_count, monitored_count};
 
@@ -77,4 +77,19 @@ fn unknown_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 fn r#type() -> Term {
     Atom::str_to_term("process")
+}
+
+fn with_info_option_without_monitor_returns_false(options: fn(&Process) -> Term) {
+    with_process_arc(|monitoring_arc_process| {
+        let reference = monitoring_arc_process.next_reference().unwrap();
+
+        assert_eq!(
+            native(
+                &monitoring_arc_process,
+                reference,
+                options(&monitoring_arc_process)
+            ),
+            Ok(false.into())
+        )
+    });
 }

@@ -13,14 +13,12 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
-        // flaky
         assert!(!has_message(process, timeout_message));
 
         let first_milliseconds_remaining =
             native(process, timer_reference, options(process)).expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
-        // flaky
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
         assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 

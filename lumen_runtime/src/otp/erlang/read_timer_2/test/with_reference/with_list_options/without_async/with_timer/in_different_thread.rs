@@ -17,7 +17,6 @@ fn without_timeout_returns_milliseconds_remaining() {
             native(process, timer_reference, options(process)).expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
-        // flaky
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
         assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 

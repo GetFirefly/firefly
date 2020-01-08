@@ -15,7 +15,6 @@ fn without_timeout_returns_milliseconds_remaining() {
         let message = Atom::str_to_term("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
-        // flaky
         assert!(!has_message(process, timeout_message));
 
         let first_milliseconds_remaining = erlang::read_timer_1::native(process, timer_reference)

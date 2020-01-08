@@ -3,7 +3,6 @@ use super::*;
 use crate::test::*;
 
 #[test]
-// flaky
 #[ignore]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
     with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {

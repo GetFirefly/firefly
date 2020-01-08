@@ -13,7 +13,6 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
-        // flaky
         assert!(!has_message(process, timeout_message));
 
         let first_result = native(process, timer_reference, OPTIONS);

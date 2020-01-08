@@ -13,7 +13,6 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
-        // flaky
         assert!(!has_message(process, timeout_message));
 
         assert_eq!(

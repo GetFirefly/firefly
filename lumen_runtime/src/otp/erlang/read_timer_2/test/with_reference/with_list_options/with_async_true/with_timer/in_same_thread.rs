@@ -35,7 +35,6 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         let first_milliseconds_remaining = first_received_tuple[2];
 
         assert!(first_milliseconds_remaining.is_integer());
-        // flaky
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
         assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 

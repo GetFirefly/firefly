@@ -24,7 +24,6 @@ fn without_timeout_returns_milliseconds() {
         let first_milliseconds_remaining = first_result.unwrap();
 
         assert!(first_milliseconds_remaining.is_integer());
-        // flaky
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
         assert!(first_milliseconds_remaining <= process.integer(half_milliseconds).unwrap());
 

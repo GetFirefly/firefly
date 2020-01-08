@@ -679,6 +679,28 @@ pub fn with_integer_dividend_without_integer_divisor_errors_badarith(
     );
 }
 
+pub fn fn with_integer_dividend_with_zero_divisor_errors_badarith(source_file: &'static str,
+                                                                  native: fn(&Process, Term, Term) -> exception::Result<Term>,) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_integer(arc_process.clone()),
+                Just(arc_process.integer(0).unwrap()),
+            )
+        },
+        |(arc_process, dividend, divisor)| {
+            prop_assert_badarith!(
+                native(&arc_process, dividend, divisor),
+                format!("divisor ({}) cannot be zero", divisor)
+            );
+
+            Ok(())
+        },
+    );
+}
+
 pub fn without_integer_left_errors_badarith(
     source_file: &'static str,
     native: fn(&Process, Term, Term) -> exception::Result<Term>,

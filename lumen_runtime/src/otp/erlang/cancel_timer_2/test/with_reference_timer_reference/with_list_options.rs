@@ -62,3 +62,14 @@ fn without_info_without_local_reference_errors_badarg(
         },
     );
 }
+
+fn returns_false(options: fn(&Process) -> Term) {
+    with_process(|process| {
+        let timer_reference = process.next_reference().unwrap();
+
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
+        );
+    });
+}

@@ -1,3 +1,5 @@
+pub mod float_to_string;
+
 use std::convert::TryInto;
 
 use std::sync::atomic::AtomicUsize;
@@ -22,6 +24,8 @@ use crate::scheduler::{Scheduler, Spawned};
 use crate::test::r#loop;
 use crate::test::strategy::term::binary;
 use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
+
+use super::strategy;
 
 pub fn arc_process_subbinary_to_arc_process_subbinary_two_less_than_length_start(
     (arc_process, binary): (Arc<Process>, Term),
@@ -147,7 +151,7 @@ pub fn number_to_integer_with_float(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::float(arc_process.clone()),
+                strategy::term::float(arc_process.clone()),
             )
         },
         |(arc_process, number)| {
@@ -261,10 +265,7 @@ pub fn run<S: Strategy, F: Fn(Arc<Process>) -> S>(
     test: impl Fn(S::Value) -> TestCaseResult,
 ) {
     TestRunner::new(Config::with_source_file(source_file))
-        .run(
-            &super::strategy::process().prop_flat_map(arc_process_fun),
-            test,
-        )
+        .run(&strategy::process().prop_flat_map(arc_process_fun), test)
         .unwrap();
 }
 
@@ -294,8 +295,8 @@ pub fn with_binary_without_atom_encoding_errors_badarg(
         source_file,
         |arc_process| {
             (
-                super::strategy::term::is_binary(arc_process.clone()),
-                super::strategy::term::is_not_atom(arc_process),
+                strategy::term::is_binary(arc_process.clone()),
+                strategy::term::is_not_atom(arc_process),
             )
         },
         |(binary, encoding)| {
@@ -317,8 +318,8 @@ pub fn with_binary_with_atom_without_name_encoding_errors_badarg(
         source_file,
         |arc_process| {
             (
-                super::strategy::term::is_binary(arc_process.clone()),
-                super::strategy::term::atom::is_not_encoding(),
+                strategy::term::is_binary(arc_process.clone()),
+                strategy::term::atom::is_not_encoding(),
             )
         },
         |(binary, encoding)| {
@@ -343,7 +344,7 @@ pub fn with_integer_returns_integer(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_integer(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
             )
         },
         |(arc_process, number)| {
@@ -363,8 +364,8 @@ pub fn with_integer_left_without_integer_right_errors_badarith(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_integer(arc_process.clone()),
-                super::strategy::term::is_not_integer(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
+                strategy::term::is_not_integer(arc_process.clone()),
             )
         },
         |(arc_process, left, right)| {
@@ -390,10 +391,7 @@ pub fn with_positive_start_and_positive_length_returns_subbinary(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_binary::with_byte_len_range(
-                    (3..=6).into(),
-                    arc_process.clone(),
-                ),
+                strategy::term::is_binary::with_byte_len_range((3..=6).into(), arc_process.clone()),
             )
                 .prop_flat_map(|(arc_process, binary)| {
                     let byte_len = total_byte_len(binary);
@@ -435,7 +433,7 @@ pub fn with_positive_start_and_negative_length_returns_subbinary(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_bitstring::with_byte_len_range(
+                strategy::term::is_bitstring::with_byte_len_range(
                     (2..=4).into(),
                     arc_process.clone(),
                 ),
@@ -475,7 +473,7 @@ pub fn with_size_start_and_negative_size_length_returns_binary(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_binary::with_byte_len_range(1..=4, arc_process.clone()),
+                strategy::term::is_binary::with_byte_len_range(1..=4, arc_process.clone()),
             )
                 .prop_map(|(arc_process, binary)| {
                     let byte_len = total_byte_len(binary);
@@ -501,7 +499,7 @@ pub fn with_zero_start_and_size_length_returns_binary(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_binary(arc_process.clone()),
+                strategy::term::is_binary(arc_process.clone()),
             )
                 .prop_map(|(arc_process, binary)| {
                     (
@@ -524,8 +522,8 @@ pub fn without_boolean_left_errors_badarg(
         source_file,
         |arc_process| {
             (
-                super::strategy::term::is_not_boolean(arc_process.clone()),
-                super::strategy::term::is_boolean(),
+                strategy::term::is_not_boolean(arc_process.clone()),
+                strategy::term::is_boolean(),
             )
         },
         |(left_boolean, right_boolean)| {
@@ -545,7 +543,7 @@ pub fn without_binary_errors_badarg(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_binary(arc_process.clone()),
+                strategy::term::is_not_binary(arc_process.clone()),
             )
         },
         |(arc_process, binary)| {
@@ -567,8 +565,8 @@ pub fn without_binary_with_encoding_is_not_binary(
         source_file,
         |arc_process| {
             (
-                super::strategy::term::is_not_binary(arc_process.clone()),
-                super::strategy::term::is_encoding(),
+                strategy::term::is_not_binary(arc_process.clone()),
+                strategy::term::is_encoding(),
             )
         },
         |(binary, encoding)| {
@@ -588,7 +586,7 @@ pub fn without_bitstring_errors_badarg(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_bitstring(arc_process.clone()),
+                strategy::term::is_not_bitstring(arc_process.clone()),
             )
         },
         |(arc_process, bitstring)| {
@@ -611,7 +609,7 @@ pub fn without_float_errors_badarg(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_float(arc_process.clone()),
+                strategy::term::is_not_float(arc_process.clone()),
             )
         },
         |(arc_process, float)| {
@@ -634,7 +632,7 @@ pub fn without_float_with_empty_options_errors_badarg(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_float(arc_process.clone()),
+                strategy::term::is_not_float(arc_process.clone()),
             )
         },
         |(arc_process, float)| {
@@ -659,7 +657,7 @@ pub fn without_function_errors_badarg(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_function(arc_process.clone()),
+                strategy::term::is_not_function(arc_process.clone()),
             )
         },
         |(arc_process, function)| {
@@ -682,8 +680,8 @@ pub fn without_integer_dividend_errors_badarith(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_integer(arc_process.clone()),
-                super::strategy::term::is_integer(arc_process.clone()),
+                strategy::term::is_not_integer(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
             )
         },
         |(arc_process, dividend, divisor)| {
@@ -709,8 +707,8 @@ pub fn with_integer_dividend_without_integer_divisor_errors_badarith(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_integer(arc_process.clone()),
-                super::strategy::term::is_not_integer(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
+                strategy::term::is_not_integer(arc_process.clone()),
             )
         },
         |(arc_process, dividend, divisor)| {
@@ -736,7 +734,7 @@ pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_integer(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
                 Just(arc_process.integer(0).unwrap()),
             )
         },
@@ -760,8 +758,8 @@ pub fn without_integer_left_errors_badarith(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_integer(arc_process.clone()),
-                super::strategy::term::is_integer(arc_process.clone()),
+                strategy::term::is_not_integer(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
             )
         },
         |(arc_process, left, right)| {
@@ -787,7 +785,7 @@ pub fn without_number_errors_badarg(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_number(arc_process.clone()),
+                strategy::term::is_not_number(arc_process.clone()),
             )
         },
         |(arc_process, number)| {
@@ -810,7 +808,7 @@ pub fn without_timer_reference_errors_badarg(
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                super::strategy::term::is_not_reference(arc_process.clone()),
+                strategy::term::is_not_reference(arc_process.clone()),
             )
         },
         |(arc_process, timer_reference)| {

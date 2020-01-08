@@ -1,5 +1,9 @@
 use super::*;
 
+use proptest::test_runner::TestCaseResult;
+
+use liblumen_alloc::erts::term::list;
+
 #[test]
 fn without_list_right_returns_improper_list_with_right_as_tail() {
     run!(
@@ -92,39 +96,14 @@ fn with_improper_list_right_returns_improper_list_with_right_as_tail() {
                         Some(Err(ImproperList { tail: right }))
                     );
                     prop_assert_eq!(concatenated_iter.next(), None);
+
+                    Ok(())
                 }
-                TypedTerm::List(cons) => {
-                    let mut left_iter = cons.into_iter();
-
-                    loop {
-                        let left_element = left_iter.next();
-
-                        if left_element == None {
-                            let right_cons: Boxed<Cons> = right.try_into().unwrap();
-                            let mut right_iter = right_cons.into_iter();
-
-                            loop {
-                                let right_element = right_iter.next();
-                                let concatenated_element = concatenated_iter.next();
-
-                                match (&right_element, &concatenated_element) {
-                                    (None, None) => break,
-                                    _ => prop_assert_eq!(right_element, concatenated_element),
-                                }
-                            }
-
-                            break;
-                        } else {
-                            let concatenated_element = concatenated_iter.next();
-
-                            prop_assert_eq!(left_element, concatenated_element);
-                        }
-                    }
+                TypedTerm::List(left_cons) => {
+                    prop_assert_right_as_tail(concatenated_iter, left_cons, right)
                 }
                 _ => panic!("left ({:?}) is not a list"),
             }
-
-            Ok(())
         },
     );
 }
@@ -168,39 +147,49 @@ fn with_list_right_returns_proper_list_with_right_as_tail() {
                             _ => prop_assert_eq!(right_element, concatenated_element),
                         }
                     }
+
+                    Ok(())
                 }
                 TypedTerm::List(left_cons) => {
-                    let mut left_iter = left_cons.into_iter();
-
-                    loop {
-                        let left_element = left_iter.next();
-
-                        if left_element == None {
-                            let right_cons: Boxed<Cons> = right.try_into().unwrap();
-                            let mut right_iter = right_cons.into_iter();
-
-                            loop {
-                                let right_element = right_iter.next();
-                                let concatenated_element = concatenated_iter.next();
-
-                                match (&right_element, &concatenated_element) {
-                                    (None, None) => break,
-                                    _ => prop_assert_eq!(right_element, concatenated_element),
-                                }
-                            }
-
-                            break;
-                        } else {
-                            let concatenated_element = concatenated_iter.next();
-
-                            prop_assert_eq!(left_element, concatenated_element);
-                        }
-                    }
+                    prop_assert_right_as_tail(concatenated_iter, left_cons, right)
                 }
                 _ => panic!("left ({:?}) is not a list"),
             }
-
-            Ok(())
         },
     );
+}
+
+fn prop_assert_right_as_tail(
+    mut concatenated_iter: list::Iter,
+    left_cons: Boxed<Cons>,
+    right: Term,
+) -> TestCaseResult {
+    let mut left_iter = left_cons.into_iter();
+
+    loop {
+        let left_element = left_iter.next();
+
+        if left_element == None {
+            let right_cons: Boxed<Cons> = right.try_into().unwrap();
+            let mut right_iter = right_cons.into_iter();
+
+            loop {
+                let right_element = right_iter.next();
+                let concatenated_element = concatenated_iter.next();
+
+                match (&right_element, &concatenated_element) {
+                    (None, None) => break,
+                    _ => prop_assert_eq!(right_element, concatenated_element),
+                }
+            }
+
+            break;
+        } else {
+            let concatenated_element = concatenated_iter.next();
+
+            prop_assert_eq!(left_element, concatenated_element);
+        }
+    }
+
+    Ok(())
 }

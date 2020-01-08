@@ -625,6 +625,31 @@ pub fn without_float_errors_badarg(
     );
 }
 
+pub fn without_float_with_empty_options_errors_badarg(
+    source_file: &'static str,
+    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_not_float(arc_process.clone()),
+            )
+        },
+        |(arc_process, float)| {
+            let options = Term::NIL;
+
+            prop_assert_badarg!(
+                native(&arc_process, float, options),
+                format!("float ({}) is not a float", float)
+            );
+
+            Ok(())
+        },
+    );
+}
+
 pub fn without_function_errors_badarg(
     source_file: &'static str,
     native: fn(&Process, Term) -> exception::Result<Term>,

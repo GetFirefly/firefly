@@ -12,22 +12,5 @@ use crate::test::strategy;
 
 #[test]
 fn without_float_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_not_float(arc_process.clone()),
-            )
-        },
-        |(arc_process, float)| {
-            let options = Term::NIL;
-
-            prop_assert_badarg!(
-                native(&arc_process, float, options),
-                format!("float ({}) is not a float", float)
-            );
-
-            Ok(())
-        },
-    );
+    crate::test::without_float_with_empty_options_errors_badarg(file!(), native);
 }

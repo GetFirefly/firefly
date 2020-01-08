@@ -694,6 +694,30 @@ pub fn without_integer_errors_badarg(
     );
 }
 
+pub fn without_integer_integer_with_base_errors_badarg(
+    source_file: &'static str,
+    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_integer(arc_process.clone()),
+                strategy::term::is_base(arc_process.clone()),
+            )
+        },
+        |(arc_process, integer, base)| {
+            prop_assert_badarg!(
+                native(&arc_process, integer, base),
+                format!("integer ({}) is not an integer", integer)
+            );
+
+            Ok(())
+        },
+    );
+}
+
 pub fn without_integer_dividend_errors_badarith(
     source_file: &'static str,
     native: fn(&Process, Term, Term) -> exception::Result<Term>,

@@ -679,8 +679,10 @@ pub fn with_integer_dividend_without_integer_divisor_errors_badarith(
     );
 }
 
-pub fn fn with_integer_dividend_with_zero_divisor_errors_badarith(source_file: &'static str,
-                                                                  native: fn(&Process, Term, Term) -> exception::Result<Term>,) {
+pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
+    source_file: &'static str,
+    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+) {
     run(
         source_file,
         |arc_process| {

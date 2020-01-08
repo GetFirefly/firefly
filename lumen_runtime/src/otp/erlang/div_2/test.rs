@@ -4,7 +4,6 @@ mod with_small_integer_dividend;
 use proptest::prop_assert_eq;
 use proptest::strategy::{BoxedStrategy, Just};
 
-use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;

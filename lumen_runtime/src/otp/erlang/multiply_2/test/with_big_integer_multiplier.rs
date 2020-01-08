@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::test::with_big_int;
+
 #[test]
 fn without_number_multiplicand_errors_badarith() {
     run!(
@@ -50,7 +52,7 @@ fn with_integer_multiplicand_returns_big_integer() {
 
 #[test]
 fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
-    with(|multiplier, process| {
+    with_big_int(|process, multiplier| {
         let multiplicand = process.float(3.0).unwrap();
 
         let result = native(process, multiplier, multiplicand);
@@ -65,7 +67,7 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 
 #[test]
 fn with_float_multiplicand_with_underflow_returns_min_float() {
-    with(|multiplier, process| {
+    with_big_int(|process, multiplier| {
         let multiplicand = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
@@ -77,25 +79,12 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
 
 #[test]
 fn with_float_multiplicand_with_overflow_returns_max_float() {
-    with(|multiplier, process| {
+    with_big_int(|process, multiplier| {
         let multiplicand = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
             native(process, multiplier, multiplicand),
             Ok(process.float(std::f64::MAX).unwrap())
         );
-    })
-}
-
-fn with<F>(f: F)
-where
-    F: FnOnce(Term, &Process) -> (),
-{
-    with_process(|process| {
-        let multiplier: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
-
-        assert!(multiplier.is_boxed_bigint());
-
-        f(multiplier, &process)
     })
 }

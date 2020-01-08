@@ -102,6 +102,16 @@ pub fn wait_for_message(barrier: &Barrier) {
     barrier.wait();
 }
 
+pub fn with_big_int(f: fn(&Process, Term) -> ()) {
+    with_process(|process| {
+        let big_int: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
+
+        assert!(big_int.is_boxed_bigint());
+
+        f(&process, big_int)
+    })
+}
+
 pub fn with_timeout_returns_false_after_timeout_message_was_sent(
     native: fn(&Process, Term) -> exception::Result<Term>,
 ) {

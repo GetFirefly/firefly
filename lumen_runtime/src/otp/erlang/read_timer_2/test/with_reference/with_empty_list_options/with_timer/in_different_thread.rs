@@ -4,12 +4,12 @@ use std::sync::Barrier;
 use std::thread;
 use std::time::Duration;
 
-use crate::test::with_timer;
+use crate::test::*;
 
 #[test]
 #[ignore]
 fn without_timeout_returns_milliseconds_remaining() {
-    with_timer(|milliseconds, barrier, timer_reference, process| {
+    with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
 
         let message = Atom::str_to_term("different");
@@ -46,7 +46,7 @@ fn without_timeout_returns_milliseconds_remaining() {
 
 #[test]
 fn with_timeout_returns_false() {
-    with_timer(|milliseconds, barrier, timer_reference, process| {
+    with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
         timeout_after_half(milliseconds, barrier);
 

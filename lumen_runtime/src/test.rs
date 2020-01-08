@@ -102,7 +102,29 @@ pub fn wait_for_message(barrier: &Barrier) {
     barrier.wait();
 }
 
-pub fn with_timer<F>(f: F)
+pub fn with_timeout_returns_false_after_timeout_message_was_sent(
+    native: fn(&Process, Term) -> exception::Result<Term>,
+) {
+    with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
+        thread::sleep(Duration::from_millis(milliseconds + 1));
+        timer::timeout();
+
+        let timeout_message = timeout_message(timer_reference, message, process);
+
+        assert!(
+            has_message(process, timeout_message),
+            "Mailbox contains: {:?}",
+            process.mailbox.lock().borrow()
+        );
+
+        assert_eq!(native(process, timer_reference), Ok(false.into()));
+
+        // again
+        assert_eq!(native(process, timer_reference), Ok(false.into()));
+    })
+}
+
+pub fn with_timer_in_different_thread<F>(f: F)
 where
     F: FnOnce(u64, &Barrier, Term, &Process) -> (),
 {
@@ -167,6 +189,30 @@ where
     different_thread
         .join()
         .expect("Could not join different thread");
+}
+
+pub fn with_timer_in_same_thread<F>(f: F)
+where
+    F: FnOnce(u64, Term, Term, &Process) -> (),
+{
+    let same_thread_process_arc = process::test(&process::test_init());
+    let milliseconds: u64 = 100;
+
+    let message = Atom::str_to_term("message");
+    let timer_reference = erlang::start_timer_3::native(
+        same_thread_process_arc.clone(),
+        same_thread_process_arc.integer(milliseconds).unwrap(),
+        same_thread_process_arc.pid().into(),
+        message,
+    )
+    .unwrap();
+
+    f(
+        milliseconds,
+        message,
+        timer_reference,
+        &same_thread_process_arc,
+    );
 }
 
 pub fn without_timer_returns_false(native: fn(&Process, Term) -> exception::Result<Term>) {

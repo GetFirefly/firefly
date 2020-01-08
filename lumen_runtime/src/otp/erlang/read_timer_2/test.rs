@@ -11,7 +11,6 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::read_timer_2::native;
-use crate::process;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::with_process;
 use crate::test::{

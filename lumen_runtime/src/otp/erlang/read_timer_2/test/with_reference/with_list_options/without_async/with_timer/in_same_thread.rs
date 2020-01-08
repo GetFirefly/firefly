@@ -3,10 +3,12 @@ use super::*;
 use std::thread;
 use std::time::Duration;
 
+use crate::test::with_timer_in_same_thread;
+
 #[test]
 #[ignore]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
-    with_timer(|milliseconds, message, timer_reference, process| {
+    with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
         let half_milliseconds = milliseconds / 2;
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
@@ -47,7 +49,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
 #[test]
 fn with_timeout_returns_false_after_timeout_message_was_sent() {
-    with_timer(|milliseconds, message, timer_reference, process| {
+    with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
         thread::sleep(Duration::from_millis(milliseconds + 1));
         timer::timeout();
 
@@ -70,28 +72,4 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
             Ok(false.into())
         );
     })
-}
-
-fn with_timer<F>(f: F)
-where
-    F: FnOnce(u64, Term, Term, &Process) -> (),
-{
-    let same_thread_process_arc = process::test(&process::test_init());
-    let milliseconds: u64 = 100;
-
-    let message = Atom::str_to_term("message");
-    let timer_reference = erlang::start_timer_3::native(
-        same_thread_process_arc.clone(),
-        same_thread_process_arc.integer(milliseconds).unwrap(),
-        same_thread_process_arc.pid().into(),
-        message,
-    )
-    .unwrap();
-
-    f(
-        milliseconds,
-        message,
-        timer_reference,
-        &same_thread_process_arc,
-    );
 }

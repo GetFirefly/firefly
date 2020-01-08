@@ -8,13 +8,11 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::otp::erlang;
 use crate::otp::erlang::cancel_timer_2::native;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{cancel_timer_message, has_message, receive_message, strategy, timeout_message};
-use crate::time::Milliseconds;
-use crate::{process, timer};
+use crate::timer;
 
 #[test]
 fn without_reference_timer_reference_errors_badarg() {

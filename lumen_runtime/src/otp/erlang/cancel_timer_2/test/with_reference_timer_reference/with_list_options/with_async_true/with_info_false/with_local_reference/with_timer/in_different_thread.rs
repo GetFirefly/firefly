@@ -5,7 +5,7 @@ use crate::test::*;
 #[test]
 #[ignore]
 fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
-    with_timer(|milliseconds, barrier, timer_reference, process| {
+    with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
 
         let message = Atom::str_to_term("different");
@@ -39,7 +39,7 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
 
 #[test]
 fn with_timeout_returns_ok_after_timeout_message_was_sent() {
-    with_timer(|milliseconds, barrier, timer_reference, process| {
+    with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
         timeout_after_half(milliseconds, barrier);
 

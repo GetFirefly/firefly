@@ -5,8 +5,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::cancel_timer_1::native;
-use crate::test::{has_message, receive_message, timeout_message};
-use crate::time::Milliseconds;
+use crate::test::{has_message, timeout_message};
 use crate::{process, timer};
 
 #[test]

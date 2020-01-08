@@ -36,3 +36,29 @@ fn option(key: &str, value: bool, process: &Process) -> Term {
         .tuple_from_slice(&[Atom::str_to_term(key), value.into()])
         .unwrap()
 }
+
+fn without_info_without_local_reference_errors_badarg(
+    source_file: &'static str,
+    options: fn(&Process) -> Term,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_local_reference(arc_process.clone()),
+            )
+        },
+        |(arc_process, timer_reference)| {
+            prop_assert_badarg!(
+                native(&arc_process, timer_reference, options(&arc_process)),
+                format!(
+                    "timer_reference ({}) is not a local reference",
+                    timer_reference
+                )
+            );
+
+            Ok(())
+        },
+    );
+}

@@ -61,6 +61,50 @@ fn with_unknown_option_errors_badarg() {
     );
 }
 
+fn prevents_future_messages(options: fn(&Process) -> Term) {
+    with_process_arc(|monitoring_arc_process| {
+        let monitored_arc_process = process::test(&monitoring_arc_process);
+        let monitored_pid_term = monitored_arc_process.pid_term();
+
+        let monitor_reference =
+            monitor_2::native(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
+
+        let reason = Atom::str_to_term("normal");
+        let tag = Atom::str_to_term("DOWN");
+
+        assert!(!has_message(
+            &monitoring_arc_process,
+            monitoring_arc_process
+                .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
+                .unwrap()
+        ));
+
+        assert_eq!(
+            native(
+                &monitoring_arc_process,
+                monitor_reference,
+                options(&monitoring_arc_process)
+            ),
+            Ok(true.into())
+        );
+
+        exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
+            .unwrap();
+
+        assert!(Scheduler::current().run_through(&monitored_arc_process));
+
+        assert!(monitored_arc_process.is_exiting());
+        assert!(!monitoring_arc_process.is_exiting());
+
+        assert!(!has_message(
+            &monitoring_arc_process,
+            monitoring_arc_process
+                .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
+                .unwrap()
+        ));
+    });
+}
+
 fn unknown_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter("Option cannot be flush or info", |option| {

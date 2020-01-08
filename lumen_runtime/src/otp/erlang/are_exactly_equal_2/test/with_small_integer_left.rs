@@ -5,19 +5,19 @@ use proptest::strategy::Strategy;
 #[test]
 fn without_small_integer_returns_false() {
     run!(
-            |arc_process| {
-                (
-                    strategy::term::integer::small(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a small integer", |v| !v.is_smallint()),
-                )
-            },
-            |(left, right)| {
-                prop_assert_eq!(native(left, right), false.into());
+        |arc_process| {
+            (
+                strategy::term::integer::small(arc_process.clone()),
+                strategy::term(arc_process.clone())
+                    .prop_filter("Right must not be a small integer", |v| !v.is_smallint()),
+            )
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), false.into());
 
-                Ok(())
-            },
-        );        
+            Ok(())
+        },
+    );
 }
 
 #[test]

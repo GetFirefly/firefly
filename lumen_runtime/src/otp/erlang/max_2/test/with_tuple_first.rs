@@ -89,18 +89,18 @@ fn with_greater_size_tuple_returns_second() {
 #[test]
 fn with_map_list_or_bitstring_second_returns_second() {
     run!(
-            |arc_process| {
-                (
-                    strategy::term::tuple(arc_process.clone()),
-                    strategy::term::map_list_or_bitstring(arc_process.clone()),
-                )
-            },
-            |(first, second)| {
-                prop_assert_eq!(native(first, second), second.into());
+        |arc_process| {
+            (
+                strategy::term::tuple(arc_process.clone()),
+                strategy::term::map_list_or_bitstring(arc_process.clone()),
+            )
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), second.into());
 
-                Ok(())
-            },
-        );        
+            Ok(())
+        },
+    );
 }
 
 fn max<R>(second: R, which: FirstSecond)

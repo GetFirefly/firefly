@@ -89,9 +89,13 @@ pub fn badarity_reason(process: &Process, function: Term, args: Term) -> Term {
     process.tuple_from_slice(&[tag, fun_args]).unwrap()
 }
 
-pub fn timeout_after_half(milliseconds: Milliseconds, barrier: &Barrier) {
+pub fn timeout_after_half(milliseconds: Milliseconds) {
     thread::sleep(Duration::from_millis(milliseconds / 2 + 1));
     timer::timeout();
+}
+
+pub fn timeout_after_half_and_wait(milliseconds: Milliseconds, barrier: &Barrier) {
+    timeout_after_half(milliseconds);
     barrier.wait();
 }
 
@@ -170,8 +174,8 @@ where
         .expect("Different thread could not send to same thread");
 
         wait_for_message(&different_thread_barrier);
-        timeout_after_half(milliseconds, &different_thread_barrier);
-        timeout_after_half(milliseconds, &different_thread_barrier);
+        timeout_after_half_and_wait(milliseconds, &different_thread_barrier);
+        timeout_after_half_and_wait(milliseconds, &different_thread_barrier);
 
         // stops Drop of scheduler ID
         wait_for_completion(&different_thread_barrier);

@@ -5,19 +5,19 @@ use proptest::strategy::Strategy;
 #[test]
 fn without_local_pid_right_returns_false() {
     run!(
-            |arc_process| {
-                (
-                    strategy::term::pid::local(),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Right cannot be a local pid", |right| !right.is_local_pid()),
-                )
-            },
-            |(left, right)| {
-                prop_assert_eq!(native(left, right), false.into());
+        |arc_process| {
+            (
+                strategy::term::pid::local(),
+                strategy::term(arc_process.clone())
+                    .prop_filter("Right cannot be a local pid", |right| !right.is_local_pid()),
+            )
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), false.into());
 
-                Ok(())
-            },
-        );        
+            Ok(())
+        },
+    );
 }
 
 #[test]

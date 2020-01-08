@@ -1,18 +1,12 @@
 use super::*;
 
-use std::thread;
-use std::time::Duration;
-
 use crate::test::*;
 
 #[test]
 #[ignore]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        let half_milliseconds = milliseconds / 2;
-
-        thread::sleep(Duration::from_millis(half_milliseconds + 1));
-        timer::timeout();
+        timeout_after_half(milliseconds);
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -27,13 +21,12 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         assert!(milliseconds_remaining.is_integer());
         assert!(process.integer(0).unwrap() < milliseconds_remaining);
-        assert!(milliseconds_remaining <= process.integer(half_milliseconds).unwrap());
+        assert!(milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         // again before timeout
         assert_eq!(native(process, timer_reference), Ok(false.into()));
 
-        thread::sleep(Duration::from_millis(half_milliseconds + 1));
-        timer::timeout();
+        timeout_after_half(milliseconds);
 
         assert!(!has_message(process, timeout_message));
 

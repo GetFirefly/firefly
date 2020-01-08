@@ -5,19 +5,19 @@ use proptest::strategy::Strategy;
 #[test]
 fn without_bitstring_right_returns_false() {
     run!(
-            |arc_process| {
-                (
-                    strategy::term::binary::sub(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a binary", |v| !v.is_bitstring()),
-                )
-            },
-            |(left, right)| {
-                prop_assert_eq!(native(left, right), false.into());
+        |arc_process| {
+            (
+                strategy::term::binary::sub(arc_process.clone()),
+                strategy::term(arc_process.clone())
+                    .prop_filter("Right must not be a binary", |v| !v.is_bitstring()),
+            )
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), false.into());
 
-                Ok(())
-            },
-        );        
+            Ok(())
+        },
+    );
 }
 
 #[test]

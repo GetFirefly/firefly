@@ -43,18 +43,18 @@ fn with_external_pid_right_returns_true() {
 #[test]
 fn with_list_or_bitstring_returns_true() {
     run!(
-            |arc_process| {
-                (
-                    strategy::term::pid::local(),
-                    strategy::term::list_or_bitstring(arc_process),
-                )
-            },
-            |(left, right)| {
-                prop_assert_eq!(native(left, right), true.into());
+        |arc_process| {
+            (
+                strategy::term::pid::local(),
+                strategy::term::list_or_bitstring(arc_process),
+            )
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), true.into());
 
-                Ok(())
-            },
-        );        
+            Ok(())
+        },
+    );
 }
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)

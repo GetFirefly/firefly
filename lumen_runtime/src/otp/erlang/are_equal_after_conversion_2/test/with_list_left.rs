@@ -85,17 +85,17 @@ fn with_same_value_list_right_returns_true() {
 #[test]
 fn with_different_list_right_returns_false() {
     run!(
-            |arc_process| {
-                (
-                    strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
-                    strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
-                )
-                    .prop_filter("Lists must be different", |(left, right)| left != right)
-            },
-            |(left, right)| {
-                prop_assert_eq!(native(left, right), false.into());
+        |arc_process| {
+            (
+                strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+                strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+            )
+                .prop_filter("Lists must be different", |(left, right)| left != right)
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), false.into());
 
-                Ok(())
-            },
-        );        
+            Ok(())
+        },
+    );
 }

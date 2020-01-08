@@ -3,7 +3,6 @@ mod with_local_reference;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::read_timer_1::native;
-use crate::timer;
 
 #[test]
 fn without_reference_errors_badarg() {

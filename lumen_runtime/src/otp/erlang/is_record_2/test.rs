@@ -9,18 +9,18 @@ use crate::test::strategy;
 #[test]
 fn without_tuple_returns_false() {
     run!(
-            |arc_process| {
-                (
-                    strategy::term::is_not_tuple(arc_process.clone()),
-                    strategy::term::atom(),
-                )
-            },
-            |(tuple, record_tag)| {
-                prop_assert_eq!(native(tuple, record_tag), Ok(false.into()));
+        |arc_process| {
+            (
+                strategy::term::is_not_tuple(arc_process.clone()),
+                strategy::term::atom(),
+            )
+        },
+        |(tuple, record_tag)| {
+            prop_assert_eq!(native(tuple, record_tag), Ok(false.into()));
 
-                Ok(())
-            },
-        );        
+            Ok(())
+        },
+    );
 }
 
 #[test]

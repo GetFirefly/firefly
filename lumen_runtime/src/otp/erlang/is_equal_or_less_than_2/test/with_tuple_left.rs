@@ -84,18 +84,18 @@ fn with_greater_size_tuple_returns_true() {
 #[test]
 fn with_map_list_or_bitstring_returns_true() {
     run!(
-            |arc_process| {
-                (
-                    strategy::term::tuple(arc_process.clone()),
-                    strategy::term::map_list_or_bitstring(arc_process.clone()),
-                )
-            },
-            |(left, right)| {
-                prop_assert_eq!(native(left, right), true.into());
+        |arc_process| {
+            (
+                strategy::term::tuple(arc_process.clone()),
+                strategy::term::map_list_or_bitstring(arc_process.clone()),
+            )
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), true.into());
 
-                Ok(())
-            },
-        );        
+            Ok(())
+        },
+    );
 }
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)

@@ -602,6 +602,29 @@ pub fn without_bitstring_errors_badarg(
     );
 }
 
+pub fn without_float_errors_badarg(
+    source_file: &'static str,
+    native: fn(&Process, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_not_float(arc_process.clone()),
+            )
+        },
+        |(arc_process, float)| {
+            prop_assert_badarg!(
+                native(&arc_process, float),
+                format!("float ({}) is not a float", float)
+            );
+
+            Ok(())
+        },
+    );
+}
+
 pub fn without_function_errors_badarg(
     source_file: &'static str,
     native: fn(&Process, Term) -> exception::Result<Term>,

@@ -15,26 +15,7 @@ use crate::test::{external_arc_node, strategy};
 
 #[test]
 fn without_integer_dividend_errors_badarith() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-                strategy::term::is_integer(arc_process.clone()),
-            )
-        },
-        |(arc_process, dividend, divisor)| {
-            prop_assert_badarith!(
-                native(&arc_process, dividend, divisor),
-                format!(
-                    "dividend ({}) and divisor ({}) are not both numbers",
-                    dividend, divisor
-                )
-            );
-
-            Ok(())
-        },
-    );
+    crate::test::without_integer_dividend_errors_badarith(file!(), native);
 }
 
 #[test]

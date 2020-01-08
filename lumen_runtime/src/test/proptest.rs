@@ -289,6 +289,26 @@ pub fn with_binary_with_atom_without_name_encoding_errors_badarg(
     );
 }
 
+pub fn with_integer_returns_integer(
+    source_file: &'static str,
+    native: fn(&Process, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                super::strategy::term::is_integer(arc_process.clone()),
+            )
+        },
+        |(arc_process, number)| {
+            prop_assert_eq!(native(&arc_process, number), Ok(number));
+
+            Ok(())
+        },
+    );
+}
+
 pub fn with_integer_left_without_integer_right_errors_badarith(
     source_file: &'static str,
     native: fn(&Process, Term, Term) -> exception::Result<Term>,

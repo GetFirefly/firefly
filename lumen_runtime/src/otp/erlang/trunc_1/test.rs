@@ -19,19 +19,7 @@ fn without_number_errors_badarg() {
 
 #[test]
 fn with_integer_returns_integer() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_integer(arc_process.clone()),
-            )
-        },
-        |(arc_process, number)| {
-            prop_assert_eq!(native(&arc_process, number), Ok(number));
-
-            Ok(())
-        },
-    );
+    crate::test::with_integer_returns_integer(file!(), native);
 }
 
 #[test]

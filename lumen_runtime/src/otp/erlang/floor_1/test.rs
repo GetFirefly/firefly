@@ -4,7 +4,6 @@ use num_bigint::BigInt;
 
 use num_traits::Num;
 
-use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
@@ -21,19 +20,7 @@ fn without_number_errors_badarg() {
 
 #[test]
 fn with_integer_returns_integer() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_integer(arc_process.clone()),
-            )
-        },
-        |(arc_process, number)| {
-            prop_assert_eq!(native(&arc_process, number), Ok(number));
-
-            Ok(())
-        },
-    );
+    crate::test::with_integer_returns_integer(file!(), native);
 }
 
 #[test]

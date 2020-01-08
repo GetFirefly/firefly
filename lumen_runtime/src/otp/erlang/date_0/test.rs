@@ -7,6 +7,7 @@ fn returns_date_as_a_three_tuple() {
     with_process(|process| {
         let date_result = date_0::native(process).unwrap();
         let tuple_size_result = tuple_size_1::native(process, date_result).unwrap();
-        assert!(tuple_size_result == process.integer(3).unwrap());
+
+        assert_eq!(tuple_size_result, process.integer(3).unwrap());
     });
 }

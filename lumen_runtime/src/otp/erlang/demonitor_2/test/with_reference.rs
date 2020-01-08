@@ -11,7 +11,7 @@ use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::Atom;
 
-use crate::otp::erlang::exit_1;
+use crate::otp::erlang::{exit_1, monitor_2};
 use crate::process::{self, SchedulerDependentAlloc};
 use crate::scheduler::Scheduler;
 use crate::test::{has_message, monitor_count, monitored_count};
@@ -77,6 +77,43 @@ fn unknown_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 fn r#type() -> Term {
     Atom::str_to_term("process")
+}
+
+fn with_monitor_returns_true(options: fn(&Process) -> Term) {
+    with_process_arc(|monitoring_arc_process| {
+        let monitored_arc_process = process::test(&monitoring_arc_process);
+
+        let monitor_reference = monitor_2::native(
+            &monitoring_arc_process,
+            r#type(),
+            monitored_arc_process.pid_term(),
+        )
+        .unwrap();
+
+        let monitored_monitor_count_before = monitor_count(&monitored_arc_process);
+        let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
+
+        assert_eq!(
+            native(
+                &monitoring_arc_process,
+                monitor_reference,
+                options(&monitoring_arc_process)
+            ),
+            Ok(true.into())
+        );
+
+        let monitored_monitor_count_after = monitor_count(&monitored_arc_process);
+        let monitoring_monitored_count_after = monitored_count(&monitoring_arc_process);
+
+        assert_eq!(
+            monitored_monitor_count_after,
+            monitored_monitor_count_before - 1
+        );
+        assert_eq!(
+            monitoring_monitored_count_after,
+            monitoring_monitored_count_before - 1
+        );
+    });
 }
 
 fn with_info_option_without_monitor_returns_false(options: fn(&Process) -> Term) {

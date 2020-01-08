@@ -718,6 +718,30 @@ pub fn without_integer_integer_with_base_errors_badarg(
     );
 }
 
+pub fn with_integer_integer_without_base_base_errors_badarg(
+    source_file: &'static str,
+    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+) {
+    run(
+        source_file,
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
+                strategy::term::is_not_base(arc_process.clone()),
+            )
+        },
+        |(arc_process, integer, base)| {
+            prop_assert_badarg!(
+                native(&arc_process, integer, base),
+                "base must be an integer in 2-36"
+            );
+
+            Ok(())
+        },
+    );
+}
+
 pub fn without_integer_dividend_errors_badarith(
     source_file: &'static str,
     native: fn(&Process, Term, Term) -> exception::Result<Term>,

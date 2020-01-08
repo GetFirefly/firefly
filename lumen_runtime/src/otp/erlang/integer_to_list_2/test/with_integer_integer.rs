@@ -6,23 +6,7 @@ use proptest::strategy::{Just, Strategy};
 
 #[test]
 fn without_base_base_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_integer(arc_process.clone()),
-                strategy::term::is_not_base(arc_process.clone()),
-            )
-        },
-        |(arc_process, integer, base)| {
-            prop_assert_badarg!(
-                native(&arc_process, integer, base),
-                "base must be an integer in 2-36"
-            );
-
-            Ok(())
-        },
-    );
+    crate::test::with_integer_integer_without_base_base_errors_badarg(file!(), native);
 }
 
 #[test]

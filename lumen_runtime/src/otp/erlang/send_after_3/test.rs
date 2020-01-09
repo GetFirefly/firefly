@@ -8,7 +8,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::send_after_3::native;
-use crate::test::{has_message, registered_name, strategy};
+use crate::test::{has_message, registered_name, strategy, timeout_after};
 use crate::time::Milliseconds;
 use crate::{process, timer};
 

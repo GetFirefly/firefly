@@ -1,8 +1,6 @@
 mod with_proper_list_options;
 
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
@@ -14,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::send_after_4::native;
-use crate::test::{has_message, registered_name, strategy};
+use crate::test::{has_message, registered_name, strategy, timeout_after};
 use crate::time::Milliseconds;
 use crate::{process, timer};
 

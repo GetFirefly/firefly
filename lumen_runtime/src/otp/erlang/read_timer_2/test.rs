@@ -14,7 +14,8 @@ use crate::otp::erlang::read_timer_2::native;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::with_process;
 use crate::test::{
-    external_arc_node, has_message, receive_message, strategy, timeout_message, timer_message,
+    external_arc_node, has_message, receive_message, strategy, timeout_after, timeout_message,
+    timer_message,
 };
 use crate::time::Milliseconds;
 use crate::timer;

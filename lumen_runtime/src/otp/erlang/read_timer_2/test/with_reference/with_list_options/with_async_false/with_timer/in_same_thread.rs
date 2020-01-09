@@ -1,8 +1,5 @@
 use super::*;
 
-use std::thread;
-use std::time::Duration;
-
 use crate::test::{timeout_after_half, with_timer_in_same_thread};
 
 #[test]
@@ -49,8 +46,7 @@ fn without_timeout_returns_milliseconds() {
 #[test]
 fn with_timeout_returns_false_after_timeout_message_was_sent() {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        thread::sleep(Duration::from_millis(milliseconds + 1));
-        timer::timeout();
+        timeout_after(milliseconds);
 
         let timeout_message = timeout_message(timer_reference, message, process);
 

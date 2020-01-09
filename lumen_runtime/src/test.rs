@@ -89,9 +89,13 @@ pub fn badarity_reason(process: &Process, function: Term, args: Term) -> Term {
     process.tuple_from_slice(&[tag, fun_args]).unwrap()
 }
 
-pub fn timeout_after_half(milliseconds: Milliseconds) {
-    thread::sleep(Duration::from_millis(milliseconds / 2 + 1));
+pub fn timeout_after(milliseconds: Milliseconds) {
+    thread::sleep(Duration::from_millis(milliseconds + 1));
     timer::timeout();
+}
+
+pub fn timeout_after_half(milliseconds: Milliseconds) {
+    timeout_after(milliseconds / 2);
 }
 
 pub fn timeout_after_half_and_wait(milliseconds: Milliseconds, barrier: &Barrier) {
@@ -121,8 +125,7 @@ pub fn with_timeout_returns_false_after_timeout_message_was_sent(
     native: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        thread::sleep(Duration::from_millis(milliseconds + 1));
-        timer::timeout();
+        timeout_after(milliseconds);
 
         let timeout_message = timeout_message(timer_reference, message, process);
 

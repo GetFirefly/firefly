@@ -44,9 +44,7 @@ fn with_different_process_sends_message_when_timer_expires() {
             prop_assert!(timer_reference.is_boxed_local_reference());
             prop_assert!(!has_message(&destination_arc_process, message));
 
-            thread::sleep(Duration::from_millis(milliseconds + 1));
-
-            timer::timeout();
+            timeout_after(milliseconds);
 
             prop_assert!(has_message(&destination_arc_process, message));
 
@@ -98,9 +96,7 @@ fn with_same_process_sends_message_when_timer_expires() {
             prop_assert!(timer_reference.is_boxed_local_reference());
             prop_assert!(!has_message(&arc_process, message));
 
-            thread::sleep(Duration::from_millis(milliseconds + 1));
-
-            timer::timeout();
+            timeout_after(milliseconds);
 
             prop_assert!(has_message(&arc_process, message));
 

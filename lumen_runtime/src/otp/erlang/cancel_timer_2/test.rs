@@ -12,9 +12,9 @@ use crate::otp::erlang::cancel_timer_2::native;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
-    cancel_timer_message, has_message, receive_message, run, strategy, timeout_message,
+    cancel_timer_message, has_message, receive_message, run, strategy, timeout_after,
+    timeout_message,
 };
-use crate::timer;
 
 #[test]
 fn without_reference_timer_reference_errors_badarg() {

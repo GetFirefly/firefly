@@ -219,8 +219,9 @@ pub fn prop_assert_exits<
             Ok(())
         }
         ref status => Err(proptest::test_runner::TestCaseError::fail(format!(
-            "Child process did not exit.  Status is {:?}",
-            status
+            "Child process did not exit.  Status is {:?}. Scheduler is {:?}",
+            status,
+            Scheduler::current()
         ))),
     }
 }

@@ -40,9 +40,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
 
             let scheduler = Scheduler::current();
 
-            prop_assert!(scheduler.run_once());
-            prop_assert!(scheduler.run_once());
-            prop_assert!(scheduler.run_once());
+            prop_assert!(scheduler.run_through(&child_arc_process));
 
             let args = Term::NIL;
             let source_substring = format!(

@@ -121,9 +121,16 @@ pub fn with_big_int(f: fn(&Process, Term) -> ()) {
     })
 }
 
-pub fn with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(
-    native: fn(&Process, Term) -> exception::Result<Term>,
-) {
+pub fn with_options_with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent<
+    N,
+    O,
+>(
+    native: N,
+    options: O,
+) where
+    N: Fn(&Process, Term, Term) -> exception::Result<Term>,
+    O: Fn(&Process) -> Term,
+{
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
         timeout_after(milliseconds);
 
@@ -131,11 +138,25 @@ pub fn with_timer_in_same_thread_with_timeout_returns_false_after_timeout_messag
 
         assert_has_message!(process, timeout_message);
 
-        assert_eq!(native(process, timer_reference), Ok(false.into()));
-
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
+        );
         // again
-        assert_eq!(native(process, timer_reference), Ok(false.into()));
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
+        );
     })
+}
+
+pub fn with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(
+    native: fn(&Process, Term) -> exception::Result<Term>,
+) {
+    with_options_with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(
+        |process, timer_reference, _| native(process, timer_reference),
+        |_| Term::NIL,
+    )
 }
 
 pub(crate) fn with_timer_in_different_thread_with_timeout_returns_false_after_timeout_message_was_sent(

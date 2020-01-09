@@ -103,7 +103,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
 
         let tag = Atom::str_to_term("DOWN");
 
-        assert!(has_message(
+        assert_has_message!(
             &monitoring_arc_process,
             monitoring_arc_process
                 .tuple_from_slice(&[
@@ -114,8 +114,8 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
                     reason
                 ])
                 .unwrap()
-        ));
-        assert!(has_message(
+        );
+        assert_has_message!(
             &monitoring_arc_process,
             monitoring_arc_process
                 .tuple_from_slice(&[
@@ -126,6 +126,6 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
                     reason
                 ])
                 .unwrap()
-        ));
+        );
     });
 }

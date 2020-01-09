@@ -25,12 +25,12 @@ fn flushes_existing_message_and_returns_true() {
 
         let tag = Atom::str_to_term("DOWN");
 
-        assert!(has_message(
+        assert_has_message!(
             &monitoring_arc_process,
             monitoring_arc_process
                 .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
                 .unwrap()
-        ));
+        );
 
         assert_eq!(
             native(

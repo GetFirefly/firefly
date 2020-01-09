@@ -126,11 +126,7 @@ pub fn with_timeout_returns_false_after_timeout_message_was_sent(
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
-        assert!(
-            has_message(process, timeout_message),
-            "Mailbox contains: {:?}",
-            process.mailbox.lock().borrow()
-        );
+        assert_has_message!(process, timeout_message);
 
         assert_eq!(native(process, timer_reference), Ok(false.into()));
 

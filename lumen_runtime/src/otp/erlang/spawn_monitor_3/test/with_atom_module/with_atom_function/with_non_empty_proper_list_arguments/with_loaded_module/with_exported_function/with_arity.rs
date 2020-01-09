@@ -71,7 +71,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 
     let tag = atom!("DOWN");
 
-    assert!(has_message(
+    assert_has_message!(
         &parent_arc_process,
         parent_arc_process
             .tuple_from_slice(&[
@@ -82,7 +82,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
                 reason
             ])
             .unwrap()
-    ));
+    );
 }
 
 #[test]
@@ -155,7 +155,7 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
     let tag = atom!("DOWN");
     let reason = atom!("badarith");
 
-    assert!(has_message(
+    assert_has_message!(
         &parent_arc_process,
         parent_arc_process
             .tuple_from_slice(&[
@@ -166,5 +166,5 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
                 reason
             ])
             .unwrap()
-    ));
+    );
 }

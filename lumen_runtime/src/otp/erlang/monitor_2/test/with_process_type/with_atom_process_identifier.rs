@@ -18,7 +18,7 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
         let tag = Atom::str_to_term("DOWN");
         let reason = Atom::str_to_term("noproc");
 
-        assert!(has_message(
+        assert_has_message!(
             &monitoring_arc_process,
             monitoring_arc_process
                 .tuple_from_slice(&[
@@ -31,6 +31,6 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
                     reason
                 ])
                 .unwrap()
-        ));
+        );
     });
 }

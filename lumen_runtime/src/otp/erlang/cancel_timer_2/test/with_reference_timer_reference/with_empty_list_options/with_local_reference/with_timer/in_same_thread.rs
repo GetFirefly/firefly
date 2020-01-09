@@ -26,14 +26,20 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         // again before timeout
-        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
+        );
 
         timeout_after_half(milliseconds);
 
         assert!(!has_message(process, timeout_message));
 
         // again after timeout
-        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
+        );
     })
 }
 
@@ -45,15 +51,17 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
-        assert!(
-            has_message(process, timeout_message),
-            "Mailbox contains: {:?}",
-            process.mailbox.lock().borrow()
+        assert_has_message!(process, timeout_message);
+
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
         );
 
-        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
-
         // again
-        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
+        );
     })
 }

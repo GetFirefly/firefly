@@ -71,7 +71,7 @@ fn without_arity_when_run_exits_undef_and_sends_exit_message_to_parent() {
     let tag = atom!("DOWN");
     let reason = atom!("undef");
 
-    assert!(has_message(
+    assert_has_message!(
         &parent_arc_process,
         parent_arc_process
             .tuple_from_slice(&[
@@ -82,5 +82,5 @@ fn without_arity_when_run_exits_undef_and_sends_exit_message_to_parent() {
                 reason
             ])
             .unwrap()
-    ));
+    );
 }

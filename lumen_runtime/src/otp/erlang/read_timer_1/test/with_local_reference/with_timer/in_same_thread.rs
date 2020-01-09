@@ -28,7 +28,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         timeout_after_half(milliseconds);
 
-        assert!(has_message(process, timeout_message));
+        assert_has_message!(process, timeout_message);
 
         // again after timeout
         assert_eq!(native(process, timer_reference), Ok(false.into()));

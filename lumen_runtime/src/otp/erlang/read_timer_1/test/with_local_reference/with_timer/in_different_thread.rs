@@ -29,7 +29,7 @@ fn without_timeout_returns_milliseconds_remaining() {
 
         timeout_after_half_and_wait(milliseconds, barrier);
 
-        assert!(has_message(process, timeout_message));
+        assert_has_message!(process, timeout_message);
 
         // again after timeout
         assert_eq!(native(process, timer_reference), Ok(false.into()));
@@ -45,12 +45,7 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
         let message = Atom::str_to_term("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
-        assert!(
-            has_message(process, timeout_message),
-            "Mailbox does not contain {:?} and instead contains {:?}",
-            timeout_message,
-            process.mailbox.lock().borrow()
-        );
+        assert_has_message!(process, timeout_message);
 
         assert_eq!(native(process, timer_reference), Ok(false.into()));
 

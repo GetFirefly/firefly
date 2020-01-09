@@ -59,28 +59,6 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 }
 
 #[test]
-fn with_timeout_returns_false_after_timeout_message_was_sent() {
-    with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {
-        timeout_after_half_and_wait(milliseconds, barrier);
-        timeout_after_half_and_wait(milliseconds, barrier);
-
-        let timeout_message = different_timeout_message(timer_reference, process);
-
-        assert_eq!(receive_message(process), Some(timeout_message));
-
-        let cancel_timer_message = cancel_timer_message(timer_reference, false.into(), process);
-
-        assert_eq!(
-            native(process, timer_reference, options(process)),
-            Ok(Atom::str_to_term("ok"))
-        );
-        assert_eq!(receive_message(process), Some(cancel_timer_message));
-
-        // again
-        assert_eq!(
-            native(process, timer_reference, options(process)),
-            Ok(Atom::str_to_term("ok"))
-        );
-        assert_eq!(receive_message(process), Some(cancel_timer_message));
-    });
+fn with_timeout_returns_ok_after_timeout_message_was_sent() {
+    super::with_timeout_returns_ok_after_timeout_message_was_sent(options);
 }

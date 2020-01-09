@@ -32,6 +32,10 @@ pub fn term_is_not_integer(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "an integer")
 }
 
+pub fn term_is_not_number(name: &str, value: Term) -> String {
+    term_is_not_type(name, value, "a number (integer or float)")
+}
+
 pub fn term_is_not_map(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "a map")
 }

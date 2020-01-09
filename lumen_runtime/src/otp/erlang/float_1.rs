@@ -22,7 +22,7 @@ pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
     } else {
         let f: f64 = number
             .try_into()
-            .with_context(|| format!("number ({}) must be an integer or float", number))?;
+            .with_context(|| term_is_not_number!(number))?;
 
         process.float(f).map_err(From::from)
     }

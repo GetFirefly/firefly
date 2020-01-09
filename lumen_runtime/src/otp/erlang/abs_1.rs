@@ -61,7 +61,7 @@ pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
             Ok(abs_number)
         }
         _ => Err(TypeError)
-            .context(format!("number ({}) must be an integer or float", number))
+            .context(term_is_not_number!(number))
             .map_err(From::from),
     }
 }

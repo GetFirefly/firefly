@@ -860,10 +860,7 @@ pub fn without_number_errors_badarg(
             )
         },
         |(arc_process, number)| {
-            prop_assert_badarg!(
-                native(&arc_process, number),
-                format!("number ({}) is not an integer or float", number)
-            );
+            prop_assert_is_not_number!(native(&arc_process, number), number);
 
             Ok(())
         },

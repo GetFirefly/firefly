@@ -213,6 +213,16 @@ macro_rules! prop_assert_is_not_non_negative_integer {
 }
 
 #[cfg(test)]
+macro_rules! prop_assert_is_not_number {
+    ($actual:expr, $name:ident) => {
+        prop_assert_is_not_number!($actual, stringify!($name), $name)
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_is_not_type!($actual, $name, $value, "a number (integer or float)")
+    };
+}
+
+#[cfg(test)]
 macro_rules! prop_assert_is_not_time_unit {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_time_unit!($actual, stringify!($name), $name)

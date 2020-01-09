@@ -25,7 +25,13 @@ fn with_different_process_sends_message_when_timer_expires() {
 
             let time = arc_process.integer(milliseconds).unwrap();
 
-            let result = native(arc_process.clone(), time, destination, message, options(&arc_process));
+            let result = native(
+                arc_process.clone(),
+                time,
+                destination,
+                message,
+                options(&arc_process),
+            );
 
             prop_assert!(
                 result.is_ok(),
@@ -77,7 +83,13 @@ fn with_same_process_sends_message_when_timer_expires() {
 
                 let time = arc_process.integer(milliseconds).unwrap();
 
-                let result = native(arc_process.clone(), time, destination, message, options(&arc_process));
+                let result = native(
+                    arc_process.clone(),
+                    time,
+                    destination,
+                    message,
+                    options(&arc_process),
+                );
 
                 prop_assert!(
                     result.is_ok(),

@@ -16,7 +16,13 @@ fn without_exported_function_when_run_exits_undef_and_parent_does_not_exit() {
 
     let arguments = Term::NIL;
 
-    let result = native(&parent_arc_process, module, function, arguments, options(&parent_arc_process));
+    let result = native(
+        &parent_arc_process,
+        module,
+        function,
+        arguments,
+        options(&parent_arc_process),
+    );
 
     assert!(result.is_ok());
 

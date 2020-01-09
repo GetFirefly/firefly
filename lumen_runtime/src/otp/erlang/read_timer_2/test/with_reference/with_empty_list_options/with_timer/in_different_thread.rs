@@ -12,8 +12,7 @@ fn without_timeout_returns_milliseconds_remaining() {
     with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
 
-        let message = Atom::str_to_term("different");
-        let timeout_message = timeout_message(timer_reference, message, process);
+        let timeout_message = different_timeout_message(timer_reference, process);
 
         assert!(!has_message(process, timeout_message));
 
@@ -49,8 +48,7 @@ fn with_timeout_returns_false() {
         timeout_after_half(milliseconds, barrier);
         timeout_after_half(milliseconds, barrier);
 
-        let message = Atom::str_to_term("different");
-        let timeout_message = timeout_message(timer_reference, message, process);
+        let timeout_message = different_timeout_message(timer_reference, process);
 
         assert_has_message!(process, timeout_message);
 

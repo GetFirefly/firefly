@@ -15,7 +15,13 @@ fn without_atom_module_errors_badarg() {
         },
         |(arc_process, module, function, arguments)| {
             prop_assert_is_not_atom!(
-                native(&arc_process, module, function, arguments, options(&arc_process)),
+                native(
+                    &arc_process,
+                    module,
+                    function,
+                    arguments,
+                    options(&arc_process)
+                ),
                 module
             );
 
@@ -25,5 +31,5 @@ fn without_atom_module_errors_badarg() {
 }
 
 pub fn options(_: &Process) -> Term {
-   Term::NIL
+    Term::NIL
 }

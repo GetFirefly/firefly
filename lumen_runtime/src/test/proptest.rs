@@ -274,6 +274,10 @@ pub fn timeout_message(timer_reference: Term, message: Term, process: &Process) 
     timer_message("timeout", timer_reference, message, process)
 }
 
+pub fn different_timeout_message(timer_reference: Term, process: &Process) -> Term {
+    timeout_message(timer_reference, atom!("different"), process)
+}
+
 pub fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
     process
         .tuple_from_slice(&[Atom::str_to_term(tag), timer_reference, message])

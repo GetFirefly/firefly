@@ -8,8 +8,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
     with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half_and_wait(milliseconds, barrier);
 
-        let message = Atom::str_to_term("different");
-        let timeout_message = timeout_message(timer_reference, message, process);
+        let timeout_message = different_timeout_message(timer_reference, process);
 
         assert!(!has_message(process, timeout_message));
 
@@ -66,8 +65,7 @@ fn with_timeout_returns_ok_after_timeout_message_was_sent() {
         timeout_after_half_and_wait(milliseconds, barrier);
         timeout_after_half_and_wait(milliseconds, barrier);
 
-        let message = Atom::str_to_term("different");
-        let timeout_message = timeout_message(timer_reference, message, process);
+        let timeout_message = different_timeout_message(timer_reference, process);
 
         assert_eq!(receive_message(process), Some(timeout_message));
 

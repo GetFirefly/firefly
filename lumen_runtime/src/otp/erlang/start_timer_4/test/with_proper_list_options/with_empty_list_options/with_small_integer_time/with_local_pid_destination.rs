@@ -16,7 +16,13 @@ fn with_different_process_sends_message_when_timer_expires() {
             let destination_arc_process = process::test(&arc_process);
             let destination = destination_arc_process.pid_term();
 
-            let result = native(arc_process.clone(), time, destination, message, options(&arc_process));
+            let result = native(
+                arc_process.clone(),
+                time,
+                destination,
+                message,
+                options(&arc_process),
+            );
 
             prop_assert!(
                 result.is_ok(),
@@ -58,7 +64,13 @@ fn with_same_process_sends_message_when_timer_expires() {
 
             let destination = arc_process.pid_term();
 
-            let result = native(arc_process.clone(), time, destination, message, options(&arc_process));
+            let result = native(
+                arc_process.clone(),
+                time,
+                destination,
+                message,
+                options(&arc_process),
+            );
 
             prop_assert!(
                 result.is_ok(),
@@ -100,7 +112,13 @@ fn without_process_sends_nothing_when_timer_expires() {
 
             let time = arc_process.integer(milliseconds).unwrap();
 
-            let result = native(arc_process.clone(), time, destination, message, options(&arc_process));
+            let result = native(
+                arc_process.clone(),
+                time,
+                destination,
+                message,
+                options(&arc_process),
+            );
 
             prop_assert!(
                 result.is_ok(),

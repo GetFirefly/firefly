@@ -23,7 +23,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
                 })
         },
         |(arc_process, arity, function)| {
-            let result = native(&arc_process, function, OPTIONS);
+            let result = native(&arc_process, function, options(&arc_process));
 
             prop_assert!(result.is_ok());
 
@@ -54,4 +54,6 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
     );
 }
 
-const OPTIONS: Term = Term::NIL;
+pub fn options(_: &Process) -> Term {
+    Term::NIL
+}

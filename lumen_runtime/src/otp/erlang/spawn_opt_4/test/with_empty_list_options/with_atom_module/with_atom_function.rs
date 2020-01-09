@@ -16,7 +16,7 @@ fn without_proper_list_arguments_errors_badarg() {
         },
         |(arc_process, module, function, arguments)| {
             prop_assert_badarg!(
-                native(&arc_process, module, function, arguments, OPTIONS),
+                native(&arc_process, module, function, arguments, options(&arc_process)),
                 format!("arguments ({}) must be a proper list", arguments)
             );
 

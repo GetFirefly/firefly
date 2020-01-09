@@ -32,7 +32,7 @@ fn without_environment_runs_function_in_child_process() {
                 })
         },
         |(arc_process, function)| {
-            let result = native(&arc_process, function, OPTIONS);
+            let result = native(&arc_process, function, options(&arc_process));
 
             prop_assert!(result.is_ok());
 
@@ -110,7 +110,7 @@ fn with_environment_runs_function_in_child_process() {
                 })
         },
         |(arc_process, function)| {
-            let result = native(&arc_process, function, OPTIONS);
+            let result = native(&arc_process, function, options(&arc_process));
 
             prop_assert!(result.is_ok());
 

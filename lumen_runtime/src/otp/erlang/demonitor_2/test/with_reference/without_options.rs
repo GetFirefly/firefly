@@ -11,10 +11,16 @@ fn without_monitor_returns_true() {
         let reference = monitoring_arc_process.next_reference().unwrap();
 
         assert_eq!(
-            native(&monitoring_arc_process, reference, OPTIONS),
+            native(
+                &monitoring_arc_process,
+                reference,
+                options(&monitoring_arc_process)
+            ),
             Ok(true.into())
         )
     });
 }
 
-const OPTIONS: Term = Term::NIL;
+pub fn options(_: &Process) -> Term {
+    Term::NIL
+}

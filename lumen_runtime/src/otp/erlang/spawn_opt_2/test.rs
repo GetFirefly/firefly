@@ -9,7 +9,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::process::Status;
+use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::spawn_opt_2::native;

@@ -2,4 +2,6 @@ use super::*;
 
 mod with_small_integer_time;
 
-const OPTIONS: Term = Term::NIL;
+pub fn options(_: &Process) -> Term {
+   Term::NIL
+}

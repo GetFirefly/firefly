@@ -16,7 +16,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(!has_message(process, timeout_message));
 
         let first_milliseconds_remaining =
-            native(process, timer_reference, OPTIONS).expect("Timer could not be read");
+            native(process, timer_reference, options(process)).expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
@@ -24,7 +24,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         // again before timeout
         let second_milliseconds_remaining =
-            native(process, timer_reference, OPTIONS).expect("Timer could not be read");
+            native(process, timer_reference, options(process)).expect("Timer could not be read");
 
         assert!(second_milliseconds_remaining.is_integer());
         assert!(second_milliseconds_remaining <= first_milliseconds_remaining);
@@ -34,7 +34,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(has_message(process, timeout_message));
 
         // again after timeout
-        assert_eq!(native(process, timer_reference, OPTIONS), Ok(false.into()));
+        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
     })
 }
 
@@ -52,9 +52,9 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
             process.mailbox.lock().borrow()
         );
 
-        assert_eq!(native(process, timer_reference, OPTIONS), Ok(false.into()));
+        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
 
         // again
-        assert_eq!(native(process, timer_reference, OPTIONS), Ok(false.into()));
+        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
     })
 }

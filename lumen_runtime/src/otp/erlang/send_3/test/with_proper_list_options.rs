@@ -3,7 +3,6 @@ use super::*;
 use proptest::prop_oneof;
 use proptest::strategy::Strategy;
 
-mod empty;
 mod non_empty;
 
 mod with_atom_destination;
@@ -37,7 +36,7 @@ fn valid_options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let nosuspend = Atom::str_to_term("nosuspend");
 
     prop_oneof![
-        Just(empty::OPTIONS),
+        Just(Term::NIL),
         Just(arc_process.list_from_slice(&[noconnect]).unwrap()),
         Just(arc_process.list_from_slice(&[nosuspend]).unwrap()),
         Just(

@@ -21,7 +21,13 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
             let time = arc_process.integer(milliseconds).unwrap();
 
             prop_assert_badarg!(
-                native(arc_process.clone(), time, destination, message, OPTIONS,),
+                native(
+                    arc_process.clone(),
+                    time,
+                    destination,
+                    message,
+                    options(&arc_process)
+                ),
                 format!(
                     "destination ({}) is neither a registered name (atom) nor a local pid",
                     destination

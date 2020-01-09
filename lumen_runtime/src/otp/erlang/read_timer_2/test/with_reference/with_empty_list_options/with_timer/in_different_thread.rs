@@ -59,10 +59,10 @@ fn with_timeout_returns_false() {
             process.mailbox.lock().borrow()
         );
 
-        assert_eq!(native(process, timer_reference, OPTIONS), Ok(false.into()));
+        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
 
         // again
-        assert_eq!(native(process, timer_reference, OPTIONS), Ok(false.into()));
+        assert_eq!(native(process, timer_reference, options(process)), Ok(false.into()));
     });
 }
 

@@ -16,7 +16,11 @@ fn returns_true() {
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference, OPTIONS),
+            native(
+                &monitoring_arc_process,
+                monitor_reference,
+                options(&monitoring_arc_process)
+            ),
             Ok(true.into())
         );
 
@@ -62,7 +66,11 @@ fn does_not_flush_existing_message() {
         ));
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference, OPTIONS),
+            native(
+                &monitoring_arc_process,
+                monitor_reference,
+                options(&monitoring_arc_process)
+            ),
             Ok(true.into())
         );
 
@@ -95,7 +103,11 @@ fn prevents_future_messages() {
         ));
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference, OPTIONS),
+            native(
+                &monitoring_arc_process,
+                monitor_reference,
+                options(&monitoring_arc_process)
+            ),
             Ok(true.into())
         );
 

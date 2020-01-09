@@ -150,6 +150,17 @@ fn with_timer_in_same_thread_with_timeout_returns_ok_after_timeout_message_was_s
     })
 }
 
+fn with_info_false_without_timer_returns_ok(options: fn(&Process) -> Term) {
+    with_process(|process| {
+        let timer_reference = process.next_reference().unwrap();
+
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(Atom::str_to_term("ok"))
+        );
+    });
+}
+
 fn without_info_without_local_reference_errors_badarg(
     source_file: &'static str,
     options: fn(&Process) -> Term,

@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::test::{timeout_after_half, with_timer_in_same_thread};
-
 #[test]
 #[ignore]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {

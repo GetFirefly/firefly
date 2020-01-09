@@ -121,7 +121,7 @@ pub fn with_big_int(f: fn(&Process, Term) -> ()) {
     })
 }
 
-pub fn with_timeout_returns_false_after_timeout_message_was_sent(
+pub fn with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(
     native: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
@@ -136,6 +136,31 @@ pub fn with_timeout_returns_false_after_timeout_message_was_sent(
         // again
         assert_eq!(native(process, timer_reference), Ok(false.into()));
     })
+}
+
+pub(crate) fn with_timer_in_different_thread_with_timeout_returns_false_after_timeout_message_was_sent(
+    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    options: fn(&Process) -> Term,
+) {
+    with_timer_in_different_thread(|milliseconds, barrier, timer_reference, process| {
+        timeout_after_half_and_wait(milliseconds, barrier);
+        timeout_after_half_and_wait(milliseconds, barrier);
+
+        let timeout_message = different_timeout_message(timer_reference, process);
+
+        assert_has_message!(process, timeout_message);
+
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
+        );
+
+        // again
+        assert_eq!(
+            native(process, timer_reference, options(process)),
+            Ok(false.into())
+        );
+    });
 }
 
 pub fn with_timer_in_different_thread<F>(f: F)

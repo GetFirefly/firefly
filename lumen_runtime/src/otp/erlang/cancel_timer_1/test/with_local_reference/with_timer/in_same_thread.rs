@@ -36,5 +36,5 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
 #[test]
 fn with_timeout_returns_false_after_timeout_message_was_sent() {
-    crate::test::with_timeout_returns_false_after_timeout_message_was_sent(native);
+    crate::test::with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(native);
 }

@@ -10,20 +10,18 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::context::*;
-
 /// `orelse/2` infix operator.
 ///
 /// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
 /// both operands, use `or_2`.
 #[native_implemented_function(orelse/2)]
-pub fn native(boolean: Term, term: Term) -> exception::Result<Term> {
-    let boolean_bool: bool = term_try_into_bool("boolean", boolean)?;
+pub fn native(left_boolean: Term, right_term: Term) -> exception::Result<Term> {
+    let left_bool: bool = term_try_into_bool!(left_boolean)?;
 
-    if boolean_bool {
+    if left_bool {
         // always `true.into()`, but this is faster
-        Ok(boolean)
+        Ok(left_boolean)
     } else {
-        Ok(term)
+        Ok(right_term)
     }
 }

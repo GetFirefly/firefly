@@ -36,7 +36,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 }
 
 #[test]
-fn with_timeout_returns_false_after_timeout_message_was_sent() {
+fn with_timeout_returns_ok_after_timeout_message_was_sent() {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
         timeout_after(milliseconds);
 

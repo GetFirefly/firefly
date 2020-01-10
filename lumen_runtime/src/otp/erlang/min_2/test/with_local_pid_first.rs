@@ -2,21 +2,19 @@ use super::*;
 
 #[test]
 fn with_number_atom_reference_function_or_port_second_returns_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::pid::local(),
-                    strategy::term::number_atom_reference_function_or_port(arc_process),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), second);
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::pid::local(),
+                strategy::term::number_atom_reference_function_or_port(arc_process),
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), second);
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -49,21 +47,19 @@ fn with_external_pid_second_returns_first() {
 
 #[test]
 fn with_list_or_bitstring_second_returns_first() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::pid::local(),
-                    strategy::term::tuple_map_list_or_bitstring(arc_process),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), first);
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::pid::local(),
+                strategy::term::tuple_map_list_or_bitstring(arc_process),
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), first);
+
+            Ok(())
+        },
+    );
 }
 
 fn min<R>(second: R, which: FirstSecond)

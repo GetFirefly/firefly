@@ -120,7 +120,7 @@ macro_rules! number_to_integer {
                     f64_to_integer(process, ceiling)
                 }
                 NumberToInteger::NotANumber => Err(TypeError)
-                    .context(format!("number ({}) is not an integer or float", number))
+                    .context(term_is_not_number!(number))
                     .map_err(From::from),
             }
         }

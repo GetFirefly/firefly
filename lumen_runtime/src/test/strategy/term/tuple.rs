@@ -21,7 +21,7 @@ pub fn intermediate(
 }
 
 pub fn with_index(arc_process: Arc<Process>) -> BoxedStrategy<(Vec<Term>, usize, Term, Term)> {
-    (Just(arc_process), 1_usize..=4_usize)
+    (Just(arc_process.clone()), 1_usize..=4_usize)
         .prop_flat_map(|(arc_process, len)| {
             (
                 Just(arc_process.clone()),

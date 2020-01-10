@@ -1,6 +1,6 @@
 use proptest::collection::SizeRange;
 use proptest::prop_assert_eq;
-use proptest::strategy::Strategy;
+use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::*;
@@ -63,21 +63,22 @@ fn with_non_empty_proper_list_returns_tuple() {
 
 #[test]
 fn with_improper_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::list::improper(arc_process.clone()),
-                |list| {
-                    prop_assert_badarg!(
-                        native(&arc_process, list),
-                        format!("list ({}) is improper", list)
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::list::improper(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, list)| {
+            prop_assert_badarg!(
+                native(&arc_process, list),
+                format!("list ({}) is improper", list)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

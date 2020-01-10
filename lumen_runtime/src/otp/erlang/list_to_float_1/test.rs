@@ -1,6 +1,6 @@
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
-use proptest::strategy::Strategy;
+use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang::list_to_float_1::native;
@@ -25,28 +25,27 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_list_with_integer_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &any::<isize>().prop_map(|integer| {
-                    let string = integer.to_string();
+    run!(
+        |arc_process| {
+            (Just(arc_process.clone()), any::<isize>()).prop_map(|(arc_process, integer)| {
+                let string = integer.to_string();
 
-                    (
-                        string.clone(),
-                        arc_process.charlist_from_str(&string).unwrap(),
-                    )
-                }),
-                |(string, list)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, list),
-                        format!("float string ({}) does not contain decimal point", string)
-                    );
+                (
+                    arc_process.clone(),
+                    string.clone(),
+                    arc_process.charlist_from_str(&string).unwrap(),
+                )
+            })
+        },
+        |(arc_process, string, list)| {
+            prop_assert_badarg!(
+                native(&arc_process, list),
+                format!("float string ({}) does not contain decimal point", string)
+            );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]

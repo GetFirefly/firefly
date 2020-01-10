@@ -8,90 +8,92 @@ use liblumen_alloc::exit;
 
 #[test]
 fn without_environment_runs_function_in_child_process() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::module_function_arity::module(),
-                    strategy::module_function_arity::function(),
-                )
-                    .prop_map(|(module, function)| {
-                        let arity = 0;
-                        let code = |arc_process: &Arc<Process>| {
-                            arc_process.return_from_call(Atom::str_to_term("ok"))?;
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::module_function_arity::module(),
+                strategy::module_function_arity::function(),
+            )
+                .prop_map(|(arc_process, module, function)| {
+                    let arity = 0;
+                    let code = |arc_process: &Arc<Process>| {
+                        arc_process.return_from_call(Atom::str_to_term("ok"))?;
 
-                            Ok(())
-                        };
+                        Ok(())
+                    };
 
+                    (
+                        arc_process.clone(),
                         arc_process
                             .export_closure(module, function, arity, Some(code))
-                            .unwrap()
-                    }),
-                |function| {
-                    let result = native(&arc_process, function, OPTIONS);
+                            .unwrap(),
+                    )
+                })
+        },
+        |(arc_process, function)| {
+            let result = native(&arc_process, function, options(&arc_process));
 
-                    prop_assert!(result.is_ok());
+            prop_assert!(result.is_ok());
 
-                    let child_pid_term = result.unwrap();
+            let child_pid_term = result.unwrap();
 
-                    prop_assert!(child_pid_term.is_pid());
+            prop_assert!(child_pid_term.is_pid());
 
-                    let child_pid: Pid = child_pid_term.try_into().unwrap();
+            let child_pid: Pid = child_pid_term.try_into().unwrap();
 
-                    let child_arc_process = pid_to_process(&child_pid).unwrap();
+            let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-                    let scheduler = Scheduler::current();
+            let scheduler = Scheduler::current();
 
-                    prop_assert!(scheduler.run_once());
-                    prop_assert!(scheduler.run_once());
-                    prop_assert!(scheduler.run_once());
+            prop_assert!(scheduler.run_through(&child_arc_process));
 
-                    match *child_arc_process.status.read() {
-                        Status::Exiting(ref exception) => {
-                            prop_assert_eq!(
-                                exception,
-                                &exit!(Atom::str_to_term("normal"), anyhow!("Test").into())
-                            );
-                        }
-                        ref status => {
-                            return Err(proptest::test_runner::TestCaseError::fail(format!(
-                                "Child process did not exit.  Status is {:?}",
-                                status
-                            )))
-                        }
-                    }
+            match *child_arc_process.status.read() {
+                Status::Exiting(ref exception) => {
+                    prop_assert_eq!(
+                        exception,
+                        &exit!(Atom::str_to_term("normal"), anyhow!("Test").into())
+                    );
+                }
+                ref status => {
+                    return Err(proptest::test_runner::TestCaseError::fail(format!(
+                        "Child process did not exit.  Status is {:?}",
+                        status
+                    )))
+                }
+            }
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_environment_runs_function_in_child_process() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::module_function_arity::module(),
-                    function::anonymous::index(),
-                    function::anonymous::old_unique(),
-                    function::anonymous::unique(),
-                )
-                    .prop_map(|(module, index, old_unique, unique)| {
-                        let creator = arc_process.pid().into();
-                        let arity = 0;
-                        let code = |arc_process: &Arc<Process>| {
-                            let first = arc_process.stack_pop().unwrap();
-                            let second = arc_process.stack_pop().unwrap();
-                            let reason = arc_process.list_from_slice(&[first, second])?;
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::module_function_arity::module(),
+                function::anonymous::index(),
+                function::anonymous::old_unique(),
+                function::anonymous::unique(),
+            )
+                .prop_map(|(arc_process, module, index, old_unique, unique)| {
+                    let creator = arc_process.pid().into();
+                    let arity = 0;
+                    let code = |arc_process: &Arc<Process>| {
+                        let first = arc_process.stack_pop().unwrap();
+                        let second = arc_process.stack_pop().unwrap();
+                        let reason = arc_process.list_from_slice(&[first, second])?;
 
-                            arc_process.exception(exit!(reason, anyhow!("Test").into()));
+                        arc_process.exception(exit!(reason, anyhow!("Test").into()));
 
-                            Ok(())
-                        };
+                        Ok(())
+                    };
 
+                    (
+                        arc_process.clone(),
                         arc_process
                             .anonymous_closure_with_env_from_slice(
                                 module,
@@ -103,53 +105,51 @@ fn with_environment_runs_function_in_child_process() {
                                 creator,
                                 &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
-                            .unwrap()
-                    }),
-                |function| {
-                    let result = native(&arc_process, function, OPTIONS);
+                            .unwrap(),
+                    )
+                })
+        },
+        |(arc_process, function)| {
+            let result = native(&arc_process, function, options(&arc_process));
 
-                    prop_assert!(result.is_ok());
+            prop_assert!(result.is_ok());
 
-                    let child_pid_term = result.unwrap();
+            let child_pid_term = result.unwrap();
 
-                    prop_assert!(child_pid_term.is_pid());
+            prop_assert!(child_pid_term.is_pid());
 
-                    let child_pid: Pid = child_pid_term.try_into().unwrap();
+            let child_pid: Pid = child_pid_term.try_into().unwrap();
 
-                    let child_arc_process = pid_to_process(&child_pid).unwrap();
+            let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-                    let scheduler = Scheduler::current();
+            let scheduler = Scheduler::current();
 
-                    prop_assert!(scheduler.run_once());
-                    prop_assert!(scheduler.run_once());
-                    prop_assert!(scheduler.run_once());
+            prop_assert!(scheduler.run_through(&child_arc_process));
 
-                    match *child_arc_process.status.read() {
-                        Status::Exiting(ref exception) => {
-                            prop_assert_eq!(
-                                exception,
-                                &exit!(
-                                    child_arc_process
-                                        .list_from_slice(&[
-                                            Atom::str_to_term("first"),
-                                            Atom::str_to_term("second")
-                                        ])
-                                        .unwrap(),
-                                    anyhow!("Test").into()
-                                )
-                            );
-                        }
-                        ref status => {
-                            return Err(proptest::test_runner::TestCaseError::fail(format!(
-                                "Child process did not exit.  Status is {:?}",
-                                status
-                            )))
-                        }
-                    }
+            match *child_arc_process.status.read() {
+                Status::Exiting(ref exception) => {
+                    prop_assert_eq!(
+                        exception,
+                        &exit!(
+                            child_arc_process
+                                .list_from_slice(&[
+                                    Atom::str_to_term("first"),
+                                    Atom::str_to_term("second")
+                                ])
+                                .unwrap(),
+                            anyhow!("Test").into()
+                        )
+                    );
+                }
+                ref status => {
+                    return Err(proptest::test_runner::TestCaseError::fail(format!(
+                        "Child process did not exit.  Status is {:?}",
+                        status
+                    )))
+                }
+            }
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

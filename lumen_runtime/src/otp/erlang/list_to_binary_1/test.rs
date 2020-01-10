@@ -17,21 +17,22 @@ use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_list(arc_process.clone()),
-                |iolist| {
-                    prop_assert_badarg!(
-                        native(&arc_process, iolist),
-                        format!("iolist ({}) is not a list", iolist)
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, iolist)| {
+            prop_assert_badarg!(
+                native(&arc_process, iolist),
+                format!("iolist ({}) is not a list", iolist)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

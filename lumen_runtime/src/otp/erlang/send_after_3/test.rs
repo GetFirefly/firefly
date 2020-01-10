@@ -8,8 +8,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::send_after_3::native;
-use crate::scheduler::with_process_arc;
-use crate::test::{has_message, registered_name, strategy};
+use crate::test::{has_message, registered_name, strategy, timeout_after};
 use crate::time::Milliseconds;
 use crate::{process, timer};
 
@@ -18,24 +17,23 @@ use crate::{process, timer};
 
 #[test]
 fn without_non_negative_integer_time_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_non_negative_integer(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(time, message)| {
-                    let destination = arc_process.pid_term();
-
-                    prop_assert_badarg!(
-                        native(arc_process.clone(), time, destination, message),
-                        format!("time ({}) is not a non-negative integer", time)
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_non_negative_integer(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, time, message)| {
+            let destination = arc_process.pid_term();
+
+            prop_assert_badarg!(
+                native(arc_process.clone(), time, destination, message),
+                format!("time ({}) is not a non-negative integer", time)
+            );
+
+            Ok(())
+        },
+    );
 }

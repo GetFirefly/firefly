@@ -2,52 +2,50 @@ use super::*;
 
 #[test]
 fn without_number_multiplicand_errors_badarith() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::float(arc_process.clone()),
-                    strategy::term::is_not_number(arc_process.clone()),
-                ),
-                |(multiplier, multiplicand)| {
-                    prop_assert_badarith!(
-                        native(&arc_process, multiplier, multiplicand),
-                        format!(
-                            "multiplier ({}) and multiplicand ({}) aren't both numbers",
-                            multiplier, multiplicand
-                        )
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::float(arc_process.clone()),
+                strategy::term::is_not_number(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, multiplier, multiplicand)| {
+            prop_assert_badarith!(
+                native(&arc_process, multiplier, multiplicand),
+                format!(
+                    "multiplier ({}) and multiplicand ({}) aren't both numbers",
+                    multiplier, multiplicand
+                )
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_number_multiplicand_returns_float() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::float(arc_process.clone()),
-                    strategy::term::is_number(arc_process.clone()),
-                ),
-                |(multiplier, multiplicand)| {
-                    let result = native(&arc_process, multiplier, multiplicand);
-
-                    prop_assert!(result.is_ok());
-
-                    let product = result.unwrap();
-
-                    prop_assert!(product.is_boxed_float());
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::float(arc_process.clone()),
+                strategy::term::is_number(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, multiplier, multiplicand)| {
+            let result = native(&arc_process, multiplier, multiplicand);
+
+            prop_assert!(result.is_ok());
+
+            let product = result.unwrap();
+
+            prop_assert!(product.is_boxed_float());
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

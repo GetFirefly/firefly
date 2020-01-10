@@ -66,6 +66,20 @@ macro_rules! assert_error {
 }
 
 #[cfg(test)]
+macro_rules! assert_has_message {
+    ($process:expr, $message:expr) => {{
+        let process: &liblumen_alloc::erts::process::Process = $process;
+
+        assert!(
+            has_message(process, $message),
+            "Mailbox does not contain {:?} and instead contains {:?}",
+            $message,
+            process.mailbox.lock().borrow()
+        );
+    }};
+}
+
+#[cfg(test)]
 macro_rules! assert_is_not_non_empty_list {
     ($actual:expr, $name:ident) => {
         assert_is_not_non_empty_list!($actual, stringify!($name), $name)
@@ -209,6 +223,16 @@ macro_rules! prop_assert_is_not_non_negative_integer {
     };
     ($actual:expr, $name:expr, $value:expr) => {
         prop_assert_is_not_type!($actual, $name, $value, "a non-negative integer")
+    };
+}
+
+#[cfg(test)]
+macro_rules! prop_assert_is_not_number {
+    ($actual:expr, $name:ident) => {
+        prop_assert_is_not_number!($actual, stringify!($name), $name)
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_is_not_type!($actual, $name, $value, "a number (integer or float)")
     };
 }
 

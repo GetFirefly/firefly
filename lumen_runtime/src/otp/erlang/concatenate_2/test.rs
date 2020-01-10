@@ -3,6 +3,7 @@ mod with_non_empty_proper_list;
 
 use std::convert::TryInto;
 
+use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
@@ -14,44 +15,42 @@ use crate::test::strategy;
 
 #[test]
 fn without_list_left_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_list(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(list, term)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, list, term),
-                        format!("list ({}) is not a list", list)
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_list(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, list, term)| {
+            prop_assert_badarg!(
+                native(&arc_process, list, term),
+                format!("list ({}) is not a list", list)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_improper_list_left_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::list::improper(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(list, term)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, list, term),
-                        format!("list ({}) is improper", list)
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::list::improper(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, list, term)| {
+            prop_assert_badarg!(
+                native(&arc_process, list, term),
+                format!("list ({}) is improper", list)
+            );
+
+            Ok(())
+        },
+    );
 }

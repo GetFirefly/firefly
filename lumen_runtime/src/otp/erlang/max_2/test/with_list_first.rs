@@ -4,24 +4,22 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_list_or_bitstring_second_returns_first() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_list(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("second cannot be a list or bitstring", |second| {
-                            !(second.is_list() || second.is_bitstring())
-                        }),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), first.into());
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::is_list(arc_process.clone()),
+                strategy::term(arc_process.clone())
+                    .prop_filter("second cannot be a list or bitstring", |second| {
+                        !(second.is_list() || second.is_bitstring())
+                    }),
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), first.into());
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -72,21 +70,19 @@ fn with_greater_list_second_returns_second() {
 
 #[test]
 fn with_bitstring_second_returns_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_list(arc_process.clone()),
-                    strategy::term::is_bitstring(arc_process.clone()),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), second);
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::is_list(arc_process.clone()),
+                strategy::term::is_bitstring(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), second);
+
+            Ok(())
+        },
+    );
 }
 
 fn max<R>(second: R, which: FirstSecond)

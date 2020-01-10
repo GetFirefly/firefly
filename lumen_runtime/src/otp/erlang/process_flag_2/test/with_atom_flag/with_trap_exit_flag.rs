@@ -10,22 +10,23 @@ use crate::test::{has_message, has_no_message};
 
 #[test]
 fn without_boolean_value_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_boolean(arc_process.clone()),
-                |value| {
-                    prop_assert_is_not_boolean!(
-                        native(&arc_process, flag(), value),
-                        "trap_exit value",
-                        value
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_boolean(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, value)| {
+            prop_assert_is_not_boolean!(
+                native(&arc_process, flag(), value),
+                "trap_exit value",
+                value
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -170,7 +171,7 @@ fn with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linke
         let from = other_arc_process.pid_term();
         let exit_message = process.tuple_from_slice(&[tag, from, reason]).unwrap();
 
-        assert!(has_message(process, exit_message));
+        assert_has_message!(process, exit_message);
     });
 }
 

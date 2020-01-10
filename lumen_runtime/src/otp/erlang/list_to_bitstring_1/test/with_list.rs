@@ -13,19 +13,26 @@ mod with_heap_binary;
 
 #[test]
 fn without_byte_bitstring_or_list_element_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &is_not_byte_bitstring_nor_list(arc_process.clone())
-                    .prop_map(|element| (arc_process.cons(element, Term::NIL).unwrap(), element)),
-                |(bitstring_list, element)| {
-                    prop_assert_badarg!(native(&arc_process, bitstring_list), format!("bitstring_list ([{}]) element ({}) is not a byte, bitstring, or nested bitstring_list", element, element));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                is_not_byte_bitstring_nor_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, element)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.cons(element, Term::NIL).unwrap(),
+                        element,
+                    )
+                })
+        },
+        |(arc_process, bitstring_list, element)| {
+            prop_assert_badarg!(native(&arc_process, bitstring_list), format!("bitstring_list ([{}]) element ({}) is not a byte, bitstring, or nested bitstring_list", element, element));
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

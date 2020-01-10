@@ -1,30 +1,30 @@
 use proptest::prop_assert_eq;
-use proptest::test_runner::{Config, TestRunner};
+use proptest::strategy::Just;
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::binary_to_term_1::native;
-use crate::scheduler::with_process_arc;
 use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_binary(arc_process.clone()),
-                |binary| {
-                    prop_assert_badarg!(
-                        native(&arc_process, binary),
-                        format!("binary ({}) is not a binary", binary)
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_binary(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary),
+                format!("binary ({}) is not a binary", binary)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -173,16 +173,17 @@ fn with_binary_returns_term<T>(byte_vec: Vec<u8>, term: T)
 where
     T: Fn(&Process) -> Term,
 {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Ok(term(&arc_process)));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::containing_bytes(byte_vec.clone(), arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary)| {
+            prop_assert_eq!(native(&arc_process, binary), Ok(term(&arc_process)));
+
+            Ok(())
+        },
+    );
 }

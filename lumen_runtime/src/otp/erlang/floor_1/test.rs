@@ -15,34 +15,12 @@ use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_number(arc_process.clone()),
-                |number| {
-                    prop_assert_badarg!(
-                        native(&arc_process, number),
-                        format!("number ({}) is not an integer or float", number)
-                    );
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+    crate::test::without_number_errors_badarg(file!(), native);
 }
 
 #[test]
 fn with_integer_returns_integer() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_integer(arc_process.clone()), |number| {
-                prop_assert_eq!(native(&arc_process, number), Ok(number));
-
-                Ok(())
-            })
-            .unwrap();
-    });
+    crate::test::with_integer_returns_integer(file!(), native);
 }
 
 #[test]

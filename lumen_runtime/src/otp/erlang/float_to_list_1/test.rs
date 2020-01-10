@@ -11,19 +11,5 @@ use crate::test::strategy;
 
 #[test]
 fn without_float_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_float(arc_process.clone()),
-                |float| {
-                    prop_assert_badarg!(
-                        native(&arc_process, float),
-                        format!("float ({}) is not a float", float)
-                    );
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+    crate::test::without_float_errors_badarg(file!(), native);
 }

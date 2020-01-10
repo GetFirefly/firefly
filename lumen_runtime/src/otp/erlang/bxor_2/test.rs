@@ -4,79 +4,40 @@ mod with_small_integer_left;
 use num_bigint::BigInt;
 
 use proptest::prop_assert_eq;
-use proptest::test_runner::{Config, TestRunner};
+use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::Encoded;
 
 use crate::otp::erlang::bxor_2::native;
-use crate::scheduler::{with_process, with_process_arc};
+use crate::scheduler::with_process;
 use crate::test::strategy;
 
 #[test]
 fn without_integer_left_errors_badarith() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_integer(arc_process.clone()),
-                    strategy::term::is_integer(arc_process.clone()),
-                ),
-                |(left, right)| {
-                    prop_assert_badarith!(
-                        native(&arc_process, left, right),
-                        format!(
-                            "left_integer ({}) and right_integer ({}) are not both integers",
-                            left, right
-                        )
-                    );
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+    crate::test::without_integer_left_errors_badarith(file!(), native);
 }
 
 #[test]
 fn without_integer_left_without_integer_right_errors_badarith() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_integer(arc_process.clone()),
-                    strategy::term::is_not_integer(arc_process.clone()),
-                ),
-                |(left, right)| {
-                    prop_assert_badarith!(
-                        native(&arc_process, left, right),
-                        format!(
-                            "left_integer ({}) and right_integer ({}) are not both integers",
-                            left, right
-                        )
-                    );
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+    crate::test::with_integer_left_without_integer_right_errors_badarith(file!(), native);
 }
 
 #[test]
 fn with_same_integer_returns_zero() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_integer(arc_process.clone()),
-                |operand| {
-                    prop_assert_eq!(
-                        native(&arc_process, operand, operand),
-                        Ok(arc_process.integer(0).unwrap())
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_integer(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, operand)| {
+            prop_assert_eq!(
+                native(&arc_process, operand, operand),
+                Ok(arc_process.integer(0).unwrap())
+            );
+
+            Ok(())
+        },
+    );
 }

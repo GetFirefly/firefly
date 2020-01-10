@@ -7,18 +7,14 @@ use crate::test::strategy;
 
 #[test]
 fn without_bitstring_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_bitstring(arc_process.clone()),
-                |term| {
-                    prop_assert_eq!(native(term), false.into());
+    run!(
+        |arc_process| strategy::term::is_not_bitstring(arc_process.clone()),
+        |term| {
+            prop_assert_eq!(native(term), false.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]

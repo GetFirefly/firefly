@@ -8,7 +8,7 @@ mod encoding;
 mod float;
 pub mod index;
 mod integer;
-mod list;
+pub mod list;
 mod map;
 pub(super) mod pid;
 mod port;

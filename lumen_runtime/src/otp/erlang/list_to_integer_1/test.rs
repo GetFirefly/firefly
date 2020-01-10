@@ -1,7 +1,6 @@
 mod with_list;
 
-use proptest::strategy::Strategy;
-use proptest::test_runner::{Config, TestRunner};
+use proptest::strategy::{Just, Strategy};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
@@ -12,16 +11,20 @@ use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_badarg!(
-                    native(&arc_process, list),
-                    format!("list ({}) is not a list", list)
-                );
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_list(arc_process.clone()),
+            )
+        },
+        |(arc_process, list)| {
+            prop_assert_badarg!(
+                native(&arc_process, list),
+                format!("list ({}) is not a list", list)
+            );
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

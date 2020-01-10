@@ -2,68 +2,85 @@ use super::*;
 
 #[test]
 fn with_integer_without_byte_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::binary::heap(arc_process.clone()),
-                    is_integer_is_not_byte(arc_process.clone()),
-                )
-                    .prop_map(|(head, tail)| (arc_process.cons(head, tail).unwrap(), tail)),
-                |(iolist, element)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, iolist),
-                        format!(
-                            "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
-                            iolist, element
-                        )
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::heap(arc_process.clone()),
+                is_integer_is_not_byte(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, head, tail)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.cons(head, tail).unwrap(),
+                        tail,
+                    )
+                })
+        },
+        |(arc_process, iolist, element)| {
+            prop_assert_badarg!(
+                native(&arc_process, iolist),
+                format!(
+                    "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
+                    iolist, element
+                )
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_empty_list_returns_binary() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::heap(arc_process.clone())
-                    .prop_map(|binary| (arc_process.cons(binary, Term::NIL).unwrap(), binary)),
-                |(list, binary)| {
-                    prop_assert_eq!(native(&arc_process, list), Ok(binary));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::heap(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, binary)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.cons(binary, Term::NIL).unwrap(),
+                        binary,
+                    )
+                })
+        },
+        |(arc_process, list, binary)| {
+            prop_assert_eq!(native(&arc_process, list), Ok(binary));
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_byte_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::binary::heap(arc_process.clone()),
-                    byte(arc_process.clone()),
-                )
-                    .prop_map(|(head, tail)| (arc_process.cons(head, tail).unwrap(), tail)),
-                |(iolist, tail)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, iolist),
-                        format!("iolist ({}) tail ({}) cannot be a byte", iolist, tail)
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::heap(arc_process.clone()),
+                byte(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, head, tail)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.cons(head, tail).unwrap(),
+                        tail,
+                    )
+                })
+        },
+        |(arc_process, iolist, tail)| {
+            prop_assert_badarg!(
+                native(&arc_process, iolist),
+                format!("iolist ({}) tail ({}) cannot be a byte", iolist, tail)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

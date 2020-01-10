@@ -5,23 +5,21 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_list_or_bitstring_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term(arc_process.clone())
-                    .prop_filter("Right cannot be a list or bitstring", |right| {
-                        !(right.is_list() || right.is_bitstring())
-                    }),
-                |right| {
-                    let left = Term::NIL;
+    run!(
+        |arc_process| {
+            strategy::term(arc_process.clone())
+                .prop_filter("Right cannot be a list or bitstring", |right| {
+                    !(right.is_list() || right.is_bitstring())
+                })
+        },
+        |right| {
+            let left = Term::NIL;
 
-                    prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(native(left, right), false.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]

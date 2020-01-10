@@ -2,27 +2,26 @@ use super::*;
 
 #[test]
 fn without_reference_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_reference(arc_process.clone()),
-                    options(arc_process.clone()),
-                ),
-                |(timer_reference, options)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, timer_reference, options),
-                        format!(
-                            "timer_reference ({}) is not a local reference",
-                            timer_reference
-                        )
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_reference(arc_process.clone()),
+                options(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, timer_reference, options)| {
+            prop_assert_badarg!(
+                native(&arc_process, timer_reference, options),
+                format!(
+                    "timer_reference ({}) is not a local reference",
+                    timer_reference
+                )
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

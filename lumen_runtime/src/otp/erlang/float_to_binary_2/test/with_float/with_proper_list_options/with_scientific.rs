@@ -146,110 +146,62 @@ fn returns_binary_with_coefficient_e_exponent() {
 
 #[test]
 fn always_includes_e() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::float(arc_process.clone()),
-                    digits(arc_process.clone()).prop_map(|digits| {
-                        arc_process
-                            .list_from_slice(&[arc_process
-                                .tuple_from_slice(&[tag(), digits])
-                                .unwrap()])
-                            .unwrap()
-                    }),
-                ),
-                |(float, options)| {
-                    let result = native(&arc_process, float, options);
+    run!(strategy, |(arc_process, float, options)| {
+        let result = native(&arc_process, float, options);
 
-                    prop_assert!(result.is_ok());
+        prop_assert!(result.is_ok());
 
-                    let binary = result.unwrap();
-                    let string: String = binary_to_string(binary).unwrap();
+        let binary = result.unwrap();
+        let string: String = binary_to_string(binary).unwrap();
 
-                    prop_assert!(string.contains('e'));
+        prop_assert!(string.contains('e'));
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+        Ok(())
+    },);
 }
 
 #[test]
 fn always_includes_sign_of_exponent() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::float(arc_process.clone()),
-                    digits(arc_process.clone()).prop_map(|digits| {
-                        arc_process
-                            .list_from_slice(&[arc_process
-                                .tuple_from_slice(&[tag(), digits])
-                                .unwrap()])
-                            .unwrap()
-                    }),
-                ),
-                |(float, options)| {
-                    let result = native(&arc_process, float, options);
+    run!(strategy, |(arc_process, float, options)| {
+        let result = native(&arc_process, float, options);
 
-                    prop_assert!(result.is_ok());
+        prop_assert!(result.is_ok());
 
-                    let binary = result.unwrap();
-                    let string: String = binary_to_string(binary).unwrap();
-                    let part_vec: Vec<&str> = string.splitn(2, 'e').collect();
+        let binary = result.unwrap();
+        let string: String = binary_to_string(binary).unwrap();
+        let part_vec: Vec<&str> = string.splitn(2, 'e').collect();
 
-                    prop_assert_eq!(part_vec.len(), 2);
+        prop_assert_eq!(part_vec.len(), 2);
 
-                    let sign = part_vec[1].chars().nth(0).unwrap();
+        let sign = part_vec[1].chars().nth(0).unwrap();
 
-                    prop_assert!(sign == '+' || sign == '-');
+        prop_assert!(sign == '+' || sign == '-');
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+        Ok(())
+    },);
 }
 
 #[test]
 fn exponent_is_at_least_2_digits() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::float(arc_process.clone()),
-                    digits(arc_process.clone()).prop_map(|digits| {
-                        arc_process
-                            .list_from_slice(&[arc_process
-                                .tuple_from_slice(&[tag(), digits])
-                                .unwrap()])
-                            .unwrap()
-                    }),
-                ),
-                |(float, options)| {
-                    let result = native(&arc_process, float, options);
+    run!(strategy, |(arc_process, float, options)| {
+        let result = native(&arc_process, float, options);
 
-                    prop_assert!(result.is_ok());
+        prop_assert!(result.is_ok());
 
-                    let binary = result.unwrap();
-                    let string: String = binary_to_string(binary).unwrap();
-                    let part_vec: Vec<&str> = string.splitn(2, 'e').collect();
+        let binary = result.unwrap();
+        let string: String = binary_to_string(binary).unwrap();
+        let part_vec: Vec<&str> = string.splitn(2, 'e').collect();
 
-                    prop_assert_eq!(part_vec.len(), 2);
+        prop_assert_eq!(part_vec.len(), 2);
 
-                    prop_assert!(2 <= part_vec[1].chars().skip(1).count());
+        prop_assert!(2 <= part_vec[1].chars().skip(1).count());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+        Ok(())
+    },);
 }
 
 fn digits(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    (Just(arc_process), 0..=249)
+    (Just(arc_process.clone()), 0..=249)
         .prop_map(|(arc_process, u)| arc_process.integer(u).unwrap())
         .boxed()
 }
@@ -260,6 +212,20 @@ fn options(process: &Process, digits: u8) -> Term {
             .tuple_from_slice(&[tag(), process.integer(digits).unwrap()])
             .unwrap()])
         .unwrap()
+}
+
+fn strategy(arc_process: Arc<Process>) -> impl Strategy<Value = (Arc<Process>, Term, Term)> {
+    (
+        Just(arc_process.clone()),
+        super::strategy::term::float(arc_process.clone()),
+        (Just(arc_process.clone()), digits(arc_process.clone())).prop_map(
+            |(arc_process, digits)| {
+                arc_process
+                    .list_from_slice(&[arc_process.tuple_from_slice(&[tag(), digits]).unwrap()])
+                    .unwrap()
+            },
+        ),
+    )
 }
 
 fn tag() -> Term {

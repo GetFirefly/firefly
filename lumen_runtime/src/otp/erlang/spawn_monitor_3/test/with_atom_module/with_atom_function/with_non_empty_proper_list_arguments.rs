@@ -69,7 +69,7 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
     let tag = atom!("DOWN");
     let reason = atom!("undef");
 
-    assert!(has_message(
+    assert_has_message!(
         &parent_arc_process,
         parent_arc_process
             .tuple_from_slice(&[
@@ -80,5 +80,5 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
                 reason
             ])
             .unwrap()
-    ));
+    );
 }

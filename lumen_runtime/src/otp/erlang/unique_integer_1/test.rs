@@ -1,19 +1,19 @@
-use proptest::strategy::Strategy;
-use proptest::test_runner::{Config, TestRunner};
+use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::unique_integer_1::native;
-use crate::scheduler::{with_process, with_process_arc};
+use crate::scheduler::with_process;
 use crate::test::strategy;
 
 #[test]
 fn without_proper_list_of_options_errors_badargs() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term(arc_process.clone()).prop_filter(
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone()).prop_filter(
                     "Cannot be a proper list of valid options",
                     |term| match term.decode().unwrap() {
                         TypedTerm::Nil => false,
@@ -42,14 +42,14 @@ fn without_proper_list_of_options_errors_badargs() {
                         _ => true,
                     },
                 ),
-                |options| {
-                    prop_assert_badarg!(native(&arc_process, options), "improper list");
-
-                    Ok(())
-                },
             )
-            .unwrap();
-    })
+        },
+        |(arc_process, options)| {
+            prop_assert_badarg!(native(&arc_process, options), "improper list");
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

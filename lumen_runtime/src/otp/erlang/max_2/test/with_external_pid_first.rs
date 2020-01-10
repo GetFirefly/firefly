@@ -2,23 +2,21 @@ use super::*;
 
 #[test]
 fn with_number_atom_reference_function_port_or_local_pid_returns_first() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::pid::external(arc_process.clone()),
-                    strategy::term::number_atom_reference_function_port_or_local_pid(
-                        arc_process.clone(),
-                    ),
+    run!(
+        |arc_process| {
+            (
+                strategy::term::pid::external(arc_process.clone()),
+                strategy::term::number_atom_reference_function_port_or_local_pid(
+                    arc_process.clone(),
                 ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), first);
-
-                    Ok(())
-                },
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), first);
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -52,21 +50,19 @@ fn with_greater_external_pid_second_returns_second() {
 
 #[test]
 fn with_tuple_map_list_or_bitstring_returns_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::pid::external(arc_process.clone()),
-                    strategy::term::tuple_map_list_or_bitstring(arc_process.clone()),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), second.into());
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::pid::external(arc_process.clone()),
+                strategy::term::tuple_map_list_or_bitstring(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), second.into());
+
+            Ok(())
+        },
+    );
 }
 
 fn max<R>(second: R, which: FirstSecond)

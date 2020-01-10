@@ -5,7 +5,8 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use anyhow::*;
-use proptest::test_runner::{Config, TestRunner};
+
+use proptest::strategy::Just;
 
 use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::prelude::*;
@@ -15,31 +16,30 @@ use crate::otp::erlang::apply_3;
 use crate::otp::erlang::spawn_opt_4::native;
 use crate::process;
 use crate::registry::pid_to_process;
-use crate::scheduler::{with_process_arc, Scheduler};
+use crate::scheduler::Scheduler;
 use crate::test::{assert_exits_badarith, assert_exits_undef, strategy};
 
 #[test]
 fn without_proper_list_options_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::atom(),
-                    strategy::term::atom(),
-                    strategy::term::list::proper(arc_process.clone()),
-                    strategy::term::is_not_proper_list(arc_process.clone()),
-                ),
-                |(module, function, arguments, options)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, module, function, arguments, options),
-                        SUPPORTED_OPTIONS
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::atom(),
+                strategy::term::atom(),
+                strategy::term::list::proper(arc_process.clone()),
+                strategy::term::is_not_proper_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, module, function, arguments, options)| {
+            prop_assert_badarg!(
+                native(&arc_process, module, function, arguments, options),
+                SUPPORTED_OPTIONS
+            );
+
+            Ok(())
+        },
+    );
 }
 
 const SUPPORTED_OPTIONS: &str = "supported options are :link, :monitor, \

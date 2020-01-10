@@ -735,7 +735,7 @@ impl fmt::Debug for RawTerm {
                 let value = unsafe { self.decode_port() };
                 write!(f, "Term({})", value)
             }
-            Tag::Box => {
+            Tag::Box | Tag::Literal => {
                 let is_literal = self.0 & FLAG_LITERAL == FLAG_LITERAL;
                 let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { &*ptr };

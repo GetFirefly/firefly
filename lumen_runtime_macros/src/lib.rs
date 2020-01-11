@@ -261,25 +261,28 @@ impl Signatures {
             }
         };
 
-        let stack_popped_code_argument_ident = &self.code.argument_ident_vec;
+        let stack_peeked_code_argument_ident = &self.code.argument_ident_vec;
+        let arguments_len = self.code.argument_ident_vec.len();
+        // stack_slot is 1-based
+        let stack_peek_index = 1..=arguments_len;
 
         let native_call = match self.native.return_type {
             ReturnType::Result => {
                 quote! {
                      match native(#(#native_argument_ident),*) {
                          Ok(return_value) => {
-                             arc_process.return_from_call(return_value)?;
+                             arc_process.return_from_call(#arguments_len, return_value).unwrap();
 
                              liblumen_alloc::erts::process::Process::call_code(arc_process)
                          }
-                         Err(exception) => liblumen_alloc::erts::process::code::result_from_exception(arc_process, exception),
+                         Err(exception) => liblumen_alloc::erts::process::code::result_from_exception(arc_process, #arguments_len, exception),
                      }
                 }
             }
             ReturnType::Term => {
                 quote! {
                     let return_value = native(#(#native_argument_ident),*);
-                    arc_process.return_from_call(return_value)?;
+                    arc_process.return_from_call(#arguments_len, return_value).unwrap();
 
                     liblumen_alloc::erts::process::Process::call_code(arc_process)
                 }
@@ -290,7 +293,7 @@ impl Signatures {
             pub fn code(arc_process: &std::sync::Arc<liblumen_alloc::erts::process::Process>) -> liblumen_alloc::erts::process::code::Result {
                 arc_process.reduce();
 
-                #(let #stack_popped_code_argument_ident = arc_process.stack_pop().unwrap();)*
+                #(let #stack_peeked_code_argument_ident = arc_process.stack_peek(#stack_peek_index).unwrap();)*
 
                 #native_call
             }

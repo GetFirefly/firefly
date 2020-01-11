@@ -3,7 +3,7 @@ use crate::scheduler::with_process;
 use liblumen_alloc::erts::term::prelude::*;
 use std::convert::TryInto;
 
-const DELTA_LIMIT_MICROSECONDS: u64 = 5;
+const DELTA_LIMIT_MICROSECONDS: u64 = 5_000;
 
 #[test]
 fn returns_a_three_element_tuple() {

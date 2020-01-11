@@ -20,7 +20,7 @@ fn without_environment_runs_function_in_child_process() {
                 .prop_map(|(arc_process, module, function)| {
                     let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
-                        arc_process.return_from_call(Atom::str_to_term("ok"))?;
+                        arc_process.return_from_call(0, Atom::str_to_term("ok"))?;
 
                         Ok(())
                     };

@@ -30,7 +30,9 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let elixir_string = arc_process.stack_pop().unwrap();
+    let elixir_string = arc_process.stack_peek(1).unwrap();
+
+    const STACK_USED: usize = 1;
 
     match binary_to_string(elixir_string) {
         Ok(string) => {
@@ -38,12 +40,13 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             system::io::puts(&string);
 
             let ok = Atom::str_to_term("ok");
-            arc_process.return_from_call(ok)?;
+            arc_process.return_from_call(STACK_USED, ok)?;
 
             Process::call_code(arc_process)
         }
         Err(exception) => match exception {
             Exception::Runtime(runtime_exception) => {
+                arc_process.stack_popn(STACK_USED);
                 arc_process.exception(runtime_exception);
 
                 Ok(())

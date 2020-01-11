@@ -64,9 +64,9 @@ pub fn place_frame_with_arguments(
 /// `module`, `function`, and arity of `argument_list` must have code registered with
 /// `crate::code::export::insert` or returns `undef` exception.
 pub fn code(arc_process: &Arc<Process>) -> code::Result {
-    let module = arc_process.stack_pop().unwrap();
-    let function = arc_process.stack_pop().unwrap();
-    let argument_list = arc_process.stack_pop().unwrap();
+    let module = arc_process.stack_peek(1).unwrap();
+    let function = arc_process.stack_peek(2).unwrap();
+    let argument_list = arc_process.stack_peek(3).unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
 
@@ -88,6 +88,8 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
     match crate::code::export::get(&module_atom, &function_atom, arity) {
         Some(code) => {
+            arc_process.stack_popn(3);
+
             crate::code::export::place_frame_with_arguments(
                 &arc_process,
                 Placement::Replace,
@@ -112,6 +114,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                 arity
             )
             .into(),
+            3,
         ),
     }
 }
@@ -138,10 +141,11 @@ fn undef(
     function: Term,
     arguments: Term,
     source: ArcError,
+    stack_used: usize,
 ) -> code::Result {
     arc_process.reduce();
     let exception = exception::undef(arc_process, module, function, arguments, Term::NIL, source);
-    code::result_from_exception(arc_process, exception)
+    code::result_from_exception(arc_process, stack_used, exception)
 }
 
 lazy_static! {

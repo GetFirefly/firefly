@@ -190,7 +190,7 @@ fn return_ok(arc_process: &Arc<Process>) -> code::Result {
         })
         .unwrap();
 
-    Ok(arc_process.return_from_call(argument_vec[0])?)
+    Ok(arc_process.return_from_call(0, argument_vec[0])?)
 }
 
 fn return_throw(arc_process: &Arc<Process>) -> code::Result {
@@ -241,5 +241,5 @@ fn return_throw(arc_process: &Arc<Process>) -> code::Result {
         anyhow!("explicit throw from Erlang").into(),
     );
 
-    code::result_from_exception(arc_process, exc.into())
+    code::result_from_exception(arc_process, 0, exc.into())
 }

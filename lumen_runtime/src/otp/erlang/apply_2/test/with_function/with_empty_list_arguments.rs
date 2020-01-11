@@ -64,7 +64,7 @@ fn with_arity_returns_function_return() {
                 .prop_map(|(arc_process, module, function)| {
                     let arity = 0;
                     let code: Code = |arc_process: &Arc<Process>| {
-                        arc_process.return_from_call(Atom::str_to_term("return_from_fn"))?;
+                        arc_process.return_from_call(0, Atom::str_to_term("return_from_fn"))?;
 
                         Process::call_code(arc_process)
                     };

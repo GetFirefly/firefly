@@ -29,9 +29,11 @@ pub fn place_frame_with_arguments(
 // Private
 
 fn code(arc_process: &Arc<Process>) -> code::Result {
-    let enumerable = arc_process.stack_pop().unwrap();
-    let initial = arc_process.stack_pop().unwrap();
-    let reducer = arc_process.stack_pop().unwrap();
+    let enumerable = arc_process.stack_peek(1).unwrap();
+    let initial = arc_process.stack_peek(2).unwrap();
+    let reducer = arc_process.stack_peek(3).unwrap();
+
+    const STACK_USED: usize = 3;
 
     match enumerable.decode().unwrap() {
         TypedTerm::Map(map) => {
@@ -47,6 +49,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                         let last = map.get(last_key).unwrap();
 
                         arc_process.reduce();
+                        arc_process.stack_popn(STACK_USED);
 
                         if first <= last {
                             reduce_range_inc_4::place_frame_with_arguments(
@@ -56,7 +59,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                                 last,
                                 initial,
                                 reducer,
-                            )?;
+                            )
+                            .unwrap();
                         } else {
                             reduce_range_dec_4::place_frame_with_arguments(
                                 arc_process,
@@ -65,12 +69,14 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                                 last,
                                 initial,
                                 reducer,
-                            )?;
+                            )
+                            .unwrap();
                         }
 
                         Process::call_code(arc_process)
                     } else {
                         arc_process.reduce();
+                        arc_process.stack_popn(STACK_USED);
                         arc_process.exception(
                             anyhow!("enumerable ({}) is a struct, but not a Range", enumerable)
                                 .into(),
@@ -81,6 +87,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                 }
                 None => {
                     arc_process.reduce();
+                    arc_process.stack_popn(STACK_USED);
                     arc_process.exception(
                         anyhow!("enumerable ({}) is a map, but not a struct", enumerable).into(),
                     );
@@ -91,6 +98,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         }
         _ => {
             arc_process.reduce();
+            arc_process.stack_popn(STACK_USED);
             arc_process.exception(anyhow!("enumerable ({}) is not a map", enumerable).into());
 
             Ok(())

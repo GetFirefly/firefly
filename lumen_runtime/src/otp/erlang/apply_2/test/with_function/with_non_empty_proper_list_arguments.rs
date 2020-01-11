@@ -70,8 +70,8 @@ fn with_arity_returns_function_return() {
                     let arity = 1;
 
                     let code: Code = |arc_process: &Arc<Process>| {
-                        let return_term = arc_process.stack_pop().unwrap();
-                        arc_process.return_from_call(return_term)?;
+                        let return_term = arc_process.stack_peek(1).unwrap();
+                        arc_process.return_from_call(1, return_term)?;
 
                         Process::call_code(arc_process)
                     };

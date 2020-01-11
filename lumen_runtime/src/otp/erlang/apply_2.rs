@@ -21,8 +21,10 @@ use liblumen_alloc::ModuleFunctionArity;
 pub fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let function = arc_process.stack_pop().unwrap();
-    let arguments = arc_process.stack_pop().unwrap();
+    let function = arc_process.stack_peek(1).unwrap();
+    let arguments = arc_process.stack_peek(2).unwrap();
+
+    const STACK_USED: usize = 2;
 
     let function_result_boxed_closure: Result<Boxed<Closure>, _> = function.try_into();
 
@@ -37,6 +39,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                         match result {
                             Ok(element) => argument_vec.push(element),
                             Err(_) => {
+                                arc_process.stack_popn(STACK_USED);
                                 arc_process.exception(
                                     anyhow!(ImproperListError)
                                         .context(format!(
@@ -52,6 +55,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                     }
                 }
                 _ => {
+                    arc_process.stack_popn(STACK_USED);
                     arc_process.exception(
                         anyhow!(TypeError)
                             .context(format!("arguments ({}) is not a list", arguments))
@@ -66,11 +70,10 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
             let arity = function_boxed_closure.arity() as usize;
 
             if arguments_len == arity {
-                function_boxed_closure.place_frame_with_arguments(
-                    arc_process,
-                    Placement::Replace,
-                    argument_vec,
-                )?;
+                arc_process.stack_popn(STACK_USED);
+                function_boxed_closure
+                    .place_frame_with_arguments(arc_process, Placement::Replace, argument_vec)
+                    .unwrap();
 
                 Process::call_code(arc_process)
             } else {
@@ -87,10 +90,11 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                     )
                     .into(),
                 );
-                code::result_from_exception(arc_process, exception)
+                code::result_from_exception(arc_process, STACK_USED, exception)
             }
         }
         Err(_) => {
+            arc_process.stack_popn(STACK_USED);
             arc_process.exception(
                 anyhow!(TypeError)
                     .context(format!("function ({}) is not a function", function))

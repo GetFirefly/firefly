@@ -41,10 +41,12 @@ pub fn place_frame_with_arguments(
 }
 
 fn code(arc_process: &Arc<Process>) -> code::Result {
-    let first = arc_process.stack_pop().unwrap();
-    let last = arc_process.stack_pop().unwrap();
-    let acc = arc_process.stack_pop().unwrap();
-    let reducer = arc_process.stack_pop().unwrap();
+    let first = arc_process.stack_peek(1).unwrap();
+    let last = arc_process.stack_peek(2).unwrap();
+    let acc = arc_process.stack_peek(3).unwrap();
+    let reducer = arc_process.stack_peek(4).unwrap();
+
+    const STACK_USED: usize = 4;
 
     arc_process.reduce();
 
@@ -55,6 +57,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         match reducer.decode().unwrap() {
             TypedTerm::Closure(closure) => {
                 if closure.arity() == 2 {
+                    arc_process.stack_popn(STACK_USED);
+
                     closure.place_frame_with_arguments(
                         arc_process,
                         Placement::Replace,
@@ -67,6 +71,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
                     result_from_exception(
                         arc_process,
+                        STACK_USED,
                         badarity(
                             arc_process,
                             reducer,
@@ -78,6 +83,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             }
             _ => result_from_exception(
                 arc_process,
+                STACK_USED,
                 badfun(arc_process, reducer, anyhow!("reducer").into()),
             ),
         }
@@ -86,6 +92,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     //   reduce_range_inc(first + 1, last, fun.(first, acc), fun)
     // end
     else {
+        arc_process.stack_popn(STACK_USED);
+
         // ```elixir
         // # pushed to stack: (first, last, acc, reducer)
         // # returned from call: new_first

@@ -95,10 +95,10 @@ fn with_65536() {
 }
 
 fn inspect_code(arc_process: &Arc<Process>) -> code::Result {
-    let time_value = arc_process.stack_pop().unwrap();
+    let time_value = arc_process.stack_peek(1).unwrap();
 
     lumen_runtime::system::io::puts(&format!("{}", time_value));
-    arc_process.remove_last_frame();
+    arc_process.remove_last_frame(1);
 
     Process::call_code(arc_process)
 }

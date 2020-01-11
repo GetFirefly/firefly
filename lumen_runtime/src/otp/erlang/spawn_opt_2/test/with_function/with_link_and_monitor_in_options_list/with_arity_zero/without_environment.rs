@@ -134,7 +134,7 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
                     let arc_process = process::test_init();
                     let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
-                        arc_process.return_from_call(Atom::str_to_term("ok"))?;
+                        arc_process.return_from_call(0, Atom::str_to_term("ok"))?;
 
                         Ok(())
                     };

@@ -29,12 +29,12 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let time = arc_process.stack_pop().unwrap();
+    let time = arc_process.stack_peek(1).unwrap();
     assert!(time.is_integer());
-    let value = arc_process.stack_pop().unwrap();
+    let value = arc_process.stack_peek(2).unwrap();
 
     let time_value = arc_process.tuple_from_slice(&[time, value])?;
-    arc_process.return_from_call(time_value)?;
+    arc_process.return_from_call(2, time_value)?;
 
     Process::call_code(arc_process)
 }

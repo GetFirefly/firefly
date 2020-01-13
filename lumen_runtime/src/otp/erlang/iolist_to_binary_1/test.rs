@@ -1,7 +1,7 @@
+use liblumen_alloc::erts::term::prelude::*;
+
 use crate::otp;
 use crate::scheduler::with_process;
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::*;
 
 // > Bin1 = <<1,2,3>>.
 // <<1,2,3>>
@@ -64,16 +64,11 @@ fn with_procbin_in_list_returns_binary() {
         let procbin = process.binary_from_bytes(&bytes).unwrap();
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let iolist = process
-            .list_from_slice(&[
-                procbin
-            ]).unwrap();
+        let iolist = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
             otp::erlang::iolist_to_binary_1::native(process, iolist),
-            Ok(process
-                .binary_from_bytes(&bytes)
-                .unwrap())
+            Ok(process.binary_from_bytes(&bytes).unwrap())
         )
     });
 }
@@ -123,6 +118,7 @@ fn with_subbinary_returns_binary() {
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
+        let tail = process.integer(42).unwrap();
         let iolist = process
             .improper_list_from_slice(
                 &[process
@@ -134,13 +130,13 @@ fn with_improper_list_smallint_tail_errors_badarg() {
                         0,
                     )
                     .unwrap()],
-                process.integer(42).unwrap(),
+                tail,
             )
             .unwrap();
 
-        assert_eq!(
+        assert_badarg!(
             otp::erlang::iolist_to_binary_1::native(process, iolist),
-            Err(badarg!().into())
+            format!("iolist ({}) tail ({}) cannot be a byte", iolist, tail)
         )
     });
 }
@@ -149,13 +145,15 @@ fn with_improper_list_smallint_tail_errors_badarg() {
 #[test]
 fn with_atom_in_iolist_errors_badarg() {
     with_process(|process| {
-        let iolist = process
-            .list_from_slice(&[Atom::str_to_term("foo")])
-            .unwrap();
+        let element = Atom::str_to_term("foo");
+        let iolist = process.list_from_slice(&[element]).unwrap();
 
-        assert_eq!(
+        assert_badarg!(
             otp::erlang::iolist_to_binary_1::native(process, iolist),
-            Err(badarg!().into())
+            format!(
+                "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
+                iolist, element
+            )
         )
     });
 }

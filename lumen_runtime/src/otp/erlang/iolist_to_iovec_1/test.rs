@@ -1,7 +1,7 @@
+use liblumen_alloc::erts::term::prelude::*;
+
 use crate::otp;
 use crate::scheduler::with_process;
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::*;
 
 #[test]
 fn with_binary_returns_binary_in_list() {
@@ -70,10 +70,7 @@ fn with_procbin_in_list_returns_list() {
         let procbin = process.binary_from_bytes(&bytes).unwrap();
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let iolist = process
-            .list_from_slice(&[
-                procbin
-            ]).unwrap();
+        let iolist = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
             otp::erlang::iolist_to_iovec_1::native(process, iolist),
@@ -140,9 +137,9 @@ fn with_improper_list_smallint_tail_errors_badarg() {
             )
             .unwrap();
 
-        assert_eq!(
+        assert_badarg!(
             otp::erlang::iolist_to_iovec_1::native(process, iolist),
-            Err(badarg!().into())
+            "TODO"
         )
     });
 }
@@ -151,13 +148,12 @@ fn with_improper_list_smallint_tail_errors_badarg() {
 #[test]
 fn with_atom_in_iolist_errors_badarg() {
     with_process(|process| {
-        let iolist = process
-            .list_from_slice(&[Atom::str_to_term("foo")])
-            .unwrap();
+        let element = Atom::str_to_term("foo");
+        let iolist = process.list_from_slice(&[element]).unwrap();
 
-        assert_eq!(
+        assert_badarg!(
             otp::erlang::iolist_to_iovec_1::native(process, iolist),
-            Err(badarg!().into())
+            format!("iolist ({}) is not a list", element)
         )
     });
 }

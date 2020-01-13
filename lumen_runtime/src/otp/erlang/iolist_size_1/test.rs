@@ -1,7 +1,7 @@
+use liblumen_alloc::erts::term::prelude::*;
+
 use crate::otp;
 use crate::scheduler::with_process;
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::*;
 
 // > iolist_size([1,2|<<3,4>>]).
 // 4
@@ -123,10 +123,7 @@ fn with_procbin_returns_size() {
         let procbin = process.binary_from_bytes(&bytes).unwrap();
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let iolist = process
-            .list_from_slice(&[
-                procbin
-            ]).unwrap();
+        let iolist = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
             otp::erlang::iolist_size_1::native(process, iolist),
@@ -138,17 +135,18 @@ fn with_procbin_returns_size() {
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
+        let tail = process.integer(42).unwrap();
         let iolist = process
-            .improper_list_from_slice(
-                &[process.binary_from_bytes(&[1, 2, 3]).unwrap()],
-                process.integer(42).unwrap(),
-            )
+            .improper_list_from_slice(&[process.binary_from_bytes(&[1, 2, 3]).unwrap()], tail)
             .unwrap();
 
-        assert_eq!(
+        assert_badarg!(
             otp::erlang::iolist_size_1::native(process, iolist),
-            Err(badarg!().into())
-        )
+            format!(
+                "iolist_or_binary ({}) tail ({}) cannot be a byte",
+                iolist, tail
+            )
+        );
     });
 }
 
@@ -160,9 +158,9 @@ fn with_atom_in_iolist_errors_badarg() {
             .list_from_slice(&[Atom::str_to_term("foo")])
             .unwrap();
 
-        assert_eq!(
+        assert_badarg!(
             otp::erlang::iolist_size_1::native(process, iolist),
-            Err(badarg!().into())
+            format!("iolist_or_binary ({}) is not an iolist or a binary", iolist)
         )
     });
 }

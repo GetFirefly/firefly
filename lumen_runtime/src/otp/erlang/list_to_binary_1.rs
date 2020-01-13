@@ -70,6 +70,9 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                                 .map_err(From::from);
                         }
                     }
+                    TypedTerm::ProcBin(procbin) => {
+                        byte_vec.extend_from_slice(procbin.as_bytes());
+                    }
                     _ => {
                         return Err(TypeError)
                             .context(element_context(iolist, top))

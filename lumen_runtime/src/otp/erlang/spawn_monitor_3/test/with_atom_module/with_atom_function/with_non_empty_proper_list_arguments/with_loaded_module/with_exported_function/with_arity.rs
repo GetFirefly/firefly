@@ -3,7 +3,7 @@ use super::*;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
-use crate::test::has_message;
+use crate::test::{assert_exits_badarith, has_message};
 
 #[test]
 fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent() {
@@ -62,7 +62,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(reason));
+            assert_eq!(runtime_exception, &exit!(reason, anyhow!("Test").into()));
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
@@ -71,7 +71,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 
     let tag = atom!("DOWN");
 
-    assert!(has_message(
+    assert_has_message!(
         &parent_arc_process,
         parent_arc_process
             .tuple_from_slice(&[
@@ -82,7 +82,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
                 reason
             ])
             .unwrap()
-    ));
+    );
 }
 
 #[test]
@@ -145,20 +145,17 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
             arity: 1
         }))
     );
-
-    match *child_arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &badarith!());
-        }
-        ref status => panic!("Process status ({:?}) is not exiting.", status),
-    };
+    assert_exits_badarith(
+        &child_arc_process,
+        "number (:'zero') is not an integer or a float",
+    );
 
     assert!(!parent_arc_process.is_exiting());
 
     let tag = atom!("DOWN");
     let reason = atom!("badarith");
 
-    assert!(has_message(
+    assert_has_message!(
         &parent_arc_process,
         parent_arc_process
             .tuple_from_slice(&[
@@ -169,5 +166,5 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
                 reason
             ])
             .unwrap()
-    ));
+    );
 }

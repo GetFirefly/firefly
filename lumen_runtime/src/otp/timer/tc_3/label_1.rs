@@ -46,14 +46,16 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let before = arc_process.stack_pop().unwrap();
+    let before = arc_process.stack_peek(1).unwrap();
     assert!(before.is_integer());
-    let module = arc_process.stack_pop().unwrap();
+    let module = arc_process.stack_peek(2).unwrap();
     assert!(module.is_atom(), "module ({:?}) is not an atom", module);
-    let function = arc_process.stack_pop().unwrap();
+    let function = arc_process.stack_peek(3).unwrap();
     assert!(function.is_atom());
-    let arguments = arc_process.stack_pop().unwrap();
+    let arguments = arc_process.stack_peek(4).unwrap();
     assert!(arguments.is_list());
+
+    arc_process.stack_popn(4);
 
     label_2::place_frame_with_arguments(arc_process, Placement::Replace, before)?;
     apply_3::place_frame_with_arguments(arc_process, Placement::Push, module, function, arguments)?;

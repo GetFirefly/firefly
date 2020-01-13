@@ -54,21 +54,19 @@ fn with_greater_float_right_returns_true() {
 
 #[test]
 fn without_number_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::integer::big(arc_process.clone()),
-                    strategy::term::is_not_number(arc_process.clone()),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::integer::big(arc_process.clone()),
+                strategy::term::is_not_number(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), true.into());
+
+            Ok(())
+        },
+    );
 }
 
 fn is_less_than<R>(right: R, expected: bool)

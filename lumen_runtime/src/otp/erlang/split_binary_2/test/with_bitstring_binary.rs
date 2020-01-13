@@ -5,24 +5,23 @@ mod with_subbinary;
 
 #[test]
 fn without_non_negative_integer_position_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_bitstring(arc_process.clone()),
-                    strategy::term::is_not_non_negative_integer(arc_process.clone()),
-                ),
-                |(binary, position)| {
-                    prop_assert_eq!(
-                        native(&arc_process, binary, position),
-                        Err(badarg!().into())
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_bitstring(arc_process.clone()),
+                strategy::term::is_not_non_negative_integer(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, binary, position)| {
+            prop_assert_badarg!(
+                native(&arc_process, binary, position),
+                format!("position ({}) must be in 0..byte_size(binary)", position)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

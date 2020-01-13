@@ -15,5 +15,5 @@ use crate::otp::erlang::cancel_timer;
 
 #[native_implemented_function(cancel_timer/1)]
 pub fn native(process: &Process, timer_reference: Term) -> exception::Result<Term> {
-    cancel_timer(timer_reference, Default::default(), process)
+    cancel_timer(timer_reference, Default::default(), process).map_err(From::from)
 }

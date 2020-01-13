@@ -292,8 +292,6 @@ impl CallExecutor {
                         args[1],
                         &mut [atom!("error"), err.reason(), atom!("trace")],
                     )),
-                    // Promote unknown runtime errors to SystemException
-                    Exception::Runtime(RuntimeException::Unknown(err)) => return Err(err.into()),
                     Exception::System(err) => return Err(err),
                 },
             },
@@ -313,7 +311,7 @@ impl CallExecutor {
 
         let mut exec = self;
         // Outer loop for optimized execution within the current function
-        'outer: loop {
+        loop {
             // Insert block argument into environment
             let block_arg_vals = fun.fun.block_args(block);
             //trace!("{:?} {:?}", &block_arg_vals, &exec.next_args);

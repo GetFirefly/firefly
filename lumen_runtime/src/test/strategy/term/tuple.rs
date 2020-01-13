@@ -21,7 +21,7 @@ pub fn intermediate(
 }
 
 pub fn with_index(arc_process: Arc<Process>) -> BoxedStrategy<(Vec<Term>, usize, Term, Term)> {
-    (Just(arc_process), 1_usize..=4_usize)
+    (Just(arc_process.clone()), 1_usize..=4_usize)
         .prop_flat_map(|(arc_process, len)| {
             (
                 Just(arc_process.clone()),
@@ -40,8 +40,17 @@ pub fn with_index(arc_process: Arc<Process>) -> BoxedStrategy<(Vec<Term>, usize,
         .boxed()
 }
 
+pub fn non_empty(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    intermediate(
+        super::super::term(arc_process.clone()),
+        (1..=3).into(),
+        arc_process,
+    )
+    .boxed()
+}
+
 pub fn without_index(arc_process: Arc<Process>) -> BoxedStrategy<(Term, Term)> {
-    (super::tuple(arc_process.clone()), super::super::term(arc_process.clone()))
+    (non_empty(arc_process.clone()), super::super::term(arc_process.clone()))
         .prop_filter("Index either needs to not be an integer or not be an integer in the index range 1..=len", |(tuple, index)| {
             let index_big_int_result: std::result::Result<BigInt, _> = (*index).try_into();
 

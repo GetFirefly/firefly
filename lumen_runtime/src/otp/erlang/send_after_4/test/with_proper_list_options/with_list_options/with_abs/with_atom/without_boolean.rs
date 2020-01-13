@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 mod with_small_integer_time;
 
 // BigInt is not tested because it would take too long and would always count as `long_term` for the
@@ -9,31 +7,30 @@ mod with_small_integer_time;
 
 #[test]
 fn without_non_negative_integer_time_error_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_non_negative_integer(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                    options(arc_process.clone()),
-                ),
-                |(time, message, options)| {
-                    let destination = arc_process.pid_term();
-
-                    prop_assert_eq!(
-                        native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_non_negative_integer(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                abs_value(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, time, message, abs_value)| {
+            let destination = arc_process.pid_term();
+            let options = options(abs_value, &arc_process);
+
+            prop_assert_is_not_boolean!(
+                native(arc_process.clone(), time, destination, message, options),
+                "abs value",
+                abs_value
+            );
+
+            Ok(())
+        },
+    );
 }
 
-fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn abs_value(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process.clone())
-        .prop_map(move |value| super::options(value, &arc_process))
-        .boxed()
 }

@@ -20,5 +20,5 @@ use crate::timer;
 pub fn native(process: &Process, timer_reference: Term, options: Term) -> exception::Result<Term> {
     let read_timer_options: timer::read::Options = options.try_into()?;
 
-    read_timer(timer_reference, read_timer_options, process)
+    read_timer(timer_reference, read_timer_options, process).map_err(From::from)
 }

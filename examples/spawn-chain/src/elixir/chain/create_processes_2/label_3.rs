@@ -26,12 +26,12 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let ok = arc_process.stack_pop().unwrap();
+    let ok = arc_process.stack_peek(1).unwrap();
     assert_eq!(ok, Atom::str_to_term("ok"));
-    let final_answer = arc_process.stack_pop().unwrap();
+    let final_answer = arc_process.stack_peek(2).unwrap();
     assert!(final_answer.is_integer());
 
-    arc_process.return_from_call(final_answer).unwrap();
+    arc_process.return_from_call(2, final_answer).unwrap();
 
     Process::call_code(arc_process)
 }

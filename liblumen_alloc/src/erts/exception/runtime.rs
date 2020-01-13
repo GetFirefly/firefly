@@ -1,15 +1,10 @@
-use core::array::TryFromSliceError;
 use core::convert::TryFrom;
-use core::num::TryFromIntError;
 
 use thiserror::Error;
 
-use crate::erts::string::InvalidEncodingNameError;
-use crate::erts::term::index::IndexError;
 use crate::erts::term::prelude::*;
 
-use super::location::Location;
-use super::{Exception, SystemException, UnexpectedExceptionError};
+use super::{ArcError, Exception, SystemException, UnexpectedExceptionError};
 
 #[derive(Error, Debug, Clone)]
 pub enum RuntimeException {
@@ -19,8 +14,6 @@ pub enum RuntimeException {
     Error(#[from] super::Error),
     #[error("{0}")]
     Exit(#[from] super::Exit),
-    #[error("{0}")]
-    Unknown(#[from] super::ArcError),
 }
 impl Eq for RuntimeException {}
 impl PartialEq for RuntimeException {
@@ -30,7 +23,6 @@ impl PartialEq for RuntimeException {
             (Throw(ref lhs), Throw(ref rhs)) => lhs.eq(rhs),
             (Error(ref lhs), Error(ref rhs)) => lhs.eq(rhs),
             (Exit(ref lhs), Exit(ref rhs)) => lhs.eq(rhs),
-            (Unknown(_), Unknown(_)) => true,
             _ => false,
         }
     }
@@ -41,7 +33,6 @@ impl RuntimeException {
             RuntimeException::Throw(e) => Some(e.class()),
             RuntimeException::Exit(e) => Some(e.class()),
             RuntimeException::Error(e) => Some(e.class()),
-            RuntimeException::Unknown(_) => None,
         }
     }
 
@@ -50,16 +41,6 @@ impl RuntimeException {
             RuntimeException::Throw(e) => Some(e.reason()),
             RuntimeException::Exit(e) => Some(e.reason()),
             RuntimeException::Error(e) => Some(e.reason()),
-            RuntimeException::Unknown(_err) => None,
-        }
-    }
-
-    pub fn location(&self) -> Option<Location> {
-        match self {
-            RuntimeException::Throw(e) => Some(e.location()),
-            RuntimeException::Exit(e) => Some(e.location()),
-            RuntimeException::Error(e) => Some(e.location()),
-            RuntimeException::Unknown(_err) => None,
         }
     }
 
@@ -68,70 +49,24 @@ impl RuntimeException {
             RuntimeException::Throw(e) => e.stacktrace(),
             RuntimeException::Exit(e) => e.stacktrace(),
             RuntimeException::Error(e) => e.stacktrace(),
-            RuntimeException::Unknown(_err) => None,
+        }
+    }
+
+    pub fn source(&self) -> ArcError {
+        match self {
+            RuntimeException::Throw(e) => e.source(),
+            RuntimeException::Exit(e) => e.source(),
+            RuntimeException::Error(e) => e.source(),
         }
     }
 }
 
-impl From<core::convert::Infallible> for RuntimeException {
-    fn from(_: core::convert::Infallible) -> Self {
-        unreachable!()
+impl From<anyhow::Error> for RuntimeException {
+    fn from(err: anyhow::Error) -> Self {
+        badarg!(ArcError::new(err))
     }
 }
 
-impl From<AtomError> for RuntimeException {
-    fn from(_: AtomError) -> Self {
-        super::badarg(location!())
-    }
-}
-
-impl From<BoolError> for RuntimeException {
-    fn from(_: BoolError) -> Self {
-        super::badarg(location!())
-    }
-}
-
-impl From<InvalidEncodingNameError> for RuntimeException {
-    fn from(_: InvalidEncodingNameError) -> Self {
-        super::badarg(location!())
-    }
-}
-
-impl From<ImproperList> for RuntimeException {
-    fn from(_: ImproperList) -> Self {
-        super::badarg(location!())
-    }
-}
-
-impl From<IndexError> for RuntimeException {
-    fn from(_: IndexError) -> Self {
-        super::badarg(location!())
-    }
-}
-
-impl From<TryFromIntError> for RuntimeException {
-    fn from(_: TryFromIntError) -> Self {
-        super::badarg(location!())
-    }
-}
-
-impl From<TryIntoIntegerError> for RuntimeException {
-    fn from(_: TryIntoIntegerError) -> Self {
-        super::badarg(location!())
-    }
-}
-
-impl From<TryFromSliceError> for RuntimeException {
-    fn from(_: TryFromSliceError) -> Self {
-        super::badarg(location!())
-    }
-}
-
-impl From<TypeError> for RuntimeException {
-    fn from(_: TypeError) -> Self {
-        super::badarg(location!())
-    }
-}
 impl TryFrom<Exception> for RuntimeException {
     type Error = UnexpectedExceptionError<RuntimeException, SystemException>;
 
@@ -152,10 +87,12 @@ mod tests {
     mod error {
         use super::*;
 
+        use anyhow::*;
+
         #[test]
         fn without_arguments_stores_none() {
             let reason = atom!("badarg");
-            let error = error!(reason);
+            let error = error!(reason, anyhow!("source").into());
 
             assert_eq!(error.reason(), Some(reason));
             assert_eq!(error.class(), Some(Class::Error { arguments: None }));
@@ -165,7 +102,7 @@ mod tests {
         fn with_arguments_stores_some() {
             let reason = atom!("badarg");
             let arguments = Term::NIL;
-            let error = error!(reason, arguments);
+            let error = error!(reason, arguments, anyhow!("source").into());
 
             assert_eq!(error.reason(), Some(reason));
             assert_eq!(

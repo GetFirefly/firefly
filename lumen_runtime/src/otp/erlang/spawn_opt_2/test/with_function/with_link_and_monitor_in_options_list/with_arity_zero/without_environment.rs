@@ -18,7 +18,10 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent_and_paren
                     let arc_process = process::test_init();
                     let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
-                        arc_process.exception(exit!(Atom::str_to_term("not_normal")));
+                        arc_process.exception(exit!(
+                            Atom::str_to_term("not_normal"),
+                            anyhow!("Test").into()
+                        ));
 
                         Ok(())
                     };
@@ -73,7 +76,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent_and_paren
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(reason));
+                        prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -85,7 +88,10 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent_and_paren
 
                 match *parent_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(Atom::str_to_term("not_normal")));
+                        prop_assert_eq!(
+                            exception,
+                            &exit!(Atom::str_to_term("not_normal"), anyhow!("Test").into())
+                        );
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -128,7 +134,7 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
                     let arc_process = process::test_init();
                     let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
-                        arc_process.return_from_call(Atom::str_to_term("ok"))?;
+                        arc_process.return_from_call(0, Atom::str_to_term("ok"))?;
 
                         Ok(())
                     };
@@ -173,7 +179,7 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(reason));
+                        prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(

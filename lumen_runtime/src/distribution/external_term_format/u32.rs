@@ -1,19 +1,15 @@
 use std::convert::TryInto;
 use std::mem;
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::InternalResult;
 
-pub fn decode(bytes: &[u8]) -> Result<(u32, &[u8]), Exception> {
-    const U32_BYTE_LEN: usize = mem::size_of::<u32>();
+use crate::distribution::external_term_format::try_split_at;
 
-    if U32_BYTE_LEN <= bytes.len() {
-        let (len_bytes, after_len_bytes) = bytes.split_at(U32_BYTE_LEN);
+pub fn decode<'a>(bytes: &'a [u8]) -> InternalResult<(u32, &'a [u8])> {
+    try_split_at(bytes, mem::size_of::<u32>()).map(|(len_bytes, after_len_bytes)| {
         let len_array = len_bytes.try_into().unwrap();
         let len_u32 = u32::from_be_bytes(len_array);
 
-        Ok((len_u32, after_len_bytes))
-    } else {
-        Err(badarg!().into())
-    }
+        (len_u32, after_len_bytes)
+    })
 }

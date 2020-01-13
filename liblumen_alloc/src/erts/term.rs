@@ -8,7 +8,7 @@ mod encoding;
 mod float;
 pub mod index;
 mod integer;
-mod list;
+pub mod list;
 mod map;
 pub(super) mod pid;
 mod port;
@@ -37,12 +37,13 @@ pub mod prelude {
     // Export the typed term wrapper
     pub use super::typed_term::TypedTerm;
     // Export the primary term types
-    pub use super::atom::{Atom, AtomError};
+    pub use super::atom::{Atom, AtomError, TryAtomFromTermError};
     pub use super::closure::Closure;
     pub use super::float::Float;
     pub use super::integer::{BigInteger, Integer, SmallInteger};
     pub use super::list::{
-        Cons, HeaplessListBuilder, ImproperList, List, ListBuilder, MaybeImproper,
+        Cons, HeaplessListBuilder, ImproperList, ImproperListError, List, ListBuilder,
+        MaybeImproper,
     };
     pub use super::map::Map;
     pub use super::pid::{AnyPid, ExternalPid, InvalidPidError, Pid};

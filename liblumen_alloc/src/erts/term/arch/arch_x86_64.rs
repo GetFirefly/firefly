@@ -15,7 +15,11 @@ use core::cmp;
 ///! processors to use up to 54 bits for addresses, which would cause issues as well.
 use core::fmt;
 
-use crate::erts::exception;
+use alloc::sync::Arc;
+
+use std::backtrace::Backtrace;
+
+use crate::erts::exception::InternalResult;
 
 use crate::erts::term::prelude::*;
 
@@ -331,7 +335,7 @@ impl Repr for RawTerm {
 unsafe impl Send for RawTerm {}
 
 impl Encode<RawTerm> for u8 {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(
             (*self) as u64,
             FLAG_SMALL_INTEGER,
@@ -340,7 +344,7 @@ impl Encode<RawTerm> for u8 {
 }
 
 impl Encode<RawTerm> for SmallInteger {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         let i: i64 = (*self).into();
         Ok(RawTerm::encode_immediate(
             (i as u64) & MAX_ADDR,
@@ -350,32 +354,32 @@ impl Encode<RawTerm> for SmallInteger {
 }
 
 impl Encode<RawTerm> for Float {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm(self.value().to_bits() + MIN_DOUBLE))
     }
 }
 
 impl Encode<RawTerm> for bool {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         let atom: Atom = (*self).into();
         Ok(RawTerm::encode_immediate(atom.id() as u64, FLAG_ATOM))
     }
 }
 
 impl Encode<RawTerm> for Atom {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(self.id() as u64, FLAG_ATOM))
     }
 }
 
 impl Encode<RawTerm> for Pid {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(self.as_usize() as u64, FLAG_PID))
     }
 }
 
 impl Encode<RawTerm> for Port {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(self.as_usize() as u64, FLAG_PORT))
     }
 }
@@ -475,7 +479,7 @@ impl Cast<*const Cons> for RawTerm {
 
 impl Encoded for RawTerm {
     #[inline]
-    fn decode(&self) -> exception::Result<TypedTerm> {
+    fn decode(&self) -> Result<TypedTerm, TermDecodingError> {
         let tag = self.type_of();
         match tag {
             Tag::Nil => Ok(TypedTerm::Nil),
@@ -510,9 +514,15 @@ impl Encoded for RawTerm {
                     Tag::Atom => Ok(TypedTerm::Atom(unsafe { unboxed.decode_atom() })),
                     Tag::Pid => Ok(TypedTerm::Pid(unsafe { unboxed.decode_pid() })),
                     Tag::Port => Ok(TypedTerm::Port(unsafe { unboxed.decode_port() })),
-                    Tag::Box => Err(TermDecodingError::MoveMarker.into()),
-                    Tag::Unknown(_) => Err(TermDecodingError::InvalidTag.into()),
-                    Tag::None => Err(TermDecodingError::NoneValue.into()),
+                    Tag::Box => Err(TermDecodingError::MoveMarker {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
+                    Tag::Unknown(_) => Err(TermDecodingError::InvalidTag {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
+                    Tag::None => Err(TermDecodingError::NoneValue {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
                     header => unboxed.decode_header(header, Some(self.is_literal())),
                 }
             }
@@ -725,7 +735,7 @@ impl fmt::Debug for RawTerm {
                 let value = unsafe { self.decode_port() };
                 write!(f, "Term({})", value)
             }
-            Tag::Box => {
+            Tag::Box | Tag::Literal => {
                 let is_literal = self.0 & FLAG_LITERAL == FLAG_LITERAL;
                 let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { &*ptr };
@@ -1220,7 +1230,11 @@ mod tests {
         assert_eq!(&sub, sub_box.as_ref());
         assert!(sub_box.is_aligned());
         assert!(sub_box.is_binary());
-        assert_eq!(sub_box.try_into(), Ok("world!".to_owned()));
+
+        let result_string: Result<String, _> = sub_box.try_into();
+        assert!(result_string.is_ok());
+
+        assert_eq!(result_string.unwrap(), "world!".to_owned());
     }
 
     #[test]
@@ -1248,7 +1262,11 @@ mod tests {
         assert_eq!(&match_ctx, match_ctx_box.as_ref());
         assert!(match_ctx_box.is_aligned());
         assert!(match_ctx_box.is_binary());
-        assert_eq!(match_ctx_box.try_into(), Ok("hello world!".to_owned()));
+
+        let result_string: Result<String, _> = match_ctx_box.try_into();
+        assert!(result_string.is_ok());
+
+        assert_eq!(result_string.unwrap(), "hello world!".to_owned());
     }
 
     #[test]

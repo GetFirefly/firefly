@@ -14,7 +14,7 @@ fn without_exiting_returns_true() {
 #[test]
 fn with_exiting_returns_false() {
     with_process_arc(|arc_process| {
-        arc_process.exit_normal();
+        arc_process.exit_normal(anyhow!("Test").into());
 
         assert!(arc_process.is_exiting());
         assert_eq!(

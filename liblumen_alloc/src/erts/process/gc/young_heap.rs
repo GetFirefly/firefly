@@ -353,7 +353,7 @@ impl HeapAlloc for YoungHeap {
     unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
         use liblumen_core::sys::sysconf::MIN_ALIGN;
 
-        let layout = layout.align_to(MIN_ALIGN).unwrap().pad_to_align().unwrap();
+        let layout = layout.align_to(MIN_ALIGN).unwrap().pad_to_align();
 
         let needed = layout.size();
         let available = self.heap_available() * mem::size_of::<Term>();
@@ -491,7 +491,13 @@ impl StackPrimitives for YoungHeap {
 
     #[inline]
     fn stack_popn(&mut self, n: usize) {
-        assert!(n > 0 && n <= self.stack_size);
+        assert!(n > 0);
+        assert!(
+            n <= self.stack_size,
+            "Trying to pop {} terms from stack that only has {} terms",
+            n,
+            self.stack_size
+        );
         if self.stack_size - n == 0 {
             // Freeing the whole stack
             self.stack_start = self.stack_end;

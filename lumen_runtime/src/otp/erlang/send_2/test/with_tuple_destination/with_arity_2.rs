@@ -6,28 +6,27 @@ use crate::process::SchedulerDependentAlloc;
 
 #[test]
 fn without_atom_name_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_atom(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(name, message)| {
-                    let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0::native()])
-                        .unwrap();
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_atom(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+            )
+        },
+        |(arc_process, name, message)| {
+            let destination = arc_process
+                .tuple_from_slice(&[name, erlang::node_0::native()])
+                .unwrap();
 
-                    prop_assert_eq!(
+            prop_assert_badarg!(
                         native(&arc_process, destination, message),
-                        Err(badarg!().into())
+                        format!("registered_name ({}) in {{registered_name, node}} ({}) destination is not an atom", name, destination)
                     );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -104,6 +103,9 @@ where
             .unwrap();
         let message = Atom::str_to_term("message");
 
-        assert_badarg!(native(process, destination, message));
+        assert_badarg!(
+            native(process, destination, message),
+            "destination is not an atom"
+        );
     })
 }

@@ -5,7 +5,8 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -23,12 +24,18 @@ pub fn native(element: Term, list: Term) -> exception::Result<Term> {
                             return Ok(true.into());
                         }
                     }
-                    Err(_) => return Err(badarg!().into()),
+                    Err(_) => {
+                        return Err(ImproperListError)
+                            .context(format!("list ({}) is improper", list))
+                            .map_err(From::from)
+                    }
                 };
             }
 
             Ok(false.into())
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!("list ({}) is not a list", list))
+            .map_err(From::from),
     }
 }

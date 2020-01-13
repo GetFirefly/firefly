@@ -31,4 +31,5 @@ pub fn native(
         Default::default(),
         arc_process,
     )
+    .map_err(From::from)
 }

@@ -21,7 +21,13 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let number = parent_arc_process.integer(0).unwrap();
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
-    let result = native(&parent_arc_process, module, function, arguments, OPTIONS);
+    let result = native(
+        &parent_arc_process,
+        module,
+        function,
+        arguments,
+        options(&parent_arc_process),
+    );
 
     assert!(result.is_ok());
 
@@ -46,7 +52,10 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(atom!("normal")));
+            assert_eq!(
+                runtime_exception,
+                &exit!(atom!("normal"), anyhow!("Test").into())
+            );
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
@@ -74,7 +83,13 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
     let number = atom!("zero");
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
-    let result = native(&parent_arc_process, module, function, arguments, OPTIONS);
+    let result = native(
+        &parent_arc_process,
+        module,
+        function,
+        arguments,
+        options(&parent_arc_process),
+    );
 
     assert!(result.is_ok());
 
@@ -103,13 +118,10 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
             arity: 1
         }))
     );
-
-    match *child_arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &badarith!());
-        }
-        ref status => panic!("Process status ({:?}) is not exiting.", status),
-    };
+    assert_exits_badarith(
+        &child_arc_process,
+        "number (:'zero') is not an integer or a float",
+    );
 
     assert!(!parent_arc_process.is_exiting())
 }

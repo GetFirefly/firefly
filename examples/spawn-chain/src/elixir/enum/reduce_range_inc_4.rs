@@ -3,7 +3,9 @@ mod label_2;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::Alloc;
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::*;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -28,7 +30,7 @@ pub fn place_frame_with_arguments(
     last: Term,
     acc: Term,
     reducer: Term,
-) -> Result<(), Alloc> {
+) -> AllocResult<()> {
     process.stack_push(reducer)?;
     process.stack_push(acc)?;
     process.stack_push(last)?;
@@ -39,10 +41,12 @@ pub fn place_frame_with_arguments(
 }
 
 fn code(arc_process: &Arc<Process>) -> code::Result {
-    let first = arc_process.stack_pop().unwrap();
-    let last = arc_process.stack_pop().unwrap();
-    let acc = arc_process.stack_pop().unwrap();
-    let reducer = arc_process.stack_pop().unwrap();
+    let first = arc_process.stack_peek(1).unwrap();
+    let last = arc_process.stack_peek(2).unwrap();
+    let acc = arc_process.stack_peek(3).unwrap();
+    let reducer = arc_process.stack_peek(4).unwrap();
+
+    const STACK_USED: usize = 4;
 
     arc_process.reduce();
 
@@ -53,6 +57,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         match reducer.decode().unwrap() {
             TypedTerm::Closure(closure) => {
                 if closure.arity() == 2 {
+                    arc_process.stack_popn(STACK_USED);
+
                     closure.place_frame_with_arguments(
                         arc_process,
                         Placement::Replace,
@@ -65,17 +71,29 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
                     result_from_exception(
                         arc_process,
-                        liblumen_alloc::badarity!(arc_process, reducer, argument_list),
+                        STACK_USED,
+                        badarity(
+                            arc_process,
+                            reducer,
+                            argument_list,
+                            anyhow!("reducer").into(),
+                        ),
                     )
                 }
             }
-            _ => result_from_exception(arc_process, liblumen_alloc::badfun!(arc_process, reducer)),
+            _ => result_from_exception(
+                arc_process,
+                STACK_USED,
+                badfun(arc_process, reducer, anyhow!("reducer").into()),
+            ),
         }
     }
     // defp reduce_range_inc(first, last, acc, fun) do
     //   reduce_range_inc(first + 1, last, fun.(first, acc), fun)
     // end
     else {
+        arc_process.stack_popn(STACK_USED);
+
         // ```elixir
         // # pushed to stack: (first, last, acc, reducer)
         // # returned from call: new_first

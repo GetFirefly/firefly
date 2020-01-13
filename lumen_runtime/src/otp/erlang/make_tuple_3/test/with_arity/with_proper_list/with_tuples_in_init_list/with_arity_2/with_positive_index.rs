@@ -2,48 +2,40 @@ use super::*;
 
 #[test]
 fn with_positive_index_greater_than_length_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    (1_usize..3_usize),
-                    strategy::term(arc_process.clone()),
-                    (1_usize..3_usize),
-                    strategy::term(arc_process),
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                (1_usize..3_usize),
+                strategy::term(arc_process.clone()),
+                (1_usize..3_usize),
+                strategy::term(arc_process),
+            )
+                .prop_map(
+                    |(arc_process, len, default_value, index_offset, index_element)| {
+                        (
+                            arc_process.clone(),
+                            len,
+                            default_value,
+                            arc_process.integer(len + index_offset).unwrap(),
+                            index_element,
+                        )
+                    },
                 )
-                    .prop_flat_map(
-                        |(arc_process, len, default_value, index_offset, index_element)| {
-                            (
-                                Just(arc_process.clone()),
-                                Just(len),
-                                Just(default_value),
-                                Just(
-                                    arc_process
-                                        .list_from_slice(&[arc_process
-                                            .tuple_from_slice(&[
-                                                arc_process.integer(len + index_offset).unwrap(),
-                                                index_element,
-                                            ])
-                                            .unwrap()])
-                                        .unwrap(),
-                                ),
-                            )
-                        },
-                    )
-            }),
-            |(arc_process, arity_usize, default_value, init_list)| {
-                let arity = arc_process.integer(arity_usize).unwrap();
+        },
+        |(arc_process, arity_usize, default_value, position, element)| {
+            let arity = arc_process.integer(arity_usize).unwrap();
+            let init = arc_process.tuple_from_slice(&[position, element]).unwrap();
+            let init_list = arc_process.list_from_slice(&[init]).unwrap();
 
-                prop_assert_eq!(
-                    native(&arc_process, arity, default_value, init_list),
-                    Err(badarg!().into())
-                );
+            prop_assert_badarg!(
+                native(&arc_process, arity, default_value, init_list),
+                format!("position ({}) cannot be set", position)
+            );
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }
 
 #[test]

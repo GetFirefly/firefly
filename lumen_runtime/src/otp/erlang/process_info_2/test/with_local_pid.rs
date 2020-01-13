@@ -2,20 +2,27 @@ mod with_registered_name;
 
 use super::*;
 
-use std::sync::Arc;
-
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{Atom, Pid, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::{Atom, Pid, Term};
 
 #[test]
 fn without_supported_item_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(&unsupported_item(arc_process.clone()), |item| {
+            .run(&unsupported_item_atom(), |item| {
                 let pid = arc_process.pid_term();
-                prop_assert_eq!(native(&arc_process, pid, item), Err(badarg!().into()));
+                prop_assert_badarg!(
+                    native(&arc_process, pid, item),
+                    "supported items are backtrace, binary, catchlevel, current_function, \
+                     current_location, current_stacktrace, dictionary, error_handler, \
+                     garbage_collection, garbage_collection_info, group_leader, heap_size, \
+                     initial_call, links, last_calls, memory, message_queue_len, messages, \
+                     min_heap_size, min_bin_vheap_size, monitored_by, monitors, \
+                     message_queue_data, priority, reductions, registered_name, \
+                     sequential_trace_token, stack_size, status, suspending, \
+                     total_heap_size, trace, trap_exit"
+                );
 
                 Ok(())
             })
@@ -23,16 +30,12 @@ fn without_supported_item_errors_badarg() {
     });
 }
 
-fn unsupported_item(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    strategy::term(arc_process)
-        .prop_filter("Item cannot be supported", |item| {
-            match item.decode().unwrap() {
-                TypedTerm::Atom(atom) => match atom.name() {
-                    "registered_name" => false,
-                    _ => true,
-                },
-                _ => true,
-            }
+fn unsupported_item_atom() -> BoxedStrategy<Term> {
+    strategy::atom()
+        .prop_filter("Item cannot be supported", |atom| match atom.name() {
+            "registered_name" => false,
+            _ => true,
         })
+        .prop_map(|atom| atom.encode().unwrap())
         .boxed()
 }

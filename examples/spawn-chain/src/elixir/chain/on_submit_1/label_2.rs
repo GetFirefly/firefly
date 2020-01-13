@@ -27,12 +27,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok_n_input = arc_process.stack_pop().unwrap();
-    assert!(
-        ok_n_input.is_tuple(),
-        "ok_n_input ({:?}) is not a tuple",
-        ok_n_input
-    );
-    let ok_n_input_tuple: Boxed<Tuple> = ok_n_input.try_into().unwrap();
+    let ok_n_input_tuple: Boxed<Tuple> = ok_n_input
+        .try_into()
+        .unwrap_or_else(|_| panic!("ok_n_input ({:?}) is not a tuple", ok_n_input));
     assert_eq!(ok_n_input_tuple.len(), 2);
     assert_eq!(ok_n_input_tuple[0], Atom::str_to_term("ok"));
     let n_input = ok_n_input_tuple[1];

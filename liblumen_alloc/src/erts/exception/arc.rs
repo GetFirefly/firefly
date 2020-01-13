@@ -1,7 +1,10 @@
-use core::fmt;
+use core::fmt::{self, Display};
 use core::ops::Deref;
 
 use alloc::sync::Arc;
+
+use crate::erts::term::pid::InvalidPidError;
+use crate::erts::term::prelude::{TermDecodingError, TermEncodingError, TypeError};
 
 #[derive(Clone)]
 pub struct ArcError(Arc<anyhow::Error>);
@@ -15,6 +18,13 @@ impl ArcError {
         E: std::error::Error + Send + Sync + 'static,
     {
         Self(Arc::new(anyhow::Error::new(err)))
+    }
+
+    pub fn context<C>(&self, context: C) -> Self
+    where
+        C: Display + Send + Sync + 'static,
+    {
+        Self::new(anyhow::Error::new(self.clone()).context(context))
     }
 }
 impl Deref for ArcError {
@@ -50,5 +60,25 @@ impl std::error::Error for ArcError {
 impl From<anyhow::Error> for ArcError {
     fn from(err: anyhow::Error) -> Self {
         Self::new(err)
+    }
+}
+impl From<InvalidPidError> for ArcError {
+    fn from(err: InvalidPidError) -> Self {
+        Self::from_err(err)
+    }
+}
+impl From<TermDecodingError> for ArcError {
+    fn from(err: TermDecodingError) -> Self {
+        Self::from_err(err)
+    }
+}
+impl From<TermEncodingError> for ArcError {
+    fn from(err: TermEncodingError) -> Self {
+        Self::from_err(err)
+    }
+}
+impl From<TypeError> for ArcError {
+    fn from(err: TypeError) -> Self {
+        Self::from_err(err)
     }
 }

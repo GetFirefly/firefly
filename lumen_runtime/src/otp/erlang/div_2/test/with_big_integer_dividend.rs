@@ -1,8 +1,10 @@
 use super::*;
 
+use crate::test::with_big_int;
+
 #[test]
 fn with_small_integer_divisor_with_underflow_returns_small_integer() {
-    with(|dividend, process| {
+    with_big_int(|process, dividend| {
         let divisor = process.integer(2).unwrap();
 
         assert!(divisor.is_smallint());
@@ -19,7 +21,7 @@ fn with_small_integer_divisor_with_underflow_returns_small_integer() {
 
 #[test]
 fn with_big_integer_divisor_with_underflow_returns_small_integer() {
-    with(|dividend, process| {
+    with_big_int(|process, dividend| {
         let divisor = dividend;
 
         assert!(divisor.is_boxed_bigint());
@@ -52,18 +54,5 @@ fn with_big_integer_divisor_without_underflow_returns_big_integer() {
 
         assert!(quotient.is_boxed_bigint());
         assert_eq!(quotient, divisor);
-    })
-}
-
-fn with<F>(f: F)
-where
-    F: FnOnce(Term, &Process) -> (),
-{
-    with_process(|process| {
-        let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
-
-        assert!(dividend.is_boxed_bigint());
-
-        f(dividend, &process)
     })
 }

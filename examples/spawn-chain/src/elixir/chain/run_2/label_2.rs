@@ -30,11 +30,11 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let ok = arc_process.stack_pop().unwrap();
+    let ok = arc_process.stack_peek(1).unwrap();
     assert_eq!(ok, Atom::str_to_term("ok"));
-    let time_value = arc_process.stack_pop().unwrap();
+    let time_value = arc_process.stack_peek(2).unwrap();
 
-    arc_process.return_from_call(time_value).unwrap();
+    arc_process.return_from_call(2, time_value).unwrap();
 
     Process::call_code(arc_process)
 }

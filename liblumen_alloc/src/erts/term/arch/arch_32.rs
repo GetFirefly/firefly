@@ -5,7 +5,11 @@ use core::cmp;
 use core::convert::TryInto;
 use core::fmt;
 
-use crate::erts::exception;
+use alloc::sync::Arc;
+
+use std::backtrace::Backtrace;
+
+use crate::erts::exception::InternalResult;
 
 use liblumen_core::sys::sysconf::MIN_ALIGN;
 const_assert!(MIN_ALIGN >= 4);
@@ -249,7 +253,7 @@ impl Repr for RawTerm {
 unsafe impl Send for RawTerm {}
 
 impl Encode<RawTerm> for u8 {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(
             (*self) as u32,
             FLAG_SMALL_INTEGER,
@@ -258,35 +262,35 @@ impl Encode<RawTerm> for u8 {
 }
 
 impl Encode<RawTerm> for SmallInteger {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         let i: i32 = (*self)
             .try_into()
-            .map_err(|_| exception::Exception::from(TermEncodingError::ValueOutOfRange))?;
+            .map_err(|_| TermEncodingError::ValueOutOfRange)?;
         Ok(RawTerm::encode_immediate(i as u32, FLAG_SMALL_INTEGER))
     }
 }
 
 impl Encode<RawTerm> for bool {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         let atom = Atom::try_from_str(&self.to_string()).unwrap();
         Ok(RawTerm::encode_immediate(atom.id() as u32, FLAG_ATOM))
     }
 }
 
 impl Encode<RawTerm> for Atom {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(self.id() as u32, FLAG_ATOM))
     }
 }
 
 impl Encode<RawTerm> for Pid {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(self.as_usize() as u32, FLAG_PID))
     }
 }
 
 impl Encode<RawTerm> for Port {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(self.as_usize() as u32, FLAG_PORT))
     }
 }
@@ -381,7 +385,7 @@ impl Cast<*const Cons> for RawTerm {
 
 impl Encoded for RawTerm {
     #[inline]
-    fn decode(&self) -> exception::Result<TypedTerm> {
+    fn decode(&self) -> Result<TypedTerm, TermDecodingError> {
         let tag = self.type_of();
         match tag {
             Tag::Nil => Ok(TypedTerm::Nil),
@@ -406,14 +410,24 @@ impl Encoded for RawTerm {
                     Tag::Atom => Ok(TypedTerm::Atom(unsafe { unboxed.decode_atom() })),
                     Tag::Pid => Ok(TypedTerm::Pid(unsafe { unboxed.decode_pid() })),
                     Tag::Port => Ok(TypedTerm::Port(unsafe { unboxed.decode_port() })),
-                    Tag::Box | Tag::Literal => Err(TermDecodingError::MoveMarker.into()),
-                    Tag::Unknown(_) => Err(TermDecodingError::InvalidTag.into()),
-                    Tag::None => Err(TermDecodingError::NoneValue.into()),
+                    Tag::Box | Tag::Literal => Err(TermDecodingError::MoveMarker {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
+                    Tag::Unknown(_) => Err(TermDecodingError::InvalidTag {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
+                    Tag::None => Err(TermDecodingError::NoneValue {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
                     header => unboxed.decode_header(header, Some(tag == Tag::Literal)),
                 }
             }
-            Tag::Unknown(_) => Err(TermDecodingError::InvalidTag.into()),
-            Tag::None => Err(TermDecodingError::NoneValue.into()),
+            Tag::Unknown(_) => Err(TermDecodingError::InvalidTag {
+                backtrace: Arc::new(Backtrace::capture()),
+            }),
+            Tag::None => Err(TermDecodingError::NoneValue {
+                backtrace: Arc::new(Backtrace::capture()),
+            }),
             header => self.decode_header(header, None),
         }
     }
@@ -593,10 +607,16 @@ impl fmt::Debug for RawTerm {
                 write!(f, "Term({})", value)
             }
             Tag::Box | Tag::Literal => {
-                let ptr = (self.0 & !MASK_PRIMARY) as *const RawTerm;
-                write!(f, "Box({:p})", ptr)
+                let is_literal = self.0 & FLAG_LITERAL == FLAG_LITERAL;
+                let ptr = unsafe { self.decode_box() };
+                let unboxed = unsafe { &*ptr };
+                write!(
+                    f,
+                    "Box({:p}, literal = {}, value={:?})",
+                    ptr, is_literal, unboxed
+                )
             }
-            Tag::Unknown(invalid_tag) => write!(f, "InvalidTerm(tag: {:064b})", invalid_tag),
+            Tag::Unknown(invalid_tag) => write!(f, "InvalidTerm(tag: {:032b})", invalid_tag),
             header => match self.decode_header(header, None) {
                 Ok(term) => write!(f, "Term({:?})", term),
                 Err(_) => write!(f, "InvalidHeader(tag: {:?})", header),

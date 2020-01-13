@@ -8,7 +8,6 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq, prop_oneof};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -18,15 +17,22 @@ use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_list(arc_process.clone()),
+            )
+        },
+        |(arc_process, iolist)| {
+            prop_assert_badarg!(
+                native(&arc_process, iolist),
+                format!("iolist ({}) is not a list", iolist)
+            );
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]

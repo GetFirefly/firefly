@@ -42,7 +42,7 @@ where
     P: AsRef<Path>,
 {
     let (parsed, parser): (ErlAstModule, _) = parse_file(path, config);
-    let (res, messages) = lower_module(&parsed);
+    let (res, messages) = lower_module(&parser.config.codemap.lock().unwrap(), &parsed);
 
     let emitter =
         StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());

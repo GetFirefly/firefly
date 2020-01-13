@@ -90,7 +90,7 @@ impl HeapBin {
         // We pad to alignment so that the Layout produced here
         // matches that returned by `Layout::for_value` on the
         // final `HeapBin`
-        let layout = unpadded_layout.pad_to_align().unwrap();
+        let layout = unpadded_layout.pad_to_align();
 
         (layout, flags_offset, data_offset)
     }

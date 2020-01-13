@@ -1,5 +1,7 @@
 mod spawn_apply_3;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::Atom;
 
@@ -35,7 +37,7 @@ fn scheduler_does_run_exiting_process() {
         assert!(scheduler.run_through(&arc_process));
         assert!(scheduler.is_run_queued(&arc_process));
 
-        arc_process.exit_normal();
+        arc_process.exit_normal(anyhow!("Test").into());
 
         assert!(scheduler.is_run_queued(&arc_process));
         assert!(!scheduler.run_through(&arc_process));

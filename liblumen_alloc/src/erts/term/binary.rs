@@ -27,7 +27,7 @@ pub mod prelude {
     pub(in crate::erts::term) use super::iter::{BitsIter, FullByteIter, PartialByteBitIter};
     // Expose the various binary/bitstring traits
     pub use super::aligned_binary::AlignedBinary;
-    pub use super::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
+    pub use super::maybe_aligned_maybe_binary::{MaybeAlignedMaybeBinary, NotABinary};
     pub use super::{Binary, Bitstring, IndexByte, MaybePartialByte};
     // Expose the type for binary flags
     pub use super::BinaryFlags;

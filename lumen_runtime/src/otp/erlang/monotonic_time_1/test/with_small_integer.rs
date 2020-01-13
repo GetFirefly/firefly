@@ -5,12 +5,22 @@ use std::time::Duration;
 
 #[test]
 fn with_negative_errors_badarg() {
-    errors_badarg(|process| process.integer(-1).unwrap());
+    with_process(|process| {
+        assert_badarg!(
+            native(process, process.integer(-1).unwrap()),
+            "hertz must be positive"
+        );
+    });
 }
 
 #[test]
 fn with_zero_errors_badarg() {
-    errors_badarg(|process| process.integer(0).unwrap());
+    with_process(|process| {
+        assert_badarg!(
+            native(process, process.integer(0).unwrap()),
+            SUPPORTED_UNITS
+        );
+    });
 }
 
 #[test]

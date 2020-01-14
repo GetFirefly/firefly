@@ -40,7 +40,7 @@ fn with_list_with_integer_errors_badarg() {
         |(arc_process, string, list)| {
             prop_assert_badarg!(
                 native(&arc_process, list),
-                format!("float string ({}) does not contain decimal point", string)
+                format!("list ('{}') does not contain decimal point", string)
             );
 
             Ok(())

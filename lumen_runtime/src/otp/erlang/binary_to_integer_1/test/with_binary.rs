@@ -91,7 +91,7 @@ fn with_non_decimal_errors_badarg() {
         |(arc_process, binary)| {
             prop_assert_badarg!(
                 native(&arc_process, binary),
-                format!("string ({}) is not base 10", binary)
+                format!("binary ({}) is not base 10", binary)
             );
 
             Ok(())

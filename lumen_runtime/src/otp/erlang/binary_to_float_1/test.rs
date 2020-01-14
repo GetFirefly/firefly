@@ -27,7 +27,7 @@ fn with_binary_with_integer_errors_badarg() {
         |(arc_process, binary)| {
             prop_assert_badarg!(
                 native(&arc_process, binary),
-                format!("float string ({}) does not contain decimal point", binary)
+                format!("binary ({}) does not contain decimal point", binary)
             );
 
             Ok(())

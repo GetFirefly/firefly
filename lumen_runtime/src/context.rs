@@ -1,3 +1,5 @@
+pub mod r#type;
+
 use std::convert::TryInto;
 
 use anyhow::*;
@@ -7,6 +9,10 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::time;
+
+pub fn string(name: &'static str, quote: char, value: &str) -> String {
+    format!("{} ({}{}{})", name, quote, value.escape_default(), quote)
+}
 
 pub fn term_is_not_type(name: &str, value: Term, r#type: &str) -> String {
     format!("{} ({}) is not {}", name, value, r#type)

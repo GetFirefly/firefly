@@ -216,7 +216,7 @@ impl_aligned_try_into!(BinaryLiteral);
 /// Displays a binary using Erlang-style formatting
 pub(super) fn display(bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
     match str::from_utf8(bytes) {
-        Ok(s) => write!(f, "{}", s),
+        Ok(s) => write!(f, "\"{}\"", s.escape_default().to_string()),
         Err(_) => {
             f.write_str("<<")?;
 

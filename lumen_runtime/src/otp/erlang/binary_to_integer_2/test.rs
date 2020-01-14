@@ -112,7 +112,7 @@ fn with_binary_without_integer_in_base_errors_badarg() {
         |(arc_process, binary, base)| {
             prop_assert_badarg!(
                 native(&arc_process, binary, base),
-                format!("string ({}) is not in base ({})", binary, base)
+                format!("binary ({}) is not in base ({})", binary, base)
             );
 
             Ok(())

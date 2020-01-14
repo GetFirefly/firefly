@@ -18,5 +18,5 @@ use crate::otp::erlang::string_to_integer::decimal_string_to_integer;
 pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
     let string: String = list_to_string(list)?;
 
-    decimal_string_to_integer(process, &string).map_err(From::from)
+    decimal_string_to_integer(process, "list", '\'', &string).map_err(From::from)
 }

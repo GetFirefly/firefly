@@ -18,5 +18,5 @@ use crate::otp::erlang::string_to_float::string_to_float;
 pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
     let string = charlist_to_string(list)?;
 
-    string_to_float(process, &string).map_err(From::from)
+    string_to_float(process, "list", &string, '\'').map_err(From::from)
 }

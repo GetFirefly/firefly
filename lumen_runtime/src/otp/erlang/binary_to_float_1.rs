@@ -18,5 +18,5 @@ use crate::otp::erlang::string_to_float::string_to_float;
 pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {
     let string = binary_to_string(binary)?;
 
-    string_to_float(process, &string).map_err(From::from)
+    string_to_float(process, "binary", &string, '"').map_err(From::from)
 }

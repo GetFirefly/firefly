@@ -1,3 +1,5 @@
+pub mod io;
+
 use std::sync::Arc;
 
 use proptest::collection::SizeRange;

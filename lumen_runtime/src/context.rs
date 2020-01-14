@@ -1,3 +1,5 @@
+pub mod r#type;
+
 use std::convert::TryInto;
 
 use anyhow::*;

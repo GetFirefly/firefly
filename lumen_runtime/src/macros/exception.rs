@@ -258,6 +258,9 @@ macro_rules! prop_assert_is_not_tuple {
 
 #[cfg(test)]
 macro_rules! prop_assert_is_not_type {
+    ($actual:expr, $name:ident, $type:expr) => {
+        prop_assert_is_not_type!($actual, stringify!($name), $name, $type)
+    };
     ($actual:expr, $name:expr, $value:expr, $type:expr) => {
         prop_assert_badarg!($actual, format!("{} ({}) is not {}", $name, $value, $type))
     };

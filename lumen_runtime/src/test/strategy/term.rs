@@ -117,6 +117,12 @@ pub fn is_boolean() -> BoxedStrategy<Term> {
     prop_oneof![Just(true.into()), Just(false.into())].boxed()
 }
 
+pub fn is_byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    (Just(arc_process), any::<u8>())
+        .prop_map(|(arc_process, byte_u8)| arc_process.integer(byte_u8).unwrap())
+        .boxed()
+}
+
 pub fn is_encoding() -> BoxedStrategy<Term> {
     prop_oneof![
         Just(atom!("latin1")),
@@ -160,6 +166,14 @@ pub fn is_integer(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         integer::big(arc_process)
     ]
     .boxed()
+}
+
+pub fn is_iolist(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    list::io::root(arc_process)
+}
+
+pub fn is_iolist_or_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    prop_oneof![is_binary(arc_process.clone()), is_iolist(arc_process)].boxed()
 }
 
 pub fn is_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

@@ -5,83 +5,118 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use std::convert::TryInto;
+
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::{r#type, term_is_not_type};
+
 /// Returns the size, in bytes, of the binary that would be result from iolist_to_binary/1
 #[native_implemented_function(iolist_size/1)]
 pub fn native(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
-    let mut stack: Vec<Term> = vec![iolist_or_binary];
-    match size(process, iolist_or_binary, &mut stack, 0) {
-        Ok(size) => Ok(process.integer(size).unwrap()),
-        Err(bad) => Err(bad),
+    match iolist_or_binary.decode()? {
+        TypedTerm::Nil
+        | TypedTerm::List(_)
+        | TypedTerm::BinaryLiteral(_)
+        | TypedTerm::HeapBinary(_)
+        | TypedTerm::MatchContext(_)
+        | TypedTerm::ProcBin(_)
+        | TypedTerm::SubBinary(_) => iolist_or_binary_size(process, iolist_or_binary),
+        _ => Err(TypeError)
+            .context(term_is_not_type(
+                "iolist_or_binary",
+                iolist_or_binary,
+                &format!("an iolist ({}) or binary", r#type::IOLIST),
+            ))
+            .map_err(From::from),
     }
 }
 
-fn size(
-    process: &Process,
-    iolist_or_binary: Term,
-    vec: &mut Vec<Term>,
-    acc: usize,
-) -> Result<usize, Exception> {
-    if let Some(term) = vec.pop() {
-        match term.decode().unwrap() {
-            TypedTerm::SmallInteger(_) => size(process, iolist_or_binary, vec, acc + 1),
+fn element_not_a_binary_context(iolist_or_binary: Term, element: Term) -> String {
+    format!(
+        "iolist_or_binary ({}) element ({}) is a bitstring, but not a binary",
+        iolist_or_binary, element
+    )
+}
 
-            TypedTerm::Nil => size(process, iolist_or_binary, vec, acc),
+fn element_type_context(iolist_or_binary: Term, element: Term) -> String {
+    format!(
+        "iolist_or_binary ({}) element ({}) is not a byte, binary, or nested iolist ({})",
+        iolist_or_binary,
+        element,
+        r#type::IOLIST
+    )
+}
 
-            TypedTerm::HeapBinary(heap_binary) => size(
-                process,
-                iolist_or_binary,
-                vec,
-                acc + heap_binary.full_byte_len(),
-            ),
+fn iolist_or_binary_size(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
+    let mut size: usize = 0;
+    let mut stack: Vec<Term> = vec![iolist_or_binary];
 
-            TypedTerm::ProcBin(proc_binary) => size(
-                process,
-                iolist_or_binary,
-                vec,
-                acc + proc_binary.full_byte_len(),
-            ),
+    while let Some(top) = stack.pop() {
+        match top.decode()? {
+            TypedTerm::SmallInteger(small_integer) => {
+                let _: u8 = small_integer
+                    .try_into()
+                    .with_context(|| element_type_context(iolist_or_binary, top))?;
 
-            TypedTerm::SubBinary(subbinary) => size(
-                process,
-                iolist_or_binary,
-                vec,
-                acc + subbinary.full_byte_len(),
-            ),
-
+                size += 1;
+            }
+            TypedTerm::Nil => (),
             TypedTerm::List(boxed_cons) => {
-                let tail = boxed_cons.tail;
+                // @type iolist :: maybe_improper_list(byte() | binary() | iolist(),
+                // binary() | []) means that `byte()` isn't allowed
+                // for `tail`s unlike `head`.
 
-                if tail.is_smallint() {
-                    Err(TypeError)
-                        .context(format!(
-                            "iolist_or_binary ({}) tail ({}) cannot be a byte",
-                            iolist_or_binary, tail
-                        ))
-                        .map_err(From::from)
+                let tail = boxed_cons.tail;
+                let result_u8: Result<u8, _> = tail.try_into();
+
+                match result_u8 {
+                    Ok(_) => {
+                        return Err(TypeError)
+                            .context(format!(
+                                "iolist_or_binary ({}) tail ({}) cannot be a byte",
+                                iolist_or_binary, tail
+                            ))
+                            .map_err(From::from)
+                    }
+                    Err(_) => stack.push(tail),
+                };
+
+                stack.push(boxed_cons.head);
+            }
+            TypedTerm::HeapBinary(heap_binary) => size += heap_binary.full_byte_len(),
+            TypedTerm::MatchContext(match_context) => {
+                if match_context.is_binary() {
+                    size += match_context.full_byte_len();
                 } else {
-                    vec.push(boxed_cons.tail);
-                    vec.push(boxed_cons.head);
-                    size(process, iolist_or_binary, vec, acc)
+                    return Err(NotABinary)
+                        .context(element_not_a_binary_context(iolist_or_binary, top))
+                        .map_err(From::from);
                 }
             }
-
-            _ => Err(TypeError)
-                .context(format!(
-                    "iolist_or_binary ({}) is not an iolist or a binary",
-                    iolist_or_binary
-                ))
-                .map_err(From::from),
+            TypedTerm::ProcBin(proc_bin) => size += proc_bin.total_byte_len(),
+            TypedTerm::SubBinary(subbinary) => {
+                if subbinary.is_binary() {
+                    size += subbinary.full_byte_len();
+                } else {
+                    return Err(NotABinary)
+                        .context(element_not_a_binary_context(iolist_or_binary, top))
+                        .map_err(From::from);
+                }
+            }
+            _ => {
+                return Err(TypeError)
+                    .context(element_type_context(iolist_or_binary, top))
+                    .map_err(From::from);
+            }
         }
-    } else {
-        Ok(acc)
     }
+
+    process.integer(size).map_err(From::from)
 }

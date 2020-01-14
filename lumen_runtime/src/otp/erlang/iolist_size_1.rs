@@ -15,43 +15,12 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::context::{r#type, term_is_not_type};
+use crate::otp::erlang::iolist_or_binary::{self, *};
 
 /// Returns the size, in bytes, of the binary that would be result from iolist_to_binary/1
 #[native_implemented_function(iolist_size/1)]
 pub fn native(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
-    match iolist_or_binary.decode()? {
-        TypedTerm::Nil
-        | TypedTerm::List(_)
-        | TypedTerm::BinaryLiteral(_)
-        | TypedTerm::HeapBinary(_)
-        | TypedTerm::MatchContext(_)
-        | TypedTerm::ProcBin(_)
-        | TypedTerm::SubBinary(_) => iolist_or_binary_size(process, iolist_or_binary),
-        _ => Err(TypeError)
-            .context(term_is_not_type(
-                "iolist_or_binary",
-                iolist_or_binary,
-                &format!("an iolist ({}) or binary", r#type::IOLIST),
-            ))
-            .map_err(From::from),
-    }
-}
-
-fn element_not_a_binary_context(iolist_or_binary: Term, element: Term) -> String {
-    format!(
-        "iolist_or_binary ({}) element ({}) is a bitstring, but not a binary",
-        iolist_or_binary, element
-    )
-}
-
-fn element_type_context(iolist_or_binary: Term, element: Term) -> String {
-    format!(
-        "iolist_or_binary ({}) element ({}) is not a byte, binary, or nested iolist ({})",
-        iolist_or_binary,
-        element,
-        r#type::IOLIST
-    )
+    iolist_or_binary::native(process, iolist_or_binary, iolist_or_binary_size)
 }
 
 fn iolist_or_binary_size(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {

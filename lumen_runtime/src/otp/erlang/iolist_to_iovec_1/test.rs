@@ -1,7 +1,68 @@
+use std::convert::TryInto;
+
+use proptest::strategy::Just;
+use proptest::{prop_assert, prop_assert_eq};
+
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::otp;
+use crate::otp::erlang::iolist_to_iovec_1::native;
 use crate::scheduler::with_process;
+use crate::test::strategy::term::is_iolist_or_binary;
+
+#[test]
+fn with_iolist_or_binary_returns_iovec() {
+    run!(
+        |arc_process| { (Just(arc_process.clone()), is_iolist_or_binary(arc_process)) },
+        |(arc_process, iolist_or_binary)| {
+            let result = native(&arc_process, iolist_or_binary);
+
+            prop_assert!(
+                result.is_ok(),
+                "{} cannot be converted to a binary",
+                iolist_or_binary
+            );
+
+            let iovec = result.unwrap();
+
+            prop_assert!(iovec.is_list());
+
+            let iovec_cons: Boxed<Cons> = iovec.try_into().unwrap();
+
+            for iovec_result in iovec_cons.into_iter() {
+                prop_assert!(iovec_result.is_ok());
+
+                let iovec_element = iovec_result.unwrap();
+
+                prop_assert!(iovec_element.is_binary());
+            }
+
+            Ok(())
+        }
+    )
+}
+
+// See https://github.com/erlang/otp/blob/cf6cf5e5f82e348ecb9bb02d70027fc4961aee3d/erts/emulator/test/iovec_SUITE.erl#L106-L115
+#[test]
+fn is_idempotent() {
+    run!(
+        |arc_process| { (Just(arc_process.clone()), is_iolist_or_binary(arc_process)) },
+        |(arc_process, iolist_or_binary)| {
+            let first_result = native(&arc_process, iolist_or_binary);
+
+            prop_assert!(
+                first_result.is_ok(),
+                "{} cannot be converted to a binary",
+                iolist_or_binary
+            );
+
+            let first = first_result.unwrap();
+
+            prop_assert_eq!(native(&arc_process, first), Ok(first));
+
+            Ok(())
+        }
+    )
+}
 
 #[test]
 fn with_binary_returns_binary_in_list() {
@@ -9,55 +70,9 @@ fn with_binary_returns_binary_in_list() {
         let bin = process.binary_from_bytes(&[1, 2, 3]).unwrap();
 
         assert_eq!(
-            otp::erlang::iolist_to_iovec_1::native(process, bin),
+            native(process, bin),
             Ok(process
                 .list_from_slice(&[process.binary_from_bytes(&[1, 2, 3]).unwrap()])
-                .unwrap())
-        )
-    });
-}
-
-#[test]
-fn with_mixed_iolists_returns_iovec() {
-    with_process(|process| {
-        let bin1 = process.binary_from_bytes(&[57, 58, 59]).unwrap();
-        let bin2 = process.binary_from_bytes(&[60, 61]).unwrap();
-        let bin3 = process.binary_from_bytes(&[6]).unwrap();
-
-        let iolist1 = process
-            .improper_list_from_slice(
-                &[
-                    bin1,
-                    process.integer(77).unwrap(),
-                    process
-                        .list_from_slice(&[
-                            process.integer(9).unwrap(),
-                            process.integer(8).unwrap(),
-                            bin2,
-                        ])
-                        .unwrap(),
-                    process.integer(7).unwrap(),
-                ],
-                bin3,
-            )
-            .unwrap();
-
-        let iolist2 = process
-            .list_from_slice(&[process.integer(42).unwrap(), process.integer(43).unwrap()])
-            .unwrap();
-
-        let iolist_arg = process.list_from_slice(&[iolist1, bin2, iolist2]).unwrap();
-
-        assert_eq!(
-            otp::erlang::iolist_to_iovec_1::native(process, iolist_arg),
-            Ok(process
-                .list_from_slice(&[
-                    process
-                        .binary_from_bytes(&[57, 58, 59, 77, 9, 8, 60, 61, 7, 6])
-                        .unwrap(),
-                    process.binary_from_bytes(&[60, 61]).unwrap(),
-                    process.binary_from_bytes(&[42, 43]).unwrap()
-                ])
                 .unwrap())
         )
     });
@@ -73,7 +88,7 @@ fn with_procbin_in_list_returns_list() {
         let iolist = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
-            otp::erlang::iolist_to_iovec_1::native(process, iolist),
+            native(process, iolist),
             Ok(process
                 .list_from_slice(&[process.binary_from_bytes(&bytes).unwrap()])
                 .unwrap())
@@ -97,7 +112,7 @@ fn with_subbinary_in_list_returns_list() {
             .unwrap();
 
         assert_eq!(
-            otp::erlang::iolist_to_iovec_1::native(process, iolist),
+            native(process, iolist),
             Ok(process
                 .list_from_slice(&[process.binary_from_bytes(&[2, 3, 4]).unwrap()])
                 .unwrap())
@@ -119,7 +134,7 @@ fn with_subbinary_returns_list() {
             .unwrap();
 
         assert_eq!(
-            otp::erlang::iolist_to_iovec_1::native(process, iolist),
+            native(process, iolist),
             Ok(process
                 .list_from_slice(&[process.binary_from_bytes(&[2, 3, 4]).unwrap()])
                 .unwrap())
@@ -130,16 +145,17 @@ fn with_subbinary_returns_list() {
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
-        let iolist = process
-            .improper_list_from_slice(
-                &[process.binary_from_bytes(&[1, 2, 3]).unwrap()],
-                process.integer(42).unwrap(),
-            )
+        let tail = process.integer(42).unwrap();
+        let iolist_or_binary = process
+            .improper_list_from_slice(&[process.binary_from_bytes(&[1, 2, 3]).unwrap()], tail)
             .unwrap();
 
         assert_badarg!(
-            otp::erlang::iolist_to_iovec_1::native(process, iolist),
-            "TODO"
+            native(process, iolist_or_binary),
+            format!(
+                "iolist_or_binary ({}) tail ({}) cannot be a byte",
+                iolist_or_binary, tail
+            )
         )
     });
 }
@@ -149,11 +165,14 @@ fn with_improper_list_smallint_tail_errors_badarg() {
 fn with_atom_in_iolist_errors_badarg() {
     with_process(|process| {
         let element = Atom::str_to_term("foo");
-        let iolist = process.list_from_slice(&[element]).unwrap();
+        let iolist_or_binary = process.list_from_slice(&[element]).unwrap();
 
         assert_badarg!(
-            otp::erlang::iolist_to_iovec_1::native(process, iolist),
-            format!("iolist ({}) is not a list", element)
+            native(process, iolist_or_binary),
+            format!(
+                "iolist_or_binary ({}) element ({}) is not a byte, binary, or nested iolist",
+                iolist_or_binary, element
+            )
         )
     });
 }

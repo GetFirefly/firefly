@@ -94,7 +94,7 @@ impl Options {
 
         let process = Process::new(
             priority,
-            parent_process.map(|process| process.pid()),
+            parent_process,
             Arc::clone(&module_function_arity),
             heap,
             heap_size,

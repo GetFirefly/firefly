@@ -91,6 +91,8 @@ pub struct Process {
     dictionary: Mutex<HashMap<Term, Term>>,
     /// The `pid` of the process that `spawn`ed this process.
     parent_pid: Option<Pid>,
+    /// The `pid` of the process that does I/O on this process's behalf.
+    group_leader_pid: Pid,
     pid: Pid,
     pub initial_module_function_arity: Arc<ModuleFunctionArity>,
     /// The number of reductions in the current `run`.  `code` MUST return when `run_reductions`
@@ -117,7 +119,7 @@ impl Process {
     /// `heap_size`, which is the size of the heap in words.
     pub fn new(
         priority: Priority,
-        parent_pid: Option<Pid>,
+        parent: Option<&Self>,
         initial_module_function_arity: Arc<ModuleFunctionArity>,
         heap: *mut Term,
         heap_size: usize,
@@ -125,6 +127,15 @@ impl Process {
         let heap = ProcessHeap::new(heap, heap_size);
         let off_heap = SpinLock::new(LinkedList::new(HeapFragmentAdapter::new()));
         let pid = Pid::next();
+
+        // > When a new process is spawned, it gets the same group leader as the spawning process.
+        // > Initially, at system startup, init is both its own group leader and the group leader
+        // > of all processes.
+        // > -- http://erlang.org/doc/man/erlang.html#group_leader-0
+        let (parent_pid, group_leader_pid) = match parent {
+            Some(parent) => (Some(parent.pid()), parent.group_leader_pid()),
+            None => (None, pid),
+        };
 
         Self {
             flags: AtomicProcessFlags::new(ProcessFlags::Default),
@@ -144,6 +155,7 @@ impl Process {
             scheduler_id: Mutex::new(None),
             priority,
             parent_pid,
+            group_leader_pid,
             initial_module_function_arity,
             run_reductions: Default::default(),
             total_reductions: Default::default(),
@@ -391,6 +403,16 @@ impl Process {
             .lock()
             .remove(reference)
             .map(|monitor| *monitor.monitoring_pid())
+    }
+
+    // Group Leader Pid
+
+    pub fn group_leader_pid(&self) -> Pid {
+        self.group_leader_pid
+    }
+
+    pub fn group_leader_pid_term(&self) -> Term {
+        self.group_leader_pid().encode().unwrap()
     }
 
     // Pid

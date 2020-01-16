@@ -92,7 +92,7 @@ pub struct Process {
     /// The `pid` of the process that `spawn`ed this process.
     parent_pid: Option<Pid>,
     /// The `pid` of the process that does I/O on this process's behalf.
-    group_leader_pid: Pid,
+    group_leader_pid: Mutex<Pid>,
     pid: Pid,
     pub initial_module_function_arity: Arc<ModuleFunctionArity>,
     /// The number of reductions in the current `run`.  `code` MUST return when `run_reductions`
@@ -133,7 +133,7 @@ impl Process {
         // > of all processes.
         // > -- http://erlang.org/doc/man/erlang.html#group_leader-0
         let (parent_pid, group_leader_pid) = match parent {
-            Some(parent) => (Some(parent.pid()), parent.group_leader_pid()),
+            Some(parent) => (Some(parent.pid()), parent.get_group_leader_pid()),
             None => (None, pid),
         };
 
@@ -155,7 +155,7 @@ impl Process {
             scheduler_id: Mutex::new(None),
             priority,
             parent_pid,
-            group_leader_pid,
+            group_leader_pid: Mutex::new(group_leader_pid),
             initial_module_function_arity,
             run_reductions: Default::default(),
             total_reductions: Default::default(),
@@ -407,12 +407,16 @@ impl Process {
 
     // Group Leader Pid
 
-    pub fn group_leader_pid(&self) -> Pid {
-        self.group_leader_pid
+    pub fn get_group_leader_pid(&self) -> Pid {
+        *self.group_leader_pid.lock()
     }
 
-    pub fn group_leader_pid_term(&self) -> Term {
-        self.group_leader_pid().encode().unwrap()
+    pub fn set_group_leader_pid(&self, group_leader_pid: Pid) {
+        *self.group_leader_pid.lock() = group_leader_pid
+    }
+
+    pub fn get_group_leader_pid_term(&self) -> Term {
+        self.get_group_leader_pid().encode().unwrap()
     }
 
     // Pid

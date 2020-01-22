@@ -85,6 +85,18 @@ impl Scheduler {
         self.unique_integer.fetch_add(1, Ordering::SeqCst)
     }
 
+    // TODO: Request application master termination for controlled shutdown
+    // This request will always come from the thread which spawned the application
+    // master, i.e. the "main" scheduler thread
+    //
+    // Returns `Ok(())` if shutdown was successful, `Err(anyhow::Error)` if something
+    // went wrong during shutdown, and it was not able to complete normally
+    pub fn shutdown(&self) -> anyhow::Result<()> {
+        // For now just Ok(()), but this needs to be addressed when proper
+        // system startup/shutdown is in place
+        Ok(())
+    }
+
     /// > 1. Update reduction counters
     /// > 2. Check timers
     /// > 3. If needed check balance

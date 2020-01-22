@@ -25,6 +25,7 @@ use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_core::entry;
 
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::time::monotonic::time_in_milliseconds;
@@ -34,6 +35,7 @@ use crate::window::add_event_listener;
 
 /// Starts the scheduler loop.  It yield and reschedule itself using
 /// [requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame).
+#[cfg_attr(not(test), entry)]
 pub fn start() {
     add_event_listeners();
     request_animation_frames();

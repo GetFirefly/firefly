@@ -22,23 +22,43 @@ impl CallBuilder {
                     .copied()
                     .map(|v| builder.value_ref(v))
                     .collect::<Vec<_>>();
-                let result = unsafe {
+                let mut ok_args = Vec::new();
+                let ok_block = match op.ok {
+                    CallSuccess::Branch(Branch { block, args }) => {
+                        for arg in args.iter().copied() {
+                            ok_args.push(builder.value_ref(arg));
+                        }
+                        builder.block_ref(block)
+                    }
+                    _ => Default::default(),
+                };
+                let mut err_args = Vec::new();
+                let err_block = match op.err {
+                    CallError::Branch(Branch { block, args }) => {
+                        for arg in args.iter().copied() {
+                            err_args.push(builder.value_ref(arg));
+                        }
+                        builder.block_ref(block)
+                    }
+                    _ => Default::default(),
+                };
+                unsafe {
                     MLIRBuildStaticCall(
                         builder.as_ref(),
                         name.as_ptr(),
                         args.as_ptr(),
                         args.len() as libc::c_uint,
                         op.is_tail,
-                    )
-                };
-
-                if ir_value.is_some() {
-                    assert!(!result.is_null());
-                    let value = builder.new_value(ir_value, result, ValueDef::Result(0));
-                    Ok(Some(value))
-                } else {
-                    Ok(None)
+                        ok_block,
+                        ok_args.as_ptr(),
+                        ok_args.len() as libc::c_uint,
+                        err_block,
+                        err_args.as_ptr(),
+                        err_args.len() as libc::c_uint,
+                    );
                 }
+
+                Ok(None)
             }
             callee => todo!("unimplemented call type {:?}", callee),
         }

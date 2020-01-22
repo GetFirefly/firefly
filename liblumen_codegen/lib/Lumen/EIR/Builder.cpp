@@ -716,18 +716,44 @@ M::Value ModuleBuilder::build_logical_or(M::Value lhs, M::Value rhs) {
 // Function Calls
 //===----------------------------------------------------------------------===//
 
-MLIRValueRef MLIRBuildStaticCall(MLIRModuleBuilderRef b, const char *name, MLIRValueRef *argv, unsigned argc, bool isTail) {
+void MLIRBuildStaticCall(
+  MLIRModuleBuilderRef b,
+  const char *name,
+  MLIRValueRef *argv,
+  unsigned argc,
+  bool isTail,
+  MLIRBlockRef okBlock,
+  MLIRValueRef *okArgv,
+  unsigned okArgc,
+  MLIRBlockRef errBlock,
+  MLIRValueRef *errArgv,
+  unsigned errArgc
+) {
   ModuleBuilder *builder = unwrap(b);
+  M::Block *ok = unwrap(okBlock);
+  M::Block *err = unwrap(errBlock);
   StringRef functionName(name);
   L::SmallVector<M::Value, 2> args;
   unwrapValues(argv, argc, args);
-  return wrap(builder->build_static_call(functionName, args, isTail));
+  L::SmallVector<M::Value, 1> okArgs;
+  unwrapValues(okArgv, okArgc, okArgs);
+  L::SmallVector<M::Value, 1> errArgs;
+  unwrapValues(errArgv, errArgc, errArgs);
+  builder->build_static_call(functionName, args, isTail, ok, okArgs, err, errArgs);
 }
 
-M::Value ModuleBuilder::build_static_call(StringRef target, ArrayRef<M::Value> args, bool isTail) {
+void ModuleBuilder::build_static_call(
+  StringRef target,
+  ArrayRef<M::Value> args,
+  bool isTail,
+  M::Block *ok,
+  ArrayRef<M::Value> okArgs,
+  M::Block *err,
+  ArrayRef<M::Value> errArgs
+) {
   auto symbol = builder.getSymbolRefAttr(target);
-  auto op = builder.create<CallOp>(builder.getUnknownLoc(), symbol, args, isTail);
-  return op.getResult(0);
+  builder.create<CallOp>(builder.getUnknownLoc(), symbol, args, isTail, ok, okArgs, err, errArgs);
+  return;
 }
 
 //===----------------------------------------------------------------------===//

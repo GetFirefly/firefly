@@ -859,7 +859,8 @@ static void print(M::OpAsmPrinter &p, CallOp op) {
   p.printOperands(L::drop_begin(op.getOperands(), isDirect ? 0 : 1));
   p << ')';
   p.printOptionalAttrDict(op.getAttrs(), {"callee"});
-  L::SmallVector<Type, 1> resultTypes(op.getResultTypes());
+  M::OpBuilder builder(op.getContext());
+  L::SmallVector<Type, 1> resultTypes({builder.getType<TermType>()});
   L::SmallVector<Type, 8> argTypes(
       L::drop_begin(op.getOperandTypes(), isDirect ? 0 : 1));
   p << " : " << FunctionType::get(argTypes, resultTypes, op.getContext());
@@ -888,12 +889,6 @@ static M::LogicalResult verify(CallOp op) {
       if (op.getOperand(i).getType() != fnType.getInput(i))
         return op.emitOpError("operand type mismatch");
 
-    if (fnType.getNumResults() != op.getNumResults())
-      return op.emitOpError("incorrect number of results for callee");
-
-    for (unsigned i = 0, e = fnType.getNumResults(); i != e; ++i)
-      if (op.getResult(i).getType() != fnType.getResult(i))
-        return op.emitOpError("result type mismatch");
   } else {
     // Indirect
     // The callee must be a function.
@@ -908,20 +903,13 @@ static M::LogicalResult verify(CallOp op) {
     for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i)
       if (op.getOperand(i + 1).getType() != fnType.getInput(i))
         return op.emitOpError("operand type mismatch");
-
-    if (fnType.getNumResults() != op.getNumResults())
-      return op.emitOpError("incorrect number of results for callee");
-
-    for (unsigned i = 0, e = fnType.getNumResults(); i != e; ++i)
-      if (op.getResult(i).getType() != fnType.getResult(i))
-        return op.emitOpError("result type mismatch");
   }
 
   return M::success();
 }
 
 M::FunctionType CallOp::getCalleeType() {
-  SmallVector<M::Type, 4> resultTypes(getResultTypes());
+  SmallVector<M::Type, 1> resultTypes;
   SmallVector<M::Type, 8> argTypes(getOperandTypes());
   return M::FunctionType::get(argTypes, resultTypes, getContext());
 }

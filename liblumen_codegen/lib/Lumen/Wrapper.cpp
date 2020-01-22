@@ -84,8 +84,6 @@ extern "C" void LLVMLumenSetLLVMOptions(int Argc, char **Argv) {
   cl::ParseCommandLineOptions(Argc, Argv);
 
   // Register the EIR dialect with MLIR
-  M::registerDialect<M::StandardOpsDialect>();
-  M::registerDialect<M::loop::LoopOpsDialect>();
   M::registerDialect<eir::EirDialect>();
 }
 

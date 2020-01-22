@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::fmt;
 
 use anyhow::anyhow;
 
@@ -147,8 +148,12 @@ impl Function {
 
     /// Returns true if the given value is this functions' return continuation
     #[inline]
-    pub fn is_return(&self, value: Value) -> bool {
-        self.ret == value
+    pub fn is_return(&self, value: Value, block: Block) -> bool {
+        if let Some(expected) = self.value_mapping[self.ret_ir][block].expand() {
+            value == expected
+        } else {
+            false
+        }
     }
 
     /// Returns true if the given EIR value is this functions' return continuation
@@ -159,8 +164,12 @@ impl Function {
 
     /// Returns true if the given value is this functions' escape continuation
     #[inline]
-    pub fn is_throw(&self, value: Value) -> bool {
-        self.esc == value
+    pub fn is_throw(&self, value: Value, block: Block) -> bool {
+        if let Some(expected) = self.value_mapping[self.esc_ir][block].expand() {
+            value == expected
+        } else {
+            false
+        }
     }
 
     /// Returns true if the given EIR value is this functions' escape continuation
@@ -329,13 +338,22 @@ impl Signature {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct Param {
     pub ty: Type,
     pub span: Span,
     // True when this parameter is an implicit argument in EIR
     pub is_implicit: bool,
+}
+impl fmt::Debug for Param {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.is_implicit {
+            write!(f, "implicit({:?})", self.ty)
+        } else {
+            write!(f, "{:?}", self.ty)
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

@@ -360,7 +360,13 @@ extern "C" {
         argv: *const ValueRef,
         argc: libc::c_uint,
         is_tail: bool,
-    ) -> ValueRef;
+        ok_block: BlockRef,
+        ok_argv: *const ValueRef,
+        ok_argc: libc::c_uint,
+        err_block: BlockRef,
+        err_argv: *const ValueRef,
+        err_argc: libc::c_uint,
+    );
 
     //---------------
     // Operations

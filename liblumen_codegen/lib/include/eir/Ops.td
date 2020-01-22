@@ -126,7 +126,7 @@ def eir_MatchOp : eir_Op<"match", [InFunctionScope, Terminator]> {
 }
 
 def eir_CallOp : eir_Op<"call", [
-    InFunctionScope, DeclareOpInterfaceMethods<CallOpInterface>]> {
+    InFunctionScope, Terminator, DeclareOpInterfaceMethods<CallOpInterface>]> {
   let summary = "Call a function";
 
   let description = [{
@@ -148,13 +148,24 @@ def eir_CallOp : eir_Op<"call", [
   }];
 
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, SymbolRefAttr callee, ArrayRef<Value> args, bool isTail",
+    "Builder *builder, OperationState &result,"
+    "SymbolRefAttr callee, ArrayRef<Value> args, bool isTail,"
+    "Block *ok, ArrayRef<Value> okArgs, Block *err, ArrayRef<Value> errArgs",
     [{
       result.addOperands(args);
-      result.addTypes(builder->getType<eir::TermType>());
 
       if (callee) {
         result.addAttribute("callee", callee);
+      }
+      if (ok) {
+        result.addSuccessor(ok, okArgs);
+      } else {
+        result.addAttribute("return", builder->getBoolAttr(true));
+      }
+      if (err) {
+        result.addSuccessor(err, errArgs);
+      } else {
+        result.addAttribute("throw", builder->getBoolAttr(true));
       }
       result.addAttribute("is_tail", builder->getBoolAttr(isTail));
     }]
@@ -165,12 +176,28 @@ def eir_CallOp : eir_Op<"call", [
     Variadic<AnyType>:$arguments
   );
 
-  let results = (outs
-    Variadic<AnyType>:$result
-  );
+  let results = (outs);
 
   let extraClassDeclaration = [{
     M::FunctionType getCalleeType();
+
+    bool returnsOnSuccess() {
+      if (auto val = getAttrOfType<mlir::BoolAttr>("return"))
+        return val.getValue();
+      return false;
+    }
+
+    bool throwsOnError() {
+      if (auto val = getAttrOfType<mlir::BoolAttr>("throw"))
+        return val.getValue();
+      return false;
+    }
+
+    bool isTailCall() {
+      if (auto val = getAttrOfType<mlir::BoolAttr>("is_tail"))
+        return val.getValue();
+      return false;
+    }
   }];
 }
 

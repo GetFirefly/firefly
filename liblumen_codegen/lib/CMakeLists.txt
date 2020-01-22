@@ -27,7 +27,6 @@ include(CMakeParseArguments)
 include(CMakePushCheckState)
 include(CheckSymbolExists)
 include(GNUInstallDirs)
-include(StaticBundle)
 
 option(LUMEN_ENABLE_TESTS "Generate and build targets for the Lumen unit tests" OFF)
 

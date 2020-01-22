@@ -17,10 +17,15 @@ impl ReturnBuilder {
 pub struct ThrowBuilder;
 impl ThrowBuilder {
     pub fn build<'f, 'o>(
-        _builder: &mut ScopedFunctionBuilder<'f, 'o>,
-        value: Value,
+        builder: &mut ScopedFunctionBuilder<'f, 'o>,
+        _op: Throw,
     ) -> Result<Option<Value>> {
-        todo!("throw {:?}", value);
+        // TODO: For now we just lower to an abort until we decide on how this should work
+        unsafe {
+            MLIRBuildUnreachable(builder.as_ref());
+        }
+
+        Ok(None)
     }
 }
 

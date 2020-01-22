@@ -1,6 +1,8 @@
 mod builder;
 pub(super) mod builders;
 
+use std::fmt;
+
 use libeir_intern::Ident;
 use libeir_ir as ir;
 use libeir_ir::FunctionIdent;
@@ -18,7 +20,7 @@ use super::ScopedFunctionBuilder;
 #[derive(Debug, Clone)]
 pub enum OpKind {
     Return(Option<Value>),
-    Throw(Value),
+    Throw(Throw),
     Unreachable,
     Branch(Branch),
     Call(Call),
@@ -119,12 +121,43 @@ impl Callee {
         Ok(callee)
     }
 }
+impl fmt::Display for Callee {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Static(ref ident) => write!(f, "{}", ident),
+            Self::LocalDynamic {
+                module,
+                function,
+                arity,
+            } => write!(f, "{}:{:?}/{}", module, function, arity),
+            Self::GlobalDynamic {
+                module,
+                function,
+                arity,
+            } => write!(f, "{:?}:{:?}/{}", module, function, arity),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Call {
     pub callee: Callee,
     pub args: Vec<Value>,
     pub is_tail: bool,
+    pub ok: CallSuccess,
+    pub err: CallError,
+}
+
+#[derive(Debug, Clone)]
+pub enum CallSuccess {
+    Return,
+    Branch(Branch),
+}
+
+#[derive(Debug, Clone)]
+pub enum CallError {
+    Throw,
+    Branch(Branch),
 }
 
 #[derive(Debug, Clone)]
@@ -184,4 +217,11 @@ pub struct MapPut {
     pub action: ffi::MapActionType,
     pub key: Value,
     pub value: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct Throw {
+    pub kind: Value,
+    pub class: Value,
+    pub reason: Value,
 }

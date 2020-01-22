@@ -182,7 +182,15 @@ public:
                 L::SmallVectorImpl<M::Value> &otherArgs);
   void build_unreachable();
   void build_return(M::Value value);
-  M::Value build_static_call(L::StringRef target, L::ArrayRef<M::Value> args, bool isTail);
+
+  void build_static_call(
+    L::StringRef target,
+    L::ArrayRef<M::Value> args,
+    bool isTail,
+    M::Block *ok,
+    L::ArrayRef<M::Value> okArgs,
+    M::Block *err,
+    L::ArrayRef<M::Value> errArgs);
 
   //===----------------------------------------------------------------------===//
   // Operations
@@ -302,7 +310,18 @@ void MLIRBuildUnreachable(MLIRModuleBuilderRef builder);
 
 void MLIRBuildReturn(MLIRModuleBuilderRef builder, MLIRValueRef value);
 
-MLIRValueRef MLIRBuildStaticCall(MLIRModuleBuilderRef builder, const char *name, MLIRValueRef *argv, unsigned argc, bool isTail);
+void MLIRBuildStaticCall(
+  MLIRModuleBuilderRef builder,
+  const char *name,
+  MLIRValueRef *argv,
+  unsigned argc,
+  bool isTail,
+  MLIRBlockRef okBlock,
+  MLIRValueRef *okArgv,
+  unsigned okArgc,
+  MLIRBlockRef errBlock,
+  MLIRValueRef *errArgv,
+  unsigned errArgc);
 
 //===----------------------------------------------------------------------===//
 // Locations

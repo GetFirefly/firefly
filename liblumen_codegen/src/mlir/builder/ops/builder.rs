@@ -52,7 +52,7 @@ impl OpBuilder {
     ) -> Result<Option<Value>> {
         match kind {
             OpKind::Return(value) => ReturnBuilder::build(builder, value),
-            OpKind::Throw(value) => ThrowBuilder::build(builder, value),
+            OpKind::Throw(op) => ThrowBuilder::build(builder, op),
             OpKind::Unreachable => UnreachableBuilder::build(builder),
             OpKind::Call(call) => CallBuilder::build(builder, ir_value, call),
             OpKind::Branch(branch) => BranchBuilder::build(builder, branch),

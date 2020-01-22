@@ -38,10 +38,13 @@ def AnyFloatLike : TypeConstraint<Or<[
     FloatLike.predicate,
     eir_FloatType.predicate,
     eir_PackedFloatType.predicate]>, "any float">;
+def AnyFloatType : Type<AnyFloatLike.predicate, "any float">;
 
 def AnyNumberLike : TypeConstraint<Or<[
     AnyIntegerLike.predicate,
     AnyFloatLike.predicate]>, "any float or integer">;
+
+def NumberType : Type<AnyNumberLike.predicate, "any integer or float">;
 
 // Cons/Lists
 
@@ -71,6 +74,8 @@ def eir_ClosureType : Type<CPred<"$_self.isa<eir::ClosureType>()">,
 
 // Binaries
 
+def eir_BinaryType : Type<CPred<"$_self.isa<eir::BinaryType>()">,
+    "EIR binary literal type">;
 def eir_HeapBinType : Type<CPred<"$_self.isa<eir::HeapBinType>()">,
     "EIR heap-allocated binary type">;
 //def eir_ProcBinType : Type<CPred<"$_self.isa<eir::ProcBinType>()">,
@@ -81,13 +86,14 @@ def eir_HeapBinType : Type<CPred<"$_self.isa<eir::HeapBinType>()">,
 //    "EIR binary/bitstring match context">;
 
 def BinaryLike : TypeConstraint<Or<[
+    eir_BinaryType.predicate,
     eir_HeapBinType.predicate,
     //eir_ProcBinType.predicate,
     //eir_SubBinaryType.predicate,
     //eir_MatchContextType.predicate,
 ]>, "any binary type">;
 
-def BinaryType : Type<BinaryLike.predicate, "any binary">;
+def AnyBinaryType : Type<BinaryLike.predicate, "any binary">;
 
 // Boxed Values
 //   !eir.box = A reference to a term on the process heap
@@ -117,5 +123,11 @@ def AnyImmediateLike : TypeConstraint<Or<[
 // Base type that represents any valid term type (i.e. defined by the EIR dialect)
 def eir_TermType : Type<CPred<"$_self.isa<eir::TermType>()">,
     "EIR term type">;
+
+def AnyTermLike : TypeConstraint<Or<[
+    AnyImmediateLike.predicate,
+    eir_BoxType.predicate]>, "any valid term type">;
+
+def AnyTermType : Type<AnyTermLike.predicate, "any valid term">;
 
 #endif

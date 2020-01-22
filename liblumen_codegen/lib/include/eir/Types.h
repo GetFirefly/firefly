@@ -2,8 +2,10 @@
 #define EIR_TYPES_H
 
 #include "lumen/LLVM.h"
+
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
+#include "mlir/IR/Value.h"
 
 #include <vector>
 
@@ -14,6 +16,7 @@ namespace M = mlir;
 namespace eir {
 
 namespace detail {
+struct TermBaseStorage;
 struct ShapedTypeStorage;
 struct TupleTypeStorage;
 struct ClosureTypeStorage;
@@ -21,8 +24,21 @@ struct BoxTypeStorage;
 struct RefTypeStorage;
 } // namespace detail
 
+namespace EirTypes {
 enum EirTypes {
+  // A generic type used for an unknown term value
   Term = M::Type::FIRST_EIR_TYPE,
+  // A generic type used only for specifying a type match for any list type
+  AnyList,
+  // A generic type used only for specifying a type match for any number type
+  AnyNumber,
+  // A generic type used only for specifying a type match for any integer type
+  AnyInteger,
+  // A generic type used only for specifying a type match for any float type
+  AnyFloat,
+  // A generic type used only for specifying a type match for any bianry type
+  AnyBinary,
+  // Start of concrete types
   Atom,
   Boolean,
   Fixnum,
@@ -34,13 +50,131 @@ enum EirTypes {
   Tuple,
   Map,
   Closure,
+  Binary,
   HeapBin,
   Box,
   Ref,
 };
+} // namespace EirTypes
+
+class TermBase : public M::Type {
+public:
+  using ImplType = detail::TermBaseStorage;
+  using M::Type::Type;
+
+  unsigned getImplKind() const { return implKind; }
+
+  bool isConcrete() const { return isConcrete(getImplKind()); }
+
+  bool isImmediate() const { return isImmediate(getImplKind()); }
+
+  bool isAtom() const { return isAtom(getImplKind()); }
+
+  bool isNumber() const { return isNumber(getImplKind()); }
+
+  bool isInteger() const { return isInteger(getImplKind()); }
+
+  bool isFloat() const { return isFloat(getImplKind()); }
+
+  bool isList() const { return isList(getImplKind()); }
+
+  bool isNil() const { return isNil(getImplKind()); }
+
+  bool isNonEmptyList() const { return isNonEmptyList(getImplKind()); }
+
+  bool isBinary() const { return isBinary(getImplKind()); }
+
+  // Returns 0 for false, 1 for true, 2 for unknown
+  unsigned isMatch(M::Type matcher) const {
+    auto matcherBase = matcher.dyn_cast_or_null<TermBase>();
+    if (!matcherBase)
+      return 2;
+
+    auto implKind = getImplKind();
+    auto matcherImplKind = matcherBase.getImplKind();
+
+    // Unresolvable statically
+    if (!isConcrete(implKind) || !matcherBase.isConcrete(matcherImplKind))
+      return 2;
+
+    // Guaranteed to match
+    if (implKind == matcherImplKind)
+      return 1;
+
+    // Generic matches
+    if (matcherImplKind == EirTypes::Atom)
+      return isAtom(implKind) ? 1 : 0;
+    if (matcherImplKind == EirTypes::AnyList)
+      return isList(implKind) ? 1 : 0;
+    if (matcherImplKind == EirTypes::AnyNumber)
+      return isNumber(implKind) ? 1 : 0;
+    if (matcherImplKind == EirTypes::AnyInteger)
+      return isInteger(implKind) ? 1 : 0;
+    if (matcherImplKind == EirTypes::AnyFloat)
+      return isFloat(implKind) ? 1 : 0;
+    if (matcherImplKind == EirTypes::AnyBinary)
+      return isBinary(implKind) ? 1 : 0;
+
+    return 0;
+  }
+
+  static bool classof(M::Type type) {
+    auto kind = type.getKind();
+    return kind >= EirTypes::Term && kind <= EirTypes::Ref;
+  }
+
+private:
+  unsigned implKind;
+
+  bool isConcrete(unsigned implKind) const {
+    return implKind > EirTypes::AnyBinary;
+  }
+
+  bool isImmediate(unsigned implKind) const {
+    return implKind == EirTypes::Atom ||
+      implKind == EirTypes::Boolean ||
+      implKind == EirTypes::Fixnum ||
+      implKind == EirTypes::Float ||
+      implKind == EirTypes::Nil ||
+      implKind == EirTypes::Box ||
+      implKind == EirTypes::Ref;
+  }
+
+  bool isAtom(unsigned implKind) const {
+    return implKind >= EirTypes::Atom && implKind <= EirTypes::Boolean;
+  }
+
+  bool isNumber(unsigned implKind) const {
+    return implKind >= EirTypes::Fixnum && implKind <= EirTypes::FloatPacked;
+  }
+
+  bool isInteger(unsigned implKind) const {
+    return implKind >= EirTypes::Fixnum && implKind <= EirTypes::BigInt;
+  }
+
+  bool isFloat(unsigned implKind) const {
+    return implKind >= EirTypes::Float && implKind <= EirTypes::FloatPacked;
+  }
+
+  bool isList(unsigned implKind) const {
+    return implKind >= EirTypes::Nil && implKind <= EirTypes::Cons;
+  }
+
+  bool isNil(unsigned implKind) const {
+    return implKind == EirTypes::Nil;
+  }
+
+  bool isNonEmptyList(unsigned implKind) const {
+    return implKind == EirTypes::Cons;
+  }
+
+  bool isBinary(unsigned implKind) const {
+    return implKind >= EirTypes::Binary && implKind <= EirTypes::HeapBin;
+  }
+};
 
 #define IntrinsicType(TYPE, KIND)                                              \
-  class TYPE : public M::Type::TypeBase<TYPE, M::Type> {                       \
+  class TYPE : public M::Type::TypeBase<TYPE, TermBase> {                      \
   public:                                                                      \
     using Base::Base;                                                          \
     static TYPE get(M::MLIRContext *context) {                                 \
@@ -50,6 +184,11 @@ enum EirTypes {
   }
 
 IntrinsicType(TermType, EirTypes::Term);
+IntrinsicType(AnyListType, EirTypes::AnyList);
+IntrinsicType(AnyNumberType, EirTypes::AnyNumber);
+IntrinsicType(AnyIntegerType, EirTypes::AnyInteger);
+IntrinsicType(AnyFloatType, EirTypes::AnyFloat);
+IntrinsicType(AnyBinaryType, EirTypes::AnyBinary);
 IntrinsicType(AtomType, EirTypes::Atom);
 IntrinsicType(BooleanType, EirTypes::Boolean);
 IntrinsicType(FixnumType, EirTypes::Fixnum);
@@ -59,6 +198,7 @@ IntrinsicType(PackedFloatType, EirTypes::FloatPacked);
 IntrinsicType(NilType, EirTypes::Nil);
 IntrinsicType(ConsType, EirTypes::Cons);
 IntrinsicType(MapType, EirTypes::Map);
+IntrinsicType(BinaryType, EirTypes::Binary);
 IntrinsicType(HeapBinType, EirTypes::HeapBin);
 
 // Shaped Types, i.e. types that are parameterized and have dynamic extent
@@ -70,6 +210,21 @@ struct Shape {
   Shape(M::Type elementType, unsigned len)
       : known(true), len(len), elementTypes(len, elementType) {}
   Shape(const TypeList &ts) : known(true), len(ts.size()), elementTypes(ts) {}
+
+  static Shape infer(L::ArrayRef<M::Value> elements) {
+    auto size = elements.size();
+    // If there are no elements, then the shape is unknown
+    if (size == 0) {
+      return Shape();
+    }
+    // Otherwise, construct a list of types from the elements
+    std::vector<M::Type> types;
+    types.reserve(size);
+    for (auto &element : elements) {
+      types.push_back(element.getType());
+    }
+    return Shape(types);
+  }
 
   bool operator==(const Shape &shape) const {
     if (known) {
@@ -128,10 +283,10 @@ private:
   TypeList elementTypes;
 };
 
-class DynamicallyShapedType : public M::Type {
+class DynamicallyShapedType : public TermBase {
 public:
   using ImplType = detail::ShapedTypeStorage;
-  using M::Type::Type;
+  using TermBase::TermBase;
 
   Shape getShape() const { return shape; }
 
@@ -140,8 +295,8 @@ public:
   bool hasStaticShape() const { return getShape().isKnown(); }
 
   static bool classof(M::Type type) {
-    return type.getKind() == EirTypes::Tuple ||
-           type.getKind() == EirTypes::Closure;
+    auto kind = type.getKind();
+    return kind == EirTypes::Tuple || kind == EirTypes::Closure;
   }
 
 protected:
@@ -188,7 +343,7 @@ public:
 };
 
 class BoxType
-    : public M::Type::TypeBase<BoxType, M::Type, detail::BoxTypeStorage> {
+    : public M::Type::TypeBase<BoxType, TermBase, detail::BoxTypeStorage> {
 public:
   using Base::Base;
 
@@ -203,7 +358,7 @@ public:
 };
 
 class RefType
-    : public M::Type::TypeBase<RefType, M::Type, detail::RefTypeStorage> {
+    : public M::Type::TypeBase<RefType, TermBase, detail::RefTypeStorage> {
 public:
   using Base::Base;
 

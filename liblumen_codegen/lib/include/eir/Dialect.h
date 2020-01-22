@@ -26,6 +26,11 @@ public:
   ///
   /// This is used by several utilities for casting between dialects.
   static L::StringRef getDialectNamespace() { return "eir"; }
+
+  /// Materialize a single constant operation from a given attribute value with
+  /// the desired resultant type.
+  M::Operation *materializeConstant(M::OpBuilder &builder, M::Attribute value, M::Type type,
+                                    M::Location loc) override;
 };
 
 } // namespace eir

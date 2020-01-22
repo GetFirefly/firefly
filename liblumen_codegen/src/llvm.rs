@@ -1,7 +1,13 @@
 pub(crate) mod memory_buffer;
 pub(crate) mod string;
+pub(crate) mod builder;
+pub(crate) mod enums;
+
+pub use self::builder::ModuleBuilder;
+pub use self::enums::*;
 
 use std::convert::{AsMut, AsRef};
+use std::ffi::CString;
 use std::fmt;
 use std::mem::MaybeUninit;
 use std::os;
@@ -9,6 +15,7 @@ use std::path::Path;
 use std::ptr;
 
 use anyhow::anyhow;
+
 use llvm_sys::target_machine::LLVMCodeGenFileType;
 
 use liblumen_session::{Emit, OutputType};
@@ -26,6 +33,8 @@ pub type TargetMachineRef = llvm_sys::target_machine::LLVMTargetMachineRef;
 
 pub type ModuleImpl = llvm_sys::LLVMModule;
 pub type ModuleRef = llvm_sys::prelude::LLVMModuleRef;
+
+pub use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
 
 #[repr(transparent)]
 pub struct TargetMachine(TargetMachineRef);
@@ -147,6 +156,20 @@ impl Module {
         Self {
             module,
             target_machine,
+        }
+    }
+
+    pub fn create(name: &str, ctx: &Context, target_machine: TargetMachineRef) -> Result<Self> {
+        use llvm_sys::core::LLVMModuleCreateWithNameInContext;
+
+        let cstr = CString::new(name).unwrap();
+        let m = unsafe {
+            LLVMModuleCreateWithNameInContext(cstr.as_ptr(), ctx.as_ref())
+        };
+        if m.is_null() {
+            Err(anyhow!("failed to create LLVM module '{}'", name))
+        } else {
+            Ok(Self::new(m, target_machine))
         }
     }
 

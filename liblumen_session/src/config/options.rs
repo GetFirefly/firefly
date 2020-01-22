@@ -51,7 +51,7 @@ pub struct Options {
     pub no_warn: bool,
     pub verbosity: Verbosity,
 
-    pub host: Option<Target>,
+    pub host: Target,
     pub target: Target,
     pub opt_level: OptLevel,
     pub debug_info: DebugInfo,
@@ -142,6 +142,7 @@ impl Options {
             }
         }
         let host_triple = target::host_triple();
+        let host = Target::search(host_triple)?;
         let target_triple = target.triple();
         let host_tlib_path = SearchPath::from_sysroot_and_triple(&sysroot, host_triple);
         let target_tlib_path = if host_triple == target_triple {
@@ -240,7 +241,7 @@ impl Options {
             warnings_as_errors,
             no_warn,
             verbosity,
-            host: None,
+            host,
             target,
             opt_level,
             debug_info,
@@ -301,6 +302,7 @@ impl Options {
         let defines = default_configuration(&target);
         let sysroot = filesearch::get_or_default_sysroot();
         let host_triple = target::host_triple();
+        let host = Target::search(host_triple)?;
         let target_triple = target.triple();
         let host_tlib_path = SearchPath::from_sysroot_and_triple(&sysroot, host_triple);
         let target_tlib_path = if host_triple == target_triple {
@@ -317,7 +319,7 @@ impl Options {
             warnings_as_errors: false,
             no_warn: false,
             verbosity: Verbosity::from_level(0),
-            host: None,
+            host,
             target,
             opt_level: OptLevel::Default,
             debug_info: DebugInfo::None,
@@ -416,7 +418,7 @@ impl Options {
     }
 
     pub fn set_host_target(&mut self, target: Target) {
-        self.host = Some(target);
+        self.host = target;
     }
 
     /// Returns `true` if there will be an output file generated.

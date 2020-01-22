@@ -1,7 +1,7 @@
 #ifndef EIR_CONTEXT_H
 #define EIR_CONTEXT_H
 
-#include "lumen/RustString.h"
+#include "lumen/Support/RustString.h"
 
 #include "llvm-c/Types.h"
 #include "llvm/Support/CBindingWrapping.h"

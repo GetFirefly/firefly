@@ -6,25 +6,42 @@ set(LLVM_PREFIX $ENV{LLVM_PREFIX} CACHE PATH "The root directory of the LLVM ins
 
 # Whether LLVM_PREFIX was given or not, try and find the LLVM package with what we have
 if (NOT LLVM_PREFIX)
-    find_package(LLVM REQUIRED CONFIG)
+    message(FATAL_ERROR "Missing LLVM_PREFIX environment variable!")
 else()
     find_package(LLVM REQUIRED CONFIG
         PATHS ${LLVM_PREFIX}
+        NO_DEFAULT_PATH
     )
 endif()
 
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "Using LLVM in ${LLVM_DIR}")
-message(STATUS "LLVM: Assertions Enabled?: " "${LLVM_ENABLE_ASSERTIONS}")
-message(STATUS "LLVM: Exception Handling?: " "${LLVM_ENABLE_EH}")
-message(STATUS "LLVM: Runtime Type Info? : " "${LLVM_ENABLE_RTTI}")
+message(STATUS "Using LLVM found in      : " "${LLVM_DIR}")
+message(STATUS "LLVM Version             : " "${LLVM_PACKAGE_VERSION}")
+message(STATUS "LLVM Assertions Enabled? : " "${LLVM_ENABLE_ASSERTIONS}")
+message(STATUS "LLVM Exception Handling? : " "${LLVM_ENABLE_EH}")
+message(STATUS "LLVM Runtime Type Info?  : " "${LLVM_ENABLE_RTTI}")
 
 list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
 
-find_program(LLC llc ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
-find_program(LLVM_LINK llvm-link ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
-find_program(LLVM_DWARFDUMP llvm-dwarfdump ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
-find_program(LLVM_CONFIG llvm-config ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
+# Set up LLVM
+include(AddLLVM)
+include(TableGen)
+include(MLIR)
+
+message(STATUS "LLVM Source Dir          : " "${LLVM_SOURCE_DIR}")
+message(STATUS "LLVM Binary Dir          : " "${LLVM_BINARY_DIR}")
+message(STATUS "LLVM Libary Dir          : " "${LLVM_LIBRARY_DIR}")
+message(STATUS "LLVM Includes            : " "${LLVM_MAIN_INCLUDE_DIR}")
+message(STATUS "LLVM Tools Directory     : " "${LLVM_TOOLS_BINARY_DIR}")
+
+find_program(LLC NAMES llc PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
+find_program(LLVM_LINK NAMES llvm-link PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
+find_program(LLVM_DWARFDUMP NAMES llvm-dwarfdump PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
+find_program(LLVM_CONFIG_PATH NAMES llvm-config PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
+
+message(STATUS "LLC                      : " "${LLC}")
+message(STATUS "LLVM_LINK                : " "${LLVM_LINK}")
+message(STATUS "LLVM_DWARFDUMP           : " "${LLVM_DWARFDUMP}")
+message(STATUS "LLVM_CONFIG              : " "${LLVM_CONFIG_PATH}")
 
 if (USE_LLVM_CLANG)
     set(CMAKE_C_COMPILER ${LLVM_TOOLS_BINARY_DIR}/clang)

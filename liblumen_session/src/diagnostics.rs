@@ -3,7 +3,7 @@ use std::ffi::CString;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use libeir_diagnostics::emitter::{cyan, green_bold, white, yellow, yellow_bold};
 use libeir_diagnostics::{ByteSpan, CodeMap, ColorSpec, Diagnostic, Emitter, Severity};
@@ -30,7 +30,7 @@ impl Location {
 #[derive(Clone)]
 pub struct DiagnosticsHandler {
     emitter: Arc<dyn Emitter>,
-    codemap: Arc<Mutex<CodeMap>>,
+    codemap: Arc<RwLock<CodeMap>>,
     warnings_as_errors: bool,
     no_warn: bool,
     err_count: Arc<AtomicUsize>,
@@ -42,7 +42,7 @@ unsafe impl Sync for DiagnosticsHandler {}
 impl DiagnosticsHandler {
     pub fn new(
         config: DiagnosticsConfig,
-        codemap: Arc<Mutex<CodeMap>>,
+        codemap: Arc<RwLock<CodeMap>>,
         emitter: Arc<dyn Emitter>,
     ) -> Self {
         Self {
@@ -55,7 +55,7 @@ impl DiagnosticsHandler {
     }
 
     pub fn location(&self, span: ByteSpan) -> Option<Location> {
-        let codemap = self.codemap.lock().unwrap();
+        let codemap = self.codemap.read().unwrap();
         let start = span.start();
         codemap
             .find_file(start)

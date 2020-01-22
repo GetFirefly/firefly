@@ -1,5 +1,4 @@
 mod archive;
-mod builtin;
 mod command;
 mod link;
 mod rpath;

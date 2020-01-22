@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::thread::ThreadId;
+use std::collections::HashSet;
 
 use liblumen_codegen::codegen::CompiledModule;
 use liblumen_codegen::llvm;
@@ -66,4 +67,9 @@ pub trait StringInternerDatabase: salsa::Database {
     fn intern_string(&self, string: String) -> InternedString;
 }
 
-pub trait CodegenDatabaseBase: ParserDatabase + StringInternerDatabase {}
+pub trait CodegenDatabaseBase: ParserDatabase + StringInternerDatabase {
+    fn take_atoms(&mut self) -> HashSet<libeir_intern::Symbol>;
+    fn add_atoms<'a, I>(&self, atoms: I) where I: Iterator<Item = &'a libeir_intern::Symbol>;
+    fn take_symbols(&mut self) -> HashSet<libeir_ir::FunctionIdent>;
+    fn add_symbols<'a, I>(&self, symbols: I) where I: Iterator<Item = &'a libeir_ir::FunctionIdent>;
+}

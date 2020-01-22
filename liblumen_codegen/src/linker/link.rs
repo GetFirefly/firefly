@@ -1,7 +1,7 @@
 use std::ascii;
 use std::char;
 use std::env;
-use std::ffi::{CString, OsString};
+use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -204,84 +204,15 @@ fn link_natively(
     // May have not found libraries in the right formats.
     diagnostics.abort_if_errors();
 
-    if options.target.options.is_like_osx {
-        use_system_linker(
-            options,
-            diagnostics,
-            pname,
-            cmd,
-            flavor,
-            output_file,
-            tmpdir,
-        )
-    } else {
-        // For non-Darwin targets, try to use LLD if possible
-        match flavor {
-            LinkerFlavor::Lld(_) => {
-                use_builtin_linker(options, diagnostics, cmd, output_file)
-            }
-            _ => use_system_linker(
-                options,
-                diagnostics,
-                pname,
-                cmd,
-                flavor,
-                output_file,
-                tmpdir,
-            ),
-        }
-    }
-}
-
-fn use_builtin_linker(
-    options: &Options,
-    diagnostics: &DiagnosticsHandler,
-    cmd: Command,
-    output_file: &Path,
-) -> anyhow::Result<()> {
-    let result = time(options.debugging_opts.time_passes, "running linker", || {
-        // Convert args to a vector of C strings, compatible with our FFI interface
-        let argv = cmd
-            .as_vec()
-            .iter()
-            .map(|os| CString::new(os.to_str().unwrap()).unwrap())
-            .collect::<Vec<_>>();
-        info!(
-            "invoking builtin linker: {:?}",
-            argv.iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>()
-        );
-        crate::linker::builtin::link(argv.as_slice())
-    });
-
-    #[cfg(unix)]
-    fn flush_linked_file(_: &Path) -> io::Result<()> {
-        Ok(())
-    }
-
-    #[cfg(windows)]
-    fn flush_linked_file(output_file: &Path) -> io::Result<()> {
-        // See the note in `exec_linker`
-        if let Ok(of) = fs::OpenOptions::new().write(true).open(output_file) {
-            of.sync_all()?;
-        }
-
-        Ok(())
-    }
-
-    if result.is_ok() {
-        flush_linked_file(output_file)?;
-        return Ok(());
-    }
-
-    diagnostics.error_str(&format!(
-        "linking with the builtin linker failed\n\
-         \n\
-         {:?}",
-        &cmd
-    ));
-    diagnostics.abort_if_errors();
-
-    Ok(())
+    use_system_linker(
+        options,
+        diagnostics,
+        pname,
+        cmd,
+        flavor,
+        output_file,
+        tmpdir,
+    )
 }
 
 fn use_system_linker(

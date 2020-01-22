@@ -21,25 +21,19 @@ fn main() {
     // Can then be fetched with `env!("foo")`
 
     // LLVM
-    /*
     let target = env::var("TARGET").expect("TARGET was not set");
     let host = env::var("HOST").expect("HOST was not set");
     let is_crossed = target != host;
-    */
-
-    let target = env::var("TARGET").expect("TARGET was not set");
-    //let host = env::var("HOST").expect("HOST was not set");
-    //let is_crossed = target != host;
 
     let llvm_prefix_env = env::var(ENV_LLVM_PREFIX).expect(ENV_LLVM_PREFIX);
     let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
 
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
 
-    let llvm_config = env::var_os("LLVM_CONFIG")
+    let llvm_config_path = env::var_os("LLVM_CONFIG")
         .map(PathBuf::from)
         .unwrap_or_else(|| llvm_prefix.as_path().join("bin/llvm-config").to_path_buf());
-    println!("cargo:rerun-if-changed={}", llvm_config.display());
+    println!("cargo:rerun-if-changed={}", llvm_config_path.display());
     println!("cargo:rerun-if-env-changed=LLVM_CONFIG");
 
     if let Err(_) = which::which("cmake") {
@@ -77,8 +71,6 @@ fn main() {
 
     rerun_if_changed_anything_in_dir(&cwd.join("lib"));
 
-    let link_libs = read_link_libs(llvm_config.as_path(), cwd.as_path());
-
     let compile_commands_src = outdir.join("build").join("compile_commands.json");
     let compile_commands_dest = cwd.join("lib").join("compile_commands.json");
 
@@ -95,6 +87,7 @@ fn main() {
     );
     println!("cargo:rustc-link-lib=static=Lumen");
 
+    let link_libs = read_link_libs(llvm_config_path.as_path(), outdir.as_path());
     for link_lib in link_libs {
         if link_lib.contains('=') {
             println!("cargo:rustc-link-lib={}", link_lib);
@@ -103,11 +96,36 @@ fn main() {
         }
     }
 
+    // LLVM ldflags
+    //
+    // If we're a cross-compile of LLVM then unfortunately we can't trust these
+    // ldflags (largely where all the LLVM libs are located). Currently just
+    // hack around this by replacing the host triple with the target and pray
+    // that those -L directories are the same!
+    let ldflags_raw = llvm_config(llvm_config_path.as_path(), &["--ldflags"]).unwrap();
+    for lib in ldflags_raw.split_whitespace() {
+        if lib.starts_with("-LIBPATH:") {
+            println!("cargo:rustc-link-search=native={}", &lib[9..]);
+        } else if is_crossed {
+            if lib.starts_with("-L") {
+                println!(
+                    "cargo:rustc-link-search=native={}",
+                    lib[2..].replace(&host, &target)
+                );
+            }
+        } else if lib.starts_with("-l") {
+            println!("cargo:rustc-link-lib={}", &lib[2..]);
+        } else if lib.starts_with("-L") {
+            println!("cargo:rustc-link-search=native={}", &lib[2..]);
+        }
+    }
+
     // Some LLVM linker flags (-L and -l) may be needed even when linking
     // liblumen_codegen, for example when using static libc++, we may need to
     // manually specify the library search path and -ldl -lpthread as link
     // dependencies.
     let llvm_linker_flags = env::var_os("LLVM_LINKER_FLAGS");
+    println!("cargo:rerun-if-env-changed=LLVM_LINKER_FLAGS");
     if let Some(s) = llvm_linker_flags {
         for lib in s.into_string().unwrap().split_whitespace() {
             if lib.starts_with("-l") {
@@ -118,7 +136,7 @@ fn main() {
         }
     }
 
-    print_libcpp_flags(llvm_config.as_path(), target.as_str());
+    print_libcpp_flags(llvm_config_path.as_path(), target.as_str());
 }
 
 pub fn output(cmd: &mut Command) -> String {
@@ -144,7 +162,7 @@ pub fn rerun_if_changed_anything_in_dir(dir: &Path) {
         .read_dir()
         .unwrap()
         .map(|e| e.unwrap())
-        .filter(|e| &*e.file_name() != ".git")
+        .filter(|e| !ignore_changes(Path::new(&*e.file_name())))
         .collect::<Vec<_>>();
     while let Some(entry) = stack.pop() {
         let path = entry.path();
@@ -156,36 +174,28 @@ pub fn rerun_if_changed_anything_in_dir(dir: &Path) {
     }
 }
 
-/// Invoke the specified binary as llvm-config for a dylib build
-fn llvm_config_dylib<S: AsRef<OsStr>>(binary: S, args: &[&str]) -> io::Result<String> {
-    Command::new(binary)
-        .arg("--link-shared")
-        .args(args)
-        .output()
-        .map(|output| {
-            String::from_utf8(output.stdout).expect("Output from llvm-config was not valid UTF-8")
-        })
+fn ignore_changes(name: &Path) -> bool {
+    return name
+        .file_name()
+        .map(|f| f.to_string_lossy().starts_with("."))
+        .unwrap_or(false);
 }
 
-/// Invoke the specified binary as llvm-config for a static build
-fn llvm_config_static<S: AsRef<OsStr>>(binary: S, args: &[&str]) -> io::Result<String> {
-    Command::new(binary)
-        .arg("--link-static")
-        .args(args)
-        .output()
-        .map(|output| {
-            String::from_utf8(output.stdout).expect("Output from llvm-config was not valid UTF-8")
-        })
-}
-
-fn has_dylib_components(llvm_config: &Path) -> bool {
-    if let Ok(_) = Command::new(llvm_config).arg("--link-shared").status() {
-        return true;
+fn llvm_config<S>(binary: S, args: &[&str]) -> io::Result<String>
+where
+    S: AsRef<OsStr>,
+{
+    match Command::new(binary).args(args).output() {
+        Ok(output) => match String::from_utf8(output.stdout) {
+            Ok(s) => Ok(s.trim_end().to_owned()),
+            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
+        },
+        Err(e) => Err(e),
     }
-    false
 }
 
 fn cleanup_link_lib(lib: &str) -> Option<&str> {
+    println!("lib: {}", lib);
     let result = if lib.starts_with("-l") {
         Some(&lib[2..])
     } else if lib.starts_with("-") {
@@ -193,8 +203,17 @@ fn cleanup_link_lib(lib: &str) -> Option<&str> {
     } else if Path::new(lib).exists() {
         // On MSVC llvm-config will print the full name to libraries, but
         // we're only interested in the name part
-        let name = Path::new(lib).file_name().unwrap().to_str().unwrap();
-        Some(name.trim_end_matches(".lib"))
+        let path = Path::new(lib);
+        println!(
+            "cargo:rustc-link-search=native={}",
+            path.parent().unwrap().to_str().unwrap()
+        );
+        let name = path.file_name().unwrap().to_str().unwrap();
+        Some(
+            name.trim_start_matches("lib")
+                .trim_end_matches(".lib")
+                .trim_end_matches(".dylib"),
+        )
     } else if lib.ends_with(".lib") {
         // Some MSVC libraries just come up with `.lib` tacked on, so trim it
         Some(lib.trim_end_matches(".lib"))
@@ -210,86 +229,49 @@ fn cleanup_link_lib(lib: &str) -> Option<&str> {
     }
 }
 
-fn read_link_libs(llvm_config: &Path, cwd: &Path) -> Vec<String> {
+fn read_link_libs(llvm_config_path: &Path, outdir: &Path) -> Vec<String> {
     let mut link_libs = Vec::new();
 
-    // LLVM
-    let libargs = &[
-        "--system-libs",
-        "--libs",
-        "core",
-        "support",
-        "all-targets",
-        "executionengine",
-        "linker",
-    ];
-    if env::var_os("LLVM_BUILD_STATIC").is_some() || !has_dylib_components(llvm_config) {
-        let libs = llvm_config_static(llvm_config, libargs).unwrap();
-        for l in libs.split(' ') {
-            if let Some(lib) = cleanup_link_lib(l) {
-                if lib.starts_with("LLVM") {
-                    link_libs.push(lib.to_string());
-                } else {
-                    // System libraries must be dynamically linked
-                    link_libs.push(format!("dylib={}", lib));
-                }
-            }
-        }
+    if let Some(_) = env::var_os("LLVM_BUILD_STATIC") {
+        read_link_libs_static(outdir, &mut link_libs);
     } else {
-        let libs = llvm_config_dylib(llvm_config, libargs).unwrap();
-        for l in libs.split(' ') {
-            if let Some(lib) = cleanup_link_lib(l) {
-                link_libs.push(format!("dylib={}", lib));
-            }
-        }
+        read_link_libs_shared(&mut link_libs);
     }
 
-    // LLD
-    for lib in &[
-        "lldCore",
-        "lldCommon",
-        "lldYaml",
-        "lldReaderWriter",
-        "lldELF",
-        "lldWasm",
-        "lldCOFF",
-        "lldMachO",
-        "lldMinGW",
-        "lldDriver",
-    ] {
-        link_libs.push(lib.to_string());
-    }
-
-    // MLIR
-    let liblumen_cmakelists_path = cwd.join("lib").join("lib").join("CMakeLists.txt");
-    let liblumen_cmake_lists = fs::read_to_string(liblumen_cmakelists_path).unwrap();
-    let mut started = false;
-    for line in liblumen_cmake_lists.lines() {
-        if !started && line.starts_with("set(Lumen_mlir_libs") {
-            started = true;
+    // System libs
+    let syslibs = llvm_config(llvm_config_path, &["--system-libs"]).unwrap();
+    for l in syslibs.split(' ') {
+        if l.ends_with("libxml2.dylib") {
+            // This library is only required during LLVM build
             continue;
         }
-        if !started {
-            continue;
+        if let Some(lib) = cleanup_link_lib(l) {
+            // System libraries must be dynamically linked
+            link_libs.push(format!("dylib={}", lib));
         }
-        if line.starts_with(")") {
-            break;
-        }
-        if line.starts_with("#") {
-            continue;
-        }
-        let lib = line.trim();
-        if lib.is_empty() {
-            continue;
-        }
-        link_libs.push(lib.to_string());
     }
 
     link_libs
 }
 
-fn print_libcpp_flags(llvm_config: &Path, target: &str) {
-    let cxxflags = output(&mut Command::new(llvm_config).arg("--cxxflags"));
+fn read_link_libs_shared(link_libs: &mut Vec<String>) {
+    // If not statically linking, we can just link against the combined dylib
+    link_libs.push(format!("dylib=LLVMcpp"));
+}
+
+fn read_link_libs_static(outdir: &Path, link_libs: &mut Vec<String>) {
+    // If statically linking, we need to link against the same libs as libLumen
+    let lumen_libs_txt = outdir.join("build").join("Lumen_deps.txt");
+    let lumen_libs = fs::read_to_string(lumen_libs_txt).unwrap();
+
+    // LLVM
+    for l in lumen_libs.lines() {
+        link_libs.push(l.to_string());
+    }
+}
+
+fn print_libcpp_flags(llvm_config_path: &Path, target: &str) {
+    let cxxflags = llvm_config(llvm_config_path, &["-cxxflags"]).unwrap();
 
     let llvm_static_stdcpp = env::var_os("LLVM_STATIC_STDCPP");
     let llvm_use_libcxx = env::var_os("LLVM_USE_LIBCXX");

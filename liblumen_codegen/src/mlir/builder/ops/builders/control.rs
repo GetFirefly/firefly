@@ -1,0 +1,123 @@
+use super::*;
+
+pub struct ReturnBuilder;
+impl ReturnBuilder {
+    pub fn build<'f, 'o>(
+        builder: &mut ScopedFunctionBuilder<'f, 'o>,
+        value: Option<Value>,
+    ) -> Result<Option<Value>> {
+        let value_ref = value.map(|v| builder.value_ref(v)).unwrap_or_default();
+        unsafe {
+            MLIRBuildReturn(builder.as_ref(), value_ref);
+        }
+        Ok(None)
+    }
+}
+
+pub struct ThrowBuilder;
+impl ThrowBuilder {
+    pub fn build<'f, 'o>(
+        _builder: &mut ScopedFunctionBuilder<'f, 'o>,
+        value: Value,
+    ) -> Result<Option<Value>> {
+        todo!("throw {:?}", value);
+    }
+}
+
+pub struct UnreachableBuilder;
+impl UnreachableBuilder {
+    pub fn build<'f, 'o>(builder: &mut ScopedFunctionBuilder<'f, 'o>) -> Result<Option<Value>> {
+        unsafe {
+            MLIRBuildUnreachable(builder.as_ref());
+        }
+
+        Ok(None)
+    }
+}
+
+pub struct BranchBuilder;
+impl BranchBuilder {
+    pub fn build<'f, 'o>(
+        builder: &mut ScopedFunctionBuilder<'f, 'o>,
+        branch: Branch,
+    ) -> Result<Option<Value>> {
+        let Branch { block, args } = branch;
+        let block_ref = builder.block_ref(block);
+        let block_argc = args.len();
+        let mut block_args = args
+            .iter()
+            .copied()
+            .map(|a| builder.value_ref(a))
+            .collect::<Vec<_>>();
+        let block_argv = if block_argc > 0 {
+            block_args.as_ptr() as *mut _
+        } else {
+            core::ptr::null_mut()
+        };
+        unsafe {
+            MLIRBuildBr(
+                builder.as_ref(),
+                block_ref,
+                block_argv,
+                block_argc as libc::c_uint,
+            );
+        }
+
+        Ok(None)
+    }
+}
+
+pub struct IfBuilder;
+impl IfBuilder {
+    pub fn build<'f, 'o>(
+        builder: &mut ScopedFunctionBuilder<'f, 'o>,
+        op: If,
+    ) -> Result<Option<Value>> {
+        builder.debug(&format!("building if {:?}", &op));
+
+        let cond_ref = builder.value_ref(op.cond);
+        let yes_ref = builder.block_ref(op.yes.block);
+        let no_ref = builder.block_ref(op.no.block);
+        let other_ref = op.otherwise.as_ref().map(|o| builder.block_ref(o.block));
+
+        let yes_args = op
+            .yes
+            .args
+            .iter()
+            .map(|v| builder.value_ref(*v))
+            .collect::<Vec<_>>();
+        let no_args = op
+            .no
+            .args
+            .iter()
+            .map(|v| builder.value_ref(*v))
+            .collect::<Vec<_>>();
+        let other_args = op
+            .otherwise
+            .as_ref()
+            .map(|o| {
+                o.args
+                    .iter()
+                    .map(|v| builder.value_ref(*v))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_else(Vec::new);
+        // 4. Generate if using mapped values
+        unsafe {
+            MLIRBuildIf(
+                builder.as_ref(),
+                cond_ref,
+                yes_ref,
+                yes_args.as_ptr(),
+                yes_args.len() as libc::c_uint,
+                no_ref,
+                no_args.as_ptr(),
+                no_args.len() as libc::c_uint,
+                other_ref.unwrap_or_default(),
+                other_args.as_ptr(),
+                other_args.len() as libc::c_uint,
+            )
+        }
+        Ok(None)
+    }
+}

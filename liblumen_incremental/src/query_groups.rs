@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use liblumen_session::{DiagnosticsHandler, Emit, Input, InputType, Options, OutputType};
 use liblumen_session::{IRModule, ParsedModule};
@@ -49,7 +49,7 @@ pub trait ParserDatabaseBase: InternerDatabase {
         self.diagnostics().diagnostic(diag);
     }
 
-    fn codemap(&self) -> &Arc<Mutex<CodeMap>>;
+    fn codemap(&self) -> &Arc<RwLock<CodeMap>>;
 
     fn maybe_emit_file<E>(&self, input: InternedInput, emit: &E) -> QueryResult<Option<PathBuf>>
     where

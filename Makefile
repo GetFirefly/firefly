@@ -3,6 +3,7 @@
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
 LLVM_SYS_90_PREFIX ?= `cd $$XDG_DATA_HOME/llvm/lumen && pwd`
+CWD ?= `pwd`
 
 help:
 	@echo "$(NAME):$(VERSION)"
@@ -16,22 +17,16 @@ test: ## Run tests
 	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo test
 
 install: ## Install the Lumen compiler
-	LLVM_BUILD_STATIC=1 LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo install -p lumen
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --release --static --use-libcxx --install $(INSTALL_PREFIX)
 
 build: ## Build the Lumen compiler
-	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
-		cargo rustc -p lumen -- -C link-args="-Wl,-rpath,$(LLVM_SYS_90_PREFIX)/lib"
-
-build-noopt:
-	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
-		cargo rustc -p lumen -- \
-			-C opt-level=0 \
-			-C lto=no \
-			-C debuginfo=2 \
-			-C link-args="-Wl,-rpath,$(LLVM_SYS_90_PREFIX)/lib"
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx
 
 build-static: ## Build a statically linked Lumen compiler
-	LLVM_BUILD_STATIC=1 LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo build -p lumen
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --static --use-libcxx
 
 clean-codegen:
 	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo clean -p liblumen_codegen

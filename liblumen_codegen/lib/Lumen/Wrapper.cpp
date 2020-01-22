@@ -1,5 +1,7 @@
 #include "eir/Dialect.h"
+
 #include "lumen/Lumen.h"
+#include "lumen/Support/RustString.h"
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/ErrorHandling.h"

@@ -132,11 +132,17 @@ pub(crate) fn input_eir<P>(db: &P, input: InternedInput) -> QueryResult<IRModule
 where
     P: ParserDatabase,
 {
+    use libeir_passes::PassManager;
+
     let module = db.input_parsed(input)?;
     let parse_config = db.parse_config();
-    let codemap = parse_config.codemap.lock().unwrap();
+    let codemap = &parse_config.codemap;
     match syntax::lower_module(codemap.deref(), module.as_ref()) {
-        (Ok(ir_module), _) => {
+        (Ok(mut ir_module), _) => {
+            // Run EIR passes
+            let mut pass_manager = PassManager::default();
+            pass_manager.run(&mut ir_module);
+
             db.maybe_emit_file(input, &ir_module)?;
             Ok(ir_module.into())
         }

@@ -1,7 +1,7 @@
 pub(crate) mod compile;
 pub(crate) mod print;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use libeir_diagnostics::{CodeMap, Emitter};
 
@@ -11,13 +11,13 @@ pub(super) fn default_diagnostics_handler(
     options: &Options,
     emitter: Option<Arc<dyn Emitter>>,
 ) -> DiagnosticsHandler {
-    let codemap = Arc::new(Mutex::new(CodeMap::new()));
+    let codemap = Arc::new(RwLock::new(CodeMap::new()));
     create_diagnostics_handler(options, codemap, emitter)
 }
 
 pub(super) fn create_diagnostics_handler(
     options: &Options,
-    codemap: Arc<Mutex<CodeMap>>,
+    codemap: Arc<RwLock<CodeMap>>,
     emitter: Option<Arc<dyn Emitter>>,
 ) -> DiagnosticsHandler {
     let emitter = emitter.unwrap_or_else(|| default_emitter(codemap.clone(), &options));
@@ -28,7 +28,7 @@ pub(super) fn create_diagnostics_handler(
     DiagnosticsHandler::new(config, codemap, emitter)
 }
 
-pub(super) fn default_emitter(codemap: Arc<Mutex<CodeMap>>, options: &Options) -> Arc<dyn Emitter> {
+pub(super) fn default_emitter(codemap: Arc<RwLock<CodeMap>>, options: &Options) -> Arc<dyn Emitter> {
     use libeir_diagnostics::{NullEmitter, StandardStreamEmitter};
     use liblumen_session::verbosity_to_severity;
     use liblumen_util::error::Verbosity;

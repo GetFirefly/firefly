@@ -7,17 +7,11 @@
 typedef struct OpaqueRustString *RustStringRef;
 typedef struct LLVMOpaqueTwine *LLVMTwineRef;
 
-extern "C" void LLVMRustStringWriteImpl(RustStringRef Str, const char *Ptr,
-                                        size_t Size);
-
 class RawRustStringOstream : public llvm::raw_ostream {
   RustStringRef Str;
   uint64_t Pos;
 
-  void write_impl(const char *Ptr, size_t Size) override {
-    LLVMRustStringWriteImpl(Str, Ptr, Size);
-    Pos += Size;
-  }
+  void write_impl(const char *Ptr, size_t Size) override;
 
   uint64_t current_pos() const override { return Pos; }
 

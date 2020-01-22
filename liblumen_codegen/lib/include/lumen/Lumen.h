@@ -2,7 +2,6 @@
 #define LUMEN_LUMEN_H
 
 #include "lumen/LLVM.h"
-#include "lumen/RustString.h"
 
 #include "llvm-c/Core.h"
 #include "llvm-c/Object.h"

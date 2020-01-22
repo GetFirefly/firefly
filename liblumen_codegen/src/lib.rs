@@ -1,5 +1,8 @@
 #![feature(extern_types)]
+#![feature(arbitrary_enum_discriminant)]
 #![feature(associated_type_bounds)]
+
+pub mod atoms;
 pub mod codegen;
 pub mod ffi;
 pub mod linker;

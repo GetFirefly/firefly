@@ -6,7 +6,7 @@ use anyhow::anyhow;
 
 use log::debug;
 
-use liblumen_codegen::mlir::{self, Dialect};
+use liblumen_codegen::mlir::{self, Dialect, GeneratedModule};
 use liblumen_codegen::{self as codegen, codegen::CompiledModule, llvm};
 use liblumen_incremental::{InternedInput, QueryResult};
 use liblumen_session::{Input, InputType, OutputType};
@@ -78,7 +78,9 @@ where
     let options = db.options();
     debug!("generating mlir for {:?} on {:?}", input, thread_id);
     match mlir::builder::build(&module, &context, &options) {
-        Ok(mlir_module) => {
+        Ok(GeneratedModule { module: mlir_module, atoms, symbols }) => {
+            db.add_atoms(atoms.iter());
+            db.add_symbols(symbols.iter());
             db.maybe_emit_file_with_opts(&options, input, &mlir_module)?;
             Ok(Arc::new(mlir_module))
         }

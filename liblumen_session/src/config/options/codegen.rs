@@ -123,4 +123,7 @@ pub struct CodegenOptions {
      **     _
      **/
     pub linker_plugin_lto: LinkerPluginLto,
+    #[option]
+    /// When set, does not implicitly link the Lumen runtime
+    pub no_std: Option<bool>,
 }

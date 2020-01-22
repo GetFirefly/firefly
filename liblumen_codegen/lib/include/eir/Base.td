@@ -33,7 +33,7 @@ class eir_Builder<string builder> {
 
 def eir_ZeroResultOpBuilder : OpBuilder<
   "Builder *, OperationState &result,"
-  "ArrayRef<Value *> operands, ArrayRef<NamedAttribute> attributes = {}",
+  "ArrayRef<Value> operands, ArrayRef<NamedAttribute> attributes = {}",
   [{
     result.addOperands(operands);
     for (auto namedAttr : attributes)
@@ -42,7 +42,7 @@ def eir_ZeroResultOpBuilder : OpBuilder<
 
 def eir_OneResultOpBuilder : OpBuilder<
   "Builder *, OperationState &result, Type resultType,"
-  "ArrayRef<Value *> operands, ArrayRef<NamedAttribute> attributes = {}",
+  "ArrayRef<Value> operands, ArrayRef<NamedAttribute> attributes = {}",
   [{
     if (resultType)
       result.addTypes(resultType);
@@ -52,17 +52,31 @@ def eir_OneResultOpBuilder : OpBuilder<
   }]>;
 
 def eir_RuntimeOpBuilder : OpBuilder<
-  "Builder *, OperationState &result, Type resultType, Type errType,"
-  "ArrayRef<Value *> operands, ArrayRef<NamedAttribute> attributes = {}",
+  "Builder *builder, OperationState &result, Type resultType,"
+  "ArrayRef<Value> operands, ArrayRef<NamedAttribute> attributes = {}",
   [{
-    if (resultType)
-      result.addTypes(resultType);
-    if (errType)
-      result.addTypes(errType);
+    IntegerType errType = builder->getI1Type();
+    result.addTypes(resultType);
+    result.addTypes(errType);
     result.addOperands(operands);
     for (auto namedAttr : attributes)
       result.addAttribute(namedAttr.first, namedAttr.second);
   }]>;
+
+def eir_MapOpBuilder : OpBuilder<
+  "Builder *builder, OperationState &result,"
+   "Value map, ValueRange pairs,"
+   "ArrayRef<NamedAttribute> attributes = {}",
+
+   [{
+     auto mapType = builder->getType<eir::MapType>();
+     IntegerType condType = builder->getI1Type();
+     result.addTypes(mapType);
+     result.addTypes(condType);
+     ArrayRef<Value> operands = {map};
+     result.addOperands(operands);
+     result.addOperands(pairs);
+   }]>;
 
 class eir_TwoBuilders<OpBuilder b1, OpBuilder b2> {
   list<OpBuilder> builders = [b1, b2];
@@ -70,7 +84,7 @@ class eir_TwoBuilders<OpBuilder b1, OpBuilder b2> {
 
 def eir_AllocateOpBuilder : OpBuilder<
   "Builder *builder, OperationState &result, Type inType,"
-  "ArrayRef<Value *> sizes = {}, ArrayRef<NamedAttribute> attributes = {}",
+  "ArrayRef<Value> sizes = {}, ArrayRef<NamedAttribute> attributes = {}",
   [{
     result.addTypes(getRefTy(inType));
     result.addAttribute("in_type", M::TypeAttr::get(inType));
@@ -81,7 +95,7 @@ def eir_AllocateOpBuilder : OpBuilder<
 
 def eir_NamedAllocateOpBuilder : OpBuilder<
   "Builder *builder, OperationState &result, Type inType, StringRef name,"
-  "ArrayRef<Value *> sizes = {}, ArrayRef<NamedAttribute> attributes = {}",
+  "ArrayRef<Value> sizes = {}, ArrayRef<NamedAttribute> attributes = {}",
   [{
     result.addTypes(getRefTy(inType));
     result.addAttribute("in_type", M::TypeAttr::get(inType));

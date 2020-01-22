@@ -3,7 +3,8 @@ mod queries;
 mod query_groups;
 
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
+use std::collections::HashSet;
 
 use log::debug;
 
@@ -11,6 +12,8 @@ pub use salsa::ParallelDatabase;
 use salsa::Snapshot;
 
 use libeir_diagnostics::{CodeMap, Diagnostic};
+use libeir_ir::FunctionIdent;
+use libeir_intern::Symbol;
 
 use liblumen_incremental::{InternedInput, InternerStorage};
 pub use liblumen_incremental::{ParserDatabase, ParserDatabaseBase};
@@ -27,14 +30,21 @@ use self::prelude::*;
 pub struct CompilerDatabase {
     runtime: salsa::Runtime<CompilerDatabase>,
     diagnostics: DiagnosticsHandler,
-    codemap: Arc<Mutex<CodeMap>>,
+    codemap: Arc<RwLock<CodeMap>>,
+    atoms: Arc<Mutex<HashSet<Symbol>>>,
+    symbols: Arc<Mutex<HashSet<FunctionIdent>>>,
 }
 impl CompilerDatabase {
-    pub fn new(codemap: Arc<Mutex<CodeMap>>, diagnostics: DiagnosticsHandler) -> Self {
+    pub fn new(codemap: Arc<RwLock<CodeMap>>, diagnostics: DiagnosticsHandler) -> Self {
+        let mut atoms = HashSet::default();
+        atoms.insert(Symbol::intern("false"));
+        atoms.insert(Symbol::intern("true"));
         Self {
             runtime: Default::default(),
-            codemap,
             diagnostics,
+            codemap,
+            atoms: Arc::new(Mutex::new(atoms)),
+            symbols: Arc::new(Mutex::new(HashSet::default())),
         }
     }
 }
@@ -51,8 +61,10 @@ impl salsa::ParallelDatabase for CompilerDatabase {
     fn snapshot(&self) -> Snapshot<Self> {
         Snapshot::new(CompilerDatabase {
             runtime: self.runtime.snapshot(self),
-            codemap: self.codemap.clone(),
             diagnostics: self.diagnostics.clone(),
+            codemap: self.codemap.clone(),
+            atoms: self.atoms.clone(),
+            symbols: self.symbols.clone(),
         })
     }
 }
@@ -66,7 +78,7 @@ impl ParserDatabaseBase for CompilerDatabase {
         self.diagnostics.diagnostic(diagnostic);
     }
 
-    fn codemap(&self) -> &Arc<Mutex<CodeMap>> {
+    fn codemap(&self) -> &Arc<RwLock<CodeMap>> {
         &self.codemap
     }
 
@@ -137,4 +149,34 @@ impl ParserDatabaseBase for CompilerDatabase {
     }
 }
 
-impl CodegenDatabaseBase for CompilerDatabase {}
+impl CodegenDatabaseBase for CompilerDatabase {
+    fn take_atoms(&mut self) -> HashSet<Symbol> {
+        let atoms = Arc::get_mut(&mut self.atoms).unwrap()
+            .get_mut()
+            .unwrap();
+        let empty = HashSet::default();
+        core::mem::replace(atoms, empty)
+    }
+
+    fn add_atoms<'a, I>(&self, atoms: I) where I: Iterator<Item = &'a Symbol> {
+        let mut locked = self.atoms.lock().unwrap();
+        for i in atoms {
+            locked.insert(*i);
+        }
+    }
+
+    fn take_symbols(&mut self) -> HashSet<FunctionIdent> {
+        let symbols = Arc::get_mut(&mut self.symbols).unwrap()
+            .get_mut()
+            .unwrap();
+        let empty = HashSet::default();
+        core::mem::replace(symbols, empty)
+    }
+
+    fn add_symbols<'a, I>(&self, symbols: I) where I: Iterator<Item = &'a FunctionIdent> {
+        let mut locked = self.symbols.lock().unwrap();
+        for i in symbols {
+            locked.insert(*i);
+        }
+    }
+}

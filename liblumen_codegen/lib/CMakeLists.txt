@@ -27,6 +27,7 @@ include(CMakeParseArguments)
 include(CMakePushCheckState)
 include(CheckSymbolExists)
 include(GNUInstallDirs)
+include(StaticBundle)
 
 option(LUMEN_ENABLE_TESTS "Generate and build targets for the Lumen unit tests" OFF)
 
@@ -44,21 +45,7 @@ message(STATUS "CMake Version   : " "${CMAKE_SYSTEM_VERSION}")
 message(STATUS "Compiler        : " "${CMAKE_C_COMPILER}"    )
 message(STATUS "Target          : " "${CMAKE_C_COMPILER_TARGET}")
 message(STATUS "Operating System: " "${CMAKE_SYSTEM}"        )
-message(STATUS "LLVM Version    : " "${LLVM_PACKAGE_VERSION}")
-message(STATUS "Path to LLVM    : " "${LLVM_DIR}"            )
 message(STATUS "Tests Enabled   : " "${ENABLE_TESTS}"        )
-
-# Set up LLVM
-include(AddLLVM)
-include(TableGen)
-
-message(STATUS "LLVM Source Dir : " "${LLVM_SOURCE_DIR}")
-message(STATUS "LLVM Binary Dir : " "${LLVM_BINARY_DIR}")
-message(STATUS "LLVM Libary Dir : " "${LLVM_LIBRARY_DIR}")
-message(STATUS "LLVM Includes   : " "${LLVM_MAIN_INCLUDE_DIR}")
-
-include_directories("${LLVM_BINARY_DIR}/include" "${LLVM_MAIN_INCLUDE_DIR}")
-link_directories("${LLVM_LIBRARY_DIR}")
 
 # Make sure outputs go to expected locations
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -69,15 +56,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX})
 set(LUMEN_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LUMEN_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
-# Configuration information about MLIR
-include(MLIR)
-
 # Make sure global includes are set
 include_directories(BEFORE
   ${LUMEN_BINARY_DIR}/include
   ${LUMEN_SOURCE_DIR}/include
-  ${MLIR_BINARY_DIR}/include
-  ${MLIR_SOURCE_DIR}/include
 )
 
 # We don't want builds stomping all over the source directory
@@ -127,7 +109,9 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/eir
 )
 
 add_subdirectory(include)
-add_subdirectory(lib)
+#add_subdirectory(LumenLLVM)
+#add_subdirectory(LumenLLD)
+add_subdirectory(Lumen)
 
 if (ENABLE_TESTING)
     add_executable(lumen_test tests.cpp)

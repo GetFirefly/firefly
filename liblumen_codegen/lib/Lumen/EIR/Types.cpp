@@ -22,6 +22,22 @@ using llvm::SmallVector;
 namespace eir {
 namespace detail {
 
+/// Term Types
+struct TermBaseStorage : public M::TypeStorage {
+  TermBaseStorage() = delete;
+  TermBaseStorage(M::Type t)
+      : TypeStorage(t.getKind()), implKind(t.getKind()) {}
+
+  using KeyTy = unsigned;
+
+  bool operator==(const KeyTy &key) const { return key == implKind; }
+
+  unsigned getImplKind() const { return implKind; }
+
+private:
+  unsigned implKind;
+};
+
 /// Shaped Types
 struct ShapedTypeStorage : public M::TypeStorage {
   ShapedTypeStorage() = delete;

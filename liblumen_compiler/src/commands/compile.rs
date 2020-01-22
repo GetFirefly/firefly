@@ -1,6 +1,8 @@
 use std::path::PathBuf;
-use std::sync::{mpsc::channel, Arc, Mutex};
+use std::sync::{mpsc::channel, Arc, RwLock};
 use std::time::Instant;
+use std::thread;
+use std::ops::Deref;
 
 use anyhow::anyhow;
 
@@ -19,7 +21,6 @@ use liblumen_codegen::{
     codegen::{CodegenResults, ProjectInfo},
 };
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
-use liblumen_target::{self as target, Target};
 use liblumen_util::time::HumanDuration;
 
 use crate::commands::*;
@@ -33,25 +34,14 @@ pub fn handle_command<'a>(
     emitter: Option<Arc<dyn Emitter>>,
 ) -> anyhow::Result<()> {
     // Extract options from provided arguments
-    let mut options = Options::new(c_opts, z_opts, cwd, &matches)?;
+    let options = Options::new(c_opts, z_opts, cwd, &matches)?;
     // Construct empty code map for use in compilation
-    let codemap = Arc::new(Mutex::new(CodeMap::new()));
+    let codemap = Arc::new(RwLock::new(CodeMap::new()));
     // Set up diagnostics
     let diagnostics = create_diagnostics_handler(&options, codemap.clone(), emitter);
 
     // Initialize codegen backend
     codegen::init(&options);
-
-    let host = Target::search(target::host_triple()).unwrap_or_else(|e| {
-        diagnostics
-            .fatal_str(&format!(
-                "Unable to load host specification: {}",
-                e.to_string()
-            ))
-            .raise()
-    });
-
-    options.set_host_target(host);
 
     // Build query database
     let mut db = CompilerDatabase::new(codemap, diagnostics);
@@ -102,41 +92,62 @@ pub fn handle_command<'a>(
 
     debug!("awaiting results from workers ({} units)", num_inputs);
 
-    let diagnostics = db.diagnostics();
     let mut received = 0;
-    loop {
-        match rx.recv() {
-            Ok(compile_result) => {
-                debug!(
-                    "received compilation result from worker: {:?}",
-                    &compile_result
-                );
-                if let Ok(compiled_module) = compile_result {
-                    diagnostics.success("Compiled", &compiled_module.name());
-                    codegen_results.modules.push(compiled_module);
-                } else {
-                    debug!("received compilation result from worker: compilation failed");
+    {
+        let diagnostics = db.diagnostics();
+        loop {
+            match rx.recv() {
+                Ok(compile_result) => {
+                    debug!(
+                        "received compilation result from worker: {:?}",
+                        &compile_result
+                    );
+                    if let Ok(compiled_module) = compile_result {
+                        diagnostics.success("Compiled", &compiled_module.name());
+                        codegen_results.modules.push(compiled_module);
+                    } else {
+                        debug!("received compilation result from worker: compilation failed");
+                    }
+                    received += 1;
                 }
-                received += 1;
+                Err(_) => {
+                    debug!("received compilation result from worker: terminated");
+                    received += 1;
+                }
             }
-            Err(_) => {
-                debug!("received compilation result from worker: terminated");
-                received += 1;
+            if received == num_inputs {
+                debug!("all compilation units are finished, terminating thread pool");
+                if let Err(ref reason) = pool.shutdown() {
+                    diagnostics.fatal_str(reason).raise();
+                }
+                break;
             }
         }
-        if received == num_inputs {
-            debug!("all compilation units are finished, terminating thread pool");
-            if let Err(ref reason) = pool.shutdown() {
-                diagnostics.fatal_str(reason).raise();
-            }
-            break;
-        }
+
+        // Do not proceed to linking if there were compilation errors
+        diagnostics.abort_if_errors();
     }
 
-    // Do not proceed to linking if there were compilation errors
-    diagnostics.abort_if_errors();
+    // Generate LLVM module containing atom table data
+    //
+    // NOTE: This does not go through the query system, since atoms
+    // are not inputs to the query system, but gathered globally during
+    // compilation.
+    let thread_id = thread::current().id();
+    let context = db.llvm_context(thread_id);
+    let target_machine = db.get_target_machine(thread_id);
+    let atoms = db.take_atoms();
+    let output_dir = db.output_dir();
+    let atom_module = codegen::atoms::compile_atom_table(
+        context.deref(),
+        target_machine.deref(),
+        atoms,
+        output_dir.as_path(),
+    )?;
+    codegen_results.modules.push(atom_module);
 
     // Link all compiled objects
+    let diagnostics = db.diagnostics();
     if let Err(err) = linker::link_binary(&options, &diagnostics, &codegen_results) {
         diagnostics.error(err);
         return Err(anyhow!("failed to link binary"));

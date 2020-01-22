@@ -1,4 +1,5 @@
 pub mod builder;
+pub use self::builder::GeneratedModule;
 
 use std::cell::RefCell;
 use std::convert::AsRef;
@@ -7,12 +8,11 @@ use std::fmt;
 use std::mem::MaybeUninit;
 use std::os;
 use std::path::Path;
-use std::ptr;
 use std::thread::{self, ThreadId};
 
 use anyhow::anyhow;
 
-use liblumen_session::{Emit, Options, OutputType};
+use liblumen_session::{Emit, OutputType};
 use liblumen_util as util;
 
 use super::Result;
@@ -20,21 +20,7 @@ use crate::ffi::{CodeGenOptLevel, CodeGenOptSize};
 use crate::llvm::memory_buffer::{MemoryBuffer, MemoryBufferRef};
 use crate::llvm::{self, string::LLVMString, TargetMachineRef};
 
-extern "C" {
-    pub type ContextImpl;
-}
-extern "C" {
-    pub type DiagnosticEngine;
-}
-extern "C" {
-    pub type DiagnosticInfo;
-}
-extern "C" {
-    pub type ModuleImpl;
-}
-
-pub type ContextRef = *mut ContextImpl;
-pub type ModuleRef = *mut ModuleImpl;
+use self::builder::ffi::{ContextRef, ModuleRef};
 
 /// TargetDialect
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -115,7 +101,7 @@ impl fmt::Debug for Context {
 impl Eq for Context {}
 impl PartialEq for Context {
     fn eq(&self, other: &Self) -> bool {
-        ptr::eq(self.context, other.context)
+        self.context == other.context
     }
 }
 
@@ -165,7 +151,7 @@ impl fmt::Debug for Module {
 impl Eq for Module {}
 impl PartialEq for Module {
     fn eq(&self, other: &Self) -> bool {
-        ptr::eq(self.as_ref(), other.as_ref())
+        self.as_ref() == other.as_ref()
     }
 }
 impl Clone for Module {
@@ -195,16 +181,16 @@ impl Emit for Module {
 extern "C" {
     pub fn MLIRCreateContext() -> ContextRef;
 
-    pub fn MLIRParseFile(context: ContextRef, filename: *const libc::c_char) -> *mut ModuleImpl;
+    pub fn MLIRParseFile(context: ContextRef, filename: *const libc::c_char) -> ModuleRef;
 
-    pub fn MLIRParseBuffer(context: ContextRef, buffer: MemoryBufferRef) -> *mut ModuleImpl;
+    pub fn MLIRParseBuffer(context: ContextRef, buffer: MemoryBufferRef) -> ModuleRef;
 
     pub fn MLIRLowerModule(
         context: ContextRef,
         module: ModuleRef,
         dialect: Dialect,
         opt: CodeGenOptLevel,
-    ) -> *mut ModuleImpl;
+    ) -> ModuleRef;
 
     pub fn MLIRLowerToLLVMIR(
         module: ModuleRef,

@@ -1,6 +1,6 @@
 #include "lumen/Diagnostics.h"
 #include "lumen/Lumen.h"
-#include "lumen/RustString.h"
+#include "lumen/Support/RustString.h"
 
 #include "llvm-c/Core.h"
 #include "llvm/IR/DiagnosticInfo.h"

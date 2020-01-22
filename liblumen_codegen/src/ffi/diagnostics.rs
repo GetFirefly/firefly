@@ -3,7 +3,7 @@ use std::ffi::CStr;
 use liblumen_session::DiagnosticsHandler;
 use liblumen_util::error::FatalError;
 
-use crate::mlir;
+use crate::mlir::builder::ffi::foreign_types as mlir;
 
 use super::string::{self, RustString};
 use super::Value;

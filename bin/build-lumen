@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+ROOT_DIR="$(cd "$(dirname "$SCRIPT_DIR")" && pwd)"
+BIN_DIR="${ROOT_DIR}/bin"
+OUTPUT_DIR="${ROOT_DIR}/target/debug"
+RUSTC_PATH="$(rustup which --toolchain nightly rustc)"
+TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
+TOOLCHAIN_LIB_PATH="$(cd "$TOOLCHAIN_BIN_PATH"/../lib && pwd -P)"
+
+export LLVM_SYS_90_PREFIX
+LLVM_SYS_90_PREFIX="${LLVM_SYS_90_PREFIX}"
+if [ -z "$LLVM_SYS_90_PREFIX" ]; then
+    LLVM_SYS_90_PREFIX="$(cd "${XDG_DATA_HOME}/llvm/lumen" && pwd -P)"
+fi
+
+is_darwin="false"
+build_static="false"
+build_use_libcxx="false"
+build_link_args=""
+extra_rustc_flags=""
+extra_cargo_flags=""
+host_target=""
+if ! host_target="$(rustup toolchain list | grep 'default' | sed -e 's/nightly-//' -e 's/ (default)//')"; then
+    echo "Unable to determine default host toolchain!"
+    exit 2
+fi
+if [[ "$host_target" =~ "apple-darwin" ]]; then
+    is_darwin="true"
+fi
+build_target="$host_target"
+install_prefix="${BIN_DIR}/${host_target}"
+
+function usage() {
+    echo "usage: $(basename "$0") [--static] [OPTIONS..]"
+    echo ""
+    echo " --verbose            Build with extra verbose logging"
+    echo " --debug              Build debug binary"
+    echo " --release            Build release binary"
+    echo " --static             Build a statically linked executable"
+    echo " --dynamic            Build the compiler dynamically linked against its libraries"
+    echo " --use-libcxx         Build the compiler dynamically linked against its libraries"
+    echo " --target <triple>    The target triple to build for"
+    echo " --install <prefix>   Install to the given prefix"
+    echo ""
+}
+
+while [ $# -gt 0 ]; do
+    lhs="${1%=*}"
+    rhs="${1#*=}"
+    # Shift once for the flag name if true
+    shift_key="false"
+    # Shift once for the flag value if true
+    shift_value="false"
+    # Shift for the flag value if true, and shift_value=true
+    has_value="false"
+    if [ "$lhs" = "$1" ]; then
+        # No '=' to split on, so grab the next arg
+        shift
+        rhs="$1"
+        # We already shifted for the name, but not for the value
+        shift_value="true"
+    else
+        # We only need one shift for both key and value
+        shift_key="true"
+    fi
+    case $lhs in
+        -v | -verbose | --verbose )
+            extra_cargo_flags="--verbose $extra_cargo_flags"
+            ;;
+        -debug | --debug )
+            OUTPUT_DIR="${ROOT_DIR}/target/debug"
+            ;;
+
+        -release | --release )
+            OUTPUT_DIR="${ROOT_DIR}/target/release"
+            extra_cargo_flags="--release $extra_cargo_flags"
+            ;;
+
+        -static | --static )
+            build_static="true"
+            ;;
+
+        -dynamic | --dynamic )
+            build_static="false"
+            ;;
+
+        -use-libcxx | --use-libcxx )
+            build_use_libcxx="true"
+            ;;
+
+        -target | --target )
+            has_value="true"
+            build_target="$rhs"
+            ;;
+
+        *)
+            echo "unknown option: $1"
+            usage
+            exit 2
+            ;;
+    esac
+
+    if [ "$shift_key" = "true" ]; then
+        shift
+    fi
+    if [ "$has_value" = "true" ] && [ "$shift_value" = "true" ]; then
+        shift
+    fi
+done
+
+TOOLCHAIN_TARGET_PATH="${TOOLCHAIN_LIB_PATH}/rustlib/${build_target}"
+if [ -d "${TOOLCHAIN_TARGET_PATH}" ]; then
+    TOOLCHAIN_TARGET_LIB_PATH="${TOOLCHAIN_TARGET_PATH}/lib"
+else
+    echo "Unable to find toolchain for target ($build_target):"
+    echo "  ${TOOLCHAIN_TARGET_PATH} not found"
+    echo ""
+    exit 2
+fi
+if [ "$host_target" != "$build_target" ]; then
+    is_crossed="true"
+else
+    is_crossed="false"
+fi
+if [ "$is_darwin" = "true" ]; then
+    build_use_libcxx="true"
+fi
+if [ "$build_static" = "true" ]; then
+    export LLVM_BUILD_STATIC=1
+else
+    #extra_rustc_flags="-C prefer-dynamic $extra_rustc_flags"
+    build_link_args="-rpath,${TOOLCHAIN_TARGET_LIB_PATH}"
+fi
+if [ "$build_use_libcxx" = "true" ]; then
+    export LLVM_USE_LIBCXX=1
+fi
+
+cd "$ROOT_DIR"
+
+echo "Building Lumen"
+echo "  host:                $host_target"
+echo "  target:              $build_target"
+echo "  is cross compile:    $is_crossed"
+echo "  build static:        $build_static"
+echo "  build w/ libc++:     $build_use_libcxx"
+echo "  extra rustc flags:   ${extra_rustc_flags:-"n/a"}"
+echo "  extra cargo flags:   ${extra_cargo_flags:-"n/a"}"
+echo "  extra link args:     ${build_link_args:-"n/a"}"
+echo ""
+
+# shellcheck disable=SC2086
+if ! cargo rustc ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
+    exit 1
+fi
+
+# Construct install directory
+echo ""
+echo "Installing Lumen to ${install_prefix}.."
+mkdir -p "${install_prefix}"/{bin,lib,etc,share}
+mkdir -p "${install_prefix}/lib/lumenlib/${build_target}/lib"
+cp "${OUTPUT_DIR}/lumen" "${install_prefix}/bin/lumen"
+if [ "$build_static" != "true" ]; then
+    src_dylib="${LLVM_SYS_90_PREFIX}/lib/libLLVMcpp.dylib"
+    dst_dylib="${install_prefix}/lib/libLLVMcpp.dylib"
+    rsync -a --copy-links --whole-file "$src_dylib" "$dst_dylib"
+fi
+
+# If not on macOS, we're done
+if [ "$is_darwin" = "true" ]; then
+    if ! install_name_tool \
+            -add_rpath '@executable_path/../lib' \
+            "${install_prefix}/bin/lumen"; then
+        echo "Failed to set Lumen @executable_path!"
+        exit 1
+    fi
+fi
+
+echo "Creating symlink.."
+
+cd "${BIN_DIR}"
+ln -sf "${install_prefix}/bin/lumen" lumen
+
+echo "Install complete!"
+
+exit 0

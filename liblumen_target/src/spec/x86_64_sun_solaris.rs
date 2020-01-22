@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target, TargetResult, Endianness};
+use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness, EncodingType};
 
 pub fn target() -> TargetResult {
     let mut base = super::solaris_base::opts();
@@ -18,6 +18,9 @@ pub fn target() -> TargetResult {
         target_env: String::new(),
         target_vendor: "sun".to_string(),
         linker_flavor: LinkerFlavor::Gcc,
-        options: base,
+        options: TargetOptions {
+            encoding: EncodingType::Encoding64Nanboxed,
+            ..base
+        },
     })
 }

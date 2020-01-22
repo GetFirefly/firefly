@@ -22,6 +22,8 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
+pub use liblumen_term::EncodingType;
+
 use self::abi::Abi;
 
 #[derive(Error, Debug)]
@@ -480,6 +482,9 @@ impl HasTargetSpec for Target {
 /// these try to take "minimal defaults" that don't assume anything about the runtime they run in.
 #[derive(PartialEq, Clone, Debug)]
 pub struct TargetOptions {
+    /// Term encoding
+    pub encoding: EncodingType,
+
     /// Linker to invoke
     pub linker: Option<String>,
 
@@ -734,6 +739,7 @@ impl Default for TargetOptions {
     /// incomplete, and if used for compilation, will certainly not work.
     fn default() -> TargetOptions {
         TargetOptions {
+            encoding: EncodingType::Default,
             linker: option_env!("CFG_DEFAULT_LINKER").map(|s| s.to_string()),
             lld_flavor: LldFlavor::Ld,
             pre_link_args: LinkArgs::new(),

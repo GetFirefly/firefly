@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness};
+use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness, EncodingType};
 use super::apple_ios_base::{opts, Arch};
 
 pub fn target() -> TargetResult {
@@ -15,6 +15,7 @@ pub fn target() -> TargetResult {
         target_vendor: "apple".to_string(),
         linker_flavor: LinkerFlavor::Gcc,
         options: TargetOptions {
+            encoding: EncodingType::Encoding64Nanboxed,
             max_atomic_width: Some(64),
             stack_probes: true,
             .. base

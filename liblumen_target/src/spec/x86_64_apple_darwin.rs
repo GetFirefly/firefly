@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness};
+use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness, EncodingType};
 
 pub fn target() -> TargetResult {
     let mut base = super::apple_base::opts();
@@ -27,6 +27,7 @@ pub fn target() -> TargetResult {
         target_vendor: "apple".to_string(),
         linker_flavor: LinkerFlavor::Gcc,
         options: TargetOptions {
+            encoding: EncodingType::Encoding64Nanboxed,
             target_mcount: "\u{1}mcount".to_string(),
             .. base
         },

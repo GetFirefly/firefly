@@ -4,7 +4,7 @@ use std::env;
 use std::process;
 use std::time::Instant;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 
 use liblumen_compiler::{self as driver, argparser};
 use liblumen_session::ShowOptionGroupHelp;
@@ -20,7 +20,23 @@ pub fn main() -> anyhow::Result<()> {
     }
 
     // Initialize logger
-    env_logger::init_from_env("LUMEN_LOG");
+    let mut builder = env_logger::from_env("LUMEN_LOG");
+    builder.format_indent(Some(2));
+    if let Ok(precision) = env::var("LUMEN_LOG_WITH_TIME") {
+        match precision.as_str() {
+            "s" => builder.format_timestamp_secs(),
+            "ms" => builder.format_timestamp_millis(),
+            "us" => builder.format_timestamp_micros(),
+            "ns" => builder.format_timestamp_nanos(),
+            other => bail!(
+                "invalid LUMEN_LOG_WITH_TIME precision, expected one of [s, ms, us, ns], got '{}'",
+                other
+            ),
+        };
+    } else {
+        builder.format_timestamp(None);
+    }
+    builder.init();
 
     // Get the current instant, in case needed for timing later
     let start = Instant::now();

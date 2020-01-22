@@ -6,6 +6,9 @@ publish = false
 edition = "2018"
 build = "build.rs"
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [dependencies]
 cfg-if = "0.1"
 lazy_static = "1.2"

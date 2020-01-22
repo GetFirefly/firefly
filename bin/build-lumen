@@ -160,14 +160,32 @@ fi
 # Construct install directory
 echo ""
 echo "Installing Lumen to ${install_prefix}.."
-mkdir -p "${install_prefix}"/{bin,lib,etc,share}
-mkdir -p "${install_prefix}/lib/lumenlib/${build_target}/lib"
-cp "${OUTPUT_DIR}/lumen" "${install_prefix}/bin/lumen"
+install_bin_dir="${install_prefix}/bin"
+install_host_lib_dir="${install_prefix}/lib"
+install_target_lib_dir="${install_prefix}/lib/lumenlib/${build_target}/lib"
+mkdir -p "${install_bin_dir}"
+mkdir -p "${install_host_lib_dir}"
+mkdir -p "${install_target_lib_dir}"
+mkdir -p "${install_prefix}"/{etc,share}
+cp "${OUTPUT_DIR}/lumen" "${install_bin_dir}/lumen"
 if [ "$build_static" != "true" ]; then
     src_dylib="${LLVM_SYS_90_PREFIX}/lib/libLLVMcpp.dylib"
-    dst_dylib="${install_prefix}/lib/libLLVMcpp.dylib"
+    dst_dylib="${install_host_lib_dir}/libLLVMcpp.dylib"
     rsync -a --copy-links --whole-file "$src_dylib" "$dst_dylib"
 fi
+
+# Copy runtime libraries
+deps_dir="${OUTPUT_DIR}/deps"
+libs=(liblumen_core liblumen_crt liblumen_alloc lumen_web lumen_runtime)
+for lib in ${libs[@]}; do
+    for file in "$deps_dir/lib$lib"-*.a; do
+        if [ -f "$file" ]; then
+            rsync -a --copy-links --whole-file "$file" "${install_target_lib_dir}/lib${lib}.a"
+        else
+            echo "WARN: Unable to copy $lib! Static library not found."
+        fi
+    done
+done
 
 # If not on macOS, we're done
 if [ "$is_darwin" = "true" ]; then

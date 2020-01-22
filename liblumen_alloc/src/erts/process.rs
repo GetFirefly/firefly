@@ -1,5 +1,6 @@
 pub mod alloc;
 pub mod code;
+//pub mod ffi;
 mod flags;
 pub mod gc;
 mod heap;
@@ -297,6 +298,11 @@ impl Process {
     unsafe fn alloca(&self, need: usize) -> AllocResult<NonNull<Term>> {
         let mut heap = self.heap.lock();
         heap.alloca(need)
+    }
+
+    pub unsafe fn alloca_layout(&self, layout: Layout) -> AllocResult<NonNull<Term>> {
+        let mut heap = self.heap.lock();
+        heap.alloca_layout(layout)
     }
 
     /// Pushes an immediate term or reference to term/list on top of the stack.

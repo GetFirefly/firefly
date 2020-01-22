@@ -27,6 +27,8 @@
 #![feature(slice_index_methods)]
 // Support backtraces in errors
 #![feature(backtrace)]
+// Support extern thread locals
+#![feature(thread_local)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

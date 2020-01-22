@@ -5,6 +5,9 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kroni
 publish = false
 edition = "2018"
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [features]
 # Turns on allocation instrumentation
 instrument = []

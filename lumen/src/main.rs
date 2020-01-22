@@ -12,8 +12,12 @@ use liblumen_util::error::HelpRequested;
 use liblumen_util::time;
 
 pub fn main() -> anyhow::Result<()> {
-    // Handle unexpected panics by presenting a user-friendly bug report prompt
-    //human_panic::setup_panic!();
+    // Handle unexpected panics by presenting a user-friendly bug report prompt;
+    // except when we're requesting debug info from the compiler explicitly, in
+    // which case we don't want to hide the panic
+    if env::var_os("LUMEN_LOG").is_none() {
+        human_panic::setup_panic!();
+    }
 
     // Initialize logger
     env_logger::init_from_env("LUMEN_LOG");

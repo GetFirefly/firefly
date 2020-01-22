@@ -16,7 +16,10 @@
 extern crate alloc as core_alloc;
 
 pub mod alloc;
+pub mod atoms;
 pub mod cmp;
 pub mod locks;
 pub mod sys;
 pub mod util;
+
+pub use liblumen_core_macros::entry;

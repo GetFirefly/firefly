@@ -109,7 +109,6 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/eir
 )
 
 add_subdirectory(include)
-#add_subdirectory(LumenLLVM)
 #add_subdirectory(LumenLLD)
 add_subdirectory(Lumen)
 

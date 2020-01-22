@@ -1,4 +1,3 @@
-
 # Make sure we've provided all of the necessary include directories
 include_directories("${LLVM_BINARY_DIR}/include" "${LLVM_MAIN_INCLUDE_DIR}" "${MLIR_BINARY_DIR}/include")
 
@@ -22,7 +21,6 @@ set(LUMEN_REQUIRED_LLVM_COMPONENTS_LIST
 # 
 # We are using this because llvm_map_components_to_libnames is
 # not correctly producing all of the dependencies for each component
-# llvm_map_components_to_libnames(LIB_NAMES ${LLVM_CONFIG_COMPONENTS_LIST})
 set(LLVM_CONFIG_LIBNAMES_ARGV "--libnames --link-static")
 foreach(component IN LISTS LUMEN_REQUIRED_LLVM_COMPONENTS_LIST)
   set(LLVM_CONFIG_LIBNAMES_ARGV "${LLVM_CONFIG_LIBNAMES_ARGV} ${component}")
@@ -142,12 +140,6 @@ endif()
 
 target_link_libraries(Lumen PRIVATE ${LIB_NAMES})
     
-#bundle_static_library(Lumen Lumen_bundle)
-
-# To properly support static registration, we need to use --whole-archive-link
-# NOTE: This only applies for shared libraries
-#whole_archive_link(Lumen ${Lumen_libs})
-
 install(TARGETS Lumen
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

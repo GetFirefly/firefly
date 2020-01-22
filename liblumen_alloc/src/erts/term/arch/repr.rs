@@ -1,55 +1,23 @@
-use core::fmt::{self, Debug, Display};
+use core::fmt::{Debug, Display};
 use core::hash::Hash;
+
+use liblumen_term::Tag;
 
 use crate::erts::exception;
 use crate::erts::term::prelude::*;
 
-use super::Tag;
-
 pub trait Repr:
     Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self> + Ord + Hash + Send
 {
-    type Word: Clone + Copy + PartialEq + Eq + Debug + fmt::Binary;
+    type Encoding: liblumen_term::Encoding;
 
     fn as_usize(&self) -> usize;
 
-    fn word_to_usize(word: Self::Word) -> usize;
-
-    fn value(&self) -> Self::Word;
-
-    fn type_of(&self) -> Tag<Self::Word>;
-
-    fn encode_immediate(value: Self::Word, tag: Self::Word) -> Self;
-    fn encode_header(value: Self::Word, tag: Self::Word) -> Self;
-    fn encode_list(value: *const Cons) -> Self;
-    fn encode_box<U>(value: *const U) -> Self
-    where
-        U: ?Sized;
-    fn encode_literal<U>(value: *const U) -> Self
-    where
-        U: ?Sized;
-
-    unsafe fn decode_box(self) -> *mut Self;
-    unsafe fn decode_list(self) -> Boxed<Cons>;
-    unsafe fn decode_smallint(self) -> SmallInteger;
-    unsafe fn decode_immediate(self) -> Self::Word;
-    unsafe fn decode_atom(self) -> Atom;
-    unsafe fn decode_pid(self) -> Pid;
-    unsafe fn decode_port(self) -> Port;
-
-    /// Access the raw header value contained in this term
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe because it makes the assumption that
-    /// type checking has already been performed and the implementation may
-    /// assume that it is operating on a header word. Undefined behaviour
-    /// will result if this is invoked on any other term.
-    unsafe fn decode_header_value(&self) -> Self::Word;
+    fn value(&self) -> <Self::Encoding as liblumen_term::Encoding>::Type;
 
     fn decode_header(
         &self,
-        tag: Tag<Self::Word>,
+        tag: Tag<<Self::Encoding as liblumen_term::Encoding>::Type>,
         literal: Option<bool>,
     ) -> exception::Result<TypedTerm>
     where
@@ -119,7 +87,7 @@ pub trait Repr:
     #[inline]
     unsafe fn decode_header_unchecked(
         &self,
-        tag: Tag<Self::Word>,
+        tag: Tag<<Self::Encoding as liblumen_term::Encoding>::Type>,
         literal: Option<bool>,
     ) -> TypedTerm
     where

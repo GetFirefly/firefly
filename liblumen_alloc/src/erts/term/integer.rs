@@ -47,9 +47,9 @@ pub enum Arch64Integer {
     Small(u64),
     Big(BigInt),
 }
-impl From<u64> for Arch64Integer {
-    fn from(value: u64) -> Self {
-        Self::Small(value)
+impl From<i64> for Arch64Integer {
+    fn from(value: i64) -> Self {
+        Self::Small(value as u64)
     }
 }
 impl From<BigInt> for Arch64Integer {

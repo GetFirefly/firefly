@@ -23,6 +23,7 @@ static_assertions = "1.0.0"
 liblumen_core = { path = "../liblumen_core" }
 liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
+liblumen_term = { path = "../liblumen_term" }
 
 backtrace = "0.3.35"
 

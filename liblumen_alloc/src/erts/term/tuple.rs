@@ -112,7 +112,7 @@ impl Tuple {
         // We pad to alignment so that the Layout produced here
         // matches that returned by `Layout::for_value` on the
         // final `Tuple`
-        let layout = base_layout.pad_to_align().unwrap();
+        let layout = base_layout.pad_to_align();
 
         (layout, data_offset)
     }

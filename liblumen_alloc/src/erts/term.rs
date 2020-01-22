@@ -1,4 +1,4 @@
-mod arch;
+pub mod arch;
 mod atom;
 mod binary;
 mod boxed;

@@ -134,7 +134,7 @@ impl ProcBin {
         // We pad to alignment so that the Layout produced here
         // matches that returned by `Layout::for_value` on the
         // final `ProcBinInner`
-        let layout = unpadded_layout.pad_to_align().unwrap();
+        let layout = unpadded_layout.pad_to_align();
 
         unsafe {
             let non_null = sys_alloc::alloc(layout)?;

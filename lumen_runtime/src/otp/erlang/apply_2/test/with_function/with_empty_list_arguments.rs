@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use proptest::strategy::{Just, Strategy};
 
-use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
 
@@ -62,15 +61,22 @@ fn with_arity_returns_function_return() {
                 module_function_arity::function(),
             )
                 .prop_map(|(arc_process, module, function)| {
+                    let definition = Definition::Export { function };
                     let arity = 0;
-                    let code: Code = |arc_process: &Arc<Process>| {
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         arc_process.return_from_call(0, Atom::str_to_term("return_from_fn"))?;
 
                         Process::call_code(arc_process)
-                    };
+                    });
 
                     arc_process
-                        .export_closure(module, function, arity, Some(code))
+                        .closure_with_env_from_slice(
+                            module,
+                            definition,
+                            arity,
+                            Some(located_code),
+                            &[],
+                        )
                         .unwrap()
                 })
         },

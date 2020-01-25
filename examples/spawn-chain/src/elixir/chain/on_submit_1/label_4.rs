@@ -2,11 +2,15 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::Encoded;
 
+use locate_code::locate_code;
+
 use lumen_runtime::otp::erlang;
+
+use super::frame;
 
 /// ```elixir
 /// # label: 4
@@ -17,11 +21,12 @@ use lumen_runtime::otp::erlang;
 /// :erlang.spawn_opt(Chain, dom, [n], [min_heap_size: 79 + n * 10])
 /// ```
 pub fn place_frame(process: &Process, placement: Placement) {
-    process.place_frame(frame(process), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 }
 
 // Private
 
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -48,10 +53,4 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     .unwrap();
 
     Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
 }

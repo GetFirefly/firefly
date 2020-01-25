@@ -4,7 +4,9 @@ use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::Arity;
+
+use locate_code::locate_code;
 
 /// ```elixir
 /// defp reduce_range_dec(first, first, acc, fun) do
@@ -32,22 +34,19 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
+// Private
+
+const ARITY: Arity = 3;
+
+#[locate_code]
 fn code(_arc_process: &Arc<Process>) -> code::Result {
     unimplemented!()
 }
 
 fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
+    Frame::new(super::module(), function(), ARITY, LOCATION, code)
 }
 
 fn function() -> Atom {
     Atom::try_from_str("reduce_range_dec").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 3,
-    })
 }

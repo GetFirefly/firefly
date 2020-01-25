@@ -186,9 +186,19 @@ pub fn process(parent_process: &Process, options: Options) -> Spawned {
     let module = r#loop::module();
     let function = r#loop::function();
     let arguments = &[];
+    let location = r#loop::LOCATION;
     let code = r#loop::code;
 
-    Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()
+    Scheduler::spawn_code(
+        parent_process,
+        options,
+        module,
+        function,
+        arguments,
+        location,
+        code,
+    )
+    .unwrap()
 }
 
 pub fn prop_assert_exits<

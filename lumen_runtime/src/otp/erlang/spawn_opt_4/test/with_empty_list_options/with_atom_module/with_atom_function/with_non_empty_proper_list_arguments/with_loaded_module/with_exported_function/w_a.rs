@@ -48,7 +48,6 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     assert!(!arc_scheduler.run_through(&child_arc_process));
 
     assert_eq!(child_arc_process.code_stack_len(), 0);
-    assert_eq!(child_arc_process.current_module_function_arity(), None);
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
@@ -110,14 +109,17 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
     assert!(!arc_scheduler.run_through(&child_arc_process));
 
     assert_eq!(child_arc_process.code_stack_len(), 1);
+
+    let frame = child_arc_process.current_frame().unwrap();
+    assert_eq!(frame.module, module_atom);
     assert_eq!(
-        child_arc_process.current_module_function_arity(),
-        Some(Arc::new(ModuleFunctionArity {
-            module: atom_from!(module),
-            function: atom_from!(function),
-            arity: 1
-        }))
+        frame.definition,
+        Definition::Export {
+            function: function_atom
+        }
     );
+    assert_eq!(frame.arity, 1);
+
     assert_exits_badarith(
         &child_arc_process,
         "number (:'zero') is not an integer or a float",

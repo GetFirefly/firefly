@@ -4,6 +4,9 @@ use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
 
+use locate_code::locate_code;
+
+#[locate_code]
 pub fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 

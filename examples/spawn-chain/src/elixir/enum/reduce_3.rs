@@ -6,7 +6,9 @@ use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::Arity;
+
+use locate_code::locate_code;
 
 use crate::elixir::r#enum::reduce_range_dec_4;
 use crate::elixir::r#enum::reduce_range_inc_4;
@@ -28,6 +30,9 @@ pub fn place_frame_with_arguments(
 
 // Private
 
+const ARITY: Arity = 3;
+
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let enumerable = arc_process.stack_peek(1).unwrap();
     let initial = arc_process.stack_peek(2).unwrap();
@@ -107,17 +112,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 }
 
 fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
+    Frame::new(super::module(), function(), ARITY, LOCATION, code)
 }
 
 fn function() -> Atom {
     Atom::try_from_str("reduce").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 3,
-    })
 }

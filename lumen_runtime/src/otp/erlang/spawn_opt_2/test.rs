@@ -8,9 +8,10 @@ use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::{Process, Status};
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{atom, located_code};
 
 use crate::otp::erlang::spawn_opt_2::native;
 use crate::registry::pid_to_process;

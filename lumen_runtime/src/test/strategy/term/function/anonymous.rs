@@ -9,6 +9,7 @@ use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::closure::Creator;
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::test::strategy::term;
@@ -44,27 +45,29 @@ pub fn with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
         index(),
         old_unique(),
         unique(),
-        super::option_debuggable_code(),
+        super::option_located_code(),
         creator(),
         proptest::collection::vec(term(arc_process.clone()), 0..2),
     )
         .prop_map(
-            move |(module, index, old_unique, unique, option_debuggable_code, creator, env_vec)| {
-                let option_code = option_debuggable_code.map(|debuggable_code| debuggable_code.0);
+            move |(module, index, old_unique, unique, option_located_code, creator, env_vec)| {
+                let definition = Definition::Anonymous {
+                    index,
+                    old_unique,
+                    unique,
+                    creator,
+                };
 
-                if let Some(code) = option_code {
-                    crate::code::anonymous::insert(module, index, old_unique, unique, arity, code);
+                if let Some(located_code) = option_located_code {
+                    crate::code::insert(module, definition.clone(), arity, located_code);
                 }
 
                 arc_process
-                    .anonymous_closure_with_env_from_slice(
+                    .closure_with_env_from_slice(
                         module,
-                        index,
-                        old_unique,
-                        unique,
+                        definition,
                         arity,
-                        option_code,
-                        creator,
+                        option_located_code,
                         &env_vec,
                     )
                     .unwrap()

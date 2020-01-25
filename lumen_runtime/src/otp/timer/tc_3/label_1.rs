@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
+use locate_code::locate_code;
+
 use crate::otp::erlang::apply_3;
-use crate::otp::timer::tc_3::label_2;
+
+use super::{frame, label_2};
 
 /// ```elixir
 /// # label 1
@@ -36,13 +39,14 @@ pub fn place_frame_with_arguments(
     process.stack_push(arguments)?;
     process.stack_push(function)?;
     process.stack_push(module)?;
-    process.place_frame(frame(process), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 
     Ok(())
 }
 
 // Private
 
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -61,10 +65,4 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     apply_3::place_frame_with_arguments(arc_process, Placement::Push, module, function, arguments)?;
 
     Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
 }

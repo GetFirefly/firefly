@@ -69,8 +69,8 @@ impl JsHeap {
 
         let proc = liblumen_eir_interpreter::VM.init.clone();
 
-        let return_ok = liblumen_eir_interpreter::code::return_ok_closure(&proc).unwrap();
-        let return_throw = liblumen_eir_interpreter::code::return_throw_closure(&proc).unwrap();
+        let return_ok = liblumen_eir_interpreter::code::return_ok::closure(&proc).unwrap();
+        let return_throw = liblumen_eir_interpreter::code::return_throw::closure(&proc).unwrap();
 
         let mut args_vec = vec![return_ok, return_throw];
         args_vec.extend(a.iter().map(|v| self.terms[*v]));

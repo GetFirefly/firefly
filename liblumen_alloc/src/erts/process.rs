@@ -30,7 +30,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts;
 use crate::erts::exception::{AllocResult, ArcError, InternalResult, RuntimeException};
 use crate::erts::module_function_arity::Arity;
-use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
+use crate::erts::term::closure::Definition;
 use crate::erts::term::prelude::*;
 
 use super::*;
@@ -38,9 +38,9 @@ use super::*;
 use self::alloc::VirtualAllocator;
 use self::alloc::{Heap, HeapAlloc, TermAlloc};
 use self::alloc::{StackAlloc, StackPrimitives};
-use self::code::stack;
 use self::code::stack::frame::{Frame, Placement};
-use self::code::Code;
+use self::code::stack::Stack;
+use self::code::LocatedCode;
 use self::gc::{GcError, RootSet};
 
 pub use self::flags::*;
@@ -94,7 +94,7 @@ pub struct Process {
     /// The `pid` of the process that does I/O on this process's behalf.
     group_leader_pid: Mutex<Pid>,
     pid: Pid,
-    pub initial_module_function_arity: Arc<ModuleFunctionArity>,
+    pub initial_frame: RwLock<Option<Frame>>,
     /// The number of reductions in the current `run`.  `code` MUST return when `run_reductions`
     /// exceeds `MAX_REDUCTIONS_PER_RUN`.
     run_reductions: AtomicU16,
@@ -120,7 +120,6 @@ impl Process {
     pub fn new(
         priority: Priority,
         parent: Option<&Self>,
-        initial_module_function_arity: Arc<ModuleFunctionArity>,
         heap: *mut Term,
         heap_size: usize,
     ) -> Self {
@@ -156,7 +155,7 @@ impl Process {
             priority,
             parent_pid,
             group_leader_pid: Mutex::new(group_leader_pid),
-            initial_module_function_arity,
+            initial_frame: Default::default(),
             run_reductions: Default::default(),
             total_reductions: Default::default(),
             registered_name: Default::default(),
@@ -519,33 +518,16 @@ impl Process {
             .map(|list| list.into())
     }
 
-    pub fn anonymous_closure_with_env_from_slice(
+    pub fn closure_with_env_from_slice(
         &self,
         module: Atom,
-        index: Index,
-        old_unique: OldUnique,
-        unique: Unique,
+        definition: Definition,
         arity: Arity,
-        code: Option<Code>,
-        creator: Creator,
+        located_code: Option<LocatedCode>,
         slice: &[Term],
     ) -> AllocResult<Term> {
         self.acquire_heap()
-            .anonymous_closure_with_env_from_slice(
-                module, index, old_unique, unique, arity, code, creator, slice,
-            )
-            .map(|term_ptr| term_ptr.into())
-    }
-
-    pub fn export_closure(
-        &self,
-        module: Atom,
-        function: Atom,
-        arity: u8,
-        code: Option<Code>,
-    ) -> AllocResult<Term> {
-        self.acquire_heap()
-            .export_closure(module, function, arity, code)
+            .closure_with_env_from_slice(module, definition, arity, located_code, slice)
             .map(|term_ptr| term_ptr.into())
     }
 
@@ -970,11 +952,7 @@ impl Process {
         arc_process.start_running();
 
         // `code` is expected to set `code` before it returns to be the next spot to continue
-        let option_code = arc_process
-            .code_stack
-            .lock()
-            .get(0)
-            .map(|frame| frame.code());
+        let option_code = arc_process.code_stack.lock().get(0).map(|frame| frame.code);
 
         let code_result = match option_code {
             Some(code) => code(arc_process),
@@ -1045,11 +1023,7 @@ impl Process {
     /// Calls top `Frame`'s `Code` if it exists and the process is not reduced.
     pub fn call_code(arc_process: &Arc<Process>) -> code::Result {
         if !arc_process.is_reduced() {
-            let option_code = arc_process
-                .code_stack
-                .lock()
-                .get(0)
-                .map(|frame| frame.code());
+            let option_code = arc_process.code_stack.lock().get(0).map(|frame| frame.code);
 
             match option_code {
                 Some(code) => code(arc_process),
@@ -1060,18 +1034,8 @@ impl Process {
         }
     }
 
-    pub fn current_module_function_arity(&self) -> Option<Arc<ModuleFunctionArity>> {
-        self.code_stack
-            .lock()
-            .get(0)
-            .map(|frame| frame.module_function_arity())
-    }
-
-    pub fn current_definition(&self) -> Option<Definition> {
-        self.code_stack
-            .lock()
-            .get(0)
-            .map(|frame| frame.definition().clone())
+    pub fn current_frame(&self) -> Option<Frame> {
+        self.code_stack.lock().get(0).map(Clone::clone)
     }
 
     pub fn place_frame(&self, frame: Frame, placement: Placement) {
@@ -1136,8 +1100,8 @@ impl Process {
         }
     }
 
-    pub fn stacktrace(&self) -> stack::Trace {
-        self.code_stack.lock().trace()
+    pub fn stacktrace(&self) -> Stack {
+        self.code_stack.lock().clone()
     }
 }
 

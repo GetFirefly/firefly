@@ -1,11 +1,15 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::{Pid, Term};
 
+use locate_code::locate_code;
+
 use crate::elixir;
+
+use super::frame;
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -13,7 +17,7 @@ pub fn place_frame_with_arguments(
     text: Term,
 ) -> code::Result {
     process.stack_push(text)?;
-    process.place_frame(frame(process), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 
     Ok(())
 }
@@ -28,6 +32,7 @@ pub fn place_frame_with_arguments(
 /// # returns: :ok
 /// IO.puts("#{self()} #{text}")
 /// ```
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -43,10 +48,4 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         .unwrap();
 
     Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
 }

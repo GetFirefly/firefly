@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
+use liblumen_alloc::Arity;
 
 use crate::otp::maps;
 
@@ -23,18 +21,18 @@ pub fn place_frame_with_arguments(
 
 // Private
 
+const ARITY: Arity = 2;
+
 fn frame() -> Frame {
-    Frame::new(module_function_arity(), maps::is_key_2::code)
+    Frame::new(
+        super::module(),
+        function(),
+        ARITY,
+        maps::is_key_2::LOCATION,
+        maps::is_key_2::code,
+    )
 }
 
 fn function() -> Atom {
     Atom::try_from_str("is_map_key").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 2,
-    })
 }

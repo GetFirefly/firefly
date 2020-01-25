@@ -9,7 +9,9 @@ use proptest::strategy::Strategy;
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::located_code;
 
 use crate::future::Ready;
 use crate::otp::erlang::apply_2::place_frame_with_arguments;

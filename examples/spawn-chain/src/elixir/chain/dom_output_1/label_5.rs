@@ -2,11 +2,13 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::elixir::chain::dom_output_1::label_6;
+use locate_code::locate_code;
+
+use super::{frame, label_6};
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -20,7 +22,7 @@ pub fn place_frame_with_arguments(
     process.stack_push(pid_text)?;
     process.stack_push(tr)?;
     process.stack_push(document)?;
-    process.place_frame(frame(process), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 
     Ok(())
 }
@@ -44,6 +46,7 @@ pub fn place_frame_with_arguments(
 /// {:ok, tbody} = Lumen::Web::Document.get_element_by_id(document, "output")
 /// Lumen::Web::Node.append_child(tbody, tr)
 /// ```
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -81,10 +84,4 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     .unwrap();
 
     Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
 }

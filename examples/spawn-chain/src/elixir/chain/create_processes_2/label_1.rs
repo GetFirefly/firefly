@@ -2,13 +2,15 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
+use locate_code::locate_code;
+
 use lumen_runtime::otp::erlang;
 
-use crate::elixir::chain::create_processes_2::label_2;
+use super::{frame, label_2};
 
 ///  # label 1
 ///  # pushed stack: (output)
@@ -21,7 +23,7 @@ pub fn place_frame_with_arguments(
     output: Term,
 ) -> Result<(), Alloc> {
     process.stack_push(output)?;
-    process.place_frame(frame(process), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 
     Ok(())
 }
@@ -45,6 +47,7 @@ pub fn place_frame_with_arguments(
 ///     final_answer
 /// end
 /// ```
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     // placed on top of stack by return from `elixir::r#enum::reduce_0_code`
     let last = arc_process.stack_pop().unwrap();
@@ -78,10 +81,4 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         .unwrap();
 
     Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
 }

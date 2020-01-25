@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use proptest::strategy::{Just, Strategy};
 
-use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 
 use crate::test::strategy::term::export_closure;
@@ -67,19 +66,26 @@ fn with_arity_returns_function_return() {
                 strategy::term(arc_process.clone()),
             )
                 .prop_map(|(arc_process, module, function, argument)| {
+                    let definition = Definition::Export { function };
                     let arity = 1;
 
-                    let code: Code = |arc_process: &Arc<Process>| {
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         let return_term = arc_process.stack_peek(1).unwrap();
                         arc_process.return_from_call(1, return_term)?;
 
                         Process::call_code(arc_process)
-                    };
+                    });
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .export_closure(module, function, arity, Some(code))
+                            .closure_with_env_from_slice(
+                                module,
+                                definition,
+                                arity,
+                                Some(located_code),
+                                &[],
+                            )
                             .unwrap(),
                         argument,
                     )

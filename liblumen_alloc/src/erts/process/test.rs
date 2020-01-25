@@ -1,5 +1,3 @@
-use ::alloc::sync::Arc;
-
 use crate::erts::*;
 
 mod are_flags_set {
@@ -69,21 +67,8 @@ mod integer {
 }
 
 pub(super) fn process() -> Process {
-    let init = atom_from_str!("init");
-    let initial_module_function_arity = Arc::new(ModuleFunctionArity {
-        module: init,
-        function: init,
-        arity: 0,
-    });
     let (heap, heap_size) = alloc::default_heap().unwrap();
-
-    let process = Process::new(
-        Priority::Normal,
-        None,
-        initial_module_function_arity,
-        heap,
-        heap_size,
-    );
+    let process = Process::new(Priority::Normal, None, heap, heap_size);
 
     process.schedule_with(scheduler::id::next());
 

@@ -3,12 +3,14 @@ use std::sync::Arc;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::*;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::elixir::r#enum::reduce_range_inc_4::label_2;
+use locate_code::locate_code;
+
+use super::{frame, label_2};
 
 /// ```elixir
 /// # pushed to stack: (first, last, acc, reducer)
@@ -30,11 +32,14 @@ pub fn place_frame_with_arguments(
     process.stack_push(acc)?;
     process.stack_push(last)?;
     process.stack_push(first)?;
-    process.place_frame(frame(process), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 
     Ok(())
 }
 
+// Private
+
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -90,10 +95,4 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             badfun(arc_process, reducer, anyhow!("reducer").into()),
         ),
     }
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
 }

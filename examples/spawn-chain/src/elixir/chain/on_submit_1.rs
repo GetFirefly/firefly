@@ -19,19 +19,28 @@ mod label_4;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::{self, Code};
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Arity;
+use liblumen_alloc::location::Location;
+
+use locate_code::locate_code;
 
 pub fn export() {
-    lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+    let definition = Definition::Export {
+        function: function(),
+    };
+    lumen_runtime::code::insert(super::module(), definition, ARITY, LOCATED_CODE);
 }
 
 // Private
 
 const ARITY: Arity = 1;
 
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -55,6 +64,10 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         .unwrap();
 
     Process::call_code(arc_process)
+}
+
+fn frame(location: Location, code: Code) -> Frame {
+    Frame::new(super::module(), function(), ARITY, location, code)
 }
 
 fn function() -> Atom {

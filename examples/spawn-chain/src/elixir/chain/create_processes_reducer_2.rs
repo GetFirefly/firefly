@@ -3,19 +3,25 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
+
+use locate_code::locate_code;
 
 use lumen_runtime::otp::erlang;
 
 pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, Alloc> {
-    process.anonymous_closure_with_env_from_slice(
+    let definition = Definition::Anonymous {
+        index: 0,
+        unique: Default::default(),
+        old_unique: Default::default(),
+        creator: process.pid().into(),
+    };
+    process.closure_with_env_from_slice(
         super::module(),
-        0,
-        Default::default(),
-        Default::default(),
+        definition,
         2,
-        Some(code),
-        process.pid().into(),
+        Some(LOCATED_CODE),
         &[output],
     )
 }
@@ -32,6 +38,7 @@ pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, All
 ///   spawn(Chain, :counter, [send_to, output])
 /// end
 /// ```
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 

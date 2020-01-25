@@ -1,19 +1,17 @@
 mod with_atom_module;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use anyhow::*;
 
 use proptest::strategy::Just;
 
 use liblumen_alloc::erts::process::{Priority, Status};
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
-use liblumen_alloc::{atom, atom_from, exit};
+use liblumen_alloc::{atom, exit};
 
-use crate::otp::erlang::apply_3;
-use crate::otp::erlang::spawn_3;
+use crate::otp::erlang::{self, apply_3, spawn_3};
 use crate::process;
 use crate::registry::pid_to_process;
 use crate::scheduler::Scheduler;

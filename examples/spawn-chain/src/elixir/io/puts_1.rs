@@ -7,7 +7,9 @@ use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::Arity;
+
+use locate_code::locate_code;
 
 use lumen_runtime::binary_to_string::binary_to_string;
 use lumen_runtime::system;
@@ -27,6 +29,9 @@ pub fn place_frame_with_arguments(
 
 // Private
 
+const ARITY: Arity = 1;
+
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -57,13 +62,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 }
 
 fn frame() -> Frame {
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 1,
-    });
-
-    Frame::new(module_function_arity, code)
+    Frame::new(super::module(), function(), ARITY, LOCATION, code)
 }
 
 fn function() -> Atom {

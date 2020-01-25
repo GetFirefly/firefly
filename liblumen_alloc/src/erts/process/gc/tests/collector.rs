@@ -100,25 +100,25 @@ fn simple_gc_test(process: Process) {
 
     let creator = Pid::new(1, 0).unwrap();
     let module = atom_from_str!("module");
-    let code = |arc_process: &Arc<Process>| {
+    let located_code = located_code!(|arc_process: &Arc<Process>| {
         arc_process.wait();
 
         Ok(())
-    };
+    });
 
-    let index = 1 as Index;
-    let old_unique = 2 as OldUnique;
-    let unique = [0u8; 16];
+    let definition = Definition::Anonymous {
+        index: 1,
+        old_unique: 2,
+        unique: [0u8; 16],
+        creator: Creator::Local(creator),
+    };
     let closure = process
         .acquire_heap()
-        .anonymous_closure_with_env_from_slices(
+        .closure_with_env_from_slices(
             module,
-            index,
-            old_unique,
-            unique,
+            definition,
             2,
-            Some(code),
-            Creator::Local(creator),
+            Some(located_code),
             &[&[closure_num, closure_string_term]],
         )
         .unwrap();

@@ -804,7 +804,9 @@ mod tests {
 
     use crate::borrow::CloneToProcess;
     use crate::erts::process::alloc::TermAlloc;
+    use crate::erts::process::code::LocatedCode;
     use crate::erts::testing::RegionHeap;
+    use crate::location::Location;
 
     use super::*;
 
@@ -1100,26 +1102,31 @@ mod tests {
 
         let module = Atom::try_from_str("module").unwrap();
         let arity = 0;
+        let location = Location {
+            file: file!(),
+            line: line!() + 3,
+            column: 8,
+        };
         let code = |_arc_process: &Arc<Process>| Ok(());
+        let located_code = LocatedCode { code, location };
 
         let one = fixnum!(1);
         let two = fixnum!(2);
-        let index = 1 as Index;
-        let old_unique = 2 as OldUnique;
-        let unique = [0u8; 16];
+        let definition = Definition::Anonymous {
+            index: 1,
+            old_unique: 2,
+            unique: [0u8; 16],
+            creator: Creator::Local(creator),
+        };
         let closure = heap
-            .anonymous_closure_with_env_from_slices(
+            .closure_with_env_from_slices(
                 module,
-                index,
-                old_unique,
-                unique,
+                definition.clone(),
                 arity,
-                Some(code),
-                Creator::Local(creator),
+                Some(located_code),
                 &[&[one, two]],
             )
             .unwrap();
-        let mfa = closure.module_function_arity();
         assert_eq!(closure.env_len(), 2);
         let closure_term: RawTerm = closure.into();
         assert!(closure_term.is_boxed());
@@ -1137,7 +1144,9 @@ mod tests {
         let closure_box = closure_decoded.unwrap();
         assert_eq!(&closure, closure_box.as_ref());
         assert_eq!(closure_box.env_len(), 2);
-        assert_eq!(closure_box.module_function_arity(), mfa);
+        assert_eq!(closure_box.module(), module);
+        assert_eq!(closure_box.definition(), &definition);
+        assert_eq!(closure_box.arity(), arity);
         assert_eq!(closure_box.get_env_element(0), one);
         assert_eq!(closure_box.get_env_element(1), two);
     }

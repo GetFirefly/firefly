@@ -47,7 +47,6 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
     assert!(!arc_scheduler.run_through(&child_arc_process));
 
     assert_eq!(child_arc_process.code_stack_len(), 0);
-    assert_eq!(child_arc_process.current_module_function_arity(), None);
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
@@ -103,10 +102,18 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
     assert!(!arc_scheduler.run_through(&child_arc_process));
 
     assert_eq!(child_arc_process.code_stack_len(), 1);
+
+    let child_frame = child_arc_process.current_frame().unwrap();
+
+    assert_eq!(child_frame.module, erlang::module());
     assert_eq!(
-        child_arc_process.current_module_function_arity(),
-        Some(apply_3::module_function_arity())
+        child_frame.definition,
+        Definition::Export {
+            function: apply_3::function()
+        }
     );
+    assert_eq!(child_frame.arity, apply_3::ARITY);
+
     assert_exits_undef(
         &child_arc_process,
         module,

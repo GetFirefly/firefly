@@ -22,6 +22,7 @@ libc = "0.2"
 liblumen_arena = { path = "../liblumen_arena" }
 liblumen_alloc = { path = "../liblumen_alloc" }
 liblumen_core = { path = "../liblumen_core" }
+locate_code = { path = "../locate_code" }
 log = "0.4"
 lumen_runtime_macros = { path = "../lumen_runtime_macros" }
 num-bigint = "0.2"

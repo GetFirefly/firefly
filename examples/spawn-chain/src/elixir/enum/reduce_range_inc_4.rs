@@ -7,10 +7,13 @@ use anyhow::*;
 
 use liblumen_alloc::erts::exception::*;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::code::{self, result_from_exception};
+use liblumen_alloc::erts::process::code::{self, result_from_exception, Code};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::location::Location;
+use liblumen_alloc::Arity;
+
+use locate_code::locate_code;
 
 use lumen_runtime::otp::erlang::add_2;
 
@@ -35,11 +38,14 @@ pub fn place_frame_with_arguments(
     process.stack_push(acc)?;
     process.stack_push(last)?;
     process.stack_push(first)?;
-    process.place_frame(frame(), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 
     Ok(())
 }
 
+const ARITY: Arity = 3;
+
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let first = arc_process.stack_peek(1).unwrap();
     let last = arc_process.stack_peek(2).unwrap();
@@ -126,18 +132,10 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     }
 }
 
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
+fn frame(location: Location, code: Code) -> Frame {
+    Frame::new(super::module(), function(), ARITY, location, code)
 }
 
 fn function() -> Atom {
     Atom::try_from_str("reduce_range_inc").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 3,
-    })
 }

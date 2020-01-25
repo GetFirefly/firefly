@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception::InternalResult;
-use liblumen_alloc::erts::term::closure::OldUnique;
+use liblumen_alloc::erts::term::closure::{Definition, OldUnique};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
@@ -39,16 +39,19 @@ pub fn decode<'a>(
         total_byte_len as usize
     );
 
-    let option_code = code::anonymous::get(&module, &index, &old_unique, &uniq, &arity);
-
-    let closure = process.anonymous_closure_with_env_from_slice(
-        module,
+    let definition = Definition::Anonymous {
         index,
+        unique: uniq,
         old_unique,
-        uniq,
+        creator: creator.into(),
+    };
+    let option_located_code = code::get(&module, &definition, arity);
+
+    let closure = process.closure_with_env_from_slice(
+        module,
+        definition,
         arity,
-        option_code,
-        creator.into(),
+        option_located_code,
         &env_vec,
     )?;
 

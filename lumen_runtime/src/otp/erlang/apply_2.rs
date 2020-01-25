@@ -15,9 +15,11 @@ use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::Arity;
 
-use liblumen_alloc::ModuleFunctionArity;
+use locate_code::locate_code;
 
+#[locate_code]
 pub fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -114,14 +116,6 @@ pub fn module() -> Atom {
     super::module()
 }
 
-pub fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: module(),
-        function: function(),
-        arity: 2,
-    })
-}
-
 pub fn place_frame_with_arguments(
     process: &Process,
     placement: Placement,
@@ -135,8 +129,10 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
+const ARITY: Arity = 2;
+
 // Private
 
 fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
+    Frame::new(module(), function(), ARITY, LOCATION, code)
 }

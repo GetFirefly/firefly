@@ -14,7 +14,7 @@ use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::{self, Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::erts::Arity;
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
 use crate::code;
@@ -221,24 +221,22 @@ pub fn register_in(
 
 pub fn init(minimum_heap_size: usize) -> AllocResult<Process> {
     let init = Atom::try_from_str("init").unwrap();
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: init,
-        function: init,
-        arity: 0,
-    });
+    let module = init;
+    let function = init;
+    const ARITY: Arity = 0;
 
     let heap_size = process::alloc::next_heap_size(minimum_heap_size);
     let heap = process::alloc::heap(heap_size)?;
 
-    let process = Process::new(
-        Default::default(),
-        None,
-        Arc::clone(&module_function_arity),
-        heap,
-        heap_size,
-    );
+    let process = Process::new(Default::default(), None, heap, heap_size);
 
-    let frame = Frame::new(module_function_arity, code::init);
+    let frame = Frame::new(
+        module,
+        function,
+        ARITY,
+        code::init::LOCATION,
+        code::init::code,
+    );
     process.push_frame(frame);
 
     Ok(process)
@@ -280,12 +278,22 @@ pub fn test(parent_process: &Process) -> Arc<Process> {
     let module = test::r#loop::module();
     let function = test::r#loop::function();
     let arguments = &[];
+    let location = test::r#loop::LOCATION;
     let code = test::r#loop::code;
 
     let Spawned {
         arc_process: child_arc_process,
         connection,
-    } = Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap();
+    } = Scheduler::spawn_code(
+        parent_process,
+        options,
+        module,
+        function,
+        arguments,
+        location,
+        code,
+    )
+    .unwrap();
     assert!(!connection.linked);
     assert!(connection.monitor_reference.is_none());
 

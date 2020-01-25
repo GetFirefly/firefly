@@ -17,6 +17,7 @@ use liblumen_alloc::erts::exception::{Exception, RuntimeException, SystemExcepti
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::gc::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::module::{ErlangFunction, NativeFunctionKind, ResolvedFunction};
@@ -403,19 +404,20 @@ impl CallExecutor {
         }
 
         let module = Atom::try_from_str(fun.fun.ident().module.as_str()).unwrap();
+        let definition = Definition::Anonymous {
+            index: block.as_u32(),
+            old_unique: fun.index.index() as u32,
+            // TODO calculate `unique` from `code`
+            unique: Default::default(),
+            creator: proc.pid().into(),
+        };
         let arity = fun.fun.ident().arity as u8;
 
-        let closure = proc.anonymous_closure_with_env_from_slice(
+        let closure = proc.closure_with_env_from_slice(
             module,
-            // TODO generate `index` scoped to `module`
-            block.as_u32(),
-            // TODO calculate `old_unique` from `code`
-            fun.index.index() as u32,
-            // TODO calculate `unique` from `code`
-            Default::default(),
+            definition,
             arity,
-            Some(crate::code::interpreter_closure_code),
-            proc.pid().into(),
+            Some(crate::code::interpreter_closure::LOCATED_CODE),
             &env,
         )?;
 
@@ -488,12 +490,14 @@ impl CallExecutor {
                         let function: Atom =
                             self.make_term(proc, fun, reads[1])?.try_into().unwrap();
                         let arity: u8 = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
+                        let definition = Definition::Export { function };
 
-                        Ok(proc.export_closure(
+                        Ok(proc.closure_with_env_from_slice(
                             module,
-                            function,
+                            definition,
                             arity,
-                            Some(crate::code::interpreter_mfa_code),
+                            Some(crate::code::interpreter_mfa::LOCATED_CODE),
+                            &[],
                         )?)
                     }
                     kind => unimplemented!("{:?}", kind),

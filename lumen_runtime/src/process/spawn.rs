@@ -1,12 +1,11 @@
 pub mod options;
 
-use std::convert::TryInto;
-
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::location::Location;
 use liblumen_alloc::CloneToProcess;
 
 use crate::otp::erlang;
@@ -23,9 +22,7 @@ pub fn apply_3(
     function: Atom,
     arguments: Term,
 ) -> exception::Result<Spawned> {
-    let arity = arity(arguments);
-
-    let child_process = options.spawn(Some(parent_process), module, function, arity)?;
+    let child_process = options.spawn(Some(parent_process))?;
 
     let module_term = module.encode()?;
     let function_term = function.encode()?;
@@ -56,18 +53,19 @@ pub fn code(
     module: Atom,
     function: Atom,
     arguments: &[Term],
+    location: Location,
     code: Code,
 ) -> exception::Result<Spawned> {
     let arity = arguments.len() as u8;
 
-    let child_process = options.spawn(parent_process, module, function, arity)?;
+    let child_process = options.spawn(parent_process)?;
 
     for argument in arguments.iter().rev() {
         let process_argument = argument.clone_to_process(&child_process);
         child_process.stack_push(process_argument)?;
     }
 
-    let frame = Frame::new(child_process.initial_module_function_arity.clone(), code);
+    let frame = Frame::new(module, function, arity, location, code);
     child_process.push_frame(frame);
 
     // Connect after placing frame, so that any logging can show the `Frame`s when connections occur
@@ -83,19 +81,4 @@ pub struct Spawned {
     pub process: Process,
     #[must_use]
     pub connection: Connection,
-}
-
-// Private
-
-fn arity(arguments: Term) -> u8 {
-    match arguments.decode().unwrap() {
-        TypedTerm::Nil => 0,
-        TypedTerm::List(cons) => cons.count().unwrap().try_into().unwrap(),
-        _ => {
-            panic!(
-                "Arguments {:?} are neither an empty nor a proper list",
-                arguments
-            );
-        }
-    }
 }

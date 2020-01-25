@@ -8,6 +8,8 @@ use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
+use locate_code::locate_code;
+
 use crate::process;
 use crate::process::spawn;
 use crate::process::spawn::options::{Connection, Options};
@@ -88,6 +90,7 @@ impl From<Exception> for NotReady {
 
 // Private
 
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let return_term = arc_process.stack_peek(1).unwrap();
     let future_term = arc_process.stack_peek(2).unwrap();
@@ -150,6 +153,7 @@ fn spawn_unscheduled(options: Options) -> exception::Result<(spawn::Spawned, Arc
         module(),
         function(),
         arguments,
+        LOCATION,
         code,
     )?;
 

@@ -2,18 +2,18 @@ mod with_empty_list_options;
 mod with_link_in_options_list;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use anyhow::*;
 
 use proptest::strategy::Just;
 
 use liblumen_alloc::erts::process::{Priority, Status};
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{atom, atom_from, exit, ModuleFunctionArity, Process};
+use liblumen_alloc::{atom, exit, Process};
 
-use crate::otp::erlang::apply_3;
 use crate::otp::erlang::spawn_opt_4::native;
+use crate::otp::erlang::{self, apply_3};
 use crate::process;
 use crate::registry::pid_to_process;
 use crate::scheduler::Scheduler;

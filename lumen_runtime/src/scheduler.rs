@@ -17,6 +17,7 @@ use liblumen_alloc::erts::process::Priority;
 use liblumen_alloc::erts::process::{Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::location::Location;
 
 use crate::process;
 use crate::process::spawn;
@@ -247,6 +248,7 @@ impl Scheduler {
         module: Atom,
         function: Atom,
         arguments: &[Term],
+        location: Location,
         code: Code,
     ) -> Result<Spawned> {
         let spawn::Spawned {
@@ -258,6 +260,7 @@ impl Scheduler {
             module,
             function,
             arguments,
+            location,
             code,
         )?;
         let arc_scheduler = parent_process.scheduler().unwrap();

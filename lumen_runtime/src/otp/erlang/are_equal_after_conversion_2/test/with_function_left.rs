@@ -43,17 +43,30 @@ fn with_same_value_function_right_returns_true() {
                 strategy::module_function_arity::arity(),
             )
                 .prop_map(|(arc_process, module, function, arity)| {
-                    let code = |arc_process: &Arc<Process>| {
+                    let definition = Definition::Export { function };
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         arc_process.wait();
 
                         Ok(())
-                    };
+                    });
 
                     let left_term = arc_process
-                        .export_closure(module, function, arity, Some(code))
+                        .closure_with_env_from_slice(
+                            module,
+                            definition.clone(),
+                            arity,
+                            Some(located_code),
+                            &[],
+                        )
                         .unwrap();
                     let right_term = arc_process
-                        .export_closure(module, function, arity, Some(code))
+                        .closure_with_env_from_slice(
+                            module,
+                            definition,
+                            arity,
+                            Some(located_code),
+                            &[],
+                        )
                         .unwrap();
 
                     (left_term, right_term)
@@ -78,22 +91,36 @@ fn with_different_function_right_returns_false() {
                 strategy::module_function_arity::arity(),
             )
                 .prop_map(|(arc_process, module, function, arity)| {
-                    let left_code = |arc_process: &Arc<Process>| {
+                    let definition = Definition::Export { function };
+
+                    let left_located_code = located_code!(|arc_process: &Arc<Process>| {
                         arc_process.wait();
 
                         Ok(())
-                    };
+                    });
                     let left_term = arc_process
-                        .export_closure(module, function, arity, Some(left_code))
+                        .closure_with_env_from_slice(
+                            module,
+                            definition.clone(),
+                            arity,
+                            Some(left_located_code),
+                            &[],
+                        )
                         .unwrap();
 
-                    let right_code = |arc_process: &Arc<Process>| {
+                    let right_located_code = located_code!(|arc_process: &Arc<Process>| {
                         arc_process.wait();
 
                         Ok(())
-                    };
+                    });
                     let right_term = arc_process
-                        .export_closure(module, function, arity, Some(right_code))
+                        .closure_with_env_from_slice(
+                            module,
+                            definition,
+                            arity,
+                            Some(right_located_code),
+                            &[],
+                        )
                         .unwrap();
 
                     (left_term, right_term)

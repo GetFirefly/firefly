@@ -1,7 +1,6 @@
 mod message_queue_data;
 
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
 
 use anyhow::*;
 
@@ -10,7 +9,6 @@ use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_si
 use liblumen_alloc::erts::process::priority::Priority;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
 
 use crate::process;
 use crate::proplist::TryPropListFromTermError;
@@ -77,28 +75,11 @@ impl Options {
     ///
     /// To fully apply all options, call `options.connect(&parent_process, &child_process)` after
     /// placing any frames in the `child_process` returns from this function.
-    pub fn spawn(
-        &self,
-        parent_process: Option<&Process>,
-        module: Atom,
-        function: Atom,
-        arity: u8,
-    ) -> Result<Process, Alloc> {
+    pub fn spawn(&self, parent_process: Option<&Process>) -> Result<Process, Alloc> {
         let priority = self.cascaded_priority(parent_process);
-        let module_function_arity = Arc::new(ModuleFunctionArity {
-            module,
-            function,
-            arity,
-        });
         let (heap, heap_size) = self.sized_heap()?;
 
-        let process = Process::new(
-            priority,
-            parent_process,
-            Arc::clone(&module_function_arity),
-            heap,
-            heap_size,
-        );
+        let process = Process::new(priority, parent_process, heap, heap_size);
 
         Ok(process)
     }

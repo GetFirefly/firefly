@@ -16,20 +16,27 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
             )
                 .prop_map(|(module, function)| {
                     let arc_process = process::test_init();
+                    let definition = Definition::Export { function };
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         arc_process.exception(exit!(
                             Atom::str_to_term("not_normal"),
                             anyhow!("Test").into()
                         ));
 
                         Ok(())
-                    };
+                    });
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .export_closure(module, function, arity, Some(code))
+                            .closure_with_env_from_slice(
+                                module,
+                                definition,
+                                arity,
+                                Some(located_code),
+                                &[],
+                            )
                             .unwrap(),
                     )
                 }),
@@ -97,17 +104,24 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
             )
                 .prop_map(|(module, function)| {
                     let arc_process = process::test_init();
+                    let definition = Definition::Export { function };
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         arc_process.return_from_call(0, Atom::str_to_term("ok"))?;
 
                         Ok(())
-                    };
+                    });
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .export_closure(module, function, arity, Some(code))
+                            .closure_with_env_from_slice(
+                                module,
+                                definition,
+                                arity,
+                                Some(located_code),
+                                &[],
+                            )
                             .unwrap(),
                     )
                 }),

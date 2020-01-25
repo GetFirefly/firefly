@@ -36,6 +36,8 @@ pub fn native_implemented_function(
             let export = signatures.export();
             let frame = frame();
             let function = function_arity.function();
+            let location = location();
+            let located_code = located_code();
             let module_function_arity = signatures.module_function_arity();
 
             let all_tokens = quote! {
@@ -48,6 +50,8 @@ pub fn native_implemented_function(
                 #export
                 #frame
                 #function
+                #location
+                #located_code
                 #module_function_arity
                 #native_item_fn
             };
@@ -61,8 +65,27 @@ pub fn native_implemented_function(
 fn frame() -> proc_macro2::TokenStream {
     quote! {
         fn frame() -> liblumen_alloc::erts::process::code::stack::frame::Frame {
-            liblumen_alloc::erts::process::code::stack::frame::Frame::new(module_function_arity(), code)
+            liblumen_alloc::erts::process::code::stack::frame::Frame::new(super::module(), function(), ARITY, LOCATION, code)
         }
+    }
+}
+
+fn location() -> proc_macro2::TokenStream {
+    let span = Span::call_site();
+    let path = span.source_file().path();
+    let file = path.to_string_lossy();
+    let line_column = span.start();
+    let line = line_column.line as u32;
+    let column = line_column.column as u32;
+
+    quote! {
+        pub const LOCATION: liblumen_alloc::location::Location = liblumen_alloc::location::Location { file: #file, line: #line, column: #column };
+    }
+}
+
+fn located_code() -> proc_macro2::TokenStream {
+    quote! {
+        pub const LOCATED_CODE: liblumen_alloc::erts::process::code::LocatedCode = liblumen_alloc::erts::process::code::LocatedCode { code: code, location: LOCATION };
     }
 }
 
@@ -309,7 +332,7 @@ impl Signatures {
                 quote! {
                     pub fn export() {
                         use #ident as lumen_runtime;
-                        lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+                        lumen_runtime::code::insert(super::module(), liblumen_alloc::erts::term::closure::Definition::Export { function: function() }, ARITY, LOCATED_CODE);
                     }
                 }
             }
@@ -317,7 +340,7 @@ impl Signatures {
             Err(_) => {
                 quote! {
                     pub fn export() {
-                        crate::code::export::insert(super::module(), function(), ARITY, code);
+                        crate::code::insert(super::module(), liblumen_alloc::erts::term::closure::Definition::Export { function: function() }, ARITY, LOCATED_CODE);
                     }
                 }
             }

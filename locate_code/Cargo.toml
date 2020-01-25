@@ -1,0 +1,19 @@
+[package]
+name = "locate_code"
+version = "0.1.0"
+authors = ["Luke Imhoff <Kronic.Deth@gmail.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+proc-macro-crate = "0.1.4"
+proc-macro2 = "^1.0"
+quote = "^1.0"
+
+[dependencies.syn]
+version = "^1.0"
+features = ["clone-impls", "extra-traits", "full", "parsing", "printing", "visit"]

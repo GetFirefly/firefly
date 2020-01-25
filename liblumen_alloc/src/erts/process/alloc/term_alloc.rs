@@ -14,9 +14,9 @@ use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetim
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{AllocResult, InternalResult};
 use crate::erts::module_function_arity::Arity;
-use crate::erts::process::code::Code;
+use crate::erts::process::code::LocatedCode;
 use crate::erts::string::Encoding;
-use crate::erts::term::closure::{Creator, Index, OldUnique, Unique};
+use crate::erts::term::closure::Definition;
 use crate::erts::term::prelude::*;
 use crate::erts::Node;
 use crate::scheduler;
@@ -526,20 +526,15 @@ pub trait TermAlloc: Heap {
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
-    fn anonymous_closure_with_env_from_slice(
+    fn closure_with_env_from_slice(
         &mut self,
         module: Atom,
-        index: Index,
-        old_unique: OldUnique,
-        unique: Unique,
+        definition: Definition,
         arity: Arity,
-        code: Option<Code>,
-        creator: Creator,
+        located_code: Option<LocatedCode>,
         slice: &[Term],
     ) -> AllocResult<Boxed<Closure>> {
-        Closure::from_slice(
-            self, module, index, old_unique, unique, arity, code, creator, slice,
-        )
+        self.closure_with_env_from_slices(module, definition, arity, located_code, &[slice])
     }
 
     /// Constructs a `Closure` from slices of `Term`
@@ -550,21 +545,16 @@ pub trait TermAlloc: Heap {
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
-    fn anonymous_closure_with_env_from_slices(
+    fn closure_with_env_from_slices(
         &mut self,
         module: Atom,
-        index: Index,
-        old_unique: OldUnique,
-        unique: Unique,
+        definition: Definition,
         arity: Arity,
-        code: Option<Code>,
-        creator: Creator,
+        located_code: Option<LocatedCode>,
         slices: &[&[Term]],
     ) -> AllocResult<Boxed<Closure>> {
         let len = slices.iter().map(|slice| slice.len()).sum();
-        let mut closure_box = Closure::new_anonymous(
-            self, module, index, old_unique, unique, arity, code, creator, len,
-        )?;
+        let mut closure_box = Closure::new(self, module, definition, arity, located_code, len)?;
 
         unsafe {
             let closure_ref = closure_box.as_mut();
@@ -581,16 +571,6 @@ pub trait TermAlloc: Heap {
         }
 
         Ok(closure_box)
-    }
-
-    fn export_closure(
-        &mut self,
-        module: Atom,
-        function: Atom,
-        arity: u8,
-        code: Option<Code>,
-    ) -> AllocResult<Boxed<Closure>> {
-        Closure::new_export(self, module, function, arity, code)
     }
 }
 

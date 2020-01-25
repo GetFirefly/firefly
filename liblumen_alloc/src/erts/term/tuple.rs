@@ -338,6 +338,7 @@ mod tests {
     use alloc::sync::Arc;
 
     use crate::erts::process::Process;
+    use crate::erts::term::closure::Definition;
     use crate::erts::testing::RegionHeap;
     use crate::erts::{scheduler, Node};
 
@@ -538,14 +539,15 @@ mod tests {
     fn closure<H: TermAlloc>(heap: &mut H) -> Term {
         let module = Atom::try_from_str("module").unwrap();
         let function = Atom::try_from_str("function").unwrap();
+        let definition = Definition::Export { function };
         let arity = 0;
-        let code = |arc_process: &Arc<Process>| {
+        let located_code = located_code!(|arc_process: &Arc<Process>| {
             arc_process.wait();
 
             Ok(())
-        };
+        });
 
-        heap.export_closure(module, function, arity, Some(code))
+        heap.closure_with_env_from_slice(module, definition, arity, Some(located_code), &[])
             .unwrap()
             .into()
     }

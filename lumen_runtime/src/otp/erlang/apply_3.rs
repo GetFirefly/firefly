@@ -5,15 +5,20 @@ use anyhow::*;
 
 use liblumen_core::locks::RwLock;
 
+use locate_code::locate_code;
+
 use liblumen_alloc::erts::exception::{self, ArcError};
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::code::{self, Code};
+use liblumen_alloc::erts::process::code::{self, LocatedCode};
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{Arity, ModuleFunctionArity};
+use liblumen_alloc::Arity;
 
-/// Returns the `Code` that should be used in `otp::erlang::spawn_3` to look up and call a known
-/// BIF or user function using the MFA.
+pub const ARITY: Arity = 3;
+
+/// Returns the `LocatedCode` that should be used in `otp::erlang::spawn_3` to look up and call a
+/// known BIF or user function using the MFA.
 ///
 /// ## Preconditons
 ///
@@ -36,12 +41,12 @@ use liblumen_alloc::{Arity, ModuleFunctionArity};
 /// #### Process
 ///
 /// * `status` - `Status::Exiting` with exception from lookup or called function.
-pub fn get_code() -> Code {
-    *RW_LOCK_CODE.read()
+pub fn get_located_code() -> LocatedCode {
+    *RW_LOCK_LOCATED_CODE.read()
 }
 
-pub fn set_code(code: Code) {
-    *RW_LOCK_CODE.write() = code;
+pub fn set_located_code(located_code: LocatedCode) {
+    *RW_LOCK_LOCATED_CODE.write() = located_code;
 }
 
 pub fn place_frame_with_arguments(
@@ -59,10 +64,9 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
-// Private
-
 /// `module`, `function`, and arity of `argument_list` must have code registered with
 /// `crate::code::export::insert` or returns `undef` exception.
+#[locate_code]
 pub fn code(arc_process: &Arc<Process>) -> code::Result {
     let module = arc_process.stack_peek(1).unwrap();
     let function = arc_process.stack_peek(2).unwrap();
@@ -83,14 +87,19 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
     }
 
     let module_atom: Atom = module.try_into().unwrap();
+
     let function_atom: Atom = function.try_into().unwrap();
+    let definition = Definition::Export {
+        function: function_atom,
+    };
+
     let arity: Arity = argument_vec.len().try_into().unwrap();
 
-    match crate::code::export::get(&module_atom, &function_atom, arity) {
+    match crate::code::get(&module_atom, &definition, arity) {
         Some(code) => {
             arc_process.stack_popn(3);
 
-            crate::code::export::place_frame_with_arguments(
+            crate::code::place_frame_with_arguments(
                 &arc_process,
                 Placement::Replace,
                 module_atom,
@@ -119,20 +128,16 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
     }
 }
 
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), get_code())
-}
-
-fn function() -> Atom {
+pub fn function() -> Atom {
     Atom::try_from_str("apply").unwrap()
 }
 
-pub(crate) fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 3,
-    })
+// Private
+
+fn frame() -> Frame {
+    let LocatedCode { code, location } = get_located_code();
+
+    Frame::new(super::module(), function(), ARITY, location, code)
 }
 
 fn undef(
@@ -149,5 +154,5 @@ fn undef(
 }
 
 lazy_static! {
-    static ref RW_LOCK_CODE: RwLock<Code> = RwLock::new(code);
+    static ref RW_LOCK_LOCATED_CODE: RwLock<LocatedCode> = RwLock::new(LOCATED_CODE);
 }

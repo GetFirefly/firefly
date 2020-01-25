@@ -2,13 +2,15 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::{Boxed, Closure, Encoded, Term};
 
+use locate_code::locate_code;
+
 use lumen_runtime::otp::erlang;
 
-use crate::elixir::chain::counter_2::label_2;
+use super::{frame, label_2};
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -20,7 +22,7 @@ pub fn place_frame_with_arguments(
     assert!(output.is_boxed_function());
     process.stack_push(output)?;
     process.stack_push(next_pid)?;
-    process.place_frame(frame(process), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 
     Ok(())
 }
@@ -38,6 +40,7 @@ pub fn place_frame_with_arguments(
 ///     output.("sent #{sent} to #{next_pid}")
 /// end
 /// ```
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -88,10 +91,4 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         }
         Some(Err(alloc_err)) => Err(alloc_err.into()),
     }
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
 }

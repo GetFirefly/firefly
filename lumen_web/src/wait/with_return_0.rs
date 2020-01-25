@@ -16,6 +16,8 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
+use locate_code::locate_code;
+
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::process::spawn::Spawned;
 use lumen_runtime::scheduler::Scheduler;
@@ -58,6 +60,7 @@ fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
     }
 }
 
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let return_term = arc_process.stack_peek(1).unwrap();
     let executor_term = arc_process.stack_peek(2).unwrap();
@@ -151,6 +154,7 @@ fn spawn_unscheduled(options: Options) -> exception::Result<(Process, Promise)> 
         super::module(),
         function(),
         &[],
+        LOCATION,
         code,
     )?;
 

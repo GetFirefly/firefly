@@ -46,7 +46,7 @@ pub fn make_erlang() -> NativeModule {
             t => panic!("{:?}", t),
         }
 
-        let ret = crate::code::return_clean_closure(proc)?;
+        let ret = crate::code::return_clean::closure(proc)?;
 
         let inner_args = proc.cons(ret, proc.cons(ret, args[2])?)?;
 
@@ -55,7 +55,7 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("spawn").unwrap(), 3, |proc, args| {
-        let ret = crate::code::return_clean_closure(proc)?;
+        let ret = crate::code::return_clean::closure(proc)?;
 
         let inner_args = proc.cons(ret, proc.cons(ret, args[2])?)?;
         erlang::spawn_3::native(proc, args[0], args[1], inner_args)
@@ -65,7 +65,7 @@ pub fn make_erlang() -> NativeModule {
         Atom::try_from_str("spawn_link").unwrap(),
         3,
         |proc, args| {
-            let ret = crate::code::return_clean_closure(proc)?;
+            let ret = crate::code::return_clean::closure(proc)?;
 
             let inner_args = proc.cons(ret, proc.cons(ret, args[2])?)?;
             erlang::spawn_link_3::native(proc, args[0], args[1], inner_args)
@@ -180,7 +180,7 @@ pub fn make_erlang() -> NativeModule {
         proc.stack_push(args[3])?;
         proc.stack_push(args[2])?;
 
-        crate::code::apply(proc)
+        crate::code::apply_3::code(proc)
     });
 
     native.add_simple(Atom::try_from_str("node").unwrap(), 0, |_proc, _args| {

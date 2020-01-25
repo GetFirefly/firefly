@@ -17,6 +17,7 @@ anyhow = "1.0.11"
 js-sys = "0.3.25"
 liblumen_alloc = { path = "../liblumen_alloc" }
 liblumen_core = { path = "../liblumen_core" }
+locate_code = { path = "../locate_code" }
 lumen_runtime = { path = "../lumen_runtime" }
 lumen_runtime_macros = { path = "../lumen_runtime_macros" }
 

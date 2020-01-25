@@ -1,15 +1,15 @@
+mod return_ok;
+mod return_throw;
+
 use core::ptr::NonNull;
 
-use std::convert::TryInto;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
 use anyhow::*;
 
-use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::{Process, Status};
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::HeapFragment;
 
@@ -99,18 +99,21 @@ pub fn call_erlang(
     let return_ok = {
         let module = Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap();
         const ARITY: u8 = 1;
-
-        proc.anonymous_closure_with_env_from_slice(
-            module,
+        let definition = Definition::Anonymous {
             // TODO assign `index` scoped to `module`
-            0,
+            index: 0,
             // TODO calculate `old_unique` for `return_ok` with `sender_term` captured.
-            Default::default(),
+            old_unique: Default::default(),
             // TODO calculate `unique` for `return_ok` with `sender_term` captured.
-            Default::default(),
+            unique: Default::default(),
+            creator: proc.pid().into(),
+        };
+
+        proc.closure_with_env_from_slice(
+            module,
+            definition,
             ARITY,
-            Some(return_ok),
-            proc.pid().into(),
+            Some(return_ok::LOCATED_CODE),
             &[sender_term],
         )
         .unwrap()
@@ -118,19 +121,22 @@ pub fn call_erlang(
 
     let return_throw = {
         let module = Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap();
+        let definition = Definition::Anonymous {
+            // TODO assign `index` scoped to `module`
+            index: 1,
+            // TODO calculate `old_unique` for `return_throw` with `sender_term` captured.
+            old_unique: Default::default(),
+            // TODO calculate `unique` for `return_throw` with `sender_term` captured.
+            unique: Default::default(),
+            creator: proc.pid().into(),
+        };
         const ARITY: u8 = 1;
 
-        proc.anonymous_closure_with_env_from_slice(
+        proc.closure_with_env_from_slice(
             module,
-            // TODO assing `index` scoped to `module`
-            1,
-            // TODO calculate `unique` for `return_throw` with `sender_term` captured.
-            Default::default(),
-            // TODO calculate `unique` for `return_throw` with `sender_term` captured.
-            Default::default(),
+            definition,
             ARITY,
-            Some(return_throw),
-            proc.pid().into(),
+            Some(return_throw::LOCATED_CODE),
             &[sender_term],
         )
         .unwrap()
@@ -153,93 +159,4 @@ pub fn call_erlang(
         process: run_arc_process,
         rx,
     }
-}
-
-fn return_ok(arc_process: &Arc<Process>) -> code::Result {
-    let argument_list = arc_process.stack_pop().unwrap();
-    let closure_term = arc_process.stack_pop().unwrap();
-
-    let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.decode().unwrap() {
-        TypedTerm::Nil => (),
-        TypedTerm::List(argument_cons) => {
-            for result in argument_cons.into_iter() {
-                let element = result.unwrap();
-
-                argument_vec.push(element);
-            }
-        }
-        _ => panic!(),
-    }
-    assert!(argument_vec.len() == 1);
-
-    let closure: Boxed<Closure> = closure_term.try_into().unwrap();
-    let sender_resource: Boxed<Resource> = closure.env_slice()[0].try_into().unwrap();
-    let sender_any: Resource = sender_resource.into();
-    let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
-
-    let mut fragment = HeapFragment::new_from_word_size(100).unwrap();
-    let frag_mut = unsafe { fragment.as_mut() };
-    let ret = argument_vec[0].clone_to_heap(frag_mut).unwrap();
-
-    sender
-        .tx
-        .send(ProcessResult {
-            heap: fragment,
-            result: Ok(ret),
-        })
-        .unwrap();
-
-    Ok(arc_process.return_from_call(0, argument_vec[0])?)
-}
-
-fn return_throw(arc_process: &Arc<Process>) -> code::Result {
-    let argument_list = arc_process.stack_pop().unwrap();
-    let closure_term = arc_process.stack_pop().unwrap();
-
-    let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.decode().unwrap() {
-        TypedTerm::Nil => (),
-        TypedTerm::List(argument_cons) => {
-            for result in argument_cons.into_iter() {
-                let element = result.unwrap();
-
-                argument_vec.push(element);
-            }
-        }
-        _ => panic!(),
-    }
-
-    let closure: Boxed<Closure> = closure_term.try_into().unwrap();
-    let sender_resource: Boxed<Resource> = closure.env_slice()[0].try_into().unwrap();
-    let sender_any: Resource = sender_resource.into();
-    let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
-
-    let mut fragment = HeapFragment::new_from_word_size(100).unwrap();
-    let frag_mut = unsafe { fragment.as_mut() };
-
-    let ret_type = argument_vec[0].clone_to_heap(frag_mut).unwrap();
-    let ret_reason = argument_vec[1].clone_to_heap(frag_mut).unwrap();
-    let ret_trace = argument_vec[2].clone_to_heap(frag_mut).unwrap();
-
-    sender
-        .tx
-        .send(ProcessResult {
-            heap: fragment,
-            result: Err((ret_type, ret_reason, ret_trace)),
-        })
-        .unwrap();
-
-    let class: exception::Class = argument_vec[0].try_into().unwrap();
-
-    let reason = argument_vec[1];
-    let stacktrace = Some(argument_vec[2]);
-    let exc = exception::raise(
-        class,
-        reason,
-        stacktrace,
-        anyhow!("explicit throw from Erlang").into(),
-    );
-
-    code::result_from_exception(arc_process, 0, exc.into())
 }

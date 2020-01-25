@@ -15,10 +15,6 @@ pub use self::arc::ArcError;
 mod classes;
 pub use self::classes::{Class, Error, Exit, Throw};
 
-// A location represents file/line/column info about an error
-mod location;
-pub use self::location::Location;
-
 // These helpers provide convenience constructors for common error types
 mod helpers;
 pub use self::helpers::*;

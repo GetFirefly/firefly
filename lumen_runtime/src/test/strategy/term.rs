@@ -9,9 +9,10 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
-use liblumen_alloc::{atom, fixnum_from};
+use liblumen_alloc::{atom, fixnum_from, located_code};
 
 use super::size_range;
 
@@ -149,14 +150,15 @@ pub fn is_function_with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStra
 }
 
 pub fn export_closure(process: &Process, module: Atom, function: Atom, arity: u8) -> Term {
-    let code = |arc_process: &Arc<Process>| {
+    let definition = Definition::Export { function };
+    let located_code = located_code!(|arc_process: &Arc<Process>| {
         arc_process.wait();
 
         Ok(())
-    };
+    });
 
     process
-        .export_closure(module, function, arity, Some(code))
+        .closure_with_env_from_slice(module, definition, arity, Some(located_code), &[])
         .unwrap()
 }
 

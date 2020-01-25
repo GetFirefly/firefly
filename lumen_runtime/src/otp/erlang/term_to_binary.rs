@@ -262,8 +262,7 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
                     } => {
                         let mut sized_byte_vec: Vec<u8> = Vec::new();
 
-                        let module_function_arity = closure.module_function_arity();
-                        sized_byte_vec.push(module_function_arity.arity);
+                        sized_byte_vec.push(closure.arity());
 
                         sized_byte_vec.extend_from_slice(unique);
                         sized_byte_vec.extend_from_slice(&index.to_be_bytes());
@@ -271,7 +270,7 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
                         let env_len_u32: u32 = closure.env_len().try_into().unwrap();
                         sized_byte_vec.extend_from_slice(&env_len_u32.to_be_bytes());
 
-                        sized_byte_vec.append(&mut atom_to_byte_vec(module_function_arity.module));
+                        sized_byte_vec.append(&mut atom_to_byte_vec(closure.module()));
 
                         // > [index] encoded using SMALL_INTEGER_EXT or INTEGER_EXT.
                         try_append_isize_as_small_integer_or_integer(

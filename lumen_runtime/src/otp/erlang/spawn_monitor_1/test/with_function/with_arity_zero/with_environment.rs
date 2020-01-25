@@ -18,9 +18,14 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
             )
                 .prop_map(|(module, index, old_unique, unique)| {
                     let arc_process = process::test_init();
-                    let creator = arc_process.pid().into();
+                    let definition = Definition::Anonymous {
+                        index,
+                        old_unique,
+                        unique,
+                        creator: arc_process.pid().into(),
+                    };
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         let first = arc_process.stack_pop().unwrap();
                         let second = arc_process.stack_pop().unwrap();
                         let reason = arc_process.list_from_slice(&[first, second])?;
@@ -28,19 +33,16 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                         arc_process.exception(exit!(reason, anyhow!("Test").into()));
 
                         Ok(())
-                    };
+                    });
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .anonymous_closure_with_env_from_slice(
+                            .closure_with_env_from_slice(
                                 module,
-                                index,
-                                old_unique,
-                                unique,
+                                definition,
                                 arity,
-                                Some(code),
-                                creator,
+                                Some(located_code),
                                 &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
                             .unwrap(),
@@ -126,9 +128,14 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
             )
                 .prop_map(|(module, index, old_unique, unique)| {
                     let arc_process = process::test_init();
-                    let creator = arc_process.pid().into();
+                    let definition = Definition::Anonymous {
+                        index,
+                        old_unique,
+                        unique,
+                        creator: arc_process.pid().into(),
+                    };
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         let first = arc_process.stack_pop().unwrap();
                         let second = arc_process.stack_pop().unwrap();
                         let reason = arc_process.tuple_from_slice(&[first, second])?;
@@ -136,19 +143,16 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                         arc_process.exception(exit!(reason, anyhow!("Test").into()));
 
                         Ok(())
-                    };
+                    });
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .anonymous_closure_with_env_from_slice(
+                            .closure_with_env_from_slice(
                                 module,
-                                index,
-                                old_unique,
-                                unique,
+                                definition,
                                 arity,
-                                Some(code),
-                                creator,
+                                Some(located_code),
                                 &[
                                     Atom::str_to_term("shutdown"),
                                     Atom::str_to_term("shutdown_reason"),

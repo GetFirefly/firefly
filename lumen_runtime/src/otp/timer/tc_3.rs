@@ -8,11 +8,17 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
+use liblumen_alloc::location::Location;
+use liblumen_alloc::Arity;
+
+use locate_code::locate_code;
 
 use crate::otp::erlang::monotonic_time_0;
+
+use super::module;
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -24,12 +30,14 @@ pub fn place_frame_with_arguments(
     process.stack_push(arguments)?;
     process.stack_push(function)?;
     process.stack_push(module)?;
-    process.place_frame(frame(), placement);
+    process.place_frame(frame(LOCATION, code), placement);
 
     Ok(())
 }
 
 // Private
+
+const ARITY: Arity = 3;
 
 /// ```elixir
 /// def tc(module, function, arguments) do
@@ -41,6 +49,7 @@ pub fn place_frame_with_arguments(
 ///   {time, value}
 /// end
 /// ```
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
@@ -63,18 +72,10 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     Process::call_code(arc_process)
 }
 
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
+fn frame(location: Location, code: Code) -> Frame {
+    Frame::new(module(), function(), ARITY, location, code)
 }
 
 fn function() -> Atom {
     Atom::try_from_str("t3").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 3,
-    })
 }

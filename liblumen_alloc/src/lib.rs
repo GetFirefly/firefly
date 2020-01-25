@@ -44,6 +44,7 @@ mod blocks;
 pub mod borrow;
 mod carriers;
 pub mod erts;
+pub mod location;
 mod mem;
 mod segmented_alloc;
 mod size_class_alloc;

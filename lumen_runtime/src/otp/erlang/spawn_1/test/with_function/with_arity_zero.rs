@@ -18,17 +18,24 @@ fn without_environment_runs_function_in_child_process() {
                 strategy::module_function_arity::function(),
             )
                 .prop_map(|(arc_process, module, function)| {
+                    let definition = Definition::Export { function };
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         arc_process.return_from_call(0, Atom::str_to_term("ok"))?;
 
                         Ok(())
-                    };
+                    });
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .export_closure(module, function, arity, Some(code))
+                            .closure_with_env_from_slice(
+                                module,
+                                definition,
+                                arity,
+                                Some(located_code),
+                                &[],
+                            )
                             .unwrap(),
                     )
                 })
@@ -82,9 +89,15 @@ fn with_environment_runs_function_in_child_process() {
                 function::anonymous::unique(),
             )
                 .prop_map(|(arc_process, module, index, old_unique, unique)| {
+                    let definition = Definition::Anonymous {
+                        index,
+                        unique,
+                        old_unique,
+                        creator: arc_process.pid().into(),
+                    };
+
                     let arity = 0;
-                    let creator = arc_process.pid().into();
-                    let code = |arc_process: &Arc<Process>| {
+                    let located_code = located_code!(|arc_process: &Arc<Process>| {
                         let first = arc_process.stack_pop().unwrap();
                         let second = arc_process.stack_pop().unwrap();
                         let reason = arc_process.list_from_slice(&[first, second])?;
@@ -92,19 +105,16 @@ fn with_environment_runs_function_in_child_process() {
                         arc_process.exception(exit!(reason, anyhow!("Test").into()));
 
                         Ok(())
-                    };
+                    });
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .anonymous_closure_with_env_from_slice(
+                            .closure_with_env_from_slice(
                                 module,
-                                index,
-                                old_unique,
-                                unique,
+                                definition,
                                 arity,
-                                Some(code),
-                                creator,
+                                Some(located_code),
                                 &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
                             .unwrap(),

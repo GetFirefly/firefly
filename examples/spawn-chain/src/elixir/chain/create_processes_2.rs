@@ -34,22 +34,30 @@ mod label_3;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::code::{self, result_from_exception};
+use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::{self, result_from_exception, Code};
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::location::Location;
 use liblumen_alloc::Arity;
+
+use locate_code::locate_code;
 
 use crate::elixir;
 
 pub fn export() {
-    lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+    let definition = Definition::Export {
+        function: function(),
+    };
+    lumen_runtime::code::insert(super::module(), definition, ARITY, LOCATED_CODE);
 }
 
 // Private
 
 const ARITY: Arity = 2;
 
+#[locate_code]
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let n = arc_process.stack_peek(1).unwrap();
     let output = arc_process.stack_peek(2).unwrap();
@@ -102,6 +110,10 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         }
         Err(exception) => result_from_exception(arc_process, STACK_USED, exception),
     }
+}
+
+fn frame(location: Location, code: Code) -> Frame {
+    Frame::new(super::module(), function(), ARITY, location, code)
 }
 
 fn function() -> Atom {

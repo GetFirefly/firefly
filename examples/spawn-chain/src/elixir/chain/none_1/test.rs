@@ -1,3 +1,5 @@
+mod inspect;
+
 use super::*;
 
 use std::sync::Once;
@@ -94,15 +96,6 @@ fn with_65536() {
     run_through(65536)
 }
 
-fn inspect_code(arc_process: &Arc<Process>) -> code::Result {
-    let time_value = arc_process.stack_peek(1).unwrap();
-
-    lumen_runtime::system::io::puts(&format!("{}", time_value));
-    arc_process.remove_last_frame(1);
-
-    Process::call_code(arc_process)
-}
-
 fn run_through(n: usize) {
     start_once();
 
@@ -115,7 +108,8 @@ fn run_through(n: usize) {
         Atom::try_from_str("Elixir.ChainTest").unwrap(),
         Atom::try_from_str("inspect").unwrap(),
         &[],
-        inspect_code,
+        inspect::LOCATION,
+        inspect::code,
     )
     .unwrap();
     super::place_frame_with_arguments(&process, Placement::Push, process.integer(n).unwrap())

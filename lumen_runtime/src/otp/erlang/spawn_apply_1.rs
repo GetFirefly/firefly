@@ -28,6 +28,7 @@ pub(in crate::otp::erlang) fn native(
         apply_2::module(),
         apply_2::function(),
         arguments,
+        apply_2::LOCATION,
         apply_2::code,
     )
     .and_then(|spawned| spawned.to_term(process))

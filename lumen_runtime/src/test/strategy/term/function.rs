@@ -8,9 +8,12 @@ use num_bigint::BigInt;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::process::code::{self, Code, DebuggableCode};
+use liblumen_alloc::erts::process::code::{self, LocatedCode};
+use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
+
+use locate_code::locate_code;
 
 use crate::test::strategy;
 
@@ -34,26 +37,27 @@ pub fn anonymous(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         anonymous::unique(),
         arity_u8(),
         anonymous::creator(),
-        option_debuggable_code(),
+        option_located_code(),
     )
         .prop_map(
-            move |(module, index, old_unique, unique, arity, creator, option_debuggable_code)| {
-                let option_code: Option<Code> =
-                    option_debuggable_code.map(|debuggable_code| debuggable_code.0);
+            move |(module, index, old_unique, unique, arity, creator, option_located_code)| {
+                let definition = Definition::Anonymous {
+                    index,
+                    old_unique,
+                    unique,
+                    creator,
+                };
 
-                if let Some(code) = option_code {
-                    crate::code::anonymous::insert(module, index, old_unique, unique, arity, code);
+                if let Some(located_code) = option_located_code {
+                    crate::code::insert(module, definition.clone(), arity, located_code);
                 }
 
                 arc_process
-                    .anonymous_closure_with_env_from_slice(
+                    .closure_with_env_from_slice(
                         module,
-                        index,
-                        old_unique,
-                        unique,
+                        definition,
                         arity,
-                        option_code,
-                        creator,
+                        option_located_code,
                         &[],
                     )
                     .unwrap()
@@ -80,6 +84,7 @@ pub fn arguments(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::list::proper(arc_process)
 }
 
+#[locate_code]
 pub fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.wait();
 
@@ -91,17 +96,17 @@ pub fn export(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         module_atom(),
         export::function(),
         arity_u8(),
-        option_debuggable_code(),
+        option_located_code(),
     )
-        .prop_map(move |(module, function, arity, option_debuggable_code)| {
-            let option_code = option_debuggable_code.map(|debuggable_code| debuggable_code.0);
+        .prop_map(move |(module, function, arity, option_located_code)| {
+            let definition = Definition::Export { function };
 
-            if let Some(code) = option_code {
-                crate::code::export::insert(module, function, arity, code);
+            if let Some(located_code) = option_located_code {
+                crate::code::insert(module, definition.clone(), arity, located_code);
             }
 
             arc_process
-                .export_closure(module, function, arity, option_code)
+                .closure_with_env_from_slice(module, definition, arity, option_located_code, &[])
                 .unwrap()
         })
         .boxed()
@@ -128,6 +133,6 @@ pub fn is_not_arity_or_arguments(arc_process: Arc<Process>) -> BoxedStrategy<Ter
         .boxed()
 }
 
-pub fn option_debuggable_code() -> BoxedStrategy<Option<DebuggableCode>> {
-    prop_oneof![Just(Some(DebuggableCode(code))), Just(None)].boxed()
+pub fn option_located_code() -> BoxedStrategy<Option<LocatedCode>> {
+    prop_oneof![Just(Some(LOCATED_CODE)), Just(None)].boxed()
 }

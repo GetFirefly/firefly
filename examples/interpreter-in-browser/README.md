@@ -81,7 +81,7 @@ You can use the `www/ex_sample.ex` file here for an example in your mix project 
 
 ```
 mix compile
-mix decompile --to-erl ExSample
+mix decompile ExSample --to erl
 grep -v "no_auto_import" "./Elixir.ExSample.erl" > "./ex_sample.erl"
 ```
 

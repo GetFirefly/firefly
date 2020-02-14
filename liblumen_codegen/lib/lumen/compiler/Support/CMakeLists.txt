@@ -1,0 +1,26 @@
+lumen_cc_library(
+  NAME
+    Support
+  HDRS
+    "ErrorHandling.h"
+    "LLVM.h"
+    "MemoryBuffer.h"
+    "MLIR.h"
+    "Options.h"
+    "raw_win32_handle_ostream.h"
+    "RustString.h"
+  SRCS
+    "ErrorHandling.cpp"
+    "LLVM.cpp"
+    "MLIR.cpp"
+    "Options.cpp"
+    "raw_win32_handle_ostream.cpp"
+    "RustString.cpp"
+  DEPS
+    LLVMSupport
+    MLIRSupport
+    MLIRIR
+    MLIRPass
+  ALWAYSLINK
+  PUBLIC
+)

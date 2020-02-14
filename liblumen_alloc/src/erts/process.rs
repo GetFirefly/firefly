@@ -58,6 +58,22 @@ cfg_if::cfg_if! {
   }
 }
 
+#[derive(Debug, Default)]
+#[repr(C)]
+pub struct CalleeSavedRegisters {
+    rsp: u64,
+    r15: u64,
+    r14: u64,
+    r13: u64,
+    r12: u64,
+    rbx: u64,
+    rbp: u64,
+}
+/// NOTE: We can safely mark this Sync because
+/// it is only ever used by the scheduler, and
+/// is never accessed by other threads.
+unsafe impl Sync for CalleeSavedRegisters {}
+
 /// Represents the primary control structure for processes
 ///
 /// NOTE FOR LUKE: Like we discussed, when performing GC we will
@@ -109,6 +125,8 @@ pub struct Process {
     /// Maps monitor references to the PID of the process being monitored by this process.
     pub monitored_pid_by_reference: Mutex<HashMap<Reference, Pid>>,
     pub mailbox: Mutex<RefCell<Mailbox>>,
+    pub registers: CalleeSavedRegisters,
+    pub stack: alloc::Stack,
     // process heap, cache line aligned to avoid false sharing with rest of struct
     heap: Mutex<ProcessHeap>,
 }
@@ -140,6 +158,8 @@ impl Process {
             status: Default::default(),
             mailbox: Default::default(),
             heap: Mutex::new(heap),
+            stack: Default::default(),
+            registers: Default::default(),
             code_stack: Default::default(),
             scheduler_id: Mutex::new(None),
             priority,
@@ -152,6 +172,24 @@ impl Process {
             monitor_by_reference: Default::default(),
             monitored_pid_by_reference: Default::default(),
         }
+    }
+
+    pub fn new_with_stack(
+        priority: Priority,
+        parent_pid: Option<Pid>,
+        initial_module_function_arity: Arc<ModuleFunctionArity>,
+        heap: *mut Term,
+        heap_size: usize,
+    ) -> AllocResult<Self> {
+        let mut p = Self::new(
+            priority,
+            parent_pid,
+            initial_module_function_arity,
+            heap,
+            heap_size,
+        );
+        p.stack = self::alloc::stack(1)?;
+        Ok(p)
     }
 
     // Scheduler
@@ -303,6 +341,11 @@ impl Process {
     pub unsafe fn alloca_layout(&self, layout: Layout) -> AllocResult<NonNull<Term>> {
         let mut heap = self.heap.lock();
         heap.alloca_layout(layout)
+    }
+
+    #[inline(always)]
+    pub fn stack(&self) -> &alloc::Stack {
+        &self.stack
     }
 
     /// Pushes an immediate term or reference to term/list on top of the stack.

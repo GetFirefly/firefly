@@ -22,8 +22,10 @@ use libeir_intern::Symbol;
 use libeir_ir as ir;
 
 use liblumen_session::Options;
+use liblumen_core::symbols::FunctionSymbol;
 
 use crate::mlir::{Context, Module};
+use crate::llvm;
 use crate::Result;
 
 pub use self::function::{FunctionBuilder, ScopedFunctionBuilder};
@@ -31,14 +33,14 @@ pub use self::function::{FunctionBuilder, ScopedFunctionBuilder};
 pub struct GeneratedModule {
     pub module: Module,
     pub atoms: HashSet<Symbol>,
-    pub symbols: HashSet<ir::FunctionIdent>,
+    pub symbols: HashSet<FunctionSymbol>,
 }
 
 /// Constructs an MLIR module from an EIR module, using the provided context and options
-pub fn build(module: &ir::Module, context: &Context, options: &Options) -> Result<GeneratedModule> {
+pub fn build(module: &ir::Module, context: &Context, options: &Options, target_machine: &llvm::TargetMachine) -> Result<GeneratedModule> {
     debug!("building mlir module for {}", module.name());
 
-    let mut builder = ModuleBuilder::new(module, context);
+    let mut builder = ModuleBuilder::new(module, context, target_machine.as_ref());
     return builder.build(options);
 }
 
@@ -53,7 +55,8 @@ pub struct ModuleBuilder<'m> {
     builder: ffi::ModuleBuilderRef,
     module: &'m ir::Module,
     atoms: RefCell<HashSet<Symbol>>,
-    symbols: RefCell<HashSet<ir::FunctionIdent>>,
+    symbols: RefCell<HashSet<FunctionSymbol>>,
+    target_machine: llvm::TargetMachineRef,
 }
 impl<'m> ModuleBuilder<'m> {
     /// Returns the underlying MLIR module builder
@@ -63,17 +66,22 @@ impl<'m> ModuleBuilder<'m> {
     }
 
     /// Creates a new builder for the given EIR module, using the provided MLIR context
-    pub fn new(module: &'m ir::Module, context: &Context) -> Self {
+    pub fn new(module: &'m ir::Module, context: &Context, target_machine: llvm::TargetMachineRef) -> Self {
         use ffi::MLIRCreateModuleBuilder;
 
         let name = module.name();
         let c_name = CString::new(name.to_string()).unwrap();
-        let builder = unsafe { MLIRCreateModuleBuilder(context.as_ref(), c_name.as_ptr()) };
+        let builder = unsafe { MLIRCreateModuleBuilder(context.as_ref(), c_name.as_ptr(), target_machine) };
+
+        let mut atoms = HashSet::new();
+        atoms.insert(name.name);
+
         Self {
             builder,
             module,
-            atoms: RefCell::new(HashSet::new()),
+            atoms: RefCell::new(atoms),
             symbols: RefCell::new(HashSet::new()),
+            target_machine,
         }
     }
 
@@ -91,6 +99,8 @@ impl<'m> ModuleBuilder<'m> {
             fb.build(options)?;
         }
 
+        unsafe { ffi::MLIRDumpModule(self.builder); }
+
         debug!("finished building {}, finalizing..", self.module.name());
 
         let result = unsafe { MLIRFinalizeModuleBuilder(self.builder) };
@@ -99,6 +109,7 @@ impl<'m> ModuleBuilder<'m> {
                 "unexpected error occurred when lowering EIR module"
             ));
         }
+
 
         Ok(GeneratedModule {
             module: Module::new(result),
@@ -118,12 +129,12 @@ impl<'m> ModuleBuilder<'m> {
     }
 
     /// Returns the set of function symbols found in this module
-    pub fn symbols(&self) -> core::cell::Ref<HashSet<ir::FunctionIdent>> {
+    pub fn symbols(&self) -> core::cell::Ref<HashSet<FunctionSymbol>> {
         self.symbols.borrow()
     }
 
     /// Returns the set of function symbols found in this module, mutably
-    pub fn symbols_mut(&self) -> core::cell::RefMut<HashSet<ir::FunctionIdent>> {
+    pub fn symbols_mut(&self) -> core::cell::RefMut<HashSet<FunctionSymbol>> {
         self.symbols.borrow_mut()
     }
 }

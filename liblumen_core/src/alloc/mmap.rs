@@ -24,6 +24,23 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
     sys_alloc::alloc(layout)
 }
 
+/// Creates a memory mapping specifically set up to behave like a stack
+#[cfg(has_mmap)]
+#[inline]
+pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
+    mmap::map_stack(pages)
+}
+
+/// Creates a memory mapping specifically set up to behave like a stack
+///
+/// NOTE: This is a fallback implementation, so no guard page is present,
+/// and it is implemented the same as `map`
+#[cfg(not(has_mmap))]
+#[inline]
+pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
+    sys_alloc::alloc(pages)
+}
+
 /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new size
 #[cfg(has_mmap)]
 #[inline]

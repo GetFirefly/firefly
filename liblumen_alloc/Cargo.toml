@@ -16,11 +16,11 @@ instrument = []
 log = "0.4"
 cfg-if = "0.1"
 lazy_static = "1.2"
+once_cell = "1.3"
 anyhow = "1.0"
 thiserror = "1.0"
 num-traits = "0.2"
 num-bigint = "0.2"
-thread_local = "0.3"
 heapless = { git = "https://github.com/japaric/heapless" }
 static_assertions = "1.0.0"
 liblumen_core = { path = "../liblumen_core" }

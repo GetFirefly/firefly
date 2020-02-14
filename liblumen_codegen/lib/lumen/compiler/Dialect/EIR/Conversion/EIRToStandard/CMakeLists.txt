@@ -1,0 +1,16 @@
+lumen_cc_library(
+  NAME
+    EIRToStandard
+  HDRS
+    "ConvertEIRToStandard.h"
+  SRCS
+    "ConvertEIRToStandard.cpp"
+  DEPS
+    lumen::compiler::Dialect::EIR::IR
+    MLIRIR
+    MLIRPass
+    MLIRStandardOps
+    MLIRTransforms
+  ALWAYSLINK
+  PUBLIC
+)

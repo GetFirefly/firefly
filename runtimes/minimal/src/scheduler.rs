@@ -1,0 +1,506 @@
+mod run_queue;
+
+use std::ptr;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Weak};
+
+use hashbrown::HashMap;
+
+use liblumen_core::lock::RwLock;
+
+use liblumen_alloc::erts::apply;
+use liblumen_alloc::erts::process::{self, Status};
+use liblumen_alloc::erts::scheduler::id;
+
+use lumen_rt_core::timer::Hierarchy;
+
+use super::InitFn;
+
+extern "C" {
+    // External thread local owned by the generated code
+    #[thread_local]
+    static mut CURRENT_REDUCTION_COUNT: u32;
+}
+
+thread_local! {
+  static SCHEDULER: Arc<Scheduler> = Scheduler::registered();
+}
+
+lazy_static! {
+    static ref SCHEDULERS: Mutex<HashMap<id::ID, Weak<Scheduler>>> = Mutex::new(Default::default());
+}
+
+#[link_name = "__lumen_builtin_yield"]
+pub unsafe extern "C" fn process_yield() -> bool {
+    let s = Scheduler::current();
+    // NOTE: We always set root=false here because the root
+    // process never invokes this function
+    s.process_yield(/* root= */ false);
+}
+
+#[link_name = "__lumen_builtin_return"]
+pub unsafe extern "C" fn process_return() {
+    let s = Scheduler::current();
+    s.process_return();
+}
+
+struct ScheduledProcess {
+    process: Cell<Arc<Process>>,
+}
+impl Deref for ScheduledProcess {
+    type Target = Process;
+    fn deref(&self) -> &Self::Target {
+        self.process.deref()
+    }
+}
+// This is safe as the only way fields in this
+// struct are even accessed are when swapping processes
+unsafe impl Sync for ScheduledProcess {}
+impl From<Arc<Process>> for ScheduledProcess {
+    fn from(process: Arc<Process>) -> Self {
+        Self {
+            process: Cell::new(process),
+        }
+    }
+}
+
+pub struct Scheduler {
+    id: id::ID,
+    hierarchy: RwLock<Hierarchy>,
+    // References are always 64-bits even on 32-bit platforms
+    reference_count: AtomicU64,
+    run_queues: RwLock<run_queue::Queues>,
+    // Non-monotonic unique integers are scoped to the scheduler ID and then use this per-scheduler
+    // `u64`.
+    unique_integer: AtomicU64,
+    root: Arc<Process>,
+    init: Arc<Process>,
+    current: ScheduledProcess,
+}
+impl Scheduler {
+    /// Creates a new scheduler with the default configuration
+    fn new() -> anyhow::Result<Scheduler> {
+        let id = id::next();
+
+        // The root process is how the scheduler gets time for itself,
+        // and is also how we know when to shutdown the scheduler due
+        // to termination of all its processes
+        let root = Arc::new(Process::new(
+            Priority::Normal,
+            None,
+            Arc::new(ModuleFunctionArity {
+                module: Atom::from_str("root"),
+                function: Atom::from_str("init"),
+                arity: 0,
+            }),
+            ptr::null_mut(),
+            0,
+        ));
+        let run_queues = Default::default();
+        Scheduler::spawn_root(root.clone(), id, &run_queues)?;
+
+        // The init process is the actual "root" Erlang process, it acts
+        // as the entry point for the program from Erlang's perspective,
+        // and is responsible for starting/stopping the system in Erlang.
+        //
+        // If this process exits, the scheduler terminates
+        let (init_heap, init_heap_size) = process::alloc::default_heap()?;
+        let init = Arc::new(Process::new_with_stack(
+            Priority::Normal,
+            None,
+            Arc::new(ModuleFunctionArity {
+                module: Atom::from_str("init"),
+                function: Atom::from_str("start"),
+                arity: 0,
+            }),
+            heap: init_heap,
+            heap_size: init_heap_size,
+        )?);
+        Scheduler::spawn_internal(init.clone(), id, &run_queues)?;
+
+        // The scheduler starts with the root process running
+        let current = ScheduledProcess::from(root.clone());
+
+        Self {
+            id,
+            run_queues,
+            root,
+            init,
+            current,
+            hierarchy: Default::default(),
+            reference_count: AtomicU64::new(0),
+            unique_integer: AtomicU64::new(0),
+        }
+    }
+
+    /// Gets the scheduler registered to this thread
+    ///
+    /// If no scheduler has been created for this thread, one is created
+    fn registered() -> Arc<Self> {
+        let mut schedulers = SCHEDULERS.lock();
+        let s = Arc::new(Self::new());
+
+        if let Some(_) = schedulers.insert(s.id, Arc::downgrade(&s)) {
+            panic!("Scheduler already registered with ID ({:?}", s.id);
+        }
+
+        s
+    }
+
+    /// Gets the current thread's scheduler
+    pub fn current() -> Arc<Self> {
+        SCHEDULER.with(|s| s.clone())
+    }
+
+    /// Gets a scheduler by its ID
+    pub fn from_id(id: &id::ID) -> Option<Arc<Self>> {
+        Self::current_from_id(id).or_else(|| SCHEDULERS.lock().get(id).and_then(|s| s.upgrade()))
+    }
+
+    /// Returns the current thread's scheduler if it matches the given ID
+    fn current_from_id(id: &ID) -> Option<Arc<Self>> {
+        SCHEDULER.with(|s| if &s.id == id { Some(s.clone()) } else { None })
+    }
+
+    /// Gets the next available reference number
+    pub fn next_reference_number(&self) -> ReferenceNumber {
+        self.reference_count.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Gets the next available unique integer
+    pub fn next_unique_integer(&self) -> u64 {
+        self.unique_integer.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Returns the length of the current scheduler's run queue
+    pub fn run_queues_len(&self) -> usize {
+        self.run_queues.read().len()
+    }
+
+    /// Returns the length of a specific run queue in the current scheduler
+    #[cfg(test)]
+    pub fn run_queue_len(&self, priority: Priority) -> usize {
+        self.run_queues.read().run_queue_len(priority)
+    }
+
+    /// Returns true if the given process is in the current scheduler's run queue
+    #[cfg(test)]
+    pub fn is_run_queued(&self, value: &Arc<Process>) -> bool {
+        self.run_queues.read().contains(value)
+    }
+
+    // TODO: Request application master termination for controlled shutdown
+    // This request will always come from the thread which spawned the application
+    // master, i.e. the "main" scheduler thread
+    //
+    // Returns `Ok(())` if shutdown was successful, `Err(anyhow::Error)` if something
+    // went wrong during shutdown, and it was not able to complete normally
+    pub fn shutdown(&self) -> anyhow::Result<()> {
+        // For now just Ok(()), but this needs to be addressed when proper
+        // system startup/shutdown is in place
+        Ok(())
+    }
+}
+impl Debug for Scheduler {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Scheduler")
+            .field("id", &self.id)
+            // The hiearchy slots take a lot of space, so don't print them by default
+            .field("reference_count", &self.reference_count)
+            .field("run_queues", &self.run_queues)
+            .finish()
+    }
+}
+impl Drop for Scheduler {
+    fn drop(&mut self) {
+        let mut locked_scheduler_by_id = SCHEDULERS.lock();
+
+        locked_scheduler_by_id
+            .remove(&self.id)
+            .expect("Scheduler not registered");
+    }
+}
+impl PartialEq for Scheduler {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+/// What to run
+pub enum Run {
+    /// Run the process now
+    Now(Arc<Process>),
+    /// There was a process in the queue, but it needs to be delayed because it is `Priority::Low`
+    /// and hadn't been delayed enough yet.  Ask the `RunQueue` again for another process.
+    /// -- https://github.com/erlang/otp/blob/fe2b1323a3866ed0a9712e9d12e1f8f84793ec47/erts/emulator/beam/erl_process.c#L9601-L9606
+    Delayed,
+    /// There are no processes in the run queue, do other work
+    None,
+}
+
+impl Scheduler {
+    /// > 1. Update reduction counters
+    /// > 2. Check timers
+    /// > 3. If needed check balance
+    /// > 4. If needed migrated processes and ports
+    /// > 5. Do auxiliary scheduler work
+    /// > 6. If needed check I/O and update time
+    /// > 7. While needed pick a port task to execute
+    /// > 8. Pick a process to execute
+    /// > -- [The Scheduler Loop](https://blog.stenmans.org/theBeamBook/#_the_scheduler_loop)
+    ///
+    /// Returns `true` if a process was run.  Returns `false` if no process could be run and the
+    /// scheduler should sleep or work steal.
+    #[must_use]
+    pub fn run_once(&self) -> bool {
+        // We always set root=true here, since calling this function is always done
+        // from the scheduler loop, and only ever from the root context
+        self.process_yield(/* root= */ true)
+    }
+
+    /// Called when the current process has finished executing, and has
+    /// returned all the way to its entry function. This marks the process
+    /// as exiting (if it wasn't already), and then yields to the scheduler
+    fn process_return(&self) -> bool {
+        if self.current.pid() != self.root.pid() {
+            self.current.exit();
+            // NOTE: We always set root=false here, even though this can
+            // be called from the root process, since returning from the
+            // root process exits the scheduler loop anyway, so no stack
+            // swapping can occur
+            self.process_yield(/* root= */ false);
+        }
+    }
+
+    /// This function performs two roles, albeit virtually identical:
+    ///
+    /// First, this function is called by the scheduler to resume execution
+    /// of a process pulled from the run queue. It does so using its "root"
+    /// process as its context.
+    ///
+    /// Second, this function is called by a process when it chooses to
+    /// yield back to the scheduler. In this case, the scheduler "root"
+    /// process is swapped in, so the scheduler has a chance to do its
+    /// auxilary tasks, after which the scheduler will call it again to
+    /// swap in a new process.
+    fn process_yield(&self, is_root: bool) -> bool {
+        self.hierarchy.write().timeout();
+
+        loop {
+            let next = {
+                let mut rq = self.run_queues.write();
+                rq.dequeue()
+            };
+
+            match next {
+                Run::Now(process) => {
+                    // Don't allow exiting processes to run again.
+                    //
+                    // Without this check, a process.exit() from outside the process during WAITING
+                    // will return to the Frame that called `process.wait()`
+                    if !process.is_exiting() {
+                        unsafe {
+                            self.swap_process(process, is_root);
+                        }
+                    } else {
+                        process.reduce()
+                    }
+
+                    // When reached, either the process scheduled is the root process,
+                    // or the process is exiting and we called .reduce(); either way we're
+                    // returning to the main scheduler loop to check for signals, etc.
+                    break true;
+                }
+                Run::Delayed => continue,
+                Run::None if is_root => {
+                    // If no processes are available, then the scheduler should steal,
+                    // but if it can't/doesn't, then it must terminate, as there is
+                    // nothing we can swap to. When we break here, we're returning
+                    // to the core scheduler loop, which _must_ terminate, if it does
+                    // not, we'll just end up right back here again.
+                    //
+                    // TODO: stealing
+                    break false;
+                }
+            }
+        }
+    }
+
+    /// This function takes care of coordinating the scheduling of a new
+    /// process/descheduling of the current process.
+    ///
+    /// - Updating process status
+    /// - Updating reduction count based on accumulated reductions during execution
+    /// - Resetting reduction counter for next process
+    /// - Handling exiting processes (logging/propagating)
+    ///
+    /// Once that is complete, it swaps to the new process stack via `swap_stack`,
+    /// at which point execution resumes where the newly scheduled process left
+    /// off previously, or in its init function.
+    unsafe fn swap_process(&self, new: Arc<Process>, is_root: bool) {
+        // Mark the new process as Running
+        let new_ctx = &new.registers as *const _;
+        {
+            let new_status = new.status.write();
+            *new_status = Status::Running;
+        }
+
+        // Replace the previous process with the new as the currently scheduled process
+        let prev = self.current.replace(new.clone());
+
+        // Increment reduction count if not the root process
+        if !is_root {
+            let prev_reductions = reset_reduction_counter();
+            prev.total_reductions
+                .fetch_add(prev_reductions as u64, Ordering::Relaxed);
+        }
+
+        // Change the previous process status to Runnable
+        {
+            prev_status = prev.status.write();
+            if Status::Running == *prev_status {
+                *prev_status = Status::Runnable
+            }
+        }
+
+        // Save the previous process registers for the stack swap
+        let prev_ctx = &prev.registers as *const _ as *mut _;
+
+        // Then try to schedule it for the future
+        // If the process is exiting, then handle the exit, otherwise
+        // proceed to the stack swap
+        if let Some(exiting) = self.run_queues.write().requeue(prev) {
+            if let Status::Exiting(ref ex) = *exiting.status.read() {
+                process::log_exit(&exiting, ex);
+                process::propagate_exit(&exiting, ex);
+            } else {
+                unreachable!()
+            }
+        }
+
+        // Execute the swap
+        //
+        // When swapping to the root process, we return here, which
+        // will unwind back to the main scheduler loop in `lib.rs`.
+        //
+        // When swapping to a newly spawned process, we return "into"
+        // its init function, or put another way, we jump to its
+        // function prologue. In this situation, all of the saved registers
+        // except %rsp and %rbp will be zeroed. %rsp is set during the call
+        // to `spawn`, but %rbp is set to the current %rbp value to ensure
+        // that stack traces link the new stack to the frame in which execution
+        // started
+        //
+        // When swapping to a previously spawned process, we return here,
+        // since the process called `process_yield`. From here we unwind back
+        // to the call to `process_yield` and resume execution from the point
+        // where it was called.
+        swap_stack(prev_ctx, new_ctx);
+    }
+
+    /// Schedules the given process for execution
+    pub fn schedule(&mut self, process: Arc<Process>) {
+        debug_assert_ne!(Some(self.id), process.scheduler_id(), "process is already scheduled here!");
+
+        process.schedule_with(self.id);
+
+        let mut rq = self.run_queues.write();
+        rq.enqueue(process);
+    }
+
+    /// Spawns a new process using the given init function as its entry
+    #[inline]
+    pub fn spawn(&mut self, process: Arc<Process>) -> anyhow::Result<()> {
+        Self::spawn_internal(process, self.id, &self.run_queues)
+    }
+
+    // Root process uses the original thread stack, no initialization required.
+    //
+    // It also starts "running", so we don't put it on the run queue
+    fn spawn_root(process: Arc<Process>, id: scheduler::ID, run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
+        process.schedule_with(id);
+
+        *p.state.write() = Status::Running;
+    }
+
+    fn spawn_internal(process: Arc<Process>, id: scheduler::ID, run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
+        process.schedule_with(id);
+
+        let mfa = &process.initial_module_function_arity;
+        let init_fn = apply::find_symbol(&mfa)
+            .ok_or_else(|| anyhow!("invalid mfa provided for process ({}), no such symbol found", &mfa))?;
+
+        // Write the return function and init function to the end of the stack,
+        // when execution resumes, the pointer before the stack pointer will be
+        // used as the return address - the first time that will be the init function.
+        //
+        // When execution returns from the init function, then it will return via
+        // `process_return`, which will return to the scheduler and indicate that
+        // the process exited. The nature of the exit is indicated by error state
+        // in the process itself
+        unsafe {
+            let s_ptr = p.stack.top;
+            let s_ptr = (s_ptr as usize & !15) as *mut u8;
+            ptr::write(s_ptr.top.offset(-24) as *mut u64, process_return as u64);
+            ptr::write(s_ptr.top.offset(-32) as *mut u64, init_fn as u64);
+            p.registers.rsp = s_ptr.top.offset(-32) as u64;
+        }
+
+        *p.state.write() = Status::Runnable;
+
+        let mut rq = self.run_queues.write();
+        rq.enqueue(process);
+    }
+}
+
+fn reset_reduction_counter() -> u64 {
+    let count = unsafe { CURRENT_REDUCTION_COUNT };
+    unsafe {
+        CURRENT_REDUCTION_COUNT = 0;
+    }
+    count as u64
+}
+
+/// This function uses inline assembly to save the callee-saved registers for the outgoing
+/// process, and restore them for the incoming process. When this function returns, it will
+/// resume execution where `swap_stack` was called previously.
+#[naked]
+#[inline(never)]
+#[cfg(all(unix, target_arch = "x86_64"))]
+unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters) {
+    asm!("
+        # Save the stack pointer, base pointer, and callee-saved registers of `prev`
+        movq     %rsp, ($0)
+        movq     %r15, 8($0)
+        movq     %r14, 16($0)
+        movq     %r13, 24($0)
+        movq     %r12, 32($0)
+        movq     %rbx, 40($0)
+        movq     %rbp, 48($0)
+
+        # Restore the stack pointer, base pointer, and callee-saved registers of `new`
+        movq     ($1),   %rsp
+        movq     8($1),  %r15
+        movq     16($1), %r14
+        movq     24($1), %r13
+        movq     32($1), %r12
+        movq     40($1), %rbx
+
+        # Only restore the base pointer if non-zero, this preserves a link from
+        # the frame in which a process first begins execution, and the first frame
+        # in that processes' stack
+        testq    $$0x0,  48($1)
+        cmovnzq  48($1), %rbp
+
+        # Return into the new process
+        retq
+        "
+    :
+    : "r"(prev), "r"(new)
+    :
+    : "volatile", "alignstack"
+    );
+}
+
+#[cfg(not(all(unix, target_arch = "x86_64")))]
+compile_error!("lumen_rt_minimal does not currently support this architecture!");

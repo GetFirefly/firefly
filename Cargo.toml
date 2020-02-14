@@ -23,6 +23,8 @@ members = [
   "liblumen_target",
   "liblumen_term",
   "liblumen_util",
+  "runtimes/core",
+  "runtimes/minimal",
 ]
 
 default-members = [

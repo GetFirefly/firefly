@@ -19,16 +19,56 @@ pub use self::virtual_alloc::{VirtualAlloc, VirtualAllocator, VirtualHeap};
 pub use self::virtual_binary_heap::VirtualBinaryHeap;
 
 use core::alloc::CannotReallocInPlace;
+use core::ptr;
 
 use lazy_static::lazy_static;
 
 use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::Term;
 
+pub const DEFAULT_STACK_SIZE: usize = 1; // 1 page
+
 // The global process heap allocator
 lazy_static! {
     static ref PROC_ALLOC: ProcessHeapAlloc = ProcessHeapAlloc::new();
 }
+
+pub struct Stack {
+    pub base: *mut u8,
+    pub top: *mut u8,
+    pub size: usize,
+}
+impl Stack {
+    fn new(base: *mut u8, pages: usize) -> Self {
+        use liblumen_core::sys::sysconf;
+
+        let size = (pages + 1) * sysconf::pagesize();
+        Self {
+            base,
+            top: unsafe { base.offset(size as isize) },
+            size,
+        }
+    }
+
+    #[inline]
+    pub fn limit(&self) -> *mut u8 {
+        use liblumen_core::sys::sysconf;
+        unsafe { self.base.offset(sysconf::pagesize() as isize) }
+    }
+}
+impl Default for Stack {
+    fn default() -> Self {
+        Self {
+            base: ptr::null_mut(),
+            top: ptr::null_mut(),
+            size: 0,
+        }
+    }
+}
+/// This can be safely marked Sync when used in Process;
+/// this is because the stack metadata is only ever accessed
+/// by the executing process.
+unsafe impl Sync for Stack {}
 
 /// Allocate a new default-sized process heap
 #[inline]
@@ -46,6 +86,17 @@ pub fn default_heap_size() -> usize {
 #[inline]
 pub fn heap(size: usize) -> AllocResult<*mut Term> {
     PROC_ALLOC.alloc(size)
+}
+
+/// Allocate a new process stack of the given size
+#[inline]
+pub fn stack(size: usize) -> AllocResult<Stack> {
+    use liblumen_core::alloc::mmap;
+
+    debug_assert!(size > 0, "stack size in pages must be greater than 0");
+
+    let ptr = unsafe { mmap::map_stack(size)? };
+    Ok(Stack::new(ptr.as_ptr(), size))
 }
 
 /// Reallocate a process heap, in place

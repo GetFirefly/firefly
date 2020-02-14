@@ -55,11 +55,8 @@ impl AsValueRef for AtomicTerm {
             AtomicTerm::Atom(ref a) => a.as_value_ref(builder, options),
             AtomicTerm::Binary(ref b) => b.as_value_ref(builder, options),
             AtomicTerm::Nil => {
-                let pointer_width = options.target.target_pointer_width;
-                let encoding = options.target.options.encoding;
-                let nil = with_encoding!(encoding, pointer_width, Encoding::NIL as i64);
                 let val = unsafe {
-                    MLIRBuildConstantNil(builder, nil, pointer_width as libc::c_uint)
+                    MLIRBuildConstantNil(builder)
                 };
                 unwrap!(val, "failed to construct constant nil")
             }
@@ -100,20 +97,10 @@ impl AsValueRef for IntTerm {
 }
 impl AsValueRef for i64 {
     fn as_value_ref(&self, builder: ModuleBuilderRef, options: &Options) -> Result<ValueRef> {
-        let pointer_width = options.target.target_pointer_width;
-        let encoding = options.target.options.encoding;
-        let val = with_encoding!(encoding, pointer_width, {
-            let i = *self;
-            if i < Encoding::MIN_SMALLINT_VALUE as i64 || i > Encoding::MAX_SMALLINT_VALUE as i64 {
-                // Too large, must use big int
-                let bi: BigInt = i.into();
-                return bi.as_value_ref(builder, options);
-            }
-            unsafe {
-                MLIRBuildConstantInt(builder, i, pointer_width as libc::c_uint)
-            }
-        });
-        unwrap!(val, "failed to construct constant integer ({}) with encoding {:#?} for target pointer width of {}", self, encoding, pointer_width)
+        let val = unsafe {
+            MLIRBuildConstantInt(builder, *self)
+        };
+        unwrap!(val, "failed to construct constant integer ({})", self)
     }
 }
 impl AsValueRef for BigIntTerm {
@@ -146,11 +133,10 @@ impl AsValueRef for FloatTerm {
 }
 impl AsValueRef for f64 {
     fn as_value_ref(&self, builder: ModuleBuilderRef, options: &Options) -> Result<ValueRef> {
-        let is_packed = options.target.options.encoding != EncodingType::Encoding64Nanboxed;
         let val = unsafe {
-            MLIRBuildConstantFloat(builder, *self, is_packed)
+            MLIRBuildConstantFloat(builder, *self)
         };
-        unwrap!(val, "failed to construct constant float ({}, packed = {})", self, is_packed)
+        unwrap!(val, "failed to construct constant float ({})", self)
     }
 }
 impl AsValueRef for AtomTerm {
@@ -161,20 +147,14 @@ impl AsValueRef for AtomTerm {
 }
 impl AsValueRef for Symbol {
     fn as_value_ref(&self, builder: ModuleBuilderRef, options: &Options) -> Result<ValueRef> {
-        let pointer_width = options.target.target_pointer_width;
-        let encoding = options.target.options.encoding;
-        let val = with_encoding!(encoding, pointer_width, {
-            let i = self.as_usize() as <Encoding as TermEncoding>::Type;
-            if i >= Encoding::MAX_ATOM_ID {
-                return Err(anyhow!("invalid atom id ({}) in encoding {:#?} for target pointer width of {}", i, encoding, pointer_width));
-            }
-            let encoded = Encoding::encode_immediate(i, Encoding::TAG_ATOM);
-            let s = CString::new(self.as_str().get()).unwrap();
+        let i = self.as_usize() as u64;
+        let s = CString::new(self.as_str().get()).unwrap();
+        let val = unsafe {
             unsafe {
-                MLIRBuildConstantAtom(builder, s.as_ptr(), encoded as u64, pointer_width as libc::c_uint)
+                MLIRBuildConstantAtom(builder, s.as_ptr(), i)
             }
-        });
-        unwrap!(val, "failed to construct constant atom ({}) with encoding {:#?} for target pointer width of {}", self, encoding, pointer_width)
+        };
+        unwrap!(val, "failed to construct constant atom ({})", self)
     }
 }
 impl AsValueRef for BinaryTerm {
@@ -191,7 +171,7 @@ impl AsValueRef for BinaryTerm {
         let ptr = slice.as_ptr() as *const libc::c_char;
         let len = slice.len() as libc::c_uint;
         let val = unsafe {
-            MLIRBuildConstantBinary(builder, ptr, len, header, flags, pointer_width as libc::c_uint)
+            MLIRBuildConstantBinary(builder, ptr, len, header, flags)
         };
         if val.is_null() {
             let flags = unsafe {
@@ -222,11 +202,8 @@ impl AsAttributeRef for AtomicTerm {
             AtomicTerm::Atom(ref a) => a.as_attribute_ref(builder, options),
             AtomicTerm::Binary(ref b) => b.as_attribute_ref(builder, options),
             AtomicTerm::Nil => {
-                let pointer_width = options.target.target_pointer_width;
-                let encoding = options.target.options.encoding;
-                let nil = with_encoding!(encoding, pointer_width, Encoding::NIL as i64);
                 let val = unsafe {
-                    MLIRBuildNilAttr(builder, nil, pointer_width as libc::c_uint)
+                    MLIRBuildNilAttr(builder)
                 };
                 unwrap!(val, "failed to construct constant nil")
             }
@@ -267,20 +244,12 @@ impl AsAttributeRef for IntTerm {
 }
 impl AsAttributeRef for i64 {
     fn as_attribute_ref(&self, builder: ModuleBuilderRef, options: &Options) -> Result<AttributeRef> {
-        let pointer_width = options.target.target_pointer_width;
-        let encoding = options.target.options.encoding;
-        let val = with_encoding!(encoding, pointer_width, {
-            let i = *self;
-            if i < Encoding::MIN_SMALLINT_VALUE as i64 || i > Encoding::MAX_SMALLINT_VALUE as i64 {
-                // Too large, must use big int
-                let bi: BigInt = i.into();
-                return bi.as_attribute_ref(builder, options);
-            }
+        let val = unsafe {
             unsafe {
-                MLIRBuildIntAttr(builder, i, pointer_width as libc::c_uint)
+                MLIRBuildIntAttr(builder, *self)
             }
-        });
-        unwrap!(val, "failed to construct integer attribute ({}) with encoding {:#?} for target pointer width of {}", self, encoding, pointer_width)
+        };
+        unwrap!(val, "failed to construct integer attribute ({})", self)
     }
 }
 impl AsAttributeRef for BigIntTerm {
@@ -313,11 +282,10 @@ impl AsAttributeRef for FloatTerm {
 }
 impl AsAttributeRef for f64 {
     fn as_attribute_ref(&self, builder: ModuleBuilderRef, options: &Options) -> Result<AttributeRef> {
-        let is_packed = options.target.options.encoding != EncodingType::Encoding64Nanboxed;
         let val = unsafe {
-            MLIRBuildFloatAttr(builder, *self, is_packed)
+            MLIRBuildFloatAttr(builder, *self)
         };
-        unwrap!(val, "failed to construct constant float ({}, packed = {})", self, is_packed)
+        unwrap!(val, "failed to construct constant float ({})", self)
     }
 }
 impl AsAttributeRef for AtomTerm {
@@ -328,20 +296,14 @@ impl AsAttributeRef for AtomTerm {
 }
 impl AsAttributeRef for Symbol {
     fn as_attribute_ref(&self, builder: ModuleBuilderRef, options: &Options) -> Result<AttributeRef> {
-        let pointer_width = options.target.target_pointer_width;
-        let encoding = options.target.options.encoding;
-        let val = with_encoding!(encoding, pointer_width, {
-            let i = self.as_usize() as <Encoding as TermEncoding>::Type;
-            if i >= Encoding::MAX_ATOM_ID {
-                return Err(anyhow!("invalid atom id ({}) in encoding {:#?} for target pointer width of {}", i, encoding, pointer_width));
-            }
-            let encoded = Encoding::encode_immediate(i, Encoding::TAG_ATOM);
-            let s = CString::new(self.as_str().get()).unwrap();
+        let i = self.as_usize() as u64;
+        let s = CString::new(self.as_str().get()).unwrap();
+        let val = unsafe {
             unsafe {
-                MLIRBuildAtomAttr(builder, s.as_ptr(), encoded as u64, pointer_width as libc::c_uint)
+                MLIRBuildAtomAttr(builder, s.as_ptr(), i)
             }
-        });
-        unwrap!(val, "failed to construct atom attribute ({}) with encoding {:#?} for target pointer width of {}", self, encoding, pointer_width)
+        };
+        unwrap!(val, "failed to construct atom attribute ({})", self)
     }
 }
 impl AsAttributeRef for BinaryTerm {
@@ -358,7 +320,7 @@ impl AsAttributeRef for BinaryTerm {
         let ptr = slice.as_ptr() as *const libc::c_char;
         let len = slice.len() as libc::c_uint;
         let val = unsafe {
-            MLIRBuildBinaryAttr(builder, ptr, len, header, flags, pointer_width as libc::c_uint)
+            MLIRBuildBinaryAttr(builder, ptr, len, header, flags)
         };
         if val.is_null() {
             let flags = unsafe {

@@ -8,9 +8,6 @@ license = "Apache-2.0"
 edition = "2018"
 publish = false
 
-[lib]
-crate-type = ["dylib", "rlib"]
-
 [dependencies]
 log = "0.4"
 anyhow = "1.0"
@@ -27,6 +24,7 @@ liblumen_target = { path = "../liblumen_target" }
 liblumen_incremental = { path = "../liblumen_incremental" }
 liblumen_codegen = { path = "../liblumen_codegen" }
 liblumen_util = { path = "../liblumen_util" }
+liblumen_core = { path = "../liblumen_core" }
 
 libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git" }

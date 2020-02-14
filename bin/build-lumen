@@ -72,6 +72,7 @@ while [ $# -gt 0 ]; do
             extra_cargo_flags="--verbose $extra_cargo_flags"
             ;;
         -debug | --debug )
+            extra_rustc_flags="-C opt-level=0"
             OUTPUT_DIR="${ROOT_DIR}/target/debug"
             ;;
 

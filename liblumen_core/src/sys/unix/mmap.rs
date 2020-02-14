@@ -7,7 +7,14 @@ use crate::alloc::utils as alloc_utils;
 use crate::sys::sysconf;
 
 mod constants {
-    pub use libc::{PROT_READ, PROT_WRITE};
+    pub use libc::{PROT_NONE, PROT_READ, PROT_WRITE};
+
+    #[cfg(not(any(
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_vendor = "apple"
+    )))]
+    pub use libc::MAP_STACK;
 
     pub use libc::MAP_FAILED;
     pub use libc::MAP_PRIVATE;
@@ -28,6 +35,22 @@ use self::constants::*;
 
 const MMAP_PROT: libc::c_int = PROT_READ | PROT_WRITE;
 const MMAP_FLAGS: libc::c_int = MAP_PRIVATE | MAP_ANONYMOUS;
+
+const GUARD_PROT: libc::c_int = PROT_NONE;
+const STACK_PROT: libc::c_int = PROT_READ | PROT_WRITE;
+
+#[cfg(not(any(
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_vendor = "apple"
+)))]
+const STACK_FLAGS: libc::c_int = MAP_STACK | MMAP_FLAGS;
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_vendor = "apple"
+))]
+const STACK_FLAGS: libc::c_int = MMAP_FLAGS;
 
 /// Requests a new memory mapping from the OS.
 ///
@@ -70,6 +93,34 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
     commit(aligned_ptr, layout.size());
 
     Ok(NonNull::new_unchecked(aligned_ptr))
+}
+
+#[inline]
+pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
+    // Stacks must be at least 1 page + 1 guard page
+    let page_size = sysconf::pagesize();
+    let stack_size = page_size * (pages + 1);
+    let size = alloc_utils::round_up_to_multiple_of(stack_size, page_size);
+
+    let res = libc::mmap(
+        ptr::null_mut(),
+        size,
+        STACK_PROT,
+        STACK_FLAGS,
+        -1 as libc::c_int,
+        0,
+    );
+
+    if res == MAP_FAILED {
+        return Err(AllocErr);
+    }
+
+    // Set up guard page
+    if 0 == libc::mprotect(res as *mut libc::c_void, page_size, GUARD_PROT) {
+        Ok(NonNull::new_unchecked(res as *mut u8))
+    } else {
+        Err(AllocErr)
+    }
 }
 
 #[inline(always)]

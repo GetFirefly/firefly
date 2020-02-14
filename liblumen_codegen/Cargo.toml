@@ -20,6 +20,7 @@ liblumen_target = { path = "../liblumen_target" }
 liblumen_term = { path = "../liblumen_term" }
 liblumen_util = { path = "../liblumen_util" }
 liblumen_alloc = { path = "../liblumen_alloc" }
+liblumen_core = { path = "../liblumen_core" }
 liblumen_compiler_macros = { path = "../liblumen_compiler_macros" }
 
 # eirproject/eir crates
@@ -27,7 +28,6 @@ libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
 libeir_intern = { git = "https://github.com/eirproject/eir.git" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git" }
 libeir_lowerutils = { git = "https://github.com/eirproject/eir.git" }
-libeir_passes = { git = "https://github.com/eirproject/eir.git" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
 libeir_util_datastructures = { git = "https://github.com/eirproject/eir.git" }
 

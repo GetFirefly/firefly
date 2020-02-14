@@ -12,13 +12,13 @@ pub use salsa::ParallelDatabase;
 use salsa::Snapshot;
 
 use libeir_diagnostics::{CodeMap, Diagnostic};
-use libeir_ir::FunctionIdent;
 use libeir_intern::Symbol;
 
 use liblumen_incremental::{InternedInput, InternerStorage};
 pub use liblumen_incremental::{ParserDatabase, ParserDatabaseBase};
 use liblumen_incremental::{ParserStorage, QueryResult};
 use liblumen_session::{DiagnosticsHandler, Emit, Options, OutputType};
+use liblumen_core::symbols::FunctionSymbol;
 
 pub(crate) mod prelude {
     pub use super::query_groups::*;
@@ -32,7 +32,7 @@ pub struct CompilerDatabase {
     diagnostics: DiagnosticsHandler,
     codemap: Arc<RwLock<CodeMap>>,
     atoms: Arc<Mutex<HashSet<Symbol>>>,
-    symbols: Arc<Mutex<HashSet<FunctionIdent>>>,
+    symbols: Arc<Mutex<HashSet<FunctionSymbol>>>,
 }
 impl CompilerDatabase {
     pub fn new(codemap: Arc<RwLock<CodeMap>>, diagnostics: DiagnosticsHandler) -> Self {
@@ -165,7 +165,7 @@ impl CodegenDatabaseBase for CompilerDatabase {
         }
     }
 
-    fn take_symbols(&mut self) -> HashSet<FunctionIdent> {
+    fn take_symbols(&mut self) -> HashSet<FunctionSymbol> {
         let symbols = Arc::get_mut(&mut self.symbols).unwrap()
             .get_mut()
             .unwrap();
@@ -173,7 +173,7 @@ impl CodegenDatabaseBase for CompilerDatabase {
         core::mem::replace(symbols, empty)
     }
 
-    fn add_symbols<'a, I>(&self, symbols: I) where I: Iterator<Item = &'a FunctionIdent> {
+    fn add_symbols<'a, I>(&self, symbols: I) where I: Iterator<Item = &'a FunctionSymbol> {
         let mut locked = self.symbols.lock().unwrap();
         for i in symbols {
             locked.insert(*i);

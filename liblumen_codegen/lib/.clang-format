@@ -1,2 +1,2 @@
-BasedOnStyle: LLVM
+BasedOnStyle: Google
 AlwaysBreakTemplateDeclarations: Yes

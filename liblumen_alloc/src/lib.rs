@@ -1,5 +1,3 @@
-#![recursion_limit = "128"]
-//#![cfg_attr(not(test), no_std)]
 // Do not fail the build when feature flags are stabilized on recent nightlies, just warn
 #![allow(stable_features)]
 // Allow use of intrinsics, e.g. unlikely/copy_nonoverlapping/etc.
@@ -9,26 +7,12 @@
 #![feature(alloc_layout_extra)]
 // Support offset_from pointer calculation
 #![feature(ptr_offset_from)]
-// Support is_empty for ExactSizeIterator
-#![feature(exact_size_is_empty)]
-// Support use of Self and other type aliases in matches on enum variants
-#![feature(type_alias_enum_variants)]
-// For static assertions that use logical operators
-#![feature(const_fn)]
-// Allow `[#cfg(debug_assertions)]` to enable file, line, and column for runtime::Exception
-#![feature(param_attrs)]
-#![feature(underscore_const_names)]
-#![feature(const_compare_raw_pointers)]
-#![feature(const_raw_ptr_to_usize_cast)]
-#![feature(const_raw_ptr_deref)]
 // Support specialization of traits
 #![feature(specialization)]
 // Support SliceIndex trait
 #![feature(slice_index_methods)]
 // Support backtraces in errors
 #![feature(backtrace)]
-// Support extern thread locals
-#![feature(thread_local)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

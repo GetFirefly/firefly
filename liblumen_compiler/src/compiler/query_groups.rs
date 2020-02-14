@@ -7,6 +7,7 @@ use liblumen_codegen::llvm;
 use liblumen_codegen::mlir;
 use liblumen_incremental::ParserDatabase;
 use liblumen_incremental::{InternedInput, QueryResult};
+use liblumen_core::symbols::FunctionSymbol;
 
 use crate::compiler::intern::InternedString;
 use crate::compiler::queries;
@@ -70,6 +71,6 @@ pub trait StringInternerDatabase: salsa::Database {
 pub trait CodegenDatabaseBase: ParserDatabase + StringInternerDatabase {
     fn take_atoms(&mut self) -> HashSet<libeir_intern::Symbol>;
     fn add_atoms<'a, I>(&self, atoms: I) where I: Iterator<Item = &'a libeir_intern::Symbol>;
-    fn take_symbols(&mut self) -> HashSet<libeir_ir::FunctionIdent>;
-    fn add_symbols<'a, I>(&self, symbols: I) where I: Iterator<Item = &'a libeir_ir::FunctionIdent>;
+    fn take_symbols(&mut self) -> HashSet<FunctionSymbol>;
+    fn add_symbols<'a, I>(&self, symbols: I) where I: Iterator<Item = &'a FunctionSymbol>;
 }

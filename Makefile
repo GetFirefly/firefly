@@ -34,6 +34,9 @@ clean-codegen:
 check: ## Check the Lumen compiler
 	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo check -p lumen
 
+unused-deps: ## Report feature usage in the workspace
+	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo udeps
+
 clippy: ## Lint all
 	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo clippy
 

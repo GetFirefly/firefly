@@ -77,7 +77,8 @@ where
     let context = db.mlir_context(thread_id);
     let options = db.options();
     debug!("generating mlir for {:?} on {:?}", input, thread_id);
-    match mlir::builder::build(&module, &context, &options) {
+    let target_machine = db.get_target_machine(thread_id);
+    match mlir::builder::build(&module, &context, &options, target_machine.deref()) {
         Ok(GeneratedModule { module: mlir_module, atoms, symbols }) => {
             db.add_atoms(atoms.iter());
             db.add_symbols(symbols.iter());
@@ -147,7 +148,8 @@ where
         "lowering mlir to llvm dialect for {:?} on {:?} with opt-level={}",
         input, thread_id, opt
     );
-    to_query_result!(db, module.lower(&context, Dialect::LLVM, opt));
+    let target_machine = db.get_target_machine(thread_id);
+    to_query_result!(db, module.lower(&context, Dialect::LLVM, opt, &target_machine));
 
     // Emit LLVM dialect
     db.maybe_emit_file_with_opts(&options, input, module.deref())?;
@@ -188,10 +190,7 @@ where
     C: CodegenDatabase,
 {
     let options = db.options();
-    let diagnostics = db.diagnostics();
-
     let mlir_module = db.get_llvm_dialect_module(thread_id, input)?;
-    //let target_machine = db.get_target_machine(thread_id);
 
     // Convert to LLVM IR
     let (opt, size) = codegen::ffi::util::to_llvm_opt_settings(options.opt_level);
@@ -199,7 +198,7 @@ where
         "generating llvm for {:?} on {:?} with opt-level={} and size-level={}",
         input, thread_id, opt, size
     );
-    let target_machine = codegen::target::create_target_machine(&options, diagnostics, false);
+    let target_machine = db.get_target_machine(thread_id);
     debug!("using target machine {:?}", &target_machine);
     let module = to_query_result!(db, mlir_module.lower_to_llvm_ir(opt, size, &target_machine));
 

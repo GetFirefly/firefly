@@ -1,0 +1,34 @@
+[package]
+name = "lumen_rt_core"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
+publish = false
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+log = "0.4"
+cfg-if = "0.1.7"
+libc = "0.2"
+num-bigint = "0.2"
+num-traits = "0.2"
+num_enum = "0.4.2"
+radix_fmt = "1.0.0"
+chrono = "0.4"
+
+
+liblumen_core = { path = "../../liblumen_core" }
+liblumen_alloc = { path = "../../liblumen_alloc" }
+
+[dependencies.hashbrown]
+version = "0.5"
+features = ["nightly"]
+
+[dependencies.intrusive-collections]
+version = "0.8"
+features = ["nightly"]
+
+[dependencies.parking_lot_core]
+version = "0.7"
+features = ["nightly"]

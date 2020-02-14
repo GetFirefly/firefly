@@ -22,6 +22,7 @@ impl CallBuilder {
                     .copied()
                     .map(|v| builder.value_ref(v))
                     .collect::<Vec<_>>();
+                builder.debug(&format!("static call args: {:?}", args.as_slice()));
                 let mut ok_args = Vec::new();
                 let ok_block = match op.ok {
                     CallSuccess::Branch(Branch { block, args }) => {
@@ -32,6 +33,7 @@ impl CallBuilder {
                     }
                     _ => Default::default(),
                 };
+                builder.debug(&format!("static call ok args: {:?}", ok_args.as_slice()));
                 let mut err_args = Vec::new();
                 let err_block = match op.err {
                     CallError::Branch(Branch { block, args }) => {
@@ -42,6 +44,7 @@ impl CallBuilder {
                     }
                     _ => Default::default(),
                 };
+                builder.debug(&format!("static call err args: {:?}", err_args.as_slice()));
                 unsafe {
                     MLIRBuildStaticCall(
                         builder.as_ref(),

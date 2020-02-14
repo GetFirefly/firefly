@@ -115,8 +115,8 @@ impl Module {
         Self(RefCell::new(ptr))
     }
 
-    pub fn lower(&self, context: &Context, dialect: Dialect, opt: CodeGenOptLevel) -> Result<()> {
-        let result = unsafe { MLIRLowerModule(context.as_ref(), self.as_ref(), dialect, opt) };
+    pub fn lower(&self, context: &Context, dialect: Dialect, opt: CodeGenOptLevel, target_machine: &llvm::TargetMachine) -> Result<()> {
+        let result = unsafe { MLIRLowerModule(context.as_ref(), self.as_ref(), dialect, opt, target_machine.as_ref()) };
         if !result.is_null() {
             self.0.replace(result);
             return Ok(());
@@ -190,6 +190,7 @@ extern "C" {
         module: ModuleRef,
         dialect: Dialect,
         opt: CodeGenOptLevel,
+        target_machine: TargetMachineRef,
     ) -> ModuleRef;
 
     pub fn MLIRLowerToLLVMIR(

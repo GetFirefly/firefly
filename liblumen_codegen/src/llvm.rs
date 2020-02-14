@@ -1,7 +1,7 @@
-pub(crate) mod memory_buffer;
-pub(crate) mod string;
 pub(crate) mod builder;
 pub(crate) mod enums;
+pub(crate) mod memory_buffer;
+pub(crate) mod string;
 
 pub use self::builder::ModuleBuilder;
 pub use self::enums::*;
@@ -35,6 +35,7 @@ pub type ModuleImpl = llvm_sys::LLVMModule;
 pub type ModuleRef = llvm_sys::prelude::LLVMModuleRef;
 
 pub use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
+pub use llvm_sys::target::LLVMTargetDataRef;
 
 #[repr(transparent)]
 pub struct TargetMachine(TargetMachineRef);
@@ -46,6 +47,12 @@ impl TargetMachine {
 
     pub fn as_ref(&self) -> TargetMachineRef {
         self.0
+    }
+
+    pub fn get_target_data(&self) -> TargetData {
+        use llvm_sys::target::LLVMCreateTargetData;
+        let ptr = unsafe { LLVMCreateTargetData(self.0 as *const i8) };
+        TargetData::new(ptr)
     }
 }
 unsafe impl Send for TargetMachine {}
@@ -59,6 +66,25 @@ impl PartialEq for TargetMachine {
 impl fmt::Debug for TargetMachine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "TargetMachine({:p})", self.0)
+    }
+}
+
+#[repr(transparent)]
+pub struct TargetData(LLVMTargetDataRef);
+impl TargetData {
+    pub fn new(ptr: LLVMTargetDataRef) -> Self {
+        assert!(!ptr.is_null());
+        Self(ptr)
+    }
+
+    pub fn get_pointer_byte_size(&self) -> u32 {
+        use llvm_sys::target::LLVMPointerSize;
+       
+        unsafe { LLVMPointerSize(self.0) }
+    }
+
+    pub fn as_ref(&self) -> LLVMTargetDataRef {
+        self.0
     }
 }
 
@@ -163,9 +189,7 @@ impl Module {
         use llvm_sys::core::LLVMModuleCreateWithNameInContext;
 
         let cstr = CString::new(name).unwrap();
-        let m = unsafe {
-            LLVMModuleCreateWithNameInContext(cstr.as_ptr(), ctx.as_ref())
-        };
+        let m = unsafe { LLVMModuleCreateWithNameInContext(cstr.as_ptr(), ctx.as_ref()) };
         if m.is_null() {
             Err(anyhow!("failed to create LLVM module '{}'", name))
         } else {
@@ -241,6 +265,11 @@ impl Module {
 
     pub fn as_ref(&self) -> ModuleRef {
         self.module
+    }
+
+    #[inline]
+    pub fn target_machine(&self) -> TargetMachine {
+        TargetMachine::new(self.target_machine)
     }
 }
 impl fmt::Debug for Module {

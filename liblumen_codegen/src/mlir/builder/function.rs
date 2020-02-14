@@ -20,6 +20,7 @@ use libeir_util_datastructures::pooled_entity_set::BoundEntitySet;
 use crate::Result;
 
 use liblumen_session::Options;
+use liblumen_core::symbols::FunctionSymbol;
 
 use super::block::{Block, BlockData};
 use super::ffi::*;
@@ -43,19 +44,22 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
 
     pub fn build(mut self, options: &Options) -> Result<()> {
         let f = self.func.function();
-        let name = f.ident();
+        let ident = f.ident();
+        {
+            self.builder.atoms_mut().insert(ident.name.name);
+        }
 
-        debug!("{}: building..", &name);
+        debug!("{}: building..", &ident);
 
-        debug!("{}: performing lowering analysis..", &name);
+        debug!("{}: performing lowering analysis..", &ident);
         let analysis = libeir_lowerutils::analyze(f);
         let loc = Span::from(f.span());
 
         // Gather atoms in this function and add them to the atom table for this module
-        debug!("{}: gathering atoms for atom table", &name);
+        debug!("{}: gathering atoms for atom table", &ident);
         for val in f.iter_constants() {
             if let ConstKind::Atomic(AtomicTerm::Atom(AtomTerm(s))) = value_to_const_kind(f, *val) {
-                debug!("{}: found atom: {:?}", &name, *s);
+                debug!("{}: found atom: {:?}", &ident, *s);
                 self.builder.atoms_mut().insert(*s);
             }
         }
@@ -63,19 +67,24 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         let root_block = f.block_entry();
         for (entry_block, data) in analysis.functions.iter() {
             let entry_block = *entry_block;
-            if entry_block == root_block {
-                self.with_scope(name.clone(), loc, f, &analysis, data, options)
-                    .and_then(|scope| scope.build())?;
+            let func = if entry_block == root_block {
+                self.with_scope(ident.clone(), loc, f, &analysis, data, options)
+                    .and_then(|scope| scope.build())?
             } else {
                 let arity = f.block_args(entry_block).len() - 2;
-                let name = FunctionIdent {
-                    module: name.module.clone(),
-                    name: Ident::from_str(&format!("{}-fun-{}", name.name, arity)),
+                let fun = Ident::from_str(&format!("{}-fun-{}", ident.name, arity));
+                let fi = FunctionIdent {
+                    module: ident.module.clone(),
+                    name: fun,
                     arity,
                 };
-                self.with_scope(name.clone(), loc, f, &analysis, data, options)
-                    .and_then(|scope| scope.build())?;
-            }
+                {
+                    self.builder.atoms_mut().insert(fi.name.name);
+                }
+                self.with_scope(fi, loc, f, &analysis, data, options)
+                    .and_then(|scope| scope.build())?
+            };
+            unsafe { MLIRAddFunction(self.builder.as_ref(), func) }
         }
 
         Ok(())
@@ -437,7 +446,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 // Builder implementation
 impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Builds the function
-    pub fn build(mut self) -> Result<()> {
+    pub fn build(mut self) -> Result<FunctionOpRef> {
         debug_in!(self, "building..");
 
         // NOTE: We start out in the init block
@@ -474,7 +483,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         let root_block = self.eir.block_entry();
 
         // Make sure all blocks are created first
-        let mut blocks = Vec::with_capacity(self.data.scope.len() - 1);
+        let mut blocks = Vec::with_capacity(self.data.scope.len());
+        blocks.push((root_block, entry_block));
         for ir_block in self.data.scope.iter().copied() {
             // We've already taken care of the entry block
             if ir_block == root_block {
@@ -488,7 +498,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             self.build_block(block, ir_block)?;
         }
 
-        Ok(())
+        Ok(self.mlir)
     }
 
     // Prepares an MLIR block for lowering from an EIR block
@@ -601,6 +611,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             .func
             .new_block_with_params(ir_block, block_ref, param_info);
 
+        self.position_at_end(block);
+
         Ok(block)
     }
 
@@ -611,12 +623,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     ///
     /// The builder will be positioned at the end of the original block once complete
     fn clone_block(&mut self) -> Block {
-        let current_block = self.current_block();
+        let target_block = self.current_block();
 
-        debug_in!(self, "cloning block {:?}", current_block);
+        debug_in!(self, "cloning block {:?}", target_block);
 
         // Map source parameter metadata to original EIR values
-        let block_data = self.func.block_data(current_block);
+        let block_data = self.func.block_data(target_block);
         let mut params = Vec::with_capacity(block_data.params.len());
         for (i, &param) in block_data.params.iter().enumerate() {
             let value = block_data.param_values[i];
@@ -625,7 +637,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         }
 
         // Create a new block with the same params as the current one
-        self.create_block(None, params.as_slice()).unwrap()
+        let cloned = self.create_block(None, params.as_slice()).unwrap();
+        // Reposition builder
+        self.position_at_end(target_block);
+        // Return cloned block
+        cloned
     }
 
     /// Positions the builder at the end of the given block

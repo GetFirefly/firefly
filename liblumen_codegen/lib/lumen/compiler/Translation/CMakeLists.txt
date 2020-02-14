@@ -1,0 +1,28 @@
+lumen_cc_library(
+  NAME
+    Translation
+  HDRS
+    "ModuleBuilder.h"
+    "ModuleBuilderSupport.h"
+  SRCS
+    "LLVMIR.cpp"
+    "ModuleBuilder.cpp"
+    "ModuleReader.cpp"
+    "ModuleWriter.cpp"
+  DEPS
+    lumen::compiler::Dialect::EIR::IR
+    lumen::compiler::Target
+    LLVMSupport
+    LLVMTarget
+    LLVMBitcodeWriter
+    MLIRIR
+    MLIRSupport
+    MLIRExecutionEngine
+    MLIRStandardOps
+    MLIRTargetLLVMIR
+    MLIRParser
+    MLIRPass
+    MLIRTransforms
+  ALWAYSLINK
+  PUBLIC
+)

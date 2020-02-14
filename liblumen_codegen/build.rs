@@ -59,11 +59,12 @@ fn main() {
         config = config.generator("Ninja");
     }
     let outdir = config
-        .define("CMAKE_EXPORT_COMPILE_COMMANDS", "YES")
+        .define("LUMEN_BUILD_COMPILER", "ON")
+        .define("LUMEN_BUILD_TESTS", "OFF")
         .define("LLVM_PREFIX", llvm_prefix_env.as_str())
         .env("LLVM_PREFIX", llvm_prefix_env.as_str())
         .always_configure(true)
-        .no_build_target(true)
+        .build_target("install")
         .very_verbose(false)
         .build();
 
@@ -82,10 +83,55 @@ fn main() {
         llvm_prefix.join("lib").display()
     );
     println!(
-        "cargo:rustc-link-search=native={}/build/lib",
+        "cargo:rustc-link-search=native={}/lib",
         outdir.display()
     );
-    println!("cargo:rustc-link-lib=static=Lumen");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Support_Support");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Diagnostics_Diagnostics");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Target_Target");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Translation_Translation");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_Conversion_Conversion");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_Conversion_EIRToStandard_EIRToStandard");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_Tools_Tools");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_Transforms_Transforms");
+    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_IR_IR");
+    println!("cargo:rustc-link-lib=static=MLIRAnalysis");
+    println!("cargo:rustc-link-lib=static=MLIRAffineOps");
+    println!("cargo:rustc-link-lib=static=MLIRAffineToStandard");
+    println!("cargo:rustc-link-lib=static=MLIRDialect");
+    println!("cargo:rustc-link-lib=static=MLIREDSC");
+    println!("cargo:rustc-link-lib=static=MLIREDSCInterface");
+    println!("cargo:rustc-link-lib=static=MLIRExecutionEngine");
+    println!("cargo:rustc-link-lib=static=MLIRFxpMathOps");
+    println!("cargo:rustc-link-lib=static=MLIRLinalgAnalysis");
+    println!("cargo:rustc-link-lib=static=MLIRLinalgEDSC");
+    println!("cargo:rustc-link-lib=static=MLIRLinalgOps");
+    println!("cargo:rustc-link-lib=static=MLIRLinalgToLLVM");
+    println!("cargo:rustc-link-lib=static=MLIRLinalgTransforms");
+    println!("cargo:rustc-link-lib=static=MLIRLinalgUtils");
+    println!("cargo:rustc-link-lib=static=MLIRIR");
+    println!("cargo:rustc-link-lib=static=MLIRLLVMIR");
+    println!("cargo:rustc-link-lib=static=MLIRLoopOps");
+    println!("cargo:rustc-link-lib=static=MLIRLoopToStandard");
+    println!("cargo:rustc-link-lib=static=MLIRParser");
+    println!("cargo:rustc-link-lib=static=MLIRPass");
+    println!("cargo:rustc-link-lib=static=MLIRQuantOps");
+    println!("cargo:rustc-link-lib=static=MLIRQuantizerFxpMathConfig");
+    println!("cargo:rustc-link-lib=static=MLIRQuantizerSupport");
+    println!("cargo:rustc-link-lib=static=MLIRQuantizerTransforms");
+    println!("cargo:rustc-link-lib=static=MLIRSDBM");
+    println!("cargo:rustc-link-lib=static=MLIRStandardOps");
+    println!("cargo:rustc-link-lib=static=MLIRStandardToLLVM");
+    println!("cargo:rustc-link-lib=static=MLIRSupport");
+    println!("cargo:rustc-link-lib=static=MLIRTargetLLVMIR");
+    println!("cargo:rustc-link-lib=static=MLIRTargetLLVMIRModuleTranslation");
+    println!("cargo:rustc-link-lib=static=MLIRTransformUtils");
+    println!("cargo:rustc-link-lib=static=MLIRTransforms");
+    println!("cargo:rustc-link-lib=static=MLIRTranslateClParser");
+    println!("cargo:rustc-link-lib=static=MLIRTranslation");
+    println!("cargo:rustc-link-lib=static=MLIRVectorOps");
+    println!("cargo:rustc-link-lib=static=MLIRVectorToLLVM");
+    println!("cargo:rustc-link-lib=static=MLIRVectorToLoops");
 
     let link_libs = read_link_libs(llvm_config_path.as_path(), outdir.as_path());
     for link_lib in link_libs {
@@ -261,7 +307,7 @@ fn read_link_libs_shared(link_libs: &mut Vec<String>) {
 
 fn read_link_libs_static(outdir: &Path, link_libs: &mut Vec<String>) {
     // If statically linking, we need to link against the same libs as libLumen
-    let lumen_libs_txt = outdir.join("build").join("Lumen_deps.txt");
+    let lumen_libs_txt = outdir.join("build").join("llvm_deps.txt");
     let lumen_libs = fs::read_to_string(lumen_libs_txt).unwrap();
 
     // LLVM

@@ -1,0 +1,16 @@
+lumen_cc_library(
+  NAME
+    Target
+  HDRS
+    "Target.h"
+    "TargetInfo.h"
+  SRCS
+    "Target.cpp"
+  DEPS
+    LLVMSupport
+    LLVMCodegen
+    LLVMTarget
+    LLVMIR
+  ALWAYSLINK
+  PUBLIC
+)

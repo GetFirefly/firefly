@@ -1,8 +1,8 @@
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{mpsc::channel, Arc, RwLock};
-use std::time::Instant;
 use std::thread;
-use std::ops::Deref;
+use std::time::Instant;
 
 use anyhow::anyhow;
 
@@ -137,6 +137,7 @@ pub fn handle_command<'a>(
     let context = db.llvm_context(thread_id);
     let target_machine = db.get_target_machine(thread_id);
     let atoms = db.take_atoms();
+    let symbols = db.take_symbols();
     let output_dir = db.output_dir();
     let atom_module = codegen::atoms::compile_atom_table(
         context.deref(),
@@ -144,7 +145,14 @@ pub fn handle_command<'a>(
         atoms,
         output_dir.as_path(),
     )?;
+    let symbol_module = codegen::symbol_table::compile_symbol_table(
+        context.deref(),
+        target_machine.deref(),
+        symbols,
+        output_dir.as_path(),
+    )?;
     codegen_results.modules.push(atom_module);
+    codegen_results.modules.push(symbol_module);
 
     // Link all compiled objects
     let diagnostics = db.diagnostics();

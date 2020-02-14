@@ -6,7 +6,7 @@ extern "C" {
     /// This symbol is defined in the compiled executable,
     /// and specifies the number of atoms in the atom table.
     #[link_name = "__LUMEN_ATOM_TABLE_SIZE"]
-    static NUM_ATOMS: c_uint;
+    pub static NUM_ATOMS: c_uint;
 
     /// This symbol is defined in the compiled executable,
     /// and provides a pointer to the atom table, or more specifically,
@@ -18,11 +18,11 @@ extern "C" {
     /// of pointers, which can each be turned into a `CStr` with static
     /// lifetime.
     #[link_name = "__LUMEN_ATOM_TABLE"]
-    static ATOM_TABLE: *const ConstantAtom;
+    pub static ATOM_TABLE: *const ConstantAtom;
 }
 
 #[link(name = "liblumen_alloc")]
 extern "C" {
     /// This function is defined in `liblumen_alloc::erts::term::atom`
-    fn InitializeLumenAtomTable(table: *const ConstantAtom, len: c_uint) -> bool;
+    pub fn InitializeLumenAtomTable(table: *const ConstantAtom, len: c_uint) -> bool;
 }

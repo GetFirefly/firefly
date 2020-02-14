@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use std::fmt;
+use std::ptr;
 
 use anyhow::anyhow;
 
@@ -8,6 +9,8 @@ use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap};
 
 use libeir_ir as ir;
 use libeir_ir::FunctionIdent;
+
+use liblumen_core::symbols::FunctionSymbol;
 
 use log::debug;
 
@@ -129,7 +132,12 @@ impl Function {
         }
 
         // Register function symbol globally
-        builder.symbols_mut().insert(self.name);
+        builder.symbols_mut().insert(FunctionSymbol {
+            module: self.name.module.name.as_usize(),
+            function: self.name.name.name.as_usize(),
+            arity: self.name.arity as u8,
+            ptr: ptr::null(),
+        });
 
         Ok((function, entry_block))
     }

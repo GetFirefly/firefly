@@ -1,6 +1,7 @@
 #![feature(main)]
 
 mod atoms;
+mod symbols;
 
 extern "C" {
     /// The target-defined entry point for the generated executable.
@@ -21,9 +22,17 @@ extern "C" {
 /// up the schedulers and other high-level runtime functionality.
 #[main]
 pub fn lumen_start() -> i32 {
+    use crate::atoms::*;
+    use crate::symbols::*;
+
     // Initialize atom table
     if unsafe { InitializeLumenAtomTable(ATOM_TABLE, NUM_ATOMS) } == false {
         return 102;
+    }
+
+    // Initialize the dispatch table
+    if unsafe { InitializeLumenDispatchTable(SYMBOL_TABLE, NUM_SYMBOLS) } == false {
+        return 103;
     }
 
     // Invoke platform-specific entry point

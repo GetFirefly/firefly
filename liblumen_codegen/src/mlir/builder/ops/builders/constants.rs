@@ -68,7 +68,6 @@ impl ConstantBuilder {
         loop {
             match builder.const_kind(next).clone() {
                 ConstKind::ListCell { head: h, tail: t } => {
-                    debug!("tail is another cons cell (head = {:?}, tail = {:?})", h, t);
                     let element = AttributeBuilder::build(builder, h)?;
                     elements.push(element);
                     next = t;

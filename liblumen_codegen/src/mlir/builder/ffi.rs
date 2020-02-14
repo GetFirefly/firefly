@@ -3,6 +3,7 @@ use std::convert::From;
 use std::fmt;
 use std::mem;
 
+use crate::llvm;
 use crate::mlir::builder::function::Param;
 
 pub mod foreign_types {
@@ -281,7 +282,10 @@ extern "C" {
     pub fn MLIRCreateModuleBuilder(
         context: ContextRef,
         name: *const libc::c_char,
+        target_machine: llvm::TargetMachineRef,
     ) -> ModuleBuilderRef;
+
+    pub fn MLIRDumpModule(builder: ModuleBuilderRef);
 
     pub fn MLIRFinalizeModuleBuilder(builder: ModuleBuilderRef) -> ModuleRef;
 
@@ -307,6 +311,8 @@ extern "C" {
         argc: libc::c_uint,
         result_type: *const Type,
     ) -> FunctionDeclResult;
+
+    pub fn MLIRAddFunction(builder: ModuleBuilderRef, function: FunctionOpRef);
 
     //---------------
     // Blocks
@@ -442,22 +448,18 @@ extern "C" {
     pub fn MLIRBuildConstantFloat(
         builder: ModuleBuilderRef,
         value: f64,
-        is_packed: bool,
     ) -> ValueRef;
     pub fn MLIRBuildFloatAttr(
         builder: ModuleBuilderRef,
         value: f64,
-        is_packed: bool,
     ) -> AttributeRef;
     pub fn MLIRBuildConstantInt(
         builder: ModuleBuilderRef,
         value: i64,
-        width: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildIntAttr(
         builder: ModuleBuilderRef,
         value: i64,
-        width: libc::c_uint,
     ) -> AttributeRef;
     pub fn MLIRBuildConstantBigInt(
         builder: ModuleBuilderRef,
@@ -473,13 +475,11 @@ extern "C" {
         builder: ModuleBuilderRef,
         value: *const libc::c_char,
         id: u64,
-        pointer_width: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildAtomAttr(
         builder: ModuleBuilderRef,
         value: *const libc::c_char,
         id: u64,
-        pointer_width: libc::c_uint,
     ) -> AttributeRef;
     pub fn MLIRBuildConstantBinary(
         builder: ModuleBuilderRef,
@@ -487,7 +487,6 @@ extern "C" {
         size: libc::c_uint,
         header: u64,
         flags: u64,
-        width: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildBinaryAttr(
         builder: ModuleBuilderRef,
@@ -495,18 +494,9 @@ extern "C" {
         size: libc::c_uint,
         header: u64,
         flags: u64,
-        width: libc::c_uint,
     ) -> AttributeRef;
-    pub fn MLIRBuildConstantNil(
-        builder: ModuleBuilderRef,
-        value: i64,
-        width: libc::c_uint,
-    ) -> ValueRef;
-    pub fn MLIRBuildNilAttr(
-        builder: ModuleBuilderRef,
-        value: i64,
-        width: libc::c_uint,
-    ) -> AttributeRef;
+    pub fn MLIRBuildConstantNil(builder: ModuleBuilderRef) -> ValueRef;
+    pub fn MLIRBuildNilAttr(builder: ModuleBuilderRef) -> AttributeRef;
     pub fn MLIRBuildConstantList(
         builder: ModuleBuilderRef,
         elements: *const AttributeRef,

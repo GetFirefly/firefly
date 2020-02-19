@@ -1254,14 +1254,6 @@ MLIRLocationRef MLIRCreateLocation(MLIRContextRef context, const char *filename,
   return wrap(&loc);
 }
 
-extern "C" MLIRLocationRef EIRSpanToMLIRLocation(uint32_t start, uint32_t end);
-
-Location ModuleBuilder::loc(Span span) {
-  MLIRLocationRef fileLocRef = EIRSpanToMLIRLocation(span.start, span.end);
-  Location *fileLoc = unwrap(fileLocRef);
-  return *fileLoc;
-}
-
 //===----------------------------------------------------------------------===//
 // Type Checking
 //===----------------------------------------------------------------------===//

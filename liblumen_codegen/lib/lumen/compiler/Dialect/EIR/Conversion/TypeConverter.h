@@ -13,11 +13,7 @@ class StandardTypeConverter final : public mlir::TypeConverter {
  public:
   using TypeConverter::TypeConverter;
 
-  StandardTypeConverter(TargetInfo &targetInfo)
-      : TypeConverter(), targetInfo(targetInfo) {}
-
-  /// Converts the given EIR `type` to Standard
-  mlir::Type convertType(mlir::Type type) override;
+  StandardTypeConverter(TargetInfo &targetInfo);
 
 private:
   TargetInfo targetInfo;

@@ -163,14 +163,12 @@ pub enum Type {
     AnyList,
     AnyNumber,
     AnyInteger,
-    AnyFloat,
     AnyBinary,
     Atom,
     Boolean,
     Fixnum,
     BigInt,
     Float,
-    FloatPacked,
     Nil,
     Cons,
     Tuple(libc::c_uint),
@@ -178,7 +176,6 @@ pub enum Type {
     Closure,
     HeapBin,
     Box,
-    Ref,
 }
 impl From<libeir_ir::BasicType> for Type {
     fn from(ty: libeir_ir::BasicType) -> Self {
@@ -190,7 +187,7 @@ impl From<libeir_ir::BasicType> for Type {
             BasicType::Tuple(arity) => Type::Tuple(arity as libc::c_uint),
             BasicType::Map => Type::Map,
             BasicType::Number => Type::AnyNumber,
-            BasicType::Float => Type::AnyFloat,
+            BasicType::Float => Type::Float,
             BasicType::Integer => Type::AnyInteger,
             BasicType::SmallInteger => Type::Fixnum,
             BasicType::BigInteger => Type::BigInt,
@@ -546,12 +543,4 @@ extern "C" {
     pub fn MLIRBuildIsTypeInteger(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
     pub fn MLIRBuildIsTypeFixnum(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
     pub fn MLIRBuildIsTypeBigInt(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn EIRSpanToMLIRLocation(
-    _start: libc::c_uint,
-    _end: libc::c_uint,
-) -> LocationRef {
-    unimplemented!()
 }

@@ -22,7 +22,7 @@ impl IsTypeBuilder {
             Type::Nil => unsafe { MLIRBuildIsTypeNil(builder_ref, value_ref) },
             Type::Map => unsafe { MLIRBuildIsTypeMap(builder_ref, value_ref) },
             Type::AnyNumber => unsafe { MLIRBuildIsTypeNumber(builder_ref, value_ref) },
-            Type::AnyFloat | Type::Float | Type::FloatPacked => unsafe {
+            Type::Float => unsafe {
                 MLIRBuildIsTypeFloat(builder_ref, value_ref)
             },
             Type::AnyInteger => unsafe { MLIRBuildIsTypeInteger(builder_ref, value_ref) },

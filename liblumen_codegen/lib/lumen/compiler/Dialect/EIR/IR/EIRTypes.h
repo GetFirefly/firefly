@@ -294,19 +294,6 @@ bool inbounds(A v, B lb, B ub) {
   return v >= lb && v < ub;
 }
 
-bool isa_eir_type(Type t) {
-  return inbounds(t.getKind(),
-                  Type::Kind::FIRST_EIR_TYPE,
-                  Type::Kind::LAST_EIR_TYPE);
-}
-
-
-bool isa_std_type(Type t) {
-  return inbounds(t.getKind(),
-                  Type::Kind::FIRST_STANDARD_TYPE,
-                  Type::Kind::LAST_STANDARD_TYPE);
-}
-
 } // namespace eir
 } // namespace lumen
 

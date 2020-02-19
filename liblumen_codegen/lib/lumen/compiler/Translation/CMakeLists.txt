@@ -11,18 +11,21 @@ lumen_cc_library(
     "ModuleWriter.cpp"
   DEPS
     lumen::compiler::Dialect::EIR::IR
+    lumen::compiler::Dialect::EIR::Transforms
     lumen::compiler::Target
     LLVMSupport
     LLVMTarget
-    LLVMBitcodeWriter
+    LLVMBitWriter
     MLIRIR
     MLIRSupport
     MLIRExecutionEngine
     MLIRStandardOps
     MLIRTargetLLVMIR
+    MLIRStandardToLLVM
     MLIRParser
     MLIRPass
     MLIRTransforms
   ALWAYSLINK
   PUBLIC
+  SHARED
 )

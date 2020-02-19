@@ -13,4 +13,5 @@ lumen_cc_library(
     MLIRStandardOps
     MLIRTransforms
   PUBLIC
+  SHARED
 )

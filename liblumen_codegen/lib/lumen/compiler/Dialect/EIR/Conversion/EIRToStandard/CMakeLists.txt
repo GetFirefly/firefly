@@ -7,6 +7,7 @@ lumen_cc_library(
     "ConvertEIRToStandard.cpp"
   DEPS
     lumen::compiler::Dialect::EIR::IR
+    MLIRLLVMIR
     MLIRIR
     MLIRPass
     MLIRStandardOps

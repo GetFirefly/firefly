@@ -1,7 +1,5 @@
 cmake_policy(SET CMP0048 NEW)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 cmake_policy(VERSION 3.10..3.15)
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
@@ -33,6 +31,8 @@ list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 project(lumen
     VERSION 0.1
 )
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set up vars for important source locations
 set(LUMEN_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})

@@ -8,6 +8,8 @@ lumen_cc_library(
   SRCS
     "Passes.cpp"
   DEPS
+    lumen::compiler::Dialect::EIR::Conversion
+    lumen::compiler::Dialect::EIR::Conversion::EIRToStandard
     lumen::compiler::Dialect::EIR::IR
     LLVMSupport
     MLIRIR
@@ -17,4 +19,5 @@ lumen_cc_library(
     MLIRTransforms
   ALWAYSLINK
   PUBLIC
+  SHARED
 )

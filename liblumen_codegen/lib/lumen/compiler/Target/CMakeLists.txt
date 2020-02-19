@@ -8,9 +8,8 @@ lumen_cc_library(
     "Target.cpp"
   DEPS
     LLVMSupport
-    LLVMCodegen
+    LLVMCodeGen
     LLVMTarget
-    LLVMIR
   ALWAYSLINK
   PUBLIC
 )

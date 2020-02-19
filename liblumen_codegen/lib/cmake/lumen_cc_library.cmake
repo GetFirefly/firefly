@@ -52,7 +52,7 @@ include(CMakeParseArguments)
 function(lumen_cc_library)
   cmake_parse_arguments(
     _RULE
-    "PUBLIC;ALWAYSLINK;TESTONLY"
+    "PUBLIC;ALWAYSLINK;TESTONLY;SHARED"
     "NAME"
     "HDRS;TEXTUAL_HDRS;SRCS;COPTS;DEFINES;LINKOPTS;DEPS;INCLUDES"
     ${ARGN}
@@ -84,7 +84,11 @@ function(lumen_cc_library)
     endif()
 
     if(NOT _RULE_IS_INTERFACE)
-      add_library(${_NAME} STATIC "")
+      if (NOT _RULE_SHARED)
+        add_library(${_NAME} STATIC "")
+      else()
+        add_library(${_NAME} STATIC SHARED "")
+      endif()
       target_sources(${_NAME}
         PRIVATE
           ${_RULE_SRCS}

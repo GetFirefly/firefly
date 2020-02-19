@@ -22,7 +22,11 @@ set(LUMEN_REQUIRED_LLVM_COMPONENTS_LIST
 #
 # We are using this because llvm_map_components_to_libnames is
 # not correctly producing all of the dependencies for each component
-set(LLVM_CONFIG_LIBNAMES_ARGV "--libnames --link-static")
+if (BUILD_SHARED_LIBS)
+  set(LLVM_CONFIG_LIBNAMES_ARGV "--libnames --link-static")
+else()
+  set(LLVM_CONFIG_LIBNAMES_ARGV "--libnames --link-shared")
+endif()
 foreach(component IN LISTS LUMEN_REQUIRED_LLVM_COMPONENTS_LIST)
   set(LLVM_CONFIG_LIBNAMES_ARGV "${LLVM_CONFIG_LIBNAMES_ARGV} ${component}")
 endforeach()

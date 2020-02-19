@@ -75,4 +75,5 @@ lumen_cc_library(
     MLIRTransformUtils
   ALWAYSLINK
   PUBLIC
+  SHARED
 )

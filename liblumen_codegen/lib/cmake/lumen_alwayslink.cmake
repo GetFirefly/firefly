@@ -52,7 +52,7 @@ function(set_alwayslink_mlir_libs)
     MLIRTransforms
     MLIRTranslation
     MLIRSupport
-    MLIROptMain
+    MLIROptLib
   )
 
   set_alwayslink_property(

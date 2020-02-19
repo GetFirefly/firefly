@@ -58,9 +58,15 @@ fn main() {
     if use_ninja {
         config = config.generator("Ninja");
     }
+    let build_shared = if env::var_os("LLVM_BUILD_STATIC").is_some() {
+        "ON"
+    } else {
+        "OFF"
+    };
     let outdir = config
         .define("LUMEN_BUILD_COMPILER", "ON")
         .define("LUMEN_BUILD_TESTS", "OFF")
+        .define("BUILD_SHARED_LIBS", build_shared)
         .define("LLVM_PREFIX", llvm_prefix_env.as_str())
         .env("LLVM_PREFIX", llvm_prefix_env.as_str())
         .always_configure(true)
@@ -86,52 +92,39 @@ fn main() {
         "cargo:rustc-link-search=native={}/lib",
         outdir.display()
     );
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Support_Support");
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Diagnostics_Diagnostics");
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Target_Target");
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Translation_Translation");
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_Conversion_Conversion");
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_Conversion_EIRToStandard_EIRToStandard");
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_Tools_Tools");
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_Transforms_Transforms");
-    println!("cargo:rustc-link-lib=static=lumen_compiler_Dialect_EIR_IR_IR");
-    println!("cargo:rustc-link-lib=static=MLIRAnalysis");
-    println!("cargo:rustc-link-lib=static=MLIRAffineOps");
-    println!("cargo:rustc-link-lib=static=MLIRAffineToStandard");
-    println!("cargo:rustc-link-lib=static=MLIRDialect");
-    println!("cargo:rustc-link-lib=static=MLIREDSC");
-    println!("cargo:rustc-link-lib=static=MLIREDSCInterface");
-    println!("cargo:rustc-link-lib=static=MLIRExecutionEngine");
-    println!("cargo:rustc-link-lib=static=MLIRFxpMathOps");
-    println!("cargo:rustc-link-lib=static=MLIRLinalgAnalysis");
-    println!("cargo:rustc-link-lib=static=MLIRLinalgEDSC");
-    println!("cargo:rustc-link-lib=static=MLIRLinalgOps");
-    println!("cargo:rustc-link-lib=static=MLIRLinalgToLLVM");
-    println!("cargo:rustc-link-lib=static=MLIRLinalgTransforms");
-    println!("cargo:rustc-link-lib=static=MLIRLinalgUtils");
-    println!("cargo:rustc-link-lib=static=MLIRIR");
-    println!("cargo:rustc-link-lib=static=MLIRLLVMIR");
-    println!("cargo:rustc-link-lib=static=MLIRLoopOps");
-    println!("cargo:rustc-link-lib=static=MLIRLoopToStandard");
-    println!("cargo:rustc-link-lib=static=MLIRParser");
-    println!("cargo:rustc-link-lib=static=MLIRPass");
-    println!("cargo:rustc-link-lib=static=MLIRQuantOps");
-    println!("cargo:rustc-link-lib=static=MLIRQuantizerFxpMathConfig");
-    println!("cargo:rustc-link-lib=static=MLIRQuantizerSupport");
-    println!("cargo:rustc-link-lib=static=MLIRQuantizerTransforms");
-    println!("cargo:rustc-link-lib=static=MLIRSDBM");
-    println!("cargo:rustc-link-lib=static=MLIRStandardOps");
-    println!("cargo:rustc-link-lib=static=MLIRStandardToLLVM");
-    println!("cargo:rustc-link-lib=static=MLIRSupport");
-    println!("cargo:rustc-link-lib=static=MLIRTargetLLVMIR");
-    println!("cargo:rustc-link-lib=static=MLIRTargetLLVMIRModuleTranslation");
-    println!("cargo:rustc-link-lib=static=MLIRTransformUtils");
-    println!("cargo:rustc-link-lib=static=MLIRTransforms");
-    println!("cargo:rustc-link-lib=static=MLIRTranslateClParser");
-    println!("cargo:rustc-link-lib=static=MLIRTranslation");
-    println!("cargo:rustc-link-lib=static=MLIRVectorOps");
-    println!("cargo:rustc-link-lib=static=MLIRVectorToLLVM");
-    println!("cargo:rustc-link-lib=static=MLIRVectorToLoops");
+
+    link_libs(&[
+        "lumen_compiler_Support_Support",
+        "lumen_compiler_Diagnostics_Diagnostics",
+        "lumen_compiler_Target_Target",
+        "lumen_compiler_Dialect_EIR_Conversion_Conversion",
+        "lumen_compiler_Dialect_EIR_Conversion_EIRToStandard_EIRToStandard",
+        "lumen_compiler_Dialect_EIR_Tools_Tools",
+        "lumen_compiler_Dialect_EIR_Transforms_Transforms",
+        "lumen_compiler_Dialect_EIR_IR_IR",
+        "lumen_compiler_Translation_Translation",
+        "MLIRAnalysis",
+        "MLIRAffineOps",
+        "MLIRDialect",
+        "MLIREDSC",
+        "MLIREDSCInterface",
+        "MLIRExecutionEngine",
+        "MLIRIR",
+        "MLIRLLVMIR",
+        "MLIRLoopAnalysis",
+        "MLIRLoopOps",
+        "MLIRParser",
+        "MLIRPass",
+        "MLIRStandardOps",
+        "MLIRStandardToLLVM",
+        "MLIRSupport",
+        "MLIRTargetLLVMIR",
+        "MLIRTargetLLVMIRModuleTranslation",
+        "MLIRTransformUtils",
+        "MLIRTransforms",
+        "MLIRTranslateClParser",
+        "MLIRTranslation",
+    ]);
 
     let link_libs = read_link_libs(llvm_config_path.as_path(), outdir.as_path());
     for link_lib in link_libs {
@@ -281,7 +274,7 @@ fn read_link_libs(llvm_config_path: &Path, outdir: &Path) -> Vec<String> {
     if let Some(_) = env::var_os("LLVM_BUILD_STATIC") {
         read_link_libs_static(outdir, &mut link_libs);
     } else {
-        read_link_libs_shared(&mut link_libs);
+        read_link_libs_shared(llvm_config_path, &mut link_libs);
     }
 
     // System libs
@@ -300,9 +293,17 @@ fn read_link_libs(llvm_config_path: &Path, outdir: &Path) -> Vec<String> {
     link_libs
 }
 
-fn read_link_libs_shared(link_libs: &mut Vec<String>) {
-    // If not statically linking, we can just link against the combined dylib
-    link_libs.push(format!("dylib=LLVMcpp"));
+fn read_link_libs_shared(llvm_config_path: &Path, link_libs: &mut Vec<String>) {
+    if let Ok(libs) = llvm_config(llvm_config_path, &["--link-shared", "--ignore-libllvm", "--libs"]) {
+        for l in libs.split(' ') {
+            if let Some(lib) = cleanup_link_lib(l) {
+                link_libs.push(format!("dylib={}", lib));
+            }
+        }
+    } else {
+        // Try linking against components dylib
+        link_libs.push(format!("dylib=LLVM"));
+    }
 }
 
 fn read_link_libs_static(outdir: &Path, link_libs: &mut Vec<String>) {
@@ -353,7 +354,7 @@ fn print_libcpp_flags(llvm_config_path: &Path, target: &str) {
             if target.contains("windows") {
                 println!("cargo:rustc-link-lib=static-nobundle={}", stdcppname);
             } else {
-                println!("cargo:rustc-link-lib=static={}", stdcppname);
+                link_lib_static(stdcppname);
             }
         } else if cxxflags.contains("stdlib=libc++") {
             println!("cargo:rustc-link-lib=c++");
@@ -369,6 +370,39 @@ fn print_libcpp_flags(llvm_config_path: &Path, target: &str) {
         println!("cargo:rustc-link-lib=static-nobundle=pthread");
         println!("cargo:rustc-link-lib=dylib=uuid");
     }
+}
+
+
+fn link_libs(libs: &[&str]) {
+    if env::var_os("LLVM_BUILD_STATIC").is_none() {
+        link_libs_dylib(libs);
+    } else {
+        link_libs_static(libs);
+    }
+}
+
+#[inline]
+fn link_libs_static(libs: &[&str]) {
+    for lib in libs {
+        link_lib_static(lib);
+    }
+}
+
+#[inline]
+fn link_libs_dylib(libs: &[&str]) {
+    for lib in libs {
+        link_lib_dylib(lib);
+    }
+}
+
+#[inline]
+fn link_lib_static(lib: &str) {
+    println!("cargo:rustc-link-lib=static={}", lib);
+}
+
+#[inline]
+fn link_lib_dylib(lib: &str) {
+    println!("cargo:rustc-link-lib=dylib={}", lib);
 }
 
 fn warn(s: &str) {

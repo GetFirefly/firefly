@@ -61,13 +61,13 @@ cfg_if::cfg_if! {
 #[derive(Debug, Default)]
 #[repr(C)]
 pub struct CalleeSavedRegisters {
-    rsp: u64,
-    r15: u64,
-    r14: u64,
-    r13: u64,
-    r12: u64,
-    rbx: u64,
-    rbp: u64,
+    pub rsp: u64,
+    pub r15: u64,
+    pub r14: u64,
+    pub r13: u64,
+    pub r12: u64,
+    pub rbx: u64,
+    pub rbp: u64,
 }
 /// NOTE: We can safely mark this Sync because
 /// it is only ever used by the scheduler, and

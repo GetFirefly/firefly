@@ -1,25 +1,30 @@
 #![feature(asm)]
 #![feature(naked_functions)]
 #![feature(termination_trait_lib)]
+#![feature(thread_local)]
+#![feature(alloc_layout_extra)]
 
-#[cfg_attr(not(unix))]
+#[cfg(not(unix))]
 compile_error!("lumen_rt_minimal is only supported on unix targets!");
 
+#[macro_use]
+mod macros;
 mod config;
 mod logging;
-#[macro_export]
-mod macros;
 mod scheduler;
 mod sys;
+mod distribution;
+mod process;
 
 use bus::Bus;
 use log::Level;
 use std::thread;
 
+use lumen_rt_core as rt_core;
+
 use self::config::Config;
-use self::logging::Logger;
 use self::scheduler::Scheduler;
-use self::system::break_handler::{self, Signal};
+use self::sys::break_handler::{self, Signal};
 
 #[liblumen_core::entry]
 fn main() -> impl ::std::process::Termination + 'static {
@@ -46,10 +51,10 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     break_handler::init(bus);
 
     // Start logger
-    Logger::init(Level::Info).expect("Unexpected failure initializing logger");
+    let level_filter = Level::Info.to_level_filter();
+    logging::init(level_filter).expect("Unexpected failure initializing logger");
 
-    let scheduler = Scheduler::current();
-    scheduler.init();
+    let scheduler = <Scheduler as rt_core::Scheduler>::current();
     loop {
         // Run the scheduler for a cycle
         let scheduled = scheduler.run_once();

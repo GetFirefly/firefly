@@ -1,4 +1,8 @@
+use std::env;
+
 use log::LevelFilter;
+
+use anyhow::bail;
 
 pub fn init(level: LevelFilter) -> anyhow::Result<()> {
     // Initialize logger

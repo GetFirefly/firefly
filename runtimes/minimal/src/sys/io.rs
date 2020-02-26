@@ -2,14 +2,32 @@ use std::ffi::CStr;
 
 use libc;
 
-#[link_name = "__io_put_chars_1"]
+use liblumen_alloc::erts::term::prelude::*;
+
+#[export_name = "__lumen_builtin_printf"]
+pub extern "C" fn printf_1(term: Term) -> Term {
+    use liblumen_alloc::erts::term::arch::Repr;
+    println!("{:?}", term.as_usize());
+    match term.decode() {
+        Ok(tt) => {
+            println!("{:?}", tt);
+            Atom::from_str("ok").encode().unwrap()
+        }
+        Err(reason) => {
+            println!("ERR: {:?}", reason);
+            Term::NONE
+        }
+    }
+}
+
+#[export_name = "io:put_chars/1"]
 pub extern "C" fn put_chars_1(s: *const libc::c_char) -> Option<Term> {
     let sref = unsafe { CStr::from_ptr(s).to_string_lossy() };
-    println!(&sref);
+    println!("{}", &sref);
     Some(ok!())
 }
 
-#[link_name = "__io_format_2"]
+#[export_name = "io:format/2"]
 pub extern "C" fn format_2(
     s: *const libc::c_char,
     argv: *const Term,
@@ -18,8 +36,12 @@ pub extern "C" fn format_2(
     unimplemented!();
 }
 
-#[link_name = "__io_nl_0"]
+#[export_name = "io:nl/0"]
 pub extern "C" fn nl_0() -> Option<Term> {
     println!();
     Some(ok!())
+}
+
+pub fn puts(s: &str) {
+    println!("{}", s);
 }

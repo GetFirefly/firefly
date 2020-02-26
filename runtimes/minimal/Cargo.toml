@@ -6,13 +6,15 @@ publish = false
 edition = "2018"
 
 [lib]
-crate-type = ["staticlib", "rlib"]
+crate-type = ["staticlib"]
 
 [dependencies]
 anyhow = "1.0"
 thiserror = "1.0"
 log = "0.4"
+env_logger = "0.7"
 cfg-if = "0.1.7"
+lazy_static = "1.4"
 clap = "2.32.0"
 bus = "2.0"
 signal-hook = "0.1"

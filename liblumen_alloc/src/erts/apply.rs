@@ -53,6 +53,11 @@ pub fn find_symbol(mfa: &ModuleFunctionArity) -> Option<DynamicCallee> {
     }
 }
 
+pub fn dump_symbols() {
+    let symbols = unsafe { SYMBOLS.get_unchecked() };
+    symbols.dump();
+}
+
 /// The symbol table used by the runtime system
 static SYMBOLS: OnceCell<SymbolTable> = OnceCell::new();
 
@@ -101,6 +106,12 @@ impl SymbolTable {
             functions: HashMap::with_capacity(size),
             idents: HashMap::with_capacity(size),
             arena: DroplessArena::default(),
+        }
+    }
+
+    fn dump(&self) {
+        for mfa in self.functions.keys() {
+            println!("{:?}", mfa);
         }
     }
 

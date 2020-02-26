@@ -1,5 +1,7 @@
 use num_bigint::BigInt;
 
+use lazy_static::lazy_static;
+
 use crate::time::{self, Milliseconds, Unit};
 
 pub fn time(unit: Unit) -> BigInt {

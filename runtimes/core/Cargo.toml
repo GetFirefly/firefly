@@ -5,11 +5,15 @@ authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 publish = false
 edition = "2018"
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [dependencies]
 anyhow = "1.0"
 thiserror = "1.0"
 log = "0.4"
 cfg-if = "0.1.7"
+lazy_static = "1.4"
 libc = "0.2"
 num-bigint = "0.2"
 num-traits = "0.2"

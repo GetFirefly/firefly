@@ -32,18 +32,13 @@ impl std::fmt::Display for ConfigError {
                 f,
                 "Failed to load {}: {}",
                 path.to_string_lossy(),
-                err.description()
+                err.to_string()
             ),
         }
     }
 }
 
 impl std::error::Error for ConfigError {
-    fn description(&self) -> &str {
-        match *self {
-            ConfigError::FileError(_, ref err) => err.description(),
-        }
-    }
     fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
             ConfigError::FileError(ref _path, ref err) => Some(err),

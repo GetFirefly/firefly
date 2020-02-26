@@ -65,15 +65,15 @@ impl Queues {
 
         // has to be separate so that `arc_process` can be moved
         match next {
-            Wait => {
+            Next::Wait => {
                 self.waiting.insert(arc_process);
                 None
             }
-            PushBack => {
+            Next::PushBack => {
                 self.enqueue(arc_process);
                 None
             }
-            Exit => Some(arc_process),
+            Next::Exit => Some(arc_process),
         }
     }
 
@@ -101,9 +101,9 @@ enum Next {
 impl Next {
     fn from_status(status: &Status) -> Next {
         match status {
-            Status::Runnable => PushBack,
-            Status::Waiting => Wait,
-            Status::Exiting(_) => Exit,
+            Status::Runnable => Next::PushBack,
+            Status::Waiting => Next::Wait,
+            Status::Exiting(_) => Next::Exit,
             Status::Running => {
                 unreachable!("Process.stop_running() should have been called before this")
             }

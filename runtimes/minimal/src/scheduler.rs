@@ -1,26 +1,38 @@
 mod run_queue;
 
 use std::ptr;
+use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
+use std::cell::Cell;
+use std::ops::Deref;
 
 use hashbrown::HashMap;
 
-use liblumen_core::lock::RwLock;
+use anyhow::anyhow;
+use lazy_static::lazy_static;
+
+use liblumen_core::locks::{Mutex, RwLock};
 
 use liblumen_alloc::erts::apply;
-use liblumen_alloc::erts::process::{self, Status};
+use liblumen_alloc::erts::process;
+use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::erts::process::{Process, Priority, CalleeSavedRegisters, Status};
 use liblumen_alloc::erts::scheduler::id;
+use liblumen_alloc::erts::term::prelude::{Atom, ReferenceNumber};
 
+use lumen_rt_core as rt_core;
 use lumen_rt_core::timer::Hierarchy;
 
-use super::InitFn;
+static CURRENT_REDUCTION_COUNT: AtomicU64 = AtomicU64::new(0);
 
+/*
 extern "C" {
     // External thread local owned by the generated code
     #[thread_local]
     static mut CURRENT_REDUCTION_COUNT: u32;
 }
+*/
 
 thread_local! {
   static SCHEDULER: Arc<Scheduler> = Scheduler::registered();
@@ -32,25 +44,30 @@ lazy_static! {
 
 #[link_name = "__lumen_builtin_yield"]
 pub unsafe extern "C" fn process_yield() -> bool {
-    let s = Scheduler::current();
+    let s = <Scheduler as rt_core::Scheduler>::current();
     // NOTE: We always set root=false here because the root
     // process never invokes this function
-    s.process_yield(/* root= */ false);
+    s.process_yield(/* root= */ false)
 }
 
 #[link_name = "__lumen_builtin_return"]
 pub unsafe extern "C" fn process_return() {
-    let s = Scheduler::current();
+    let s = <Scheduler as rt_core::Scheduler>::current();
     s.process_return();
 }
 
 struct ScheduledProcess {
     process: Cell<Arc<Process>>,
 }
+impl ScheduledProcess {
+    fn replace(&self, process: Arc<Process>) -> Arc<Process> {
+        self.process.replace(process)
+    }
+}
 impl Deref for ScheduledProcess {
     type Target = Process;
     fn deref(&self) -> &Self::Target {
-        self.process.deref()
+        unsafe { &*self.process.as_ptr() }
     }
 }
 // This is safe as the only way fields in this
@@ -76,6 +93,24 @@ pub struct Scheduler {
     root: Arc<Process>,
     init: Arc<Process>,
     current: ScheduledProcess,
+}
+impl rt_core::Scheduler for Scheduler {
+    fn current() -> Arc<Self> {
+        SCHEDULER.with(|s| s.clone())
+    }
+
+    fn id(&self) -> id::ID {
+        self.id
+    }
+
+    fn hierarchy(&self) -> &RwLock<Hierarchy> {
+        &self.hierarchy
+    }
+
+    /// Gets the next available reference number
+    fn next_reference_number(&self) -> ReferenceNumber {
+        self.reference_count.fetch_add(1, Ordering::SeqCst)
+    }
 }
 impl Scheduler {
     /// Creates a new scheduler with the default configuration
@@ -113,15 +148,15 @@ impl Scheduler {
                 function: Atom::from_str("start"),
                 arity: 0,
             }),
-            heap: init_heap,
-            heap_size: init_heap_size,
+            init_heap,
+            init_heap_size,
         )?);
         Scheduler::spawn_internal(init.clone(), id, &run_queues)?;
 
         // The scheduler starts with the root process running
         let current = ScheduledProcess::from(root.clone());
 
-        Self {
+        Ok(Self {
             id,
             run_queues,
             root,
@@ -130,7 +165,7 @@ impl Scheduler {
             hierarchy: Default::default(),
             reference_count: AtomicU64::new(0),
             unique_integer: AtomicU64::new(0),
-        }
+        })
     }
 
     /// Gets the scheduler registered to this thread
@@ -138,7 +173,7 @@ impl Scheduler {
     /// If no scheduler has been created for this thread, one is created
     fn registered() -> Arc<Self> {
         let mut schedulers = SCHEDULERS.lock();
-        let s = Arc::new(Self::new());
+        let s = Arc::new(Self::new().unwrap());
 
         if let Some(_) = schedulers.insert(s.id, Arc::downgrade(&s)) {
             panic!("Scheduler already registered with ID ({:?}", s.id);
@@ -147,25 +182,16 @@ impl Scheduler {
         s
     }
 
-    /// Gets the current thread's scheduler
-    pub fn current() -> Arc<Self> {
-        SCHEDULER.with(|s| s.clone())
-    }
-
     /// Gets a scheduler by its ID
     pub fn from_id(id: &id::ID) -> Option<Arc<Self>> {
         Self::current_from_id(id).or_else(|| SCHEDULERS.lock().get(id).and_then(|s| s.upgrade()))
     }
 
     /// Returns the current thread's scheduler if it matches the given ID
-    fn current_from_id(id: &ID) -> Option<Arc<Self>> {
+    fn current_from_id(id: &id::ID) -> Option<Arc<Self>> {
         SCHEDULER.with(|s| if &s.id == id { Some(s.clone()) } else { None })
     }
 
-    /// Gets the next available reference number
-    pub fn next_reference_number(&self) -> ReferenceNumber {
-        self.reference_count.fetch_add(1, Ordering::SeqCst)
-    }
 
     /// Gets the next available unique integer
     pub fn next_unique_integer(&self) -> u64 {
@@ -262,13 +288,16 @@ impl Scheduler {
     /// returned all the way to its entry function. This marks the process
     /// as exiting (if it wasn't already), and then yields to the scheduler
     fn process_return(&self) -> bool {
+        use liblumen_alloc::erts::term::prelude::*;
         if self.current.pid() != self.root.pid() {
-            self.current.exit();
+            self.current.exit(Atom::from_str("shutdown").encode().unwrap());
             // NOTE: We always set root=false here, even though this can
             // be called from the root process, since returning from the
             // root process exits the scheduler loop anyway, so no stack
             // swapping can occur
-            self.process_yield(/* root= */ false);
+            self.process_yield(/* root= */ false)
+        } else {
+            true
         }
     }
 
@@ -322,6 +351,7 @@ impl Scheduler {
                     // TODO: stealing
                     break false;
                 }
+                Run::None => unreachable!()
             }
         }
     }
@@ -341,7 +371,7 @@ impl Scheduler {
         // Mark the new process as Running
         let new_ctx = &new.registers as *const _;
         {
-            let new_status = new.status.write();
+            let mut new_status = new.status.write();
             *new_status = Status::Running;
         }
 
@@ -357,7 +387,7 @@ impl Scheduler {
 
         // Change the previous process status to Runnable
         {
-            prev_status = prev.status.write();
+            let mut prev_status = prev.status.write();
             if Status::Running == *prev_status {
                 *prev_status = Status::Runnable
             }
@@ -371,8 +401,8 @@ impl Scheduler {
         // proceed to the stack swap
         if let Some(exiting) = self.run_queues.write().requeue(prev) {
             if let Status::Exiting(ref ex) = *exiting.status.read() {
-                process::log_exit(&exiting, ex);
-                process::propagate_exit(&exiting, ex);
+                crate::process::log_exit(&exiting, ex);
+                crate::process::propagate_exit(&exiting, ex);
             } else {
                 unreachable!()
             }
@@ -417,15 +447,18 @@ impl Scheduler {
     // Root process uses the original thread stack, no initialization required.
     //
     // It also starts "running", so we don't put it on the run queue
-    fn spawn_root(process: Arc<Process>, id: scheduler::ID, run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
+    fn spawn_root(process: Arc<Process>, id: id::ID, run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
         process.schedule_with(id);
 
-        *p.state.write() = Status::Running;
+        *process.status.write() = Status::Running;
+
+        Ok(())
     }
 
-    fn spawn_internal(process: Arc<Process>, id: scheduler::ID, run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
+    fn spawn_internal(process: Arc<Process>, id: id::ID, run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
         process.schedule_with(id);
 
+        apply::dump_symbols();
         let mfa = &process.initial_module_function_arity;
         let init_fn = apply::find_symbol(&mfa)
             .ok_or_else(|| anyhow!("invalid mfa provided for process ({}), no such symbol found", &mfa))?;
@@ -439,26 +472,31 @@ impl Scheduler {
         // the process exited. The nature of the exit is indicated by error state
         // in the process itself
         unsafe {
-            let s_ptr = p.stack.top;
+            let s_ptr = process.stack.top;
             let s_ptr = (s_ptr as usize & !15) as *mut u8;
-            ptr::write(s_ptr.top.offset(-24) as *mut u64, process_return as u64);
-            ptr::write(s_ptr.top.offset(-32) as *mut u64, init_fn as u64);
-            p.registers.rsp = s_ptr.top.offset(-32) as u64;
+            ptr::write(s_ptr.offset(-24) as *mut u64, process_return as u64);
+            ptr::write(s_ptr.offset(-32) as *mut u64, init_fn as u64);
+            let rsp = &process.registers.rsp as *const _ as *mut _;
+            ptr::write(rsp, s_ptr.offset(-32) as u64);
         }
 
-        *p.state.write() = Status::Runnable;
+        *process.status.write() = Status::Runnable;
 
-        let mut rq = self.run_queues.write();
+        let mut rq = run_queues.write();
         rq.enqueue(process);
+        Ok(())
     }
 }
 
 fn reset_reduction_counter() -> u64 {
+    /*
     let count = unsafe { CURRENT_REDUCTION_COUNT };
     unsafe {
         CURRENT_REDUCTION_COUNT = 0;
     }
     count as u64
+    */
+    CURRENT_REDUCTION_COUNT.swap(0, Ordering::Relaxed)
 }
 
 /// This function uses inline assembly to save the callee-saved registers for the outgoing

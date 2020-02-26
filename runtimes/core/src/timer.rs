@@ -5,45 +5,46 @@ use core::cmp::Ordering::{self, *};
 use core::ops::{Index, IndexMut, RangeBounds};
 use core::ptr::NonNull;
 
-use alloc::sync::{Arc, Weak};
-use alloc::vec::Drain;
+use std::sync::{Arc, Weak};
+use std::vec::Drain;
 
 use hashbrown::HashMap;
 
 use liblumen_core::locks::Mutex;
 
-use liblumen_alloc::erts::borrow::CloneToProcess;
+use liblumen_alloc::borrow::CloneToProcess;
 use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
+use crate::{Scheduler, Scheduled};
 use crate::registry;
-use crate::scheduler::{Scheduled, Scheduler};
 use crate::time::monotonic;
 use crate::time::Milliseconds;
 
+/*
 pub fn cancel(timer_reference: &Reference) -> Option<Milliseconds> {
     timer_reference
         .scheduler()
-        .and_then(|scheduler| scheduler.hierarchy.write().cancel(timer_reference.number()))
+        .and_then(|scheduler| scheduler.hierarchy().write().cancel(timer_reference.number()))
 }
 
 pub fn read(timer_reference: &Reference) -> Option<Milliseconds> {
     timer_reference
         .scheduler()
-        .and_then(|scheduler| scheduler.hierarchy.read().read(timer_reference.number()))
+        .and_then(|scheduler| scheduler.hierarchy().read().read(timer_reference.number()))
 }
 
-pub fn start(
+pub fn start<S: Scheduler>(
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,
     timeout: Timeout,
     process_message: Term,
     process: &Process,
 ) -> AllocResult<Term> {
-    let scheduler = Scheduler::current();
+    let scheduler = S::current();
 
-    let result = scheduler.hierarchy.write().start(
+    let result = scheduler.hierarchy().write().start(
         monotonic_time_milliseconds,
         destination,
         timeout,
@@ -54,16 +55,23 @@ pub fn start(
 
     result
 }
+*/
 
 /// Times out the timers for the thread that have timed out since the last time `timeout` was
 /// called.
 #[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn timeout() {
-    Scheduler::current().hierarchy.write().timeout();
+    Scheduler::current().hierarchy().write().timeout();
 }
 
 #[derive(Debug)]
 pub struct Message {
+    pub heap_fragment: NonNull<liblumen_alloc::erts::HeapFragment>,
+    pub term: Term,
+}
+
+#[derive(Debug)]
+pub struct HeapFragment {
     pub heap_fragment: NonNull<liblumen_alloc::erts::HeapFragment>,
     pub term: Term,
 }
@@ -135,6 +143,7 @@ impl Hierarchy {
             .map(|rc_timer| rc_timer.milliseconds_remaining())
     }
 
+    /*
     fn start(
         &mut self,
         monotonic_time_milliseconds: Milliseconds,
@@ -142,10 +151,10 @@ impl Hierarchy {
         timeout: Timeout,
         process_message: Term,
         process: &Process,
-        scheduler: &Scheduler,
+        scheduler: &dyn Scheduler,
     ) -> AllocResult<Term> {
         let reference_number = scheduler.next_reference_number();
-        let process_reference = process.reference_from_scheduler(scheduler.id, reference_number)?;
+        let process_reference = process.reference_from_scheduler(scheduler.id(), reference_number)?;
         let (heap_fragment_message, heap_fragment) = match timeout {
             Timeout::Message => process_message.clone_to_fragment()?,
             Timeout::TimeoutTuple => {
@@ -185,6 +194,7 @@ impl Hierarchy {
 
         Ok(process_reference)
     }
+    */
 
     pub fn timeout(&mut self) {
         self.timeout_at_once();
@@ -362,7 +372,7 @@ struct Timer {
     reference_number: ReferenceNumber,
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,
-    message_heap: Mutex<message::HeapFragment>,
+    message_heap: Mutex<HeapFragment>,
     position: Mutex<Position>,
 }
 
@@ -387,7 +397,7 @@ impl Timer {
         };
 
         if let Some(destination_arc_process) = option_destination_arc_process {
-            let message::HeapFragment {
+            let HeapFragment {
                 heap_fragment,
                 term,
             } = self.message_heap.into_inner();

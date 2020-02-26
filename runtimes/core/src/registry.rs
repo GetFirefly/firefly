@@ -2,15 +2,15 @@
 use std::sync::{Arc, Weak};
 
 use hashbrown::HashMap;
+use lazy_static::lazy_static;
 
 use liblumen_core::locks::RwLock;
+use liblumen_core::locks::RwLockWriteGuard;
 
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::exception;
 use liblumen_alloc::Process;
-
-use crate::process;
 
 lazy_static! {
     static ref RW_LOCK_REGISTERED_BY_NAME: RwLock<HashMap<Atom, Registered>> = Default::default();
@@ -61,13 +61,31 @@ pub fn put_atom_to_process(name: Atom, arc_process: Arc<Process>) -> bool {
     let writable_registry = RW_LOCK_REGISTERED_BY_NAME.write();
 
     if !writable_registry.contains_key(&name) {
-        if process::register_in(arc_process, writable_registry, name) {
+        if register_in(arc_process, writable_registry, name) {
             true
         } else {
             false
         }
     } else {
         false
+    }
+}
+
+pub fn register_in(
+    arc_process: Arc<Process>,
+    mut writable_registry: RwLockWriteGuard<HashMap<Atom, Registered>>,
+    name: Atom,
+) -> bool {
+    let mut writable_registered_name = arc_process.registered_name.write();
+
+    match *writable_registered_name {
+        None => {
+            writable_registry.insert(name, Registered::Process(Arc::downgrade(&arc_process)));
+            *writable_registered_name = Some(name);
+
+            true
+        }
+        Some(_) => false,
     }
 }
 

@@ -81,13 +81,11 @@ pub unsafe extern "C" fn InitializeLumenDispatchTable(
     let raw_table = slice::from_raw_parts::<'static>(table, len);
     match SymbolTable::from_raw(raw_table) {
         Err(err) => {
-            eprintln!("{}", err);
-            false
+            panic!("{}", err);
         }
         Ok(sym_table) => {
             if let Err(_) = SYMBOLS.set(sym_table) {
-                eprintln!("tried to initialize symbol table more than once!");
-                false
+                panic!("tried to initialize symbol table more than once!");
             } else {
                 true
             }

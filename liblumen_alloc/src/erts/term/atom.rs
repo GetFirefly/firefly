@@ -48,11 +48,15 @@ pub unsafe extern "C" fn InitializeLumenAtomTable(table: *const ConstantAtom, le
     let raw_table = slice::from_raw_parts::<'static>(table, len);
     let mut default_table = ATOMS.write();
     if let Err(err) = default_table.from_raw(raw_table) {
-        eprintln!("{}", err);
-        false
+        panic!("{}", err);
     } else {
         true
     }
+}
+
+pub fn dump_atoms() {
+    let table = ATOMS.read();
+    table.dump();
 }
 
 /// An interned string, represented in memory as a integer ID.
@@ -376,6 +380,12 @@ impl AtomTable {
         self.names.insert(id, s);
 
         Ok(id)
+    }
+
+    fn dump(&self) {
+        for (id, name) in self.names.iter() {
+            println!("atom(id = {}, value = '{}')", *id, name);
+        }
     }
 }
 impl Default for AtomTable {

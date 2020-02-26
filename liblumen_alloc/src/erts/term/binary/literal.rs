@@ -5,6 +5,7 @@ use core::slice;
 use core::str;
 
 use liblumen_core::offset_of;
+use liblumen_term::{Tag, Encoding as EncodingTrait};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
@@ -59,9 +60,17 @@ impl BinaryLiteral {
     }
 
     #[inline]
-    pub fn make_arch64_parts_from_str(s: &str) -> (u64, u64) {
-        use crate::erts::term::arch::arch_64;
-        let header = arch_64::RawTerm::HEADER_PROCBIN;
+    pub fn make_parts_from_str<E>(s: &str) -> (u64, u64)
+    where
+        E: EncodingTrait,
+    {
+        use core::convert::{TryInto, TryFrom};
+
+        let header_val = <E::Type as TryFrom<usize>>::try_from(0).ok().unwrap();
+        let header = E::encode_header_with_tag(header_val, Tag::ProcBin)
+            .try_into()
+            .ok()
+            .unwrap();
         let encoding = if string::is_latin1(s) {
             Encoding::Latin1
         } else {
@@ -74,37 +83,20 @@ impl BinaryLiteral {
     }
 
     #[inline]
-    pub fn make_arch32_parts_from_str(s: &str) -> (u32, u32) {
-        use crate::erts::term::arch::arch_32;
-        let header = arch_32::RawTerm::HEADER_PROCBIN;
-        let encoding = if string::is_latin1(s) {
-            Encoding::Latin1
-        } else {
-            Encoding::Utf8
-        };
-        let flags = BinaryFlags::new_literal(encoding)
-            .set_size(s.len())
-            .as_u32();
-        (header, flags)
-    }
+    pub fn make_parts_from_slice<E>(s: &[u8]) -> (u64, u64)
+    where
+        E: EncodingTrait,
+    {
+        use core::convert::{TryInto, TryFrom};
 
-    #[inline]
-    pub fn make_arch64_parts_from_slice(s: &[u8]) -> (u64, u64) {
-        use crate::erts::term::arch::arch_64;
-        let header = arch_64::RawTerm::HEADER_PROCBIN;
+        let header_val = <E::Type as TryFrom<usize>>::try_from(0).ok().unwrap();
+        let header = E::encode_header_with_tag(header_val, Tag::ProcBin)
+            .try_into()
+            .ok()
+            .unwrap();
         let flags = BinaryFlags::new_literal(Encoding::Raw)
             .set_size(s.len())
             .as_u64();
-        (header, flags)
-    }
-
-    #[inline]
-    pub fn make_arch32_parts_from_slice(s: &[u8]) -> (u32, u32) {
-        use crate::erts::term::arch::arch_32;
-        let header = arch_32::RawTerm::HEADER_PROCBIN;
-        let flags = BinaryFlags::new_literal(Encoding::Raw)
-            .set_size(s.len())
-            .as_u32();
         (header, flags)
     }
 

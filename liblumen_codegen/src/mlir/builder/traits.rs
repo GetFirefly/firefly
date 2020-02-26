@@ -159,13 +159,29 @@ impl AsValueRef for Symbol {
 }
 impl AsValueRef for BinaryTerm {
     fn as_value_ref(&self, builder: ModuleBuilderRef, options: &Options) -> Result<ValueRef> {
+        use liblumen_term::*;
+        use liblumen_target::spec::EncodingType;
+
         let slice = self.value();
+        let encoding_type = options.target.options.encoding;
         let pointer_width = options.target.target_pointer_width;
-        let (header, flags) = if pointer_width == 32 {
-            let (h, f) = BinaryLiteral::make_arch32_parts_from_slice(slice);
-            (h as u64, f as u64)
-        } else {
-            BinaryLiteral::make_arch64_parts_from_slice(slice)
+        let (header, flags) = match encoding_type {
+            EncodingType::Encoding32 => {
+                BinaryLiteral::make_parts_from_slice::<Encoding32>(slice)
+            },
+            EncodingType::Encoding64 => {
+                BinaryLiteral::make_parts_from_slice::<Encoding64>(slice)
+            }
+            EncodingType::Encoding64Nanboxed => {
+                BinaryLiteral::make_parts_from_slice::<Encoding64Nanboxed>(slice)
+            }
+            EncodingType::Default if pointer_width == 32 => {
+                BinaryLiteral::make_parts_from_slice::<Encoding32>(slice)
+            }
+            EncodingType::Default if pointer_width == 64 => {
+                BinaryLiteral::make_parts_from_slice::<Encoding64>(slice)
+            }
+            EncodingType::Default => unreachable!(),
         };
 
         let ptr = slice.as_ptr() as *const libc::c_char;
@@ -308,13 +324,29 @@ impl AsAttributeRef for Symbol {
 }
 impl AsAttributeRef for BinaryTerm {
     fn as_attribute_ref(&self, builder: ModuleBuilderRef, options: &Options) -> Result<AttributeRef> {
+        use liblumen_term::*;
+        use liblumen_target::spec::EncodingType;
+
         let slice = self.value();
+        let encoding_type = options.target.options.encoding;
         let pointer_width = options.target.target_pointer_width;
-        let (header, flags) = if pointer_width == 32 {
-            let (h, f) = BinaryLiteral::make_arch32_parts_from_slice(slice);
-            (h as u64, f as u64)
-        } else {
-            BinaryLiteral::make_arch64_parts_from_slice(slice)
+        let (header, flags) = match encoding_type {
+            EncodingType::Encoding32 => {
+                BinaryLiteral::make_parts_from_slice::<Encoding32>(slice)
+            },
+            EncodingType::Encoding64 => {
+                BinaryLiteral::make_parts_from_slice::<Encoding64>(slice)
+            }
+            EncodingType::Encoding64Nanboxed => {
+                BinaryLiteral::make_parts_from_slice::<Encoding64Nanboxed>(slice)
+            }
+            EncodingType::Default if pointer_width == 32 => {
+                BinaryLiteral::make_parts_from_slice::<Encoding32>(slice)
+            }
+            EncodingType::Default if pointer_width == 64 => {
+                BinaryLiteral::make_parts_from_slice::<Encoding64>(slice)
+            }
+            EncodingType::Default => unreachable!(),
         };
 
         let ptr = slice.as_ptr() as *const libc::c_char;

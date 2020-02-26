@@ -38,7 +38,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     let _config = match Config::from_argv(name.to_string(), version.to_string(), argv) {
         Ok(config) => config,
         Err(err) => {
-            eprintln!("Config error: {}", err);
+            panic!("Config error: {}", err);
             return Err(());
         }
     };
@@ -54,7 +54,10 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     let level_filter = Level::Info.to_level_filter();
     logging::init(level_filter).expect("Unexpected failure initializing logger");
 
+    liblumen_alloc::erts::apply::dump_symbols();
+    liblumen_alloc::erts::term::atom::dump_atoms();
     let scheduler = <Scheduler as rt_core::Scheduler>::current();
+    scheduler.init().unwrap();
     loop {
         // Run the scheduler for a cycle
         let scheduled = scheduler.run_once();

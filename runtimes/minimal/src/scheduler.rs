@@ -91,9 +91,12 @@ pub struct Scheduler {
     // `u64`.
     unique_integer: AtomicU64,
     root: Arc<Process>,
-    init: Arc<Process>,
+    init: Cell<Arc<Process>>,
     current: ScheduledProcess,
 }
+// This guarantee holds as long as `init` and `current` are only
+// ever accessed by the scheduler when scheduling
+unsafe impl Sync for Scheduler {}
 impl rt_core::Scheduler for Scheduler {
     fn current() -> Arc<Self> {
         SCHEDULER.with(|s| s.clone())
@@ -134,6 +137,37 @@ impl Scheduler {
         let run_queues = Default::default();
         Scheduler::spawn_root(root.clone(), id, &run_queues)?;
 
+        // Placeholder
+        let init = Arc::new(Process::new(
+            Priority::Normal,
+            None,
+            Arc::new(ModuleFunctionArity {
+                module: Atom::from_str("undef"),
+                function: Atom::from_str("undef"),
+                arity: 0,
+            }),
+            ptr::null_mut(),
+            0,
+        ));
+
+        // The scheduler starts with the root process running
+        let current = ScheduledProcess::from(root.clone());
+
+        Ok(Self {
+            id,
+            run_queues,
+            root,
+            init: Cell::new(init),
+            current,
+            hierarchy: Default::default(),
+            reference_count: AtomicU64::new(0),
+            unique_integer: AtomicU64::new(0),
+        })
+    }
+
+    // Spawns the init process, should be called immediately after
+    // scheduler creation
+    pub fn init(&self) -> anyhow::Result<()> {
         // The init process is the actual "root" Erlang process, it acts
         // as the entry point for the program from Erlang's perspective,
         // and is responsible for starting/stopping the system in Erlang.
@@ -151,21 +185,11 @@ impl Scheduler {
             init_heap,
             init_heap_size,
         )?);
-        Scheduler::spawn_internal(init.clone(), id, &run_queues)?;
+        let clone = init.clone();
+        self.init.replace(init);
+        Scheduler::spawn_internal(clone, self.id, &self.run_queues);
 
-        // The scheduler starts with the root process running
-        let current = ScheduledProcess::from(root.clone());
-
-        Ok(Self {
-            id,
-            run_queues,
-            root,
-            init,
-            current,
-            hierarchy: Default::default(),
-            reference_count: AtomicU64::new(0),
-            unique_integer: AtomicU64::new(0),
-        })
+        Ok(())
     }
 
     /// Gets the scheduler registered to this thread
@@ -441,7 +465,8 @@ impl Scheduler {
     /// Spawns a new process using the given init function as its entry
     #[inline]
     pub fn spawn(&mut self, process: Arc<Process>) -> anyhow::Result<()> {
-        Self::spawn_internal(process, self.id, &self.run_queues)
+        Self::spawn_internal(process, self.id, &self.run_queues);
+        Ok(())
     }
 
     // Root process uses the original thread stack, no initialization required.
@@ -455,13 +480,15 @@ impl Scheduler {
         Ok(())
     }
 
-    fn spawn_internal(process: Arc<Process>, id: id::ID, run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
+    fn spawn_internal(process: Arc<Process>, id: id::ID, run_queues: &RwLock<run_queue::Queues>) {
         process.schedule_with(id);
 
-        apply::dump_symbols();
         let mfa = &process.initial_module_function_arity;
-        let init_fn = apply::find_symbol(&mfa)
-            .ok_or_else(|| anyhow!("invalid mfa provided for process ({}), no such symbol found", &mfa))?;
+        let init_fn_result = apply::find_symbol(&mfa);
+        if init_fn_result.is_none() {
+            panic!("invalid mfa provided for process ({}), no such symbol found", &mfa);
+        }
+        let init_fn = init_fn_result.unwrap();
 
         // Write the return function and init function to the end of the stack,
         // when execution resumes, the pointer before the stack pointer will be
@@ -484,7 +511,6 @@ impl Scheduler {
 
         let mut rq = run_queues.write();
         rq.enqueue(process);
-        Ok(())
     }
 }
 

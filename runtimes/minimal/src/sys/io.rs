@@ -7,11 +7,15 @@ use liblumen_alloc::erts::term::prelude::*;
 #[export_name = "__lumen_builtin_printf"]
 pub extern "C" fn printf_1(term: Term) -> Term {
     use liblumen_alloc::erts::term::arch::Repr;
-    println!("{:?}", term.as_usize());
     match term.decode() {
-        Ok(tt) => {
-            println!("{:?}", tt);
+        Ok(TypedTerm::ProcBin(boxed)) => {
+            let ptr = boxed.as_ptr();
+            println!("{:p}", ptr);
             Atom::from_str("ok").encode().unwrap()
+        }
+        Ok(_) => {
+            println!("ERR: wrong term type");
+            Term::NONE
         }
         Err(reason) => {
             println!("ERR: {:?}", reason);

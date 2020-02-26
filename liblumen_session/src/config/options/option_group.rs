@@ -97,7 +97,6 @@ where
     pub fn parse(self) -> OptionGroupParseResult<T> {
         let app = T::option_group_app();
         let matches = Self::coerce_help(app.get_matches_from_safe(self.args))?;
-        println!("matches: {:#?}", &matches);
         match matches.subcommand_name() {
             Some(unknown) => Err(clap::Error {
                 kind: ErrorKind::UnrecognizedSubcommand,

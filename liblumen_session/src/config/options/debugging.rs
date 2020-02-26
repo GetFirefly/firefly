@@ -62,7 +62,7 @@ pub struct DebuggingOptions {
     /// A single extra argument to prepend the linker invocation
     /// can be used more than once
     pub pre_link_arg: Vec<String>,
-    #[option(takes_value(true), value_name("ARGS"))]
+    #[option(takes_value(true), value_name("ARGS"), require_delimiter(true))]
     /// Extra arguments to prepend to the linker invocation (space separated)
     pub pre_link_args: Option<Vec<String>>,
     #[option(takes_value(true), possible_values("full", "partial", "off", "none"))]

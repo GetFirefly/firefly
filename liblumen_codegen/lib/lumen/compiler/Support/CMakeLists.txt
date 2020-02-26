@@ -10,6 +10,7 @@ lumen_cc_library(
     "raw_win32_handle_ostream.h"
     "RustString.h"
   SRCS
+    "ArchiveWrapper.cpp"
     "ErrorHandling.cpp"
     "LLVM.cpp"
     "MLIR.cpp"
@@ -18,8 +19,10 @@ lumen_cc_library(
     "RustString.cpp"
   DEPS
     LLVMSupport
+    LLVMObject
     MLIRSupport
     MLIRIR
+    MLIRLLVMIR
     MLIRPass
   ALWAYSLINK
   PUBLIC

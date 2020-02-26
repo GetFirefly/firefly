@@ -40,70 +40,13 @@ enum class RelocMode {
   ROPIRWPI,
 };
 
-llvm::CodeModel::Model toLLVM(CodeModel cm) {
-  switch (cm) {
-  case CodeModel::Small:
-    return llvm::CodeModel::Small;
-  case CodeModel::Kernel:
-    return llvm::CodeModel::Kernel;
-  case CodeModel::Medium:
-    return llvm::CodeModel::Medium;
-  case CodeModel::Large:
-    return llvm::CodeModel::Large;
-  default:
-    llvm::report_fatal_error("invalid llvm code model");
-  }
-}
+llvm::CodeModel::Model toLLVM(CodeModel cm);
 
-llvm::CodeGenOpt::Level toLLVM(OptLevel level) {
-  switch (level) {
-  case OptLevel::None:
-    return llvm::CodeGenOpt::None;
-  case OptLevel::Less:
-    return llvm::CodeGenOpt::Less;
-  case OptLevel::Default:
-    return llvm::CodeGenOpt::Default;
-  case OptLevel::Aggressive:
-    return llvm::CodeGenOpt::Aggressive;
-  default:
-    llvm::report_fatal_error("invalid llvm optimization level");
-  }
-}
+llvm::CodeGenOpt::Level toLLVM(OptLevel level);
 
-unsigned toLLVM(SizeLevel level) {
-  switch (level) {
-  case SizeLevel::None:
-    return 0;
-  case SizeLevel::Less:
-    return 1;
-  case SizeLevel::Aggressive:
-    return 2;
-  default:
-    llvm::report_fatal_error("invalid llvm code size level");
-  }
-}
+unsigned toLLVM(SizeLevel level);
 
-llvm::Reloc::Model toLLVM(RelocMode mode) {
-  switch (mode) {
-  case RelocMode::Default:
-    return llvm::Reloc::Static;
-  case RelocMode::Static:
-    return llvm::Reloc::Static;
-  case RelocMode::PIC:
-    return llvm::Reloc::PIC_;
-  case RelocMode::DynamicNoPic:
-    return llvm::Reloc::DynamicNoPIC;
-  case RelocMode::ROPI:
-    return llvm::Reloc::ROPI;
-  case RelocMode::RWPI:
-    return llvm::Reloc::RWPI;
-  case RelocMode::ROPIRWPI:
-    return llvm::Reloc::ROPI_RWPI;
-  default:
-    llvm::report_fatal_error("invalid llvm reloc mode");
-  }
-}
-
+llvm::Reloc::Model toLLVM(RelocMode mode);
 } // namespace lumen
 
 

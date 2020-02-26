@@ -17,15 +17,15 @@ impl IsTypeBuilder {
             Type::Tuple(arity) => unsafe {
                 MLIRBuildIsTypeTupleWithArity(builder_ref, value_ref, arity)
             },
-            Type::AnyList => unsafe { MLIRBuildIsTypeList(builder_ref, value_ref) },
+            Type::List => unsafe { MLIRBuildIsTypeList(builder_ref, value_ref) },
             Type::Cons => unsafe { MLIRBuildIsTypeNonEmptyList(builder_ref, value_ref) },
             Type::Nil => unsafe { MLIRBuildIsTypeNil(builder_ref, value_ref) },
             Type::Map => unsafe { MLIRBuildIsTypeMap(builder_ref, value_ref) },
-            Type::AnyNumber => unsafe { MLIRBuildIsTypeNumber(builder_ref, value_ref) },
+            Type::Number => unsafe { MLIRBuildIsTypeNumber(builder_ref, value_ref) },
             Type::Float => unsafe {
                 MLIRBuildIsTypeFloat(builder_ref, value_ref)
             },
-            Type::AnyInteger => unsafe { MLIRBuildIsTypeInteger(builder_ref, value_ref) },
+            Type::Integer => unsafe { MLIRBuildIsTypeInteger(builder_ref, value_ref) },
             Type::Fixnum => unsafe { MLIRBuildIsTypeFixnum(builder_ref, value_ref) },
             Type::BigInt => unsafe { MLIRBuildIsTypeBigInt(builder_ref, value_ref) },
             _ => unreachable!("unsupported type used in is_type operation"),

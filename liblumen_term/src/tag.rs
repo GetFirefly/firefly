@@ -30,6 +30,54 @@ where
     Literal,
     Unknown(T),
 }
+impl<T> Tag<T>
+where
+    T: Clone + Copy + PartialEq + Eq,
+{
+    #[inline]
+    pub fn is_term(&self) -> bool {
+        match self {
+            Self::None | Self::Unknown(_) => false,
+            _ => true,
+        }
+    }
+
+    #[inline]
+    pub fn is_list(&self) -> bool {
+        match self {
+            Self::Nil | Self::List => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_number(&self) -> bool {
+        match self {
+            Self::SmallInteger
+            | Self::BigInteger
+            | Self::Float => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_integer(&self) -> bool {
+        match self {
+            Self::SmallInteger | Self::BigInteger => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_binary(&self) -> bool {
+        match self {
+            Self::ProcBin
+            | Self::HeapBinary
+            | Self::SubBinary => true,
+            _ => false,
+        }
+    }
+}
 
 impl<T> fmt::Debug for Tag<T>
 where

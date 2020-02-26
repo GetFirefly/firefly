@@ -1,9 +1,10 @@
 #include "lumen/compiler/Support/Options.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
 
-#include "llvm/Support/CommandLine.h"
-
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Pass/PassManager.h"
+
+#include "llvm/Support/CommandLine.h"
 
 using namespace lumen;
 
@@ -22,5 +23,6 @@ void LLVMLumenSetLLVMOptions(int argc, char **argv) {
   llvm::cl::ParseCommandLineOptions(argc, argv);
 
   // Register the EIR dialect with MLIR
+  mlir::registerDialect<mlir::LLVM::LLVMDialect>();
   mlir::registerDialect<eir::EirDialect>();
 }

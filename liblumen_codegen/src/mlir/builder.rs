@@ -95,11 +95,14 @@ impl<'m> ModuleBuilder<'m> {
         debug!("building mlir module for {}", self.module.name());
 
         for f in self.module.function_iter() {
+            let ident = f.function().ident();
+            // Don't generate module_info/0 and module_info/1 for now
+            if ident.name.name.as_str().get() == "module_info" {
+                continue;
+            }
             let mut fb = FunctionBuilder::new(f, &mut self);
             fb.build(options)?;
         }
-
-        unsafe { ffi::MLIRDumpModule(self.builder); }
 
         debug!("finished building {}, finalizing..", self.module.name());
 

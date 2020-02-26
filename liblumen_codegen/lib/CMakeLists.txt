@@ -98,4 +98,5 @@ if (${LUMEN_BUILD_COMPILER})
   add_subdirectory(tools)
 endif()
 
+#lumen_complete_dylib_link_options()
 lumen_complete_binary_link_options()

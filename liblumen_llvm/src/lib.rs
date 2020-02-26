@@ -1,9 +1,8 @@
-pub mod diagnostics;
-pub mod target;
-pub mod util;
-pub mod archive;
+#![feature(extern_types)]
 
-pub use self::util::init;
+pub mod diagnostics;
+pub mod passes;
+pub mod string;
 
 pub type Value = llvm_sys::LLVMValue;
 

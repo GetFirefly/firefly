@@ -6,6 +6,7 @@ lumen_cc_library(
     "TargetInfo.h"
   SRCS
     "Target.cpp"
+    "TargetInfo.cpp"
   DEPS
     LLVMSupport
     LLVMCodeGen

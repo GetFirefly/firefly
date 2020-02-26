@@ -2,7 +2,6 @@
 #include "lumen/compiler/Target/Target.h"
 #include "lumen/compiler/Target/TargetInfo.h"
 #include "lumen/compiler/Dialect/EIR/Transforms/Passes.h"
-#include "lumen/compiler/Dialect/EIR/Conversion/EIRToStandard/ConvertEIRToStandard.h"
 
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
@@ -35,13 +34,6 @@ DEFINE_SIMPLE_CONVERSION_FUNCTIONS(TargetMachine, LLVMTargetMachineRef);
 
 using CodeGenOptLevel = ::llvm::CodeGenOpt::Level;
 
-TargetInfo::TargetInfo(TargetMachine *targetMachine) {
-  auto triple = targetMachine->getTargetTriple();
-  auto dataLayout = targetMachine->createDataLayout();
-  archType = triple.getArch();
-  pointerSizeInBits = dataLayout.getPointerSizeInBits(0);
-}
-
 extern "C" MLIRModuleRef
 MLIRLowerModule(MLIRContextRef context, MLIRModuleRef m,
                 TargetDialect dialect,
@@ -52,8 +44,10 @@ MLIRLowerModule(MLIRContextRef context, MLIRModuleRef m,
   TargetMachine *targetMachine = unwrap(tm);
   CodeGenOptLevel optLevel = toLLVM(opt);
 
-  PassManager pm(&*ctx);
+  PassManager pm(ctx);
   mlir::applyPassManagerCLOptions(pm);
+  //pm.enableTiming();
+  //pm.enableStatistics();
 
   bool enableOpt = optLevel >= CodeGenOptLevel::None;
   bool lowerToStandard = dialect >= TargetDialect::TargetStandard;
@@ -61,53 +55,43 @@ MLIRLowerModule(MLIRContextRef context, MLIRModuleRef m,
 
   if (enableOpt) {
     // Perform high-level inlining
-    pm.addPass(mlir::createInlinerPass());
+    //pm.addPass(mlir::createInlinerPass());
 
-    // Now that there is only one function, we can infer the shapes of each of
-    // the operations.
-    OpPassManager &optPM = pm.nest<eir::FuncOp>();
+    OpPassManager &optPM = pm.nest<::lumen::eir::FuncOp>();
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createCSEPass());
   }
 
-  if (lowerToStandard) {
-    TargetInfo targetInfo(targetMachine);
-    buildEIRTransformPassPipeline(pm);
-
-    OpPassManager &optPM = pm.nest<mlir::FuncOp>();
-    optPM.addPass(mlir::createCanonicalizerPass());
-    optPM.addPass(mlir::createCSEPass());
+  if (lowerToStandard || lowerToLLVM) {
+    buildEIRTransformPassPipeline(pm, targetMachine);
 
     // Add optimizations if enabled
     if (enableOpt) {
+      OpPassManager &optPM = pm.nest<mlir::FuncOp>();
       optPM.addPass(mlir::createLoopFusionPass());
       optPM.addPass(mlir::createMemRefDataFlowOptPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(mlir::createCSEPass());
     }
-  }
-
-  if (lowerToLLVM) {
-    // Lower from Standard to LLVM dialect
-    pm.addPass(mlir::createLowerToLLVMPass());
-    pm.addPass(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createCSEPass());
   }
 
   OwningModuleRef ownedMod(*mod);
   if (mlir::failed(pm.run(*ownedMod))) {
     return nullptr;
   }
-  ownedMod->dump();
 
   return wrap(new ModuleOp(ownedMod.release()));
 }
 
 extern "C" LLVMModuleRef
 MLIRLowerToLLVMIR(MLIRModuleRef m,
+                  const char *sourceName,
                   OptLevel opt,
                   SizeLevel size,
                   LLVMTargetMachineRef tm) {
   ModuleOp *mod = unwrap(m);
   TargetMachine *targetMachine = unwrap(tm);
+  auto targetTriple = targetMachine->getTargetTriple();
   CodeGenOptLevel optLevel = toLLVM(opt);
   unsigned sizeLevel = toLLVM(size);
 
@@ -116,6 +100,8 @@ MLIRLowerToLLVMIR(MLIRModuleRef m,
     optLevel = CodeGenOptLevel::Default;
   }
 
+  auto modName = mod->getName();
+
   OwningModuleRef ownedMod(*mod);
   auto llvmModPtr = mlir::translateModuleToLLVMIR(*ownedMod);
   if (!llvmModPtr) {
@@ -123,7 +109,14 @@ MLIRLowerToLLVMIR(MLIRModuleRef m,
     return nullptr;
   }
 
-  mlir::ExecutionEngine::setupTargetTriple(llvmModPtr.get());
+  llvmModPtr->setModuleIdentifier(modName.getValue());
+  if (sourceName != nullptr) {
+    llvmModPtr->setSourceFileName(StringRef(sourceName));
+  }
+  llvmModPtr->setDataLayout(targetMachine->createDataLayout());
+  llvmModPtr->setTargetTriple(targetTriple.getTriple());
+
+  //mlir::ExecutionEngine::setupTargetTriple(llvmModPtr.get());
 
   // L::outs() << L::format("Making optimizing transformer with %p",
   // targetMachine) << "\n";

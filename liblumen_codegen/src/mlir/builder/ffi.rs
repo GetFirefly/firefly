@@ -154,41 +154,22 @@ impl From<&libeir_ir::BinaryEntrySpecifier> for BinarySpecifier {
     }
 }
 
-/// Represents the available MLIR types for the EIR dialect
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u32)]
-pub enum Type {
-    Void = 1,
-    Term,
-    AnyList,
-    AnyNumber,
-    AnyInteger,
-    AnyBinary,
-    Atom,
-    Boolean,
-    Fixnum,
-    BigInt,
-    Float,
-    Nil,
-    Cons,
-    Tuple(libc::c_uint),
-    Map,
-    Closure,
-    HeapBin,
-    Box,
-}
+include!(concat!(env!("OUT_DIR"), "/build/lumen/compiler/term_encoding.rs"));
+
+// Type is defined in tablegen in lumen/compiler/Dialect/EIR/IR/EIRBase.td,
+// and generated via lumen/compiler/Dialect/Tools/EIREncodingGen.cpp
 impl From<libeir_ir::BasicType> for Type {
     fn from(ty: libeir_ir::BasicType) -> Self {
         use libeir_ir::BasicType;
         match ty {
-            BasicType::List => Type::AnyList,
+            BasicType::List => Type::List,
             BasicType::ListCell => Type::Cons,
             BasicType::Nil => Type::Nil,
-            BasicType::Tuple(arity) => Type::Tuple(arity as libc::c_uint),
+            BasicType::Tuple(arity) => Type::Tuple(arity as u32),
             BasicType::Map => Type::Map,
-            BasicType::Number => Type::AnyNumber,
+            BasicType::Number => Type::Number,
             BasicType::Float => Type::Float,
-            BasicType::Integer => Type::AnyInteger,
+            BasicType::Integer => Type::Integer,
             BasicType::SmallInteger => Type::Fixnum,
             BasicType::BigInteger => Type::BigInt,
         }
@@ -436,6 +417,12 @@ extern "C" {
         builder: ModuleBuilderRef,
         pairs: *const MapEntry,
         num_pairs: libc::c_uint,
+    ) -> ValueRef;
+
+    pub fn MLIRBuildPrintOp(
+        builder: ModuleBuilderRef,
+        argv: *const ValueRef,
+        argc: libc::c_uint,
     ) -> ValueRef;
 
     //---------------

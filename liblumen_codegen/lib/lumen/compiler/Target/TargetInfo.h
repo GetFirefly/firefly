@@ -1,8 +1,12 @@
 #ifndef LUMEN_TARGET_TARGETINFO_H
 #define LUMEN_TARGET_TARGETINFO_H
 
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/APInt.h"
+
+using ::mlir::LLVM::LLVMType;
 
 namespace llvm {
 class TargetMachine;
@@ -17,20 +21,86 @@ enum class TargetDialect {
   TargetLLVM,
 };
 
+extern "C"
+struct Encoding {
+    uint32_t pointerWidth;
+    bool supportsNanboxing;
+};
+
+struct TargetInfoImpl {
+    TargetInfoImpl() {}
+    TargetInfoImpl(const TargetInfoImpl &other)
+        : triple(other.triple),
+          encoding(other.encoding),
+          pointerWidthIntTy(other.pointerWidthIntTy),
+          termTy(other.termTy),
+          fixnumTy(other.fixnumTy),
+          bigIntTy(other.bigIntTy),
+          floatTy(other.floatTy),
+          atomTy(other.atomTy),
+          binaryTy(other.binaryTy),
+          nilTy(other.nilTy),
+          consTy(other.consTy),
+          nil(other.nil),
+          none(other.none),
+          listTag(other.listTag),
+          boxTag(other.boxTag),
+          literalTag(other.literalTag) {}
+
+    std::string triple;
+
+    Encoding encoding;
+
+    LLVMType pointerWidthIntTy;
+    LLVMType termTy;
+    LLVMType fixnumTy, bigIntTy, floatTy;
+    LLVMType atomTy;
+    LLVMType binaryTy;
+    LLVMType nilTy, consTy;
+    LLVMType noneTy;
+
+    llvm::APInt nil;
+    llvm::APInt none;
+
+    uint64_t listTag;
+    uint64_t boxTag;
+    uint64_t literalTag;
+};
+
 class TargetInfo {
 public:
-  TargetInfo() : archType(llvm::Triple::ArchType::UnknownArch), pointerSizeInBits(0) {};
-  TargetInfo(llvm::TargetMachine *);
-  TargetInfo(const TargetInfo &other) : archType(other.archType), pointerSizeInBits(other.pointerSizeInBits) {};
+  explicit TargetInfo(llvm::TargetMachine *, mlir::LLVM::LLVMDialect &);
+  explicit TargetInfo(const TargetInfo &other);
     
   bool is_x86_64() const { return archType == llvm::Triple::ArchType::x86_64; }
   bool is_wasm32() const { return archType == llvm::Triple::ArchType::wasm32; }
+  bool requiresPackedFloats() const { return !is_x86_64(); }
 
-  //llvm::APInt getNilValue() const { return llvm::APInt(pointerSizeInBits, TERM_ENCODING_NIL_VALUE__x86_64, false); }
-  //llvm::APInt getNoneValue() const { return llvm::APInt(pointerSizeInBits, TERM_ENCODING_NONE_VALUE__x86_64, false); }
+  mlir::LLVM::LLVMType getHeaderType();
+  mlir::LLVM::LLVMType getTermType();
+  mlir::LLVM::LLVMType getConsType();
+  mlir::LLVM::LLVMType getFloatType();
+  mlir::LLVM::LLVMType getFixnumType();
+  mlir::LLVM::LLVMType getAtomType();
+  mlir::LLVM::LLVMType getBinaryType();
+  mlir::LLVM::LLVMType getNilType();
+  mlir::LLVM::LLVMType getNoneType();
+  mlir::LLVM::LLVMType makeTupleType(mlir::LLVM::LLVMDialect *, llvm::ArrayRef<mlir::LLVM::LLVMType>);
 
-  llvm::Triple::ArchType archType;
+  llvm::APInt encodeImmediate(uint32_t type, uint64_t value);
+  llvm::APInt encodeHeader(uint32_t type, uint64_t arity);
+
+  llvm::APInt &getNilValue() const;
+  llvm::APInt &getNoneValue() const;
+
+  uint64_t listTag() const;
+  uint64_t boxTag() const;
+  uint64_t literalTag() const;
+
   unsigned pointerSizeInBits;
+private:
+  llvm::Triple::ArchType archType;
+  std::unique_ptr<TargetInfoImpl> impl;
 };
 
 } // namespace lumen

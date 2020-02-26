@@ -52,26 +52,29 @@ pub struct ProjectInfo {
 impl ProjectInfo {
     pub fn new(options: &Options) -> Self {
         let mut info = Self::default();
-        // Always statically link the Lumen core runtime
-        info.native_libraries.push(NativeLibrary {
-            kind: NativeLibraryKind::NativeStatic,
-            name: Some("liblumen_crt".to_string()),
-            wasm_import_module: None,
-        });
         // If `-C no-std` was not set, link in the appropriate Lumen runtime crate
         if options.codegen_opts.no_std.unwrap_or(false) == false {
-            if options.target.arch == "wasm32" {
+            for lib in &[/*"liblumen_core",*/ "liblumen_crt", /*"liblumen_alloc"*/] {
                 info.native_libraries.push(NativeLibrary {
                     kind: NativeLibraryKind::NativeStatic,
+                    name: Some(lib.to_string()),
+                    wasm_import_module: None,
+                });
+            }
+            if options.target.arch == "wasm32" {
+                info.native_libraries.push(NativeLibrary {
+                    kind: NativeLibraryKind::NativeStaticNobundle,
                     name: Some("lumen_web".to_string()),
                     wasm_import_module: None,
                 });
             } else {
-                info.native_libraries.push(NativeLibrary {
-                    kind: NativeLibraryKind::NativeStatic,
-                    name: Some("lumen_runtime".to_string()),
-                    wasm_import_module: None,
-                });
+                for lib in &["lumen_rt_core", "lumen_rt_minimal"] {
+                    info.native_libraries.push(NativeLibrary {
+                        kind: NativeLibraryKind::NativeStaticNobundle,
+                        name: Some(lib.to_string()),
+                        wasm_import_module: None,
+                    });
+                }
             }
         }
         // All other libraries are user-provided

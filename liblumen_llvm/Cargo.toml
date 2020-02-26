@@ -1,19 +1,18 @@
 [package]
-name = "liblumen_term"
+name = "liblumen_llvm"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 edition = "2018"
 
-build = "build.rs"
-
 [lib]
-crate-type = ["rlib", "cdylib", "staticlib"]
+crate-type = ["rlib", "staticlib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+libc = "0.2"
 
-
-[build-dependencies]
-cmake = "0.1"
-which = "2.0.1"
+[dependencies.llvm-sys]
+git = "https://github.com/lumen/llvm-sys.rs"
+branch = "llvm-9.0"
+features = ["no-llvm-linking", "disable-alltargets-init"]

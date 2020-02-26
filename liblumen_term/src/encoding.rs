@@ -9,7 +9,7 @@ pub use self::arch_64_nanboxed::Encoding64Nanboxed;
 use core::mem;
 use core::fmt::{Debug, Binary};
 use core::hash::Hash;
-use core::convert::TryInto;
+use core::convert::{TryFrom, TryInto};
 
 use crate::Tag;
 
@@ -23,7 +23,9 @@ pub trait Word: Copy +
     Binary +
     TryInto<usize> +
     TryInto<u32> +
-    TryInto<u64>
+    TryInto<u64> +
+    TryFrom<usize> +
+    TryFrom<u64>
 {
     fn as_usize(&self) -> usize;
 }
@@ -75,6 +77,8 @@ pub trait Encoding {
 
     fn encode_immediate(value: Self::Type, tag: Self::Type) -> Self::Type;
 
+    fn encode_immediate_with_tag(value: Self::Type, tag: Tag<Self::Type>) -> Self::Type;
+
     fn encode_list<T: ?Sized>(value: *const T) -> Self::Type;
 
     fn encode_box<T: ?Sized>(value: *const T) -> Self::Type;
@@ -82,6 +86,8 @@ pub trait Encoding {
     fn encode_literal<T: ?Sized>(value: *const T) -> Self::Type;
 
     fn encode_header(value: Self::Type, tag: Self::Type) -> Self::Type;
+
+    fn encode_header_with_tag(value: Self::Type, tag: Tag<Self::Type>) -> Self::Type;
 
     unsafe fn decode_box<T>(value: Self::Type) -> *mut T;
 

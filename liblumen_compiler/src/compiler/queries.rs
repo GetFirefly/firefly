@@ -200,7 +200,8 @@ where
     );
     let target_machine = db.get_target_machine(thread_id);
     debug!("using target machine {:?}", &target_machine);
-    let module = to_query_result!(db, mlir_module.lower_to_llvm_ir(opt, size, &target_machine));
+    let source_name = get_input_source_name(db, input);
+    let module = to_query_result!(db, mlir_module.lower_to_llvm_ir(source_name, opt, size, &target_machine));
 
     // Emit LLVM IR
     db.maybe_emit_file_with_opts(&options, input, &module)?;
@@ -272,4 +273,16 @@ where
 
     debug!("compilation finished for {:?}", input);
     Ok(compiled)
+}
+
+fn get_input_source_name<C>(db: &C, input: InternedInput) -> Option<String>
+where
+    C: CodegenDatabase,
+{
+    let input_info = db.lookup_intern_input(input);
+
+    match input_info {
+        Input::File(ref path) => Some(path.to_string_lossy().into_owned()),
+        Input::Str { ref name, .. } => Some(name.clone()),
+    }
 }

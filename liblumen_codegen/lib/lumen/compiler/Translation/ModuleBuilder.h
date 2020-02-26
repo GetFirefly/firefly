@@ -20,6 +20,7 @@ class Builder;
 class Location;
 class Attribute;
 class Type;
+class FuncOp;
 } // namespace mlir
 
 namespace llvm {
@@ -74,30 +75,16 @@ struct FunctionDeclResult {
   MLIRBlockRef entryBlock;
 };
 
-enum class EirTypeTag : uint32_t {
-  Unknown = 0,
-  Void,
-  Term,
-  List,
-  Number,
-  Integer,
-  Binary,
-  Atom,
-  Boolean,
-  Fixnum,
-  BigInt,
-  Float,
-  Nil,
-  Cons,
-  Tuple,
-  Map,
-  Closure,
-  HeapBin,
-  Box,
+namespace EirTypeTag {
+enum TypeTag {
+#define EIR_TERM_KIND(Name, Val) Name = Val,
+#define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
+#include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
 };
+}
 
-struct EirTypeAny { EirTypeTag tag; };
-struct EirTypeTuple { EirTypeTag tag; unsigned arity; };
+struct EirTypeAny { EirTypeTag::TypeTag tag; };
+struct EirTypeTuple { EirTypeTag::TypeTag tag; unsigned arity; };
 
 union EirType {
   EirTypeAny any;
@@ -175,13 +162,13 @@ public:
   // Functions
   //===----------------------------------------------------------------------===//
 
-  FuncOp create_function(StringRef functionName,
+  mlir::FuncOp create_function(StringRef functionName,
                          SmallVectorImpl<Arg> &functionArgs,
                          EirType *resultType);
 
   void declare_function(StringRef functionName, mlir::FunctionType fnType);
 
-  void add_function(FuncOp f);
+  void add_function(mlir::FuncOp f);
 
   void build_external_declarations();
 
@@ -189,7 +176,7 @@ public:
   // Blocks
   //===----------------------------------------------------------------------===//
 
-  Block *add_block(FuncOp &f);
+  Block *add_block(mlir::FuncOp &f);
   Block *getBlock();
   void position_at_end(Block *block);
   //===----------------------------------------------------------------------===//
@@ -206,6 +193,15 @@ public:
                 SmallVectorImpl<Value> &otherArgs);
   void build_unreachable();
   void build_return(Value value);
+
+  void translate_call_to_intrinsic(
+    StringRef target,
+    ArrayRef<Value> args,
+    bool isTail,
+    Block *ok,
+    ArrayRef<Value> okArgs,
+    Block *err,
+    ArrayRef<Value> errArgs);   
 
   void build_static_call(
     StringRef target,
@@ -240,6 +236,8 @@ public:
   Value build_tuple(ArrayRef<Value> elements);
   Value build_map(ArrayRef<MapEntry> entries);
 
+  Value build_print_op(ArrayRef<Value> args);
+
   //===----------------------------------------------------------------------===//
   // Constants
   //===----------------------------------------------------------------------===//
@@ -253,8 +251,8 @@ public:
   Value build_constant_atom(StringRef value, uint64_t valueId);
   Attribute build_atom_attr(StringRef value, uint64_t valueId);
   Attribute build_string_attr(StringRef value);
-  Value build_constant_binary(ArrayRef<char> value, uint64_t header, uint64_t flags);
-  Attribute build_binary_attr(ArrayRef<char> value, uint64_t header, uint64_t flags);
+  Value build_constant_binary(StringRef value, uint64_t header, uint64_t flags);
+  Attribute build_binary_attr(StringRef value, uint64_t header, uint64_t flags);
   Value build_constant_nil();
   Attribute build_nil_attr();
   Value build_constant_list(ArrayRef<Attribute> elements);

@@ -60,6 +60,27 @@ class AliasedSymbolRefAttr : Attr<CPred<"$_self.isa<FlatSymbolRefAttr>()">,
   let constBuilderCall = "$_builder.getSymbolRefAttr($0)";
 }
 
+class BaseAtomAttr : Attr<CPred<"$_self.isa<AtomAttr>()">,
+                                "atom attribute"> {
+  let storageType = [{ AtomAttr }];
+  let returnType = [{ APInt }];
+}
+
+class BaseBinaryAttr : Attr<CPred<"$_self.isa<BinaryAttr>()">,
+                                  "binary attribute"> {
+  let storageType = [{ BinaryAttr }];
+  let returnType = [{ StringRef }];
+}
+
+class BaseSeqAttr : Attr<CPred<"$_self.isa<SeqAttr>()">,
+                               "seq attribute"> {
+  let storageType = [{ SeqAttr }];
+  let returnType = [{ ArrayRef<Attribute> }];
+}
+
+def eir_AtomAttr : BaseAtomAttr;
+def eir_BinaryAttr : BaseBinaryAttr;
+def eir_SeqAttr : BaseSeqAttr;
 def eir_GlobalRefAttr : AliasedSymbolRefAttr;
 def eir_FuncRefAttr   : AliasedSymbolRefAttr;
 
@@ -71,24 +92,25 @@ def eir_NilAttr : TypeAttrBase<"NilType", "nil type">;
 
 class eir_TermKind<string name, int kind> : I32EnumAttrCase<name, kind>;
 
-def eir_TK_Term    : eir_TermKind<"Term", 0>;
-def eir_TK_List    : eir_TermKind<"List", 1>;
-def eir_TK_Number  : eir_TermKind<"Number", 2>;
-def eir_TK_Integer : eir_TermKind<"Integer", 3>;
-def eir_TK_Float   : eir_TermKind<"Float", 4>;
-def eir_TK_Atom    : eir_TermKind<"Atom", 5>;
-def eir_TK_Boolean : eir_TermKind<"Boolean", 6>;
-def eir_TK_Fixnum  : eir_TermKind<"Fixnum", 7>;
-def eir_TK_BigInt  : eir_TermKind<"BigInt", 8>;
-def eir_TK_Nil     : eir_TermKind<"Nil", 9>;
-def eir_TK_Cons    : eir_TermKind<"Cons", 10>;
-def eir_TK_Tuple   : eir_TermKind<"Tuple", 11>;
-def eir_TK_Map     : eir_TermKind<"Map", 12>;
-def eir_TK_Closure : eir_TermKind<"Closure", 13>;
-def eir_TK_Binary  : eir_TermKind<"Binary", 14>;
-def eir_TK_HeapBin : eir_TermKind<"HeapBin", 15>;
-def eir_TK_ProcBin : eir_TermKind<"ProcBin", 16>;
-def eir_TK_Box     : eir_TermKind<"Box", 17>;
+def eir_TK_None    : eir_TermKind<"None", 0>;
+def eir_TK_Term    : eir_TermKind<"Term", 1>;
+def eir_TK_List    : eir_TermKind<"List", 2>;
+def eir_TK_Number  : eir_TermKind<"Number", 3>;
+def eir_TK_Integer : eir_TermKind<"Integer", 4>;
+def eir_TK_Float   : eir_TermKind<"Float", 5>;
+def eir_TK_Atom    : eir_TermKind<"Atom", 6>;
+def eir_TK_Boolean : eir_TermKind<"Boolean", 7>;
+def eir_TK_Fixnum  : eir_TermKind<"Fixnum", 8>;
+def eir_TK_BigInt  : eir_TermKind<"BigInt", 9>;
+def eir_TK_Nil     : eir_TermKind<"Nil", 10>;
+def eir_TK_Cons    : eir_TermKind<"Cons", 11>;
+def eir_TK_Tuple   : eir_TermKind<"Tuple", 12>;
+def eir_TK_Map     : eir_TermKind<"Map", 13>;
+def eir_TK_Closure : eir_TermKind<"Closure", 14>;
+def eir_TK_Binary  : eir_TermKind<"Binary", 15>;
+def eir_TK_HeapBin : eir_TermKind<"HeapBin", 16>;
+def eir_TK_ProcBin : eir_TermKind<"ProcBin", 17>;
+def eir_TK_Box     : eir_TermKind<"Box", 18>;
 
 class eir_TermType<eir_TermKind kind, string description> : DialectType<
     eir_Dialect,
@@ -115,12 +137,13 @@ def eir_HeapBinType : eir_TermType<eir_TK_HeapBin, "heapbin term">;
 def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin term">;
 def eir_BoxType : eir_TermType<eir_TK_Box, "boxed term">;
 
-def eir_AnyTerm : Type<CPred<"$_self.isa<eir::TermType>()">>;
-def eir_BoolLike : AnyTypeOf<[I1, eir_BoolType]>;
-def eir_FixnumLike : AnyTypeOf<[I32, I64, eir_FixnumType]>;
-def eir_FloatLike : AnyTypeOf<[F64, eir_FixnumType]>;
-def eir_ListLike : AnyTypeOf<[eir_NilType, eir_ConsType, eir_ListType]>;
-def eir_BinaryLike : AnyTypeOf<[eir_BinaryType, eir_HeapBinType, eir_ProcBinType]>;
+def eir_AnyTerm : Type<CPred<"$_self.isa<eir::TermType>()">, "dynamic term type">;
+def eir_AnyType : Type<CPred<"$_self.isa<eir::OpaqueTermType>()">, "any term type">;
+def eir_BoolLike : AnyTypeOf<[I1, eir_BoolType], "boolean-like type">;
+def eir_FixnumLike : AnyTypeOf<[I32, I64, eir_FixnumType], "fixed-width integer type">;
+def eir_FloatLike : AnyTypeOf<[F64, eir_FixnumType], "float-like type">;
+def eir_ListLike : AnyTypeOf<[eir_NilType, eir_ConsType, eir_ListType], "list-like type">;
+def eir_BinaryLike : AnyTypeOf<[eir_BinaryType, eir_HeapBinType, eir_ProcBinType], "binary-like type">;
 
 //===----------------------------------------------------------------------===//
 // Traits

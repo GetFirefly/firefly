@@ -2,6 +2,7 @@
 #define EIR_OPS_H_
 
 #include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTraits.h"
 #include "lumen/compiler/Translation/ModuleBuilderSupport.h"
 
@@ -57,6 +58,9 @@ private:
   SmallVector<Value, 3> destArgs;
   std::unique_ptr<MatchPattern> pattern;
 };
+
+/// Calculates the size of the boxed type for allocation
+int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType type);
 
 //===----------------------------------------------------------------------===//
 // TableGen

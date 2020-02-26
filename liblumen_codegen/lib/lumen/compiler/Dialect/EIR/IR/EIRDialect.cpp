@@ -16,7 +16,11 @@ using namespace lumen::eir;
 using ::mlir::Attribute;
 using ::mlir::DialectAsmPrinter;
 
-static DialectRegistration<EirDialect> eir_dialect;
+// NOTE: This conflicts with manual registration when
+// dynamic linking, but would be preferable in general,
+// before removing this, try and figure out how to make
+// it work both dynamically and statically linked
+// static DialectRegistration<EirDialect> eir_dialect;
 
 /// Create an instance of the EIR dialect, owned by the context.
 ///
@@ -32,7 +36,6 @@ EirDialect::EirDialect(mlir::MLIRContext *ctx)
            ListType,
            NumberType,
            IntegerType,
-           BinaryType,
            AtomType,
            BooleanType,
            FixnumType,
@@ -68,18 +71,20 @@ void EirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
   } break;
   case AttributeKind::Binary: {
     auto binAttr = attr.cast<BinaryAttr>();
-    auto bytes = binAttr.getValue();
-    auto size = bytes.size();
-    os << BinaryAttr::getAttrName() << '<';
-    os << '[';
-    if (size > 0) {
-      os << "0x";
-      for (unsigned i = 0; i < size; i++) {
-        auto c = bytes[i];
-        os << llvm::format_hex_no_prefix(bytes[i], 2, true);
-      }
+    os << BinaryAttr::getAttrName();
+    os << "<{ value = ";
+    if (binAttr.isPrintable()) {
+        auto s = binAttr.getValue();
+        os << '"' << s << '"';
+    } else {
+        auto bin = binAttr.getValue();
+        auto size = bin.size();
+        os << "0x";
+        for (char c : bin.bytes()) {
+            os << llvm::format_hex_no_prefix(c, 2, true);
+        }
     }
-    os << ']';
+    os << " }>";
   } break;
   case AttributeKind::Seq: {
     auto seqAttr = attr.cast<SeqAttr>();

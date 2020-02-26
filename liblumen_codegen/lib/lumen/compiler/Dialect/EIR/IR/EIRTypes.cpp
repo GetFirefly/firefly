@@ -31,7 +31,6 @@ struct OpaqueTermStorage : public mlir::TypeStorage {
 
   unsigned getImplKind() const { return implKind; }
 
-private:
   unsigned implKind;
 };
 
@@ -162,10 +161,11 @@ int64_t TupleType::getSizeInBytes() const {
   auto arity = getImpl()->key.arity;
   if (arity < 0)
     return -1;
-  return arity * 8;
+  // Header word is always present, each element is one word
+  return 8 + (arity * 8);
 };
-bool TupleType::isFullyStatic() const { return getImpl()->key.arity < 1; }
-bool TupleType::isFullyDynamic() const { return getImpl()->key.arity == -1; }
+bool TupleType::hasStaticShape() const { return getImpl()->key.arity != -1; }
+bool TupleType::hasDynamicShape() const { return getImpl()->key.arity == -1; }
 Type TupleType::getElementType(unsigned index) const { return getImpl()->key.elementTypes[index]; }
 
 
@@ -381,7 +381,7 @@ void printTuple(TupleType type,
                 llvm::raw_ostream &os,
                 mlir::DialectAsmPrinter &p) {
   os << "tuple<";
-  if (!type.isFullyDynamic()) {
+  if (type.hasDynamicShape()) {
     os << '*';
   }
   auto arity = type.getArity();

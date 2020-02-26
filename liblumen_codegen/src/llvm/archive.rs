@@ -7,17 +7,20 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 use std::str;
 
+use liblumen_session::Options;
+use liblumen_session::OutputType;
+use liblumen_llvm::diagnostics::LLVMLumenGetLastError;
+
 use crate::llvm::archive_ro::{ArchiveRO, Child};
-use crate::llvm::{self, ArchiveKind};
-use rustc_codegen_ssa::{
-    METADATA_FILENAME, RLIB_BYTECODE_EXTENSION, looks_like_rust_object_file
-};
-use rustc_codegen_ssa::back::archive::{ArchiveBuilder, find_library};
-use rustc::session::Session;
-use syntax::symbol::Symbol;
+use crate::ffi::archive::{self, ArchiveKind};
+use crate::linker::archive::{ArchiveBuilder, find_library};
+
+pub const RLIB_BYTECODE_EXTENSION: &str = "bc.z";
+pub const METADATA_FILENAME: &str = "lib.rmeta";
+pub const RUST_CGU_EXT: &str = "rcgu";
 
 struct ArchiveConfig<'a> {
-    pub sess: &'a Session,
+    pub sess: &'a Options,
     pub dst: PathBuf,
     pub src: Option<PathBuf>,
     pub lib_search_paths: Vec<PathBuf>,
@@ -60,10 +63,10 @@ fn is_relevant_child(c: &Child<'_>) -> bool {
     }
 }
 
-fn archive_config<'a>(sess: &'a Session,
+fn archive_config<'a>(sess: &'a Options,
                       output: &Path,
                       input: Option<&Path>) -> ArchiveConfig<'a> {
-    use rustc_codegen_ssa::back::link::archive_search_paths;
+    use crate::linker::link::archive_search_paths;
     ArchiveConfig {
         sess,
         dst: output.to_path_buf(),
@@ -75,7 +78,7 @@ fn archive_config<'a>(sess: &'a Session,
 impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
     /// Creates a new static archive, ready for modifying the archive specified
     /// by `config`.
-    fn new(sess: &'a Session,
+    fn new(sess: &'a Options,
             output: &Path,
             input: Option<&Path>) -> LlvmArchiveBuilder<'a> {
         let config = archive_config(sess, output, input);
@@ -112,12 +115,11 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
 
     /// Adds all of the contents of a native library to this archive. This will
     /// search in the relevant locations for a library named `name`.
-    fn add_native_library(&mut self, name: Symbol) {
+    fn add_native_library(&mut self, name: &str) {
         let location = find_library(name, &self.config.lib_search_paths,
-                                    self.config.sess);
+                                    self.config.sess).unwrap();
         self.add_archive(&location, |_| false).unwrap_or_else(|e| {
-            self.config.sess.fatal(&format!("failed to add native library {}: {}",
-                                            location.to_string_lossy(), e));
+            panic!("failed to add native library {}: {}", location.to_string_lossy(), e);
         });
     }
 
@@ -177,10 +179,10 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
     /// `Archive`.
     fn build(mut self) {
         let kind = self.llvm_archive_kind().unwrap_or_else(|kind|
-            self.config.sess.fatal(&format!("Don't know how to build archive of type: {}", kind)));
+            panic!("Don't know how to build archive of type: {}", kind));
 
         if let Err(e) = self.build_with_llvm(kind) {
-            self.config.sess.fatal(&format!("failed to build archive: {}", e));
+            panic!("failed to build archive: {}", e);
         }
 
     }
@@ -216,7 +218,7 @@ impl<'a> LlvmArchiveBuilder<'a> {
     }
 
     fn llvm_archive_kind(&self) -> Result<ArchiveKind, &str> {
-        let kind = &*self.config.sess.target.target.options.archive_format;
+        let kind = &*self.config.sess.target.options.archive_format;
         kind.parse().map_err(|_| kind)
     }
 
@@ -242,7 +244,7 @@ impl<'a> LlvmArchiveBuilder<'a> {
                     }
 
                     let name = CString::new(child_name)?;
-                    members.push(llvm::LLVMRustArchiveMemberNew(ptr::null(),
+                    members.push(archive::LLVMLumenArchiveMemberNew(ptr::null(),
                                                                 name.as_ptr(),
                                                                 Some(child.raw)));
                     strings.push(name);
@@ -253,7 +255,7 @@ impl<'a> LlvmArchiveBuilder<'a> {
                     Addition::File { path, name_in_archive } => {
                         let path = CString::new(path.to_str().unwrap())?;
                         let name = CString::new(name_in_archive.clone())?;
-                        members.push(llvm::LLVMRustArchiveMemberNew(path.as_ptr(),
+                        members.push(archive::LLVMLumenArchiveMemberNew(path.as_ptr(),
                                                                     name.as_ptr(),
                                                                     None));
                         strings.push(path);
@@ -280,7 +282,7 @@ impl<'a> LlvmArchiveBuilder<'a> {
                                                   .file_name().unwrap()
                                                   .to_str().unwrap();
                             let name = CString::new(child_name)?;
-                            let m = llvm::LLVMRustArchiveMemberNew(ptr::null(),
+                            let m = archive::LLVMLumenArchiveMemberNew(ptr::null(),
                                                                    name.as_ptr(),
                                                                    Some(child.raw));
                             members.push(m);
@@ -290,13 +292,13 @@ impl<'a> LlvmArchiveBuilder<'a> {
                 }
             }
 
-            let r = llvm::LLVMRustWriteArchive(dst.as_ptr(),
+            let r = archive::LLVMLumenWriteArchive(dst.as_ptr(),
                                                members.len() as libc::size_t,
                                                members.as_ptr() as *const &_,
                                                should_update_symbols,
                                                kind);
             let ret = if r.into_result().is_err() {
-                let err = llvm::LLVMRustGetLastError();
+                let err = LLVMLumenGetLastError();
                 let msg = if err.is_null() {
                     "failed to write archive".into()
                 } else {
@@ -307,7 +309,7 @@ impl<'a> LlvmArchiveBuilder<'a> {
                 Ok(())
             };
             for member in members {
-                llvm::LLVMRustArchiveMemberFree(member);
+                archive::LLVMLumenArchiveMemberFree(member);
             }
             ret
         }
@@ -316,4 +318,22 @@ impl<'a> LlvmArchiveBuilder<'a> {
 
 fn string_to_io_error(s: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, format!("bad archive: {}", s))
+}
+
+
+/// Checks if the given filename ends with the `.rcgu.o` extension that `rustc`
+/// uses for the object files it generates.
+pub fn looks_like_rust_object_file(filename: &str) -> bool {
+    let path = Path::new(filename);
+    let ext = path.extension().and_then(|s| s.to_str());
+    if ext != Some(OutputType::Object.extension()) {
+        // The file name does not end with ".o", so it can't be an object file.
+        return false;
+    }
+
+    // Strip the ".o" at the end
+    let ext2 = path.file_stem().and_then(|s| Path::new(s).extension()).and_then(|s| s.to_str());
+
+    // Check if the "inner" extension
+    ext2 == Some(RUST_CGU_EXT)
 }

@@ -1,4 +1,3 @@
-extern crate cc;
 extern crate cmake;
 extern crate which;
 
@@ -24,6 +23,10 @@ fn main() {
     let target = env::var("TARGET").expect("TARGET was not set");
     let host = env::var("HOST").expect("HOST was not set");
     let is_crossed = target != host;
+    let profile = env::var("PROFILE").expect("PROFILE was not set");
+
+    let cwd = env::current_dir().expect("unable to access current directory");
+    let target_dir = cwd.parent().unwrap().join(&format!("target/{}", &profile));
 
     let llvm_prefix_env = env::var(ENV_LLVM_PREFIX).expect(ENV_LLVM_PREFIX);
     let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
@@ -59,9 +62,9 @@ fn main() {
         config = config.generator("Ninja");
     }
     let build_shared = if env::var_os("LLVM_BUILD_STATIC").is_some() {
-        "ON"
-    } else {
         "OFF"
+    } else {
+        "ON"
     };
     let outdir = config
         .define("LUMEN_BUILD_COMPILER", "ON")
@@ -69,12 +72,11 @@ fn main() {
         .define("BUILD_SHARED_LIBS", build_shared)
         .define("LLVM_PREFIX", llvm_prefix_env.as_str())
         .env("LLVM_PREFIX", llvm_prefix_env.as_str())
+        .define("CARGO_TARGET_DIR", &target_dir)
         .always_configure(true)
         .build_target("install")
         .very_verbose(false)
         .build();
-
-    let cwd = env::current_dir().expect("unable to access current directory");
 
     rerun_if_changed_anything_in_dir(&cwd.join("lib"));
 
@@ -93,45 +95,47 @@ fn main() {
         outdir.display()
     );
 
-    link_libs(&[
-        "lumen_compiler_Support_Support",
-        "lumen_compiler_Diagnostics_Diagnostics",
-        "lumen_compiler_Target_Target",
-        "lumen_compiler_Dialect_EIR_Conversion_Conversion",
-        "lumen_compiler_Dialect_EIR_Conversion_EIRToStandard_EIRToStandard",
-        "lumen_compiler_Dialect_EIR_Tools_Tools",
-        "lumen_compiler_Dialect_EIR_Transforms_Transforms",
-        "lumen_compiler_Dialect_EIR_IR_IR",
-        "lumen_compiler_Translation_Translation",
-        "MLIRAnalysis",
-        "MLIRAffineOps",
-        "MLIRDialect",
-        "MLIREDSC",
-        "MLIREDSCInterface",
-        "MLIRExecutionEngine",
-        "MLIRIR",
-        "MLIRLLVMIR",
-        "MLIRLoopAnalysis",
-        "MLIRLoopOps",
-        "MLIRParser",
-        "MLIRPass",
-        "MLIRStandardOps",
-        "MLIRStandardToLLVM",
-        "MLIRSupport",
-        "MLIRTargetLLVMIR",
-        "MLIRTargetLLVMIRModuleTranslation",
-        "MLIRTransformUtils",
-        "MLIRTransforms",
-        "MLIRTranslateClParser",
-        "MLIRTranslation",
-    ]);
+    if build_shared == "ON" {
+        link_lib_dylib("lumen_compiler_LumenCodegen");
+    } else {
+        link_libs(&[
+            "lumen_compiler_Diagnostics_Diagnostics",
+            "lumen_compiler_Dialect_EIR_IR_IR",
+            "lumen_compiler_Dialect_EIR_Conversion_EIRToLLVM_EIRToLLVM",
+            "lumen_compiler_Dialect_EIR_Transforms_Transforms",
+            "lumen_compiler_Support_Support",
+            "lumen_compiler_Target_Target",
+            "lumen_compiler_Translation_Translation",
+            "MLIRAnalysis",
+            "MLIRAffineOps",
+            "MLIRDialect",
+            "MLIREDSC",
+            "MLIREDSCInterface",
+            "MLIRExecutionEngine",
+            "MLIRIR",
+            "MLIRLLVMIR",
+            "MLIRLoopAnalysis",
+            "MLIRLoopOps",
+            "MLIRParser",
+            "MLIRPass",
+            "MLIRStandardOps",
+            "MLIRStandardToLLVM",
+            "MLIRSupport",
+            "MLIRTargetLLVMIR",
+            "MLIRTargetLLVMIRModuleTranslation",
+            "MLIRTransformUtils",
+            "MLIRTransforms",
+            "MLIRTranslateClParser",
+            "MLIRTranslation",
+        ]);
 
-    let link_libs = read_link_libs(llvm_config_path.as_path(), outdir.as_path());
-    for link_lib in link_libs {
-        if link_lib.contains('=') {
-            println!("cargo:rustc-link-lib={}", link_lib);
-        } else {
-            println!("cargo:rustc-link-lib=static={}", link_lib);
+        let link_libs = read_link_libs(llvm_config_path.as_path(), outdir.as_path());
+        for link_lib in link_libs {
+            if link_lib.contains('=') {
+                println!("cargo:rustc-link-lib={}", link_lib);
+            } else {
+                println!("cargo:rustc-link-lib=static={}", link_lib);
+            }
         }
     }
 

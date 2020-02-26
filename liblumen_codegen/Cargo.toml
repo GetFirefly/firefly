@@ -15,6 +15,7 @@ num-bigint = "0.2"
 log = "0.4"
 cranelift-entity = "0.56.0"
 
+liblumen_llvm = { path = "../liblumen_llvm" }
 liblumen_session = { path = "../liblumen_session" }
 liblumen_target = { path = "../liblumen_target" }
 liblumen_term = { path = "../liblumen_term" }
@@ -38,6 +39,5 @@ branch = "llvm-9.0"
 features = ["no-llvm-linking"]
 
 [build-dependencies]
-cc = "1.0.35"
 cmake = "0.1"
 which = "2.0.1"

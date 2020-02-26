@@ -21,11 +21,11 @@ lumen_cc_library(
     MLIRExecutionEngine
     MLIRStandardOps
     MLIRTargetLLVMIR
+    MLIRLLVMIR
     MLIRStandardToLLVM
     MLIRParser
     MLIRPass
     MLIRTransforms
   ALWAYSLINK
   PUBLIC
-  SHARED
 )

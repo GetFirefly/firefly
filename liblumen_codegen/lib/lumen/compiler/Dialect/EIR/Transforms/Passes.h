@@ -8,6 +8,10 @@
 
 #include <memory>
 
+namespace llvm {
+class TargetMachine;
+}
+
 namespace lumen {
 namespace eir {
 
@@ -25,7 +29,8 @@ namespace eir {
 //   <run conversion to EIR/etc>
 //   buildEIRTransformPassPipeline & run
 //   <run target serialization/etc>
-void buildEIRTransformPassPipeline(mlir::OpPassManager &passManager);
+void buildEIRTransformPassPipeline(mlir::OpPassManager &passManager,
+                                   llvm::TargetMachine *targetMachine);
 
 //===----------------------------------------------------------------------===//
 // Module Analysis and Assignment

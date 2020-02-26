@@ -4,6 +4,24 @@ add_subdirectory(Support)
 add_subdirectory(Target)
 add_subdirectory(Translation)
 
+lumen_tablegen_library(
+  NAME
+    RustEncodingGen
+  TD_FILE
+    "Dialect/EIR/IR/EIRBase.td"
+  OUTS
+    -gen-rust-eir-encoding-defs term_encoding.rs
+  TBLGEN
+    LUMEN
+)
+
+add_custom_target(CopyRustEncodingGenOutput
+  ALL
+  cp term_encoding.rs "$ENV{OUT_DIR}/"
+)
+add_dependencies(CopyRustEncodingGenOutput
+  lumen::compiler::Dialect::EIR::Tools
+  lumen::compiler::RustEncodingGen)
 
 # Get the LLVM libraries we need to link against
 set(LUMEN_REQUIRED_LLVM_COMPONENTS_LIST
@@ -22,11 +40,17 @@ set(LUMEN_REQUIRED_LLVM_COMPONENTS_LIST
 #
 # We are using this because llvm_map_components_to_libnames is
 # not correctly producing all of the dependencies for each component
-if (BUILD_SHARED_LIBS)
+#
+# TODO: The following conditional ideally should work, but if the
+# LLVM build did not build with LLVM_BUILD_LLVM_DYLIB, then llvm-config
+# will complain about not finding it when called with --link-shared. We
+# could fallback to using --link-static, but I don't have time for that
+# just now.
+#if (BUILD_SHARED_LIBS)
   set(LLVM_CONFIG_LIBNAMES_ARGV "--libnames --link-static")
-else()
-  set(LLVM_CONFIG_LIBNAMES_ARGV "--libnames --link-shared")
-endif()
+#else()
+  #set(LLVM_CONFIG_LIBNAMES_ARGV "--libnames --link-shared")
+#endif()
 foreach(component IN LISTS LUMEN_REQUIRED_LLVM_COMPONENTS_LIST)
   set(LLVM_CONFIG_LIBNAMES_ARGV "${LLVM_CONFIG_LIBNAMES_ARGV} ${component}")
 endforeach()
@@ -59,3 +83,53 @@ foreach(lib IN LISTS LIB_NAMES)
   file(APPEND ${CMAKE_BINARY_DIR}/llvm_deps.txt
        "${lib}\n")
 endforeach()
+
+set(_CARGO_LINK_LIB_PATH "")
+if(CARGO_TARGET_DIR)
+  message(STATUS "CARGO_TARGET_DIR: ${CARGO_TARGET_DIR}")
+  set(_CARGO_LINK_LIB_PATH "-L${CARGO_TARGET_DIR}")
+endif()
+
+if (BUILD_SHARED_LIBS)
+  lumen_cc_library(
+    NAME
+      LumenCodegen
+    SRCS
+      "codegen.cpp"
+    PUBLIC
+    SHARED
+  )
+  set(_LumenCodegen_LINK_LIBS_LIST
+    lumen_compiler_Diagnostics_Diagnostics
+    lumen_compiler_Dialect_EIR_IR_IR
+    lumen_compiler_Dialect_EIR_Conversion_EIRToLLVM_EIRToLLVM
+    lumen_compiler_Dialect_EIR_Transforms_Transforms
+    lumen_compiler_Support_Support
+    lumen_compiler_Target_Target
+    lumen_compiler_Translation_Translation
+    LLVMTarget
+  )
+  set(_LumenCodegen_LINK_LIBS "")
+  if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
+    foreach(_LumenCodegen_LINK_LIB ${_LumenCodegen_LINK_LIBS_LIST})
+      list(APPEND _LumenCodegen_LINK_LIBS "-Wl,-force_load")
+      list(APPEND _LumenCodegen_LINK_LIBS "${_LumenCodegen_LINK_LIB}")
+    endforeach(_LumenCodegen_LINK_LIB)
+  else()
+    set(_LumenCodegen_LINK_LIBS "-Wl,--whole-archive" ${_LumenCodegen_LINK_LIBS_LIST} "-Wl,--no-whole-archive")
+  endif()
+
+  list(REMOVE_ITEM LIB_NAMES "LLVMTarget")
+
+  target_link_libraries(lumen_compiler_LumenCodegen
+    PUBLIC
+      ${_LumenCodegen_LINK_LIBS}
+      ${LIB_NAMES}
+    PRIVATE
+      ${_CARGO_LINK_LIB_PATH}
+      "-lliblumen_llvm"
+      "-lliblumen_term"
+    )
+else()
+  message(FATAL_ERROR "building static!")
+endif()

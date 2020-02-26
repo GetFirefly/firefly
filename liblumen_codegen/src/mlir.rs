@@ -6,6 +6,7 @@ use std::convert::AsRef;
 use std::ffi::CString;
 use std::fmt;
 use std::mem::MaybeUninit;
+use std::ptr;
 use std::os;
 use std::path::Path;
 use std::thread::{self, ThreadId};
@@ -126,12 +127,34 @@ impl Module {
 
     pub fn lower_to_llvm_ir(
         &self,
+        source_name: Option<String>,
         opt: CodeGenOptLevel,
         size: CodeGenOptSize,
         target_machine: &llvm::TargetMachine,
     ) -> Result<llvm::Module> {
         let result =
-            unsafe { MLIRLowerToLLVMIR(self.as_ref(), opt, size, target_machine.as_ref()) };
+            if let Some(sn) = source_name {
+                let f = CString::new(sn)?;
+                unsafe {
+                    MLIRLowerToLLVMIR(
+                        self.as_ref(),
+                        f.as_ptr(),
+                        opt,
+                        size,
+                        target_machine.as_ref()
+                    )
+                }
+            } else {
+                unsafe {
+                    MLIRLowerToLLVMIR(
+                        self.as_ref(),
+                        ptr::null(),
+                        opt,
+                        size,
+                        target_machine.as_ref()
+                    )
+                }
+            };
         if result.is_null() {
             Err(anyhow!("lowering to llvm failed"))
         } else {
@@ -195,6 +218,7 @@ extern "C" {
 
     pub fn MLIRLowerToLLVMIR(
         module: ModuleRef,
+        source_name: *const libc::c_char,
         opt: CodeGenOptLevel,
         size: CodeGenOptSize,
         target_machine: TargetMachineRef,

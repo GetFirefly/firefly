@@ -2,6 +2,8 @@ pub(crate) mod builder;
 pub(crate) mod enums;
 pub(crate) mod memory_buffer;
 pub(crate) mod string;
+pub(crate) mod archive_ro;
+pub(crate) mod archive;
 
 pub use self::builder::ModuleBuilder;
 pub use self::enums::*;
@@ -50,8 +52,8 @@ impl TargetMachine {
     }
 
     pub fn get_target_data(&self) -> TargetData {
-        use llvm_sys::target::LLVMCreateTargetData;
-        let ptr = unsafe { LLVMCreateTargetData(self.0 as *const i8) };
+        use llvm_sys::target_machine::LLVMCreateTargetDataLayout;
+        let ptr = unsafe { LLVMCreateTargetDataLayout(self.0) };
         TargetData::new(ptr)
     }
 }
@@ -186,15 +188,29 @@ impl Module {
     }
 
     pub fn create(name: &str, ctx: &Context, target_machine: TargetMachineRef) -> Result<Self> {
-        use llvm_sys::core::LLVMModuleCreateWithNameInContext;
+        use llvm_sys::core::{LLVMModuleCreateWithNameInContext, LLVMSetTarget};
+        use llvm_sys::target::LLVMSetModuleDataLayout;
+        use llvm_sys::target_machine::{LLVMGetTargetMachineTriple, LLVMCreateTargetDataLayout};
 
         let cstr = CString::new(name).unwrap();
         let m = unsafe { LLVMModuleCreateWithNameInContext(cstr.as_ptr(), ctx.as_ref()) };
         if m.is_null() {
             Err(anyhow!("failed to create LLVM module '{}'", name))
         } else {
+            let target_triple = unsafe { LLVMGetTargetMachineTriple(target_machine) };
+            let data_layout = unsafe { LLVMCreateTargetDataLayout(target_machine) };
+
+            unsafe { LLVMSetTarget(m, target_triple); }
+            unsafe { LLVMSetModuleDataLayout(m, data_layout); }
+
             Ok(Self::new(m, target_machine))
         }
+    }
+
+    pub fn dump(&self) {
+        use llvm_sys::core::LLVMDumpModule;
+
+        unsafe { LLVMDumpModule(self.module); }
     }
 
     /// Emit this module as LLVM IR

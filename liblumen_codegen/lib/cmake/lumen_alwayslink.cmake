@@ -44,15 +44,26 @@ function(set_alwayslink_mlir_libs)
   set(_ALWAYSLINK_LIBS_MLIR
     LLVMSupport
     MLIRAnalysis
+    MLIRAffineOps
+    MLIRDialect
     MLIREDSC
+    MLIREDSCInterface
+    MLIRExecutionEngine
     MLIRIR
+    MLIRLLVMIR
+    MLIRLoopAnalysis
+    MLIRLoopOps
     MLIRParser
     MLIRPass
     MLIRStandardOps
-    MLIRTransforms
-    MLIRTranslation
+    MLIRStandardToLLVM
     MLIRSupport
-    MLIROptLib
+    MLIRTargetLLVMIR
+    MLIRTargetLLVMIRModuleTranslation
+    MLIRTransformUtils
+    MLIRTransforms
+    MLIRTranslateClParser
+    MLIRTranslation
   )
 
   set_alwayslink_property(

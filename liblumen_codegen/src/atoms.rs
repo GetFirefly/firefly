@@ -61,8 +61,10 @@ pub fn compile_atom_table(
 
     // Generate constants array entries
     let i8_type = builder.get_i8_type();
+    let i8ptr_type = builder.get_pointer_type(i8_type);
     let i64_type = builder.get_i64_type();
-    let entry_type = builder.get_struct_type(Some("ConstantAtom"), &[i64_type, i8_type]);
+    let entry_type = builder.get_struct_type(Some("ConstantAtom"), &[i64_type, i8ptr_type]);
+
     let mut entries = Vec::with_capacity(values.len());
     for (sym, value) in values.iter() {
         let id = builder.build_constant_uint(i64_type, sym.as_usize());
@@ -71,7 +73,9 @@ pub fn compile_atom_table(
     }
 
     // Generate constants array
-    let entries_const = builder.build_constant_array(entry_type, entries.as_slice());
+    let entries_const_init = builder.build_constant_array(entry_type, entries.as_slice());
+    let entries_const_ty = unsafe { llvm_sys::core::LLVMTypeOf(entries_const_init) };
+    let entries_const = builder.add_constant(entries_const_ty, "__LUMEN_ATOM_TABLE_ENTRIES", Some(entries_const_init));
     builder.set_linkage(entries_const, Linkage::Private);
     builder.set_alignment(entries_const, 8);
 

@@ -7,7 +7,7 @@ include "lumen/compiler/Dialect/EIR/IR/EIRBase.td"
 
 def eir_FuncOp : eir_Op<"func", [
     IsolatedFromAbove,
-    HasParent<"ModuleOp">,
+    //HasParent<"ModuleOp">,
     FunctionLike,
     CallableOpInterface,
     Symbol,
@@ -170,7 +170,7 @@ def eir_IsTypeOp : eir_Op<"is_type", [NoSideEffect]> {
     of the value.
   }];
 
-  let arguments = (ins eir_AnyTerm:$value);
+  let arguments = (ins eir_AnyType:$value);
   let results = (outs eir_BoolLike:$isMatch);
 
   let assemblyFormat = "`(` operands `)` attr-dict `:` functional-type(operands, $isMatch)";
@@ -236,12 +236,12 @@ class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
   ];
 }
 
-def eir_LogicalAndOp : eir_LogicalOp<eir_AnyTerm, "logical.and", [Commutative]> {
+def eir_LogicalAndOp : eir_LogicalOp<eir_AnyType, "logical.and", [Commutative]> {
   let summary = "logical AND";
   //let hasFolder = 1;
 }
 
-def eir_LogicalOrOp : eir_LogicalOp<eir_AnyTerm, "logical.or", [Commutative]> {
+def eir_LogicalOrOp : eir_LogicalOp<eir_AnyType, "logical.or", [Commutative]> {
   let summary = "logical OR";
   //let hasFolder = 1;
 }
@@ -292,7 +292,7 @@ class eir_BinaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = 
 }
 
 def eir_CmpEqOp :
-    eir_BinaryComparisonOp<eir_AnyTerm, "cmp.eq", [Commutative]> {
+    eir_BinaryComparisonOp<eir_AnyType, "cmp.eq", [Commutative]> {
   let summary = [{term equality comparison operation}];
   //let hasFolder = 1;
 
@@ -311,7 +311,7 @@ def eir_CmpEqOp :
 }
 
 def eir_CmpNeqOp :
-    eir_BinaryComparisonOp<eir_AnyTerm, "cmp.neq", [Commutative]> {
+    eir_BinaryComparisonOp<eir_AnyType, "cmp.neq", [Commutative]> {
   let summary = [{term inequality comparison operation}];
   //let hasFolder = 1;
 
@@ -330,31 +330,31 @@ def eir_CmpNeqOp :
 }
 
 def eir_CmpLtOp :
-    eir_BinaryComparisonOp<eir_AnyTerm, "cmp.lt"> {
+    eir_BinaryComparisonOp<eir_AnyType, "cmp.lt"> {
   let summary = [{term less-than comparison operation}];
   //let hasFolder = 1;
 }
 
 def eir_CmpLteOp :
-    eir_BinaryComparisonOp<eir_AnyTerm, "cmp.lte"> {
+    eir_BinaryComparisonOp<eir_AnyType, "cmp.lte"> {
   let summary = [{term less-than-or-equal comparison operation}];
   //let hasFolder = 1;
 }
 
 def eir_CmpGtOp :
-    eir_BinaryComparisonOp<eir_AnyTerm, "cmp.gt"> {
+    eir_BinaryComparisonOp<eir_AnyType, "cmp.gt"> {
   let summary = [{term greater-than comparison operation}];
   //let hasFolder = 1;
 }
 
 def eir_CmpGteOp :
-    eir_BinaryComparisonOp<eir_AnyTerm, "cmp.gte"> {
+    eir_BinaryComparisonOp<eir_AnyType, "cmp.gte"> {
   let summary = [{term greater-than-or-equal comparison operation}];
   //let hasFolder = 1;
 }
 
 def eir_CmpNerrOp :
-    eir_UnaryComparisonOp<eir_AnyTerm, "cmp.nerr"> {
+    eir_UnaryComparisonOp<eir_AnyType, "cmp.nerr"> {
   let summary = [{term not-an-error comparison operation}];
   let description = [{
     Compares the given term against the NONE value, condition is true if not NONE
@@ -381,7 +381,7 @@ def eir_BranchOp : eir_Op<"br", [Terminator]> {
   }];
 
   let arguments = (ins
-    Variadic<eir_AnyTerm>:$operands
+    Variadic<eir_AnyType>:$operands
   );
 
   let builders = [
@@ -421,7 +421,7 @@ def eir_CondBranchOp : eir_Op<"cond_br", [Terminator]> {
 
   let arguments = (ins
     eir_BoolType:$condition,
-    Variadic<eir_AnyTerm>:$branchOperands
+    Variadic<eir_AnyType>:$branchOperands
   );
 
   let builders = [
@@ -550,10 +550,10 @@ def eir_CallOp : eir_CallBaseOp<"call"> {
 
   let arguments = (ins
     eir_FuncRefAttr:$callee,
-    Variadic<eir_AnyTerm>:$operands
+    Variadic<eir_AnyType>:$operands
   );
   let results = (outs
-    Variadic<eir_AnyTerm>:$results
+    Variadic<eir_AnyType>:$results
   );
 
   let assemblyFormat = [{
@@ -593,7 +593,7 @@ def eir_CallOp : eir_CallBaseOp<"call"> {
 }
 
 def eir_ReturnOp : eir_Op<"return", [
-    HasParent<"eir::FuncOp">,
+    //HasParent<"mlir::FuncOp">,
     Terminator,
   ]> {
   let summary = "return operation";
@@ -608,7 +608,7 @@ def eir_ReturnOp : eir_Op<"return", [
   }];
 
   let arguments = (ins
-    Variadic<eir_AnyTerm>:$operands
+    Variadic<eir_AnyType>:$operands
   );
 
   let verifier = [{ return success(); }];
@@ -623,7 +623,7 @@ def eir_ReturnOp : eir_Op<"return", [
 }
 
 def eir_YieldOp : eir_Op<"yield", [
-    HasParent<"eir::FuncOp">,
+    HasParent<"mlir::FuncOp">,
     YieldPoint,
   ]> {
   let summary = [{scheduler yield operation}];
@@ -752,7 +752,7 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
     A corollary to `eir.return`, this function terminates execution of
     the current function, returning control up the stack by unwinding.
   }];
-  let arguments = (ins eir_AnyTerm:$reason);
+  let arguments = (ins eir_AnyType:$reason);
 
   let verifier = [{ return success(); }];
 
@@ -765,10 +765,10 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
 // Miscellaneous Operations
 //===----------------------------------------------------------------------===//
 
-def CastOp : eir_Op<"cast", [NoSideEffect]> {
+def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
 
-  let arguments = (ins eir_AnyTerm:$input);
-  let results = (outs eir_AnyTerm:$output);
+  let arguments = (ins eir_AnyType:$input);
+  let results = (outs eir_AnyType:$output);
 
   let builders = [OpBuilder<
     "Builder *builder, OperationState &result, Value source, Type destType", [{
@@ -782,6 +782,65 @@ def CastOp : eir_Op<"cast", [NoSideEffect]> {
   //let hasFolder = 1;
 }
 
+def eir_MallocOp : eir_Op<"malloc"> {
+  let summary = "allocates memory on the process heap";
+  let description = [{
+    The "malloc" operation allocates a region of memory, as specified by its
+    type. For example:
+
+      %0 = eir.malloc() : !eir.box<tuple<4xf32>>
+
+    The malloc op is only valid with boxed aggregate types like tuple/cons, with
+    static dimensions
+
+    This operation returns a single ssa value of `box` type, which can be used
+    by subsequent load and store operations.
+
+    The optional `alignment` attribute may be specified to ensure that the
+    region of memory that will be indexed is aligned at the specified byte
+    boundary.
+
+      %0 = eir.malloc() {alignment = 8} : !eir.box<!eir.tuple<4xf32>>
+
+      %0 = eir.malloc(%1) {alignment = 8} : !eir.box<<!eir.tuple<?xf32>>
+  }];
+
+  let arguments = (ins Variadic<eir_AnyType>:$index,
+                   Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$alignment);
+  let results = (outs eir_BoxType);
+
+  let builders = [
+    OpBuilder<"Builder *builder, OperationState &result, BoxType boxType, "
+              "IntegerAttr alignment = IntegerAttr()",
+    [{
+       result.types.push_back(boxType);
+       if (alignment)
+         result.addAttribute(getAlignmentAttrName(), alignment);
+    }]>,
+    OpBuilder<"Builder *builder, OperationState &result, BoxType boxType, "
+              "ArrayRef<Value> operands, IntegerAttr alignment = IntegerAttr()",
+    [{
+       result.addOperands(operands);
+       result.types.push_back(boxType);
+       if (alignment)
+         result.addAttribute(getAlignmentAttrName(), alignment);
+    }]>
+  ];
+
+  let extraClassDeclaration = [{
+    static StringRef getAlignmentAttrName() { return "alignment"; }
+
+    BoxType getType() { return getResult().getType().cast<BoxType>(); }
+
+    /// Returns the dynamic sizes for this alloc operation if specified.
+    int64_t getAllocSize(unsigned pointerSizeInBits) {
+      return calculateAllocSize(pointerSizeInBits, getType());
+    }
+  }];
+
+  let hasCanonicalizer = 1;
+}
+
 def eir_LoadOp : eir_Op<"load", []> {
   let summary = "Load a value from a memory reference";
 
@@ -791,7 +850,7 @@ def eir_LoadOp : eir_Op<"load", []> {
   }];
 
   let arguments = (ins eir_BoxType:$ref);
-  let results = (outs eir_AnyTerm:$out);
+  let results = (outs eir_AnyType:$out);
 
   let builders = [OpBuilder<
     "Builder *builder, OperationState &result, Value refVal",
@@ -828,8 +887,8 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
     An aggregate access primitive used to calculate memory addresses to an element of an aggregate type
   }];
 
-  let arguments = (ins eir_AnyTerm:$base, Variadic<eir_AnyTerm>:$indices);
-  let results = (outs eir_AnyTerm:$res);
+  let arguments = (ins eir_AnyType:$base, Variadic<eir_AnyType>:$indices);
+  let results = (outs eir_AnyType:$res);
 
   let builders = [
     OpBuilder<
@@ -852,20 +911,20 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
 }
 
 def eir_PrintOp : eir_Op<"intrinsics.print"> {
-  let summary = [{intrinsic printing operation}];
+  let summary = "intrinsic printing operation";
   let description = [{
-    Prints the given string message and zero or more values.
+    Prints to standard output using the provided format string and operands.
   }];
 
   let arguments = (ins
-    StrAttr:$message,
-    Variadic<eir_AnyTerm>:$operands
+    Variadic<eir_AnyType>:$operands
   );
+  let results = (outs eir_AnyTerm:$result);
 
   let verifier = [{ return success(); }];
 
   let assemblyFormat = [{
-    $message `(` operands `)` attr-dict `:` type(operands)
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 
@@ -975,7 +1034,7 @@ def eir_ConstantBinaryOp : eir_ConstantOp<"constant.binary"> {
     }]>,
     OpBuilder<
     "Builder *builder, OperationState &result,"
-    "ArrayRef<char> value, uint64_t header, uint64_t flags",
+    "StringRef value, uint64_t header, uint64_t flags",
     [{
       auto type = builder->getType<eir::BinaryType>();
       auto attr = BinaryAttr::get(type, value, header, flags);
@@ -1089,7 +1148,7 @@ def eir_ConsOp : eir_Op<"cons"> {
     List construction primitive. Constructs a new list cell from head and tail terms.
   }];
 
-  let arguments = (ins eir_AnyTerm:$head, eir_AnyTerm:$tail);
+  let arguments = (ins eir_AnyType:$head, eir_AnyType:$tail);
   let results = (outs eir_ConsType:$out);
 
   let builders = [
@@ -1107,7 +1166,7 @@ def eir_TupleOp : eir_Op<"tuple"> {
     Tuple construction primitive. Constructs a new tuple term from a list of elements.
   }];
 
-  let arguments = (ins Variadic<eir_AnyTerm>:$elements);
+  let arguments = (ins Variadic<eir_AnyType>:$elements);
   let results = (outs eir_TupleType:$out);
 
   let builders = [
@@ -1161,11 +1220,11 @@ def eir_TraceConstructOp : eir_Op<"trace_construct"> {
         %0 = eir.trace_construct
   }];
 
-  let arguments = (ins eir_AnyTerm:$capture);
+  let arguments = (ins);
   let results = (outs eir_AnyTerm:$trace);
 
   let assemblyFormat = [{
-    `(` $capture `)` attr-dict `:` functional-type($capture, $trace)
+    `(` `)` attr-dict `:` type($trace)
   }];
 }
 
@@ -1175,8 +1234,8 @@ def eir_ConstructMapOp : eir_Op<"map.new"> {
     Map construction primitive. Creates a new map from a list of key/value pairs.
   }];
 
-  let arguments = (ins Variadic<eir_AnyTerm>:$args);
-  let results = (outs eir_MapType:$out, eir_AnyTerm:$err);
+  let arguments = (ins Variadic<eir_AnyType>:$args);
+  let results = (outs eir_MapType:$out, eir_AnyType:$err);
 
   let builders = [
     OpBuilder<"Builder *builder, OperationState &result, ArrayRef<eir::MapEntry> entries">
@@ -1202,8 +1261,8 @@ def eir_MapInsertOp : eir_Op<"map.insert", []> {
         %0, %err = eir.map_insert %map, [(%k1 : !eir.fixnum, %v1 : !eir.fixnum)]
   }];
 
-  let arguments = (ins eir_MapType:$map, Variadic<eir_AnyTerm>:$args);
-  let results = (outs eir_MapType:$newMap, eir_AnyTerm:$err);
+  let arguments = (ins eir_MapType:$map, Variadic<eir_AnyType>:$args);
+  let results = (outs eir_MapType:$newMap, eir_AnyType:$err);
 
   let verifier = [{ return success(); }];
 
@@ -1240,8 +1299,8 @@ def eir_MapUpdateOp : eir_Op<"map.update", []> {
         %0, %err = eir.map_update %map, [(%k1 : !eir.fixnum, %v1 : !eir.fixnum)]
   }];
 
-  let arguments = (ins eir_MapType:$map, Variadic<eir_AnyTerm>:$args);
-  let results = (outs eir_MapType:$newMap, eir_AnyTerm:$err);
+  let arguments = (ins eir_MapType:$map, Variadic<eir_AnyType>:$args);
+  let results = (outs eir_MapType:$newMap, eir_AnyType:$err);
 
   let verifier = [{ return success(); }];
 
@@ -1275,7 +1334,7 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
         %0, %err = eir.binary_push(%bin, %val) { type = bytes, unit = 1 }, %size : !eir.fixnum
   }];
 
-  let arguments = (ins eir_BinaryType:$bin, eir_AnyTerm:$val, Variadic<eir_AnyTerm>:$size);
+  let arguments = (ins eir_BinaryType:$bin, eir_AnyType:$val, Variadic<eir_AnyType>:$size);
   let results = (outs eir_BinaryType:$updatedBin);
 
   let assemblyFormat = [{

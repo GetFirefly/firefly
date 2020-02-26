@@ -60,18 +60,20 @@ class BinaryAttr : public Attribute::AttrBase<BinaryAttr, Attribute,
                                               detail::BinaryAttributeStorage> {
 public:
   using Base::Base;
-  using ValueType = ArrayRef<char>;
+  using ValueType = StringRef;
 
   static StringRef getAttrName() { return "binary"; }
   /// Get an instance of a BinaryAttr with the given string, header, flags, and pointer width
-  static BinaryAttr get(MLIRContext *context, ArrayRef<char> bytes,
+  static BinaryAttr get(MLIRContext *context, StringRef bytes,
                         uint64_t header, uint64_t flags);
 
-  static BinaryAttr get(Type type, ArrayRef<char> bytes, uint64_t header, uint64_t flags);
+  static BinaryAttr get(Type type, StringRef bytes, uint64_t header, uint64_t flags);
 
-  ArrayRef<char> getValue() const;
+  StringRef getValue() const;
+  std::string getHash() const;
   APInt &getHeader() const;
   APInt &getFlags() const;
+  bool isPrintable() const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool kindof(unsigned kind) {

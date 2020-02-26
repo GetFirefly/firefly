@@ -1,4 +1,6 @@
-.PHONY: help
+.PHONY: help test install build build-static rebuild clean 
+.PHONY: check clean-codegen unused-deps clippy format format-rust format-cpp
+.PHONY: liblumen_term liblumen_llvm liblumen_crt lumen_rt_core lumen_rt_minimal
 
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
@@ -23,6 +25,26 @@ install: ## Install the Lumen compiler
 build: ## Build the Lumen compiler
 	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx
+
+lumen_rt_core:
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_core
+
+lumen_rt_minimal:
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_minimal
+
+liblumen_crt:
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_crt 
+
+liblumen_term:
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_term 
+
+liblumen_llvm:
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_llvm 
 
 build-static: ## Build a statically linked Lumen compiler
 	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \

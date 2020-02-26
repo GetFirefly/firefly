@@ -72,6 +72,51 @@ bool emitEncodingDefs(const llvm::RecordKeeper &recordKeeper, llvm::raw_ostream 
   return false;
 }
 
+bool emitRustEncodingDefs(const llvm::RecordKeeper &recordKeeper, llvm::raw_ostream &os) {
+  auto kinds = recordKeeper.getAllDerivedDefinitions("eir_TermKind");
+  auto numKinds = kinds.size();
+
+  // TermKind enum, used for exchanging type kind between frontend/backend
+  os << "#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]\n";
+  os << "#[repr(C)]\n";
+  os << "pub enum TermKind {\n";
+  for (const auto *def : kinds) {
+    EnumAttrCase ec(def);
+
+    os << formatv("    {0} = {1},\n", ec.getSymbol(), ec.getValue());
+  }
+  os << "}\n\n";
+  os << "impl core::convert::TryFrom<u32> for TermKind {\n";
+  os << "    type Error = ();\n";
+  os << "    fn try_from(value: u32) -> core::result::Result<Self, Self::Error> {\n";
+  os << "        match value {\n";
+  for (const auto *def : kinds) {
+    EnumAttrCase ec(def);
+
+    os << formatv("            {0} => Ok(Self::{1}),\n", ec.getValue(), ec.getSymbol());
+  }
+  os << "            _ => Err(()),\n";
+  os << "        }\n";
+  os << "    }\n";
+  os << "}\n\n";
+
+  // Type enum, used for communicating type information from EIR to MLIR
+  os << "#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]\n";
+  os << "#[repr(u32)]\n";
+  os << "pub enum Type {\n";
+  for (const auto *def : kinds) {
+    EnumAttrCase ec(def);
+
+    if (ec.getSymbol() == "Tuple") {
+      os << formatv("    {0}(u32) = {1},\n", ec.getSymbol(), ec.getValue());
+    } else {
+      os << formatv("    {0} = {1},\n", ec.getSymbol(), ec.getValue());
+    }
+  }
+  os << "}\n\n";
+
+  return false;
+}
 
 }  // namespace tablegen
 }  // namespace eir
@@ -82,4 +127,11 @@ static mlir::GenRegistration genEncodingDefs(
     "Generates EIR term encoding definitions (.cpp)",
     [](const llvm::RecordKeeper &records, llvm::raw_ostream &os) {
       return lumen::eir::tablegen::emitEncodingDefs(records, os);
+    });
+
+static mlir::GenRegistration genRustEncodingDefs(
+    "gen-rust-eir-encoding-defs",
+    "Generates EIR term encoding definitions (.rs)",
+    [](const llvm::RecordKeeper &records, llvm::raw_ostream &os) {
+      return lumen::eir::tablegen::emitRustEncodingDefs(records, os);
     });

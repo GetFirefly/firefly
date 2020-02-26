@@ -110,7 +110,7 @@ impl Function {
 
         let c_name = CString::new(self.name.to_string()).unwrap();
         // TODO: support multi-return
-        let result_type = returns.get(0).unwrap_or(&Type::Void);
+        let result_type = returns.get(0).unwrap_or(&Type::None);
 
         let ffi::FunctionDeclResult {
             function,

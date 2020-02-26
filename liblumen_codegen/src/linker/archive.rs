@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::io;
 
 use anyhow::anyhow;
 use log::debug;
@@ -19,7 +20,7 @@ pub fn find_library(
     let unixlibname = format!("lib{}.a", name);
 
     for path in search_paths {
-        debug!("looking for {} inside {:?}", name, path);
+        debug!("looking for {} (as {}) inside {:?}", name, oslibname, path);
         let test = path.join(&oslibname);
         if test.exists() {
             return Ok(test);
@@ -43,6 +44,14 @@ pub trait ArchiveBuilder<'a> {
     fn add_file(&mut self, path: &Path);
     fn remove_file(&mut self, name: &str);
     fn src_files(&mut self) -> Vec<String>;
+
+    fn add_rlib(
+        &mut self,
+        path: &Path,
+        name: &str,
+        lto: bool,
+        skip_objects: bool,
+    ) -> io::Result<()>;
 
     fn add_native_library(&mut self, name: &str);
     fn update_symbols(&mut self);

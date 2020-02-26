@@ -8,6 +8,5 @@ lumen_cc_library(
     LLVMTableGen
     MLIRSupport
     LLVMMLIRTableGen
-  ALWAYSLINK
   PUBLIC
 )

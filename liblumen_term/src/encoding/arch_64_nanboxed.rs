@@ -187,11 +187,45 @@ impl Encoding for Encoding64Nanboxed {
     }
 
     #[inline]
+    fn encode_immediate_with_tag(value: u64, tag: Tag<u64>) -> u64 {
+        match tag {
+            Tag::Atom => Self::encode_immediate(value, Self::TAG_ATOM),
+            Tag::Pid => Self::encode_immediate(value, Self::TAG_PID),
+            Tag::Port => Self::encode_immediate(value, Self::TAG_PORT),
+            Tag::SmallInteger => Self::encode_immediate(value, Self::TAG_SMALL_INTEGER),
+            Tag::Float => value,
+            Tag::Nil => Self::NIL,
+            Tag::None => Self::NONE,
+            _ => panic!("called encode_immediate_with_tag using non-immediate tag"),
+        }
+    }
+
+    #[inline]
     fn encode_header(value: u64, tag: u64) -> u64 {
         debug_assert!(tag <= SUBTAG_MASK, "invalid header tag: {}", tag);
         debug_assert!(tag > MAX_HEADER_VALUE, "invalid header tag: {}", tag);
         debug_assert!(value <= MAX_HEADER_VALUE, "invalid header value: {}", value);
         value | tag
+    }
+
+    #[inline]
+    fn encode_header_with_tag(value: u64, tag: Tag<u64>) -> u64 {
+        match tag {
+            Tag::BigInteger => Self::encode_header(value, Self::TAG_BIG_INTEGER),
+            Tag::Tuple => Self::encode_header(value, Self::TAG_TUPLE),
+            Tag::Map => Self::encode_header(value, Self::TAG_MAP),
+            Tag::Closure => Self::encode_header(value, Self::TAG_CLOSURE),
+            Tag::ProcBin => Self::encode_header(value, Self::TAG_PROCBIN),
+            Tag::HeapBinary => Self::encode_header(value, Self::TAG_HEAPBIN),
+            Tag::SubBinary => Self::encode_header(value, Self::TAG_SUBBINARY),
+            Tag::MatchContext => Self::encode_header(value, Self::TAG_MATCH_CTX),
+            Tag::ExternalPid => Self::encode_header(value, Self::TAG_EXTERN_PID),
+            Tag::ExternalPort => Self::encode_header(value, Self::TAG_EXTERN_PORT),
+            Tag::ExternalReference => Self::encode_header(value, Self::TAG_EXTERN_REF),
+            Tag::Reference => Self::encode_header(value, Self::TAG_REFERENCE),
+            Tag::ResourceReference => Self::encode_header(value, Self::TAG_RESOURCE_REFERENCE),
+            _ => panic!("called encode_header_with_tag using non-boxable tag"),
+        }
     }
 
     #[inline]

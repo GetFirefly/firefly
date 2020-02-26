@@ -7,8 +7,10 @@ use llvm_sys::target_machine::LLVMCodeGenFileType;
 
 use liblumen_session::{DiagnosticsHandler, OptLevel, Options, ProjectType};
 use liblumen_target::{CodeModel, RelocMode, ThreadLocalMode};
+use liblumen_util::error::FatalError;
+use liblumen_llvm::diagnostics::last_error;
 
-use crate::ffi::{self, diagnostics, util};
+use crate::ffi::{self, util};
 use crate::llvm::{ModuleRef, TargetMachine, TargetMachineRef};
 
 extern "C" {
@@ -73,7 +75,7 @@ pub fn create_informational_target_machine(
     find_features: bool,
 ) -> TargetMachine {
     target_machine_factory(options, OptLevel::No, find_features)()
-        .unwrap_or_else(|err| diagnostics::llvm_err(diagnostics, &err).raise())
+        .unwrap_or_else(|err| llvm_err(diagnostics, &err).raise())
 }
 
 pub fn create_target_machine(
@@ -83,7 +85,7 @@ pub fn create_target_machine(
 ) -> TargetMachine {
     let opt_level = options.codegen_opts.opt_level.unwrap_or(OptLevel::No);
     target_machine_factory(options, opt_level, find_features)()
-        .unwrap_or_else(|err| diagnostics::llvm_err(diagnostics, &err).raise())
+        .unwrap_or_else(|err| llvm_err(diagnostics, &err).raise())
 }
 
 fn target_machine_factory(
@@ -225,4 +227,11 @@ pub fn get_tls_mode(options: &Options) -> ThreadLocalMode {
     };
 
     ThreadLocalMode::from_str(arg).unwrap()
+}
+
+pub fn llvm_err(handler: &DiagnosticsHandler, msg: &str) -> FatalError {
+    match last_error() {
+        Some(err) => handler.fatal_str(&format!("{}: {}", msg, err)),
+        None => handler.fatal_str(&msg),
+    }
 }

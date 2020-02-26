@@ -43,8 +43,8 @@ struct BoxTypeStorage;
 
 namespace TypeKind {
 enum Kind {
-#define EIR_TERM_KIND(Name, Val) Name,
-#define FIRST_EIR_TERM_KIND(Name, Val) Name = mlir::Type::FIRST_EIR_TYPE,
+#define EIR_TERM_KIND(Name, Val) Name = mlir::Type::FIRST_EIR_TYPE + Val,
+#define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
 #include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
 };
 } // namespace TypeKind
@@ -54,7 +54,15 @@ public:
   using ImplType = detail::OpaqueTermTypeStorage;
   using Type::Type;
 
-  unsigned getImplKind() const { return implKind; }
+  unsigned getImplKind() const { return getKind(); }
+
+  // Returns the raw integer value of the TypeKind::Kind variant
+  // that matches the equivalent variant in Rust, given an enum
+  // definition that is a 1:1 match of TypeKind::Kind
+  unsigned getForeignKind() const {
+    unsigned offset = mlir::Type::FIRST_EIR_TYPE;
+    return getKind() - offset;
+  }
 
   bool isKind(unsigned kind) const { return kind == getImplKind(); }
 
@@ -77,6 +85,8 @@ public:
   bool isNil() const { return isNil(getImplKind()); }
 
   bool isNonEmptyList() const { return isNonEmptyList(getImplKind()); }
+
+  bool isTuple() const { return isTuple(getImplKind()); }
 
   bool isBinary() const { return isBinary(getImplKind()); }
 
@@ -120,8 +130,6 @@ public:
   }
 
 private:
-  unsigned implKind;
-
   static bool isOpaque(unsigned implKind) {
     return implKind == TypeKind::Term;
   }
@@ -181,6 +189,10 @@ private:
 
   static bool isNonEmptyList(unsigned implKind) {
     return implKind == TypeKind::Cons;
+  }
+
+  static bool isTuple(unsigned implKind) {
+    return implKind == TypeKind::Tuple;
   }
 
   static bool isBinary(unsigned implKind) {
@@ -248,10 +260,10 @@ class TupleType : public Type::TypeBase<TupleType, OpaqueTermType, detail::Tuple
     int64_t getArity() const;
     // Get the size in bytes needed to represent the tuple in memory
     int64_t getSizeInBytes() const;
-    // Returns true if both the size and element types are known
-    bool isFullyStatic() const;
-    // Returns true if neither the size or element types are known
-    bool isFullyDynamic() const;
+    // Returns true if the dimensions of the tuple are known
+    bool hasStaticShape() const;
+    // Returns true if the dimensions of the tuple are unknown
+    bool hasDynamicShape() const;
     // Returns the element type for the given element
     Type getElementType(unsigned index) const;
 };

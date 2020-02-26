@@ -9,6 +9,7 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
@@ -1015,6 +1016,169 @@ template <typename ConstantOp>
 static LogicalResult verifyConstantOp(ConstantOp &) {
   // TODO
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// MallocOp
+//===----------------------------------------------------------------------===//
+
+static void print(OpAsmPrinter &p, MallocOp op) {
+  p << MallocOp::getOperationName();
+
+  BoxType type = op.getType();
+  p.printOperands(op.getOperands());
+  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"map"});
+  p << " : " << type;
+}
+
+static ParseResult parseMallocOp(OpAsmParser &parser, OperationState &result) {
+  BoxType type;
+
+  llvm::SMLoc loc = parser.getCurrentLocation();
+  SmallVector<OpAsmParser::OperandType, 1> opInfo;
+  SmallVector<Type, 1> types;
+  if (parser.parseOperandList(opInfo))
+    return failure();
+  if (!opInfo.empty() && parser.parseColonTypeList(types))
+    return failure();
+
+  // Parse the optional dimension operand, followed by a box type.
+  if (parser.resolveOperands(opInfo, types, loc, result.operands) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(type))
+    return failure();
+
+  result.types.push_back(type);
+  return success();
+}
+
+static LogicalResult verify(MallocOp op) {
+  auto type = op.getResult().getType().dyn_cast<BoxType>();
+  if (!type)
+    return op.emitOpError("result must be a box type");
+
+  OpaqueTermType boxedType = type.getBoxedType();
+  if (!boxedType.isBoxable())
+    return op.emitOpError("boxed type must be a boxable type");
+
+  auto operands = op.getOperands();
+  if (operands.empty()) {
+    // There should be no dynamic dimensions in the boxed type
+    if (boxedType.isTuple()) {
+      auto tuple = boxedType.cast<TupleType>();
+      if (tuple.hasDynamicShape())
+        return op.emitOpError("boxed type has dynamic extent, but no dimension operands were given");
+    }
+  } else {
+    // There should be exactly as many dynamic dimensions as there are operands,
+    // and those operands should be of integer type
+    if (!boxedType.isTuple())
+      return op.emitOpError("only tuples are allowed to have dynamic dimensions");
+    auto tuple = boxedType.cast<TupleType>();
+    if (tuple.hasStaticShape())
+      return op.emitOpError("boxed type has static extent, but dimension operands were given");
+    if (tuple.getArity() != operands.size())
+      return op.emitOpError("number of dimension operands does not match the number of dynamic dimensions");
+  }
+
+  return success();
+}
+
+/// Matches a ConstantIntOp or mlir::ConstantIndexOp.
+static mlir::detail::op_matcher<ConstantIntOp> m_ConstantDimension() {
+  return mlir::detail::op_matcher<ConstantIntOp>();
+}
+
+namespace {
+/// Fold constant dimensions into an alloc operation.
+struct SimplifyMallocConst : public OpRewritePattern<MallocOp> {
+  using OpRewritePattern<MallocOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(MallocOp alloc,
+                                     PatternRewriter &rewriter) const override {
+    auto boxType = alloc.getType();
+    auto boxedType = boxType.getBoxedType();
+    if (!boxedType.isTuple())
+      return matchFailure();
+
+    auto tuple = boxedType.cast<TupleType>();
+    auto numOperands = alloc.getNumOperands();
+    if (tuple.hasStaticShape()) {
+      // We can remove any operands as the shape is known
+      if (numOperands > 0) {
+        auto alignment = alloc.alignment();
+        if (alignment) {
+          auto alignTy = rewriter.getIntegerType(64);
+          auto align = rewriter.getIntegerAttr(alignTy, alignment.getValue());
+          rewriter.replaceOpWithNewOp<MallocOp>(alloc, boxType, align);
+        } else {
+          rewriter.replaceOpWithNewOp<MallocOp>(alloc, boxType);
+        }
+        return matchSuccess();
+      } else {
+        return matchFailure();
+      }
+    }
+
+    // Check to see if any dimensions operands are constants.  If so, we can
+    // substitute and drop them.
+    if (llvm::none_of(alloc.getOperands(), [](Value operand) {
+          return matchPattern(operand, m_ConstantDimension());
+        }))
+      return matchFailure();
+
+    assert(numOperands > 1 && "malloc op only permits one level of dynamic dimensionality");
+    SmallVector<Value, 1> newOperands;
+
+    auto *defOp = alloc.getOperand(0).getDefiningOp();
+    auto constantIntOp = cast<ConstantIntOp>(defOp);
+    auto arityAP = constantIntOp.getValue().cast<IntegerAttr>().getValue();
+    auto arity = (unsigned)arityAP.getLimitedValue();
+    auto newTuple = TupleType::get(tuple.getContext(), arity);
+    auto newType = BoxType::get(newTuple);
+    auto alignment = alloc.alignment();
+
+    if (alignment) {
+      auto alignTy = rewriter.getIntegerType(64);
+      auto align = rewriter.getIntegerAttr(alignTy, alignment.getValue());
+      rewriter.replaceOpWithNewOp<MallocOp>(alloc, newType, align);
+    } else {
+      rewriter.replaceOpWithNewOp<MallocOp>(alloc, newType);
+    }
+    return matchSuccess();
+  }
+};
+
+/// Fold malloc operations with no uses. Malloc has side effects on the heap,
+/// but can still be deleted if it has zero uses.
+struct SimplifyDeadMalloc : public OpRewritePattern<MallocOp> {
+  using OpRewritePattern<MallocOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(MallocOp alloc,
+                                     PatternRewriter &rewriter) const override {
+    if (alloc.use_empty()) {
+      rewriter.eraseOp(alloc);
+      return matchSuccess();
+    }
+    return matchFailure();
+  }
+};
+} // end anonymous namespace.
+
+void MallocOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                           MLIRContext *context) {
+  results.insert<SimplifyMallocConst, SimplifyDeadMalloc>(context);
+}
+
+int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {
+  auto boxedType = boxType.getBoxedType();
+  if (boxedType.isTuple()) {
+    auto tuple = boxedType.cast<TupleType>();
+    return tuple.getSizeInBytes();
+  } else if (boxedType.isNonEmptyList()) {
+    return 2 * (pointerSizeInBits / 8);
+  }
+  assert(false && "unimplemented boxed type in calculateAllocSize");
 }
 
 //===----------------------------------------------------------------------===//

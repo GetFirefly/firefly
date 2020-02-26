@@ -169,7 +169,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
                 self.context.as_ref(),
                 s.as_ptr(),
                 len as libc::c_uint,
-                /* dont_null_terminate= */ false as libc::c_int,
+                /* dont_null_terminate= */ true as libc::c_int,
             )
         }
     }
@@ -263,6 +263,13 @@ impl<'ctx> ModuleBuilder<'ctx> {
             LLVMSetAlignment(value, alignment as libc::c_uint);
         }
     }
+
+    pub fn build_pointer_cast(&self, value: LLVMValueRef, ty: LLVMTypeRef) -> LLVMValueRef {
+        use llvm_sys::core::LLVMConstPointerCast;
+
+        unsafe { LLVMConstPointerCast(value, ty) }
+    }
+
 
     pub fn build_const_inbounds_gep(&self, value: LLVMValueRef, indices: &[usize]) -> LLVMValueRef {
         use llvm_sys::core::LLVMConstInBoundsGEP;

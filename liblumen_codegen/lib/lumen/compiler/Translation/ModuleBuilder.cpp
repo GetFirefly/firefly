@@ -12,17 +12,20 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 
+using ::llvm::Optional;
+
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Builder, MLIRBuilderRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Location, MLIRLocationRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Block, MLIRBlockRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::TargetMachine, LLVMTargetMachineRef);
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::FuncOp, MLIRFunctionOpRef);
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::FuncOp, MLIRFunctionOpRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::ModuleBuilder, MLIRModuleBuilderRef);
 
 inline Attribute unwrap(const void *P) {
@@ -46,79 +49,24 @@ inline MLIRValueRef wrap(const Value &attr) {
 namespace lumen {
 namespace eir {
 
-inline raw_ostream &operator<<(raw_ostream &os, EirTypeTag tag) {
+inline raw_ostream &operator<<(raw_ostream &os, EirTypeTag::TypeTag tag) {
   auto i = static_cast<uint32_t>(tag);
-  os << "EirTypeTag(raw=" << i << ", val=";
+  os << "eir.term_kind(raw=" << i << ", val=";
   switch (tag) {
-    case EirTypeTag::Unknown:
-      os << "Unknown";
-      break;
-    case EirTypeTag::Void:
-      os << "Void";
-      break;
-    case EirTypeTag::Term:
-      os << "Term";
-      break;
-    case EirTypeTag::List:
-      os << "AnyList";
-      break;
-    case EirTypeTag::Number:
-      os << "AnyNumber";
-      break;
-    case EirTypeTag::Integer:
-      os << "AnyInteger";
-      break;
-    case EirTypeTag::Binary:
-      os << "AnyBinary";
-      break;
-    case EirTypeTag::Atom:
-      os << "Atom";
-      break;
-    case EirTypeTag::Boolean:
-      os << "Boolean";
-      break;
-    case EirTypeTag::Fixnum:
-      os << "Fixnum";
-      break;
-    case EirTypeTag::BigInt:
-      os << "BigInt";
-      break;
-    case EirTypeTag::Float:
-      os << "Float";
-      break;
-    case EirTypeTag::Nil:
-      os << "Nil";
-      break;
-    case EirTypeTag::Cons:
-      os << "Cons";
-      break;
-    case EirTypeTag::Tuple:
-      os << "Tuple";
-      break;
-    case EirTypeTag::Map:
-      os << "Map";
-      break;
-    case EirTypeTag::Closure:
-      os << "Closure";
-      break;
-    case EirTypeTag::HeapBin:
-      os << "HeapBin";
-      break;
-    case EirTypeTag::Box:
-      os << "Box";
-      break;
+#define EIR_TERM_KIND(Name, Val) case EirTypeTag::Name : { os << #Name; break; }
+#define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
+#include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
   }
   os << ")";
   return os;
 }
 
 static Type fromRust(Builder &builder, const EirType *wrapper) {
-  EirTypeTag t = wrapper->any.tag;
-  llvm::outs() << t << "\n";
+  EirTypeTag::TypeTag t = wrapper->any.tag;
   auto *context = builder.getContext();
   switch (t) {
-  case EirTypeTag::Void:
-    return builder.getType<mlir::NoneType>();
+  case EirTypeTag::None:
+    return builder.getType<NoneType>();
   case EirTypeTag::Term:
     return builder.getType<TermType>();
   case EirTypeTag::List:
@@ -127,8 +75,8 @@ static Type fromRust(Builder &builder, const EirType *wrapper) {
     return builder.getType<NumberType>();
   case EirTypeTag::Integer:
     return builder.getType<IntegerType>();
-  case EirTypeTag::Binary:
-    return builder.getType<BinaryType>();
+  case EirTypeTag::Float:
+    return builder.getType<eir::FloatType>();
   case EirTypeTag::Atom:
     return builder.getType<AtomType>();
   case EirTypeTag::Boolean:
@@ -137,8 +85,6 @@ static Type fromRust(Builder &builder, const EirType *wrapper) {
     return builder.getType<FixnumType>();
   case EirTypeTag::BigInt:
     return builder.getType<BigIntType>();
-  case EirTypeTag::Float:
-    return builder.getType<eir::FloatType>();
   case EirTypeTag::Nil:
     return builder.getType<NilType>();
   case EirTypeTag::Cons:
@@ -147,8 +93,12 @@ static Type fromRust(Builder &builder, const EirType *wrapper) {
     auto arity = wrapper->tuple.arity;
     return builder.getType<eir::TupleType>(arity);
   }
+  case EirTypeTag::Closure:
+    return builder.getType<ClosureType>();
   case EirTypeTag::Map:
     return builder.getType<MapType>();
+  case EirTypeTag::Binary:
+    return builder.getType<BinaryType>();
   case EirTypeTag::HeapBin:
     return builder.getType<HeapBinType>();
   case EirTypeTag::Box: {
@@ -156,13 +106,8 @@ static Type fromRust(Builder &builder, const EirType *wrapper) {
     return BoxType::get(elementType);
   }
   default:
-    llvm::outs() << "EirType(tag=" << t << ", payload=";
-    if (t == EirTypeTag::Tuple) {
-      llvm::outs() << wrapper->tuple.arity << ")\n";
-    } else {
-      llvm::outs() << "n/a)\n";
-    }
-    llvm::report_fatal_error("Bad EirType.");
+    llvm::outs() << t << "\n";
+    llvm::report_fatal_error("Unrecognized EirTypeTag.");
   }
 }
 
@@ -200,7 +145,8 @@ MLIRModuleBuilderRef MLIRCreateModuleBuilder(MLIRContextRef context,
 ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, const TargetMachine *targetMachine)
   : builder(&context), targetMachine(targetMachine) {
   // Create an empty module into which we can codegen functions
-  theModule = builder.create<mlir::ModuleOp>(builder.getUnknownLoc(), name);
+  theModule = mlir::ModuleOp::create(builder.getUnknownLoc(), name);
+  assert(isa<mlir::ModuleOp>(theModule) && "expected moduleop");
 }
 
 extern "C"
@@ -222,7 +168,7 @@ ModuleBuilder::~ModuleBuilder() {
 extern "C"
 MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
   ModuleBuilder *builder = unwrap(b);
-  builder->build_external_declarations();
+  //builder->build_external_declarations();
   auto finished = builder->finish();
   delete builder;
   if (failed(mlir::verify(finished))) {
@@ -237,7 +183,7 @@ MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
 void ModuleBuilder::build_external_declarations() {
   for (auto &kvp : calledSymbols) {
     auto cs = kvp.getKey();
-    if (theModule.lookupSymbol<FuncOp>(cs))
+    if (theModule.lookupSymbol<mlir::FuncOp>(cs))
       continue;
     auto fnType = kvp.getValue();
     declare_function(cs, fnType);
@@ -267,8 +213,8 @@ FunctionDeclResult MLIRCreateFunction(MLIRModuleBuilderRef b,
   if (!fun)
     return {nullptr, nullptr};
 
-  MLIRFunctionOpRef funRef = wrap(new FuncOp(fun));
-  FuncOp *tempFun = unwrap(funRef);
+  MLIRFunctionOpRef funRef = wrap(new mlir::FuncOp(fun));
+  mlir::FuncOp *tempFun = unwrap(funRef);
   auto *entryBlock = tempFun->addEntryBlock();
   builder->position_at_end(entryBlock);
   MLIRBlockRef entry = wrap(entryBlock);
@@ -276,7 +222,7 @@ FunctionDeclResult MLIRCreateFunction(MLIRModuleBuilderRef b,
   return {funRef, entry};
 }
 
-FuncOp ModuleBuilder::create_function(StringRef functionName,
+mlir::FuncOp ModuleBuilder::create_function(StringRef functionName,
                                       SmallVectorImpl<Arg> &functionArgs,
                                       EirType *resultType) {
   llvm::SmallVector<Type, 2> argTypes;
@@ -287,28 +233,29 @@ FuncOp ModuleBuilder::create_function(StringRef functionName,
       return nullptr;
     argTypes.push_back(type);
   }
-  if (resultType->any.tag == EirTypeTag::Unknown) {
+  ArrayRef<NamedAttribute> attrs({});
+  if (resultType->any.tag == EirTypeTag::None) {
     auto fnType = builder.getFunctionType(argTypes, llvm::None);
-    return builder.create<FuncOp>(builder.getUnknownLoc(), functionName, fnType);
+    return mlir::FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
   } else {
     auto fnType = builder.getFunctionType(argTypes, fromRust(builder, resultType));
-    return builder.create<FuncOp>(builder.getUnknownLoc(), functionName, fnType);
+    return mlir::FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
   }
 }
 
 void ModuleBuilder::declare_function(StringRef functionName, mlir::FunctionType fnType) {
-  auto fun = builder.create<FuncOp>(builder.getUnknownLoc(), functionName, fnType);
-  theModule.push_back(fun);
+  ArrayRef<NamedAttribute> attrs({});
+  mlir::FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
 }
 
 extern "C"
 void MLIRAddFunction(MLIRModuleBuilderRef b, MLIRFunctionOpRef f) {
   ModuleBuilder *builder = unwrap(b);
-  FuncOp *fun = unwrap(f);
+  mlir::FuncOp *fun = unwrap(f);
   builder->add_function(*fun);
 }
 
-void ModuleBuilder::add_function(FuncOp f) {
+void ModuleBuilder::add_function(mlir::FuncOp f) {
   theModule.push_back(f);
 }
 
@@ -338,7 +285,7 @@ MLIRValueRef MLIRGetBlockArgument(MLIRBlockRef b, unsigned id) {
 extern "C"
 MLIRBlockRef MLIRAppendBasicBlock(MLIRModuleBuilderRef b, MLIRFunctionOpRef f, const Arg *argv, unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
-  FuncOp *fun = unwrap(f);
+  mlir::FuncOp *fun = unwrap(f);
   auto *block = builder->add_block(*fun);
   if (!block)
     return nullptr;
@@ -356,7 +303,7 @@ MLIRBlockRef MLIRAppendBasicBlock(MLIRModuleBuilderRef b, MLIRFunctionOpRef f, c
   return wrap(block);
 }
 
-Block *ModuleBuilder::add_block(FuncOp &f) { return f.addBlock(); }
+Block *ModuleBuilder::add_block(mlir::FuncOp &f) { return f.addBlock(); }
 
 extern "C"
 void MLIRBlockPositionAtEnd(MLIRModuleBuilderRef b, MLIRBlockRef blk) {
@@ -765,6 +712,20 @@ Value ModuleBuilder::build_logical_or(Value lhs, Value rhs) {
   return op.getResult();
 }
 
+extern "C"
+MLIRValueRef MLIRBuildPrintOp(MLIRModuleBuilderRef b, MLIRValueRef *argv, unsigned argc) {
+  ModuleBuilder *builder = unwrap(b);
+  SmallVector<Value, 1> args;
+  unwrapValues(argv, argc, args);
+  return wrap(builder->build_print_op(args));
+}
+
+Value ModuleBuilder::build_print_op(ArrayRef<Value> args) {
+  auto termTy = TermType::get(builder.getContext());
+  auto op = builder.create<PrintOp>(builder.getUnknownLoc(), termTy, args);
+  return op.getResult();
+}
+
 //===----------------------------------------------------------------------===//
 // Function Calls
 //===----------------------------------------------------------------------===//
@@ -796,6 +757,37 @@ void MLIRBuildStaticCall(
   builder->build_static_call(functionName, args, isTail, ok, okArgs, err, errArgs);
 }
 
+static bool is_intrinsic(StringRef target) {
+  // PrintOp
+  if (target == "erlang:print/1") {
+    return true;
+  }
+  return false;
+}
+
+void ModuleBuilder::translate_call_to_intrinsic(
+  StringRef target,
+  ArrayRef<Value> args,
+  bool isTail,
+  Block *ok,
+  ArrayRef<Value> okArgs,
+  Block *err,
+  ArrayRef<Value> errArgs
+) {
+  Value result;
+  if (target == "erlang:print/1") {
+    result = build_print_op(args);
+  }
+
+  assert(isTail && "unsupported intrinsic usage");
+  // If this is a tail call, we're returning the results directly
+  if (isTail) {
+    // Return result of call directly
+    builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+    return;
+  }
+}
+  
 void ModuleBuilder::build_static_call(
   StringRef target,
   ArrayRef<Value> args,
@@ -805,9 +797,14 @@ void ModuleBuilder::build_static_call(
   Block *err,
   ArrayRef<Value> errArgs
 ) {
+  if (is_intrinsic(target)) {
+    translate_call_to_intrinsic(target, args, isTail, ok, okArgs, err, errArgs);
+    return;
+  }
+
   // Create symbolref and lookup function definition (if present)
   auto symbol = builder.getSymbolRefAttr(target);
-  auto fn = theModule.lookupSymbol<FuncOp>(symbol.getValue());
+  auto fn = theModule.lookupSymbol<mlir::FuncOp>(symbol.getValue());
 
   // Build result types list
   SmallVector<Type, 1> fnResults;
@@ -1066,11 +1063,11 @@ Attribute ModuleBuilder::build_string_attr(StringRef value) {
 extern "C"
 MLIRValueRef MLIRBuildConstantBinary(MLIRModuleBuilderRef b, const char *str, unsigned size, uint64_t header, uint64_t flags) {
   ModuleBuilder *builder = unwrap(b);
-  ArrayRef<char> value(str, str + size);
+  StringRef value(str, (size_t)size);
   return wrap(builder->build_constant_binary(value, header, flags));
 }
 
-Value ModuleBuilder::build_constant_binary(ArrayRef<char> value, uint64_t header, uint64_t flags) {
+Value ModuleBuilder::build_constant_binary(StringRef value, uint64_t header, uint64_t flags) {
   auto op = builder.create<ConstantBinaryOp>(
       builder.getUnknownLoc(), value, header, flags);
   return op.getResult();
@@ -1079,11 +1076,11 @@ Value ModuleBuilder::build_constant_binary(ArrayRef<char> value, uint64_t header
 extern "C"
 MLIRAttributeRef MLIRBuildBinaryAttr(MLIRModuleBuilderRef b, const char *str, unsigned size, uint64_t header, uint64_t flags) {
   ModuleBuilder *builder = unwrap(b);
-  ArrayRef<char> value(str, str + size);
+  StringRef value(str, (size_t)size);
   return wrap(builder->build_binary_attr(value, header, flags));
 }
 
-Attribute ModuleBuilder::build_binary_attr(ArrayRef<char> value, uint64_t header, uint64_t flags) {
+Attribute ModuleBuilder::build_binary_attr(StringRef value, uint64_t header, uint64_t flags) {
   return BinaryAttr::get(builder.getContext(), value, header, flags);
 }
 

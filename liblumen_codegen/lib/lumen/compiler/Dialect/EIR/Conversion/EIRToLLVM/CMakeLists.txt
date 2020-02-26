@@ -1,12 +1,13 @@
 lumen_cc_library(
   NAME
-    EIRToStandard
+    EIRToLLVM
   HDRS
-    "ConvertEIRToStandard.h"
+    "ConvertEIRToLLVM.h"
   SRCS
-    "ConvertEIRToStandard.cpp"
+    "ConvertEIRToLLVM.cpp"
   DEPS
     lumen::compiler::Dialect::EIR::IR
+    lumen::compiler::Target
     MLIRLLVMIR
     MLIRIR
     MLIRPass

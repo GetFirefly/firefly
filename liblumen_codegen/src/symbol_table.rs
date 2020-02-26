@@ -60,15 +60,18 @@ pub fn compile_symbol_table(
     let mut functions = Vec::with_capacity(symbols.len());
     for symbol in symbols.iter() {
         let decl = declare_extern_symbol(&builder, symbol)?;
+        let decl_ptr = builder.build_pointer_cast(decl, fn_ptr_type);
         let module = builder.build_constant_uint(usize_type, symbol.module);
         let fun = builder.build_constant_uint(usize_type, symbol.function);
         let arity = builder.build_constant_uint(i8_type, symbol.arity as usize);
-        let function = builder.build_constant_struct(function_type, &[module, fun, arity, decl]);
+        let function = builder.build_constant_struct(function_type, &[module, fun, arity, decl_ptr]);
         functions.push(function);
     }
 
     // Generate global array of all idents
-    let functions_const = builder.build_constant_array(function_type, functions.as_slice());
+    let functions_const_init = builder.build_constant_array(function_type, functions.as_slice());
+    let functions_const_ty = unsafe { llvm_sys::core::LLVMTypeOf(functions_const_init) };
+    let functions_const = builder.add_constant(functions_const_ty, "__LUMEN_SYMBOL_TABLE_ENTRIES", Some(functions_const_init));
     builder.set_linkage(functions_const, Linkage::Private);
     builder.set_alignment(functions_const, 8);
 

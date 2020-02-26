@@ -1030,7 +1030,7 @@ pub fn add_local_native_libraries(
     let search_path = archive_search_paths(options);
 
     // Add libcore/libstd
-    let rlib_dir = filesearch.get_lib_path();
+    //let rlib_dir = filesearch.get_lib_path();
     //link_rlib(cmd, options, tmpdir, &rlib_dir.join("libcore.rlib"));
     //link_rlib(cmd, options, tmpdir, &rlib_dir.join("libstd.rlib"));
 

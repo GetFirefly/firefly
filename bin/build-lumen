@@ -19,12 +19,10 @@ if [ -z "$LLVM_SYS_90_PREFIX" ]; then
 fi
 
 is_darwin="false"
-build_type=""
 build_static="false"
 build_dynamic="false"
 build_use_libcxx="false"
 build_link_args=""
-build_runtimes=""
 build_package=""
 build_target=""
 build_toolchain=""
@@ -71,13 +69,11 @@ while [ $# -gt 0 ]; do
             extra_cargo_flags="--verbose $extra_cargo_flags"
             ;;
         -debug | --debug )
-            build_type="debug"
             extra_rustc_flags="-C opt-level=0"
             OUTPUT_DIR="${ROOT_DIR}/target/debug"
             ;;
 
         -release | --release )
-            build_type="release"
             OUTPUT_DIR="${ROOT_DIR}/target/release"
             extra_cargo_flags="--release $extra_cargo_flags"
             ;;
@@ -199,46 +195,6 @@ echo "  extra cargo flags:   ${extra_cargo_flags:-"n/a"}"
 echo "  extra link args:     ${build_link_args:-"n/a"}"
 echo ""
 
-function find_static_dep(){
-    # Sort by modification time, and take the first two entries,
-    # these correspond to the build script output, and the build folder itself.
-    find "${OUTPUT_DIR}/deps" -type f -name "lib$1-*.a" -exec stat --printf='%Y\t%n\n' {} \; \
-        | sort -r \
-        | head -n 1 \
-        | cut -f2 -
-}
-
-function build_dep(){
-    # shellcheck disable=SC2086
-    if ! cargo rustc ${extra_cargo_flags} -p "$1" -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
-        return 1
-    else
-        return 0
-    fi
-}
-
-function build_or_copy_dep(){
-    local lib="$1"
-    local lib_path=""
-    local to_path="$2"
-    if ! lib_path="$(find_static_dep "$lib")"; then
-        # Build this library
-        if ! build_dep "$lib"; then
-            echo "Failed to build runtime library '$lib'"
-            return 1
-        fi
-        if ! lib_path="$(find_static_dep "$lib")"; then
-            echo "Unable to find static library '$lib'"
-            return 1
-        fi
-    fi
-    if [ ! -f "$lib_path" ]; then
-        echo "Unable to find static library '$lib' at '$lib_path'"
-        return 1
-    fi
-    rsync -a --copy-links --whole-file "$lib_path" "${to_path}/lib${lib}.a"
-}
-
 if [ -n "$build_package" ]; then
     # shellcheck disable=SC2086
     if ! cargo rustc ${extra_cargo_flags} -p ${build_package} -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
@@ -247,8 +203,18 @@ if [ -n "$build_package" ]; then
     exit 0
 fi
 
+# Build Lumen and gather artifact metadata
 # shellcheck disable=SC2086
-if ! cargo rustc ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
+build_json=""
+if ! build_json="$(cargo rustc --message-format=json ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags})"; then
+    exit 1
+fi
+dep_info=""
+if ! dep_info="$(echo "$build_json" | jq 'select(.reason == "compiler-artifact") | { name: .target.name, files: .filenames | arrays | map(select(endswith(".a"))) | select(. | length > 0) }' )"; then
+    exit 1
+fi
+codegen_outdir=""
+if ! codegen_outdir="$(echo "$build_json" | jq -r 'select(.reason == "build-script-executed") | select(.package_id | contains("liblumen_codegen")) | .out_dir' )"; then
     exit 1
 fi
 
@@ -266,51 +232,22 @@ cp "${OUTPUT_DIR}/lumen" "${install_bin_dir}/lumen"
 
 # Copy runtime libraries, build them if not present
 for lib in "${RUNTIME_LIBS[@]}"; do
-    if ! build_or_copy_dep "$lib" "$install_target_lib_dir"; then
+    dep_exists="$(echo "$dep_info" | jq -r "select(.name == \"$lib\") | any")"
+    if [ "$dep_exists" != "true" ]; then
+        echo "Unable to find dependency $lib"
         exit 1
     fi
+
+    dep_output="$(echo "$dep_info" | jq -r "select(.name == \"$lib\") | .files[]")"
+    if [ ! -f "$dep_output" ]; then
+        echo "Library $dep_output for dep $lib does not exist!"
+        exit 1
+    fi
+    rsync -a --copy-links --whole-file "$dep_output" "${install_target_lib_dir}/lib${lib}.a"
 done
 
-#if [ "$build_dynamic" == "true" ]; then
-#    src_dylib="${}"
-#    src_dylib="${LLVM_SYS_90_PREFIX}/lib/libLLVMcpp.dylib"
-#    if [ -f "${src_dylib}" ]; then
-#        # We have a components dylib, so prefer to use that
-#        dst_dylib="${install_host_lib_dir}/libLLVMcpp.dylib"
-#        rsync -a --copy-links --whole-file "$src_dylib" "$dst_dylib"
-#    else
-#        # Otherwise we must have built with BUILD_SHARED_LIBS
-#        rsync -a --copy-links --whole-file "${LLVM_SYS_90_PREFIX}/lib/"libLLVM*.dylib "${install_host_lib_dir}"/
-#        rsync -a --copy-links --whole-file "${LLVM_SYS_90_PREFIX}/lib/"libMLIR*.dylib "${install_host_lib_dir}"/
-#    fi
-#fi
-
-function get_build_dirs(){
-    # Sort by modification time, and take the first two entries,
-    # these correspond to the build script output, and the build folder itself.
-    find "${OUTPUT_DIR}/build" -type d -name "$1-*" -exec stat --printf='%Y\t%n\n' {} \; \
-        | sort -r \
-        | head -n 2 \
-        | cut -f2 -
-}
-
-function get_build_dir(){
-    # To find the build folder, we find which of the build folders contains the artifacts,
-    # since there doesn't appear to be a reliable way to determine the correct one any other way
-    for dir in $(get_build_dirs "$1"); do
-        local lib_dir="${dir}/out"
-        if [ -d "${lib_dir}" ]; then
-            echo "${lib_dir}"
-            return 0
-        fi
-    done
-    return 1
-}
-
-
 # Copy codegen libraries that are not statically linked
-codegen_out_dir="$(get_build_dir 'liblumen_codegen')"
-for file in "$codegen_out_dir/lib/"*.dylib; do
+for file in "$codegen_outdir/lib/"*.dylib; do
     if [ -f "$file" ]; then
         rsync -a --copy-links --whole-file "$file" "${install_host_lib_dir}"/
     fi

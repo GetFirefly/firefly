@@ -781,7 +781,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "libeir_diagnostics"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -793,7 +793,7 @@ dependencies = [
 [[package]]
 name = "libeir_intern"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libeir_diagnostics 0.1.0 (git+https://github.com/bitwalker/eir)",
@@ -803,7 +803,7 @@ dependencies = [
 [[package]]
 name = "libeir_ir"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "bumpalo 2.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -828,7 +828,7 @@ dependencies = [
 [[package]]
 name = "libeir_lowerutils"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libeir_ir 0.1.0 (git+https://github.com/bitwalker/eir)",
@@ -838,7 +838,7 @@ dependencies = [
 [[package]]
 name = "libeir_passes"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "bumpalo 2.6.0 (git+https://github.com/hansihe/bumpalo.git)",
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -853,7 +853,7 @@ dependencies = [
 [[package]]
 name = "libeir_syntax_erl"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "bumpalo 2.6.0 (git+https://github.com/hansihe/bumpalo.git)",
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -878,7 +878,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_datastructures"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashbrown 0.6.3 (git+https://github.com/hansihe/hashbrown.git)",
@@ -887,7 +887,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_number"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "num-bigint 0.2.2 (git+https://github.com/hansihe/num-bigint.git)",
  "num-traits 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -896,7 +896,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "libeir_diagnostics 0.1.0 (git+https://github.com/bitwalker/eir)",
  "snafu 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -905,7 +905,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse_listing"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "lalrpop 0.17.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "lalrpop-util 0.17.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -918,7 +918,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_pattern_compiler"
 version = "0.1.0"
-source = "git+https://github.com/bitwalker/eir#77c70159e80d0df88f1a0e54b52817f1311af95d"
+source = "git+https://github.com/bitwalker/eir#b94a2e4ef035535843350357a425a5da33c68abf"
 dependencies = [
  "derivative 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1005,6 +1005,7 @@ dependencies = [
  "liblumen_alloc 0.1.0",
  "liblumen_compiler_macros 0.1.0",
  "liblumen_core 0.1.0",
+ "liblumen_llvm 0.1.0",
  "liblumen_session 0.1.0",
  "liblumen_target 0.1.0",
  "liblumen_term 0.1.0",
@@ -1119,6 +1120,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "liblumen_llvm"
+version = "0.1.0"
+dependencies = [
+ "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
+ "llvm-sys 90.0.0 (git+https://github.com/lumen/llvm-sys.rs?branch=llvm-9.0)",
+]
+
+[[package]]
 name = "liblumen_session"
 version = "0.1.0"
 dependencies = [
@@ -1145,6 +1154,10 @@ dependencies = [
 [[package]]
 name = "liblumen_term"
 version = "0.1.0"
+dependencies = [
+ "cmake 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
+ "which 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "liblumen_util"
@@ -1202,9 +1215,13 @@ dependencies = [
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_compiler 0.1.0",
+ "liblumen_crt 0.1.0",
+ "liblumen_llvm 0.1.0",
  "liblumen_session 0.1.0",
+ "liblumen_term 0.1.0",
  "liblumen_util 0.1.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lumen_rt_minimal 0.1.0",
 ]
 
 [[package]]
@@ -1216,6 +1233,7 @@ dependencies = [
  "chrono 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "intrusive-collections 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_alloc 0.1.0",
  "liblumen_core 0.1.0",
@@ -1236,8 +1254,10 @@ dependencies = [
  "bus 2.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cfg-if 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "intrusive-collections 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_alloc 0.1.0",
  "liblumen_core 0.1.0",

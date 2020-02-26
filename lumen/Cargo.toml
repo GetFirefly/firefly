@@ -9,6 +9,8 @@ readme = "README.md"
 publish = false
 edition = "2018"
 
+build = "build.rs"
+
 [dependencies]
 clap = "2.33.0"
 human-panic = "1.0"
@@ -18,3 +20,9 @@ anyhow = "1.0"
 liblumen_compiler = { path = "../liblumen_compiler" }
 liblumen_util = { path = "../liblumen_util" }
 liblumen_session = { path = "../liblumen_session" }
+
+[build-dependencies]
+liblumen_llvm = { path = "../liblumen_llvm" }
+liblumen_term = { path = "../liblumen_term" }
+liblumen_crt = { path = "../liblumen_crt" }
+lumen_rt_minimal = { path = "../runtimes/minimal" }

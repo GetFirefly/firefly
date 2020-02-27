@@ -19,7 +19,7 @@ pub struct CodegenOptions {
     #[option(multiple(true), takes_value(true), value_name("ARG"))]
     /// A single argument to append to the linker args (can be used multiple times)
     pub linker_arg: Vec<String>,
-    #[option(value_name("ARGS"), takes_value(true))]
+    #[option(value_name("ARGS"), takes_value(true), requires_delimiter(true))]
     /// Extra arguments to append to the linker invocation (comma separated list)
     pub linker_args: Option<Vec<String>>,
     #[option]
@@ -34,10 +34,10 @@ pub struct CodegenOptions {
     #[option(value_name("FEATURES"), takes_value(true))]
     /// Select target specific attributes (see `lumen print target-features`)
     pub target_features: Option<String>,
-    #[option(value_name("PASSES"), takes_value(true))]
+    #[option(value_name("PASSES"), takes_value(true), requires_delimiter(true))]
     /// A list of extra LLVM passes to run (comma separated list)
     pub passes: Vec<String>,
-    #[option(value_name("ARGS"), takes_value(true))]
+    #[option(value_name("ARGS"), takes_value(true), requires_delimiter(true))]
     /// Extra arguments to pass through to LLVM (comma separated list)
     pub llvm_args: Vec<String>,
     #[option]

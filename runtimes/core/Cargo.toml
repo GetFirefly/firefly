@@ -26,7 +26,7 @@ liblumen_core = { path = "../../liblumen_core" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
 
 [dependencies.hashbrown]
-version = "0.5"
+version = "0.7"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]

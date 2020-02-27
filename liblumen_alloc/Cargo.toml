@@ -31,7 +31,7 @@ liblumen_term = { path = "../liblumen_term" }
 backtrace = "0.3.35"
 
 [dependencies.hashbrown]
-version = "0.5"
+version = "0.7"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]

@@ -155,12 +155,12 @@ impl<'ctx> ModuleBuilder<'ctx> {
         }
     }
 
-    pub fn build_constant_string(&self, s: &str) -> LLVMValueRef {
+    pub fn build_constant_string(&self, s: &str, null_terminate: bool) -> LLVMValueRef {
         let cstr = CString::new(s).unwrap();
-        self.build_constant_cstring(cstr)
+        self.build_constant_cstring(cstr, null_terminate)
     }
 
-    pub fn build_constant_cstring(&self, s: CString) -> LLVMValueRef {
+    pub fn build_constant_cstring(&self, s: CString, null_terminate: bool) -> LLVMValueRef {
         use llvm_sys::core::LLVMConstStringInContext;
 
         let len = s.as_bytes().len();
@@ -169,7 +169,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
                 self.context.as_ref(),
                 s.as_ptr(),
                 len as libc::c_uint,
-                /* dont_null_terminate= */ true as libc::c_int,
+                /* dont_null_terminate= */ !null_terminate as libc::c_int,
             )
         }
     }

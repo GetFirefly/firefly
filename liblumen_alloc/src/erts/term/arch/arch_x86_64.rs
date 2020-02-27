@@ -301,7 +301,7 @@ impl Encoded for RawTerm {
             Tag::Atom => Ok(TypedTerm::Atom(self.decode_atom())),
             Tag::Pid => Ok(TypedTerm::Pid(self.decode_pid())),
             Tag::Port => Ok(TypedTerm::Port(self.decode_port())),
-            Tag::Box => {
+            Tag::Literal | Tag::Box => {
                 let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { &*ptr };
                 match unboxed.type_of() {
@@ -319,7 +319,7 @@ impl Encoded for RawTerm {
                     Tag::Atom => Ok(TypedTerm::Atom(unboxed.decode_atom())),
                     Tag::Pid => Ok(TypedTerm::Pid(unboxed.decode_pid())),
                     Tag::Port => Ok(TypedTerm::Port(unboxed.decode_port())),
-                    Tag::Box => Err(TermDecodingError::MoveMarker.into()),
+                    Tag::Literal | Tag::Box => Err(TermDecodingError::MoveMarker.into()),
                     Tag::Unknown(_) => Err(TermDecodingError::InvalidTag.into()),
                     Tag::None => Err(TermDecodingError::NoneValue.into()),
                     header => unboxed.decode_header(header, Some(self.is_literal())),

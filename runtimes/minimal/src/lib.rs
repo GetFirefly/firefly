@@ -30,12 +30,12 @@ use self::sys::break_handler::{self, Signal};
 fn main() -> impl ::std::process::Termination + 'static {
     let name = env!("CARGO_PKG_NAME");
     let version = env!("CARGO_PKG_VERSION");
-    main_internal(name, version, std::env::args().collect())
+    main_internal(name, version, Vec::new())
 }
 
 fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()> {
     // Load system configuration
-    let _config = match Config::from_argv(name.to_string(), version.to_string(), argv) {
+    let _config = match Config::from_argv(name, version, argv) {
         Ok(config) => config,
         Err(err) => {
             panic!("Config error: {}", err);

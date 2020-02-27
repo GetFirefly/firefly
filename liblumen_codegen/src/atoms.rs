@@ -43,9 +43,9 @@ pub fn compile_atom_table(
         let size = s.as_bytes().len();
         // Each atom has type `[? x i8]` where `?` is the number of bytes in the string
         let i8_type = builder.get_i8_type();
-        let string_type = builder.get_array_type(size, i8_type);
+        let string_type = builder.get_array_type(size + 1, i8_type);
         // The initializer is just the string contents
-        let init = builder.build_constant_cstring(s);
+        let init = builder.build_constant_cstring(s, /*null_terminate=*/true);
         let constant = builder.add_constant(string_type, &format!("__atom{}.value", id), Some(init));
         // The atom constants are not accessible directly, only via the table
         builder.set_linkage(constant, Linkage::Private);

@@ -8,9 +8,8 @@ use liblumen_alloc::erts::term::prelude::*;
 pub extern "C" fn printf_1(term: Term) -> Term {
     use liblumen_alloc::erts::term::arch::Repr;
     match term.decode() {
-        Ok(TypedTerm::ProcBin(boxed)) => {
-            let ptr = boxed.as_ptr();
-            println!("{:p}", ptr);
+        Ok(TypedTerm::BinaryLiteral(boxed)) => {
+            println!("{:?}", boxed.as_str());
             Atom::from_str("ok").encode().unwrap()
         }
         Ok(_) => {

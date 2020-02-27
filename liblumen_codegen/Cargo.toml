@@ -41,3 +41,4 @@ features = ["no-llvm-linking"]
 [build-dependencies]
 cmake = "0.1"
 which = "2.0.1"
+liblumen_llvm = { path = "../liblumen_llvm" }

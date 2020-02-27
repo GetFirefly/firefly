@@ -94,7 +94,12 @@ impl BinaryLiteral {
             .try_into()
             .ok()
             .unwrap();
-        let flags = BinaryFlags::new_literal(Encoding::Raw)
+        let encoding = if s.is_ascii() {
+            Encoding::Latin1
+        } else {
+            Encoding::Raw
+        };
+        let flags = BinaryFlags::new_literal(encoding)
             .set_size(s.len())
             .as_u64();
         (header, flags)

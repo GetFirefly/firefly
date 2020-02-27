@@ -43,6 +43,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
 
     // Initialize named types
     LLVMType intNTy = LLVMType::getIntNTy(&dialect, pointerSizeInBits);
+    LLVMType i8PtrTy = LLVMType::getInt8PtrTy(&dialect);
     LLVMType f64Ty = LLVMType::getDoubleTy(&dialect);
     impl->pointerWidthIntTy = intNTy;
     //auto termTy = LLVMType::createStructTy(&dialect, ArrayRef<LLVMType>(intNTy), StringRef("term"));
@@ -68,7 +69,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
     auto none = lumen_encode_immediate(&impl->encoding, noneTypeKind, 0);
     impl->none = APInt(pointerSizeInBits, none, /*signed=*/false);
 
-    ArrayRef<LLVMType> binaryFields({intNTy, intNTy, termTy});
+    ArrayRef<LLVMType> binaryFields({intNTy, intNTy, i8PtrTy});
     impl->binaryTy = LLVMType::createStructTy(&dialect, binaryFields, StringRef("binary"));
 
     impl->listTag = lumen_list_tag(&impl->encoding);

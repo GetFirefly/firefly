@@ -445,7 +445,9 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
 
     auto boxTag = targetInfo.boxTag();
-    Value boxTagConst = llvm_constant(headerTy, rewriter.getIntegerAttr(rewriter.getIntegerType(64), boxTag));
+    auto literalTag = targetInfo.literalTag();
+    auto boxedLiteralTag = boxTag | literalTag;
+    Value literalTagConst = llvm_constant(headerTy, rewriter.getIntegerAttr(rewriter.getIntegerType(64), boxedLiteralTag));
 
     // We use the SHA-1 hash of the value as the name of the global,
     // this provides a nice way to de-duplicate constant strings while
@@ -460,9 +462,6 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
       dialect
     );
     Value valPtrLoad = llvm_load(valPtr);
-    Value valPtrInt = llvm_ptrtoint(headerTy, valPtrLoad);
-    Value boxedValPtr = llvm_or(valPtrInt, boxTagConst);
-    //Value boxedVal =  llvm_bitcast(targetInfo.getTermType(), boxedValPtr);
     Value header = llvm_constant(headerTy, rewriter.getIntegerAttr(rewriter.getIntegerType(64), headerRaw));
     Value flags = llvm_constant(headerTy, rewriter.getIntegerAttr(rewriter.getIntegerType(64), flagsRaw));
 
@@ -473,10 +472,10 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
     Value desc = llvm_undef(ty);
     desc = llvm_insertvalue(ty, desc, header, rewriter.getI64ArrayAttr(0));
     desc = llvm_insertvalue(ty, desc, flags, rewriter.getI64ArrayAttr(1));
-    desc = llvm_insertvalue(ty, desc, boxedValPtr, rewriter.getI64ArrayAttr(2));
+    desc = llvm_insertvalue(ty, desc, valPtrLoad, rewriter.getI64ArrayAttr(2));
     llvm_store(desc, descAlloc);
     Value descPtrInt = llvm_ptrtoint(headerTy, descAlloc);
-    Value boxedDescPtr = llvm_or(descPtrInt, boxTagConst);
+    Value boxedDescPtr = llvm_or(descPtrInt, literalTagConst);
     Value boxedDesc = llvm_bitcast(targetInfo.getTermType(), boxedDescPtr);
 
     rewriter.replaceOp(op, boxedDesc);

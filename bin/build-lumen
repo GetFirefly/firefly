@@ -207,6 +207,8 @@ fi
 # shellcheck disable=SC2086
 build_json=""
 if ! build_json="$(cargo rustc --message-format=json ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags})"; then
+    # Build a second time for human output
+    cargo rustc ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}
     exit 1
 fi
 dep_info=""

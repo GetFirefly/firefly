@@ -35,7 +35,7 @@ fn main() -> impl ::std::process::Termination + 'static {
 
 fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()> {
     // Load system configuration
-    let _config = match Config::from_argv(name, version, argv) {
+    let _config = match Config::from_argv(name.to_string(), version.to_string(), argv) {
         Ok(config) => config,
         Err(err) => {
             panic!("Config error: {}", err);

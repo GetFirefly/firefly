@@ -1301,7 +1301,7 @@ dependencies = [
  "chrono 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hashbrown 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "intrusive-collections 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "js-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",

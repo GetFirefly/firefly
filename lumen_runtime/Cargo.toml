@@ -29,7 +29,7 @@ radix_fmt = "1.0.0"
 chrono = "0.4"
 
 [dependencies.hashbrown]
-version = "0.5"
+version = "0.7"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]

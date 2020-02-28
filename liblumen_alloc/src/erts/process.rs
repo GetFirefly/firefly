@@ -188,7 +188,7 @@ impl Process {
             heap,
             heap_size,
         );
-        p.stack = self::alloc::stack(1)?;
+        p.stack = self::alloc::stack(4)?;
         Ok(p)
     }
 

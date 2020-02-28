@@ -54,8 +54,6 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     let level_filter = Level::Info.to_level_filter();
     logging::init(level_filter).expect("Unexpected failure initializing logger");
 
-    liblumen_alloc::erts::apply::dump_symbols();
-    liblumen_alloc::erts::term::atom::dump_atoms();
     let scheduler = <Scheduler as rt_core::Scheduler>::current();
     scheduler.init().unwrap();
     loop {

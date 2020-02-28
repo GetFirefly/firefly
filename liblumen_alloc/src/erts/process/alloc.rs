@@ -27,6 +27,7 @@ use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::Term;
 
 pub const DEFAULT_STACK_SIZE: usize = 1; // 1 page
+pub const STACK_ALIGNMENT: usize = 16;
 
 // The global process heap allocator
 lazy_static! {
@@ -37,23 +38,32 @@ pub struct Stack {
     pub base: *mut u8,
     pub top: *mut u8,
     pub size: usize,
+    pub end: *mut u8,
 }
 impl Stack {
     fn new(base: *mut u8, pages: usize) -> Self {
+        use liblumen_core::alloc::utils::align_down_to;
         use liblumen_core::sys::sysconf;
 
-        let size = (pages + 1) * sysconf::pagesize();
+        let page_size = sysconf::pagesize();
+        let size = (pages + 1) * page_size;
+        // Find the top of the stack
+        let real_end = unsafe { base.offset(size as isize) };
+        let end = unsafe { base.offset((pages * page_size) as isize) };
+        let with_red_zone = unsafe { end.offset(-128) };
+        let top = align_down_to(with_red_zone, STACK_ALIGNMENT);
+
         Self {
             base,
-            top: unsafe { base.offset(size as isize) },
+            top: top,
             size,
+            end,
         }
     }
 
     #[inline]
     pub fn limit(&self) -> *mut u8 {
-        use liblumen_core::sys::sysconf;
-        unsafe { self.base.offset(sysconf::pagesize() as isize) }
+        self.end
     }
 }
 impl Default for Stack {
@@ -62,6 +72,7 @@ impl Default for Stack {
             base: ptr::null_mut(),
             top: ptr::null_mut(),
             size: 0,
+            end: ptr::null_mut(),
         }
     }
 }

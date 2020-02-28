@@ -42,6 +42,9 @@ lazy_static! {
     static ref SCHEDULERS: Mutex<HashMap<id::ID, Weak<Scheduler>>> = Mutex::new(Default::default());
 }
 
+#[derive(Copy, Clone)]
+struct StackPointer(*mut u64);
+
 #[link_name = "__lumen_builtin_yield"]
 pub unsafe extern "C" fn process_yield() -> bool {
     let s = <Scheduler as rt_core::Scheduler>::current();
@@ -50,10 +53,44 @@ pub unsafe extern "C" fn process_yield() -> bool {
     s.process_yield(/* root= */ false)
 }
 
+#[naked]
+#[inline(never)]
+#[cfg(all(unix, target_arch = "x86_64"))]
 #[link_name = "__lumen_builtin_return"]
-pub unsafe extern "C" fn process_return() {
+pub unsafe extern "C" fn process_return_continuation() {
+    let f: fn () -> () = process_return;
+    asm!("
+        callq *$0
+        retq
+        "
+    :
+    : "r"(f)
+    :
+    : "volatile", "alignstack"
+    );
+}
+
+#[inline(never)]
+fn process_return() {
     let s = <Scheduler as rt_core::Scheduler>::current();
-    s.process_return();
+    do_process_return(&s);
+}
+
+/// Called when the current process has finished executing, and has
+/// returned all the way to its entry function. This marks the process
+/// as exiting (if it wasn't already), and then yields to the scheduler
+fn do_process_return(scheduler: &Scheduler) -> bool {
+    use liblumen_alloc::erts::term::prelude::*;
+    if scheduler.current.pid() != scheduler.root.pid() {
+        scheduler.current.exit(Atom::from_str("shutdown").encode().unwrap());
+        // NOTE: We always set root=false here, even though this can
+        // be called from the root process, since returning from the
+        // root process exits the scheduler loop anyway, so no stack
+        // swapping can occur
+        scheduler.process_yield(/* root= */ false)
+    } else {
+        true
+    }
 }
 
 struct ScheduledProcess {
@@ -308,23 +345,6 @@ impl Scheduler {
         self.process_yield(/* root= */ true)
     }
 
-    /// Called when the current process has finished executing, and has
-    /// returned all the way to its entry function. This marks the process
-    /// as exiting (if it wasn't already), and then yields to the scheduler
-    fn process_return(&self) -> bool {
-        use liblumen_alloc::erts::term::prelude::*;
-        if self.current.pid() != self.root.pid() {
-            self.current.exit(Atom::from_str("shutdown").encode().unwrap());
-            // NOTE: We always set root=false here, even though this can
-            // be called from the root process, since returning from the
-            // root process exits the scheduler loop anyway, so no stack
-            // swapping can occur
-            self.process_yield(/* root= */ false)
-        } else {
-            true
-        }
-    }
-
     /// This function performs two roles, albeit virtually identical:
     ///
     /// First, this function is called by the scheduler to resume execution
@@ -490,6 +510,12 @@ impl Scheduler {
         }
         let init_fn = init_fn_result.unwrap();
 
+        #[inline(always)]
+        unsafe fn push(sp: &mut StackPointer, value: u64) {
+            sp.0 = sp.0.offset(-1);
+            ptr::write(sp.0, value);
+        }
+
         // Write the return function and init function to the end of the stack,
         // when execution resumes, the pointer before the stack pointer will be
         // used as the return address - the first time that will be the init function.
@@ -499,12 +525,19 @@ impl Scheduler {
         // the process exited. The nature of the exit is indicated by error state
         // in the process itself
         unsafe {
-            let s_ptr = process.stack.top;
-            let s_ptr = (s_ptr as usize & !15) as *mut u8;
-            ptr::write(s_ptr.offset(-24) as *mut u64, process_return as u64);
-            ptr::write(s_ptr.offset(-32) as *mut u64, init_fn as u64);
-            let rsp = &process.registers.rsp as *const _ as *mut _;
-            ptr::write(rsp, s_ptr.offset(-32) as u64);
+            let mut sp = StackPointer(process.stack.top as *mut u64);
+            // Function that will be called when returning from init_fn
+            push(&mut sp, process_return_continuation as u64);
+            // Function that the newly spawned process should call first
+            push(&mut sp, init_fn as u64);
+            // Update process stack pointer
+            let s_top = &process.stack.top as *const _ as *mut _;
+            ptr::write(s_top, sp.0 as *const u8);
+            // Update rsp
+            let rsp = &process.registers.rsp as *const u64 as *mut _;
+            ptr::write(rsp, sp.0 as u64);
+            let rbp = &process.registers.rbp as *const u64 as *mut _;
+            ptr::write(rbp, sp.0 as u64);
         }
 
         *process.status.write() = Status::Runnable;
@@ -533,7 +566,7 @@ fn reset_reduction_counter() -> u64 {
 #[cfg(all(unix, target_arch = "x86_64"))]
 unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters) {
     asm!("
-        # Save the stack pointer, base pointer, and callee-saved registers of `prev`
+        # Save the stack pointer, and callee-saved registers of `prev`
         movq     %rsp, ($0)
         movq     %r15, 8($0)
         movq     %r14, 16($0)
@@ -542,19 +575,14 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         movq     %rbx, 40($0)
         movq     %rbp, 48($0)
 
-        # Restore the stack pointer, base pointer, and callee-saved registers of `new`
+        # Restore the stack pointer, and callee-saved registers of `new`
         movq     ($1),   %rsp
         movq     8($1),  %r15
         movq     16($1), %r14
         movq     24($1), %r13
         movq     32($1), %r12
         movq     40($1), %rbx
-
-        # Only restore the base pointer if non-zero, this preserves a link from
-        # the frame in which a process first begins execution, and the first frame
-        # in that processes' stack
-        testq    $$0x0,  48($1)
-        cmovnzq  48($1), %rbp
+        movq     48($1), %rbp
 
         # Return into the new process
         retq

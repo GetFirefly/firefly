@@ -6,6 +6,7 @@ lumen_cc_library(
   SRCS
     "ConvertEIRToLLVM.cpp"
   DEPS
+    lumen::compiler::Dialect::EIR::IR::EIREncodingGen
     lumen::compiler::Dialect::EIR::IR
     lumen::compiler::Target
     MLIRLLVMIR

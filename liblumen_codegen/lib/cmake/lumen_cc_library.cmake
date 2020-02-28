@@ -14,6 +14,7 @@ endif()
 # TEXTUAL_HDRS: List of public header files that cannot be compiled on their own
 # SRCS: List of source files for the library
 # DEPS: List of other libraries to be linked in to the binary targets
+# DEPENDS: List of other libraries that are dependencies, but not linked in
 # COPTS: List of private compile options
 # DEFINES: List of public defines
 # INCLUDES: Include directories to add to dependencies
@@ -58,13 +59,14 @@ function(lumen_cc_library)
     _RULE
     "PUBLIC;ALWAYSLINK;TESTONLY;SHARED"
     "NAME"
-    "HDRS;TEXTUAL_HDRS;SRCS;COPTS;DEFINES;LINKOPTS;DEPS;INCLUDES"
+    "HDRS;TEXTUAL_HDRS;SRCS;COPTS;DEFINES;LINKOPTS;DEPS;DEPENDS;INCLUDES"
     ${ARGN}
   )
 
   lumen_package_ns(_PACKAGE_NS)
   # Replace dependencies passed by ::name with ::lumen::package::name
   list(TRANSFORM _RULE_DEPS REPLACE "^::" "${_PACKAGE_NS}::")
+  list(TRANSFORM _RULE_DEPENDS REPLACE "^::" "${_PACKAGE_NS}::")
 
   if(NOT _RULE_TESTONLY OR LUMEN_BUILD_TESTS)
     # Prefix the library with the package name, so we get: lumen_package_name.
@@ -117,6 +119,11 @@ function(lumen_cc_library)
           PRIVATE
             ${_RULE_LINKOPTS}
             ${LUMEN_DEFAULT_LINKOPTS}
+        )
+      endif()
+      if ("${_RULE_DEPENDS}")
+        add_dependencies(${_NAME}
+          ${_RULE_DEPENDS}
         )
       endif()
       target_compile_definitions(${_NAME}

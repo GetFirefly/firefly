@@ -30,7 +30,7 @@ macro_rules! impl_boxable {
             }
         }
         impl crate::erts::term::encoding::Encode<$raw> for $typ {
-            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+            fn encode(&self) -> crate::erts::exception::InternalResult<$raw> {
                 Ok(<$raw>::encode_box(self as *const $typ))
             }
         }
@@ -65,7 +65,7 @@ macro_rules! impl_unsized_boxable {
             }
         }
         impl crate::erts::term::encoding::Encode<$raw> for $typ {
-            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+            fn encode(&self) -> crate::erts::exception::InternalResult<$raw> {
                 Ok(<$raw>::encode_box(self as *const $typ))
             }
         }
@@ -105,7 +105,7 @@ macro_rules! impl_literal {
             }
         }
         impl crate::erts::term::encoding::Encode<$raw> for $typ {
-            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+            fn encode(&self) -> crate::erts::exception::InternalResult<$raw> {
                 Ok(<$raw>::encode_literal(self as *const $typ))
             }
         }
@@ -144,7 +144,7 @@ macro_rules! impl_list {
             }
         }
         impl crate::erts::term::encoding::Encode<$raw> for Cons {
-            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+            fn encode(&self) -> crate::erts::exception::InternalResult<$raw> {
                 Ok(<$raw>::encode_list(self as *const Cons))
             }
         }
@@ -175,8 +175,8 @@ use core::mem;
 
 use super::prelude::{Cons, TypedTerm};
 
-pub use liblumen_term::Tag;
 pub use self::repr::Repr;
+pub use liblumen_term::Tag;
 
 // Export the platform-specific representation for use by the higher-level Term code
 pub use target::RawTerm;
@@ -252,7 +252,9 @@ const_assert_eq!(mem::size_of::<RawTerm>(), mem::size_of::<usize>());
 pub const MAX_ATOM_ID: usize = <target::Encoding as liblumen_term::Encoding>::MAX_ATOM_ID as usize;
 
 /// The smallest signed integer value supported on the current platform
-pub const MIN_SMALLINT_VALUE: isize = <target::Encoding as liblumen_term::Encoding>::MIN_SMALLINT_VALUE as isize;
+pub const MIN_SMALLINT_VALUE: isize =
+    <target::Encoding as liblumen_term::Encoding>::MIN_SMALLINT_VALUE as isize;
 
 /// The larged signed integer value supported on the current platform
-pub const MAX_SMALLINT_VALUE: isize = <target::Encoding as liblumen_term::Encoding>::MAX_SMALLINT_VALUE as isize;
+pub const MAX_SMALLINT_VALUE: isize =
+    <target::Encoding as liblumen_term::Encoding>::MAX_SMALLINT_VALUE as isize;

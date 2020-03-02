@@ -21,8 +21,8 @@ use crate::sys::dynamic_call::DynamicCallee;
 ///   since this is not marked naked.
 /// - Our first step is to determine if we need to allocate any spill storage
 ///   - If no spillage, skip this step
-///   - If so, calculate the amount of spillage, and push spilled args to the stack,
-///     in reverse order, i.e. the lowest index resides nearest the top of the stack
+///   - If so, calculate the amount of spillage, and push spilled args to the stack, in reverse
+///     order, i.e. the lowest index resides nearest the top of the stack
 /// - Store up to 6 arguments from the provided argument vector in available parameter registers
 /// - At this point, the call is prepared, so we execute it
 /// - Write the return value to our local variable created to hold it
@@ -113,8 +113,8 @@ pub unsafe fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize 
 
 #[cfg(test)]
 mod tests {
-    use core::mem;
     use super::*;
+    use core::mem;
 
     #[test]
     fn basic_apply_test() {

@@ -4,6 +4,7 @@
 #![allow(intra_doc_link_resolution_failure)]
 // For allocating multiple contiguous terms, like for Tuples.
 #![feature(allocator_api)]
+#![feature(backtrace)]
 #![feature(bind_by_move_pattern_guards)]
 #![feature(exact_size_is_empty)]
 // For `lumen_runtime::otp::erlang::term_to_binary`
@@ -42,13 +43,16 @@ mod binary;
 pub mod binary_to_string;
 // `pub` or `examples/spawn-chain`
 pub mod code;
+#[cfg(not(test))]
 mod config;
+mod context;
 mod distribution;
 pub mod future;
 mod logging;
 mod number;
 pub mod otp;
 pub mod process;
+mod proplist;
 // `pub` or `examples/spawn-chain`
 pub mod registry;
 mod run;
@@ -83,13 +87,13 @@ fn main() -> impl ::std::process::Termination + 'static {
 
 #[cfg(not(any(test, target_arch = "wasm32")))]
 fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()> {
-    use std::thread;
-    use bus::Bus;
-    use log::Level;
     use self::config::Config;
     use self::logging::Logger;
-    use self::system::break_handler::{self, Signal};
     use self::scheduler::Scheduler;
+    use self::system::break_handler::{self, Signal};
+    use bus::Bus;
+    use log::Level;
+    use std::thread;
 
     // Load system configuration
     let _config = match Config::from_argv(name.to_string(), version.to_string(), argv) {
@@ -136,7 +140,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
                 }
                 // All other signals can be surfaced to other parts of the
                 // system for custom use, e.g. SIGCHLD, SIGALRM, SIGUSR1/2
-                _ => ()
+                _ => (),
             }
         }
         // If the scheduler scheduled a process this cycle, then we're busy

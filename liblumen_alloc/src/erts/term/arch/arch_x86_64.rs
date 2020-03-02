@@ -15,10 +15,15 @@ use core::cmp;
 ///! processors to use up to 54 bits for addresses, which would cause issues as well.
 use core::fmt;
 
-use liblumen_term::{Tag, Encoding as TermEncoding, Encoding64Nanboxed};
 use liblumen_term::arch_64_nanboxed as encoding;
+use liblumen_term::{Encoding as TermEncoding, Encoding64Nanboxed, Tag};
 
-use crate::erts::exception;
+use alloc::sync::Arc;
+
+use std::backtrace::Backtrace;
+
+use crate::erts::exception::InternalResult;
+
 use crate::erts::term::prelude::*;
 
 use super::Repr;
@@ -27,7 +32,10 @@ const TAG_MASK: u64 = encoding::TAG_MASK;
 const MIN_DOUBLE: u64 = encoding::MIN_DOUBLE;
 const MAX_ADDR: u64 = encoding::MAX_ADDR;
 
-#[cfg_attr(all(not(target_arch = "x86_64"), target_pointer_width ="64"), allow(unused))]
+#[cfg_attr(
+    all(not(target_arch = "x86_64"), target_pointer_width = "64"),
+    allow(unused)
+)]
 pub type Encoding = Encoding64Nanboxed;
 
 #[repr(transparent)]
@@ -53,7 +61,9 @@ impl RawTerm {
     pub const HEADER_MAP: u64 = Encoding::TAG_MAP;
 
     #[inline]
-    fn type_of(&self) -> Tag<u64> { Encoding::type_of(self.0) }
+    fn type_of(&self) -> Tag<u64> {
+        Encoding::type_of(self.0)
+    }
 
     #[inline]
     fn encode_immediate(value: u64, tag: u64) -> Self {
@@ -75,7 +85,10 @@ impl RawTerm {
         Self(Encoding::encode_literal(value))
     }
 
-    #[cfg_attr(all(not(target_arch = "x86_64"), target_pointer_width ="64"), allow(unused))]
+    #[cfg_attr(
+        all(not(target_arch = "x86_64"), target_pointer_width = "64"),
+        allow(unused)
+    )]
     #[inline]
     pub(crate) fn encode_header(value: u64, tag: u64) -> Self {
         Self(Encoding::encode_header(value, tag))
@@ -95,9 +108,7 @@ impl RawTerm {
     #[inline]
     fn decode_smallint(self) -> SmallInteger {
         let i = Encoding::decode_smallint(self.0);
-        unsafe {
-            SmallInteger::new_unchecked(i as isize)
-        }
+        unsafe { SmallInteger::new_unchecked(i as isize) }
     }
 
     #[inline]
@@ -116,7 +127,9 @@ impl RawTerm {
     }
 
     #[inline]
-    fn decode_float(self) -> Float { Float::new(Encoding::decode_float(self.0)) }
+    fn decode_float(self) -> Float {
+        Float::new(Encoding::decode_float(self.0))
+    }
 }
 impl fmt::Binary for RawTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -140,7 +153,7 @@ impl Repr for RawTerm {
 unsafe impl Send for RawTerm {}
 
 impl Encode<RawTerm> for u8 {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(
             (*self) as u64,
             Encoding::TAG_SMALL_INTEGER,
@@ -149,7 +162,7 @@ impl Encode<RawTerm> for u8 {
 }
 
 impl Encode<RawTerm> for SmallInteger {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         let i: i64 = (*self).into();
         Ok(RawTerm::encode_immediate(
             (i as u64) & MAX_ADDR,
@@ -159,33 +172,45 @@ impl Encode<RawTerm> for SmallInteger {
 }
 
 impl Encode<RawTerm> for Float {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm(self.value().to_bits() + MIN_DOUBLE))
     }
 }
 
 impl Encode<RawTerm> for bool {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         let atom: Atom = (*self).into();
-        Ok(RawTerm::encode_immediate(atom.id() as u64, Encoding::TAG_ATOM))
+        Ok(RawTerm::encode_immediate(
+            atom.id() as u64,
+            Encoding::TAG_ATOM,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Atom {
-    fn encode(&self) -> exception::Result<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.id() as u64, Encoding::TAG_ATOM))
+    fn encode(&self) -> InternalResult<RawTerm> {
+        Ok(RawTerm::encode_immediate(
+            self.id() as u64,
+            Encoding::TAG_ATOM,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Pid {
-    fn encode(&self) -> exception::Result<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.as_usize() as u64, Encoding::TAG_PID))
+    fn encode(&self) -> InternalResult<RawTerm> {
+        Ok(RawTerm::encode_immediate(
+            self.as_usize() as u64,
+            Encoding::TAG_PID,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Port {
-    fn encode(&self) -> exception::Result<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.as_usize() as u64, Encoding::TAG_PORT))
+    fn encode(&self) -> InternalResult<RawTerm> {
+        Ok(RawTerm::encode_immediate(
+            self.as_usize() as u64,
+            Encoding::TAG_PORT,
+        ))
     }
 }
 
@@ -284,7 +309,7 @@ impl Cast<*const Cons> for RawTerm {
 
 impl Encoded for RawTerm {
     #[inline]
-    fn decode(&self) -> exception::Result<TypedTerm> {
+    fn decode(&self) -> Result<TypedTerm, TermDecodingError> {
         let tag = self.type_of();
         match tag {
             Tag::Nil => Ok(TypedTerm::Nil),
@@ -307,9 +332,7 @@ impl Encoded for RawTerm {
                 match unboxed.type_of() {
                     Tag::Nil => Ok(TypedTerm::Nil),
                     Tag::List => Ok(TypedTerm::List(unsafe { unboxed.decode_list() })),
-                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(
-                        unboxed.decode_smallint()
-                    )),
+                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unboxed.decode_smallint())),
                     #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
                     Tag::Float => Ok(TypedTerm::Float(unboxed.decode_float())),
                     #[cfg(not(all(target_pointer_width = "64", target_arch = "x86_64")))]
@@ -319,9 +342,15 @@ impl Encoded for RawTerm {
                     Tag::Atom => Ok(TypedTerm::Atom(unboxed.decode_atom())),
                     Tag::Pid => Ok(TypedTerm::Pid(unboxed.decode_pid())),
                     Tag::Port => Ok(TypedTerm::Port(unboxed.decode_port())),
-                    Tag::Literal | Tag::Box => Err(TermDecodingError::MoveMarker.into()),
-                    Tag::Unknown(_) => Err(TermDecodingError::InvalidTag.into()),
-                    Tag::None => Err(TermDecodingError::NoneValue.into()),
+                    Tag::Literal | Tag::Box => Err(TermDecodingError::MoveMarker {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
+                    Tag::Unknown(_) => Err(TermDecodingError::InvalidTag {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
+                    Tag::None => Err(TermDecodingError::NoneValue {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
                     header => unboxed.decode_header(header, Some(self.is_literal())),
                 }
             }
@@ -378,7 +407,7 @@ impl fmt::Debug for RawTerm {
                 let value = self.decode_port();
                 write!(f, "Term({})", value)
             }
-            Tag::Box => {
+            Tag::Box | Tag::Literal => {
                 let is_literal = self.0 & Encoding::TAG_LITERAL == Encoding::TAG_LITERAL;
                 let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { &*ptr };
@@ -451,7 +480,6 @@ mod tests {
 
     use super::*;
 
-    const MAX_IMMEDIATE_VALUE: u64 = Encoding64Nanboxed::MAX_IMMEDIATE_VALUE;
     const MAX_ATOM_ID: u64 = Encoding64Nanboxed::MAX_ATOM_ID;
     const MIN_SMALLINT_VALUE: i64 = Encoding64Nanboxed::MIN_SMALLINT_VALUE;
     const MAX_SMALLINT_VALUE: i64 = Encoding64Nanboxed::MAX_SMALLINT_VALUE;
@@ -878,7 +906,11 @@ mod tests {
         assert_eq!(&sub, sub_box.as_ref());
         assert!(sub_box.is_aligned());
         assert!(sub_box.is_binary());
-        assert_eq!(sub_box.try_into(), Ok("world!".to_owned()));
+
+        let result_string: Result<String, _> = sub_box.try_into();
+        assert!(result_string.is_ok());
+
+        assert_eq!(result_string.unwrap(), "world!".to_owned());
     }
 
     #[test]
@@ -906,7 +938,11 @@ mod tests {
         assert_eq!(&match_ctx, match_ctx_box.as_ref());
         assert!(match_ctx_box.is_aligned());
         assert!(match_ctx_box.is_binary());
-        assert_eq!(match_ctx_box.try_into(), Ok("hello world!".to_owned()));
+
+        let result_string: Result<String, _> = match_ctx_box.try_into();
+        assert!(result_string.is_ok());
+
+        assert_eq!(result_string.unwrap(), "hello world!".to_owned());
     }
 
     #[test]

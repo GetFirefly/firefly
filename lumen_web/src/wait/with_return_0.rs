@@ -59,15 +59,15 @@ fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
 }
 
 fn code(arc_process: &Arc<Process>) -> code::Result {
-    let return_term = arc_process.stack_pop().unwrap();
-    let executor_term = arc_process.stack_pop().unwrap();
+    let return_term = arc_process.stack_peek(1).unwrap();
+    let executor_term = arc_process.stack_peek(2).unwrap();
 
     let executor_resource_boxed: Boxed<Resource> = executor_term.try_into().unwrap();
     let executor_resource: Resource = executor_resource_boxed.into();
     let executor_mutex: &Mutex<Executor> = executor_resource.downcast_ref().unwrap();
     executor_mutex.lock().resolve(return_term);
 
-    arc_process.remove_last_frame();
+    arc_process.remove_last_frame(2);
 
     Process::call_code(arc_process)
 }

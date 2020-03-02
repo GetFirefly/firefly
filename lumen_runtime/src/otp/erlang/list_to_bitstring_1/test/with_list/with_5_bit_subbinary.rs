@@ -2,39 +2,54 @@ use super::*;
 
 #[test]
 fn without_byte_bitstring_or_list_element_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::binary::sub::with_bit_count(5, arc_process.clone()),
-                    is_not_byte_bitstring_nor_list(arc_process.clone()),
-                )
-                    .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
-                |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::sub::with_bit_count(5, arc_process.clone()),
+                is_not_byte_bitstring_nor_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, head, tail)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.cons(head, tail).unwrap(),
+                        tail,
+                    )
+                })
+        },
+        |(arc_process, bitstring_list, element)| {
+            prop_assert_badarg!(
+                native(&arc_process, bitstring_list),
+                element_context(bitstring_list, element)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_empty_list_returns_bitstring() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::binary::sub::with_bit_count(5, arc_process.clone())
-                    .prop_map(|head| (arc_process.cons(head, Term::NIL).unwrap(), head)),
-                |(list, bitstring)| {
-                    prop_assert_eq!(native(&arc_process, list), Ok(bitstring));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::binary::sub::with_bit_count(5, arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, head)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.cons(head, Term::NIL).unwrap(),
+                        head,
+                    )
+                })
+        },
+        |(arc_process, list, bitstring)| {
+            prop_assert_eq!(native(&arc_process, list), Ok(bitstring));
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -48,13 +63,8 @@ fn with_empty_list_returns_binary() {
 }
 
 #[test]
-fn with_improper_list_returns_binary() {
-    with_tail_errors_badarg(|process| {
-        let tail_head = process.integer(254).unwrap();
-        let tail_tail = process.integer(253).unwrap();
-
-        process.cons(tail_head, tail_tail).unwrap()
-    });
+fn with_byte_tail_errors_badarg() {
+    with_tail_errors_badarg(|process| process.integer(253).unwrap());
 }
 
 #[test]
@@ -209,9 +219,16 @@ where
     T: FnOnce(&Process) -> Term,
 {
     with(|head, process| {
-        let iolist = process.cons(head, tail(&process)).unwrap();
+        let tail = tail(&process);
+        let bitstring_list = process.cons(head, tail).unwrap();
 
-        assert_badarg!(native(process, iolist));
+        assert_badarg!(
+            native(process, bitstring_list),
+            format!(
+                "bitstring_list ({}) tail ({}) cannot be a byte",
+                bitstring_list, tail
+            )
+        );
     });
 }
 

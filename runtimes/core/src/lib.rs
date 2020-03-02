@@ -1,12 +1,14 @@
+pub mod context;
+pub mod proplist;
+pub mod registry;
 pub mod time;
 pub mod timer;
-pub mod registry;
 
 use std::sync::Arc;
 
-use liblumen_core::locks::RwLock;
 use liblumen_alloc::erts::scheduler::id;
 use liblumen_alloc::erts::term::prelude::ReferenceNumber;
+use liblumen_core::locks::RwLock;
 
 use self::timer::Hierarchy;
 

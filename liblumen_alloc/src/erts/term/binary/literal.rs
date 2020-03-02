@@ -5,7 +5,7 @@ use core::slice;
 use core::str;
 
 use liblumen_core::offset_of;
-use liblumen_term::{Tag, Encoding as EncodingTrait};
+use liblumen_term::{Encoding as EncodingTrait, Tag};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
@@ -64,7 +64,7 @@ impl BinaryLiteral {
     where
         E: EncodingTrait,
     {
-        use core::convert::{TryInto, TryFrom};
+        use core::convert::{TryFrom, TryInto};
 
         let header_val = <E::Type as TryFrom<usize>>::try_from(0).ok().unwrap();
         let header = E::encode_header_with_tag(header_val, Tag::ProcBin)
@@ -87,7 +87,7 @@ impl BinaryLiteral {
     where
         E: EncodingTrait,
     {
-        use core::convert::{TryInto, TryFrom};
+        use core::convert::{TryFrom, TryInto};
 
         let header_val = <E::Type as TryFrom<usize>>::try_from(0).ok().unwrap();
         let header = E::encode_header_with_tag(header_val, Tag::ProcBin)

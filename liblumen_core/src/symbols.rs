@@ -1,5 +1,5 @@
-use core::mem;
 use core::ffi::c_void;
+use core::mem;
 
 use crate::sys::dynamic_call::{self, DynamicCallee};
 

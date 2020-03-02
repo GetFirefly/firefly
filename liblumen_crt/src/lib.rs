@@ -1,13 +1,10 @@
 #![feature(main)]
 #![feature(termination_trait_lib)]
 
-use std::panic;
-use std::process::Termination;
-
 mod atoms;
 mod symbols;
 
-extern "C" {
+extern "Rust" {
     /// The target-defined entry point for the generated executable.
     ///
     /// Each target has its own runtime crate, which uses `#[entry]` from
@@ -17,13 +14,12 @@ extern "C" {
     #[link_name = "lumen_entry"]
     fn lumen_entry() -> i32;
 
-    #[link_name = "_ZN3std2rt19lang_start_internal17ha98eaa5639bc1589E"]
-    fn lang_start(main: &dyn Fn () -> i32, argc: isize, argv: *const *const i8) -> isize;
+    #[link_name = "_ZN3std2rt19lang_start_internal17ha2dcdc203331b4acE"]
+    fn lang_start(main: &dyn Fn() -> i32, argc: isize, argv: *const *const i8) -> isize;
 }
 
 #[no_mangle]
 pub extern "C" fn main(argc: i32, argv: *const *const std::os::raw::c_char) -> i32 {
-
     //let exit_code = panic::catch_unwind(move || main_internal());
     //exit_code.unwrap_or(101)
     unsafe { lang_start(&move || main_internal(), argc as isize, argv) as i32 }

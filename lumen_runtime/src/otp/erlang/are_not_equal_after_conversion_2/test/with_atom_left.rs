@@ -4,21 +4,19 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_atom_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::atom(),
-                    strategy::term::is_not_atom(arc_process.clone()),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::atom(),
+                strategy::term::is_not_atom(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(left, right)| {
+            prop_assert_eq!(native(left, right), true.into());
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

@@ -4,9 +4,5 @@ mod with_timer;
 
 #[test]
 fn without_timer_returns_false() {
-    with_process(|process| {
-        let timer_reference = process.next_reference().unwrap();
-
-        assert_eq!(native(process, timer_reference), Ok(false.into()));
-    });
+    crate::test::without_timer_returns_false(native);
 }

@@ -8,7 +8,6 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq, prop_oneof};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -18,15 +17,22 @@ use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_list(arc_process.clone()),
+            )
+        },
+        |(arc_process, iolist)| {
+            prop_assert_badarg!(
+                native(&arc_process, iolist),
+                format!("iolist ({}) is not a list", iolist)
+            );
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -93,6 +99,22 @@ fn with_recursive_lists_of_binaries_and_bytes_ending_in_binary_or_empty_list_ret
                 Ok(())
             })
             .unwrap();
+    });
+}
+
+#[test]
+fn with_procbin_in_list_returns_binary() {
+    with_process(|process| {
+        let bytes = [7; 65];
+        let procbin = process.binary_from_bytes(&bytes).unwrap();
+        // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
+        assert!(procbin.is_boxed_procbin());
+        let list = process.list_from_slice(&[procbin]).unwrap();
+
+        assert_eq!(
+            native(process, list),
+            Ok(process.binary_from_bytes(&bytes).unwrap())
+        )
     });
 }
 

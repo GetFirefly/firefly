@@ -15,16 +15,8 @@ pub fn dead_atom() -> Atom {
     Atom::try_from_str(DEAD_ATOM_NAME).unwrap()
 }
 
-pub fn arc_node() -> Arc<Node> {
-    ARC_NODE.clone()
-}
-
 pub fn atom() -> Atom {
     ARC_NODE.name()
-}
-
-pub fn id() -> usize {
-    ARC_NODE.id()
 }
 
 pub fn term() -> Term {

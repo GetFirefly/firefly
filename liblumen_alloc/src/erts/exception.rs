@@ -23,6 +23,9 @@ pub use self::location::Location;
 mod helpers;
 pub use self::helpers::*;
 
+mod internal;
+pub use self::internal::*;
+
 mod runtime;
 pub use self::runtime::RuntimeException;
 
@@ -35,8 +38,8 @@ use core::marker::PhantomData;
 
 use thiserror::Error;
 
-use super::string::InvalidEncodingNameError;
 use super::term::prelude::*;
+use crate::erts::string::InvalidEncodingNameError;
 
 /// A convenience type alias for results which fail with `Exception`
 pub type Result<T> = core::result::Result<T, Exception>;
@@ -78,71 +81,22 @@ impl From<TermEncodingError> for Exception {
 }
 
 // Runtime exception type conversions
-impl From<AtomError> for Exception {
-    fn from(atom_error: AtomError) -> Self {
-        Self::Runtime(atom_error.into())
-    }
-}
-impl From<BoolError> for Exception {
-    fn from(bool_error: BoolError) -> Self {
-        Self::Runtime(bool_error.into())
-    }
-}
-impl From<BytesFromBinaryError> for Exception {
-    fn from(err: BytesFromBinaryError) -> Self {
-        use BytesFromBinaryError::*;
-
-        match err {
-            NotABinary | Type => Self::Runtime(badarg(location!())),
-            Alloc(e) => Self::System(e.into()),
-        }
+impl From<anyhow::Error> for Exception {
+    fn from(err: anyhow::Error) -> Self {
+        InternalException::from(ArcError::new(err)).into()
     }
 }
 impl From<InvalidEncodingNameError> for Exception {
-    fn from(encoding_error: InvalidEncodingNameError) -> Self {
-        Self::Runtime(encoding_error.into())
+    fn from(err: InvalidEncodingNameError) -> Self {
+        InternalException::from(ArcError::from_err(err)).into()
     }
 }
-impl From<ImproperList> for Exception {
-    fn from(improper_list: ImproperList) -> Self {
-        Self::Runtime(improper_list.into())
-    }
-}
-impl From<IndexError> for Exception {
-    fn from(index_error: IndexError) -> Self {
-        Self::Runtime(index_error.into())
-    }
-}
-impl From<InvalidPidError> for Exception {
-    fn from(_err: InvalidPidError) -> Self {
-        Self::Runtime(badarg(location!()))
-    }
-}
-
-impl From<StrFromBinaryError> for Exception {
-    fn from(err: StrFromBinaryError) -> Self {
-        use StrFromBinaryError::*;
-
+impl From<InternalException> for Exception {
+    fn from(err: InternalException) -> Self {
         match err {
-            NotABinary | Type | Utf8Error(_) => Self::Runtime(badarg(location!())),
-            Alloc(e) => Self::System(e.into()),
+            InternalException::System(err) => Self::System(err),
+            InternalException::Internal(err) => Self::Runtime(badarg!(err)),
         }
-    }
-}
-impl From<core::num::TryFromIntError> for Exception {
-    fn from(try_from_int_error: core::num::TryFromIntError) -> Self {
-        Self::Runtime(try_from_int_error.into())
-    }
-}
-impl From<TryIntoIntegerError> for Exception {
-    fn from(try_into_integer_error: TryIntoIntegerError) -> Self {
-        Self::Runtime(try_into_integer_error.into())
-    }
-}
-
-impl From<TypeError> for Exception {
-    fn from(type_error: TypeError) -> Self {
-        Self::Runtime(type_error.into())
     }
 }
 

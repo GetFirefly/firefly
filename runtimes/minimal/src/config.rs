@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io;

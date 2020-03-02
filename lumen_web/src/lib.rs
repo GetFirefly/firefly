@@ -25,6 +25,7 @@ use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
+#[cfg(not(test))]
 use liblumen_core::entry;
 
 use lumen_runtime::scheduler::Scheduler;

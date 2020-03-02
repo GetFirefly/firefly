@@ -4,27 +4,25 @@ use proptest::strategy::Just;
 
 #[test]
 fn without_key_puts_new_value() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                )
-            }),
-            |(arc_process, key, value)| {
-                let empty_map = arc_process.map_from_slice(&[]).unwrap();
-                let updated_map = arc_process.map_from_slice(&[(key, value)]).unwrap();
-                prop_assert_eq!(
-                    native(&arc_process, key, value, empty_map),
-                    Ok(updated_map.into())
-                );
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+            )
+        },
+        |(arc_process, key, value)| {
+            let empty_map = arc_process.map_from_slice(&[]).unwrap();
+            let updated_map = arc_process.map_from_slice(&[(key, value)]).unwrap();
+            prop_assert_eq!(
+                native(&arc_process, key, value, empty_map),
+                Ok(updated_map.into())
+            );
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }
 
 #[test]

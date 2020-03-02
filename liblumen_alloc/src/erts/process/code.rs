@@ -18,13 +18,15 @@ impl Debug for DebuggableCode {
     }
 }
 
-pub fn result_from_exception<P>(process: P, exception: Exception) -> Result
+pub fn result_from_exception<P>(process: P, stack_used: usize, exception: Exception) -> Result
 where
     P: AsRef<Process>,
 {
     match exception {
         Exception::Runtime(err) => {
-            process.as_ref().exception(err);
+            let process_ref = process.as_ref();
+            process_ref.stack_popn(stack_used);
+            process_ref.exception(err);
 
             Ok(())
         }

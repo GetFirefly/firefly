@@ -1,26 +1,22 @@
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
-use proptest::strategy::Strategy;
-use proptest::test_runner::{Config, TestRunner};
+use proptest::strategy::{Just, Strategy};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::list_to_existing_atom_1::native;
-use crate::scheduler::with_process_arc;
 use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(native(list), Err(badarg!().into()));
+    run!(
+        |arc_process| strategy::term::is_not_list(arc_process.clone()),
+        |list| {
+            prop_assert_badarg!(native(list), format!("list ({}) is not a list", list));
 
-                Ok(())
-            })
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -35,68 +31,73 @@ fn with_empty_list() {
 
 #[test]
 fn with_improper_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::list::improper(arc_process.clone()),
-                |list| {
-                    prop_assert_eq!(native(list), Err(badarg!().into()));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_list(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_map(|(arc_process, tail)| {
+                    arc_process
+                        .cons(arc_process.integer('a').unwrap(), tail)
+                        .unwrap()
+                })
+        },
+        |list| {
+            prop_assert_badarg!(native(list), format!("list ({}) is improper", list));
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_list_without_existing_atom_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &any::<String>().prop_map(|suffix| {
-                    let string = strategy::term::non_existent_atom(&suffix);
-                    let codepoint_terms: Vec<Term> = string
-                        .chars()
-                        .map(|c| arc_process.integer(c).unwrap())
-                        .collect();
+    run!(
+        |arc_process| {
+            (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, suffix)| {
+                let string = strategy::term::non_existent_atom(&suffix);
+                let codepoint_terms: Vec<Term> = string
+                    .chars()
+                    .map(|c| arc_process.integer(c).unwrap())
+                    .collect();
 
-                    arc_process.list_from_slice(&codepoint_terms).unwrap()
-                }),
-                |list| {
-                    prop_assert_eq!(native(list), Err(badarg!().into()));
+                arc_process.list_from_slice(&codepoint_terms).unwrap()
+            })
+        },
+        |list| {
+            prop_assert_badarg!(
+                native(list),
+                "tried to convert to an atom that doesn't exist"
+            );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }
 
 #[test]
 // collisions due to Unicode escapes.  Could be a normalization/canonicalization issue?
 #[ignore]
 fn with_list_with_existing_atom_returns_atom() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &any::<String>().prop_map(|string| {
-                    let codepoint_terms: Vec<Term> = string
-                        .chars()
-                        .map(|c| arc_process.integer(c).unwrap())
-                        .collect();
+    run!(
+        |arc_process| {
+            (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, string)| {
+                let codepoint_terms: Vec<Term> = string
+                    .chars()
+                    .map(|c| arc_process.integer(c).unwrap())
+                    .collect();
 
-                    (
-                        arc_process.list_from_slice(&codepoint_terms).unwrap(),
-                        Atom::str_to_term(&string),
-                    )
-                }),
-                |(list, atom)| {
-                    prop_assert_eq!(native(list), Ok(atom));
+                (
+                    arc_process.list_from_slice(&codepoint_terms).unwrap(),
+                    Atom::str_to_term(&string),
+                )
+            })
+        },
+        |(list, atom)| {
+            prop_assert_eq!(native(list), Ok(atom));
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

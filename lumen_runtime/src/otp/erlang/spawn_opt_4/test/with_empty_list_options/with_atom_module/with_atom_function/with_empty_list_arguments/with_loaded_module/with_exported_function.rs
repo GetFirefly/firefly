@@ -20,7 +20,13 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
 
     let arguments = Term::NIL;
 
-    let result = native(&parent_arc_process, module, function, arguments, OPTIONS);
+    let result = native(
+        &parent_arc_process,
+        module,
+        function,
+        arguments,
+        options(&parent_arc_process),
+    );
 
     assert!(result.is_ok());
 
@@ -45,7 +51,10 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(atom!("normal")));
+            assert_eq!(
+                runtime_exception,
+                &exit!(atom!("normal"), anyhow!("Test").into())
+            );
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
@@ -67,7 +76,13 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
     // `+` is arity 1, not 0
     let arguments = Term::NIL;
 
-    let result = native(&parent_arc_process, module, function, arguments, OPTIONS);
+    let result = native(
+        &parent_arc_process,
+        module,
+        function,
+        arguments,
+        options(&parent_arc_process),
+    );
 
     assert!(result.is_ok());
 
@@ -92,18 +107,13 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
         child_arc_process.current_module_function_arity(),
         Some(apply_3::module_function_arity())
     );
-
-    match *child_arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: RuntimeException =
-                undef!(&child_arc_process, module, function, arguments)
-                    .try_into()
-                    .unwrap();
-
-            assert_eq!(runtime_exception, &runtime_undef);
-        }
-        ref status => panic!("Process status ({:?}) is not exiting.", status),
-    };
+    assert_exits_undef(
+        &child_arc_process,
+        module,
+        function,
+        arguments,
+        ":erlang.+/0 is not exported",
+    );
 
     assert!(!parent_arc_process.is_exiting());
 }

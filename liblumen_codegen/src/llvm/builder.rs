@@ -106,7 +106,14 @@ impl<'ctx> ModuleBuilder<'ctx> {
         use llvm_sys::core::LLVMFunctionType;
 
         let params_ptr = params.as_ptr() as *mut _;
-        unsafe { LLVMFunctionType(ret, params_ptr, params.len() as libc::c_uint, variadic as libc::c_int) }
+        unsafe {
+            LLVMFunctionType(
+                ret,
+                params_ptr,
+                params.len() as libc::c_uint,
+                variadic as libc::c_int,
+            )
+        }
     }
 
     pub fn get_erlang_function_type(&self, arity: usize) -> LLVMTypeRef {
@@ -205,7 +212,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
 
     pub fn add_function(&self, name: &CString, ty: LLVMTypeRef) -> LLVMValueRef {
         use llvm_sys::core::LLVMAddFunction;
-       
+
         unsafe { LLVMAddFunction(self.module.as_ref(), name.as_ptr(), ty) }
     }
 
@@ -269,7 +276,6 @@ impl<'ctx> ModuleBuilder<'ctx> {
 
         unsafe { LLVMConstPointerCast(value, ty) }
     }
-
 
     pub fn build_const_inbounds_gep(&self, value: LLVMValueRef, indices: &[usize]) -> LLVMValueRef {
         use llvm_sys::core::LLVMConstInBoundsGEP;

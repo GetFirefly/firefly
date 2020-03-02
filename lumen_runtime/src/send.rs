@@ -1,54 +1,56 @@
-use core::convert::{TryFrom, TryInto};
-use core::result::Result;
+mod options;
 
-use liblumen_alloc::erts::exception::{self, Exception};
+use std::convert::TryInto;
+
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::term::prelude::*;
-use liblumen_alloc::{badarg, Process};
+use liblumen_alloc::Process;
 
 use crate::distribution::nodes::node;
 use crate::registry::{self, pid_to_process};
 use crate::scheduler::Scheduler;
+
+pub use options::*;
 
 pub fn send(
     destination: Term,
     message: Term,
     options: Options,
     process: &Process,
-) -> exception::Result<Sent> {
-    match destination.decode().unwrap() {
+) -> InternalResult<Sent> {
+    match destination.decode()? {
         TypedTerm::Atom(destination_atom) => {
             send_to_name(destination_atom, message, options, process)
         }
         TypedTerm::Tuple(tuple_box) => {
             if tuple_box.len() == 2 {
                 let name = tuple_box[0];
+                let name_atom: Atom = name.try_into().with_context(|| format!("registered_name ({}) in {{registered_name, node}} ({}) destination is not an atom", name, destination))?;
 
-                match name.decode()? {
-                    TypedTerm::Atom(name_atom) => {
-                        let node = tuple_box[1];
+                let node = tuple_box[1];
+                let node_atom: Atom = node.try_into().with_context(|| {
+                    format!(
+                        "node ({}) in {{registered_name, node}} ({}) destination is not an atom",
+                        node, destination
+                    )
+                })?;
 
-                        match node.decode().unwrap() {
-                            TypedTerm::Atom(node_atom) => match node_atom.name() {
-                                node::DEAD_ATOM_NAME => {
-                                    send_to_name(name_atom, message, options, process)
-                                }
-                                _ => {
-                                    if !options.connect {
-                                        Ok(Sent::ConnectRequired)
-                                    } else if !options.suspend {
-                                        Ok(Sent::SuspendRequired)
-                                    } else {
-                                        unimplemented!("distribution")
-                                    }
-                                }
-                            },
-                            _ => Err(badarg!().into()),
+                match node_atom.name() {
+                    node::DEAD_ATOM_NAME => send_to_name(name_atom, message, options, process),
+                    _ => {
+                        if !options.connect {
+                            Ok(Sent::ConnectRequired)
+                        } else if !options.suspend {
+                            Ok(Sent::SuspendRequired)
+                        } else {
+                            unimplemented!("distribution")
                         }
                     }
-                    _ => Err(badarg!().into()),
                 }
             } else {
-                Err(badarg!().into())
+                Err(anyhow!("destination ({}) is a tuple, but not 2-arity", destination).into())
             }
         }
         TypedTerm::Pid(destination_pid) => {
@@ -71,66 +73,12 @@ pub fn send(
                 }
             }
         }
-        _ => Err(badarg!().into()),
-    }
-}
-
-pub struct Options {
-    // Send only suspends for some sends to ports and for remote (`ExternalPid` or
-    // `{name, remote_node}`) sends, so it does not apply at this time.
-    suspend: bool,
-    // Connect only applies when there is distribution, which isn't implemented yet.
-    connect: bool,
-}
-
-impl Options {
-    fn put_option_term(&mut self, option: Term) -> exception::Result<&Options> {
-        let atom: Atom = option.try_into()?;
-
-        match atom.name() {
-            "noconnect" => {
-                self.connect = false;
-
-                Ok(self)
-            }
-            "nosuspend" => {
-                self.suspend = false;
-
-                Ok(self)
-            }
-            _ => Err(badarg!().into()),
-        }
-    }
-}
-
-impl Default for Options {
-    fn default() -> Options {
-        Options {
-            suspend: true,
-            connect: true,
-        }
-    }
-}
-
-impl TryFrom<Term> for Options {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Options, Self::Error> {
-        let mut options: Options = Default::default();
-        let mut options_term = term;
-
-        loop {
-            match options_term.decode()? {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
-
-                    continue;
-                }
-                _ => return Err(badarg!().into()),
-            }
-        }
+        _ => Err(TypeError)
+            .context(format!(
+                "destination ({}) is not registered_name (atom), {{registered_name, node}}, or pid",
+                destination
+            ))
+            .map_err(From::from),
     }
 }
 
@@ -148,7 +96,7 @@ fn send_to_name(
     message: Term,
     _options: Options,
     process: &Process,
-) -> exception::Result<Sent> {
+) -> InternalResult<Sent> {
     if *process.registered_name.read() == Some(destination) {
         process.send_from_self(message);
 
@@ -164,7 +112,7 @@ fn send_to_name(
 
                 Ok(Sent::Sent)
             }
-            None => Err(badarg!().into()),
+            None => Err(anyhow!("name ({}) not registered", destination).into()),
         }
     }
 }

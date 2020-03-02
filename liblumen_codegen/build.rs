@@ -90,10 +90,7 @@ fn main() {
         "cargo:rustc-link-search=native={}",
         llvm_prefix.join("lib").display()
     );
-    println!(
-        "cargo:rustc-link-search=native={}/lib",
-        outdir.display()
-    );
+    println!("cargo:rustc-link-search=native={}/lib", outdir.display());
 
     if build_shared == "ON" {
         link_lib_dylib("lumen_compiler_LumenCodegen");
@@ -298,7 +295,10 @@ fn read_link_libs(llvm_config_path: &Path, outdir: &Path) -> Vec<String> {
 }
 
 fn read_link_libs_shared(llvm_config_path: &Path, link_libs: &mut Vec<String>) {
-    if let Ok(libs) = llvm_config(llvm_config_path, &["--link-shared", "--ignore-libllvm", "--libs"]) {
+    if let Ok(libs) = llvm_config(
+        llvm_config_path,
+        &["--link-shared", "--ignore-libllvm", "--libs"],
+    ) {
         for l in libs.split(' ') {
             if let Some(lib) = cleanup_link_lib(l) {
                 link_libs.push(format!("dylib={}", lib));
@@ -375,7 +375,6 @@ fn print_libcpp_flags(llvm_config_path: &Path, target: &str) {
         println!("cargo:rustc-link-lib=dylib=uuid");
     }
 }
-
 
 fn link_libs(libs: &[&str]) {
     if env::var_os("LLVM_BUILD_STATIC").is_none() {

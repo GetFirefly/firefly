@@ -48,14 +48,13 @@ impl Stack {
         let page_size = sysconf::pagesize();
         let size = (pages + 1) * page_size;
         // Find the top of the stack
-        let real_end = unsafe { base.offset(size as isize) };
         let end = unsafe { base.offset((pages * page_size) as isize) };
         let with_red_zone = unsafe { end.offset(-128) };
         let top = align_down_to(with_red_zone, STACK_ALIGNMENT);
 
         Self {
             base,
-            top: top,
+            top,
             size,
             end,
         }

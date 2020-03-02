@@ -1,12 +1,38 @@
 use std::convert::{TryFrom, TryInto};
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::Exception;
+use anyhow::*;
+
 use liblumen_alloc::erts::term::prelude::*;
+
+use crate::proplist::TryPropListFromTermError;
 
 pub struct Options {
     pub flush: bool,
     pub info: bool,
+}
+
+const SUPPORTED_OPTIONS_CONTEXT: &str = "supported options are :flush or :info";
+
+impl Options {
+    fn put_option_term(&mut self, term: Term) -> Result<&Self, anyhow::Error> {
+        let option_atom: Atom = term
+            .try_into()
+            .map_err(|_| TryPropListFromTermError::PropertyType)?;
+
+        match option_atom.name() {
+            "flush" => {
+                self.flush = true;
+
+                Ok(self)
+            }
+            "info" => {
+                self.info = true;
+
+                Ok(self)
+            }
+            name => Err(TryPropListFromTermError::AtomName(name).into()),
+        }
+    }
 }
 
 impl Default for Options {
@@ -18,51 +44,26 @@ impl Default for Options {
     }
 }
 
-impl TryFrom<Boxed<Cons>> for Options {
-    type Error = Exception;
-
-    fn try_from(cons: Boxed<Cons>) -> Result<Self, Self::Error> {
-        let mut options: Options = Default::default();
-
-        for result in cons.into_iter() {
-            match result {
-                Ok(option) => {
-                    let option_atom: Atom = option.try_into()?;
-
-                    match option_atom.name() {
-                        "flush" => {
-                            options.flush = true;
-                        }
-                        "info" => {
-                            options.info = true;
-                        }
-                        _ => return Err(badarg!().into()),
-                    }
-                }
-                Err(_) => return Err(badarg!().into()),
-            }
-        }
-
-        Ok(options)
-    }
-}
-
 impl TryFrom<Term> for Options {
-    type Error = Exception;
+    type Error = anyhow::Error;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.decode().unwrap().try_into()
-    }
-}
+        let mut options: Options = Default::default();
+        let mut options_term = term;
 
-impl TryFrom<TypedTerm> for Options {
-    type Error = Exception;
+        loop {
+            match options_term.decode().unwrap() {
+                TypedTerm::Nil => return Ok(options),
+                TypedTerm::List(cons) => {
+                    options
+                        .put_option_term(cons.head)
+                        .context(SUPPORTED_OPTIONS_CONTEXT)?;
+                    options_term = cons.tail;
 
-    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
-        match typed_term {
-            TypedTerm::Nil => Ok(Default::default()),
-            TypedTerm::List(cons) => cons.try_into(),
-            _ => Err(badarg!().into()),
+                    continue;
+                }
+                _ => return Err(ImproperListError).context(SUPPORTED_OPTIONS_CONTEXT),
+            };
         }
     }
 }

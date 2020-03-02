@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 use std::ffi::CString;
 use std::fs::File;
+use std::mem;
 use std::path::Path;
 use std::sync::Arc;
-use std::mem;
 
 use libeir_intern::{Ident, Symbol};
 use libeir_ir::FunctionIdent;
@@ -64,14 +64,19 @@ pub fn compile_symbol_table(
         let module = builder.build_constant_uint(usize_type, symbol.module);
         let fun = builder.build_constant_uint(usize_type, symbol.function);
         let arity = builder.build_constant_uint(i8_type, symbol.arity as usize);
-        let function = builder.build_constant_struct(function_type, &[module, fun, arity, decl_ptr]);
+        let function =
+            builder.build_constant_struct(function_type, &[module, fun, arity, decl_ptr]);
         functions.push(function);
     }
 
     // Generate global array of all idents
     let functions_const_init = builder.build_constant_array(function_type, functions.as_slice());
     let functions_const_ty = unsafe { llvm_sys::core::LLVMTypeOf(functions_const_init) };
-    let functions_const = builder.add_constant(functions_const_ty, "__LUMEN_SYMBOL_TABLE_ENTRIES", Some(functions_const_init));
+    let functions_const = builder.add_constant(
+        functions_const_ty,
+        "__LUMEN_SYMBOL_TABLE_ENTRIES",
+        Some(functions_const_init),
+    );
     builder.set_linkage(functions_const, Linkage::Private);
     builder.set_alignment(functions_const, 8);
 

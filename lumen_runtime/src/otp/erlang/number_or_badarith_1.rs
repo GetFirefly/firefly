@@ -5,17 +5,18 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarith;
-use liblumen_alloc::erts::exception;
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(+/1)]
-pub fn native(term: Term) -> exception::Result<Term> {
-    if term.is_number() {
-        Ok(term)
+pub fn native(number: Term) -> exception::Result<Term> {
+    if number.is_number() {
+        Ok(number)
     } else {
-        Err(badarith!().into())
+        Err(badarith(anyhow!("number ({}) is not an integer or a float", number).into()).into())
     }
 }

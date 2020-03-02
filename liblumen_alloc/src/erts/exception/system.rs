@@ -13,8 +13,6 @@ pub enum SystemException {
     TermEncodingFailed(#[from] TermEncodingError),
     #[error("term encoding failed: {0:?}")]
     TermDecodingFailed(#[from] TermDecodingError),
-    #[error("fatal system error")]
-    Fatal(#[from] super::ArcError),
 }
 
 impl Eq for SystemException {}
@@ -27,10 +25,5 @@ impl PartialEq for SystemException {
 impl From<Infallible> for SystemException {
     fn from(_: Infallible) -> Self {
         unreachable!()
-    }
-}
-impl From<anyhow::Error> for SystemException {
-    fn from(err: anyhow::Error) -> Self {
-        Self::Fatal(err.into())
     }
 }

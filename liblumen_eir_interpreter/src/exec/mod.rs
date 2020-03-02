@@ -292,8 +292,6 @@ impl CallExecutor {
                         args[1],
                         &mut [atom!("error"), err.reason(), atom!("trace")],
                     )),
-                    // Promote unknown runtime errors to SystemException
-                    Exception::Runtime(RuntimeException::Unknown(err)) => return Err(err.into()),
                     Exception::System(err) => return Err(err),
                 },
             },

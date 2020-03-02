@@ -13,8 +13,7 @@
 //!
 //! ## References
 //!
-//! * [BEAM Wisdom - BEAM File
-//!   Format](http://beam-wisdoms.clau.se/en/latest/indepth-beam-file.html#)
+//! * [BEAM Wisdom - BEAM File Format](http://beam-wisdoms.clau.se/en/latest/indepth-beam-file.html#)
 //! * [The BEAM Book - The BEAM File Format](https://happi.github.io/theBeamBook/#BEAM_files)
 //!
 //! ## Alternative Implementations

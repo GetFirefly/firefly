@@ -54,7 +54,9 @@ impl ProjectInfo {
         let mut info = Self::default();
         // If `-C no-std` was not set, link in the appropriate Lumen runtime crate
         if options.codegen_opts.no_std.unwrap_or(false) == false {
-            for lib in &[/*"liblumen_core",*/ "liblumen_crt", /*"liblumen_alloc"*/] {
+            for lib in &[
+                /* "liblumen_core", */ "liblumen_crt", /* "liblumen_alloc" */
+            ] {
                 info.native_libraries.push(NativeLibrary {
                     kind: NativeLibraryKind::NativeStatic,
                     name: Some(lib.to_string()),

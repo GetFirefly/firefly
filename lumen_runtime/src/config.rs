@@ -38,6 +38,7 @@ impl std::fmt::Display for ConfigError {
     }
 }
 
+#[cfg(not(test))]
 impl std::error::Error for ConfigError {
     fn description(&self) -> &str {
         match *self {
@@ -51,6 +52,7 @@ impl std::error::Error for ConfigError {
     }
 }
 
+#[cfg(not(test))]
 pub struct Config {
     pub config: AppConfig,
     pub boot: Option<BootScript>,

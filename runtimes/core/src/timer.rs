@@ -12,50 +12,12 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::Mutex;
 
-use liblumen_alloc::borrow::CloneToProcess;
-use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
-use crate::{Scheduler, Scheduled};
 use crate::registry;
 use crate::time::monotonic;
 use crate::time::Milliseconds;
-
-/*
-pub fn cancel(timer_reference: &Reference) -> Option<Milliseconds> {
-    timer_reference
-        .scheduler()
-        .and_then(|scheduler| scheduler.hierarchy().write().cancel(timer_reference.number()))
-}
-
-pub fn read(timer_reference: &Reference) -> Option<Milliseconds> {
-    timer_reference
-        .scheduler()
-        .and_then(|scheduler| scheduler.hierarchy().read().read(timer_reference.number()))
-}
-
-pub fn start<S: Scheduler>(
-    monotonic_time_milliseconds: Milliseconds,
-    destination: Destination,
-    timeout: Timeout,
-    process_message: Term,
-    process: &Process,
-) -> AllocResult<Term> {
-    let scheduler = S::current();
-
-    let result = scheduler.hierarchy().write().start(
-        monotonic_time_milliseconds,
-        destination,
-        timeout,
-        process_message,
-        process,
-        &scheduler,
-    );
-
-    result
-}
-*/
 
 /// Times out the timers for the thread that have timed out since the last time `timeout` was
 /// called.
@@ -98,103 +60,6 @@ impl Hierarchy {
     const LATER_MILLISECONDS_PER_SLOT: Milliseconds = Self::SOON_TOTAL_MILLISECONDS / 2;
     const LATER_TOTAL_MILLISECONDS: Milliseconds =
         Self::LATER_MILLISECONDS_PER_SLOT * (Wheel::LENGTH as Milliseconds);
-
-    fn cancel(&mut self, timer_reference_number: ReferenceNumber) -> Option<Milliseconds> {
-        self.timer_by_reference_number
-            .remove(&timer_reference_number)
-            .and_then(|weak_timer| weak_timer.upgrade())
-            .map(|arc_timer| {
-                use Position::*;
-
-                match *arc_timer.position.lock() {
-                    // can't be found in O(1), mark as canceled for later cleanup
-                    AtOnce => self.at_once.cancel(timer_reference_number),
-                    Soon { slot_index } => self.soon.cancel(slot_index, timer_reference_number),
-                    Later { slot_index } => self.later.cancel(slot_index, timer_reference_number),
-                    LongTerm => self.long_term.cancel(timer_reference_number),
-                };
-
-                arc_timer.milliseconds_remaining()
-            })
-    }
-
-    fn position(&self, monotonic_time_milliseconds: Milliseconds) -> Position {
-        if monotonic_time_milliseconds < self.soon.slot_monotonic_time_milliseconds {
-            Position::AtOnce
-        } else if monotonic_time_milliseconds < self.later.slot_monotonic_time_milliseconds {
-            Position::Soon {
-                slot_index: self.soon.slot_index(monotonic_time_milliseconds),
-            }
-        } else if monotonic_time_milliseconds
-            < (self.later.slot_monotonic_time_milliseconds + Self::LATER_TOTAL_MILLISECONDS)
-        {
-            Position::Later {
-                slot_index: self.later.slot_index(monotonic_time_milliseconds),
-            }
-        } else {
-            Position::LongTerm
-        }
-    }
-
-    fn read(&self, timer_reference_number: ReferenceNumber) -> Option<Milliseconds> {
-        self.timer_by_reference_number
-            .get(&timer_reference_number)
-            .and_then(|weak_timer| weak_timer.upgrade())
-            .map(|rc_timer| rc_timer.milliseconds_remaining())
-    }
-
-    /*
-    fn start(
-        &mut self,
-        monotonic_time_milliseconds: Milliseconds,
-        destination: Destination,
-        timeout: Timeout,
-        process_message: Term,
-        process: &Process,
-        scheduler: &dyn Scheduler,
-    ) -> AllocResult<Term> {
-        let reference_number = scheduler.next_reference_number();
-        let process_reference = process.reference_from_scheduler(scheduler.id(), reference_number)?;
-        let (heap_fragment_message, heap_fragment) = match timeout {
-            Timeout::Message => process_message.clone_to_fragment()?,
-            Timeout::TimeoutTuple => {
-                let tag = Atom::str_to_term("timeout");
-                let process_tuple =
-                    process.tuple_from_slice(&[tag, process_reference, process_message])?;
-
-                process_tuple.clone_to_fragment()?
-            }
-        };
-        let position = self.position(monotonic_time_milliseconds);
-
-        let timer = Timer {
-            reference_number,
-            monotonic_time_milliseconds,
-            destination,
-            message_heap: Mutex::new(message::HeapFragment {
-                heap_fragment,
-                term: heap_fragment_message,
-            }),
-            position: Mutex::new(position),
-        };
-
-        let arc_timer = Arc::new(timer);
-        let timeoutable = Arc::clone(&arc_timer);
-        let cancellable = Arc::downgrade(&arc_timer);
-
-        match position {
-            Position::AtOnce => self.at_once.start(timeoutable),
-            Position::Soon { slot_index } => self.soon.start(slot_index, timeoutable),
-            Position::Later { slot_index } => self.later.start(slot_index, timeoutable),
-            Position::LongTerm => self.long_term.start(timeoutable),
-        }
-
-        self.timer_by_reference_number
-            .insert(reference_number, cancellable);
-
-        Ok(process_reference)
-    }
-    */
 
     pub fn timeout(&mut self) {
         self.timeout_at_once();
@@ -377,6 +242,7 @@ struct Timer {
 }
 
 impl Timer {
+    #[allow(unused)]
     fn milliseconds_remaining(&self) -> Milliseconds {
         // The timer may be read when it is past its timeout, but it has not been timed-out
         // by the scheduler.  Without this, an underflow would occur.
@@ -435,9 +301,15 @@ impl PartialOrd for Timer {
 #[derive(Clone, Copy)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 enum Position {
+    #[allow(unused)]
     AtOnce,
-    Soon { slot_index: u16 },
-    Later { slot_index: u16 },
+    Soon {
+        slot_index: u16,
+    },
+    Later {
+        slot_index: u16,
+    },
+    #[allow(unused)]
     LongTerm,
 }
 
@@ -540,6 +412,7 @@ impl Wheel {
         }
     }
 
+    #[allow(unused)]
     fn cancel(
         &mut self,
         slot_index: SlotIndex,

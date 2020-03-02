@@ -5,32 +5,24 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{atom, badmap};
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(take/2)]
 pub fn native(process: &Process, key: Term, map: Term) -> exception::Result<Term> {
-    let result_map: Result<Boxed<Map>, _> = map.try_into();
+    let boxed_map = term_try_into_map_or_badmap!(process, map)?;
 
-    match result_map {
-        Ok(map) => {
-            let result = match map.take(key) {
-                Some((value, hash_map)) => {
-                    let map = process.map_from_hash_map(hash_map)?;
-                    process.tuple_from_slice(&[value, map])?
-                }
-                None => atom!("error"),
-            };
-
-            Ok(result)
+    let result = match boxed_map.take(key) {
+        Some((value, hash_map)) => {
+            let map = process.map_from_hash_map(hash_map)?;
+            process.tuple_from_slice(&[value, map])?
         }
+        None => atom!("error"),
+    };
 
-        Err(_) => Err(badmap!(process, map)),
-    }
+    Ok(result)
 }

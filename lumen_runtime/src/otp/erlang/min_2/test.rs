@@ -20,28 +20,26 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::min_2::native;
-use crate::scheduler::{with_process, with_process_arc};
+use crate::scheduler::with_process;
 use crate::test::FirstSecond::*;
 use crate::test::{external_arc_node, strategy, FirstSecond};
 
 #[test]
 fn min_is_first_if_first_is_less_than_or_equal_to_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                )
-                    .prop_filter("First must be <= second", |(first, second)| first <= second),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), first);
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_filter("First must be <= second", |(first, second)| first <= second)
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), first);
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

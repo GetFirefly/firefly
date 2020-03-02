@@ -6,31 +6,29 @@ mod with_arity_2;
 
 #[test]
 fn without_arity_2_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::tuple(arc_process.clone()).prop_filter(
-                        "Tuple must not be arity 2",
-                        |start_length| {
-                            let start_length_tuple: Boxed<Tuple> =
-                                (*start_length).try_into().unwrap();
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::tuple(arc_process.clone()).prop_filter(
+                    "Tuple must not be arity 2",
+                    |start_length| {
+                        let start_length_tuple: Boxed<Tuple> = (*start_length).try_into().unwrap();
 
-                            start_length_tuple.len() != 2
-                        },
-                    ),
-                    strategy::term(arc_process.clone()),
-                    valid_options(arc_process.clone()),
+                        start_length_tuple.len() != 2
+                    },
                 ),
-                |(destination, message, options)| {
-                    prop_assert_eq!(
-                        native(&arc_process, destination, message, options),
-                        Err(badarg!().into())
-                    );
-
-                    Ok(())
-                },
+                strategy::term(arc_process.clone()),
+                valid_options(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, destination, message, options)| {
+            prop_assert_badarg!(
+                native(&arc_process, destination, message, options),
+                format!("destination ({}) is a tuple, but not 2-arity", destination)
+            );
+
+            Ok(())
+        },
+    );
 }

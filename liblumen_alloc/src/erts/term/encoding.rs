@@ -5,13 +5,17 @@ use core::marker::PhantomData;
 use core::mem;
 use core::ptr::NonNull;
 
+use alloc::sync::Arc;
+
+use std::backtrace::Backtrace;
+
 use hashbrown::HashMap;
 use thiserror::Error;
 
 use liblumen_term::Encoding as TermEncoding;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::{AllocResult, Result};
+use crate::erts::exception::{AllocResult, InternalResult};
 use crate::erts::fragment::HeapFragment;
 use crate::erts::process::alloc::TermAlloc;
 
@@ -19,7 +23,7 @@ use super::arch::{Repr, Word};
 use super::prelude::*;
 
 /// Represents the various conditions under which encoding can fail
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum TermEncodingError {
     /// Occurs when attempting to encode an unaligned pointer
     #[error("invalid attempt to encode unaligned pointer")]
@@ -32,7 +36,7 @@ pub enum TermEncodingError {
 }
 
 /// Used to indicate that some value was not a valid encoding of a term
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Error, Debug, Clone)]
 pub enum TermDecodingError {
     /// Occurs primarily with header tags, as there are some combinations
     /// of tag bits that are unused. Primary tags are (currently) fully
@@ -40,19 +44,27 @@ pub enum TermDecodingError {
     /// change if additional representations are added that have free
     /// primary tags
     #[error("invalid type tag")]
-    InvalidTag,
+    InvalidTag { backtrace: Arc<Backtrace> },
     /// Decoding a Term that is a move marker is considered an error,
     /// code which needs to be aware of move markers should already be
     /// manually checking for this possibility
     #[error("tried to decode a move marker")]
-    MoveMarker,
+    MoveMarker { backtrace: Arc<Backtrace> },
     /// Decoding a Term that is a none value is considered an error,
     /// as this value is primarily used to indicate an error; and in cases
     /// where it represents a real value (namely as a move marker), it is
     /// meaningless to decode it. In all other cases, it represents uninitialized
     /// memory
     #[error("tried to decode a none value")]
-    NoneValue,
+    NoneValue { backtrace: Arc<Backtrace> },
+}
+
+impl Eq for TermDecodingError {}
+
+impl PartialEq for TermDecodingError {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
 }
 
 /// This trait provides the ability to encode a type to some output encoding.
@@ -62,7 +74,7 @@ pub enum TermDecodingError {
 /// necessary to use the `Boxable::as_box` trait function to obtain an
 /// encoded pointer when needed.
 pub trait Encode<T: Encoded> {
-    fn encode(&self) -> Result<T>;
+    fn encode(&self) -> InternalResult<T>;
 }
 
 /// This is a marker trait for terms which can be boxed
@@ -355,44 +367,70 @@ pub trait Encoded: Repr + Copy {
     /// to make this as safe as possible. The only exception to this rule should
     /// be the case of decoding a pointer which can not be validated unless it
     /// is dereferenced.
-    fn decode(&self) -> Result<TypedTerm>;
+    fn decode(&self) -> Result<TypedTerm, TermDecodingError>;
 
     /// Returns `true` if the encoded value represents `NONE`
     #[inline]
-    fn is_none(self) -> bool { Self::Encoding::is_none(self.value()) }
+    fn is_none(self) -> bool {
+        Self::Encoding::is_none(self.value())
+    }
     /// Returns `true` if the encoded value represents a pointer to a term
     #[inline]
-    fn is_boxed(self) -> bool { Self::Encoding::is_boxed(self.value()) }
+    fn is_boxed(self) -> bool {
+        Self::Encoding::is_boxed(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a non-immediate term
     #[inline]
-    fn is_header(self) -> bool { Self::Encoding::is_header(self.value()) }
+    fn is_header(self) -> bool {
+        Self::Encoding::is_header(self.value())
+    }
     /// Returns `true` if the encoded value is an immediate value
     #[inline]
-    fn is_immediate(self) -> bool { Self::Encoding::is_immediate(self.value()) }
+    fn is_immediate(self) -> bool {
+        Self::Encoding::is_immediate(self.value())
+    }
     /// Returns `true` if the encoded value represents a pointer to a literal value
     #[inline]
-    fn is_literal(self) -> bool { Self::Encoding::is_literal(self.value()) }
+    fn is_literal(self) -> bool {
+        Self::Encoding::is_literal(self.value())
+    }
 
     /// Returns `true` if the encoded value represents the empty list
     #[inline]
-    fn is_nil(self) -> bool { Self::Encoding::is_nil(self.value()) }
+    fn is_nil(self) -> bool {
+        Self::Encoding::is_nil(self.value())
+    }
     /// Returns `true` if the encoded value represents a nil or `Cons` value (empty or non-empty
     /// list)
     #[inline]
-    fn is_list(self) -> bool { Self::Encoding::is_list(self.value()) }
+    fn is_list(self) -> bool {
+        Self::Encoding::is_list(self.value())
+    }
     /// Returns `true` if the encoded value represents a `Cons` value (non-empty list)
     #[inline]
-    fn is_non_empty_list(self) -> bool { Self::Encoding::is_non_empty_list(self.value()) }
+    fn is_non_empty_list(self) -> bool {
+        Self::Encoding::is_non_empty_list(self.value())
+    }
     /// Returns `true` if the encoded value is an atom
-    fn is_atom(self) -> bool { Self::Encoding::is_atom(self.value()) }
+    fn is_atom(self) -> bool {
+        Self::Encoding::is_atom(self.value())
+    }
     /// Returns `true` if the encoded value is a boolean
-    fn is_boolean(self) -> bool { Self::Encoding::is_boolean(self.value()) }
+    fn is_boolean(self) -> bool {
+        Self::Encoding::is_boolean(self.value())
+    }
     /// Returns `true` if the encoded value is a fixed-width integer value
-    fn is_smallint(self) -> bool { Self::Encoding::is_smallint(self.value()) }
+    fn is_smallint(self) -> bool {
+        Self::Encoding::is_smallint(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a arbitrary-width integer value
-    fn is_bigint(self) -> bool { Self::Encoding::is_bigint(self.value()) }
+    fn is_bigint(self) -> bool {
+        Self::Encoding::is_bigint(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a arbitrary-width integer value
-    fn is_boxed_bigint(self) -> bool { Self::Encoding::is_boxed_bigint(self.value()) }
+    fn is_boxed_bigint(self) -> bool {
+        Self::Encoding::is_boxed_bigint(self.value())
+    }
     /// Returns `true` if the encoded value is an integer of either
     /// fixed or arbitrary width
     fn is_integer(&self) -> bool {
@@ -408,9 +446,13 @@ pub trait Encoded: Repr + Copy {
     ///
     /// NOTE: This function returns true if either the term is an immediate float,
     /// or if it is the header of a packed float. It does not unwrap boxed values.
-    fn is_float(self) -> bool { Self::Encoding::is_float(self.value()) }
+    fn is_float(self) -> bool {
+        Self::Encoding::is_float(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `Float`
-    fn is_boxed_float(self) -> bool { Self::Encoding::is_boxed_float(self.value()) }
+    fn is_boxed_float(self) -> bool {
+        Self::Encoding::is_boxed_float(self.value())
+    }
     /// Returns `true` if the encoded value is either a float or integer
     fn is_number(self) -> bool {
         match self.decode() {
@@ -421,57 +463,109 @@ pub trait Encoded: Repr + Copy {
         }
     }
     /// Returns `true` if the encoded value is the header of a `Tuple`
-    fn is_tuple(self) -> bool { Self::Encoding::is_tuple(self.value()) }
+    fn is_tuple(self) -> bool {
+        Self::Encoding::is_tuple(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `Tuple`
-    fn is_boxed_tuple(self) -> bool { Self::Encoding::is_boxed_tuple(self.value()) }
+    fn is_boxed_tuple(self) -> bool {
+        Self::Encoding::is_boxed_tuple(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `Map`
-    fn is_map(self) -> bool { Self::Encoding::is_map(self.value()) }
+    fn is_map(self) -> bool {
+        Self::Encoding::is_map(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `Map`
-    fn is_boxed_map(self) -> bool { Self::Encoding::is_boxed_map(self.value()) }
+    fn is_boxed_map(self) -> bool {
+        Self::Encoding::is_boxed_map(self.value())
+    }
     /// Returns `true` if the encoded value is a `Pid`
-    fn is_local_pid(self) -> bool { Self::Encoding::is_local_pid(self.value()) }
+    fn is_local_pid(self) -> bool {
+        Self::Encoding::is_local_pid(self.value())
+    }
     /// Returns `true` if the encoded value is the header of an `ExternalPid`
-    fn is_remote_pid(self) -> bool { Self::Encoding::is_local_pid(self.value()) }
+    fn is_remote_pid(self) -> bool {
+        Self::Encoding::is_local_pid(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to an `ExternalPid`
-    fn is_boxed_remote_pid(self) -> bool { Self::Encoding::is_boxed_remote_pid(self.value()) }
+    fn is_boxed_remote_pid(self) -> bool {
+        Self::Encoding::is_boxed_remote_pid(self.value())
+    }
     /// Returns `true` if the encoded value is a `Port`
-    fn is_local_port(self) -> bool { Self::Encoding::is_local_port(self.value()) }
+    fn is_local_port(self) -> bool {
+        Self::Encoding::is_local_port(self.value())
+    }
     /// Returns `true` if the encoded value is the header of an `ExternalPort`
-    fn is_remote_port(self) -> bool { Self::Encoding::is_remote_port(self.value()) }
+    fn is_remote_port(self) -> bool {
+        Self::Encoding::is_remote_port(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to an `ExternalPort`
-    fn is_boxed_remote_port(self) -> bool { Self::Encoding::is_boxed_remote_port(self.value()) }
+    fn is_boxed_remote_port(self) -> bool {
+        Self::Encoding::is_boxed_remote_port(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `Reference`
-    fn is_local_reference(self) -> bool { Self::Encoding::is_local_reference(self.value()) }
+    fn is_local_reference(self) -> bool {
+        Self::Encoding::is_local_reference(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `Reference`
-    fn is_boxed_local_reference(self) -> bool { Self::Encoding::is_boxed_local_reference(self.value()) }
+    fn is_boxed_local_reference(self) -> bool {
+        Self::Encoding::is_boxed_local_reference(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `ExternalReference`
-    fn is_remote_reference(self) -> bool { Self::Encoding::is_remote_reference(self.value()) }
+    fn is_remote_reference(self) -> bool {
+        Self::Encoding::is_remote_reference(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `ExternalReference`
-    fn is_boxed_remote_reference(self) -> bool { Self::Encoding::is_boxed_remote_reference(self.value()) }
+    fn is_boxed_remote_reference(self) -> bool {
+        Self::Encoding::is_boxed_remote_reference(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `Resource`
-    fn is_resource_reference(self) -> bool { Self::Encoding::is_resource_reference(self.value()) }
+    fn is_resource_reference(self) -> bool {
+        Self::Encoding::is_resource_reference(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `Resource`
-    fn is_boxed_resource_reference(self) -> bool { Self::Encoding::is_boxed_resource_reference(self.value()) }
+    fn is_boxed_resource_reference(self) -> bool {
+        Self::Encoding::is_boxed_resource_reference(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `ProcBin`
-    fn is_procbin(self) -> bool { Self::Encoding::is_procbin(self.value()) }
+    fn is_procbin(self) -> bool {
+        Self::Encoding::is_procbin(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `ProcBin`
-    fn is_boxed_procbin(self) -> bool { Self::Encoding::is_boxed_procbin(self.value()) }
+    fn is_boxed_procbin(self) -> bool {
+        Self::Encoding::is_boxed_procbin(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `HeapBin`
-    fn is_heapbin(self) -> bool { Self::Encoding::is_heapbin(self.value()) }
+    fn is_heapbin(self) -> bool {
+        Self::Encoding::is_heapbin(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `HeapBin`
-    fn is_boxed_heapbin(self) -> bool { Self::Encoding::is_boxed_heapbin(self.value()) }
+    fn is_boxed_heapbin(self) -> bool {
+        Self::Encoding::is_boxed_heapbin(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `SubBinary`
-    fn is_subbinary(self) -> bool { Self::Encoding::is_subbinary(self.value()) }
+    fn is_subbinary(self) -> bool {
+        Self::Encoding::is_subbinary(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `SubBinary`
-    fn is_boxed_subbinary(self) -> bool { Self::Encoding::is_boxed_subbinary(self.value()) }
+    fn is_boxed_subbinary(self) -> bool {
+        Self::Encoding::is_boxed_subbinary(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `MatchContext`
-    fn is_match_context(self) -> bool { Self::Encoding::is_match_context(self.value()) }
+    fn is_match_context(self) -> bool {
+        Self::Encoding::is_match_context(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `MatchContext`
-    fn is_boxed_match_context(self) -> bool { Self::Encoding::is_boxed_match_context(self.value()) }
+    fn is_boxed_match_context(self) -> bool {
+        Self::Encoding::is_boxed_match_context(self.value())
+    }
     /// Returns `true` if the encoded value is the header of a `Closure`
-    fn is_function(self) -> bool { Self::Encoding::is_function(self.value()) }
+    fn is_function(self) -> bool {
+        Self::Encoding::is_function(self.value())
+    }
     /// Returns `true` if the encoded value is a pointer to a `Tuple`
-    fn is_boxed_function(self) -> bool { Self::Encoding::is_boxed_function(self.value()) }
+    fn is_boxed_function(self) -> bool {
+        Self::Encoding::is_boxed_function(self.value())
+    }
 
     /// Returns `true` if this term is a bitstring type,
     /// where the number of bits is evenly divisible by 8 (i.e. one byte)
@@ -531,16 +625,22 @@ pub trait Encoded: Repr + Copy {
     /// Returns true if this is a term that is valid for use as an argument
     /// in the runtime, as a key in a datstructure, or other position in which
     /// an immediate or a reference is required or desirable
-    fn is_valid(&self) -> bool { Self::Encoding::is_valid(self.value()) }
+    fn is_valid(&self) -> bool {
+        Self::Encoding::is_valid(self.value())
+    }
 
     /// Returns the size in bytes of the term in memory
-    fn sizeof(&self) -> usize { Self::Encoding::sizeof(self.value()) }
+    fn sizeof(&self) -> usize {
+        Self::Encoding::sizeof(self.value())
+    }
 
     /// Returns the arity of this term, which reflects the number of words of data
     /// following this term in memory.
     ///
     /// Returns zero for immediates/pointers
-    fn arity(&self) -> usize { Self::Encoding::arity(self.value()) }
+    fn arity(&self) -> usize {
+        Self::Encoding::arity(self.value())
+    }
 }
 
 impl CloneToProcess for Term {

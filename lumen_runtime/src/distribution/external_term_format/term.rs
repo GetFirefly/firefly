@@ -4,7 +4,7 @@ pub fn decode_tagged<'a>(
     process: &Process,
     safe: bool,
     bytes: &'a [u8],
-) -> Result<(Term, &'a [u8]), Exception> {
+) -> InternalResult<(Term, &'a [u8])> {
     let (tag, after_tag_bytes) = Tag::decode(bytes)?;
 
     match tag {

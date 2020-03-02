@@ -15,10 +15,14 @@
 use core::cmp;
 use core::fmt;
 
-use crate::erts::exception;
+use alloc::sync::Arc;
 
-use liblumen_term::{Tag, Encoding as TermEncoding, Encoding64};
+use std::backtrace::Backtrace;
+
+use crate::erts::exception::InternalResult;
+
 use liblumen_core::sys::sysconf::MIN_ALIGN;
+use liblumen_term::{Encoding as TermEncoding, Encoding64, Tag};
 const_assert!(MIN_ALIGN >= 4);
 
 use crate::erts::term::prelude::*;
@@ -52,7 +56,9 @@ impl RawTerm {
     pub const HEADER_MAP: u64 = Encoding::TAG_MAP;
 
     #[inline]
-    fn type_of(&self) -> Tag<u64> { Encoding::type_of(self.0) }
+    fn type_of(&self) -> Tag<u64> {
+        Encoding::type_of(self.0)
+    }
 
     #[inline]
     fn encode_immediate(value: u64, tag: u64) -> Self {
@@ -94,9 +100,7 @@ impl RawTerm {
     #[inline]
     fn decode_smallint(self) -> SmallInteger {
         let i = Encoding::decode_smallint(self.0);
-        unsafe {
-            SmallInteger::new_unchecked(i as isize)
-        }
+        unsafe { SmallInteger::new_unchecked(i as isize) }
     }
 
     #[inline]
@@ -136,7 +140,7 @@ impl Repr for RawTerm {
 unsafe impl Send for RawTerm {}
 
 impl Encode<RawTerm> for u8 {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(
             (*self) as u64,
             Encoding::TAG_SMALL_INTEGER,
@@ -145,34 +149,49 @@ impl Encode<RawTerm> for u8 {
 }
 
 impl Encode<RawTerm> for SmallInteger {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         let i: i64 = (*self).into();
-        Ok(RawTerm::encode_immediate(i as u64, Encoding::TAG_SMALL_INTEGER))
+        Ok(RawTerm::encode_immediate(
+            i as u64,
+            Encoding::TAG_SMALL_INTEGER,
+        ))
     }
 }
 
 impl Encode<RawTerm> for bool {
-    fn encode(&self) -> exception::Result<RawTerm> {
+    fn encode(&self) -> InternalResult<RawTerm> {
         let atom = Atom::try_from_str(&self.to_string()).unwrap();
-        Ok(RawTerm::encode_immediate(atom.id() as u64, Encoding::TAG_ATOM))
+        Ok(RawTerm::encode_immediate(
+            atom.id() as u64,
+            Encoding::TAG_ATOM,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Atom {
-    fn encode(&self) -> exception::Result<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.id() as u64, Encoding::TAG_ATOM))
+    fn encode(&self) -> InternalResult<RawTerm> {
+        Ok(RawTerm::encode_immediate(
+            self.id() as u64,
+            Encoding::TAG_ATOM,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Pid {
-    fn encode(&self) -> exception::Result<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.as_usize() as u64, Encoding::TAG_PID))
+    fn encode(&self) -> InternalResult<RawTerm> {
+        Ok(RawTerm::encode_immediate(
+            self.as_usize() as u64,
+            Encoding::TAG_PID,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Port {
-    fn encode(&self) -> exception::Result<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.as_usize() as u64, Encoding::TAG_PORT))
+    fn encode(&self) -> InternalResult<RawTerm> {
+        Ok(RawTerm::encode_immediate(
+            self.as_usize() as u64,
+            Encoding::TAG_PORT,
+        ))
     }
 }
 
@@ -266,7 +285,7 @@ impl Cast<*const Cons> for RawTerm {
 
 impl Encoded for RawTerm {
     #[inline]
-    fn decode(&self) -> exception::Result<TypedTerm> {
+    fn decode(&self) -> Result<TypedTerm, TermDecodingError> {
         let tag = self.type_of();
         match tag {
             Tag::Nil => Ok(TypedTerm::Nil),
@@ -285,20 +304,28 @@ impl Encoded for RawTerm {
                 match unboxed.type_of() {
                     Tag::Nil => Ok(TypedTerm::Nil),
                     Tag::List => Ok(TypedTerm::List(unsafe { unboxed.decode_list() })),
-                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(
-                        unboxed.decode_smallint()
-                    )),
+                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unboxed.decode_smallint())),
                     Tag::Atom => Ok(TypedTerm::Atom(unboxed.decode_atom())),
                     Tag::Pid => Ok(TypedTerm::Pid(unboxed.decode_pid())),
                     Tag::Port => Ok(TypedTerm::Port(unboxed.decode_port())),
-                    Tag::Box | Tag::Literal => Err(TermDecodingError::MoveMarker.into()),
-                    Tag::Unknown(_) => Err(TermDecodingError::InvalidTag.into()),
-                    Tag::None => Err(TermDecodingError::NoneValue.into()),
+                    Tag::Box | Tag::Literal => Err(TermDecodingError::MoveMarker {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
+                    Tag::Unknown(_) => Err(TermDecodingError::InvalidTag {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
+                    Tag::None => Err(TermDecodingError::NoneValue {
+                        backtrace: Arc::new(Backtrace::capture()),
+                    }),
                     header => unboxed.decode_header(header, Some(tag == Tag::Literal)),
                 }
             }
-            Tag::Unknown(_) => Err(TermDecodingError::InvalidTag.into()),
-            Tag::None => Err(TermDecodingError::NoneValue.into()),
+            Tag::Unknown(_) => Err(TermDecodingError::InvalidTag {
+                backtrace: Arc::new(Backtrace::capture()),
+            }),
+            Tag::None => Err(TermDecodingError::NoneValue {
+                backtrace: Arc::new(Backtrace::capture()),
+            }),
             header => self.decode_header(header, None),
         }
     }
@@ -338,8 +365,14 @@ impl fmt::Debug for RawTerm {
                 write!(f, "Term({})", value)
             }
             Tag::Box | Tag::Literal => {
+                let is_literal = self.0 & Encoding::TAG_LITERAL == Encoding::TAG_LITERAL;
                 let ptr = unsafe { self.decode_box() };
-                write!(f, "Box({:p})", ptr)
+                let unboxed = unsafe { &*ptr };
+                write!(
+                    f,
+                    "Box({:p}, literal={}, value={:?})",
+                    ptr, is_literal, unboxed
+                )
             }
             Tag::Unknown(invalid_tag) => write!(f, "InvalidTerm(tag: {:064b})", invalid_tag),
             header => match self.decode_header(header, None) {

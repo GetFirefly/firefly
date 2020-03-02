@@ -1,19 +1,19 @@
 //! A helper class for dealing with static archives
 
-use std::ffi::{CString, CStr};
+use std::ffi::{CStr, CString};
 use std::io;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::ptr;
 use std::str;
 
+use liblumen_llvm::diagnostics::LLVMLumenGetLastError;
 use liblumen_session::Options;
 use liblumen_session::OutputType;
-use liblumen_llvm::diagnostics::LLVMLumenGetLastError;
 
-use crate::llvm::archive_ro::{ArchiveRO, Child};
 use crate::ffi::archive::{self, ArchiveKind};
-use crate::linker::archive::{ArchiveBuilder, find_library};
+use crate::linker::archive::{find_library, ArchiveBuilder};
+use crate::llvm::archive_ro::{ArchiveRO, Child};
 
 pub const RLIB_BYTECODE_EXTENSION: &str = "bc.z";
 pub const METADATA_FILENAME: &str = "lib.rmeta";
@@ -63,9 +63,7 @@ fn is_relevant_child(c: &Child<'_>) -> bool {
     }
 }
 
-fn archive_config<'a>(sess: &'a Options,
-                      output: &Path,
-                      input: Option<&Path>) -> ArchiveConfig<'a> {
+fn archive_config<'a>(sess: &'a Options, output: &Path, input: Option<&Path>) -> ArchiveConfig<'a> {
     use crate::linker::link::archive_search_paths;
     ArchiveConfig {
         sess,
@@ -78,9 +76,7 @@ fn archive_config<'a>(sess: &'a Options,
 impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
     /// Creates a new static archive, ready for modifying the archive specified
     /// by `config`.
-    fn new(sess: &'a Options,
-            output: &Path,
-            input: Option<&Path>) -> LlvmArchiveBuilder<'a> {
+    fn new(sess: &'a Options, output: &Path, input: Option<&Path>) -> LlvmArchiveBuilder<'a> {
         let config = archive_config(sess, output, input);
         LlvmArchiveBuilder {
             config,
@@ -99,27 +95,31 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
     /// Lists all files in an archive
     fn src_files(&mut self) -> Vec<String> {
         if self.src_archive().is_none() {
-            return Vec::new()
+            return Vec::new();
         }
 
         let archive = self.src_archive.as_ref().unwrap().as_ref().unwrap();
 
-        archive.iter()
-               .filter_map(|child| child.ok())
-               .filter(is_relevant_child)
-               .filter_map(|child| child.name())
-               .filter(|name| !self.removals.iter().any(|x| x == name))
-               .map(|name| name.to_owned())
-               .collect()
+        archive
+            .iter()
+            .filter_map(|child| child.ok())
+            .filter(is_relevant_child)
+            .filter_map(|child| child.name())
+            .filter(|name| !self.removals.iter().any(|x| x == name))
+            .map(|name| name.to_owned())
+            .collect()
     }
 
     /// Adds all of the contents of a native library to this archive. This will
     /// search in the relevant locations for a library named `name`.
     fn add_native_library(&mut self, name: &str) {
-        let location = find_library(name, &self.config.lib_search_paths,
-                                    self.config.sess).unwrap();
+        let location = find_library(name, &self.config.lib_search_paths, self.config.sess).unwrap();
         self.add_archive(&location, |_| false).unwrap_or_else(|e| {
-            panic!("failed to add native library {}: {}", location.to_string_lossy(), e);
+            panic!(
+                "failed to add native library {}: {}",
+                location.to_string_lossy(),
+                e
+            );
         });
     }
 
@@ -128,11 +128,13 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
     ///
     /// This ignores adding the bytecode from the rlib, and if LTO is enabled
     /// then the object file also isn't added.
-    fn add_rlib(&mut self,
-                    rlib: &Path,
-                    name: &str,
-                    lto: bool,
-                    skip_objects: bool) -> io::Result<()> {
+    fn add_rlib(
+        &mut self,
+        rlib: &Path,
+        name: &str,
+        lto: bool,
+        skip_objects: bool,
+    ) -> io::Result<()> {
         // Ignoring obj file starting with the crate name
         // as simple comparison is not enough - there
         // might be also an extra name suffix
@@ -141,22 +143,22 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
         self.add_archive(rlib, move |fname: &str| {
             // Ignore bytecode/metadata files, no matter the name.
             if fname.ends_with(RLIB_BYTECODE_EXTENSION) || fname == METADATA_FILENAME {
-                return true
+                return true;
             }
 
             // Don't include Rust objects if LTO is enabled
             if lto && looks_like_rust_object_file(fname) {
-                return true
+                return true;
             }
 
             // Otherwise if this is *not* a rust object and we're skipping
             // objects then skip this file
             if skip_objects && (!fname.starts_with(&obj_start) || !fname.ends_with(".o")) {
-                return true
+                return true;
             }
 
             // ok, don't skip this
-            return false
+            return false;
         })
     }
 
@@ -178,36 +180,36 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
     /// Combine the provided files, rlibs, and native libraries into a single
     /// `Archive`.
     fn build(mut self) {
-        let kind = self.llvm_archive_kind().unwrap_or_else(|kind|
-            panic!("Don't know how to build archive of type: {}", kind));
+        let kind = self
+            .llvm_archive_kind()
+            .unwrap_or_else(|kind| panic!("Don't know how to build archive of type: {}", kind));
 
         if let Err(e) = self.build_with_llvm(kind) {
             panic!("failed to build archive: {}", e);
         }
-
     }
 }
 
 impl<'a> LlvmArchiveBuilder<'a> {
     fn src_archive(&mut self) -> Option<&ArchiveRO> {
         if let Some(ref a) = self.src_archive {
-            return a.as_ref()
+            return a.as_ref();
         }
         let src = self.config.src.as_ref()?;
         self.src_archive = Some(ArchiveRO::open(src).ok());
         self.src_archive.as_ref().unwrap().as_ref()
     }
 
-    fn add_archive<F>(&mut self, archive: &Path, skip: F)
-                      -> io::Result<()>
-        where F: FnMut(&str) -> bool + 'static
+    fn add_archive<F>(&mut self, archive: &Path, skip: F) -> io::Result<()>
+    where
+        F: FnMut(&str) -> bool + 'static,
     {
         let archive_ro = match ArchiveRO::open(archive) {
             Ok(ar) => ar,
             Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
         };
         if self.additions.iter().any(|ar| ar.path() == archive) {
-            return Ok(())
+            return Ok(());
         }
         self.additions.push(Addition::Archive {
             path: archive.to_path_buf(),
@@ -240,24 +242,31 @@ impl<'a> LlvmArchiveBuilder<'a> {
                         None => continue,
                     };
                     if removals.iter().any(|r| r == child_name) {
-                        continue
+                        continue;
                     }
 
                     let name = CString::new(child_name)?;
-                    members.push(archive::LLVMLumenArchiveMemberNew(ptr::null(),
-                                                                name.as_ptr(),
-                                                                Some(child.raw)));
+                    members.push(archive::LLVMLumenArchiveMemberNew(
+                        ptr::null(),
+                        name.as_ptr(),
+                        Some(child.raw),
+                    ));
                     strings.push(name);
                 }
             }
             for addition in &mut additions {
                 match addition {
-                    Addition::File { path, name_in_archive } => {
+                    Addition::File {
+                        path,
+                        name_in_archive,
+                    } => {
                         let path = CString::new(path.to_str().unwrap())?;
                         let name = CString::new(name_in_archive.clone())?;
-                        members.push(archive::LLVMLumenArchiveMemberNew(path.as_ptr(),
-                                                                    name.as_ptr(),
-                                                                    None));
+                        members.push(archive::LLVMLumenArchiveMemberNew(
+                            path.as_ptr(),
+                            name.as_ptr(),
+                            None,
+                        ));
                         strings.push(path);
                         strings.push(name);
                     }
@@ -265,11 +274,11 @@ impl<'a> LlvmArchiveBuilder<'a> {
                         for child in archive.iter() {
                             let child = child.map_err(string_to_io_error)?;
                             if !is_relevant_child(&child) {
-                                continue
+                                continue;
                             }
                             let child_name = child.name().unwrap();
                             if skip(child_name) {
-                                continue
+                                continue;
                             }
 
                             // It appears that LLVM's archive writer is a little
@@ -278,13 +287,14 @@ impl<'a> LlvmArchiveBuilder<'a> {
                             // pass it in.
                             //
                             // See LLVM bug 25877 for more info.
-                            let child_name = Path::new(child_name)
-                                                  .file_name().unwrap()
-                                                  .to_str().unwrap();
+                            let child_name =
+                                Path::new(child_name).file_name().unwrap().to_str().unwrap();
                             let name = CString::new(child_name)?;
-                            let m = archive::LLVMLumenArchiveMemberNew(ptr::null(),
-                                                                   name.as_ptr(),
-                                                                   Some(child.raw));
+                            let m = archive::LLVMLumenArchiveMemberNew(
+                                ptr::null(),
+                                name.as_ptr(),
+                                Some(child.raw),
+                            );
                             members.push(m);
                             strings.push(name);
                         }
@@ -292,11 +302,13 @@ impl<'a> LlvmArchiveBuilder<'a> {
                 }
             }
 
-            let r = archive::LLVMLumenWriteArchive(dst.as_ptr(),
-                                               members.len() as libc::size_t,
-                                               members.as_ptr() as *const &_,
-                                               should_update_symbols,
-                                               kind);
+            let r = archive::LLVMLumenWriteArchive(
+                dst.as_ptr(),
+                members.len() as libc::size_t,
+                members.as_ptr() as *const &_,
+                should_update_symbols,
+                kind,
+            );
             let ret = if r.into_result().is_err() {
                 let err = LLVMLumenGetLastError();
                 let msg = if err.is_null() {
@@ -320,7 +332,6 @@ fn string_to_io_error(s: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, format!("bad archive: {}", s))
 }
 
-
 /// Checks if the given filename ends with the `.rcgu.o` extension that `rustc`
 /// uses for the object files it generates.
 pub fn looks_like_rust_object_file(filename: &str) -> bool {
@@ -332,7 +343,10 @@ pub fn looks_like_rust_object_file(filename: &str) -> bool {
     }
 
     // Strip the ".o" at the end
-    let ext2 = path.file_stem().and_then(|s| Path::new(s).extension()).and_then(|s| s.to_str());
+    let ext2 = path
+        .file_stem()
+        .and_then(|s| Path::new(s).extension())
+        .and_then(|s| s.to_str());
 
     // Check if the "inner" extension
     ext2 == Some(RUST_CGU_EXT)

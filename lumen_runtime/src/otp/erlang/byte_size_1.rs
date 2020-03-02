@@ -5,7 +5,8 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -23,6 +24,8 @@ pub fn native(process: &Process, bitstring: Term) -> exception::Result<Term> {
 
     match option_total_byte_len {
         Some(total_byte_len) => Ok(process.integer(total_byte_len)?),
-        None => Err(badarg!().into()),
+        None => Err(TypeError)
+            .context(format!("bitstring ({}) is not a bitstring", bitstring))
+            .map_err(From::from),
     }
 }

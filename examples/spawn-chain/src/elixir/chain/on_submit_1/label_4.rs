@@ -25,21 +25,27 @@ pub fn place_frame(process: &Process, placement: Placement) {
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let n = arc_process.stack_pop().unwrap();
+    let n = arc_process.stack_peek(1).unwrap();
     assert!(n.is_integer());
     let n_usize: usize = n.try_into().unwrap();
+
+    let arguments = arc_process.list_from_slice(&[n])?;
+    let min_heap_size_value = arc_process.integer(79 + n_usize * 10)?;
+    let min_heap_size_entry =
+        arc_process.tuple_from_slice(&[atom!("min_heap_size"), min_heap_size_value])?;
+    let options = arc_process.list_from_slice(&[min_heap_size_entry])?;
+
+    arc_process.stack_popn(1);
 
     erlang::spawn_opt_4::place_frame_with_arguments(
         arc_process,
         Placement::Replace,
         atom!("Elixir.Chain"),
         atom!("dom"),
-        arc_process.list_from_slice(&[n])?,
-        arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
-            atom!("min_heap_size"),
-            arc_process.integer(79 + n_usize * 10)?,
-        ])?])?,
-    )?;
+        arguments,
+        options,
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

@@ -19,8 +19,8 @@ use libeir_util_datastructures::pooled_entity_set::BoundEntitySet;
 
 use crate::Result;
 
-use liblumen_session::Options;
 use liblumen_core::symbols::FunctionSymbol;
+use liblumen_session::Options;
 
 use super::block::{Block, BlockData};
 use super::ffi::*;

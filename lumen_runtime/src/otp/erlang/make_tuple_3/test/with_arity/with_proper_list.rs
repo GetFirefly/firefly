@@ -4,32 +4,28 @@ use super::*;
 
 #[test]
 fn without_tuple_in_init_list_errors_badarg() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    (0_usize..255_usize),
-                    strategy::term(arc_process.clone()),
-                    (
-                        Just(arc_process.clone()),
-                        strategy::term::is_not_tuple(arc_process.clone()),
-                    )
-                        .prop_map(|(arc_process, element)| {
-                            arc_process.list_from_slice(&[element]).unwrap()
-                        }),
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                (0_usize..255_usize),
+                strategy::term(arc_process.clone()),
+                strategy::term::is_not_tuple(arc_process.clone()),
+            )
+        },
+        |(arc_process, arity_usize, default_value, element)| {
+            let arity = arc_process.integer(arity_usize).unwrap();
+            let init_list = arc_process.list_from_slice(&[element]).unwrap();
+
+            prop_assert_badarg!(
+                native(&arc_process, arity, default_value, init_list),
+                format!(
+                    "init list ({}) element ({}) is not {{position :: pos_integer(), term()}}",
+                    init_list, element
                 )
-            }),
-            |(arc_process, arity_usize, default_value, init_list)| {
-                let arity = arc_process.integer(arity_usize).unwrap();
+            );
 
-                prop_assert_eq!(
-                    native(&arc_process, arity, default_value, init_list),
-                    Err(badarg!().into())
-                );
-
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }

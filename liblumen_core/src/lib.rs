@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![feature(test)]
 #![feature(core_intrinsics)]
 // Used for allocators

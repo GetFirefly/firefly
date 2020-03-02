@@ -29,7 +29,7 @@ impl Encoding32 {
     pub const TAG_NONE: u32 = 0; // 0b00000_000
     pub const TAG_TUPLE: u32 = (1 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00001_000
     pub const TAG_BIG_INTEGER: u32 = (2 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00010_000
-    // const FLAG_UNUSED: u32 = (3 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00011_000
+                                                                                 // const FLAG_UNUSED: u32 = (3 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00011_000
     pub const TAG_REFERENCE: u32 = (4 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00100_000
     pub const TAG_CLOSURE: u32 = (5 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00101_000
     pub const TAG_FLOAT: u32 = (6 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00110_000
@@ -205,7 +205,9 @@ impl Encoding for Encoding32 {
         }
         // Check for null pointers
         match value & MASK_PRIMARY {
-            Self::TAG_LITERAL | Self::TAG_BOXED | Self::TAG_LIST => value & !MASK_PRIMARY == Self::NONE,
+            Self::TAG_LITERAL | Self::TAG_BOXED | Self::TAG_LIST => {
+                value & !MASK_PRIMARY == Self::NONE
+            }
             _ => false,
         }
     }

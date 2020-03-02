@@ -1,7 +1,7 @@
-mod command;
-mod rpath;
 pub(crate) mod archive;
+mod command;
 pub(crate) mod link;
+mod rpath;
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};

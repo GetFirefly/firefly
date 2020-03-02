@@ -9,34 +9,32 @@ use liblumen_alloc::erts::term::prelude::{Boxed, Map};
 
 #[test]
 fn with_same_key_in_map1_and_map2_uses_value_from_map2() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                )
-            }),
-            |(arc_process, key, value1, value2)| {
-                let map1 = arc_process.map_from_slice(&[(key, value1)]).unwrap();
-                let map2 = arc_process.map_from_slice(&[(key, value2)]).unwrap();
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+            )
+        },
+        |(arc_process, key, value1, value2)| {
+            let map1 = arc_process.map_from_slice(&[(key, value1)]).unwrap();
+            let map2 = arc_process.map_from_slice(&[(key, value2)]).unwrap();
 
-                let result_map3 = native(&arc_process, map1, map2);
+            let result_map3 = native(&arc_process, map1, map2);
 
-                prop_assert!(result_map3.is_ok());
+            prop_assert!(result_map3.is_ok());
 
-                let map3 = result_map3.unwrap();
+            let map3 = result_map3.unwrap();
 
-                let map3_map: Boxed<Map> = map3.try_into().unwrap();
+            let map3_map: Boxed<Map> = map3.try_into().unwrap();
 
-                prop_assert_eq!(map3_map.get(key), Some(value2));
+            prop_assert_eq!(map3_map.get(key), Some(value2));
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }
 
 #[test]

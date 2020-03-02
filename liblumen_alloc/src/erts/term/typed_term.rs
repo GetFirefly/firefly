@@ -11,7 +11,7 @@ use liblumen_core::cmp::ExactEq;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::alloc::TermAlloc;
-use crate::erts::exception::{AllocResult, Exception};
+use crate::erts::exception::AllocResult;
 use crate::erts::Process;
 
 use super::prelude::*;
@@ -800,16 +800,16 @@ impl TryInto<isize> for TypedTerm {
 }
 
 impl TryInto<Vec<u8>> for TypedTerm {
-    type Error = Exception;
+    type Error = anyhow::Error;
 
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+    fn try_into(self) -> anyhow::Result<Vec<u8>> {
         match self {
             TypedTerm::BinaryLiteral(bin_ptr) => bin_ptr.as_ref().try_into(),
             TypedTerm::HeapBinary(bin_ptr) => bin_ptr.as_ref().try_into(),
             TypedTerm::SubBinary(bin_ptr) => bin_ptr.as_ref().try_into(),
             TypedTerm::ProcBin(bin_ptr) => bin_ptr.as_ref().try_into(),
             TypedTerm::MatchContext(bin_ptr) => bin_ptr.as_ref().try_into(),
-            _ => Err(badarg!().into()),
+            _ => Err(TypeError.into()),
         }
     }
 }

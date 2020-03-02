@@ -9,7 +9,7 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLockWriteGuard;
 
-use liblumen_alloc::erts::exception::{self, AllocResult, RuntimeException};
+use liblumen_alloc::erts::exception::{self, AllocResult, ArcError, RuntimeException};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::{self, Process, ProcessHeap};
@@ -68,10 +68,11 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
             }
         }
         Some(Class::Error { .. }) => system::io::puts(&format!(
-            "** (EXIT from {}) exited with reason: an exception was raised: {}\n{}",
+            "** (EXIT from {}) exited with reason: an exception was raised: {}\n{}\nSource:\n{:?}",
             process,
             exception.reason().unwrap(),
-            process.stacktrace()
+            process.stacktrace(),
+            exception.source()
         )),
         _ => unimplemented!("{:?}", exception),
     }
@@ -106,6 +107,9 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
         let reason_word_size = reason.size_in_words();
         let exit_message_elements: &[Term] = &[tag, from, reason];
         let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);
+        let source: ArcError = exception
+            .source()
+            .context(format!("propagating exit from {}", process));
 
         for linked_pid in process.linked_pid_set.lock().iter() {
             if let Some(linked_pid_arc_process) = pid_to_process(linked_pid) {
@@ -135,13 +139,22 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
                     match linked_pid_arc_process.try_acquire_heap() {
                         Some(ref mut linked_pid_heap) => {
                             if reason_word_size <= linked_pid_heap.heap_available() {
-                                exit_in_heap(&linked_pid_arc_process, linked_pid_heap, reason);
+                                exit_in_heap(
+                                    &linked_pid_arc_process,
+                                    linked_pid_heap,
+                                    reason,
+                                    source.clone(),
+                                );
                             } else {
-                                exit_in_heap_fragment(&linked_pid_arc_process, reason);
+                                exit_in_heap_fragment(
+                                    &linked_pid_arc_process,
+                                    reason,
+                                    source.clone(),
+                                );
                             }
                         }
                         None => {
-                            exit_in_heap_fragment(&linked_pid_arc_process, reason);
+                            exit_in_heap_fragment(&linked_pid_arc_process, reason, source.clone());
                         }
                     }
                 }
@@ -175,17 +188,17 @@ fn send_heap_exit_message(process: &Process, exit_message_elements: &[Term]) {
     process.send_heap_message(heap_fragment, ptr.into());
 }
 
-fn exit_in_heap(process: &Process, heap: &mut ProcessHeap, reason: Term) {
+fn exit_in_heap(process: &Process, heap: &mut ProcessHeap, reason: Term, source: ArcError) {
     let data = reason.clone_to_heap(heap).unwrap();
 
-    process.exit(data);
+    process.exit(data, source);
 }
 
-fn exit_in_heap_fragment(process: &Process, reason: Term) {
+fn exit_in_heap_fragment(process: &Process, reason: Term, source: ArcError) {
     let (heap_fragment_data, mut heap_fragment) = reason.clone_to_fragment().unwrap();
 
     process.attach_fragment(unsafe { heap_fragment.as_mut() });
-    process.exit(heap_fragment_data);
+    process.exit(heap_fragment_data, source);
 }
 
 pub fn register_in(

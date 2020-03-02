@@ -10,11 +10,11 @@ compile_error!("lumen_rt_minimal is only supported on unix targets!");
 #[macro_use]
 mod macros;
 mod config;
+mod distribution;
 mod logging;
+mod process;
 mod scheduler;
 mod sys;
-mod distribution;
-mod process;
 
 use bus::Bus;
 use log::Level;
@@ -39,7 +39,6 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
         Ok(config) => config,
         Err(err) => {
             panic!("Config error: {}", err);
-            return Err(());
         }
     };
 

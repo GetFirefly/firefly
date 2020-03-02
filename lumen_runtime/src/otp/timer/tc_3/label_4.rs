@@ -33,9 +33,11 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let duration = arc_process.stack_pop().unwrap();
+    let duration = arc_process.stack_peek(1).unwrap();
     assert!(duration.is_integer());
-    let value = arc_process.stack_pop().unwrap();
+    let value = arc_process.stack_peek(2).unwrap();
+
+    arc_process.stack_popn(2);
 
     label_5::place_frame_with_arguments(arc_process, Placement::Replace, value)?;
     convert_time_unit_3::place_frame_with_arguments(

@@ -54,6 +54,7 @@ impl Queues {
         }
     }
 
+    #[allow(unused)]
     pub fn len(&self) -> usize {
         self.waiting.len() + self.normal_low.len() + self.high.len() + self.max.len()
     }
@@ -77,6 +78,7 @@ impl Queues {
         }
     }
 
+    #[allow(unused)]
     pub fn stop_waiting(&mut self, process: &Process) {
         match self.waiting.get(process) {
             Some(arc_process) => {
@@ -120,6 +122,7 @@ impl Waiting {
         self.0.contains(value)
     }
 
+    #[allow(unused)]
     fn get<Q: ?Sized>(&self, value: &Q) -> Option<&Arc<Process>>
     where
         Arc<Process>: Borrow<Q>,
@@ -132,10 +135,12 @@ impl Waiting {
         self.0.insert(waiter)
     }
 
+    #[allow(unused)]
     fn len(&self) -> usize {
         self.0.len()
     }
 
+    #[allow(unused)]
     fn remove(&mut self, waiter: &Arc<Process>) -> bool {
         self.0.remove(waiter)
     }

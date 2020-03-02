@@ -11,6 +11,7 @@ use liblumen_alloc::{atom, CloneToProcess, HeapFragment};
 
 use lumen_rt_core::registry::pid_to_process;
 
+#[allow(unused)]
 pub fn is_down(message: &Message, reference: &Reference) -> bool {
     let message_data = message.data();
 

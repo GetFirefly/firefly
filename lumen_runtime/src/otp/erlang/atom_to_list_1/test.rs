@@ -1,9 +1,8 @@
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
-use proptest::strategy::Strategy;
+use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::atom_to_list_1::native;
@@ -15,7 +14,7 @@ fn without_atom_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_atom(arc_process.clone()), |atom| {
-                prop_assert_eq!(native(&arc_process, atom), Err(badarg!().into()));
+                prop_assert_is_not_atom!(native(&arc_process, atom), atom);
 
                 Ok(())
             })
@@ -26,24 +25,23 @@ fn without_atom_errors_badarg() {
 #[test]
 #[ignore]
 fn with_atom_returns_chars_in_list() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &any::<String>().prop_map(|string| (Atom::str_to_term(&string), string)),
-                |(atom, string)| {
-                    let codepoint_terms: Vec<Term> = string
-                        .chars()
-                        .map(|c| arc_process.integer(c).unwrap())
-                        .collect();
+    run!(
+        |arc_process| {
+            (Just(arc_process.clone()), any::<String>())
+                .prop_map(|(arc_process, string)| (arc_process, Atom::str_to_term(&string), string))
+        },
+        |(arc_process, atom, string)| {
+            let codepoint_terms: Vec<Term> = string
+                .chars()
+                .map(|c| arc_process.integer(c).unwrap())
+                .collect();
 
-                    prop_assert_eq!(
-                        native(&arc_process, atom),
-                        Ok(arc_process.list_from_slice(&codepoint_terms).unwrap())
-                    );
+            prop_assert_eq!(
+                native(&arc_process, atom),
+                Ok(arc_process.list_from_slice(&codepoint_terms).unwrap())
+            );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+            Ok(())
+        },
+    );
 }

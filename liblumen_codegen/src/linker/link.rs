@@ -170,7 +170,6 @@ fn link_natively(
             flavor,
             options,
             project_type,
-            tmpdir,
             output_file,
             codegen_results,
         )?;
@@ -802,7 +801,6 @@ fn link_args(
     flavor: LinkerFlavor,
     options: &Options,
     project_type: ProjectType,
-    tmpdir: &Path,
     output_file: &Path,
     codegen_results: &CodegenResults,
 ) -> anyhow::Result<()> {
@@ -946,7 +944,7 @@ fn link_args(
     // link line. And finally upstream native libraries can't depend on anything
     // in this DAG so far because they're only dylibs and dylibs can only depend
     // on other dylibs (e.g., other native deps).
-    add_local_native_libraries(cmd, options, codegen_results, tmpdir)?;
+    add_local_native_libraries(cmd, options, codegen_results)?;
     //add_upstream_native_libraries(cmd, options, codegen_results);
 
     // Tell the linker what we're doing.
@@ -1013,7 +1011,6 @@ pub fn add_local_native_libraries(
     cmd: &mut dyn Linker,
     options: &Options,
     codegen_results: &CodegenResults,
-    tmpdir: &Path,
 ) -> anyhow::Result<()> {
     let filesearch = options.target_filesearch(PathKind::All);
     for search_path in filesearch.search_paths() {
@@ -1028,11 +1025,6 @@ pub fn add_local_native_libraries(
     }
 
     let search_path = archive_search_paths(options);
-
-    // Add libcore/libstd
-    //let rlib_dir = filesearch.get_lib_path();
-    //link_rlib(cmd, options, tmpdir, &rlib_dir.join("libcore.rlib"));
-    //link_rlib(cmd, options, tmpdir, &rlib_dir.join("libstd.rlib"));
 
     for lib in codegen_results.project_info.native_libraries.iter() {
         let name = match lib.name {
@@ -1075,31 +1067,6 @@ pub fn add_local_native_libraries(
     }
 
     Ok(())
-}
-
-fn link_rlib(
-    cmd: &mut dyn Linker,
-    options: &Options,
-    tmpdir: &Path,
-    rlib_path: &Path,
-) {
-    use super::archive::ArchiveBuilder;
-    use crate::llvm::archive::LlvmArchiveBuilder;
-    use crate::llvm::archive::{RLIB_BYTECODE_EXTENSION, METADATA_FILENAME};
-
-    let dst = tmpdir.join(rlib_path.file_name().unwrap());
-    let mut archive = LlvmArchiveBuilder::new(options, &dst, Some(rlib_path));
-    archive.update_symbols();
-
-    for f in archive.src_files() {
-        if f.ends_with(RLIB_BYTECODE_EXTENSION) || f == METADATA_FILENAME {
-            archive.remove_file(&f);
-        }
-    }
-
-    archive.build();
-
-    cmd.link_whole_rlib(&dst);
 }
 
 fn is_pic(options: &Options) -> bool {

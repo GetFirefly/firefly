@@ -15,7 +15,7 @@ use syn::spanned::Spanned;
 use syn::token::{Bracket, Comma};
 use syn::{parse_macro_input, parse_quote};
 use syn::{Expr, ExprArray, ItemConst};
-use syn::{ExprLit, IntSuffix, Lit, LitInt};
+use syn::{ExprLit, Lit, LitInt};
 
 #[proc_macro_derive(SizeClassIndex)]
 pub fn derive_size_class_index(input: TokenStream) -> TokenStream {
@@ -52,11 +52,7 @@ pub fn generate_heap_sizes(input: TokenStream) -> TokenStream {
     for heap_size in heap_sizes.iter() {
         heap_sizes_elems.push_value(Expr::Lit(ExprLit {
             attrs: Vec::new(),
-            lit: Lit::Int(LitInt::new(
-                *heap_size as u64,
-                IntSuffix::None,
-                Span::call_site(),
-            )),
+            lit: Lit::Int(LitInt::new(&heap_size.to_string(), Span::call_site())),
         }));
         heap_sizes_elems.push_punct(parse_quote!(,));
     }

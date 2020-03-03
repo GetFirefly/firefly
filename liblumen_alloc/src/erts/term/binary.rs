@@ -244,15 +244,39 @@ impl BinaryFlags {
     #[inline]
     pub fn as_u64(&self) -> u64 {
         let size = (self.0 >> Self::FLAG_BITS) as u64;
-        let flags = (self.0 & !Self::BIN_TYPE_MASK) as u64;
+        let flags = (self.0 & Self::BIN_TYPE_MASK) as u64;
         (size << (Self::FLAG_BITS as u64)) | flags
     }
 
     #[inline]
     pub fn as_u32(&self) -> u32 {
         let size = (self.0 >> Self::FLAG_BITS) as u32;
-        let flags = (self.0 & !Self::BIN_TYPE_MASK) as u32;
+        let flags = (self.0 & Self::BIN_TYPE_MASK) as u32;
         (size << (Self::FLAG_BITS as u32)) | flags
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    pub unsafe fn from_u64(raw: u64) -> Self {
+        Self(raw as usize)
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn from_u64(raw: u64) -> Self {
+        let size = (raw >> (Self::FLAG_BITS as u64)) as u32;
+        let flags = (raw & (Self::BIN_TYPE_MASK as u64)) as u32;
+        Self(((size << (Self::FLAG_BITS as u32)) | flags) as usize)
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    pub unsafe fn from_u32(raw: u32) -> Self {
+        let size = (raw >> (Self::FLAG_BITS as u32)) as u64;
+        let flags = (raw & (Self::BIN_TYPE_MASK as u32)) as u64;
+        Self(((size << (Self::FLAG_BITS as u64)) | flags) as usize)
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub unsafe fn from_u32(raw: u32) -> Self {
+        Self(raw as usize)
     }
 }
 impl fmt::Debug for BinaryFlags {

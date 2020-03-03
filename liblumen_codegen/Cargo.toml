@@ -5,31 +5,40 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 edition = "2018"
 publish = false
 
-#build = "build.rs"
-
 [dependencies]
 libc = "0.2"
-anyhow = "1.0.11"
-thiserror = "1.0.1"
-tempfile = "3.0"
+cc = "1.0.35"
+anyhow = "1.0"
+thiserror = "1.0"
+tempfile = "3.1"
 num-bigint = "0.2"
+log = "0.4"
+cranelift-entity = "0.56.0"
+
+liblumen_llvm = { path = "../liblumen_llvm" }
+liblumen_session = { path = "../liblumen_session" }
+liblumen_target = { path = "../liblumen_target" }
+liblumen_term = { path = "../liblumen_term" }
+liblumen_util = { path = "../liblumen_util" }
 liblumen_alloc = { path = "../liblumen_alloc" }
+liblumen_core = { path = "../liblumen_core" }
+liblumen_compiler_macros = { path = "../liblumen_compiler_macros" }
+
 # eirproject/eir crates
 libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
 libeir_intern = { git = "https://github.com/eirproject/eir.git" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git" }
 libeir_lowerutils = { git = "https://github.com/eirproject/eir.git" }
-libeir_passes = { git = "https://github.com/eirproject/eir.git" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
-# llvm crates
-llvm-sys = { git = "https://github.com/lumen/llvm-sys.rs", branch = "llvm-9.0" }
+libeir_util_datastructures = { git = "https://github.com/eirproject/eir.git" }
 
-[dependencies.inkwell]
-git = "https://github.com/lumen/inkwell"
+# llvm crates
+[dependencies.llvm-sys]
+git = "https://github.com/lumen/llvm-sys.rs"
 branch = "llvm-9.0"
-features = ["llvm9-0"]
+features = ["no-llvm-linking"]
 
 [build-dependencies]
-cc = "1.0.32"
 cmake = "0.1"
 which = "2.0.1"
+liblumen_llvm = { path = "../liblumen_llvm" }

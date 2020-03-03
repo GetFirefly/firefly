@@ -9,7 +9,7 @@ use syn::token::{Bracket, Comma, Paren};
 use syn::{parse_macro_input, parse_quote, DeriveInput};
 use syn::{Expr, Visibility};
 use syn::{ExprArray, ExprCall, ItemConst};
-use syn::{ExprLit, IntSuffix, Lit, LitInt};
+use syn::{ExprLit, Lit, LitInt};
 
 const NUM_CLASSES: usize = 83;
 // These size classes were calculated based on the optimal
@@ -39,11 +39,7 @@ pub(crate) fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         let mut args: Punctuated<Expr, Comma> = Punctuated::new();
         args.push_value(Expr::Lit(ExprLit {
             attrs: Vec::new(),
-            lit: Lit::Int(LitInt::new(
-                *item as u64,
-                IntSuffix::None,
-                Span::call_site(),
-            )),
+            lit: Lit::Int(LitInt::new(&item.to_string(), Span::call_site())),
         }));
         args.push_punct(parse_quote!(,));
         size_class_elems.push_value(Expr::Call(ExprCall {
@@ -85,7 +81,7 @@ pub(crate) fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     for item in words_to_class_index {
         words_to_class_index_elems.push_value(Expr::Lit(ExprLit {
             attrs: Vec::new(),
-            lit: Lit::Int(LitInt::new(item as u64, IntSuffix::None, Span::call_site())),
+            lit: Lit::Int(LitInt::new(&item.to_string(), Span::call_site())),
         }));
         words_to_class_index_elems.push_punct(parse_quote!(,));
     }

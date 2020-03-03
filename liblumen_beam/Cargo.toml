@@ -9,6 +9,4 @@ publish = false
 byteorder = "1.2"
 libflate = "0.1"
 num = "0.2"
-glob = "0.2"
-tempfile = "3.0.5"
 failure = "0.1"

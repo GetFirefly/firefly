@@ -1,207 +1,184 @@
-#![allow(unused)]
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+mod intern;
+mod queries;
+mod query_groups;
 
-use anyhow::Result;
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, RwLock};
 
-use libeir_diagnostics::emitter::{cyan, white, yellow, yellow_bold};
-use libeir_diagnostics::{ColorSpec, Emitter, NullEmitter, StandardStreamEmitter};
-use libeir_diagnostics::{Diagnostic, Severity};
+use log::debug;
 
-use libeir_intern::Ident;
-use libeir_ir::Module;
+pub use salsa::ParallelDatabase;
+use salsa::Snapshot;
 
-use libeir_passes::PassManager;
-use libeir_syntax_erl::{ParseConfig, Parser};
+use libeir_diagnostics::{CodeMap, Diagnostic};
+use libeir_intern::Symbol;
 
-use super::config::{CompilerSettings, FileType, Verbosity};
-use super::errors::CompilerError;
+use liblumen_core::symbols::FunctionSymbol;
+use liblumen_incremental::{InternedInput, InternerStorage};
+pub use liblumen_incremental::{ParserDatabase, ParserDatabaseBase};
+use liblumen_incremental::{ParserStorage, QueryResult};
+use liblumen_session::{DiagnosticsHandler, Emit, Options, OutputType};
 
-/// The result produced by compiler functions
-
-pub struct CompilationInfo {
-    num_modules: usize,
-    compilation_time: usize,
-}
-impl CompilationInfo {
-    pub fn new() -> Self {
-        CompilationInfo {
-            num_modules: 0,
-            compilation_time: 0,
-        }
-    }
+pub(crate) mod prelude {
+    pub use super::query_groups::*;
 }
 
-pub struct Compiler {
-    config: CompilerSettings,
-    info: CompilationInfo,
-    emitter: Arc<dyn Emitter>,
+use self::prelude::*;
+
+#[salsa::database(CodegenStorage, ParserStorage, InternerStorage, StringInternerStorage)]
+pub struct CompilerDatabase {
+    runtime: salsa::Runtime<CompilerDatabase>,
+    diagnostics: DiagnosticsHandler,
+    codemap: Arc<RwLock<CodeMap>>,
+    atoms: Arc<Mutex<HashSet<Symbol>>>,
+    symbols: Arc<Mutex<HashSet<FunctionSymbol>>>,
 }
-impl Compiler {
-    pub fn new(config: CompilerSettings) -> Self {
-        let emitter: Arc<dyn Emitter> = match config.verbosity {
-            Verbosity::Silent => Arc::new(NullEmitter::new()),
-            v => Arc::new(
-                StandardStreamEmitter::new(config.color)
-                    .set_codemap(config.codemap.clone())
-                    .set_min_severity(verbosity_to_severity(v)),
-            ),
-        };
-        let info = CompilationInfo::new();
-
-        Compiler {
-            config,
-            info,
-            emitter,
+impl CompilerDatabase {
+    pub fn new(codemap: Arc<RwLock<CodeMap>>, diagnostics: DiagnosticsHandler) -> Self {
+        let mut atoms = HashSet::default();
+        atoms.insert(Symbol::intern("false"));
+        atoms.insert(Symbol::intern("true"));
+        Self {
+            runtime: Default::default(),
+            diagnostics,
+            codemap,
+            atoms: Arc::new(Mutex::new(atoms)),
+            symbols: Arc::new(Mutex::new(HashSet::default())),
         }
     }
-
-    pub fn compile(&mut self) -> Result<()> {
-        unimplemented!()
+}
+impl salsa::Database for CompilerDatabase {
+    fn salsa_runtime(&self) -> &salsa::Runtime<Self> {
+        &self.runtime
     }
 
-    // Parses all modules into a map. The map uses the module name symbol
-    // as the key, and the AST for the module as the value.
-    fn parse_modules(&mut self) -> Result<HashMap<Ident, Module>> {
-        use walkdir::{DirEntry, WalkDir};
-
-        let mut parser = Parser::new(self.config.clone().into());
-
-        let extension = match self.config.file_type {
-            FileType::Erlang => "erl",
-        };
-
-        fn is_hidden(entry: &DirEntry) -> bool {
-            entry
-                .file_name()
-                .to_str()
-                .map(|s| s.starts_with("."))
-                .unwrap_or(false)
-        }
-
-        fn is_source_file(entry: &DirEntry, extension: &str) -> bool {
-            if !entry.file_type().is_file() {
-                return false;
-            }
-            match Path::new(entry.file_name()).extension() {
-                None => false,
-                Some(ext) => ext == extension,
-            }
-        }
-
-        let walker = WalkDir::new(self.config.source_dir.clone())
-            .follow_links(true)
-            .into_iter();
-
-        let mut modules = HashMap::new();
-        let config = ParseConfig::default();
-        let mut parser = Parser::new(config);
-
-        for entry in walker.filter_entry(|e| !is_hidden(e) && is_source_file(e, extension)) {
-            let entry = entry.unwrap();
-            let file = entry.path();
-
-            let mut module = match self.config.file_type {
-                FileType::Erlang => self.parse_erl(&mut parser, file)?,
-            };
-
-            modules.insert(module.name().clone(), module);
-        }
-
-        Ok(modules)
+    fn salsa_runtime_mut(&mut self) -> &mut salsa::Runtime<Self> {
+        &mut self.runtime
     }
-
-    // Compiles a .erl file to Erlang AST
-    fn parse_erl(&self, parser: &mut Parser, file: &Path) -> Result<Module> {
-        use libeir_syntax_erl::ast;
-        let codemap = parser.config.codemap.clone();
-        match parser.parse_file::<&Path, ast::Module>(file) {
-            Ok(ast) => {
-                let (res, messages) = {
-                    // TODO: Revisit this if the same codemap is used across threads
-                    let codemap_guard = codemap.lock().unwrap();
-                    libeir_syntax_erl::lower_module(&*codemap_guard, &ast)
-                };
-                for msg in messages.iter() {
-                    self.diagnostic(&msg.to_diagnostic());
-                }
-                match res.ok() {
-                    Some(mut ir) => {
-                        let mut pass_manager = PassManager::default();
-                        pass_manager.run(&mut ir);
-                        Ok(ir)
-                    }
-                    None => Err(CompilerError::Failed.into()),
-                }
-            }
-            Err(errs) => Err(CompilerError::Parser {
-                codemap: self.config.codemap.clone(),
-                errs: errs.iter().map(|e| e.to_diagnostic()).collect(),
-            }
-            .into()),
-        }
-    }
-
-    #[inline]
-    fn write_warning<M: Display>(&self, color: ColorSpec, message: M) {
-        self.emitter
-            .warn(Some(color), &message.to_string())
-            .unwrap();
-    }
-
-    #[inline]
-    fn write_info<M: Display>(&self, color: ColorSpec, message: M) {
-        self.emitter
-            .emit(Some(color), &message.to_string())
-            .unwrap();
-    }
-
-    #[allow(unused)]
-    #[inline]
-    fn write_debug<M: Display>(&self, color: ColorSpec, message: M) {
-        self.emitter
-            .debug(Some(color), &message.to_string())
-            .unwrap();
-    }
-
-    pub fn warnings_as_errors(&self) -> bool {
-        self.config.warnings_as_errors
-    }
-
-    pub fn no_warn(&self) -> bool {
-        self.config.no_warn
-    }
-
-    pub fn output_dir(&self) -> PathBuf {
-        self.config.output_dir.clone()
-    }
-
-    pub fn warn<M: Display>(&self, message: M) {
-        self.write_warning(yellow_bold(), "WARN: ");
-        self.write_warning(yellow(), &message.to_string());
-    }
-
-    pub fn info<M: Display>(&self, message: M) {
-        self.write_info(cyan(), &message.to_string());
-    }
-
-    pub fn debug<M: Display>(&self, message: M) {
-        self.write_info(white(), &message.to_string());
-    }
-
-    pub fn diagnostic(&self, diagnostic: &Diagnostic) {
-        self.emitter.diagnostic(diagnostic).unwrap();
+}
+impl salsa::ParallelDatabase for CompilerDatabase {
+    fn snapshot(&self) -> Snapshot<Self> {
+        Snapshot::new(CompilerDatabase {
+            runtime: self.runtime.snapshot(self),
+            diagnostics: self.diagnostics.clone(),
+            codemap: self.codemap.clone(),
+            atoms: self.atoms.clone(),
+            symbols: self.symbols.clone(),
+        })
     }
 }
 
-fn verbosity_to_severity(v: Verbosity) -> Severity {
-    match v {
-        Verbosity::Silent => Severity::Bug,
-        Verbosity::Error => Severity::Error,
-        Verbosity::Warning => Severity::Warning,
-        Verbosity::Info => Severity::Note,
-        Verbosity::Debug => Severity::Note,
+impl ParserDatabaseBase for CompilerDatabase {
+    fn diagnostics(&self) -> &DiagnosticsHandler {
+        &self.diagnostics
+    }
+
+    fn diagnostic(&self, diagnostic: &Diagnostic) {
+        self.diagnostics.diagnostic(diagnostic);
+    }
+
+    fn codemap(&self) -> &Arc<RwLock<CodeMap>> {
+        &self.codemap
+    }
+
+    fn maybe_emit_file<E>(&self, input: InternedInput, output: &E) -> QueryResult<Option<PathBuf>>
+    where
+        E: Emit,
+    {
+        let options = self.options();
+        self.maybe_emit_file_with_opts(&options, input, output)
+    }
+
+    fn maybe_emit_file_with_opts<E>(
+        &self,
+        options: &Options,
+        input: InternedInput,
+        output: &E,
+    ) -> QueryResult<Option<PathBuf>>
+    where
+        E: Emit,
+    {
+        use liblumen_incremental::InternerDatabase;
+
+        let input = self.lookup_intern_input(input);
+        if let Some(filename) = options.output_types.maybe_emit(&input, E::TYPE) {
+            debug!("emitting {} for {:?}", E::TYPE, input);
+            let output_dir = self.output_dir();
+            let outfile = output_dir.join(filename);
+            Ok(Some(self.emit_file(outfile, output)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn maybe_emit_file_with_callback<F>(
+        &self,
+        input: InternedInput,
+        output_type: OutputType,
+        callback: F,
+    ) -> QueryResult<Option<PathBuf>>
+    where
+        F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
+    {
+        let options = self.options();
+        self.maybe_emit_file_with_callback_and_opts(&options, input, output_type, callback)
+    }
+
+    fn maybe_emit_file_with_callback_and_opts<F>(
+        &self,
+        options: &Options,
+        input: InternedInput,
+        output_type: OutputType,
+        callback: F,
+    ) -> QueryResult<Option<PathBuf>>
+    where
+        F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
+    {
+        use liblumen_incremental::InternerDatabase;
+
+        let input = self.lookup_intern_input(input);
+        if let Some(filename) = options.output_types.maybe_emit(&input, output_type) {
+            debug!("emitting {} for {:?}", output_type, input);
+            let output_dir = self.output_dir();
+            let outfile = output_dir.join(filename);
+            Ok(Some(self.emit_file_with_callback(outfile, callback)?))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+impl CodegenDatabaseBase for CompilerDatabase {
+    fn take_atoms(&mut self) -> HashSet<Symbol> {
+        let atoms = Arc::get_mut(&mut self.atoms).unwrap().get_mut().unwrap();
+        let empty = HashSet::default();
+        core::mem::replace(atoms, empty)
+    }
+
+    fn add_atoms<'a, I>(&self, atoms: I)
+    where
+        I: Iterator<Item = &'a Symbol>,
+    {
+        let mut locked = self.atoms.lock().unwrap();
+        for i in atoms {
+            locked.insert(*i);
+        }
+    }
+
+    fn take_symbols(&mut self) -> HashSet<FunctionSymbol> {
+        let symbols = Arc::get_mut(&mut self.symbols).unwrap().get_mut().unwrap();
+        let empty = HashSet::default();
+        core::mem::replace(symbols, empty)
+    }
+
+    fn add_symbols<'a, I>(&self, symbols: I)
+    where
+        I: Iterator<Item = &'a FunctionSymbol>,
+    {
+        let mut locked = self.symbols.lock().unwrap();
+        for i in symbols {
+            locked.insert(*i);
+        }
     }
 }

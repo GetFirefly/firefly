@@ -5,6 +5,9 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kroni
 publish = false
 edition = "2018"
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [features]
 # Turns on allocation instrumentation
 instrument = []
@@ -13,21 +16,22 @@ instrument = []
 log = "0.4"
 cfg-if = "0.1"
 lazy_static = "1.2"
-anyhow = "1.0.11"
-thiserror = "1.0.1"
+once_cell = "1.3"
+anyhow = "1.0"
+thiserror = "1.0"
 num-traits = "0.2"
 num-bigint = "0.2"
-thread_local = "0.3"
 heapless = { git = "https://github.com/japaric/heapless" }
 static_assertions = "1.0.0"
 liblumen_core = { path = "../liblumen_core" }
 liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
+liblumen_term = { path = "../liblumen_term" }
 
 backtrace = "0.3.35"
 
 [dependencies.hashbrown]
-version = "0.5"
+version = "0.7"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]

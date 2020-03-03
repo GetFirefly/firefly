@@ -1,0 +1,19 @@
+[package]
+name = "liblumen_term"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
+edition = "2018"
+
+build = "build.rs"
+
+[lib]
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+
+[build-dependencies]
+cmake = "0.1"
+which = "2.0.1"

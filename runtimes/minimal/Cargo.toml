@@ -1,0 +1,39 @@
+[package]
+name = "lumen_rt_minimal"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
+publish = false
+edition = "2018"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+log = "0.4"
+env_logger = "0.7"
+cfg-if = "0.1.7"
+lazy_static = "1.4"
+once_cell = "1.3"
+clap = "2.32.0"
+bus = "2.0"
+signal-hook = "0.1"
+libc = "0.2"
+
+liblumen_core = { path = "../../liblumen_core" }
+liblumen_term = { path = "../../liblumen_term" }
+liblumen_alloc = { path = "../../liblumen_alloc" }
+lumen_rt_core = { path = "../core" }
+
+[dependencies.hashbrown]
+version = "0.7"
+features = ["nightly"]
+
+[dependencies.intrusive-collections]
+version = "0.8"
+features = ["nightly"]
+
+[dependencies.parking_lot_core]
+version = "0.7"
+features = ["nightly"]

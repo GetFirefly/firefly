@@ -1,0 +1,13 @@
+lumen_cc_library(
+  NAME
+    Diagnostics
+  HDRS
+    "Diagnostics.h"
+  SRCS
+    "Diagnostics.cpp"
+  DEPS
+    LLVMSupport
+    MLIRSupport
+  ALWAYSLINK
+  PUBLIC
+)

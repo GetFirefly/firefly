@@ -1,64 +1,26 @@
-//mod linker;
-mod llvm;
-mod lower;
-mod config;
+#![feature(extern_types)]
+#![feature(arbitrary_enum_discriminant)]
+#![feature(associated_type_bounds)]
+#![feature(const_cstr_unchecked)]
 
-use std::path::PathBuf;
+pub mod atoms;
+pub mod codegen;
+pub mod ffi;
+pub mod linker;
+pub mod llvm;
+pub mod mlir;
+pub mod symbol_table;
 
-use thiserror::Error;
-pub use anyhow::Result;
+pub use self::ffi::target::{self, print_target_cpus, print_target_features};
+pub use self::ffi::util::llvm_version;
 
-use libeir_ir::Module;
+pub use liblumen_llvm::passes::print_passes;
 
-pub use self::llvm::enums::{OptimizationLevel, RelocMode, CodeModel, OutputType};
-pub use self::config::{ConfigBuilder, Config};
+use liblumen_session::Options;
 
-/// Represents an error which occurs during code generation
-#[derive(Error, Debug)]
-pub enum CodeGenError {
-    #[error("invalid target: {0}")]
-    InvalidTarget(String),
+pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
-    #[error("invalid codegen input: {0}")]
-    ValidationError(String),
-
-    #[error("linker error: {0}")]
-    LinkerError(String),
-
-    #[error("llvm error: {0}")]
-    LLVMError(String),
-}
-impl CodeGenError {
-    pub fn llvm(reason: &str) -> Self {
-        CodeGenError::LLVMError(reason.to_string())
-    }
-    pub fn invalid(reason: &str) -> Self {
-        CodeGenError::ValidationError(reason.to_string())
-    }
-
-    pub fn no_target_machine(triple: String, cpu: String, features: String) -> Self {
-        let mut message = format!("configured target has no backend: {}", triple);
-        if !cpu.is_empty() && !features.is_empty() {
-            message = format!("{} (cpu = \"{}\", features = \"{}\")", message, cpu, features);
-        } else if !cpu.is_empty() {
-            message = format!("{} (cpu = \"{}\")", message, cpu);
-        } else if !features.is_empty() {
-            message = format!("{} (features = \"{}\")", message, features);
-        }
-        CodeGenError::InvalidTarget(message.to_owned())
-    }
-}
-
-/// Runs the code generator against the given set of modules with the selected output type
-pub fn run(modules: Vec<Module>, config: &Config) -> Result<()> {
-    // Lower EIR modules to LLVM modules compiled to bitcode or assembly
-    let lls = modules.iter()
-        .map(|m| lower::module(m, config))
-        .collect::<Vec<PathBuf>>();
-    // Link together LLVM assembly/bitcode files into an object file
-    //let obj = linker::link(lls, config)?;
-    // Perform native object file linking and generation
-    //let _bin = linker::link_native(obj, config)?;
-
-    Ok(())
+/// Perform initialization of MLIR/LLVM for code generation
+pub fn init(options: &Options) {
+    self::ffi::init(options);
 }

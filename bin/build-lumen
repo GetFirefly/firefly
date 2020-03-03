@@ -1,0 +1,286 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+ROOT_DIR="$(cd "$(dirname "$SCRIPT_DIR")" && pwd)"
+BIN_DIR="${ROOT_DIR}/bin"
+OUTPUT_DIR="${ROOT_DIR}/target/debug"
+RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//')"
+RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
+TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
+TOOLCHAIN_LIB_PATH="$(cd "$TOOLCHAIN_BIN_PATH"/../lib && pwd -P)"
+BUILD_DEPS=(liblumen_llvm liblumen_term lumen_rt_minimal)
+RUNTIME_LIBS=(liblumen_core liblumen_crt liblumen_alloc lumen_rt_core lumen_rt_minimal)
+
+export LLVM_SYS_90_PREFIX
+LLVM_SYS_90_PREFIX="${LLVM_SYS_90_PREFIX}"
+if [ -z "$LLVM_SYS_90_PREFIX" ]; then
+    LLVM_SYS_90_PREFIX="$(cd "${XDG_DATA_HOME}/llvm/lumen" && pwd -P)"
+fi
+
+is_darwin="false"
+build_static="false"
+build_dynamic="false"
+build_use_libcxx="false"
+build_link_args=""
+build_package=""
+build_target=""
+build_toolchain=""
+host_target=""
+extra_rustc_flags=""
+extra_cargo_flags=""
+
+function usage() {
+    echo "usage: $(basename "$0") [--static] [OPTIONS..]"
+    echo ""
+    echo " --verbose            Build with extra verbose logging"
+    echo " --debug              Build debug binary"
+    echo " --release            Build release binary"
+    echo " --static             Build a statically linked executable"
+    echo " --dynamic            Build the compiler dynamically linked against its libraries"
+    echo " --use-libcxx         Build the compiler dynamically linked against its libraries"
+    echo " --target <triple>    The target triple to build for"
+    echo " --install <prefix>   Install to the given prefix"
+    echo " --package <package>  Build a specific crate (i.e. like cargo -p)"
+    echo ""
+}
+
+while [ $# -gt 0 ]; do
+    lhs="${1%=*}"
+    rhs="${1#*=}"
+    # Shift once for the flag name if true
+    shift_key="false"
+    # Shift once for the flag value if true
+    shift_value="false"
+    # Shift for the flag value if true, and shift_value=true
+    has_value="false"
+    if [ "$lhs" = "$1" ]; then
+        # No '=' to split on, so grab the next arg
+        shift
+        rhs="$1"
+        # We already shifted for the name, but not for the value
+        shift_value="true"
+    else
+        # We only need one shift for both key and value
+        shift_key="true"
+    fi
+    case $lhs in
+        -v | -verbose | --verbose )
+            extra_cargo_flags="--verbose $extra_cargo_flags"
+            ;;
+        -debug | --debug )
+            extra_rustc_flags="-C opt-level=0"
+            OUTPUT_DIR="${ROOT_DIR}/target/debug"
+            ;;
+
+        -release | --release )
+            OUTPUT_DIR="${ROOT_DIR}/target/release"
+            extra_cargo_flags="--release $extra_cargo_flags"
+            ;;
+
+        -static | --static )
+            build_static="true"
+            build_dynamic="false"
+            ;;
+
+        -dynamic | --dynamic )
+            build_static="false"
+            build_dynamic="true"
+            ;;
+
+        -use-libcxx | --use-libcxx )
+            build_use_libcxx="true"
+            ;;
+
+        -target | --target )
+            has_value="true"
+            build_target="$rhs"
+            build_toolchain="$build_target"
+            ;;
+
+        -package | --package )
+            has_value="true"
+            build_package="$rhs"
+            ;;
+
+        *)
+            echo "unknown option: $1"
+            usage
+            exit 2
+            ;;
+    esac
+
+    if [ "$shift_key" = "true" ]; then
+        shift
+    fi
+    if [ "$has_value" = "true" ] && [ "$shift_value" = "true" ]; then
+        shift
+    fi
+done
+
+if ! type -p jq >/dev/null; then
+    echo "Expected jq to be on your PATH"
+    exit 2
+fi
+
+if ! host_toolchain="$(echo "$RUST_TOOLCHAIN" | sed -e 's/nightly-//')"; then
+    echo "Unable to determine default host toolchain!"
+    exit 2
+fi
+if [ -z "$build_target" ]; then
+    if ! host_target="$(rustc -Z unstable-options --print target-spec-json | jq -r '."llvm-target"')"; then
+        echo "Failed to load target spec!"
+        exit 2
+    fi
+    # On macOS, the toolchain and target triple are mismatched
+    if [[ "$host_target" =~ "apple-" ]]; then
+        is_darwin="true"
+        build_target="$host_target"
+        build_toolchain="$host_toolchain"
+    else
+        build_target="$host_target"
+        build_toolchain="$host_target"
+    fi
+else
+    # shellcheck disable=SC2086
+    if ! host_target="$(rustc -Z unstable-options --target ${build_target} --print target-spec-json | jq -r '."llvm-target"')"; then
+        echo "Failed to load target spec!"
+        exit 2
+    fi
+    if [[ "$host_target" =~ "apple-" ]]; then
+        is_darwin="true"
+    fi
+fi
+install_prefix="${BIN_DIR}/${host_target}"
+
+TOOLCHAIN_TARGET_PATH="${TOOLCHAIN_LIB_PATH}/rustlib/${build_toolchain}"
+if [ -d "${TOOLCHAIN_TARGET_PATH}" ]; then
+    TOOLCHAIN_TARGET_LIB_PATH="${TOOLCHAIN_TARGET_PATH}/lib"
+else
+    echo "Unable to find toolchain for target ($build_toolchain):"
+    echo "  ${TOOLCHAIN_TARGET_PATH} not found"
+    echo ""
+    exit 2
+fi
+if [ "$host_toolchain" != "$build_toolchain" ]; then
+    is_crossed="true"
+    extra_cargo_flags="$extra_cargo_flags --target $build_toolchain"
+else
+    is_crossed="false"
+fi
+if [ "$is_darwin" = "true" ]; then
+    build_use_libcxx="true"
+    build_link_args="-headerpad_max_install_names,$build_link_args"
+fi
+if [ "$build_static" = "true" ]; then
+    export LLVM_BUILD_STATIC=1
+else
+    #extra_rustc_flags="-C prefer-dynamic $extra_rustc_flags"
+    build_link_args="-rpath,${TOOLCHAIN_TARGET_LIB_PATH},$build_link_args"
+fi
+if [ "$build_use_libcxx" = "true" ]; then
+    export LLVM_USE_LIBCXX=1
+fi
+
+cd "$ROOT_DIR"
+
+echo "Building Lumen"
+echo "  host:                $host_target"
+echo "  target:              $build_target"
+echo "  toolchain:           $build_toolchain"
+echo "  is cross compile:    $is_crossed"
+echo "  build static:        $build_static"
+echo "  build w/ libc++:     $build_use_libcxx"
+echo "  extra rustc flags:   ${extra_rustc_flags:-"n/a"}"
+echo "  extra cargo flags:   ${extra_cargo_flags:-"n/a"}"
+echo "  extra link args:     ${build_link_args:-"n/a"}"
+echo ""
+
+if [ -n "$build_package" ]; then
+    # shellcheck disable=SC2086
+    if ! cargo rustc ${extra_cargo_flags} -p ${build_package} -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
+        exit 1
+    fi
+    exit 0
+fi
+
+# Build deps
+for lib in "${BUILD_DEPS[@]}"; do
+    # shellcheck disable=SC2086
+    if ! cargo rustc ${extra_cargo_flags} -p ${lib} -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
+        exit 1
+    fi
+done
+
+# Build Lumen and gather artifact metadata
+# shellcheck disable=SC2086
+build_json=""
+if ! build_json="$(cargo rustc --message-format=json ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags})"; then
+    # Build a second time for human output
+    cargo rustc ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}
+    exit 1
+fi
+dep_info=""
+if ! dep_info="$(echo "$build_json" | jq 'select(.reason == "compiler-artifact") | { name: .target.name, files: .filenames | arrays | map(select(endswith(".a"))) | select(. | length > 0) }' )"; then
+    exit 1
+fi
+codegen_outdir=""
+if ! codegen_outdir="$(echo "$build_json" | jq -r 'select(.reason == "build-script-executed") | select(.package_id | contains("liblumen_codegen")) | .out_dir' )"; then
+    exit 1
+fi
+
+# Construct install directory
+echo ""
+echo "Installing Lumen to ${install_prefix}.."
+install_bin_dir="${install_prefix}/bin"
+install_host_lib_dir="${install_prefix}/lib"
+install_target_lib_dir="${install_prefix}/lib/lumenlib/${build_target}/lib"
+mkdir -p "${install_bin_dir}"
+mkdir -p "${install_host_lib_dir}"
+mkdir -p "${install_target_lib_dir}"
+mkdir -p "${install_prefix}"/{etc,share}
+cp "${OUTPUT_DIR}/lumen" "${install_bin_dir}/lumen"
+
+# Copy runtime libraries, build them if not present
+for lib in "${RUNTIME_LIBS[@]}"; do
+    dep_exists="$(echo "$dep_info" | jq -r "select(.name == \"$lib\") | any")"
+    if [ "$dep_exists" != "true" ]; then
+        echo "Unable to find dependency $lib"
+        exit 1
+    fi
+
+    dep_output="$(echo "$dep_info" | jq -r "select(.name == \"$lib\") | .files[]")"
+    if [ ! -f "$dep_output" ]; then
+        echo "Library $dep_output for dep $lib does not exist!"
+        exit 1
+    fi
+    rsync -a --copy-links --whole-file "$dep_output" "${install_target_lib_dir}/lib${lib}.a"
+done
+
+# Copy codegen libraries that are not statically linked
+for file in "$codegen_outdir/lib/"*.dylib; do
+    if [ -f "$file" ]; then
+        rsync -a --copy-links --whole-file "$file" "${install_host_lib_dir}"/
+    fi
+done
+
+# If not on macOS, we're done
+if [ "$is_darwin" = "true" ]; then
+    if ! install_name_tool \
+            -add_rpath '@executable_path/../lib' \
+            "${install_prefix}/bin/lumen"; then
+        echo "Failed to set Lumen @executable_path!"
+        exit 1
+    fi
+fi
+
+echo "Creating symlink.."
+
+cd "${BIN_DIR}"
+ln -sf "${install_prefix}/bin/lumen" lumen
+
+echo "Install complete!"
+
+exit 0

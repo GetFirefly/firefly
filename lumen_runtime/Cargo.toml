@@ -13,10 +13,8 @@ bus = "2.0"
 cfg-if = "0.1.7"
 clap = "2.32.0"
 colored = "1.6"
-anyhow = "1.0.11"
-thiserror = "1.0.1"
-# immutable HashMap to back maps.
-im = "12.3"
+anyhow = "1.0"
+thiserror = "1.0"
 lazy_static = "1.2"
 libc = "0.2"
 liblumen_arena = { path = "../liblumen_arena" }
@@ -31,7 +29,7 @@ radix_fmt = "1.0.0"
 chrono = "0.4"
 
 [dependencies.hashbrown]
-version = "0.5"
+version = "0.7"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]
@@ -44,14 +42,12 @@ branch = "wasm32-time_web_sys"
 features = ["nightly"]
 
 [target.'cfg(unix)'.dependencies]
-internment = "0.3.6"
 proptest = "0.9.3"
 rand = "0.6"
 signal-hook = "0.1"
 xorshift = "0.1"
 
 [target.'cfg(windows)'.dependencies]
-internment = "0.3.6"
 proptest = "0.9.3"
 rand = "0.6"
 xorshift = "0.1"

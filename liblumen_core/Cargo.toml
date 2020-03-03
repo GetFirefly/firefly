@@ -6,9 +6,13 @@ publish = false
 edition = "2018"
 build = "build.rs"
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [dependencies]
 cfg-if = "0.1"
 lazy_static = "1.2"
+liblumen_core_macros = { path = "../liblumen_core_macros" }
 
 # On wasm32-unknown-unknown, use dlmalloc for malloc/free
 [target.'cfg(all(target_arch = "wasm32", target_vendor = "unknown"))'.dependencies.dlmalloc]
@@ -46,5 +50,3 @@ features = ["nightly", "time_web_sys"]
 [target.'cfg(windows)'.dependencies.winapi]
 features = ["memoryapi", "heapapi", "synchapi", "winbase", "sysinfoapi"]
 version = "0.3"
-
-

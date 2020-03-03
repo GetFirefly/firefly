@@ -1,0 +1,22 @@
+[package]
+name = "liblumen_incremental"
+version = "0.1.0"
+authors = ["Lumen Developers"]
+edition = "2018"
+publish = false
+
+[dependencies]
+log = "0.4"
+anyhow = "1.0"
+thiserror = "1.0"
+salsa = "0.14"
+salsa-macros = "0.14"
+walkdir = "2.2"
+
+liblumen_session = { path = "../liblumen_session" }
+liblumen_util = { path = "../liblumen_util" }
+
+libeir_diagnostics = { git = "https://github.com/eirproject/eir" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir" }
+libeir_ir = { git = "https://github.com/eirproject/eir" }
+libeir_passes = { git = "https://github.com/eirproject/eir" }

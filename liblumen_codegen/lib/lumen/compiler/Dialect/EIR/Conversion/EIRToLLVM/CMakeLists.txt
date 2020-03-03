@@ -1,0 +1,19 @@
+lumen_cc_library(
+  NAME
+    EIRToLLVM
+  HDRS
+    "ConvertEIRToLLVM.h"
+  SRCS
+    "ConvertEIRToLLVM.cpp"
+  DEPS
+    lumen::compiler::Dialect::EIR::IR::EIREncodingGen
+    lumen::compiler::Dialect::EIR::IR
+    lumen::compiler::Target
+    MLIRLLVMIR
+    MLIRIR
+    MLIRPass
+    MLIRStandardOps
+    MLIRTransforms
+  ALWAYSLINK
+  PUBLIC
+)

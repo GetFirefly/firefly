@@ -13,7 +13,7 @@ path = "src/bin.rs"
 [dependencies]
 anyhow = "1.0.11"
 clap = "2.33.0"
-cranelift-entity = "0.30.0"
+cranelift-entity = "0.56.0"
 lazy_static = "1.3.0"
 
 # eirproject/eir crates
@@ -28,5 +28,5 @@ liblumen_alloc = { path = "../liblumen_alloc" }
 lumen_runtime = { path = "../lumen_runtime" }
 
 [dependencies.hashbrown]
-version = "0.5"
+version = "0.7"
 features = ["nightly"]

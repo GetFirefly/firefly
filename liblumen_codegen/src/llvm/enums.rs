@@ -1,50 +1,24 @@
-use core::convert::{From, Into};
-use core::fmt;
+use llvm_sys::LLVMLinkage;
 
-use inkwell::targets::FileType;
-
-pub use inkwell::targets::ByteOrdering;
-pub use inkwell::targets::CodeModel;
-pub use inkwell::targets::RelocMode;
-
-pub use inkwell::AddressSpace;
-pub use inkwell::AtomicOrdering;
-pub use inkwell::FloatPredicate;
-pub use inkwell::IntPredicate;
-pub use inkwell::GlobalVisibility;
-pub use inkwell::OptimizationLevel;
-pub use inkwell::ThreadLocalMode;
-
-/// An extension of `inkwell::targets::FileType` which adds the IR type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputType {
-    IR,
-    Assembly,
-    Object,
+pub enum Linkage {
+    Private,
+    Internal,
+    External,
+    Weak,
 }
-impl fmt::Display for OutputType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            OutputType::IR => f.write_str("ll"),
-            OutputType::Assembly => f.write_str("s"),
-            OutputType::Object => f.write_str("o"),
-        }
+impl Default for Linkage {
+    fn default() -> Self {
+        Self::External
     }
 }
-impl From<FileType> for OutputType {
-    fn from(ty: FileType) -> Self {
-        match ty {
-            FileType::Assembly => OutputType::Assembly,
-            FileType::Object => OutputType::Object,
-        }
-    }
-}
-impl Into<FileType> for OutputType {
-    fn into(self) -> FileType {
+impl Into<LLVMLinkage> for Linkage {
+    fn into(self) -> LLVMLinkage {
         match self {
-            OutputType::Assembly => FileType::Assembly,
-            OutputType::Object => FileType::Object,
-            OutputType::IR => panic!("inkwell::targets::FileType does not support the IR type"),
+            Self::Private => LLVMLinkage::LLVMPrivateLinkage,
+            Self::Internal => LLVMLinkage::LLVMInternalLinkage,
+            Self::External => LLVMLinkage::LLVMExternalLinkage,
+            Self::Weak => LLVMLinkage::LLVMWeakAnyLinkage,
         }
     }
 }

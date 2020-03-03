@@ -1,5 +1,5 @@
-mod arch;
-mod atom;
+pub mod arch;
+pub mod atom;
 mod binary;
 mod boxed;
 pub mod closure;

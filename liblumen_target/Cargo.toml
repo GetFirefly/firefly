@@ -1,0 +1,12 @@
+[package]
+authors = ["Lumen Developers"]
+name = "liblumen_target"
+version = "0.1.0"
+edition = "2018"
+publish = false
+
+build = "build.rs"
+
+[dependencies]
+thiserror = "1.0"
+liblumen_term = { path = "../liblumen_term" }

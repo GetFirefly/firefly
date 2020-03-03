@@ -154,8 +154,7 @@ macro_rules! impl_list {
 pub mod arch_32;
 pub mod arch_64;
 pub mod arch_x86_64;
-mod repr;
-mod tag;
+pub mod repr;
 
 use cfg_if::cfg_if;
 
@@ -176,12 +175,13 @@ use core::mem;
 
 use super::prelude::{Cons, TypedTerm};
 
-pub(super) use self::repr::Repr;
-pub(super) use self::tag::Tag;
+pub use self::repr::Repr;
+pub use liblumen_term::Tag;
 
 // Export the platform-specific representation for use by the higher-level Term code
 pub use target::RawTerm;
-pub use target::Word;
+
+pub type Word = <target::Encoding as liblumen_term::Encoding>::Type;
 
 impl RawTerm {
     /// Dynamically casts the underlying term into an instance of the `binary::Binary` trait
@@ -249,10 +249,12 @@ impl RawTerm {
 const_assert_eq!(mem::size_of::<RawTerm>(), mem::size_of::<usize>());
 
 /// The larged atom ID supported on the current platform
-pub const MAX_ATOM_ID: usize = target::MAX_ATOM_ID as usize;
+pub const MAX_ATOM_ID: usize = <target::Encoding as liblumen_term::Encoding>::MAX_ATOM_ID as usize;
 
 /// The smallest signed integer value supported on the current platform
-pub const MIN_SMALLINT_VALUE: isize = target::MIN_SMALLINT_VALUE as isize;
+pub const MIN_SMALLINT_VALUE: isize =
+    <target::Encoding as liblumen_term::Encoding>::MIN_SMALLINT_VALUE as isize;
 
 /// The larged signed integer value supported on the current platform
-pub const MAX_SMALLINT_VALUE: isize = target::MAX_SMALLINT_VALUE as isize;
+pub const MAX_SMALLINT_VALUE: isize =
+    <target::Encoding as liblumen_term::Encoding>::MAX_SMALLINT_VALUE as isize;

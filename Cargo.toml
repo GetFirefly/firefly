@@ -6,14 +6,50 @@ members = [
   "lumen",
   "lumen_runtime",
   "lumen_runtime_macros",
+  "lumen_web",
   "liblumen_arena",
   "liblumen_alloc",
   "liblumen_alloc_macros",
   "liblumen_beam",
+  "liblumen_codegen",
   "liblumen_compiler",
+  "liblumen_compiler_macros",
   "liblumen_core",
+  "liblumen_core_macros",
+  "liblumen_crt",
   "liblumen_eir_interpreter",
+  "liblumen_incremental",
+  "liblumen_llvm",
+  "liblumen_session",
+  "liblumen_target",
+  "liblumen_term",
+  "liblumen_util",
+  "runtimes/core",
+  "runtimes/minimal",
+]
+
+default-members = [
+  "lumen",
+  "lumen_runtime",
+  "lumen_runtime_macros",
   "lumen_web",
+  "liblumen_arena",
+  "liblumen_alloc",
+  "liblumen_alloc_macros",
+  "liblumen_beam",
+  "liblumen_codegen",
+  "liblumen_compiler",
+  "liblumen_compiler_macros",
+  "liblumen_core",
+  "liblumen_core_macros",
+  "liblumen_crt",
+  "liblumen_eir_interpreter",
+  "liblumen_incremental",
+  "liblumen_llvm",
+  "liblumen_session",
+  "liblumen_target",
+  "liblumen_term",
+  "liblumen_util",
 ]
 
 [profile.release]
@@ -21,3 +57,20 @@ members = [
 # `lto`s (true and false) for `examples/spawn-chain/pkg/spawn_chaing_bg.wasm`
 opt-level = 2
 lto = false
+
+[patch."https://github.com/eirproject/eir"]
+libeir_diagnostics = { git = "https://github.com/bitwalker/eir" }
+libeir_syntax_erl = { git = "https://github.com/bitwalker/eir" }
+libeir_ir = { git = "https://github.com/bitwalker/eir" }
+libeir_intern = { git = "https://github.com/bitwalker/eir.git" }
+libeir_lowerutils = { git = "https://github.com/bitwalker/eir.git" }
+libeir_passes = { git = "https://github.com/bitwalker/eir.git" }
+libeir_util_datastructures = { git = "https://github.com/bitwalker/eir.git" }
+#libeir_diagnostics = { path = "../eir/libeir_diagnostics" }
+#libeir_syntax_erl = { path = "../eir/libeir_syntax_erl" }
+#libeir_ir = { path = "../eir/libeir_ir" }
+#libeir_intern = { path = "../eir/libeir_intern" }
+#libeir_lowerutils = { path = "../eir/libeir_lowerutils" }
+#libeir_passes = { path = "../eir/libeir_passes" }
+#libeir_util_datastructures = { path = "../eir/util/libeir_util_datastructures" }
+

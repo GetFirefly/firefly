@@ -17,138 +17,117 @@ use core::fmt;
 
 use alloc::sync::Arc;
 
+use liblumen_term::arch_64_nanboxed as encoding;
+use liblumen_term::{Encoding as TermEncoding, Encoding64Nanboxed, Tag};
+
 use std::backtrace::Backtrace;
 
 use crate::erts::exception::InternalResult;
-
 use crate::erts::term::prelude::*;
 
-use super::{Repr, Tag};
+use super::Repr;
 
-pub type Word = u64;
+const TAG_MASK: u64 = encoding::TAG_MASK;
+const MIN_DOUBLE: u64 = encoding::MIN_DOUBLE;
+const MAX_ADDR: u64 = encoding::MAX_ADDR;
 
-const NUM_BITS: u64 = 64;
-
-const TAG_SHIFT: u64 = 47;
-const TAG_MASK: u64 = 0xFu64 << TAG_SHIFT;
-
-const SUBTAG_SHIFT: u64 = TAG_SHIFT - 2;
-const SUBTAG_MASK: u64 = 0xFCu64 << (TAG_SHIFT - 4);
-
-const HEADER_SHIFT: u64 = 2;
-
-// The highest allowed address in the pointer range
-const MAX_ADDR: u64 = (1 << TAG_SHIFT) - 1;
-// The beginning of the double range
-const MIN_DOUBLE: u64 = !(i64::min_value() >> 12) as u64;
-// The mask for the bits containing an immediate value
-const IMMEDIATE_MASK: u64 = MAX_ADDR;
-
-// The valid range of integer values that can fit in a term with primary tag
-pub const MAX_IMMEDIATE_VALUE: u64 = MAX_ADDR;
-// The valid range of integer values that can fit in a term with primary + secondary tag
-pub const MAX_HEADER_VALUE: u64 = MAX_ADDR >> HEADER_SHIFT;
-
-// The largest atom ID that can be encoded
-pub const MAX_ATOM_ID: u64 = MAX_IMMEDIATE_VALUE;
-
-// The valid range of fixed-width integers
-pub const MIN_SMALLINT_VALUE: i64 = i64::min_value() >> (NUM_BITS - TAG_SHIFT);
-pub const MAX_SMALLINT_VALUE: i64 = i64::max_value() >> (NUM_BITS - TAG_SHIFT);
-
-// Primary classification:
-//
-// Float:    Value >= MIN_DOUBLE
-// Pointer:  Value <= MAX_ADDR
-// None:     Value == 0
-// Literal:  Any pointer value where bit 0 is set to 1
-// UNUSED:   Value <= MIN_DOUBLE, Tag = 0b0000
-// Fixnum:   Value <= MIN_DOUBLE, Tag = 0b0001
-// Nil:      Value == 0 + tag,    Tag = 0b0010
-// List:     Value <= MIN_DOUBLE, Tag = 0b0011
-// Atom:     Value <= MIN_DOUBLE, Tag = 0b0100
-// Pid:      Value <= MIN_DOUBLE, Tag = 0b0101
-// Port:     Value <= MIN_DOUBLE, Tag = 0b0110
-// Tuple:    Value <= MIN_DOUBLE, Tag = 0b0111
-// Big+:     Value <= MIN_DOUBLE, Tag = 0b1000
-// Map:      Value <= MIN_DOUBLE, Tag = 0b1001
-// Ref:      Value <= MIN_DOUBLE, Tag = 0b1010
-// Closure:  Value <= MIN_DOUBLE, Tag = 0b1011
-// Resource: Value <= MIN_DOUBLE, Tag = 0b1100
-// Binary:   Value <= MIN_DOUBLE, Tag = 0b1101
-//   Procbin:    Sub-tag = 0b1101_00
-//   Heapbin:    Sub-tag = 0b1101_01
-//   Subbin:     Sub-tag = 0b1101_10
-//   Match Ctx:  Sub-tag = 0b1101_11
-// External: Value <= MIN_DOUBLE, Tag = 0b1110
-//   Pid:  Sub-tag = 0b1110_00
-//   Port: Sub-tag = 0b1110_01
-//   Ref:  Sub-tag = 0b1110_10
-//
-// A tag of 0b1111 is MIN_DOUBLE, so is not free
-
-// Used to mark pointers to literals
-const FLAG_LITERAL: u64 = 1;
-
-// We don't tag this type, they are implicit
-// const FLAG_FLOAT: u64 = u64::max_value();
-
-// Tags
-const FLAG_BOXED: u64 = 0;
-const FLAG_NONE: u64 = 0;
-const FLAG_SMALL_INTEGER: u64 = 1 << TAG_SHIFT;
-const FLAG_NIL: u64 = 2 << TAG_SHIFT;
-const FLAG_LIST: u64 = 3 << TAG_SHIFT;
-const FLAG_ATOM: u64 = 4 << TAG_SHIFT;
-const FLAG_PID: u64 = 5 << TAG_SHIFT;
-const FLAG_PORT: u64 = 6 << TAG_SHIFT;
-// Non-immediate tags
-const FLAG_TUPLE: u64 = 7 << TAG_SHIFT;
-const FLAG_BIG_INTEGER: u64 = 8 << TAG_SHIFT;
-const FLAG_MAP: u64 = 9 << TAG_SHIFT;
-const FLAG_REFERENCE: u64 = 10 << TAG_SHIFT;
-const FLAG_CLOSURE: u64 = 11 << TAG_SHIFT;
-const FLAG_RESOURCE_REFERENCE: u64 = 12 << TAG_SHIFT;
-
-const FLAG_BINARY: u64 = 13 << TAG_SHIFT;
-const FLAG_PROCBIN: u64 = FLAG_BINARY;
-const FLAG_HEAPBIN: u64 = (1 << SUBTAG_SHIFT) | FLAG_BINARY;
-const FLAG_SUBBINARY: u64 = (2 << SUBTAG_SHIFT) | FLAG_BINARY;
-const FLAG_MATCH_CTX: u64 = (3 << SUBTAG_SHIFT) | FLAG_BINARY;
-
-const FLAG_EXTERNAL: u64 = 14 << TAG_SHIFT;
-const FLAG_EXTERN_PID: u64 = FLAG_EXTERNAL;
-const FLAG_EXTERN_PORT: u64 = (1 << SUBTAG_SHIFT) | FLAG_EXTERNAL;
-const FLAG_EXTERN_REF: u64 = (2 << SUBTAG_SHIFT) | FLAG_EXTERNAL;
-
-const NONE: u64 = 0;
+#[cfg_attr(
+    all(not(target_arch = "x86_64"), target_pointer_width = "64"),
+    allow(unused)
+)]
+pub type Encoding = Encoding64Nanboxed;
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 pub struct RawTerm(u64);
 impl RawTerm {
-    pub const NONE: Self = Self(NONE);
-    pub const NIL: Self = Self(FLAG_NIL);
+    pub const NONE: Self = Self(Encoding::NONE);
+    pub const NIL: Self = Self(Encoding::TAG_NIL);
 
-    pub const HEADER_TUPLE: u64 = FLAG_TUPLE;
-    pub const HEADER_BIG_INTEGER: u64 = FLAG_BIG_INTEGER;
-    pub const HEADER_REFERENCE: u64 = FLAG_REFERENCE;
-    pub const HEADER_CLOSURE: u64 = FLAG_CLOSURE;
-    pub const HEADER_RESOURCE_REFERENCE: u64 = FLAG_RESOURCE_REFERENCE;
-    pub const HEADER_PROCBIN: u64 = FLAG_PROCBIN;
-    pub const HEADER_BINARY_LITERAL: u64 = FLAG_PROCBIN;
-    pub const HEADER_HEAPBIN: u64 = FLAG_HEAPBIN;
-    pub const HEADER_SUBBINARY: u64 = FLAG_SUBBINARY;
-    pub const HEADER_MATCH_CTX: u64 = FLAG_MATCH_CTX;
-    pub const HEADER_EXTERN_PID: u64 = FLAG_EXTERN_PID;
-    pub const HEADER_EXTERN_PORT: u64 = FLAG_EXTERN_PORT;
-    pub const HEADER_EXTERN_REF: u64 = FLAG_EXTERN_REF;
-    pub const HEADER_MAP: u64 = FLAG_MAP;
+    pub const HEADER_TUPLE: u64 = Encoding::TAG_TUPLE;
+    pub const HEADER_BIG_INTEGER: u64 = Encoding::TAG_BIG_INTEGER;
+    pub const HEADER_REFERENCE: u64 = Encoding::TAG_REFERENCE;
+    pub const HEADER_CLOSURE: u64 = Encoding::TAG_CLOSURE;
+    pub const HEADER_RESOURCE_REFERENCE: u64 = Encoding::TAG_RESOURCE_REFERENCE;
+    pub const HEADER_PROCBIN: u64 = Encoding::TAG_PROCBIN;
+    pub const HEADER_BINARY_LITERAL: u64 = Encoding::TAG_PROCBIN;
+    pub const HEADER_HEAPBIN: u64 = Encoding::TAG_HEAPBIN;
+    pub const HEADER_SUBBINARY: u64 = Encoding::TAG_SUBBINARY;
+    pub const HEADER_MATCH_CTX: u64 = Encoding::TAG_MATCH_CTX;
+    pub const HEADER_EXTERN_PID: u64 = Encoding::TAG_EXTERN_PID;
+    pub const HEADER_EXTERN_PORT: u64 = Encoding::TAG_EXTERN_PORT;
+    pub const HEADER_EXTERN_REF: u64 = Encoding::TAG_EXTERN_REF;
+    pub const HEADER_MAP: u64 = Encoding::TAG_MAP;
+
+    #[inline]
+    fn type_of(&self) -> Tag<u64> {
+        Encoding::type_of(self.0)
+    }
+
+    #[inline]
+    fn encode_immediate(value: u64, tag: u64) -> Self {
+        Self(Encoding::encode_immediate(value, tag))
+    }
+
+    #[inline]
+    fn encode_list(value: *const Cons) -> Self {
+        Self(Encoding::encode_list(value))
+    }
+
+    #[inline]
+    fn encode_box<T: ?Sized>(value: *const T) -> Self {
+        Self(Encoding::encode_box(value))
+    }
+
+    #[inline]
+    fn encode_literal<T: ?Sized>(value: *const T) -> Self {
+        Self(Encoding::encode_literal(value))
+    }
+
+    #[cfg_attr(
+        all(not(target_arch = "x86_64"), target_pointer_width = "64"),
+        allow(unused)
+    )]
+    #[inline]
+    pub(crate) fn encode_header(value: u64, tag: u64) -> Self {
+        Self(Encoding::encode_header(value, tag))
+    }
+
+    #[inline]
+    unsafe fn decode_box(self) -> *mut Self {
+        Encoding::decode_box(self.0)
+    }
+
+    #[inline]
+    unsafe fn decode_list(self) -> Boxed<Cons> {
+        let ptr: *mut Cons = Encoding::decode_list(self.0);
+        Boxed::new_unchecked(ptr)
+    }
+
+    #[inline]
+    fn decode_smallint(self) -> SmallInteger {
+        let i = Encoding::decode_smallint(self.0);
+        unsafe { SmallInteger::new_unchecked(i as isize) }
+    }
+
+    #[inline]
+    fn decode_atom(self) -> Atom {
+        unsafe { Atom::from_id(Encoding::decode_immediate(self.0) as usize) }
+    }
+
+    #[inline]
+    fn decode_pid(self) -> Pid {
+        unsafe { Pid::from_raw(Encoding::decode_immediate(self.0) as usize) }
+    }
+
+    #[inline]
+    fn decode_port(self) -> Port {
+        unsafe { Port::from_raw(Encoding::decode_immediate(self.0) as usize) }
+    }
 
     #[inline]
     fn decode_float(self) -> Float {
-        debug_assert!(self.0 >= MIN_DOUBLE);
-        Float::new(f64::from_bits(self.0 - MIN_DOUBLE))
+        Float::new(Encoding::decode_float(self.0))
     }
 }
 impl fmt::Binary for RawTerm {
@@ -157,7 +136,7 @@ impl fmt::Binary for RawTerm {
     }
 }
 impl Repr for RawTerm {
-    type Word = u64;
+    type Encoding = Encoding64Nanboxed;
 
     #[inline]
     fn as_usize(&self) -> usize {
@@ -165,170 +144,8 @@ impl Repr for RawTerm {
     }
 
     #[inline]
-    fn word_to_usize(word: u64) -> usize {
-        word as usize
-    }
-
-    #[inline]
     fn value(&self) -> u64 {
         self.0
-    }
-
-    #[inline]
-    fn type_of(&self) -> Tag<u64> {
-        let term = self.0;
-        if term >= MIN_DOUBLE {
-            return Tag::Float;
-        } else if term == 0 {
-            return Tag::None;
-        } else if term == FLAG_NIL {
-            return Tag::Nil;
-        } else if term <= MAX_ADDR {
-            if term & FLAG_LITERAL == FLAG_LITERAL {
-                return Tag::Literal;
-            } else {
-                return Tag::Box;
-            }
-        } else {
-            // There are 16 available tag combinations, and we use them all for valid values
-            match term & TAG_MASK {
-                // Binary types have a subtag of 2 bits, all 4 combinations are used
-                FLAG_BINARY => match term & SUBTAG_MASK {
-                    FLAG_PROCBIN => Tag::ProcBin,
-                    FLAG_HEAPBIN => Tag::HeapBinary,
-                    FLAG_SUBBINARY => Tag::SubBinary,
-                    FLAG_MATCH_CTX => Tag::MatchContext,
-                    tag => Tag::Unknown(tag),
-                },
-                // External types have a subtag of 2 bits, but only 3 combinations are used
-                FLAG_EXTERNAL => match term & SUBTAG_MASK {
-                    FLAG_EXTERN_PID => Tag::ExternalPid,
-                    FLAG_EXTERN_PORT => Tag::ExternalPort,
-                    FLAG_EXTERN_REF => Tag::ExternalReference,
-                    tag => Tag::Unknown(tag),
-                },
-                FLAG_SMALL_INTEGER => Tag::SmallInteger,
-                FLAG_ATOM => Tag::Atom,
-                FLAG_PID => Tag::Pid,
-                FLAG_PORT => Tag::Port,
-                FLAG_LIST => Tag::List,
-                FLAG_TUPLE => Tag::Tuple,
-                FLAG_CLOSURE => Tag::Closure,
-                FLAG_BIG_INTEGER => Tag::BigInteger,
-                FLAG_REFERENCE => Tag::Reference,
-                FLAG_RESOURCE_REFERENCE => Tag::ResourceReference,
-                FLAG_MAP => Tag::Map,
-                FLAG_NONE if term == NONE => Tag::None,
-                tag => Tag::Unknown(tag),
-            }
-        }
-    }
-
-    #[inline]
-    fn encode_immediate(value: u64, tag: u64) -> Self {
-        debug_assert!(tag <= TAG_MASK, "invalid primary tag: {}", tag);
-        debug_assert!(tag > MAX_ADDR, "invalid primary tag: {}", tag);
-        debug_assert!(value <= MAX_ADDR, "invalid immediate value: {:064b}", value);
-        Self(value | tag)
-    }
-
-    #[inline]
-    fn encode_header(value: u64, tag: u64) -> Self {
-        debug_assert!(tag <= SUBTAG_MASK, "invalid header tag: {}", tag);
-        debug_assert!(tag > MAX_HEADER_VALUE, "invalid header tag: {}", tag);
-        debug_assert!(value <= MAX_HEADER_VALUE, "invalid header value: {}", value);
-        Self(value | tag)
-    }
-
-    #[inline]
-    fn encode_list(ptr: *const Cons) -> Self {
-        let value = ptr as u64;
-        debug_assert!(
-            value <= MAX_ADDR,
-            "cannot encode pointers using more than 48 bits of addressable memory"
-        );
-        Self(value | FLAG_LIST)
-    }
-
-    #[inline]
-    fn encode_box<T>(ptr: *const T) -> Self
-    where
-        T: ?Sized,
-    {
-        let value = ptr as *const () as u64;
-        debug_assert!(
-            value <= MAX_ADDR,
-            "cannot encode pointers using more than 48 bits of addressable memory"
-        );
-        Self(value | FLAG_BOXED)
-    }
-
-    #[inline]
-    fn encode_literal<T>(ptr: *const T) -> Self
-    where
-        T: ?Sized,
-    {
-        let value = ptr as *const () as u64;
-        debug_assert!(
-            value <= MAX_ADDR,
-            "cannot encode pointers using more than 48 bits of addressable memory"
-        );
-        Self(value | FLAG_LITERAL | FLAG_BOXED)
-    }
-
-    #[inline]
-    unsafe fn decode_box(self) -> *mut Self {
-        (self.0 & !(TAG_MASK | FLAG_LITERAL)) as *const RawTerm as *mut RawTerm
-    }
-
-    #[inline]
-    unsafe fn decode_list(self) -> Boxed<Cons> {
-        debug_assert_eq!(self.0 & TAG_MASK, FLAG_LIST);
-        let ptr = (self.0 & !TAG_MASK) as *const Cons as *mut Cons;
-        Boxed::new_unchecked(ptr)
-    }
-
-    #[inline]
-    unsafe fn decode_smallint(self) -> SmallInteger {
-        const SMALL_INTEGER_SIGNED: u64 = 1u64 << (TAG_SHIFT - 1);
-
-        let value = self.0 & !TAG_MASK;
-        let i = if value & SMALL_INTEGER_SIGNED == SMALL_INTEGER_SIGNED {
-            !MAX_ADDR | value
-        } else {
-            MAX_ADDR & value
-        } as i64;
-        SmallInteger::new_unchecked(i as isize)
-    }
-
-    #[inline]
-    unsafe fn decode_immediate(self) -> u64 {
-        self.0 & IMMEDIATE_MASK
-    }
-
-    #[inline]
-    unsafe fn decode_atom(self) -> Atom {
-        Atom::from_id(self.decode_immediate() as usize)
-    }
-
-    #[inline]
-    unsafe fn decode_pid(self) -> Pid {
-        Pid::from_raw(self.decode_immediate() as usize)
-    }
-
-    #[inline]
-    unsafe fn decode_port(self) -> Port {
-        Port::from_raw(self.decode_immediate() as usize)
-    }
-
-    #[inline]
-    unsafe fn decode_header_value(&self) -> u64 {
-        debug_assert!(
-            self.0 < MIN_DOUBLE,
-            "invalid use of immediate float value as header"
-        );
-        debug_assert!(self.0 > MAX_ADDR, "invalid use of boxed value as header");
-        self.0 & MAX_HEADER_VALUE
     }
 }
 
@@ -338,7 +155,7 @@ impl Encode<RawTerm> for u8 {
     fn encode(&self) -> InternalResult<RawTerm> {
         Ok(RawTerm::encode_immediate(
             (*self) as u64,
-            FLAG_SMALL_INTEGER,
+            Encoding::TAG_SMALL_INTEGER,
         ))
     }
 }
@@ -348,7 +165,7 @@ impl Encode<RawTerm> for SmallInteger {
         let i: i64 = (*self).into();
         Ok(RawTerm::encode_immediate(
             (i as u64) & MAX_ADDR,
-            FLAG_SMALL_INTEGER,
+            Encoding::TAG_SMALL_INTEGER,
         ))
     }
 }
@@ -362,25 +179,37 @@ impl Encode<RawTerm> for Float {
 impl Encode<RawTerm> for bool {
     fn encode(&self) -> InternalResult<RawTerm> {
         let atom: Atom = (*self).into();
-        Ok(RawTerm::encode_immediate(atom.id() as u64, FLAG_ATOM))
+        Ok(RawTerm::encode_immediate(
+            atom.id() as u64,
+            Encoding::TAG_ATOM,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Atom {
     fn encode(&self) -> InternalResult<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.id() as u64, FLAG_ATOM))
+        Ok(RawTerm::encode_immediate(
+            self.id() as u64,
+            Encoding::TAG_ATOM,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Pid {
     fn encode(&self) -> InternalResult<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.as_usize() as u64, FLAG_PID))
+        Ok(RawTerm::encode_immediate(
+            self.as_usize() as u64,
+            Encoding::TAG_PID,
+        ))
     }
 }
 
 impl Encode<RawTerm> for Port {
     fn encode(&self) -> InternalResult<RawTerm> {
-        Ok(RawTerm::encode_immediate(self.as_usize() as u64, FLAG_PORT))
+        Ok(RawTerm::encode_immediate(
+            self.as_usize() as u64,
+            Encoding::TAG_PORT,
+        ))
     }
 }
 
@@ -484,7 +313,7 @@ impl Encoded for RawTerm {
         match tag {
             Tag::Nil => Ok(TypedTerm::Nil),
             Tag::List => Ok(TypedTerm::List(unsafe { self.decode_list() })),
-            Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unsafe { self.decode_smallint() })),
+            Tag::SmallInteger => Ok(TypedTerm::SmallInteger(self.decode_smallint())),
             // When compiling for non-x86_64, we use boxed floats, so
             // we accomodate that by boxing the float.
             #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
@@ -493,28 +322,26 @@ impl Encoded for RawTerm {
             Tag::Float => Ok(TypedTerm::Float(unsafe {
                 Boxed::new_unchecked(self as *const _ as *mut Float)
             })),
-            Tag::Atom => Ok(TypedTerm::Atom(unsafe { self.decode_atom() })),
-            Tag::Pid => Ok(TypedTerm::Pid(unsafe { self.decode_pid() })),
-            Tag::Port => Ok(TypedTerm::Port(unsafe { self.decode_port() })),
-            Tag::Box => {
+            Tag::Atom => Ok(TypedTerm::Atom(self.decode_atom())),
+            Tag::Pid => Ok(TypedTerm::Pid(self.decode_pid())),
+            Tag::Port => Ok(TypedTerm::Port(self.decode_port())),
+            Tag::Literal | Tag::Box => {
                 let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { &*ptr };
                 match unboxed.type_of() {
                     Tag::Nil => Ok(TypedTerm::Nil),
                     Tag::List => Ok(TypedTerm::List(unsafe { unboxed.decode_list() })),
-                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unsafe {
-                        unboxed.decode_smallint()
-                    })),
+                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unboxed.decode_smallint())),
                     #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
                     Tag::Float => Ok(TypedTerm::Float(unboxed.decode_float())),
                     #[cfg(not(all(target_pointer_width = "64", target_arch = "x86_64")))]
                     Tag::Float => Ok(TypedTerm::Float(unsafe {
                         Boxed::new_unchecked(ptr as *mut Float)
                     })),
-                    Tag::Atom => Ok(TypedTerm::Atom(unsafe { unboxed.decode_atom() })),
-                    Tag::Pid => Ok(TypedTerm::Pid(unsafe { unboxed.decode_pid() })),
-                    Tag::Port => Ok(TypedTerm::Port(unsafe { unboxed.decode_port() })),
-                    Tag::Box => Err(TermDecodingError::MoveMarker {
+                    Tag::Atom => Ok(TypedTerm::Atom(unboxed.decode_atom())),
+                    Tag::Pid => Ok(TypedTerm::Pid(unboxed.decode_pid())),
+                    Tag::Port => Ok(TypedTerm::Port(unboxed.decode_port())),
+                    Tag::Literal | Tag::Box => Err(TermDecodingError::MoveMarker {
                         backtrace: Arc::new(Backtrace::capture()),
                     }),
                     Tag::Unknown(_) => Err(TermDecodingError::InvalidTag {
@@ -531,168 +358,12 @@ impl Encoded for RawTerm {
     }
 
     #[inline]
-    fn is_none(self) -> bool {
-        self.0 == NONE
-    }
-
-    #[inline]
-    fn is_nil(self) -> bool {
-        self.0 == FLAG_NIL
-    }
-
-    #[inline]
-    fn is_literal(self) -> bool {
-        self.0 <= MAX_ADDR && self.0 & FLAG_LITERAL == FLAG_LITERAL && (self.0 & !FLAG_LITERAL > 0)
-    }
-
-    #[inline]
-    fn is_list(self) -> bool {
-        !self.is_float() && ((self.0 == FLAG_NIL) || (self.0 & TAG_MASK == FLAG_LIST))
-    }
-
-    #[inline]
-    fn is_atom(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_ATOM)
-    }
-
-    #[inline]
-    fn is_smallint(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_SMALL_INTEGER)
-    }
-
-    #[inline]
-    fn is_bigint(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_BIG_INTEGER)
-    }
-
-    #[inline]
-    fn is_integer(&self) -> bool {
-        if self.0 >= MIN_DOUBLE {
-            return false;
-        }
-        if self.0 & TAG_MASK == FLAG_SMALL_INTEGER {
-            return true;
-        }
-        match self.decode() {
-            Ok(TypedTerm::BigInteger(_)) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    fn is_float(self) -> bool {
-        self.0 >= MIN_DOUBLE
-    }
-
-    #[inline]
-    fn is_boxed_float(self) -> bool {
-        self.is_float()
-    }
-
-    #[inline]
     fn is_number(self) -> bool {
-        if self.0 >= MIN_DOUBLE || self.0 & TAG_MASK == FLAG_SMALL_INTEGER {
+        if self.0 >= MIN_DOUBLE || self.0 & TAG_MASK == Encoding::TAG_SMALL_INTEGER {
             return true;
         }
         match self.decode() {
             Ok(TypedTerm::BigInteger(_)) => true,
-            _ => false,
-        }
-    }
-
-    #[inline]
-    fn is_function(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_CLOSURE)
-    }
-
-    #[inline]
-    fn is_tuple(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_TUPLE)
-    }
-
-    #[inline]
-    fn is_map(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_MAP)
-    }
-
-    #[inline]
-    fn is_local_pid(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_PID)
-    }
-
-    #[inline]
-    fn is_remote_pid(self) -> bool {
-        !self.is_float() && (self.0 & SUBTAG_MASK == FLAG_EXTERN_PID)
-    }
-
-    #[inline]
-    fn is_local_port(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_PORT)
-    }
-
-    #[inline]
-    fn is_remote_port(self) -> bool {
-        !self.is_float() && (self.0 & SUBTAG_MASK == FLAG_EXTERN_PORT)
-    }
-
-    #[inline]
-    fn is_local_reference(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_REFERENCE)
-    }
-
-    #[inline]
-    fn is_remote_reference(self) -> bool {
-        !self.is_float() && (self.0 & SUBTAG_MASK == FLAG_EXTERN_REF)
-    }
-
-    #[inline]
-    fn is_resource_reference(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_RESOURCE_REFERENCE)
-    }
-
-    #[inline]
-    fn is_procbin(self) -> bool {
-        !self.is_float() && (self.0 & SUBTAG_MASK == FLAG_PROCBIN)
-    }
-
-    #[inline]
-    fn is_heapbin(self) -> bool {
-        !self.is_float() && (self.0 & SUBTAG_MASK == FLAG_HEAPBIN)
-    }
-
-    #[inline]
-    fn is_subbinary(self) -> bool {
-        !self.is_float() && (self.0 & SUBTAG_MASK == FLAG_SUBBINARY)
-    }
-
-    #[inline]
-    fn is_match_context(self) -> bool {
-        !self.is_float() && (self.0 & SUBTAG_MASK == FLAG_MATCH_CTX)
-    }
-
-    #[inline]
-    fn is_boxed(self) -> bool {
-        // >1 means it is not null or a null literal pointer
-        self.0 <= MAX_ADDR && self.0 > 1
-    }
-
-    #[inline]
-    fn is_header(self) -> bool {
-        // All headers have a tag + optional subtag, and all
-        // header tags begin at FLAG_TUPLE and go up to the highest
-        // tag value.
-        !self.is_float() && (self.0 & SUBTAG_MASK) >= FLAG_TUPLE
-    }
-
-    #[inline]
-    fn is_immediate(self) -> bool {
-        match self.type_of() {
-            Tag::Float => true,
-            Tag::SmallInteger => true,
-            Tag::Atom => true,
-            Tag::Pid => true,
-            Tag::Port => true,
-            Tag::Nil => true,
             _ => false,
         }
     }
@@ -716,7 +387,7 @@ impl fmt::Debug for RawTerm {
                 }
             }
             Tag::SmallInteger => {
-                let value = unsafe { self.decode_smallint() };
+                let value = self.decode_smallint();
                 write!(f, "Term({})", value)
             }
             Tag::Float => {
@@ -724,19 +395,19 @@ impl fmt::Debug for RawTerm {
                 write!(f, "Term({})", value)
             }
             Tag::Atom => {
-                let value = unsafe { self.decode_atom() };
+                let value = self.decode_atom();
                 write!(f, "Term({})", value)
             }
             Tag::Pid => {
-                let value = unsafe { self.decode_pid() };
+                let value = self.decode_pid();
                 write!(f, "Term({})", value)
             }
             Tag::Port => {
-                let value = unsafe { self.decode_port() };
+                let value = self.decode_port();
                 write!(f, "Term({})", value)
             }
             Tag::Box | Tag::Literal => {
-                let is_literal = self.0 & FLAG_LITERAL == FLAG_LITERAL;
+                let is_literal = self.0 & Encoding::TAG_LITERAL == Encoding::TAG_LITERAL;
                 let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { &*ptr };
                 write!(
@@ -807,6 +478,10 @@ mod tests {
     use crate::erts::testing::RegionHeap;
 
     use super::*;
+
+    const MAX_ATOM_ID: u64 = Encoding64Nanboxed::MAX_ATOM_ID;
+    const MIN_SMALLINT_VALUE: i64 = Encoding64Nanboxed::MIN_SMALLINT_VALUE;
+    const MAX_SMALLINT_VALUE: i64 = Encoding64Nanboxed::MAX_SMALLINT_VALUE;
 
     #[test]
     fn none_encoding_x86_64() {

@@ -27,3 +27,11 @@ pub enum Signal {
     USR2,
     CHLD,
 }
+impl Signal {
+    pub fn should_terminate(&self) -> bool {
+        match self {
+            Self::TERM | Self::QUIT | Self::HUP | Self::ABRT => true,
+            _ => false,
+        }
+    }
+}

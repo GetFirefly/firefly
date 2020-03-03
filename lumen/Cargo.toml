@@ -1,15 +1,28 @@
 [package]
 name = "lumen"
 version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+authors = ["Lumen Developers"]
+homepage = "https://github.com/lumen/lumen"
+repository = "https://github.com/lumen/lumen"
+license = "Apache-2.0"
 readme = "README.md"
 publish = false
 edition = "2018"
 
+build = "build.rs"
+
 [dependencies]
-clap = "2.32.0"
+clap = "2.33.0"
 human-panic = "1.0"
-anyhow = "1.0.11"
-thiserror = "1.0.1"
-libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
+log = "0.4"
+env_logger = "0.7"
+anyhow = "1.0"
 liblumen_compiler = { path = "../liblumen_compiler" }
+liblumen_util = { path = "../liblumen_util" }
+liblumen_session = { path = "../liblumen_session" }
+
+[build-dependencies]
+liblumen_llvm = { path = "../liblumen_llvm" }
+liblumen_term = { path = "../liblumen_term" }
+liblumen_crt = { path = "../liblumen_crt" }
+lumen_rt_minimal = { path = "../runtimes/minimal" }

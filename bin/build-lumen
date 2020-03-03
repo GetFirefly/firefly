@@ -11,6 +11,7 @@ RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//')"
 RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
 TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
 TOOLCHAIN_LIB_PATH="$(cd "$TOOLCHAIN_BIN_PATH"/../lib && pwd -P)"
+BUILD_DEPS=(liblumen_llvm liblumen_term lumen_rt_minimal)
 RUNTIME_LIBS=(liblumen_core liblumen_crt liblumen_alloc lumen_rt_core lumen_rt_minimal)
 
 export LLVM_SYS_90_PREFIX
@@ -204,6 +205,14 @@ if [ -n "$build_package" ]; then
     fi
     exit 0
 fi
+
+# Build deps
+for lib in "${BUILD_DEPS[@]}"; do
+    # shellcheck disable=SC2086
+    if ! cargo rustc ${extra_cargo_flags} -p ${lib} -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
+        exit 1
+    fi
+done
 
 # Build Lumen and gather artifact metadata
 # shellcheck disable=SC2086

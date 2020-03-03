@@ -89,19 +89,15 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
         if scheduled {
             continue;
         }
-        // Otherwise,
-        // In some configurations, it makes more sense for us to spin and use
-        // spin_loop_hint here instead; namely when we're supposed to be the primary
-        // software on a system, and threads are pinned to cores, it makes no sense
-        // to yield to the system scheduler. However on a system with contention for
-        // system resources, or where threads aren't pinned to cores, we're better off
-        // explicitly yielding to the scheduler, rather than waiting to be preempted at
-        // a potentially inopportune time.
-        //
-        // In any case, for now, we always explicitly yield until we've got proper support
-        // for configuring the system
-        thread::yield_now()
+
+        break;
     }
 
-    Ok(())
+    match scheduler.shutdown() {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            eprintln!("{}", err);
+            Err(())
+        }
+    }
 }

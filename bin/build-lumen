@@ -7,7 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_DIR")" && pwd)"
 BIN_DIR="${ROOT_DIR}/bin"
 OUTPUT_DIR="${ROOT_DIR}/target/debug"
-RUSTC_PATH="$(rustup which --toolchain nightly rustc)"
+RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//')"
+RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
 TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
 TOOLCHAIN_LIB_PATH="$(cd "$TOOLCHAIN_BIN_PATH"/../lib && pwd -P)"
 RUNTIME_LIBS=(liblumen_core liblumen_crt liblumen_alloc lumen_rt_core lumen_rt_minimal)
@@ -123,7 +124,7 @@ if ! type -p jq >/dev/null; then
     exit 2
 fi
 
-if ! host_toolchain="$(rustup toolchain list | grep 'default' | sed -e 's/nightly-//' -e 's/ (default)//')"; then
+if ! host_toolchain="$(echo "$RUST_TOOLCHAIN" | sed -e 's/nightly-//')"; then
     echo "Unable to determine default host toolchain!"
     exit 2
 fi

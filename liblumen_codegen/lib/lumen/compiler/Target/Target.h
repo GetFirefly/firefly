@@ -47,7 +47,6 @@ llvm::CodeGenOpt::Level toLLVM(OptLevel level);
 unsigned toLLVM(SizeLevel level);
 
 llvm::Reloc::Model toLLVM(RelocMode mode);
-} // namespace lumen
-
+}  // namespace lumen
 
 #endif

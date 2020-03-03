@@ -18,10 +18,10 @@ use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
-use crate::{Scheduler, Scheduled};
 use crate::registry;
 use crate::time::monotonic;
 use crate::time::Milliseconds;
+use crate::{Scheduled, Scheduler};
 
 /*
 pub fn cancel(timer_reference: &Reference) -> Option<Milliseconds> {

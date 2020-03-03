@@ -2,9 +2,9 @@ mod intern;
 mod queries;
 mod query_groups;
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
-use std::collections::HashSet;
 
 use log::debug;
 
@@ -14,11 +14,11 @@ use salsa::Snapshot;
 use libeir_diagnostics::{CodeMap, Diagnostic};
 use libeir_intern::Symbol;
 
+use liblumen_core::symbols::FunctionSymbol;
 use liblumen_incremental::{InternedInput, InternerStorage};
 pub use liblumen_incremental::{ParserDatabase, ParserDatabaseBase};
 use liblumen_incremental::{ParserStorage, QueryResult};
 use liblumen_session::{DiagnosticsHandler, Emit, Options, OutputType};
-use liblumen_core::symbols::FunctionSymbol;
 
 pub(crate) mod prelude {
     pub use super::query_groups::*;
@@ -151,14 +151,15 @@ impl ParserDatabaseBase for CompilerDatabase {
 
 impl CodegenDatabaseBase for CompilerDatabase {
     fn take_atoms(&mut self) -> HashSet<Symbol> {
-        let atoms = Arc::get_mut(&mut self.atoms).unwrap()
-            .get_mut()
-            .unwrap();
+        let atoms = Arc::get_mut(&mut self.atoms).unwrap().get_mut().unwrap();
         let empty = HashSet::default();
         core::mem::replace(atoms, empty)
     }
 
-    fn add_atoms<'a, I>(&self, atoms: I) where I: Iterator<Item = &'a Symbol> {
+    fn add_atoms<'a, I>(&self, atoms: I)
+    where
+        I: Iterator<Item = &'a Symbol>,
+    {
         let mut locked = self.atoms.lock().unwrap();
         for i in atoms {
             locked.insert(*i);
@@ -166,14 +167,15 @@ impl CodegenDatabaseBase for CompilerDatabase {
     }
 
     fn take_symbols(&mut self) -> HashSet<FunctionSymbol> {
-        let symbols = Arc::get_mut(&mut self.symbols).unwrap()
-            .get_mut()
-            .unwrap();
+        let symbols = Arc::get_mut(&mut self.symbols).unwrap().get_mut().unwrap();
         let empty = HashSet::default();
         core::mem::replace(symbols, empty)
     }
 
-    fn add_symbols<'a, I>(&self, symbols: I) where I: Iterator<Item = &'a FunctionSymbol> {
+    fn add_symbols<'a, I>(&self, symbols: I)
+    where
+        I: Iterator<Item = &'a FunctionSymbol>,
+    {
         let mut locked = self.symbols.lock().unwrap();
         for i in symbols {
             locked.insert(*i);

@@ -8,11 +8,13 @@ use proc_macro2::Span;
 
 use quote::quote;
 
-use syn::{parse, parse_macro_input};
-use syn::{Ident, ItemFn, ReturnType, Type, TypeParamBound, TraitBoundModifier, PathSegment, PathArguments};
-use syn::spanned::Spanned;
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::token::Colon2;
+use syn::{parse, parse_macro_input};
+use syn::{
+    Ident, ItemFn, PathArguments, PathSegment, ReturnType, TraitBoundModifier, Type, TypeParamBound,
+};
 
 enum EntryOutput {
     Default,
@@ -83,11 +85,11 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
                         false
                     }
                 }
-            },
+            }
             ReturnType::Type(_, box Type::Never(_)) => {
                 entry_output = EntryOutput::Never;
                 true
-            },
+            }
             _ => false,
         };
 
@@ -106,25 +108,24 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             .into();
     }
 
-    let entry_ident = Ident::new(&format!("__lumen_crt_entry_{}", f.sig.ident), Span::call_site());
+    let entry_ident = Ident::new(
+        &format!("__lumen_crt_entry_{}", f.sig.ident),
+        Span::call_site(),
+    );
     let ident = &f.sig.ident;
 
     let entry = match entry_output {
-        EntryOutput::ImplTermination => {
-            quote!(
-                pub unsafe extern "C" fn #entry_ident() -> i32 {
-                    use ::std::process::Termination;
-                    #ident().report()
-                }
-            )
-        }
-        EntryOutput::Never => {
-            quote!(
-                pub unsafe extern "C" fn #entry_ident() -> i32 {
-                    #ident();
-                }
-            )
-        }
+        EntryOutput::ImplTermination => quote!(
+            pub unsafe extern "C" fn #entry_ident() -> i32 {
+                use ::std::process::Termination;
+                #ident().report()
+            }
+        ),
+        EntryOutput::Never => quote!(
+            pub unsafe extern "C" fn #entry_ident() -> i32 {
+                #ident();
+            }
+        ),
         EntryOutput::Default => {
             let success_code = libc::EXIT_SUCCESS;
             quote!(

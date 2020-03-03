@@ -13,17 +13,19 @@ namespace eir {
 /// This is responsible for registering all of the custom operations,
 /// types, and attributes that are unique to EIR within the MLIR syntax
 class EirDialect : public mlir::Dialect {
-public:
+ public:
   explicit EirDialect(mlir::MLIRContext *ctx);
 
   /// Parse an instance of a type registered to this dialect
   mlir::Type parseType(mlir::DialectAsmParser &parser) const override;
 
   /// Print an instance of a type registered to this dialect
-  void printType(mlir::Type type, mlir::DialectAsmPrinter &printer) const override;
+  void printType(mlir::Type type,
+                 mlir::DialectAsmPrinter &printer) const override;
 
   /// Print an instance of an attribute registered to this dialect
-  void printAttribute(mlir::Attribute attr, mlir::DialectAsmPrinter &printer) const override;
+  void printAttribute(mlir::Attribute attr,
+                      mlir::DialectAsmPrinter &printer) const override;
 
   /// Provide a utility accessor to the dialect namespace.
   ///
@@ -31,7 +33,7 @@ public:
   static StringRef getDialectNamespace() { return "eir"; }
 };
 
-} // namespace eir
-} // namespace lumen
+}  // namespace eir
+}  // namespace lumen
 
-#endif // EIR_DIALECT_H
+#endif  // EIR_DIALECT_H

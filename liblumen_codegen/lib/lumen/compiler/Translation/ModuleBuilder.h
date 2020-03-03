@@ -1,16 +1,14 @@
 #ifndef LUMEN_MODULEBUILDER_H
 #define LUMEN_MODULEBUILDER_H
 
+#include "llvm-c/Core.h"
+#include "llvm-c/Types.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/Support/CBindingWrapping.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
 #include "lumen/compiler/Support/LLVM.h"
 #include "lumen/compiler/Support/MLIR.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
 #include "lumen/compiler/Translation/ModuleBuilderSupport.h"
-
-#include "llvm-c/Types.h"
-#include "llvm-c/Core.h"
-#include "llvm/Support/CBindingWrapping.h"
-#include "llvm/ADT/StringMap.h"
-
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -21,35 +19,35 @@ class Location;
 class Attribute;
 class Type;
 class FuncOp;
-} // namespace mlir
+}  // namespace mlir
 
 namespace llvm {
 class TargetMachine;
-} // namespace llvm
+}  // namespace llvm
 
 namespace lumen {
 namespace eir {
-class FuncOp; 
-} // namespace eir
-} // namespace lumen
+class FuncOp;
+}  // namespace eir
+}  // namespace lumen
 
-using ::mlir::MLIRContext;
+using ::mlir::Attribute;
+using ::mlir::Block;
 using ::mlir::Builder;
 using ::mlir::Location;
-using ::mlir::Attribute;
+using ::mlir::MLIRContext;
+using ::mlir::Region;
 using ::mlir::Type;
 using ::mlir::Value;
 using ::mlir::ValueRange;
-using ::mlir::Block;
-using ::mlir::Region;
 
-using ::llvm::TargetMachine;
+using ::llvm::APFloat;
+using ::llvm::APInt;
 using ::llvm::ArrayRef;
 using ::llvm::SmallVector;
 using ::llvm::SmallVectorImpl;
 using ::llvm::StringRef;
-using ::llvm::APInt;
-using ::llvm::APFloat;
+using ::llvm::TargetMachine;
 
 typedef struct MLIROpaqueBuilder *MLIRBuilderRef;
 typedef struct MLIROpaqueLocation *MLIRLocationRef;
@@ -81,10 +79,15 @@ enum TypeTag {
 #define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
 #include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
 };
-}
+}  // namespace EirTypeTag
 
-struct EirTypeAny { EirTypeTag::TypeTag tag; };
-struct EirTypeTuple { EirTypeTag::TypeTag tag; unsigned arity; };
+struct EirTypeAny {
+  EirTypeTag::TypeTag tag;
+};
+struct EirTypeTuple {
+  EirTypeTag::TypeTag tag;
+  unsigned arity;
+};
 
 union EirType {
   EirTypeAny any;
@@ -97,11 +100,7 @@ struct Arg {
   bool isImplicit;
 };
 
-enum class MapActionType : uint32_t {
-  Unknown = 0,
-  Insert,
-  Update
-};
+enum class MapActionType : uint32_t { Unknown = 0, Insert, Update };
 
 struct MapAction {
   MapActionType action;
@@ -122,7 +121,10 @@ struct KeyValuePair {
   MLIRAttributeRef value;
 };
 
-struct MLIRBinaryPayload { MLIRValueRef size; BinarySpecifier spec; };
+struct MLIRBinaryPayload {
+  MLIRValueRef size;
+  BinarySpecifier spec;
+};
 
 union MLIRMatchPatternPayload {
   unsigned i;
@@ -150,12 +152,12 @@ struct Match {
 };
 
 class ModuleBuilder {
-public:
+ public:
   ModuleBuilder(MLIRContext &context, StringRef name, const TargetMachine *tm);
   ~ModuleBuilder();
 
   void dump();
-    
+
   mlir::ModuleOp finish();
 
   //===----------------------------------------------------------------------===//
@@ -182,44 +184,34 @@ public:
   //===----------------------------------------------------------------------===//
 
   void build_br(Block *dest, ValueRange destArgs = {});
-  void build_if(Value value,
-                Block *yes,
-                Block *no,
-                Block *other,
-                SmallVectorImpl<Value> &yesArgs,
-                SmallVectorImpl<Value> &noArgs,
+  void build_if(Value value, Block *yes, Block *no, Block *other,
+                SmallVectorImpl<Value> &yesArgs, SmallVectorImpl<Value> &noArgs,
                 SmallVectorImpl<Value> &otherArgs);
   void build_unreachable();
   void build_return(Value value);
 
-  void translate_call_to_intrinsic(
-    StringRef target,
-    ArrayRef<Value> args,
-    bool isTail,
-    Block *ok,
-    ArrayRef<Value> okArgs,
-    Block *err,
-    ArrayRef<Value> errArgs);   
+  void translate_call_to_intrinsic(StringRef target, ArrayRef<Value> args,
+                                   bool isTail, Block *ok,
+                                   ArrayRef<Value> okArgs, Block *err,
+                                   ArrayRef<Value> errArgs);
 
-  void build_static_call(
-    StringRef target,
-    ArrayRef<Value> args,
-    bool isTail,
-    Block *ok,
-    ArrayRef<Value> okArgs,
-    Block *err,
-    ArrayRef<Value> errArgs);
+  void build_static_call(StringRef target, ArrayRef<Value> args, bool isTail,
+                         Block *ok, ArrayRef<Value> okArgs, Block *err,
+                         ArrayRef<Value> errArgs);
 
   //===----------------------------------------------------------------------===//
   // Operations
   //===----------------------------------------------------------------------===//
 
   void build_match(Match op);
-  std::unique_ptr<MatchPattern> convertMatchPattern(const MLIRMatchPattern &inPattern);
+  std::unique_ptr<MatchPattern> convertMatchPattern(
+      const MLIRMatchPattern &inPattern);
 
   void build_map_update(MapUpdate op);
-  void build_map_insert_op(Value map, Value key, Value val, Block *ok, Block *err);
-  void build_map_update_op(Value map, Value key, Value val, Block *ok, Block *err);
+  void build_map_insert_op(Value map, Value key, Value val, Block *ok,
+                           Block *err);
+  void build_map_update_op(Value map, Value key, Value val, Block *ok,
+                           Block *err);
 
   Value build_is_type_op(Value value, Type matchType);
   Value build_is_equal(Value lhs, Value rhs, bool isExact);
@@ -235,7 +227,8 @@ public:
   Value build_map(ArrayRef<MapEntry> entries);
 
   Value build_print_op(ArrayRef<Value> args);
-  void build_trace_capture_op(Block *dest, ArrayRef<MLIRValueRef> destArgs = {});
+  void build_trace_capture_op(Block *dest,
+                              ArrayRef<MLIRValueRef> destArgs = {});
 
   //===----------------------------------------------------------------------===//
   // Constants
@@ -259,15 +252,16 @@ public:
   Value build_constant_map(ArrayRef<Attribute> elements);
   Attribute build_seq_attr(ArrayRef<Attribute> elements, Type type);
 
-  template <typename Ty, typename... Args> Ty getType(Args... args) {
+  template <typename Ty, typename... Args>
+  Ty getType(Args... args) {
     return builder.getType<Ty>(args...);
   }
 
   Type getArgType(const Arg *arg);
 
-private:
-  const TargetMachine* targetMachine;
-    
+ private:
+  const TargetMachine *targetMachine;
+
   /// The module we're building, essentially equivalent to the EIR module
   mlir::ModuleOp theModule;
 
@@ -281,7 +275,7 @@ private:
   Location loc(Span span);
 };
 
-} // namespace eir
-} // namespace lumen
+}  // namespace eir
+}  // namespace lumen
 
-#endif // LUMEN_MODULEBUILDER_H
+#endif  // LUMEN_MODULEBUILDER_H

@@ -45,7 +45,7 @@ impl Encoding64 {
     pub const TAG_NONE: u64 = 0; // 0b00000_000
     pub const TAG_TUPLE: u64 = (1 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00001_000
     pub const TAG_BIG_INTEGER: u64 = (2 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00010_000
-    // const FLAG_UNUSED: u64 = (3 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00011_000
+                                                                                 // const FLAG_UNUSED: u64 = (3 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00011_000
     pub const TAG_REFERENCE: u64 = (4 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00100_000
     pub const TAG_CLOSURE: u64 = (5 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00101_000
     pub const TAG_FLOAT: u64 = (6 << HEADER_TAG_SHIFT) | Self::TAG_HEADER; // 0b00110_000
@@ -229,7 +229,9 @@ impl Encoding for Encoding64 {
         }
         // Check for null pointers
         match value & MASK_PRIMARY {
-            Self::TAG_LITERAL | Self::TAG_BOXED | Self::TAG_LIST => value & !MASK_PRIMARY == Self::NONE,
+            Self::TAG_LITERAL | Self::TAG_BOXED | Self::TAG_LIST => {
+                value & !MASK_PRIMARY == Self::NONE
+            }
             _ => false,
         }
     }

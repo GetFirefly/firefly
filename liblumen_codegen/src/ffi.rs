@@ -1,7 +1,7 @@
+pub mod archive;
 pub mod diagnostics;
 pub mod target;
 pub mod util;
-pub mod archive;
 
 pub use self::util::init;
 

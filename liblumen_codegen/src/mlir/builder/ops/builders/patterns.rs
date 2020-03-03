@@ -22,9 +22,7 @@ impl IsTypeBuilder {
             Type::Nil => unsafe { MLIRBuildIsTypeNil(builder_ref, value_ref) },
             Type::Map => unsafe { MLIRBuildIsTypeMap(builder_ref, value_ref) },
             Type::Number => unsafe { MLIRBuildIsTypeNumber(builder_ref, value_ref) },
-            Type::Float => unsafe {
-                MLIRBuildIsTypeFloat(builder_ref, value_ref)
-            },
+            Type::Float => unsafe { MLIRBuildIsTypeFloat(builder_ref, value_ref) },
             Type::Integer => unsafe { MLIRBuildIsTypeInteger(builder_ref, value_ref) },
             Type::Fixnum => unsafe { MLIRBuildIsTypeFixnum(builder_ref, value_ref) },
             Type::BigInt => unsafe { MLIRBuildIsTypeBigInt(builder_ref, value_ref) },
@@ -123,7 +121,12 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
         debug_in!(self.builder, "reads are {:?}", reads);
         let mut branches = Vec::with_capacity(op.branches.len());
         for Pattern { kind, block, args } in op.branches.drain(..) {
-            debug_in!(self.builder, "lowering pattern ({:?}) for block {:?}", kind, block);
+            debug_in!(
+                self.builder,
+                "lowering pattern ({:?}) for block {:?}",
+                kind,
+                block
+            );
             branches.push(self.translate_branch_kind(kind, block, args.as_slice(), reads)?);
         }
 
@@ -182,7 +185,10 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
             }
         };
 
-        debug_in!(self.builder, "pattern is valid, building successor block arguments");
+        debug_in!(
+            self.builder,
+            "pattern is valid, building successor block arguments"
+        );
 
         // Move ownership of block arguments vector to builder
         let arglist = self

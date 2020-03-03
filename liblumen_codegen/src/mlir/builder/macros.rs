@@ -16,10 +16,13 @@ macro_rules! with_encoding {
                 $body
             }
             kind => {
-                panic!("invalid encoding type {:#?} for target pointer width of {}", kind, $width);
+                panic!(
+                    "invalid encoding type {:#?} for target pointer width of {}",
+                    kind, $width
+                );
             }
         }
-    }}
+    }};
 }
 
 macro_rules! unwrap_const_atom {
@@ -29,7 +32,7 @@ macro_rules! unwrap_const_atom {
             ConstKind::Atomic(AtomicTerm::Atom(AtomTerm(symbol))) => *symbol,
             other => panic!("expected atom constant, but got {:#?}", other),
         }
-    }}
+    }};
 }
 
 macro_rules! unwrap_const_int {
@@ -39,7 +42,7 @@ macro_rules! unwrap_const_int {
             ConstKind::Atomic(AtomicTerm::Int(IntTerm(i))) => *i,
             other => panic!("expected integer constant, but got {:#?}", other),
         }
-    }}
+    }};
 }
 
 /// Used with ScopedFunctionBuilder, but placing it here makes it available

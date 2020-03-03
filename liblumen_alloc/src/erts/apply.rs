@@ -1,6 +1,6 @@
-use core::slice;
-use core::mem;
 use core::ffi::c_void;
+use core::mem;
+use core::slice;
 
 use hashbrown::HashMap;
 
@@ -10,8 +10,8 @@ use liblumen_arena::DroplessArena;
 use liblumen_core::symbols::FunctionSymbol;
 use liblumen_core::sys::dynamic_call::{self, DynamicCallee};
 
+use crate::erts::term::prelude::{Atom, Encoded, Term};
 use crate::erts::ModuleFunctionArity;
-use crate::erts::term::prelude::{Atom, Term, Encoded};
 
 /// Dynamically invokes the function mapped to the given symbol.
 ///
@@ -120,13 +120,22 @@ impl SymbolTable {
     unsafe fn from_raw(raw_table: &'static [FunctionSymbol]) -> anyhow::Result<Self> {
         let mut table = Self::new(raw_table.len());
 
-        for FunctionSymbol { module, function, arity, ptr } in raw_table.iter() {
+        for FunctionSymbol {
+            module,
+            function,
+            arity,
+            ptr,
+        } in raw_table.iter()
+        {
             // This is safe because the underlying data is static
             let module = Atom::from_id(*module);
             let function = Atom::from_id(*function);
             let callee = *ptr;
             let size = mem::size_of::<ModuleFunctionArity>();
-            let ptr = table.arena.alloc_raw(size, mem::align_of::<ModuleFunctionArity>()) as *mut ModuleFunctionArity;
+            let ptr = table
+                .arena
+                .alloc_raw(size, mem::align_of::<ModuleFunctionArity>())
+                as *mut ModuleFunctionArity;
             ptr.write(ModuleFunctionArity {
                 module,
                 function,

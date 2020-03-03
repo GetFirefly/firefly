@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 use std::ffi::CString;
 use std::fs::File;
+use std::mem;
 use std::path::Path;
 use std::sync::Arc;
-use std::mem;
 
 use libeir_intern::{Ident, Symbol};
 use libeir_ir::FunctionIdent;
@@ -64,14 +64,19 @@ pub fn compile_symbol_table(
         let module = builder.build_constant_uint(usize_type, symbol.module);
         let fun = builder.build_constant_uint(usize_type, symbol.function);
         let arity = builder.build_constant_uint(i8_type, symbol.arity as usize);
-        let function = builder.build_constant_struct(function_type, &[module, fun, arity, decl_ptr]);
+        let function =
+            builder.build_constant_struct(function_type, &[module, fun, arity, decl_ptr]);
         functions.push(function);
     }
 
     // Generate global array of all idents
     let functions_const_init = builder.build_constant_array(function_type, functions.as_slice());
     let functions_const_ty = unsafe { llvm_sys::core::LLVMTypeOf(functions_const_init) };
-    let functions_const = builder.add_constant(functions_const_ty, "__LUMEN_SYMBOL_TABLE_ENTRIES", Some(functions_const_init));
+    let functions_const = builder.add_constant(
+        functions_const_ty,
+        "__LUMEN_SYMBOL_TABLE_ENTRIES",
+        Some(functions_const_init),
+    );
     builder.set_linkage(functions_const, Linkage::Private);
     builder.set_alignment(functions_const, 8);
 
@@ -104,14 +109,12 @@ pub fn compile_symbol_table(
     let lang_start_alias_name = CString::new("__lumen_lang_start_internal").unwrap();
 
     let i32_type = builder.get_i32_type();
-    let i8ptrptr_type = builder.get_pointer_type(
-        builder.get_pointer_type(i8_type)
-    );
+    let i8ptrptr_type = builder.get_pointer_type(builder.get_pointer_type(i8_type));
     let main_ptr_ty = builder.get_pointer_type(builder.get_function_type(i32_type, &[], false));
     let lang_start_ty = builder.get_function_type(
         usize_type,
         &[main_ptr_ty, usize_type, i8ptrptr_type],
-        /*varidic=*/false,
+        /* varidic= */ false,
     );
     let lang_start_fn_decl = builder.build_function(&lang_start_symbol_name, lang_start_ty);
     builder.set_linkage(lang_start_fn_decl, Linkage::External);

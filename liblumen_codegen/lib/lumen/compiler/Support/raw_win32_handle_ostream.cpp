@@ -50,14 +50,12 @@ raw_win32_handle_ostream::~raw_win32_handle_ostream() {
 static bool write_console_impl(HANDLE handle, StringRef data) {
   SmallVector<wchar_t, 256> wideText;
 
-  if (auto ec = sys::windows::UTF8ToUTF16(data, wideText))
-    return false;
+  if (auto ec = sys::windows::UTF8ToUTF16(data, wideText)) return false;
 
   // On Windows 7 and earlier, WriteConsoleW has a low maximum amount of data
   // that can be written to the console at a time.
   size_t maxWriteSize = wideText.size();
-  if (!RunningWindows8OrGreater())
-    maxWriteSize = 32767;
+  if (!RunningWindows8OrGreater()) maxWriteSize = 32767;
 
   size_t wCharsWritten = 0;
   do {
@@ -70,8 +68,7 @@ static bool write_console_impl(HANDLE handle, StringRef data) {
 
     // The most likely reason to fail is that the handle does not point to a
     // console, fall back to write
-    if (!success)
-      return false;
+    if (!success) return false;
 
     wCharsWritten += actuallyWritten;
   } while (wCharsWritten != wideText.size());
@@ -83,8 +80,7 @@ void raw_win32_handle_ostream::write_impl(const char *ptr, size_t size) {
   pos += size;
 
   if (IsConsole)
-    if (write_console_impl(Handle, StringRef(ptr, size)))
-      return;
+    if (write_console_impl(Handle, StringRef(ptr, size))) return;
 
   DWORD bytesWritten = 0;
   bool pending = true;
@@ -145,18 +141,15 @@ void raw_win32_handle_ostream::pwrite_impl(const char *ptr, size_t size,
 }
 
 size_t raw_win32_handle_ostream::preferred_buffer_size() const {
-  if (IsConsole)
-    return 0;
+  if (IsConsole) return 0;
   return raw_ostream::preferred_buffer_size();
 }
 
 raw_ostream &raw_win32_handle_ostream::changeColor(enum Colors colors,
                                                    bool bold, bool bg) {
-  if (!ColorEnabled)
-    return *this;
+  if (!ColorEnabled) return *this;
 
-  if (sys::Process::ColorNeedsFlush())
-    flush();
+  if (sys::Process::ColorNeedsFlush()) flush();
   const char *colorcode =
       (colors == SAVEDCOLOR)
           ? sys::Process::OutputBold(bg)
@@ -171,11 +164,9 @@ raw_ostream &raw_win32_handle_ostream::changeColor(enum Colors colors,
 }
 
 raw_ostream &raw_win32_handle_ostream::resetColor() {
-  if (!ColorEnabled)
-    return *this;
+  if (!ColorEnabled) return *this;
 
-  if (sys::Process::ColorNeedsFlush())
-    flush();
+  if (sys::Process::ColorNeedsFlush()) flush();
   const char *colorcode = sys::Process::ResetColor();
   if (colorcode) {
     size_t len = strlen(colorcode);
@@ -187,11 +178,9 @@ raw_ostream &raw_win32_handle_ostream::resetColor() {
 }
 
 raw_ostream &raw_win32_handle_ostream::reverseColor() {
-  if (!ColorEnabled)
-    return *this;
+  if (!ColorEnabled) return *this;
 
-  if (sys::Process::ColorNeedsFlush())
-    flush();
+  if (sys::Process::ColorNeedsFlush()) flush();
   const char *colorcode = sys::Process::OutputReverse();
   if (colorcode) {
     size_t len = strlen(colorcode);

@@ -319,7 +319,9 @@ impl Encoding for Encoding64Nanboxed {
 
     #[inline]
     fn is_literal(value: u64) -> bool {
-        value <= MAX_ADDR && value & Self::TAG_LITERAL == Self::TAG_LITERAL && (value & !Self::TAG_LITERAL > 0)
+        value <= MAX_ADDR
+            && value & Self::TAG_LITERAL == Self::TAG_LITERAL
+            && (value & !Self::TAG_LITERAL > 0)
     }
 
     #[inline]

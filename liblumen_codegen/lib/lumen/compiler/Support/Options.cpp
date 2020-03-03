@@ -1,10 +1,9 @@
 #include "lumen/compiler/Support/Options.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
-
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Pass/PassManager.h"
 
 #include "llvm/Support/CommandLine.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Pass/PassManager.h"
 
 using namespace lumen;
 
@@ -15,8 +14,7 @@ void LLVMLumenSetLLVMOptions(int argc, char **argv) {
   // Initializing the command-line options more than once is not allowed.
   // So check if they've already been initialized.
   static bool initialized = false;
-  if (initialized)
-    return;
+  if (initialized) return;
   initialized = true;
 
   mlir::registerPassManagerCLOptions();

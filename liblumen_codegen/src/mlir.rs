@@ -6,9 +6,9 @@ use std::convert::AsRef;
 use std::ffi::CString;
 use std::fmt;
 use std::mem::MaybeUninit;
-use std::ptr;
 use std::os;
 use std::path::Path;
+use std::ptr;
 use std::thread::{self, ThreadId};
 
 use anyhow::anyhow;
@@ -116,8 +116,22 @@ impl Module {
         Self(RefCell::new(ptr))
     }
 
-    pub fn lower(&self, context: &Context, dialect: Dialect, opt: CodeGenOptLevel, target_machine: &llvm::TargetMachine) -> Result<()> {
-        let result = unsafe { MLIRLowerModule(context.as_ref(), self.as_ref(), dialect, opt, target_machine.as_ref()) };
+    pub fn lower(
+        &self,
+        context: &Context,
+        dialect: Dialect,
+        opt: CodeGenOptLevel,
+        target_machine: &llvm::TargetMachine,
+    ) -> Result<()> {
+        let result = unsafe {
+            MLIRLowerModule(
+                context.as_ref(),
+                self.as_ref(),
+                dialect,
+                opt,
+                target_machine.as_ref(),
+            )
+        };
         if !result.is_null() {
             self.0.replace(result);
             return Ok(());
@@ -132,29 +146,28 @@ impl Module {
         size: CodeGenOptSize,
         target_machine: &llvm::TargetMachine,
     ) -> Result<llvm::Module> {
-        let result =
-            if let Some(sn) = source_name {
-                let f = CString::new(sn)?;
-                unsafe {
-                    MLIRLowerToLLVMIR(
-                        self.as_ref(),
-                        f.as_ptr(),
-                        opt,
-                        size,
-                        target_machine.as_ref()
-                    )
-                }
-            } else {
-                unsafe {
-                    MLIRLowerToLLVMIR(
-                        self.as_ref(),
-                        ptr::null(),
-                        opt,
-                        size,
-                        target_machine.as_ref()
-                    )
-                }
-            };
+        let result = if let Some(sn) = source_name {
+            let f = CString::new(sn)?;
+            unsafe {
+                MLIRLowerToLLVMIR(
+                    self.as_ref(),
+                    f.as_ptr(),
+                    opt,
+                    size,
+                    target_machine.as_ref(),
+                )
+            }
+        } else {
+            unsafe {
+                MLIRLowerToLLVMIR(
+                    self.as_ref(),
+                    ptr::null(),
+                    opt,
+                    size,
+                    target_machine.as_ref(),
+                )
+            }
+        };
         if result.is_null() {
             Err(anyhow!("lowering to llvm failed"))
         } else {

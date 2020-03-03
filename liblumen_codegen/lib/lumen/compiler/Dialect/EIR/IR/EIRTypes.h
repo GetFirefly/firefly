@@ -1,36 +1,31 @@
 #ifndef EIR_TYPES_H
 #define EIR_TYPES_H
 
-#include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
+#include <vector>
 
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/raw_ostream.h"
-
+#include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeSupport.h"
 #include "mlir/IR/Types.h"
+#include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 
-#include "mlir/IR/StandardTypes.h"
-#include "mlir/IR/Types.h"
-#include "mlir/IR/Value.h"
-
-#include <vector>
-
-using ::mlir::Type;
-using ::mlir::FunctionType;
-using ::mlir::TypeStorage;
-using ::mlir::MLIRContext;
-using ::mlir::LogicalResult;
-using ::mlir::Location;
-using ::mlir::success;
-using ::mlir::failure;
 using ::llvm::ArrayRef;
 using ::llvm::Optional;
+using ::mlir::failure;
+using ::mlir::FunctionType;
+using ::mlir::Location;
+using ::mlir::LogicalResult;
+using ::mlir::MLIRContext;
+using ::mlir::success;
+using ::mlir::Type;
+using ::mlir::TypeStorage;
 
 /// This enumeration represents all of the types defined by the EIR dialect
 namespace lumen {
@@ -41,7 +36,7 @@ struct OpaqueTermTypeStorage;
 struct TupleTypeStorage;
 struct BoxTypeStorage;
 struct RefTypeStorage;
-} // namespace detail
+}  // namespace detail
 
 namespace TypeKind {
 enum Kind {
@@ -52,10 +47,10 @@ enum Kind {
 #undef FIRST_EIR_TERM_KIND
   Ref = mlir::Type::LAST_EIR_TYPE,
 };
-} // namespace TypeKind
+}  // namespace TypeKind
 
 class OpaqueTermType : public Type {
-public:
+ public:
   using ImplType = detail::OpaqueTermTypeStorage;
   using Type::Type;
 
@@ -100,31 +95,24 @@ public:
   // Returns 0 for false, 1 for true, 2 for unknown
   unsigned isMatch(Type matcher) const {
     auto matcherBase = matcher.dyn_cast_or_null<OpaqueTermType>();
-    if (!matcherBase)
-      return 2;
+    if (!matcherBase) return 2;
 
     auto implKind = getImplKind();
     auto matcherImplKind = matcherBase.getImplKind();
 
     // Unresolvable statically
-    if (!isOpaque(implKind) || !matcherBase.isOpaque(matcherImplKind))
-      return 2;
+    if (!isOpaque(implKind) || !matcherBase.isOpaque(matcherImplKind)) return 2;
 
     // Guaranteed to match
-    if (implKind == matcherImplKind)
-      return 1;
+    if (implKind == matcherImplKind) return 1;
 
     // Generic matches
-    if (matcherImplKind == TypeKind::Atom)
-      return isAtom(implKind) ? 1 : 0;
-    if (matcherImplKind == TypeKind::List)
-      return isList(implKind) ? 1 : 0;
-    if (matcherImplKind == TypeKind::Number)
-      return isNumber(implKind) ? 1 : 0;
+    if (matcherImplKind == TypeKind::Atom) return isAtom(implKind) ? 1 : 0;
+    if (matcherImplKind == TypeKind::List) return isList(implKind) ? 1 : 0;
+    if (matcherImplKind == TypeKind::Number) return isNumber(implKind) ? 1 : 0;
     if (matcherImplKind == TypeKind::Integer)
       return isInteger(implKind) ? 1 : 0;
-    if (matcherImplKind == TypeKind::Float)
-      return isFloat(implKind) ? 1 : 0;
+    if (matcherImplKind == TypeKind::Float) return isFloat(implKind) ? 1 : 0;
 
     return 0;
   }
@@ -139,7 +127,10 @@ public:
 
   static bool classof(Type type) {
     auto kind = type.getKind();
-#define EIR_TERM_KIND(Name, Val) if (kind == (mlir::Type::FIRST_EIR_TYPE + Val)) { return true; }
+#define EIR_TERM_KIND(Name, Val)                    \
+  if (kind == (mlir::Type::FIRST_EIR_TYPE + Val)) { \
+    return true;                                    \
+  }
 #define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
 #include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
@@ -147,30 +138,21 @@ public:
     return true;
   }
 
-private:
-  static bool isOpaque(unsigned implKind) {
-    return implKind == TypeKind::Term;
-  }
+ private:
+  static bool isOpaque(unsigned implKind) { return implKind == TypeKind::Term; }
 
   static bool isImmediate(unsigned implKind) {
-    return implKind == TypeKind::Atom ||
-      implKind == TypeKind::Boolean ||
-      implKind == TypeKind::Fixnum ||
-      implKind == TypeKind::Float ||
-      implKind == TypeKind::Nil ||
-      implKind == TypeKind::Box;
+    return implKind == TypeKind::Atom || implKind == TypeKind::Boolean ||
+           implKind == TypeKind::Fixnum || implKind == TypeKind::Float ||
+           implKind == TypeKind::Nil || implKind == TypeKind::Box;
   }
 
   static bool isBoxable(unsigned implKind) {
-    return implKind == TypeKind::Float ||
-      implKind == TypeKind::BigInt ||
-      implKind == TypeKind::Cons ||
-      implKind == TypeKind::Tuple ||
-      implKind == TypeKind::Map ||
-      implKind == TypeKind::Closure ||
-      implKind == TypeKind::Binary ||
-      implKind == TypeKind::HeapBin ||
-      implKind == TypeKind::ProcBin;
+    return implKind == TypeKind::Float || implKind == TypeKind::BigInt ||
+           implKind == TypeKind::Cons || implKind == TypeKind::Tuple ||
+           implKind == TypeKind::Map || implKind == TypeKind::Closure ||
+           implKind == TypeKind::Binary || implKind == TypeKind::HeapBin ||
+           implKind == TypeKind::ProcBin;
   }
 
   static bool isAtom(unsigned implKind) {
@@ -178,60 +160,47 @@ private:
   }
 
   static bool isNumber(unsigned implKind) {
-    return implKind == TypeKind::Number ||
-      implKind == TypeKind::Integer ||
-      implKind == TypeKind::Fixnum ||
-      implKind == TypeKind::BigInt ||
-      implKind == TypeKind::Float;
+    return implKind == TypeKind::Number || implKind == TypeKind::Integer ||
+           implKind == TypeKind::Fixnum || implKind == TypeKind::BigInt ||
+           implKind == TypeKind::Float;
   }
 
   static bool isInteger(unsigned implKind) {
-    return implKind == TypeKind::Integer ||
-      implKind == TypeKind::Fixnum ||
-      implKind == TypeKind::BigInt;
+    return implKind == TypeKind::Integer || implKind == TypeKind::Fixnum ||
+           implKind == TypeKind::BigInt;
   }
 
-  static bool isFloat(unsigned implKind) {
-    return implKind == TypeKind::Float;
-  }
+  static bool isFloat(unsigned implKind) { return implKind == TypeKind::Float; }
 
   static bool isList(unsigned implKind) {
-    return implKind == TypeKind::List ||
-      implKind == TypeKind::Nil ||
-      implKind == TypeKind::Cons;
+    return implKind == TypeKind::List || implKind == TypeKind::Nil ||
+           implKind == TypeKind::Cons;
   }
 
-  static bool isNil(unsigned implKind) {
-    return implKind == TypeKind::Nil;
-  }
+  static bool isNil(unsigned implKind) { return implKind == TypeKind::Nil; }
 
   static bool isNonEmptyList(unsigned implKind) {
     return implKind == TypeKind::Cons;
   }
 
-  static bool isTuple(unsigned implKind) {
-    return implKind == TypeKind::Tuple;
-  }
+  static bool isTuple(unsigned implKind) { return implKind == TypeKind::Tuple; }
 
   static bool isBinary(unsigned implKind) {
-    return implKind == TypeKind::Binary ||
-      implKind == TypeKind::HeapBin ||
-      implKind == TypeKind::ProcBin;
+    return implKind == TypeKind::Binary || implKind == TypeKind::HeapBin ||
+           implKind == TypeKind::ProcBin;
   }
 
-  static bool isBox(unsigned implKind) {
-    return implKind == TypeKind::Box;
-  }
+  static bool isBox(unsigned implKind) { return implKind == TypeKind::Box; }
 };
 
-#define PrimitiveType(TYPE, KIND)                                              \
-  class TYPE : public mlir::Type::TypeBase<TYPE, OpaqueTermType> {             \
-  public:                                                                      \
-    using Base::Base;                                                          \
-    static TYPE get(mlir::MLIRContext *context) {                              \
-      return Base::get(context, KIND);                                         \
-    }                                                                          \
-    static bool kindof(unsigned kind) { return kind == KIND; }                 \
+#define PrimitiveType(TYPE, KIND)                                  \
+  class TYPE : public mlir::Type::TypeBase<TYPE, OpaqueTermType> { \
+   public:                                                         \
+    using Base::Base;                                              \
+    static TYPE get(mlir::MLIRContext *context) {                  \
+      return Base::get(context, KIND);                             \
+    }                                                              \
+    static bool kindof(unsigned kind) { return kind == KIND; }     \
   }
 
 PrimitiveType(NoneType, TypeKind::None);
@@ -253,38 +222,36 @@ PrimitiveType(HeapBinType, TypeKind::HeapBin);
 PrimitiveType(ProcBinType, TypeKind::ProcBin);
 
 /// A dynamically/statically shaped vector of elements
-class TupleType : public Type::TypeBase<TupleType, OpaqueTermType, detail::TupleTypeStorage> {
-  public:
-    using Base::Base;
+class TupleType : public Type::TypeBase<TupleType, OpaqueTermType,
+                                        detail::TupleTypeStorage> {
+ public:
+  using Base::Base;
 
-    /// Support method to enable LLVM-style type casting.
-    static bool kindof(unsigned kind) {
-      return kind == TypeKind::Tuple;
-    }
+  /// Support method to enable LLVM-style type casting.
+  static bool kindof(unsigned kind) { return kind == TypeKind::Tuple; }
 
-    static TupleType get(MLIRContext *context);
-    static TupleType get(MLIRContext *context, unsigned arity);
-    static TupleType get(MLIRContext *context, unsigned arity, Type elementType);
-    static TupleType get(MLIRContext *context, ArrayRef<Type> elementTypes);
-    static TupleType get(unsigned arity, Type elementType);
-    static TupleType get(ArrayRef<Type> elementTypes);
+  static TupleType get(MLIRContext *context);
+  static TupleType get(MLIRContext *context, unsigned arity);
+  static TupleType get(MLIRContext *context, unsigned arity, Type elementType);
+  static TupleType get(MLIRContext *context, ArrayRef<Type> elementTypes);
+  static TupleType get(unsigned arity, Type elementType);
+  static TupleType get(ArrayRef<Type> elementTypes);
 
-    // Verifies construction invariants and issues errors/warnings.
-    static LogicalResult verifyConstructionInvariants(Optional<Location> loc,
-                                                      MLIRContext *context,
-                                                      unsigned arity,
-                                                      ArrayRef<Type> elementTypes);
+  // Verifies construction invariants and issues errors/warnings.
+  static LogicalResult verifyConstructionInvariants(
+      Optional<Location> loc, MLIRContext *context, unsigned arity,
+      ArrayRef<Type> elementTypes);
 
-    // Returns the size of the shaped type
-    int64_t getArity() const;
-    // Get the size in bytes needed to represent the tuple in memory
-    int64_t getSizeInBytes() const;
-    // Returns true if the dimensions of the tuple are known
-    bool hasStaticShape() const;
-    // Returns true if the dimensions of the tuple are unknown
-    bool hasDynamicShape() const;
-    // Returns the element type for the given element
-    Type getElementType(unsigned index) const;
+  // Returns the size of the shaped type
+  int64_t getArity() const;
+  // Get the size in bytes needed to represent the tuple in memory
+  int64_t getSizeInBytes() const;
+  // Returns true if the dimensions of the tuple are known
+  bool hasStaticShape() const;
+  // Returns true if the dimensions of the tuple are unknown
+  bool hasDynamicShape() const;
+  // Returns the element type for the given element
+  Type getElementType(unsigned index) const;
 };
 
 /// A pointer to a heap-allocated term header
@@ -320,8 +287,7 @@ class BoxType
 };
 
 /// A pointer to a term
-class RefType
-    : public Type::TypeBase<RefType, Type, detail::RefTypeStorage> {
+class RefType : public Type::TypeBase<RefType, Type, detail::RefTypeStorage> {
  public:
   using Base::Base;
 
@@ -339,13 +305,12 @@ class RefType
   static bool kindof(unsigned kind) { return kind == TypeKind::Ref; }
 };
 
-
 template <typename A, typename B>
 bool inbounds(A v, B lb, B ub) {
   return v >= lb && v <= ub;
 }
 
-} // namespace eir
-} // namespace lumen
+}  // namespace eir
+}  // namespace lumen
 
-#endif // EIR_TYPES_H
+#endif  // EIR_TYPES_H

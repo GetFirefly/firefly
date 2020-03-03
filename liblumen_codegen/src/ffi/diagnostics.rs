@@ -1,5 +1,5 @@
-use liblumen_session::DiagnosticsHandler;
 use liblumen_llvm::string::RustString;
+use liblumen_session::DiagnosticsHandler;
 
 use crate::mlir::builder::ffi::foreign_types as mlir;
 

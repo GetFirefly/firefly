@@ -6,7 +6,7 @@
 namespace mlir {
 class MLIRContext;
 class ModuleOp;
-} // namespace mlir
+}  // namespace mlir
 
 using ::mlir::MLIRContext;
 
@@ -25,7 +25,7 @@ inline MLIRContextRef *wrap(const MLIRContext **Tys) {
 }
 
 extern "C" {
-  MLIRContextRef MLIRCreateContext();
+MLIRContextRef MLIRCreateContext();
 }
 
 #endif

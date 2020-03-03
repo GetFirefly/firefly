@@ -1,12 +1,11 @@
 #ifndef LUMEN_COMPILER_DIALECT_EIR_TRANSFORMS_PASSES_H_
 #define LUMEN_COMPILER_DIALECT_EIR_TRANSFORMS_PASSES_H_
 
-#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
+#include <memory>
 
+#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
 #include "mlir/IR/Module.h"
 #include "mlir/Pass/Pass.h"
-
-#include <memory>
 
 namespace llvm {
 class TargetMachine;
@@ -38,8 +37,8 @@ void buildEIRTransformPassPipeline(mlir::OpPassManager &passManager,
 
 // Gathers all module-level global init/deinit functions into single locations
 // such that the runtime can init/deinit everything at once.
-//std::unique_ptr<mlir::OpPassBase<eir::ModuleOp>>
-//createGlobalInitializationPass();
+// std::unique_ptr<mlir::OpPassBase<eir::ModuleOp>>
+// createGlobalInitializationPass();
 
 }  // namespace eir
 }  // namespace lumen

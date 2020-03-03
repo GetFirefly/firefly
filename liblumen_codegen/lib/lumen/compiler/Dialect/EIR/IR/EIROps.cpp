@@ -1,33 +1,32 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
 
+#include <iterator>
+#include <vector>
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/SMLoc.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
-#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/FunctionImplementation.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/Matchers.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/STLExtras.h"
 
-#include "llvm/Support/Casting.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/SMLoc.h"
-
-#include <iterator>
-#include <vector>
-
 using namespace lumen;
 using namespace lumen::eir;
 
-using ::llvm::SmallVector;
 using ::llvm::ArrayRef;
+using ::llvm::SmallVector;
 using ::llvm::StringRef;
 
 namespace lumen {
@@ -38,10 +37,8 @@ namespace eir {
 //===----------------------------------------------------------------------===//
 
 static ParseResult parseFuncOp(OpAsmParser &parser, OperationState &result) {
-  auto buildFuncType = [](Builder &builder,
-                          ArrayRef<Type> argTypes,
-                          ArrayRef<Type> results,
-                          impl::VariadicFlag,
+  auto buildFuncType = [](Builder &builder, ArrayRef<Type> argTypes,
+                          ArrayRef<Type> results, impl::VariadicFlag,
                           std::string &) {
     return builder.getFunctionType(argTypes, results);
   };
@@ -64,8 +61,7 @@ FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
 }
 
 void FuncOp::build(Builder *builder, OperationState &result, StringRef name,
-                   FunctionType type,
-                   ArrayRef<NamedAttribute> attrs,
+                   FunctionType type, ArrayRef<NamedAttribute> attrs,
                    ArrayRef<NamedAttributeList> argAttrs) {
   result.addRegion();
   result.addAttribute(SymbolTable::getSymbolAttrName(),
@@ -99,7 +95,7 @@ LogicalResult FuncOp::verifyType() {
   auto type = getTypeAttr().getValue();
   if (!type.isa<FunctionType>())
     return emitOpError("requires '" + getTypeAttrName() +
-                             "' attribute of function type");
+                       "' attribute of function type");
   return success();
 }
 
@@ -219,7 +215,6 @@ static void print(OpAsmPrinter &p, ReturnOp &op) {
   }
 }
 
-
 //===----------------------------------------------------------------------===//
 // eir.yield
 //===----------------------------------------------------------------------===//
@@ -237,7 +232,8 @@ static void print(OpAsmPrinter &p, YieldOp &op) {
 // ConsOp
 //===----------------------------------------------------------------------===//
 
-void ConsOp::build(Builder *builder, OperationState &result, Value head, Value tail) {
+void ConsOp::build(Builder *builder, OperationState &result, Value head,
+                   Value tail) {
   result.addOperands(head);
   result.addOperands(tail);
   result.addTypes(builder->getType<ConsType>());
@@ -252,7 +248,8 @@ static LogicalResult verify(ConsOp op) {
 // TupleOp
 //===----------------------------------------------------------------------===//
 
-void TupleOp::build(Builder *builder, OperationState &result, ArrayRef<Value> elements) {
+void TupleOp::build(Builder *builder, OperationState &result,
+                    ArrayRef<Value> elements) {
   SmallVector<Type, 1> elementTypes;
   for (auto val : elements) {
     elementTypes.push_back(val.getType());
@@ -271,7 +268,8 @@ static LogicalResult verify(TupleOp op) {
 // ConstructMapOp
 //===----------------------------------------------------------------------===//
 
-void ConstructMapOp::build(Builder *builder, OperationState &result, ArrayRef<eir::MapEntry> entries) {
+void ConstructMapOp::build(Builder *builder, OperationState &result,
+                           ArrayRef<eir::MapEntry> entries) {
   for (auto &entry : entries) {
     result.addOperands(Value::getFromOpaquePointer(entry.key));
     result.addOperands(Value::getFromOpaquePointer(entry.value));
@@ -292,7 +290,6 @@ static LogicalResult verify(BinaryPushOp op) {
   // TODO
   return success();
 }
-
 
 //===----------------------------------------------------------------------===//
 // IfOp
@@ -316,8 +313,7 @@ void IfOp::build(Builder *builder, OperationState &result, Value cond,
   }
 }
 
-static ParseResult parseIfOp(OpAsmParser &parser,
-                             OperationState &result) {
+static ParseResult parseIfOp(OpAsmParser &parser, OperationState &result) {
   // Create the regions
   result.regions.reserve(3);
   Region *ifRegion = result.addRegion();
@@ -332,8 +328,7 @@ static ParseResult parseIfOp(OpAsmParser &parser,
     return failure();
 
   // Parse the 'if' region.
-  if (parser.parseRegion(*ifRegion, {}, {}))
-    return failure();
+  if (parser.parseRegion(*ifRegion, {}, {})) return failure();
 
   // Parse the 'else' region.
   if (parser.parseKeyword("else") || parser.parseRegion(*elseRegion, {}, {}))
@@ -341,13 +336,11 @@ static ParseResult parseIfOp(OpAsmParser &parser,
 
   // If we find an 'otherwise' keyword then parse the 'otherwise' region.
   if (!parser.parseOptionalKeyword("otherwise")) {
-    if (parser.parseRegion(*otherwiseRegion, {}, {}))
-      return failure();
+    if (parser.parseRegion(*otherwiseRegion, {}, {})) return failure();
   }
 
   // Parse the optional attribute list.
-  if (parser.parseOptionalAttrDict(result.attributes))
-    return failure();
+  if (parser.parseOptionalAttrDict(result.attributes)) return failure();
 
   return success();
 }
@@ -377,8 +370,7 @@ static void print(OpAsmPrinter &p, IfOp op) {
 static LogicalResult verify(IfOp op) {
   // Verify that the entry of each child region does not have arguments.
   for (auto &region : op.getOperation()->getRegions()) {
-    if (region.empty())
-      continue;
+    if (region.empty()) continue;
 
     // Non-empty regions must contain a single basic block.
     if (std::next(region.begin()) != region.end())
@@ -387,8 +379,7 @@ static LogicalResult verify(IfOp op) {
 
     for (auto &b : region) {
       // Verify that the block is not empty
-      if (b.empty())
-        return op.emitOpError("expects a non-empty block");
+      if (b.empty()) return op.emitOpError("expects a non-empty block");
 
       // Verify that the block takes no arguments
       if (b.getNumArguments() != 0)
@@ -409,28 +400,29 @@ static LogicalResult verify(IfOp op) {
         continue;
 
       return op
-          .emitOpError("expects regions to end with 'return', 'br', 'cond_br', "
-                       "'eir.unreachable' or 'eir.call', found '" +
-                       terminator.getName().getStringRef() + "'")
+          .emitOpError(
+              "expects regions to end with 'return', 'br', 'cond_br', "
+              "'eir.unreachable' or 'eir.call', found '" +
+              terminator.getName().getStringRef() + "'")
           .attachNote();
     }
   }
 
   return success();
 }
-  
+
 //===----------------------------------------------------------------------===//
 // IsTypeOp
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(IsTypeOp op) {
   auto typeAttr = op.getAttrOfType<TypeAttr>("type");
-  if (!typeAttr)
-    return op.emitOpError("requires type attribute named 'type'");
+  if (!typeAttr) return op.emitOpError("requires type attribute named 'type'");
 
   auto resultType = op.getResultType();
   if (!resultType.isa<BooleanType>() && !resultType.isInteger(1)) {
-    return op.emitOpError("requires result type to be of type i1 or !eir.boolean");
+    return op.emitOpError(
+        "requires result type to be of type i1 or !eir.boolean");
   }
 
   return success();
@@ -442,28 +434,19 @@ static LogicalResult verify(IsTypeOp op) {
 
 static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
   // Casting an immediate to an opaque term is always allowed
-  if (destType.isOpaque())
-    return srcType.isImmediate();
+  if (destType.isOpaque()) return srcType.isImmediate();
   // Casting an opaque term to any term type is always allowed
-  if (srcType.isOpaque())
-    return true;
+  if (srcType.isOpaque()) return true;
   // A cast must be to an immediate-sized type
-  if (!destType.isImmediate())
-    return false;
+  if (!destType.isImmediate()) return false;
   // Only header types can be boxed
-  if (destType.isBox() && !srcType.isBoxable())
-    return false;
+  if (destType.isBox() && !srcType.isBoxable()) return false;
   // Only support casts between compatible types
-  if (srcType.isNumber() && !destType.isNumber())
-    return false;
-  if (srcType.isInteger() && !destType.isInteger())
-    return false;
-  if (srcType.isFloat() && !destType.isFloat())
-    return false;
-  if (srcType.isList() && !destType.isList())
-    return false;
-  if (srcType.isBinary() && !destType.isBinary())
-    return false;
+  if (srcType.isNumber() && !destType.isNumber()) return false;
+  if (srcType.isInteger() && !destType.isInteger()) return false;
+  if (srcType.isFloat() && !destType.isFloat()) return false;
+  if (srcType.isList() && !destType.isList()) return false;
+  if (srcType.isBinary() && !destType.isBinary()) return false;
   // All other casts are supported
   return true;
 }
@@ -475,23 +458,25 @@ static LogicalResult verify(CastOp op) {
     if (auto resTermType = resType.dyn_cast_or_null<OpaqueTermType>()) {
       if (!areCastCompatible(opTermType, resTermType)) {
         return op.emitError("operand type ")
-          << opType << " and result type "
-          << resType << " are not cast compatible";
+               << opType << " and result type " << resType
+               << " are not cast compatible";
       }
       return success();
     }
-    return op.emitError("invalid cast type for CastOp, expected term type, got ") << resType;
+    return op.emitError(
+               "invalid cast type for CastOp, expected term type, got ")
+           << resType;
   }
-  return op.emitError("invalid operand type for CastOp, expected term type, got ") << opType;
+  return op.emitError(
+             "invalid operand type for CastOp, expected term type, got ")
+         << opType;
 }
-
 
 //===----------------------------------------------------------------------===//
 // MatchOp
 //===----------------------------------------------------------------------===//
 
-void lowerPatternMatch(OpBuilder &builder,
-                       Value selector,
+void lowerPatternMatch(OpBuilder &builder, Value selector,
                        ArrayRef<MatchBranch> branches) {
   assert(branches.size() > 0 && "expected at least one branch in a match");
 
@@ -530,7 +515,8 @@ void lowerPatternMatch(OpBuilder &builder,
   // Unconditionally branch to the first pattern
   builder.create<BranchOp>(loc, blocks[0]);
 
-  // Save the current insertion point, which we'll restore when lowering is complete
+  // Save the current insertion point, which we'll restore when lowering is
+  // complete
   auto finalIp = builder.saveInsertionPoint();
 
   // For each branch, populate its block with the predicate and
@@ -559,7 +545,7 @@ void lowerPatternMatch(OpBuilder &builder,
 
     auto dest = b.getDest();
     auto baseDestArgs = b.getDestArgs();
-    
+
     switch (b.getPatternType()) {
       case MatchPatternType::Any: {
         // This unconditionally branches to its destination
@@ -568,17 +554,21 @@ void lowerPatternMatch(OpBuilder &builder,
       }
 
       case MatchPatternType::Cons: {
-        assert(nextPatternBlock != nullptr && "last match block must end in unconditional branch");
+        assert(nextPatternBlock != nullptr &&
+               "last match block must end in unconditional branch");
         auto cip = builder.saveInsertionPoint();
-        // 1. Split block, and conditionally branch to split if is_cons, otherwise the next pattern
-        Block *split = builder.createBlock(region, Region::iterator(nextPatternBlock));
+        // 1. Split block, and conditionally branch to split if is_cons,
+        // otherwise the next pattern
+        Block *split =
+            builder.createBlock(region, Region::iterator(nextPatternBlock));
         builder.restoreInsertionPoint(cip);
         auto consType = builder.getType<ConsType>();
         auto boxedConsType = builder.getType<BoxType>(consType);
         auto isConsOp = builder.create<IsTypeOp>(loc, selector, boxedConsType);
         auto isConsCond = isConsOp.getResult();
         ArrayRef<Value> emptyArgs{};
-        auto ifOp = builder.create<CondBranchOp>(loc, isConsCond, split, emptyArgs, nextPatternBlock, emptyArgs);
+        auto ifOp = builder.create<CondBranchOp>(
+            loc, isConsCond, split, emptyArgs, nextPatternBlock, emptyArgs);
         // 2. In the split, extract head and tail values of the cons cell
         builder.setInsertionPointToEnd(split);
         auto termType = builder.getType<TermType>();
@@ -590,7 +580,8 @@ void lowerPatternMatch(OpBuilder &builder,
         auto tailPointer = getTailOp.getResult();
         auto headLoadOp = builder.create<LoadOp>(loc, headPointer);
         auto tailLoadOp = builder.create<LoadOp>(loc, tailPointer);
-        // 3. Unconditionally branch to the destination, with head/tail as additional destArgs
+        // 3. Unconditionally branch to the destination, with head/tail as
+        // additional destArgs
         SmallVector<Value, 2> destArgs;
         destArgs.push_back(headLoadOp.getResult());
         destArgs.push_back(tailLoadOp.getResult());
@@ -599,10 +590,13 @@ void lowerPatternMatch(OpBuilder &builder,
       }
 
       case MatchPatternType::Tuple: {
-        assert(nextPatternBlock != nullptr && "last match block must end in unconditional branch");
-        // 1. Split block, and conditionally branch to split if is_tuple w/arity N, otherwise the next pattern
+        assert(nextPatternBlock != nullptr &&
+               "last match block must end in unconditional branch");
+        // 1. Split block, and conditionally branch to split if is_tuple w/arity
+        // N, otherwise the next pattern
         auto cip = builder.saveInsertionPoint();
-        Block *split = builder.createBlock(region, Region::iterator(nextPatternBlock));
+        Block *split =
+            builder.createBlock(region, Region::iterator(nextPatternBlock));
         builder.restoreInsertionPoint(cip);
         auto *pattern = b.getPatternTypeOrNull<TuplePattern>();
         auto arity = pattern->getArity();
@@ -610,32 +604,39 @@ void lowerPatternMatch(OpBuilder &builder,
         auto isTupleOp = builder.create<IsTypeOp>(loc, selector, tupleType);
         auto isTupleCond = isTupleOp.getResult();
         ArrayRef<Value> emptyArgs{};
-        auto ifOp = builder.create<CondBranchOp>(loc, isTupleCond, split, emptyArgs, nextPatternBlock, emptyArgs);
+        auto ifOp = builder.create<CondBranchOp>(
+            loc, isTupleCond, split, emptyArgs, nextPatternBlock, emptyArgs);
         // 2. In the split, extract the tuple elements as values
         builder.setInsertionPointToEnd(split);
         auto termType = builder.getType<TermType>();
         auto boxedTupleType = builder.getType<BoxType>(tupleType);
         auto castOp = builder.create<CastOp>(loc, selector, boxedTupleType);
         auto boxedTuple = castOp.getResult();
-        SmallVector<Value, 3> destArgs(baseDestArgs.begin(), baseDestArgs.end());
+        SmallVector<Value, 3> destArgs(baseDestArgs.begin(),
+                                       baseDestArgs.end());
         destArgs.reserve(arity);
         for (int64_t i = 0; i < arity; i++) {
           auto index = builder.create<ConstantIntOp>(loc, i);
-          auto getElementOp = builder.create<GetElementPtrOp>(loc, boxedTuple, i);
+          auto getElementOp =
+              builder.create<GetElementPtrOp>(loc, boxedTuple, i);
           auto elementPtr = getElementOp.getResult();
           auto elementLoadOp = builder.create<LoadOp>(loc, elementPtr);
           destArgs.push_back(elementLoadOp.getResult());
         }
-        // 3. Unconditionally branch to the destination, with the tuple elements as additional destArgs
+        // 3. Unconditionally branch to the destination, with the tuple elements
+        // as additional destArgs
         builder.create<BranchOp>(loc, dest, destArgs);
         break;
       }
-        
+
       case MatchPatternType::MapItem: {
-        assert(nextPatternBlock != nullptr && "last match block must end in unconditional branch");
-        // 1. Split block twice, and conditionally branch to the first split if is_map, otherwise the next pattern
+        assert(nextPatternBlock != nullptr &&
+               "last match block must end in unconditional branch");
+        // 1. Split block twice, and conditionally branch to the first split if
+        // is_map, otherwise the next pattern
         auto cip = builder.saveInsertionPoint();
-        Block *split2 = builder.createBlock(region, Region::iterator(nextPatternBlock));
+        Block *split2 =
+            builder.createBlock(region, Region::iterator(nextPatternBlock));
         Block *split = builder.createBlock(region, Region::iterator(split2));
         builder.restoreInsertionPoint(cip);
         auto *pattern = b.getPatternTypeOrNull<MapPattern>();
@@ -644,63 +645,83 @@ void lowerPatternMatch(OpBuilder &builder,
         auto isMapOp = builder.create<IsTypeOp>(loc, selector, mapType);
         auto isMapCond = isMapOp.getResult();
         ArrayRef<Value> emptyArgs{};
-        auto ifOp = builder.create<CondBranchOp>(loc, isMapCond, split, emptyArgs, nextPatternBlock, emptyArgs);
-        // 2. In the split, call runtime function `is_map_key` to confirm existence of the key in the map,
-        //    then conditionally branch to the second split if successful, otherwise the next pattern
+        auto ifOp = builder.create<CondBranchOp>(
+            loc, isMapCond, split, emptyArgs, nextPatternBlock, emptyArgs);
+        // 2. In the split, call runtime function `is_map_key` to confirm
+        // existence of the key in the map,
+        //    then conditionally branch to the second split if successful,
+        //    otherwise the next pattern
         builder.setInsertionPointToEnd(split);
         auto termType = builder.getType<TermType>();
         ArrayRef<Type> getKeyResultTypes = {termType};
         ArrayRef<Value> getKeyArgs = {key, selector};
-        auto hasKeyOp = builder.create<CallOp>(loc, "erlang::is_map_key/2", getKeyResultTypes, getKeyArgs);
+        auto hasKeyOp = builder.create<CallOp>(loc, "erlang::is_map_key/2",
+                                               getKeyResultTypes, getKeyArgs);
         auto hasKeyCondTerm = hasKeyOp.getResult(0);
-        auto toBoolOp = builder.create<CastOp>(loc, hasKeyCondTerm, builder.getType<BooleanType>());
+        auto toBoolOp = builder.create<CastOp>(loc, hasKeyCondTerm,
+                                               builder.getType<BooleanType>());
         auto hasKeyCond = toBoolOp.getResult();
-        builder.create<CondBranchOp>(loc, hasKeyCond, split2, emptyArgs, nextPatternBlock, emptyArgs);
-        // 3. In the second split, call runtime function `map_get` to obtain the value for the key
+        builder.create<CondBranchOp>(loc, hasKeyCond, split2, emptyArgs,
+                                     nextPatternBlock, emptyArgs);
+        // 3. In the second split, call runtime function `map_get` to obtain the
+        // value for the key
         builder.setInsertionPointToEnd(split2);
         ArrayRef<Type> mapGetResultTypes = {termType};
         ArrayRef<Value> mapGetArgs = {key, selector};
-        auto mapGetOp = builder.create<CallOp>(loc, "erlang::map_get/2", mapGetResultTypes, mapGetArgs);
+        auto mapGetOp = builder.create<CallOp>(loc, "erlang::map_get/2",
+                                               mapGetResultTypes, mapGetArgs);
         auto valueTerm = mapGetOp.getResult(0);
-        // 4. Unconditionally branch to the destination, with the key's value as an additional destArg
-        SmallVector<Value, 2> destArgs(baseDestArgs.begin(), baseDestArgs.end());
+        // 4. Unconditionally branch to the destination, with the key's value as
+        // an additional destArg
+        SmallVector<Value, 2> destArgs(baseDestArgs.begin(),
+                                       baseDestArgs.end());
         destArgs.push_back(valueTerm);
         builder.create<BranchOp>(loc, dest, destArgs);
         break;
       }
 
       case MatchPatternType::IsType: {
-        assert(nextPatternBlock != nullptr && "last match block must end in unconditional branch");
-        // 1. Conditionally branch to destination if is_<type>, otherwise the next pattern
+        assert(nextPatternBlock != nullptr &&
+               "last match block must end in unconditional branch");
+        // 1. Conditionally branch to destination if is_<type>, otherwise the
+        // next pattern
         auto *pattern = b.getPatternTypeOrNull<IsTypePattern>();
         auto expectedType = pattern->getExpectedType();
         auto isTypeOp = builder.create<IsTypeOp>(loc, selector, expectedType);
         auto isTypeCond = isTypeOp.getResult();
         ArrayRef<Value> emptyArgs{};
-        builder.create<CondBranchOp>(loc, isTypeCond, dest, baseDestArgs, nextPatternBlock, emptyArgs);
+        builder.create<CondBranchOp>(loc, isTypeCond, dest, baseDestArgs,
+                                     nextPatternBlock, emptyArgs);
         break;
       }
 
       case MatchPatternType::Value: {
-        assert(nextPatternBlock != nullptr && "last match block must end in unconditional branch");
+        assert(nextPatternBlock != nullptr &&
+               "last match block must end in unconditional branch");
         // 1. Conditionally branch to dest if the value matches the selector,
         //    passing the value as an additional destArg
         auto *pattern = b.getPatternTypeOrNull<ValuePattern>();
         auto expected = pattern->getValue();
-        auto isEq = builder.create<CmpEqOp>(loc, selector, expected, /*strict=*/true);
+        auto isEq =
+            builder.create<CmpEqOp>(loc, selector, expected, /*strict=*/true);
         auto isEqCond = isEq.getResult();
         ArrayRef<Value> emptyArgs{};
-        builder.create<CondBranchOp>(loc, isEqCond, dest, baseDestArgs, nextPatternBlock, emptyArgs);
+        builder.create<CondBranchOp>(loc, isEqCond, dest, baseDestArgs,
+                                     nextPatternBlock, emptyArgs);
         break;
       }
 
       case MatchPatternType::Binary: {
-        // 1. Split block, and conditionally branch to split if is_bitstring (or is_binary), otherwise the next pattern
-        // 2. In the split, conditionally branch to destination if construction of the head value succeeds,
+        // 1. Split block, and conditionally branch to split if is_bitstring (or
+        // is_binary), otherwise the next pattern
+        // 2. In the split, conditionally branch to destination if construction
+        // of the head value succeeds,
         //    otherwise the next pattern
-        // NOTE: The exact semantics depend on the binary specification type, and what is optimal in terms of checks.
-        // The success of the overall branch results in two additional destArgs being passed to the destination block,
-        // the decoded entry (head), and the rest of the binary (tail)
+        // NOTE: The exact semantics depend on the binary specification type,
+        // and what is optimal in terms of checks. The success of the overall
+        // branch results in two additional destArgs being passed to the
+        // destination block, the decoded entry (head), and the rest of the
+        // binary (tail)
         assert(false && "binary match patterns are not implemented yet");
         auto *pattern = b.getPatternTypeOrNull<BinaryPattern>();
         break;
@@ -717,10 +738,8 @@ void lowerPatternMatch(OpBuilder &builder,
 // TraceCaptureOp
 //===----------------------------------------------------------------------===//
 
-ParseResult parseTraceCaptureOp(OpAsmParser &parser,
-                                OperationState &result) {
-  if (parser.parseOptionalAttrDict(result.attributes))
-    return failure();
+ParseResult parseTraceCaptureOp(OpAsmParser &parser, OperationState &result) {
+  if (parser.parseOptionalAttrDict(result.attributes)) return failure();
   return success();
 }
 
@@ -738,10 +757,8 @@ static LogicalResult verify(TraceCaptureOp) {
 // TraceConstructOp
 //===----------------------------------------------------------------------===//
 
-ParseResult parseTraceConstructOp(OpAsmParser &parser,
-                                  OperationState &result) {
-  if (parser.parseOptionalAttrDict(result.attributes))
-    return failure();
+ParseResult parseTraceConstructOp(OpAsmParser &parser, OperationState &result) {
+  if (parser.parseOptionalAttrDict(result.attributes)) return failure();
 
   auto &builder = parser.getBuilder();
   std::vector<Type> resultType = {TermType::get(builder.getContext())};
@@ -781,11 +798,9 @@ static void printConstantOp(OpAsmPrinter &p, ConstantOp &op) {
   p << op.getOperationName() << ' ';
   p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"value"});
 
-  if (op.getAttrs().size() > 1)
-    p << ' ';
+  if (op.getAttrs().size() > 1) p << ' ';
   p << op.getValue();
 }
-
 
 template <typename ConstantOp>
 static LogicalResult verifyConstantOp(ConstantOp &) {
@@ -812,10 +827,8 @@ static ParseResult parseMallocOp(OpAsmParser &parser, OperationState &result) {
   llvm::SMLoc loc = parser.getCurrentLocation();
   SmallVector<OpAsmParser::OperandType, 1> opInfo;
   SmallVector<Type, 1> types;
-  if (parser.parseOperandList(opInfo))
-    return failure();
-  if (!opInfo.empty() && parser.parseColonTypeList(types))
-    return failure();
+  if (parser.parseOperandList(opInfo)) return failure();
+  if (!opInfo.empty() && parser.parseColonTypeList(types)) return failure();
 
   // Parse the optional dimension operand, followed by a box type.
   if (parser.resolveOperands(opInfo, types, loc, result.operands) ||
@@ -829,8 +842,7 @@ static ParseResult parseMallocOp(OpAsmParser &parser, OperationState &result) {
 
 static LogicalResult verify(MallocOp op) {
   auto type = op.getResult().getType().dyn_cast<BoxType>();
-  if (!type)
-    return op.emitOpError("result must be a box type");
+  if (!type) return op.emitOpError("result must be a box type");
 
   OpaqueTermType boxedType = type.getBoxedType();
   if (!boxedType.isBoxable())
@@ -842,18 +854,24 @@ static LogicalResult verify(MallocOp op) {
     if (boxedType.isTuple()) {
       auto tuple = boxedType.cast<TupleType>();
       if (tuple.hasDynamicShape())
-        return op.emitOpError("boxed type has dynamic extent, but no dimension operands were given");
+        return op.emitOpError(
+            "boxed type has dynamic extent, but no dimension operands were "
+            "given");
     }
   } else {
     // There should be exactly as many dynamic dimensions as there are operands,
     // and those operands should be of integer type
     if (!boxedType.isTuple())
-      return op.emitOpError("only tuples are allowed to have dynamic dimensions");
+      return op.emitOpError(
+          "only tuples are allowed to have dynamic dimensions");
     auto tuple = boxedType.cast<TupleType>();
     if (tuple.hasStaticShape())
-      return op.emitOpError("boxed type has static extent, but dimension operands were given");
+      return op.emitOpError(
+          "boxed type has static extent, but dimension operands were given");
     if (tuple.getArity() != operands.size())
-      return op.emitOpError("number of dimension operands does not match the number of dynamic dimensions");
+      return op.emitOpError(
+          "number of dimension operands does not match the number of dynamic "
+          "dimensions");
   }
 
   return success();
@@ -873,8 +891,7 @@ struct SimplifyMallocConst : public OpRewritePattern<MallocOp> {
                                      PatternRewriter &rewriter) const override {
     auto boxType = alloc.getType();
     auto boxedType = boxType.getBoxedType();
-    if (!boxedType.isTuple())
-      return matchFailure();
+    if (!boxedType.isTuple()) return matchFailure();
 
     auto tuple = boxedType.cast<TupleType>();
     auto numOperands = alloc.getNumOperands();
@@ -902,7 +919,8 @@ struct SimplifyMallocConst : public OpRewritePattern<MallocOp> {
         }))
       return matchFailure();
 
-    assert(numOperands > 1 && "malloc op only permits one level of dynamic dimensionality");
+    assert(numOperands > 1 &&
+           "malloc op only permits one level of dynamic dimensionality");
     SmallVector<Value, 1> newOperands;
 
     auto *defOp = alloc.getOperand(0).getDefiningOp();
@@ -938,7 +956,7 @@ struct SimplifyDeadMalloc : public OpRewritePattern<MallocOp> {
     return matchFailure();
   }
 };
-} // end anonymous namespace.
+}  // end anonymous namespace.
 
 void MallocOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
@@ -963,5 +981,5 @@ int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {
 #define GET_OP_CLASSES
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.cpp.inc"
 
-} // namespace eir
-} // namespace lumen
+}  // namespace eir
+}  // namespace lumen

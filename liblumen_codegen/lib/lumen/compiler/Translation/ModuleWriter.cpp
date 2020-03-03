@@ -1,5 +1,5 @@
-#include "lumen/compiler/Support/MemoryBuffer.h"
 #include "lumen/compiler/Support/MLIR.h"
+#include "lumen/compiler/Support/MemoryBuffer.h"
 
 // On Windows we have a custom output stream type that
 // can wrap the raw file handle we get from Rust
@@ -7,29 +7,24 @@
 #include "lumen/compiler/Support/raw_win32_handle_ostream.h"
 #endif
 
+#include <cstdlib>
+
 #include "llvm-c/Core.h"
-#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
-
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "mlir/IR/Module.h"
-
-#include <cstdlib>
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::Module, LLVMModuleRef);
 
 #if defined(_WIN32)
-extern "C" bool
-LLVMEmitToFileDescriptor(LLVMModuleRef m,
-                         HANDLE handle,
-                         char **errorMessage) {
+extern "C" bool LLVMEmitToFileDescriptor(LLVMModuleRef m, HANDLE handle,
+                                         char **errorMessage) {
   raw_win32_handle_ostream stream(handle, /*shouldClose=*/false,
                                   /*unbuffered=*/false);
 #else
-extern "C" bool
-LLVMEmitToFileDescriptor(LLVMModuleRef m,
-                         int fd,
-                         char **errorMessage) {
+extern "C" bool LLVMEmitToFileDescriptor(LLVMModuleRef m, int fd,
+                                         char **errorMessage) {
   llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false);
 #endif
   llvm::Module *mod = unwrap(m);
@@ -48,17 +43,13 @@ LLVMEmitToFileDescriptor(LLVMModuleRef m,
 }
 
 #if defined(_WIN32)
-extern "C" bool
-LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m,
-                                HANDLE handle,
-                                char **errorMessage) {
+extern "C" bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, HANDLE handle,
+                                                char **errorMessage) {
   raw_win32_handle_ostream stream(handle, /*shouldClose=*/false,
                                   /*unbuffered=*/false);
 #else
-extern "C" bool
-LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m,
-                                int fd,
-                                char **errorMessage) {
+extern "C" bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, int fd,
+                                                char **errorMessage) {
   llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false);
 #endif
   llvm::Module *mod = unwrap(m);
@@ -77,15 +68,13 @@ LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m,
 }
 
 #if defined(_WIN32)
-extern "C"
-bool MLIREmitToFileDescriptor(MLIRModuleRef m,
-                              HANDLE handle,
-                              char **errorMessage) {
+extern "C" bool MLIREmitToFileDescriptor(MLIRModuleRef m, HANDLE handle,
+                                         char **errorMessage) {
   llvm::raw_win32_handle_ostream stream(handle, /*shouldClose=*/false,
-                                     /*unbuffered=*/false);
+                                        /*unbuffered=*/false);
 #else
-extern "C"
-bool MLIREmitToFileDescriptor(MLIRModuleRef m, int fd, char **errorMessage) {
+extern "C" bool MLIREmitToFileDescriptor(MLIRModuleRef m, int fd,
+                                         char **errorMessage) {
   llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false);
 #endif
   mlir::ModuleOp *mod = unwrap(m);
@@ -99,12 +88,12 @@ bool MLIREmitToFileDescriptor(MLIRModuleRef m, int fd, char **errorMessage) {
   return false;
 }
 
-extern "C" LLVMMemoryBufferRef
-MLIREmitToMemoryBuffer(MLIRModuleRef m) {
+extern "C" LLVMMemoryBufferRef MLIREmitToMemoryBuffer(MLIRModuleRef m) {
   mlir::ModuleOp *mod = unwrap(m);
   llvm::SmallString<0> codeString;
   llvm::raw_svector_ostream oStream(codeString);
   mod->print(oStream);
   llvm::StringRef data = oStream.str();
-  return LLVMCreateMemoryBufferWithMemoryRangeCopy(data.data(), data.size(), "");
+  return LLVMCreateMemoryBufferWithMemoryRangeCopy(data.data(), data.size(),
+                                                   "");
 }

@@ -1,17 +1,16 @@
-#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
-
-#include "mlir/IR/Diagnostics.h"
-#include "mlir/IR/Dialect.h"
-#include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
-#include "mlir/Parser.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/StandardTypes.h"
+#include "mlir/Parser.h"
 
 using ::llvm::SmallVector;
 
@@ -22,8 +21,7 @@ namespace detail {
 /// Term Types
 struct OpaqueTermStorage : public mlir::TypeStorage {
   OpaqueTermStorage() = delete;
-  OpaqueTermStorage(Type t)
-      : TypeStorage(t.getKind()), implKind(t.getKind()) {}
+  OpaqueTermStorage(Type t) : TypeStorage(t.getKind()), implKind(t.getKind()) {}
 
   using KeyTy = unsigned;
 
@@ -43,7 +41,8 @@ struct TupleTypeStorage : public mlir::TypeStorage {
     }
     unsigned getHashValue() const {
       return llvm::hash_combine(
-          arity, llvm::hash_combine_range(elementTypes.begin(), elementTypes.end()));
+          arity,
+          llvm::hash_combine_range(elementTypes.begin(), elementTypes.end()));
     }
     unsigned arity;
     ArrayRef<Type> elementTypes;
@@ -53,8 +52,7 @@ struct TupleTypeStorage : public mlir::TypeStorage {
   static TupleTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
                                      KeyTy key) {
     key.elementTypes = allocator.copyInto(key.elementTypes);
-    return new (allocator.allocate<TupleTypeStorage>())
-        TupleTypeStorage(key);
+    return new (allocator.allocate<TupleTypeStorage>()) TupleTypeStorage(key);
   }
 
   bool operator==(const KeyTy &otherKey) const { return key == otherKey; }
@@ -99,9 +97,9 @@ struct RefTypeStorage : public mlir::TypeStorage {
   OpaqueTermType innerType;
 };
 
-} // namespace detail
-} // namespace eir
-} // namespace lumen
+}  // namespace detail
+}  // namespace eir
+}  // namespace lumen
 
 //===----------------------------------------------------------------------===//
 // Type Implementations
@@ -131,10 +129,11 @@ TupleType TupleType::get(MLIRContext *context, unsigned arity) {
   return Base::get(context, TypeKind::Tuple, arity, elementTypes);
 }
 
-TupleType TupleType::get(MLIRContext *context, unsigned arity, Type elementType) {
+TupleType TupleType::get(MLIRContext *context, unsigned arity,
+                         Type elementType) {
   return TupleType::get(arity, elementType);
 }
-  
+
 TupleType TupleType::get(unsigned arity, Type elementType) {
   auto context = elementType.getContext();
   std::vector<Type> elementTypes;
@@ -156,7 +155,8 @@ TupleType TupleType::get(MLIRContext *context, ArrayRef<Type> elementTypes) {
 }
 
 LogicalResult TupleType::verifyConstructionInvariants(
-    Optional<Location> loc, MLIRContext *context, unsigned arity, ArrayRef<Type> elementTypes) {
+    Optional<Location> loc, MLIRContext *context, unsigned arity,
+    ArrayRef<Type> elementTypes) {
   if (arity < 1) {
     // If this is dynamically-shaped, then there is nothing to verify
     return success();
@@ -165,8 +165,7 @@ LogicalResult TupleType::verifyConstructionInvariants(
   // Make sure elements are word-sized/immediates, and valid
   for (auto elementType : elementTypes) {
     if (auto termType = elementType.dyn_cast_or_null<OpaqueTermType>()) {
-      if (termType.isImmediate() || termType.isBox())
-        continue;
+      if (termType.isImmediate() || termType.isBox()) continue;
     }
     return failure();
   }
@@ -177,15 +176,15 @@ LogicalResult TupleType::verifyConstructionInvariants(
 int64_t TupleType::getArity() const { return getImpl()->key.arity; }
 int64_t TupleType::getSizeInBytes() const {
   auto arity = getImpl()->key.arity;
-  if (arity < 0)
-    return -1;
+  if (arity < 0) return -1;
   // Header word is always present, each element is one word
   return 8 + (arity * 8);
 };
 bool TupleType::hasStaticShape() const { return getImpl()->key.arity != -1; }
 bool TupleType::hasDynamicShape() const { return getImpl()->key.arity == -1; }
-Type TupleType::getElementType(unsigned index) const { return getImpl()->key.elementTypes[index]; }
-
+Type TupleType::getElementType(unsigned index) const {
+  return getImpl()->key.elementTypes[index];
+}
 
 // Box<T>
 
@@ -219,8 +218,8 @@ RefType RefType::getChecked(Type type, Location location) {
 
 OpaqueTermType RefType::getInnerType() const { return getImpl()->innerType; }
 
-} // namespace eir
-} // namespace lumen
+}  // namespace eir
+}  // namespace lumen
 
 //===----------------------------------------------------------------------===//
 // Parsing
@@ -230,7 +229,8 @@ namespace lumen {
 namespace eir {
 
 template <typename TYPE>
-TYPE parseTypeSingleton(mlir::MLIRContext *context, mlir::DialectAsmParser &parser) {
+TYPE parseTypeSingleton(mlir::MLIRContext *context,
+                        mlir::DialectAsmParser &parser) {
   Type ty;
   if (parser.parseLess() || parser.parseType(ty) || parser.parseGreater()) {
     parser.emitError(parser.getCurrentLocation(), "type expected");
@@ -244,15 +244,15 @@ TYPE parseTypeSingleton(mlir::MLIRContext *context, mlir::DialectAsmParser &pars
 
 struct Shape {
   Shape() { arity = -1; }
-  Shape(std::vector<Type> elementTypes) :
-    arity(elementTypes.size()),
-    elementTypes(elementTypes) {}
+  Shape(std::vector<Type> elementTypes)
+      : arity(elementTypes.size()), elementTypes(elementTypes) {}
   int arity;
   std::vector<Type> elementTypes;
 };
 
 template <typename ShapedType>
-ShapedType parseShapedType(mlir::MLIRContext *context, mlir::DialectAsmParser &parser, bool allowAny) {
+ShapedType parseShapedType(mlir::MLIRContext *context,
+                           mlir::DialectAsmParser &parser, bool allowAny) {
   // Check for '*'
   llvm::SMLoc anyLoc;
   bool isAny = !parser.parseOptionalStar();
@@ -331,7 +331,8 @@ Type parseTuple(MLIRContext *context, mlir::DialectAsmParser &parser) {
     return {};
   }
 
-  TupleType result = parseShapedType<TupleType>(context, parser, /*allowAny=*/true);
+  TupleType result =
+      parseShapedType<TupleType>(context, parser, /*allowAny=*/true);
 
   if (parser.parseGreater()) {
     parser.emitError(parser.getNameLoc(), "expected tuple shape");
@@ -343,65 +344,46 @@ Type parseTuple(MLIRContext *context, mlir::DialectAsmParser &parser) {
 
 Type EirDialect::parseType(mlir::DialectAsmParser &parser) const {
   StringRef typeNameLit;
-  if (failed(parser.parseKeyword(&typeNameLit)))
-    return {};
+  if (failed(parser.parseKeyword(&typeNameLit))) return {};
 
   auto loc = parser.getNameLoc();
   auto context = getContext();
   // `term`
-  if (typeNameLit == "term")
-    return TermType::get(context);
+  if (typeNameLit == "term") return TermType::get(context);
   // `list`
-  if (typeNameLit == "list")
-    return ListType::get(context);
+  if (typeNameLit == "list") return ListType::get(context);
   // `number`
-  if (typeNameLit == "number")
-    return NumberType::get(context);
+  if (typeNameLit == "number") return NumberType::get(context);
   // `integer`
-  if (typeNameLit == "integer")
-    return IntegerType::get(context);
+  if (typeNameLit == "integer") return IntegerType::get(context);
   // `float`
-  if (typeNameLit == "float")
-    return FloatType::get(context);
+  if (typeNameLit == "float") return FloatType::get(context);
   // `atom`
-  if (typeNameLit == "atom")
-    return AtomType::get(context);
+  if (typeNameLit == "atom") return AtomType::get(context);
   // `boolean`
-  if (typeNameLit == "boolean")
-    return BooleanType::get(context);
+  if (typeNameLit == "boolean") return BooleanType::get(context);
   // `fixnum`
-  if (typeNameLit == "fixnum")
-    return FixnumType::get(context);
+  if (typeNameLit == "fixnum") return FixnumType::get(context);
   // `bigint`
-  if (typeNameLit == "bigint")
-    return BigIntType::get(context);
+  if (typeNameLit == "bigint") return BigIntType::get(context);
   // `nil`
-  if (typeNameLit == "nil")
-    return NilType::get(context);
+  if (typeNameLit == "nil") return NilType::get(context);
   // `cons`
-  if (typeNameLit == "cons")
-    return ConsType::get(context);
+  if (typeNameLit == "cons") return ConsType::get(context);
   // `map`
-  if (typeNameLit == "map")
-    return MapType::get(context);
+  if (typeNameLit == "map") return MapType::get(context);
   // `closure`
-  if (typeNameLit == "closure")
-    return ClosureType::get(context);
+  if (typeNameLit == "closure") return ClosureType::get(context);
   // `binary`
-  if (typeNameLit == "binary")
-    return BinaryType::get(context);
+  if (typeNameLit == "binary") return BinaryType::get(context);
   // `heapbin`
-  if (typeNameLit == "heapbin")
-    return HeapBinType::get(context);
+  if (typeNameLit == "heapbin") return HeapBinType::get(context);
   // `procbin`
-  if (typeNameLit == "procbin")
-    return ProcBinType::get(context);
+  if (typeNameLit == "procbin") return ProcBinType::get(context);
   // See parseTuple
-  if (typeNameLit == "tuple")
-    return parseTuple(context, parser);
+  if (typeNameLit == "tuple") return parseTuple(context, parser);
   // `box` `<` type `>`
-  if (typeNameLit == "box")
-    return parseTypeSingleton<BoxType>(context, parser);
+  if (typeNameLit == "box") return parseTypeSingleton<BoxType>(context, parser);
 
   parser.emitError(loc, "unknown EIR type " + typeNameLit);
   return {};
@@ -411,8 +393,7 @@ Type EirDialect::parseType(mlir::DialectAsmParser &parser) const {
 // Printing
 //===----------------------------------------------------------------------===//
 
-void printTuple(TupleType type,
-                llvm::raw_ostream &os,
+void printTuple(TupleType type, llvm::raw_ostream &os,
                 mlir::DialectAsmPrinter &p) {
   os << "tuple<";
   if (type.hasDynamicShape()) {

@@ -19,8 +19,8 @@ use libeir_util_datastructures::pooled_entity_set::BoundEntitySet;
 
 use crate::Result;
 
-use liblumen_session::Options;
 use liblumen_core::symbols::FunctionSymbol;
+use liblumen_session::Options;
 
 use super::block::{Block, BlockData};
 use super::ffi::*;
@@ -890,10 +890,14 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 let dests = reads[0];
                 let num_dests = self.eir.value_list_length(dests);
                 let num_branches = branches.len();
-                debug_in!(self, "match has {} successors and {} branches", num_dests, num_branches);
-                debug_assert_eq!(
+                debug_in!(
+                    self,
+                    "match has {} successors and {} branches",
                     num_dests,
-                    num_branches,
+                    num_branches
+                );
+                debug_assert_eq!(
+                    num_dests, num_branches,
                     "number of branches and destination blocks differs"
                 );
                 let branches = branches
@@ -967,7 +971,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// never happen, as block arguments are defined when the block is created, so
     /// lookups should never fail. If the lookup fails, then we have a compiler bug.
     pub(super) fn build_value(&mut self, ir_value: ir::Value) -> Result<Value> {
-        let value = self.build_value_opt(ir_value)?
+        let value = self
+            .build_value_opt(ir_value)?
             .expect("expected value, but got pseudo-value");
         Ok(value)
     }
@@ -1005,7 +1010,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Values which the primitive operation reads must themselves be lowered if not yet
     /// defined.
     #[inline]
-    fn build_primop_value(&mut self, ir_value: ir::Value, primop: ir::PrimOp) -> Result<Option<Value>> {
+    fn build_primop_value(
+        &mut self,
+        ir_value: ir::Value,
+        primop: ir::PrimOp,
+    ) -> Result<Option<Value>> {
         debug_in!(self, "building primop from value {:?}", ir_value);
         let primop_kind = self.primop_kind(primop).clone();
         let reads = self.primop_reads(primop).to_vec();

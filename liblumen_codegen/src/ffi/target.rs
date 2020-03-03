@@ -5,10 +5,10 @@ use std::sync::Arc;
 
 use llvm_sys::target_machine::LLVMCodeGenFileType;
 
+use liblumen_llvm::diagnostics::last_error;
 use liblumen_session::{DiagnosticsHandler, OptLevel, Options, ProjectType};
 use liblumen_target::{CodeModel, RelocMode, ThreadLocalMode};
 use liblumen_util::error::FatalError;
-use liblumen_llvm::diagnostics::last_error;
 
 use crate::ffi::{self, util};
 use crate::llvm::{ModuleRef, TargetMachine, TargetMachineRef};

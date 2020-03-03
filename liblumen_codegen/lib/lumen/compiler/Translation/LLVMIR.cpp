@@ -1,44 +1,41 @@
+#include "mlir/Target/LLVMIR.h"
+
+#include "llvm-c/Core.h"
+#include "llvm-c/TargetMachine.h"
+#include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Target/TargetMachine.h"
+#include "lumen/compiler/Dialect/EIR/Transforms/Passes.h"
 #include "lumen/compiler/Support/MLIR.h"
 #include "lumen/compiler/Target/Target.h"
 #include "lumen/compiler/Target/TargetInfo.h"
-#include "lumen/compiler/Dialect/EIR/Transforms/Passes.h"
-
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
-#include "mlir/Target/LLVMIR.h"
 #include "mlir/Transforms/Passes.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
-
-#include "llvm-c/Core.h"
-#include "llvm-c/TargetMachine.h"
-#include "llvm/Support/CBindingWrapping.h"
-#include "llvm/Target/TargetMachine.h"
-
 
 using namespace lumen;
 using namespace lumen::eir;
 
+using ::llvm::TargetMachine;
+using ::mlir::FuncOp;
 using ::mlir::MLIRContext;
 using ::mlir::ModuleOp;
-using ::mlir::FuncOp;
-using ::mlir::PassManager;
 using ::mlir::OpPassManager;
 using ::mlir::OwningModuleRef;
-using ::llvm::TargetMachine;
+using ::mlir::PassManager;
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(TargetMachine, LLVMTargetMachineRef);
 
 using CodeGenOptLevel = ::llvm::CodeGenOpt::Level;
 
-extern "C" MLIRModuleRef
-MLIRLowerModule(MLIRContextRef context, MLIRModuleRef m,
-                TargetDialect dialect,
-                OptLevel opt,
-                LLVMTargetMachineRef tm) {
+extern "C" MLIRModuleRef MLIRLowerModule(MLIRContextRef context,
+                                         MLIRModuleRef m, TargetDialect dialect,
+                                         OptLevel opt,
+                                         LLVMTargetMachineRef tm) {
   MLIRContext *ctx = unwrap(context);
   ModuleOp *mod = unwrap(m);
   TargetMachine *targetMachine = unwrap(tm);
@@ -46,8 +43,8 @@ MLIRLowerModule(MLIRContextRef context, MLIRModuleRef m,
 
   PassManager pm(ctx);
   mlir::applyPassManagerCLOptions(pm);
-  //pm.enableTiming();
-  //pm.enableStatistics();
+  // pm.enableTiming();
+  // pm.enableStatistics();
 
   bool enableOpt = optLevel >= CodeGenOptLevel::None;
   bool lowerToStandard = dialect >= TargetDialect::TargetStandard;
@@ -55,7 +52,7 @@ MLIRLowerModule(MLIRContextRef context, MLIRModuleRef m,
 
   if (enableOpt) {
     // Perform high-level inlining
-    //pm.addPass(mlir::createInlinerPass());
+    // pm.addPass(mlir::createInlinerPass());
 
     OpPassManager &optPM = pm.nest<::lumen::eir::FuncOp>();
     optPM.addPass(mlir::createCanonicalizerPass());
@@ -83,12 +80,10 @@ MLIRLowerModule(MLIRContextRef context, MLIRModuleRef m,
   return wrap(new ModuleOp(ownedMod.release()));
 }
 
-extern "C" LLVMModuleRef
-MLIRLowerToLLVMIR(MLIRModuleRef m,
-                  const char *sourceName,
-                  OptLevel opt,
-                  SizeLevel size,
-                  LLVMTargetMachineRef tm) {
+extern "C" LLVMModuleRef MLIRLowerToLLVMIR(MLIRModuleRef m,
+                                           const char *sourceName, OptLevel opt,
+                                           SizeLevel size,
+                                           LLVMTargetMachineRef tm) {
   ModuleOp *mod = unwrap(m);
   TargetMachine *targetMachine = unwrap(tm);
   auto targetTriple = targetMachine->getTargetTriple();
@@ -116,7 +111,7 @@ MLIRLowerToLLVMIR(MLIRModuleRef m,
   llvmModPtr->setDataLayout(targetMachine->createDataLayout());
   llvmModPtr->setTargetTriple(targetTriple.getTriple());
 
-  //mlir::ExecutionEngine::setupTargetTriple(llvmModPtr.get());
+  // mlir::ExecutionEngine::setupTargetTriple(llvmModPtr.get());
 
   // L::outs() << L::format("Making optimizing transformer with %p",
   // targetMachine) << "\n";

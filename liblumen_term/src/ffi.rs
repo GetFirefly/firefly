@@ -1,7 +1,7 @@
 use core::convert::{TryFrom, TryInto};
 
-use crate::tag::Tag;
 use crate::encoding::*;
+use crate::tag::Tag;
 
 use crate::encoding::Encoding32 as E32;
 use crate::encoding::Encoding64 as E64;
@@ -21,8 +21,7 @@ mod tablegen {
         fn try_into(self) -> Result<Tag<T>, Self::Error> {
             match self {
                 TermKind::None => Ok(Tag::None),
-                TermKind::Atom
-                | TermKind::Boolean => Ok(Tag::Atom),
+                TermKind::Atom | TermKind::Boolean => Ok(Tag::Atom),
                 TermKind::Fixnum => Ok(Tag::SmallInteger),
                 TermKind::BigInt => Ok(Tag::BigInteger),
                 TermKind::Float => Ok(Tag::Float),
@@ -61,7 +60,7 @@ macro_rules! unwrap_term_kind {
                 panic!("use of invalid term kind value: {}", $kind);
             }
         }
-    }}
+    }};
 }
 
 #[export_name = "__lumen_builtin_is_type"]
@@ -261,7 +260,10 @@ where
             result.try_into().unwrap()
         }
         Err(_) => {
-            panic!("invalid term kind {:?} given to lumen_encode_immediate", kind);
+            panic!(
+                "invalid term kind {:?} given to lumen_encode_immediate",
+                kind
+            );
         }
     }
 }

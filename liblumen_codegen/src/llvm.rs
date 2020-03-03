@@ -1,9 +1,9 @@
+pub(crate) mod archive;
+pub(crate) mod archive_ro;
 pub(crate) mod builder;
 pub(crate) mod enums;
 pub(crate) mod memory_buffer;
 pub(crate) mod string;
-pub(crate) mod archive_ro;
-pub(crate) mod archive;
 
 pub use self::builder::ModuleBuilder;
 pub use self::enums::*;
@@ -36,7 +36,7 @@ pub type TargetMachineRef = llvm_sys::target_machine::LLVMTargetMachineRef;
 pub type ModuleImpl = llvm_sys::LLVMModule;
 pub type ModuleRef = llvm_sys::prelude::LLVMModuleRef;
 
-pub use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef, LLVMBasicBlockRef};
+pub use llvm_sys::prelude::{LLVMBasicBlockRef, LLVMTypeRef, LLVMValueRef};
 pub use llvm_sys::target::LLVMTargetDataRef;
 
 #[repr(transparent)]
@@ -81,7 +81,7 @@ impl TargetData {
 
     pub fn get_pointer_byte_size(&self) -> u32 {
         use llvm_sys::target::LLVMPointerSize;
-       
+
         unsafe { LLVMPointerSize(self.0) }
     }
 
@@ -190,7 +190,7 @@ impl Module {
     pub fn create(name: &str, ctx: &Context, target_machine: TargetMachineRef) -> Result<Self> {
         use llvm_sys::core::{LLVMModuleCreateWithNameInContext, LLVMSetTarget};
         use llvm_sys::target::LLVMSetModuleDataLayout;
-        use llvm_sys::target_machine::{LLVMGetTargetMachineTriple, LLVMCreateTargetDataLayout};
+        use llvm_sys::target_machine::{LLVMCreateTargetDataLayout, LLVMGetTargetMachineTriple};
 
         let cstr = CString::new(name).unwrap();
         let m = unsafe { LLVMModuleCreateWithNameInContext(cstr.as_ptr(), ctx.as_ref()) };
@@ -200,8 +200,12 @@ impl Module {
             let target_triple = unsafe { LLVMGetTargetMachineTriple(target_machine) };
             let data_layout = unsafe { LLVMCreateTargetDataLayout(target_machine) };
 
-            unsafe { LLVMSetTarget(m, target_triple); }
-            unsafe { LLVMSetModuleDataLayout(m, data_layout); }
+            unsafe {
+                LLVMSetTarget(m, target_triple);
+            }
+            unsafe {
+                LLVMSetModuleDataLayout(m, data_layout);
+            }
 
             Ok(Self::new(m, target_machine))
         }
@@ -210,7 +214,9 @@ impl Module {
     pub fn dump(&self) {
         use llvm_sys::core::LLVMDumpModule;
 
-        unsafe { LLVMDumpModule(self.module); }
+        unsafe {
+            LLVMDumpModule(self.module);
+        }
     }
 
     /// Emit this module as LLVM IR

@@ -47,7 +47,6 @@ fn ignore_changes(name: &Path) -> bool {
         .unwrap_or(true);
 }
 
-
 #[allow(unused)]
 fn warn(s: &str) {
     println!("cargo:warning={}", s);

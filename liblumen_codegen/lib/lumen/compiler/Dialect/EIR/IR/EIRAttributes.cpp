@@ -1,20 +1,19 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
-
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Dialect.h"
-#include "mlir/IR/DialectImplementation.h"
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/SHA1.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/MLIRContext.h"
 
+using ::llvm::hash_combine;
 using ::mlir::AttributeStorage;
 using ::mlir::AttributeStorageAllocator;
 using ::mlir::DialectAsmPrinter;
-using ::llvm::hash_combine;
 
 using namespace lumen;
 using namespace lumen::eir;
@@ -31,9 +30,7 @@ struct AtomAttributeStorage : public AttributeStorage {
   using KeyTy = std::tuple<Type, APInt, StringRef>;
 
   AtomAttributeStorage(Type type, APInt id, StringRef name = "")
-      : AttributeStorage(type),
-        id(std::move(id)),
-        name(name) {}
+      : AttributeStorage(type), id(std::move(id)), name(name) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
@@ -47,10 +44,9 @@ struct AtomAttributeStorage : public AttributeStorage {
                         hash_value(std::get<APInt>(key)));
   }
 
-
   /// Construct a new storage instance.
-  static AtomAttributeStorage *
-  construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
+  static AtomAttributeStorage *construct(AttributeStorageAllocator &allocator,
+                                         const KeyTy &key) {
     auto type = std::get<Type>(key);
     auto id = new (allocator.allocate<APInt>()) APInt(std::get<APInt>(key));
     auto name = allocator.copyInto(std::get<StringRef>(key));
@@ -60,10 +56,10 @@ struct AtomAttributeStorage : public AttributeStorage {
 
   APInt id;
   StringRef name;
-}; // struct AtomAttr
-} // namespace detail
-} // namespace eir
-} // namespace lumen
+};  // struct AtomAttr
+}  // namespace detail
+}  // namespace eir
+}  // namespace lumen
 
 AtomAttr AtomAttr::get(MLIRContext *context, APInt id, StringRef name) {
   unsigned kind = static_cast<unsigned>(AttributeKind::Atom);
@@ -98,22 +94,18 @@ struct BinaryAttributeStorage : public AttributeStorage {
   static unsigned hashKey(const KeyTy &key) {
     auto hashVal{hash_combine(std::get<Type>(key))};
     auto str = std::get<std::string>(key);
-    return hash_combine(hashVal,
-                        hash_value(StringRef(str.data(), str.size())),
+    return hash_combine(hashVal, hash_value(StringRef(str.data(), str.size())),
                         hash_value(std::get<2>(key)),
                         hash_value(std::get<3>(key)));
   }
 
-
   /// Construct a new storage instance.
-  static BinaryAttributeStorage *
-  construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
+  static BinaryAttributeStorage *construct(AttributeStorageAllocator &allocator,
+                                           const KeyTy &key) {
     auto type = std::get<Type>(key);
     auto bytes = allocator.copyInto(std::get<1>(key));
-    auto header =
-        new (allocator.allocate<APInt>()) APInt(std::get<2>(key));
-    auto flags =
-        new (allocator.allocate<APInt>()) APInt(std::get<3>(key));
+    auto header = new (allocator.allocate<APInt>()) APInt(std::get<2>(key));
+    auto flags = new (allocator.allocate<APInt>()) APInt(std::get<3>(key));
     return new (allocator.allocate<BinaryAttributeStorage>())
         BinaryAttributeStorage(type, bytes, *header, *flags);
   }
@@ -121,17 +113,19 @@ struct BinaryAttributeStorage : public AttributeStorage {
   std::string value;
   APInt header;
   APInt flags;
-}; // struct BinaryAttr
-} // namespace detail
-} // namespace eir
-} // namespace lumen
+};  // struct BinaryAttr
+}  // namespace detail
+}  // namespace eir
+}  // namespace lumen
 
-BinaryAttr BinaryAttr::get(MLIRContext *context, StringRef bytes, uint64_t header, uint64_t flags) {
+BinaryAttr BinaryAttr::get(MLIRContext *context, StringRef bytes,
+                           uint64_t header, uint64_t flags) {
   return get(BinaryType::get(context), bytes, header, flags);
 }
 
 /// Get an instance of a BinaryAttr with the given string and Type.
-BinaryAttr BinaryAttr::get(Type type, StringRef bytes, uint64_t header, uint64_t flags) {
+BinaryAttr BinaryAttr::get(Type type, StringRef bytes, uint64_t header,
+                           uint64_t flags) {
   APInt hi(64, header, /*signed=*/false);
   APInt fi(64, flags, /*signed=*/false);
   unsigned kind = static_cast<unsigned>(AttributeKind::Binary);
@@ -141,7 +135,8 @@ BinaryAttr BinaryAttr::get(Type type, StringRef bytes, uint64_t header, uint64_t
 std::string BinaryAttr::getHash() const {
   llvm::SHA1 hasher;
   StringRef bytes = getValue();
-  hasher.update(ArrayRef<uint8_t>((uint8_t *)const_cast<char *>(bytes.data()), bytes.size()));
+  hasher.update(ArrayRef<uint8_t>((uint8_t *)const_cast<char *>(bytes.data()),
+                                  bytes.size()));
   return llvm::toHex(hasher.result(), true);
 }
 StringRef BinaryAttr::getValue() const {
@@ -153,8 +148,7 @@ APInt &BinaryAttr::getFlags() const { return getImpl()->flags; }
 bool BinaryAttr::isPrintable() const {
   auto s = getValue();
   for (char c : s.bytes()) {
-    if (!llvm::isPrint(c))
-      return false;
+    if (!llvm::isPrint(c)) return false;
   }
   return true;
 }
@@ -174,7 +168,9 @@ struct SeqAttributeStorage : public AttributeStorage {
       : AttributeStorage(type), value(value) {}
 
   /// Key equality function.
-  bool operator==(const KeyTy &key) const { return key == KeyTy(getType(), value); }
+  bool operator==(const KeyTy &key) const {
+    return key == KeyTy(getType(), value);
+  }
 
   /// Construct a new storage instance.
   static SeqAttributeStorage *construct(AttributeStorageAllocator &allocator,
@@ -185,9 +181,9 @@ struct SeqAttributeStorage : public AttributeStorage {
 
   ArrayRef<Attribute> value;
 };
-}
-} // namespace eir
-} // namespace lumen
+}  // namespace detail
+}  // namespace eir
+}  // namespace lumen
 
 SeqAttr SeqAttr::get(Type type, ArrayRef<Attribute> value) {
   unsigned kind = static_cast<unsigned>(AttributeKind::Seq);

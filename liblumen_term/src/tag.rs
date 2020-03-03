@@ -53,9 +53,7 @@ where
     #[inline]
     pub fn is_number(&self) -> bool {
         match self {
-            Self::SmallInteger
-            | Self::BigInteger
-            | Self::Float => true,
+            Self::SmallInteger | Self::BigInteger | Self::Float => true,
             _ => false,
         }
     }
@@ -71,9 +69,7 @@ where
     #[inline]
     pub fn is_binary(&self) -> bool {
         match self {
-            Self::ProcBin
-            | Self::HeapBinary
-            | Self::SubBinary => true,
+            Self::ProcBin | Self::HeapBinary | Self::SubBinary => true,
             _ => false,
         }
     }

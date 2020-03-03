@@ -28,7 +28,10 @@ pub(super) fn create_diagnostics_handler(
     DiagnosticsHandler::new(config, codemap, emitter)
 }
 
-pub(super) fn default_emitter(codemap: Arc<RwLock<CodeMap>>, options: &Options) -> Arc<dyn Emitter> {
+pub(super) fn default_emitter(
+    codemap: Arc<RwLock<CodeMap>>,
+    options: &Options,
+) -> Arc<dyn Emitter> {
     use libeir_diagnostics::{NullEmitter, StandardStreamEmitter};
     use liblumen_session::verbosity_to_severity;
     use liblumen_util::error::Verbosity;

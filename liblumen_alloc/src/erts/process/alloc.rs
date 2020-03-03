@@ -54,7 +54,7 @@ impl Stack {
 
         Self {
             base,
-            top: top,
+            top,
             size,
             end,
         }

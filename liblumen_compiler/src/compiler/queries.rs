@@ -79,7 +79,11 @@ where
     debug!("generating mlir for {:?} on {:?}", input, thread_id);
     let target_machine = db.get_target_machine(thread_id);
     match mlir::builder::build(&module, &context, &options, target_machine.deref()) {
-        Ok(GeneratedModule { module: mlir_module, atoms, symbols }) => {
+        Ok(GeneratedModule {
+            module: mlir_module,
+            atoms,
+            symbols,
+        }) => {
             db.add_atoms(atoms.iter());
             db.add_symbols(symbols.iter());
             db.maybe_emit_file_with_opts(&options, input, &mlir_module)?;
@@ -149,7 +153,10 @@ where
         input, thread_id, opt
     );
     let target_machine = db.get_target_machine(thread_id);
-    to_query_result!(db, module.lower(&context, Dialect::LLVM, opt, &target_machine));
+    to_query_result!(
+        db,
+        module.lower(&context, Dialect::LLVM, opt, &target_machine)
+    );
 
     // Emit LLVM dialect
     db.maybe_emit_file_with_opts(&options, input, module.deref())?;
@@ -201,7 +208,10 @@ where
     let target_machine = db.get_target_machine(thread_id);
     debug!("using target machine {:?}", &target_machine);
     let source_name = get_input_source_name(db, input);
-    let module = to_query_result!(db, mlir_module.lower_to_llvm_ir(source_name, opt, size, &target_machine));
+    let module = to_query_result!(
+        db,
+        mlir_module.lower_to_llvm_ir(source_name, opt, size, &target_machine)
+    );
 
     // Emit LLVM IR
     db.maybe_emit_file_with_opts(&options, input, &module)?;

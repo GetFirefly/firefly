@@ -1,8 +1,8 @@
 #ifndef EIR_ATTRIBUTES_H
 #define EIR_ATTRIBUTES_H
 
-#include "mlir/IR/Attributes.h"
 #include "llvm/ADT/APInt.h"
+#include "mlir/IR/Attributes.h"
 
 namespace llvm {
 class APInt;
@@ -11,14 +11,14 @@ class APInt;
 namespace mlir {
 class MLIRContext;
 class Type;
-}
+}  // namespace mlir
 
-using ::mlir::MLIRContext;
-using ::mlir::Attribute;
-using ::mlir::Type;
 using ::llvm::APInt;
-using ::llvm::StringRef;
 using ::llvm::ArrayRef;
+using ::llvm::StringRef;
+using ::mlir::Attribute;
+using ::mlir::MLIRContext;
+using ::mlir::Type;
 
 namespace lumen {
 namespace eir {
@@ -27,7 +27,7 @@ namespace detail {
 struct AtomAttributeStorage;
 struct BinaryAttributeStorage;
 struct SeqAttributeStorage;
-}
+}  // namespace detail
 
 namespace AttributeKind {
 enum Kind {
@@ -35,11 +35,11 @@ enum Kind {
   Binary,
   Seq,
 };
-} // AttributeKind
+}  // namespace AttributeKind
 
 class AtomAttr : public Attribute::AttrBase<AtomAttr, Attribute,
                                             detail::AtomAttributeStorage> {
-public:
+ public:
   using Base::Base;
   using ValueType = APInt;
 
@@ -58,16 +58,18 @@ public:
 
 class BinaryAttr : public Attribute::AttrBase<BinaryAttr, Attribute,
                                               detail::BinaryAttributeStorage> {
-public:
+ public:
   using Base::Base;
   using ValueType = StringRef;
 
   static StringRef getAttrName() { return "binary"; }
-  /// Get an instance of a BinaryAttr with the given string, header, flags, and pointer width
-  static BinaryAttr get(MLIRContext *context, StringRef bytes,
-                        uint64_t header, uint64_t flags);
+  /// Get an instance of a BinaryAttr with the given string, header, flags, and
+  /// pointer width
+  static BinaryAttr get(MLIRContext *context, StringRef bytes, uint64_t header,
+                        uint64_t flags);
 
-  static BinaryAttr get(Type type, StringRef bytes, uint64_t header, uint64_t flags);
+  static BinaryAttr get(Type type, StringRef bytes, uint64_t header,
+                        uint64_t flags);
 
   StringRef getValue() const;
   std::string getHash() const;
@@ -82,10 +84,11 @@ public:
 };
 
 /// Seq attributes are lists of other attributes. Used to represent
-/// list and tuple constant element lists which require a type to distinguish them
+/// list and tuple constant element lists which require a type to distinguish
+/// them
 class SeqAttr : public Attribute::AttrBase<SeqAttr, Attribute,
                                            detail::SeqAttributeStorage> {
-public:
+ public:
   using Base::Base;
   using ValueType = ArrayRef<Attribute>;
 
@@ -109,7 +112,7 @@ public:
   }
 };
 
-} // namespace eir
-} // namespace lumen
+}  // namespace eir
+}  // namespace lumen
 
-#endif // EIR_ATTRIBUTES_H
+#endif  // EIR_ATTRIBUTES_H

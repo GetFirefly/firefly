@@ -15,7 +15,7 @@ class RawRustStringOstream : public llvm::raw_ostream {
 
   uint64_t current_pos() const override { return Pos; }
 
-public:
+ public:
   explicit RawRustStringOstream(RustStringRef Str) : Str(Str), Pos(0) {}
 
   ~RawRustStringOstream() {
@@ -24,4 +24,4 @@ public:
   }
 };
 
-#endif // LUMEN_RUSTSTRING_H
+#endif  // LUMEN_RUSTSTRING_H

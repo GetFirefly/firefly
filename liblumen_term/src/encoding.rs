@@ -6,10 +6,10 @@ pub use self::arch_32::Encoding32;
 pub use self::arch_64::Encoding64;
 pub use self::arch_64_nanboxed::Encoding64Nanboxed;
 
-use core::mem;
-use core::fmt::{Debug, Binary};
-use core::hash::Hash;
 use core::convert::{TryFrom, TryInto};
+use core::fmt::{Binary, Debug};
+use core::hash::Hash;
+use core::mem;
 
 use crate::Tag;
 
@@ -17,31 +17,36 @@ use crate::Tag;
 #[repr(C)]
 pub struct MaskInfo {
     pub shift: i32,
-    pub mask: u64
+    pub mask: u64,
 }
 
-pub trait Word: Copy +
-    PartialEq +
-    Eq +
-    PartialOrd +
-    Ord +
-    Hash +
-    Debug +
-    Binary +
-    TryInto<usize> +
-    TryInto<u32> +
-    TryInto<u64> +
-    TryFrom<usize> +
-    TryFrom<u64>
+pub trait Word:
+    Copy
+    + PartialEq
+    + Eq
+    + PartialOrd
+    + Ord
+    + Hash
+    + Debug
+    + Binary
+    + TryInto<usize>
+    + TryInto<u32>
+    + TryInto<u64>
+    + TryFrom<usize>
+    + TryFrom<u64>
 {
     fn as_usize(&self) -> usize;
 }
 
 impl Word for u32 {
-    fn as_usize(&self) -> usize { (*self) as usize }
+    fn as_usize(&self) -> usize {
+        (*self) as usize
+    }
 }
 impl Word for u64 {
-    fn as_usize(&self) -> usize { (*self) as usize }
+    fn as_usize(&self) -> usize {
+        (*self) as usize
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

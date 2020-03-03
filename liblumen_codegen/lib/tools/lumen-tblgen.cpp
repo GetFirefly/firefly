@@ -1,6 +1,3 @@
-#include "mlir/TableGen/GenInfo.h"
-#include "mlir/TableGen/GenNameParser.h"
-
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -11,6 +8,8 @@
 #include "llvm/TableGen/Main.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
+#include "mlir/TableGen/GenInfo.h"
+#include "mlir/TableGen/GenNameParser.h"
 
 using namespace llvm;
 using namespace mlir;

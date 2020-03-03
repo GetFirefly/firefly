@@ -1,9 +1,9 @@
 #include "lumen/compiler/Support/RustString.h"
 
+#include "llvm-c/Types.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm-c/Types.h"
 #include "llvm/Support/CBindingWrapping.h"
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::Twine, LLVMTwineRef);
@@ -14,8 +14,8 @@ extern "C" void LLVMRustStringWriteImpl(RustStringRef Str, const char *Ptr,
                                         size_t Size);
 
 void RawRustStringOstream::write_impl(const char *Ptr, size_t Size) {
-    LLVMRustStringWriteImpl(Str, Ptr, Size);
-    Pos += Size;
+  LLVMRustStringWriteImpl(Str, Ptr, Size);
+  Pos += Size;
 }
 
 extern "C" void LLVMLumenWriteTwineToString(LLVMTwineRef T, RustStringRef Str) {
@@ -42,5 +42,3 @@ extern "C" void LLVMLumenWriteValueToString(LLVMValueRef V, RustStringRef Str) {
     OS << ")";
   }
 }
-
-

@@ -27,6 +27,6 @@ enum class DiagnosticKind {
 
 static DiagnosticKind toDiagnosticKind(llvm::DiagnosticKind Kind);
 
-} // namespace luen
+}  // namespace lumen
 
 #endif

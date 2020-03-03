@@ -9,9 +9,7 @@ impl IntrinsicBuilder {
         op: Intrinsic,
     ) -> Result<Option<Value>> {
         match op.name.as_str().get() {
-            "print" => {
-                Self::build_print(builder, ir_value, op.args.as_slice())
-            }
+            "print" => Self::build_print(builder, ir_value, op.args.as_slice()),
             other => {
                 unimplemented!("intrinsic '{:?}'", op.name);
             }
@@ -30,11 +28,7 @@ impl IntrinsicBuilder {
         }
 
         let result_ref = unsafe {
-            MLIRBuildPrintOp(
-                builder.as_ref(),
-                argv.as_ptr(),
-                argv.len() as libc::c_uint
-            )
+            MLIRBuildPrintOp(builder.as_ref(), argv.as_ptr(), argv.len() as libc::c_uint)
         };
 
         let result = builder.new_value(ir_value, result_ref, ValueDef::Result(0));

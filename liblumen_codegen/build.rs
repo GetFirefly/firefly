@@ -92,10 +92,7 @@ fn main() {
         "cargo:rustc-link-search=native={}",
         llvm_prefix.join("lib").display()
     );
-    println!(
-        "cargo:rustc-link-search=native={}/lib",
-        outdir.display()
-    );
+    println!("cargo:rustc-link-search=native={}/lib", outdir.display());
 
     if build_shared == "ON" {
         link_lib_dylib("lumen_compiler_LumenCodegen");
@@ -209,7 +206,6 @@ fn main() {
         .map(|e| e.path().to_string_lossy().into_owned())
         .expect("unable to find libstd rlib in toolchain directory!");
 
-
     let llvm_objdump = llvm_prefix.join("bin/llvm-objdump");
     let mut objdump_cmd = Command::new(llvm_objdump);
     let objdump_cmd = objdump_cmd
@@ -232,7 +228,10 @@ fn main() {
         .expect("expected non-empty lang_start_symbol result");
 
     // Strip off leading `_` when printing symbol name
-    println!("cargo:rustc-env=LANG_START_SYMBOL_NAME={}", &lang_start_symbol[1..]);
+    println!(
+        "cargo:rustc-env=LANG_START_SYMBOL_NAME={}",
+        &lang_start_symbol[1..]
+    );
 }
 
 pub fn output(cmd: &mut Command) -> String {
@@ -363,7 +362,10 @@ fn read_link_libs(llvm_config_path: &Path, outdir: &Path) -> Vec<String> {
 }
 
 fn read_link_libs_shared(llvm_config_path: &Path, link_libs: &mut Vec<String>) {
-    if let Ok(libs) = llvm_config(llvm_config_path, &["--link-shared", "--ignore-libllvm", "--libs"]) {
+    if let Ok(libs) = llvm_config(
+        llvm_config_path,
+        &["--link-shared", "--ignore-libllvm", "--libs"],
+    ) {
         for l in libs.split(' ') {
             if let Some(lib) = cleanup_link_lib(l) {
                 link_libs.push(format!("dylib={}", lib));
@@ -441,7 +443,6 @@ fn print_libcpp_flags(llvm_config_path: &Path, target: &str) {
         println!("cargo:rustc-link-lib=dylib=uuid");
     }
 }
-
 
 fn link_libs(libs: &[&str]) {
     if env::var_os(ENV_LLVM_BUILD_STATIC).is_none() {

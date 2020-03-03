@@ -5,6 +5,8 @@ use core::hash;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
+use crate::erts::exception::InternalResult;
+
 use super::encoding::{self, Boxable, UnsizedBoxable};
 use super::prelude::Term;
 
@@ -265,7 +267,7 @@ where
     E: encoding::Encoded + From<*mut T>,
 {
     #[inline]
-    fn encode(&self) -> crate::erts::exception::Result<E> {
+    fn encode(&self) -> InternalResult<E> {
         Ok(self.as_ptr().into())
     }
 }

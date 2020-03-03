@@ -8,9 +8,9 @@ pub mod replace_child_3;
 use std::convert::TryInto;
 use std::mem;
 
+use anyhow::*;
 use web_sys::{Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node, Text};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -19,7 +19,9 @@ fn module() -> Atom {
 }
 
 fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
-    let boxed: Boxed<Resource> = term.try_into()?;
+    let boxed: Boxed<Resource> = term
+        .try_into()
+        .with_context(|| format!("{} must be a source", term))?;
     let resource_reference: Resource = boxed.into();
 
     if resource_reference.is::<Document>() {
@@ -63,6 +65,8 @@ fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
 
         Ok(node)
     } else {
-        Err(badarg!().into())
+        Err(TypeError)
+            .with_context(|| format!("{} is a resource, but cannot be converted to a node", term))
+            .map_err(From::from)
     }
 }

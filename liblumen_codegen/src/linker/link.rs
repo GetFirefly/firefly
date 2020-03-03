@@ -1013,7 +1013,7 @@ pub fn add_local_native_libraries(
     cmd: &mut dyn Linker,
     options: &Options,
     codegen_results: &CodegenResults,
-    tmpdir: &Path,
+    _tmpdir: &Path,
 ) -> anyhow::Result<()> {
     let filesearch = options.target_filesearch(PathKind::All);
     for search_path in filesearch.search_paths() {
@@ -1077,15 +1077,11 @@ pub fn add_local_native_libraries(
     Ok(())
 }
 
-fn link_rlib(
-    cmd: &mut dyn Linker,
-    options: &Options,
-    tmpdir: &Path,
-    rlib_path: &Path,
-) {
+#[allow(dead_code)]
+fn link_rlib(cmd: &mut dyn Linker, options: &Options, tmpdir: &Path, rlib_path: &Path) {
     use super::archive::ArchiveBuilder;
     use crate::llvm::archive::LlvmArchiveBuilder;
-    use crate::llvm::archive::{RLIB_BYTECODE_EXTENSION, METADATA_FILENAME};
+    use crate::llvm::archive::{METADATA_FILENAME, RLIB_BYTECODE_EXTENSION};
 
     let dst = tmpdir.join(rlib_path.file_name().unwrap());
     let mut archive = LlvmArchiveBuilder::new(options, &dst, Some(rlib_path));

@@ -36,7 +36,8 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let event = arc_process.stack_pop().unwrap();
+    let event = arc_process.stack_peek(1).unwrap();
+    const STACK_USED: usize = 1;
 
     // `.unwrap` on both of these because `on_submit_1` should only be called by code controlled
     // by us and it is a bug in `lumen_web` if these don't succeed
@@ -57,32 +58,35 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                                 let function = Atom::str_to_term(&lumen_submit_function_string);
                                 let arguments = arc_process.list_from_slice(&[event])?;
 
+                                arc_process.stack_popn(STACK_USED);
+
                                 erlang::apply_3::place_frame_with_arguments(
                                     arc_process,
                                     Placement::Replace,
                                     module,
                                     function,
                                     arguments,
-                                )?;
+                                )
+                                .unwrap();
                             }
                             None => {
                                 let error_tuple = arc_process.tuple_from_slice(&[
                                     atom!("error"),
                                     atom!("data-lumen-submit-function"),
                                 ])?;
-                                arc_process.return_from_call(error_tuple)?;
+                                arc_process.return_from_call(STACK_USED, error_tuple)?;
                             }
                         }
                     }
                     None => {
                         // A form not being managed by lumen, so ignore
-                        arc_process.return_from_call(Atom::str_to_term("ignore"))?;
+                        arc_process.return_from_call(STACK_USED, Atom::str_to_term("ignore"))?;
                     }
                 }
             }
             Err(_) => {
                 // Only form submission is supported at this time, so ignore
-                arc_process.return_from_call(Atom::str_to_term("ignore"))?;
+                arc_process.return_from_call(STACK_USED, Atom::str_to_term("ignore"))?;
             }
         }
     }

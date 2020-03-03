@@ -20,28 +20,26 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::max_2::native;
-use crate::scheduler::{with_process, with_process_arc};
+use crate::scheduler::with_process;
 use crate::test::FirstSecond::*;
 use crate::test::{external_arc_node, strategy, FirstSecond};
 
 #[test]
 fn max_is_first_if_first_is_greater_than_or_equal_to_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                )
-                    .prop_filter("First must be >= second", |(first, second)| second <= first),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), first);
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term(arc_process.clone()),
+                strategy::term(arc_process.clone()),
             )
-            .unwrap();
-    });
+                .prop_filter("First must be >= second", |(first, second)| second <= first)
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), first);
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

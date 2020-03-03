@@ -2,83 +2,80 @@ use super::*;
 
 #[test]
 fn without_locked_adds_process_message_to_mailbox_and_returns_ok() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    valid_options(arc_process.clone()),
-                ),
-                |(message, options)| {
-                    let different_arc_process = process::test(&arc_process);
-                    let name = registered_name();
-
-                    prop_assert_eq!(
-                        erlang::register_2::native(
-                            arc_process.clone(),
-                            name,
-                            different_arc_process.pid_term(),
-                        ),
-                        Ok(true.into())
-                    );
-
-                    let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0::native()])
-                        .unwrap();
-
-                    prop_assert_eq!(
-                        native(&arc_process, destination, message, options),
-                        Ok(Atom::str_to_term("ok"))
-                    );
-
-                    prop_assert!(has_process_message(&different_arc_process, message));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                valid_options(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, message, options)| {
+            let different_arc_process = process::test(&arc_process);
+            let name = registered_name();
+
+            prop_assert_eq!(
+                erlang::register_2::native(
+                    arc_process.clone(),
+                    name,
+                    different_arc_process.pid_term(),
+                ),
+                Ok(true.into())
+            );
+
+            let destination = arc_process
+                .tuple_from_slice(&[name, erlang::node_0::native()])
+                .unwrap();
+
+            prop_assert_eq!(
+                native(&arc_process, destination, message, options),
+                Ok(Atom::str_to_term("ok"))
+            );
+
+            prop_assert!(has_process_message(&different_arc_process, message));
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_locked_adds_heap_message_to_mailbox_and_returns_ok() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                    valid_options(arc_process),
-                )
-            }),
-            |(arc_process, message, options)| {
-                let different_arc_process = process::test(&arc_process);
-                let name = registered_name();
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                valid_options(arc_process),
+            )
+        },
+        |(arc_process, message, options)| {
+            let different_arc_process = process::test(&arc_process);
+            let name = registered_name();
 
-                prop_assert_eq!(
-                    erlang::register_2::native(
-                        arc_process.clone(),
-                        name,
-                        different_arc_process.pid_term(),
-                    ),
-                    Ok(true.into())
-                );
+            prop_assert_eq!(
+                erlang::register_2::native(
+                    arc_process.clone(),
+                    name,
+                    different_arc_process.pid_term(),
+                ),
+                Ok(true.into())
+            );
 
-                let _different_process_heap_lock = different_arc_process.acquire_heap();
+            let _different_process_heap_lock = different_arc_process.acquire_heap();
 
-                let destination = arc_process
-                    .tuple_from_slice(&[name, erlang::node_0::native()])
-                    .unwrap();
+            let destination = arc_process
+                .tuple_from_slice(&[name, erlang::node_0::native()])
+                .unwrap();
 
-                prop_assert_eq!(
-                    native(&arc_process, destination, message, options),
-                    Ok(Atom::str_to_term("ok"))
-                );
+            prop_assert_eq!(
+                native(&arc_process, destination, message, options),
+                Ok(Atom::str_to_term("ok"))
+            );
 
-                prop_assert!(has_heap_message(&different_arc_process, message));
+            prop_assert!(has_heap_message(&different_arc_process, message));
 
-                Ok(())
-            },
-        )
-        .unwrap();
+            Ok(())
+        },
+    );
 }

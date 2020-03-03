@@ -11,17 +11,18 @@ fn unregistered_sends_nothing_when_timer_expires() {
                     Just(milliseconds),
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone()),
-                    options(arc_process),
+                    abs_value(arc_process),
                 )
             }),
-            |(milliseconds, arc_process, message, options)| {
+            |(milliseconds, arc_process, message, abs_value)| {
                 let destination = registered_name();
-
                 let time = arc_process.integer(milliseconds).unwrap();
+                let options = options(abs_value, &arc_process);
 
-                prop_assert_eq!(
+                prop_assert_is_not_boolean!(
                     native(arc_process.clone(), time, destination, message, options),
-                    Err(badarg!().into())
+                    "abs value",
+                    abs_value
                 );
 
                 Ok(())

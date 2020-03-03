@@ -25,7 +25,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                         let second = arc_process.stack_pop().unwrap();
                         let reason = arc_process.list_from_slice(&[first, second])?;
 
-                        arc_process.exception(exit!(reason));
+                        arc_process.exception(exit!(reason, anyhow!("Test").into()));
 
                         Ok(())
                     };
@@ -81,7 +81,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(reason));
+                        prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -133,7 +133,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                         let second = arc_process.stack_pop().unwrap();
                         let reason = arc_process.tuple_from_slice(&[first, second])?;
 
-                        arc_process.exception(exit!(reason));
+                        arc_process.exception(exit!(reason, anyhow!("Test").into()));
 
                         Ok(())
                     };
@@ -195,7 +195,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(reason));
+                        prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(

@@ -5,14 +5,11 @@ use super::*;
 use proptest::prop_assert;
 use proptest::strategy::Strategy;
 
-use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarity, exit};
 
 use crate::process;
 use crate::scheduler::Scheduler;
-use crate::test::has_message;
 
 #[test]
 fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and_sends_exit_message_to_and_exits_parent(
@@ -57,45 +54,18 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
                 prop_assert!(scheduler.run_once());
                 prop_assert!(scheduler.run_once());
 
-                match *child_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
-                        prop_assert_eq!(
-                            Exception::Runtime(exception.clone()),
-                            badarity!(&child_arc_process, function, Term::NIL)
-                        );
-                    }
-                    ref status => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Child process did not exit.  Status is {:?}",
-                            status
-                        )))
-                    }
-                }
+                let args = Term::NIL;
+                let source_substring = format!(
+                    "arguments ([]) length (0) does not match arity ({}) of function ({})",
+                    arity, function
+                );
 
-                match *parent_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
-                        let reason = match badarity!(&parent_arc_process, function, Term::NIL) {
-                            Exception::Runtime(badarity_runtime_exception) => {
-                                (badarity_runtime_exception.reason().unwrap())
-                            }
-                            _ => unreachable!("parent process out-of-memory"),
-                        };
+                prop_assert_exits_badarity(&child_arc_process, function, args, &source_substring)?;
 
-                        prop_assert_eq!(exception, &exit!(reason));
-                    }
-                    ref status => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Parent process did not exit.  Status is {:?}",
-                            status
-                        )))
-                    }
-                }
+                prop_assert_exits_badarity(&parent_arc_process, function, args, &source_substring)?;
 
-                let tag = Atom::str_to_term("DOWN");
-                let reason = match badarity!(&parent_arc_process, function, Term::NIL) {
-                    Exception::Runtime(runtime_exception) => runtime_exception.reason().unwrap(),
-                    _ => unreachable!("parent process out-of-memory"),
-                };
+                let tag = atom!("DOWN");
+                let reason = badarity_reason(&parent_arc_process, function, args);
 
                 prop_assert!(has_message(
                     &parent_arc_process,
@@ -103,7 +73,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
                         .tuple_from_slice(&[
                             tag,
                             monitor_reference,
-                            Atom::str_to_term("process"),
+                            atom!("process"),
                             child_pid_term,
                             reason
                         ])

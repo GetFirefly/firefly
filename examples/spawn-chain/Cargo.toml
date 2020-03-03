@@ -12,6 +12,7 @@ default = ["console_error_panic_hook", "time_web_sys"]
 time_web_sys = ["parking_lot_core/time_web_sys", "lumen_runtime/time_web_sys"]
 
 [dependencies]
+anyhow = "1.0.11"
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for

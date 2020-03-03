@@ -35,4 +35,5 @@ pub fn native(
         timer_start_options,
         arc_process,
     )
+    .map_err(From::from)
 }

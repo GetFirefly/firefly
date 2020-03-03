@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
+use anyhow::*;
 use cranelift_entity::EntityRef;
 use libeir_ir::{Block, FunctionIndex};
 
@@ -20,7 +21,7 @@ fn module() -> Atom {
 
 pub fn return_clean(arc_process: &Arc<Process>) -> code::Result {
     let argument_list = arc_process.stack_pop().unwrap();
-    arc_process.return_from_call(argument_list)?;
+    arc_process.return_from_call(0, argument_list)?;
     Process::call_code(arc_process)
 }
 
@@ -50,7 +51,7 @@ pub fn return_ok(arc_process: &Arc<Process>) -> code::Result {
     }
     assert!(argument_vec.len() == 1);
 
-    Ok(arc_process.return_from_call(argument_vec[0])?)
+    Ok(arc_process.return_from_call(0, argument_vec[0])?)
 }
 
 pub fn return_ok_closure(process: &Process) -> exception::Result<Term> {
@@ -82,8 +83,13 @@ pub fn return_throw(arc_process: &Arc<Process>) -> code::Result {
 
     let reason = argument_vec[1];
     let stacktrace = Some(argument_vec[2]);
-    let exception = exception::raise(class, reason, exception::Location::default(), stacktrace);
-    code::result_from_exception(arc_process, exception.into())
+    let exception = exception::raise(
+        class,
+        reason,
+        stacktrace,
+        anyhow!("explicit raise from Erlang").into(),
+    );
+    code::result_from_exception(arc_process, 0, exception.into())
 }
 
 pub fn return_throw_closure(process: &Process) -> exception::Result<Term> {

@@ -51,8 +51,8 @@ pub fn export() {
 const ARITY: Arity = 2;
 
 fn code(arc_process: &Arc<Process>) -> code::Result {
-    let n = arc_process.stack_pop().unwrap();
-    let output = arc_process.stack_pop().unwrap();
+    let n = arc_process.stack_peek(1).unwrap();
+    let output = arc_process.stack_peek(2).unwrap();
 
     // ```elixir
     // 1..n
@@ -64,8 +64,12 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     arc_process.reduce();
 
+    const STACK_USED: usize = 2;
+
     match result {
         Ok(range) => {
+            arc_process.stack_popn(STACK_USED);
+
             //  # label 1
             //  # pushed stack: (output)
             //  # returned from call: last
@@ -96,7 +100,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
             Process::call_code(arc_process)
         }
-        Err(exception) => result_from_exception(arc_process, exception),
+        Err(exception) => result_from_exception(arc_process, STACK_USED, exception),
     }
 }
 

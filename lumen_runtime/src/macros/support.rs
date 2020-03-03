@@ -23,3 +23,10 @@ macro_rules! c_str_to_str {
         }
     }};
 }
+
+#[cfg(test)]
+macro_rules! run {
+    ($arc_process_fun:expr, $test:expr$(,)?) => {
+        crate::test::run(file!(), $arc_process_fun, $test)
+    };
+}

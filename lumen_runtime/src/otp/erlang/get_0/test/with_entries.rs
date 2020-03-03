@@ -2,8 +2,6 @@ use super::*;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::process::alloc::TermAlloc;
-use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
@@ -18,7 +16,7 @@ fn without_heap_available_errors_alloc() {
 
     arc_process.put(key, value).unwrap();
 
-    fill_heap(&arc_process);
+    crate::test::process_dictionary::fill_heap(&arc_process);
 
     assert_eq!(arc_process.get_value_from_key(key), value);
 
@@ -58,12 +56,4 @@ fn with_heap_available_returns_entries_as_list() {
     assert_eq!(head_boxed_tuple[1], value);
 
     assert_eq!(boxed_cons.tail, Term::NIL);
-}
-
-fn fill_heap(process: &Process) {
-    {
-        let mut heap = process.acquire_heap();
-
-        while let Ok(_) = heap.cons(Atom::str_to_term("hd"), Atom::str_to_term("tl")) {}
-    }
 }

@@ -7,13 +7,16 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::index::OneBasedIndex;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
+
+use crate::context::*;
 
 #[native_implemented_function(insert_element/3)]
 pub fn native(
@@ -22,10 +25,11 @@ pub fn native(
     tuple: Term,
     element: Term,
 ) -> exception::Result<Term> {
-    let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let index_one_based: OneBasedIndex = index.try_into()?;
-
+    let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let length = initial_inner_tuple.len();
+    let index_one_based: OneBasedIndex = index
+        .try_into()
+        .with_context(|| term_is_not_in_one_based_range(index, length + 1))?;
 
     // can be equal to arity when insertion is at the end
     if index_one_based <= length {
@@ -40,8 +44,10 @@ pub fn native(
         } else {
             process.tuple_from_slices(&[&initial_inner_tuple[..], &[element]])
         }
-        .map_err(|error| error.into())
+        .map_err(From::from)
     } else {
-        Err(badarg!().into())
+        Err(TryIntoIntegerError::OutOfRange)
+            .with_context(|| term_is_not_in_one_based_range(index, length + 1))
+            .map_err(From::from)
     }
 }

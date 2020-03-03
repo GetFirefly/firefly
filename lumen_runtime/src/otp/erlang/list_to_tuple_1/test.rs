@@ -1,9 +1,8 @@
 use proptest::collection::SizeRange;
 use proptest::prop_assert_eq;
-use proptest::strategy::Strategy;
+use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::list_to_tuple_1::native;
@@ -15,7 +14,10 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                prop_assert_badarg!(
+                    native(&arc_process, list),
+                    format!("list ({}) is not a list", list)
+                );
 
                 Ok(())
             })
@@ -61,18 +63,22 @@ fn with_non_empty_proper_list_returns_tuple() {
 
 #[test]
 fn with_improper_list_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::list::improper(arc_process.clone()),
-                |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::list::improper(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, list)| {
+            prop_assert_badarg!(
+                native(&arc_process, list),
+                format!("list ({}) is improper", list)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]

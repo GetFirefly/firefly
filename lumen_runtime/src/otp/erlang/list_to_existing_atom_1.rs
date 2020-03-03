@@ -5,7 +5,8 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -15,8 +16,9 @@ use crate::otp::erlang::list_to_string::list_to_string;
 
 #[native_implemented_function(list_to_existing_atom/1)]
 pub fn native(string: Term) -> exception::Result<Term> {
-    list_to_string(string).and_then(|s| match Atom::try_from_str_existing(s) {
-        Ok(atom) => Ok(atom.encode()?),
-        Err(_) => Err(badarg!().into()),
-    })
+    let string_string = list_to_string(string)?;
+    let atom = Atom::try_from_str_existing(string_string)
+        .with_context(|| format!("string ({})", string))?;
+
+    atom.encode().map_err(From::from)
 }

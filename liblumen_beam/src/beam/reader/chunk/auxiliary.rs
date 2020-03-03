@@ -16,8 +16,7 @@ impl Header {
         }
     }
     /// Alternative Implementations
-    /// - [In `org.elixir_lang.bean.chunk.Chunk.from` in IntelliJ
-    ///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+    /// - [In `org.elixir_lang.bean.chunk.Chunk.from` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
     ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Chunk.java#
     ///   L36-L40) in Java.
     pub fn decode<R: std::io::Read>(mut reader: R) -> std::io::Result<Self> {
@@ -34,8 +33,7 @@ impl Header {
 }
 
 /// ## Alternative Implementations
-/// - [In `org.elixir_lang.bean.chunk.Chunk.from` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [In `org.elixir_lang.bean.chunk.Chunk.from` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Chunk.java#L45) in
 ///   Java.
 pub fn padding_size(data_size: u32) -> u32 {

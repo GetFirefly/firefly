@@ -1,9 +1,10 @@
 macro_rules! number_infix_operator {
     ($left:ident, $right:ident, $process:ident, $checked:ident, $infix:tt) => {{
+        use anyhow::*;
         use num_bigint::BigInt;
 
-        use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
+        use liblumen_alloc::erts::exception::*;
+        use liblumen_alloc::erts::term::prelude::*;
 
         use $crate::number::Operands::*;
 
@@ -66,7 +67,7 @@ macro_rules! number_infix_operator {
         };
 
         match operands {
-            Bad => Err(badarith!().into()),
+            Bad => Err(badarith(anyhow!("{} ({}) and {} ({}) aren't both numbers", stringify!($left), $left, stringify!($right), $right).into()).into()),
             ISizes(left_isize, right_isize) => {
                 match left_isize.$checked(right_isize) {
                     Some(sum_isize) => Ok($process.integer(sum_isize)?),
@@ -99,10 +100,11 @@ macro_rules! number_infix_operator {
 
 macro_rules! number_to_integer {
     ($f:ident) => {
-        use liblumen_alloc::badarg;
+        use anyhow::*;
+
         use liblumen_alloc::erts::exception;
         use liblumen_alloc::erts::process::Process;
-        use liblumen_alloc::erts::term::prelude::Term;
+        use liblumen_alloc::erts::term::prelude::*;
 
         use lumen_runtime_macros::native_implemented_function;
 
@@ -117,7 +119,9 @@ macro_rules! number_to_integer {
 
                     f64_to_integer(process, ceiling)
                 }
-                NumberToInteger::NotANumber => Err(badarg!().into()),
+                NumberToInteger::NotANumber => Err(TypeError)
+                    .context(term_is_not_number!(number))
+                    .map_err(From::from),
             }
         }
     };

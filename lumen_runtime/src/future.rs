@@ -89,8 +89,8 @@ impl From<Exception> for NotReady {
 // Private
 
 fn code(arc_process: &Arc<Process>) -> code::Result {
-    let return_term = arc_process.stack_pop().unwrap();
-    let future_term = arc_process.stack_pop().unwrap();
+    let return_term = arc_process.stack_peek(1).unwrap();
+    let future_term = arc_process.stack_peek(2).unwrap();
 
     let future_resource_box: Boxed<Resource> = future_term.try_into().unwrap();
     let future_resource: Resource = future_resource_box.into();
@@ -101,7 +101,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         result: Ok(return_term),
     });
 
-    arc_process.remove_last_frame();
+    arc_process.remove_last_frame(2);
 
     Process::call_code(arc_process)
 }

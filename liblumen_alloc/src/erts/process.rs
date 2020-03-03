@@ -6,7 +6,7 @@ pub mod gc;
 mod heap;
 mod mailbox;
 mod monitor;
-mod priority;
+pub mod priority;
 
 use core::alloc::Layout;
 use core::any::Any;
@@ -21,6 +21,7 @@ use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
 
 use ::alloc::sync::Arc;
 
+use anyhow::*;
 use hashbrown::{HashMap, HashSet};
 use intrusive_collections::{LinkedList, UnsafeRef};
 
@@ -28,7 +29,7 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::exception::{self, AllocResult, RuntimeException};
+use crate::erts::exception::{AllocResult, ArcError, InternalResult, RuntimeException};
 use crate::erts::module_function_arity::Arity;
 use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
 use crate::erts::term::prelude::*;
@@ -107,6 +108,8 @@ pub struct Process {
     dictionary: Mutex<HashMap<Term, Term>>,
     /// The `pid` of the process that `spawn`ed this process.
     parent_pid: Option<Pid>,
+    /// The `pid` of the process that does I/O on this process's behalf.
+    group_leader_pid: Mutex<Pid>,
     pid: Pid,
     pub initial_module_function_arity: Arc<ModuleFunctionArity>,
     /// The number of reductions in the current `run`.  `code` MUST return when `run_reductions`
@@ -135,7 +138,7 @@ impl Process {
     /// `heap_size`, which is the size of the heap in words.
     pub fn new(
         priority: Priority,
-        parent_pid: Option<Pid>,
+        parent: Option<&Self>,
         initial_module_function_arity: Arc<ModuleFunctionArity>,
         heap: *mut Term,
         heap_size: usize,
@@ -143,6 +146,15 @@ impl Process {
         let heap = ProcessHeap::new(heap, heap_size);
         let off_heap = SpinLock::new(LinkedList::new(HeapFragmentAdapter::new()));
         let pid = Pid::next();
+
+        // > When a new process is spawned, it gets the same group leader as the spawning process.
+        // > Initially, at system startup, init is both its own group leader and the group leader
+        // > of all processes.
+        // > -- http://erlang.org/doc/man/erlang.html#group_leader-0
+        let (parent_pid, group_leader_pid) = match parent {
+            Some(parent) => (Some(parent.pid()), parent.get_group_leader_pid()),
+            None => (None, pid),
+        };
 
         Self {
             flags: AtomicProcessFlags::new(ProcessFlags::Default),
@@ -164,6 +176,7 @@ impl Process {
             scheduler_id: Mutex::new(None),
             priority,
             parent_pid,
+            group_leader_pid: Mutex::new(group_leader_pid),
             initial_module_function_arity,
             run_reductions: Default::default(),
             total_reductions: Default::default(),
@@ -176,14 +189,14 @@ impl Process {
 
     pub fn new_with_stack(
         priority: Priority,
-        parent_pid: Option<Pid>,
+        parent: Option<&Self>,
         initial_module_function_arity: Arc<ModuleFunctionArity>,
         heap: *mut Term,
         heap_size: usize,
     ) -> AllocResult<Self> {
         let mut p = Self::new(
             priority,
-            parent_pid,
+            parent,
             initial_module_function_arity,
             heap,
             heap_size,
@@ -317,6 +330,12 @@ impl Process {
 
     // Stack
 
+    /// Returns the nth (1-based) element from the top of the stack without removing it from the
+    /// stack.
+    pub fn stack_peek(&self, one_based_index: usize) -> Option<Term> {
+        self.heap.lock().stack_slot(one_based_index)
+    }
+
     /// Frees stack space occupied by the last term on the stack,
     /// adjusting the stack pointer accordingly.
     ///
@@ -330,6 +349,15 @@ impl Process {
                 heap.stack_popn(1);
                 ok
             }
+        }
+    }
+
+    /// Frees stack space occupied by the last `n` terms on the stack.
+    ///
+    /// Panics if the stack does not have that many items.
+    pub fn stack_popn(&self, n: usize) {
+        if n > 0 {
+            self.heap.lock().stack_popn(n)
         }
     }
 
@@ -424,6 +452,20 @@ impl Process {
             .lock()
             .remove(reference)
             .map(|monitor| *monitor.monitoring_pid())
+    }
+
+    // Group Leader Pid
+
+    pub fn get_group_leader_pid(&self) -> Pid {
+        *self.group_leader_pid.lock()
+    }
+
+    pub fn set_group_leader_pid(&self, group_leader_pid: Pid) {
+        *self.group_leader_pid.lock() = group_leader_pid
+    }
+
+    pub fn get_group_leader_pid_term(&self) -> Term {
+        self.get_group_leader_pid().encode().unwrap()
     }
 
     // Pid
@@ -568,7 +610,7 @@ impl Process {
         node: Arc<Node>,
         number: usize,
         serial: usize,
-    ) -> exception::Result<Term> {
+    ) -> InternalResult<Term> {
         self.acquire_heap()
             .external_pid(node, number, serial)
             .map(|pid| pid.into())
@@ -985,7 +1027,7 @@ impl Process {
 
         let code_result = match option_code {
             Some(code) => code(arc_process),
-            None => Ok(arc_process.exit_normal()),
+            None => Ok(arc_process.exit_normal(anyhow!("Out of code").into())),
         };
 
         arc_process.stop_running();
@@ -1017,13 +1059,13 @@ impl Process {
         self.run_reductions.fetch_add(1, Ordering::AcqRel);
     }
 
-    pub fn exit(&self, reason: Term) {
+    pub fn exit(&self, reason: Term, source: ArcError) {
         self.reduce();
-        self.exception(exit!(reason));
+        self.exception(exit!(reason, source));
     }
 
-    pub fn exit_normal(&self) {
-        self.exit(atom!("normal"));
+    pub fn exit_normal(&self, source: ArcError) {
+        self.exit(atom!("normal"), source);
     }
 
     pub fn is_exiting(&self) -> bool {
@@ -1101,7 +1143,8 @@ impl Process {
         locked_code_stack.push(frame);
     }
 
-    pub fn remove_last_frame(&self) {
+    pub fn remove_last_frame(&self, stack_used: usize) {
+        self.stack_popn(stack_used);
         let mut locked_code_stack = self.code_stack.lock();
 
         assert_eq!(locked_code_stack.len(), 1);
@@ -1110,8 +1153,16 @@ impl Process {
         locked_code_stack.pop().unwrap();
     }
 
-    pub fn return_from_call(&self, term: Term) -> AllocResult<()> {
-        let has_caller = {
+    pub fn return_from_call(&self, stack_used: usize, term: Term) -> AllocResult<()> {
+        let mut locked_heap = self.heap.lock();
+        // ensure there is space on the stack for return value before messing with the stack and
+        // breaking reentrancy
+        if locked_heap.stack_available() + stack_used > 0 {
+            if stack_used > 0 {
+                // Heap cannot pop n 0
+                locked_heap.stack_popn(stack_used);
+            }
+
             let mut locked_stack = self.code_stack.lock();
 
             // remove current frame.  The caller becomes the top frame, so it's
@@ -1119,15 +1170,18 @@ impl Process {
             // `current_module_function_arity`.
             locked_stack.pop();
 
-            0 < locked_stack.len()
-        };
+            // no caller, return value is thrown away, process will exit when
+            // `Scheduler.run_once` detects it has no frames.
+            if locked_stack.len() > 0 {
+                unsafe {
+                    let ptr = locked_heap.alloca(1).unwrap().as_ptr();
+                    ptr::write(ptr, term);
+                }
+            }
 
-        if has_caller {
-            self.stack_push(term)
-        } else {
-            // no caller, return value is thrown away, process will exit when `Scheduler.run_once`
-            // detects it has no frames.
             Ok(())
+        } else {
+            Err(alloc!())
         }
     }
 

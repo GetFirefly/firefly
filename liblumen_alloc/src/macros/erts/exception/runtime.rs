@@ -1,42 +1,10 @@
 #[macro_export]
 macro_rules! badarg {
-    () => {
-        $crate::erts::exception::badarg($crate::location!())
+    ($source:expr) => {
+        $crate::erts::exception::badarg(None, $source)
     };
-}
-
-#[macro_export]
-macro_rules! badarith {
-    () => {
-        $crate::erts::exception::badarith($crate::location!())
-    };
-}
-
-#[macro_export]
-macro_rules! badarity {
-    ($process:expr, $function:expr, $arguments:expr) => {
-        $crate::erts::exception::badarity($process, $function, $arguments, $crate::location!())
-    };
-}
-
-#[macro_export]
-macro_rules! badfun {
-    ($process:expr, $fun:expr) => {
-        $crate::erts::exception::badfun($process, $fun, $crate::location!())
-    };
-}
-
-#[macro_export]
-macro_rules! badkey {
-    ($process:expr, $key:expr) => {
-        $crate::erts::exception::badkey($process, $key, $crate::location!())
-    };
-}
-
-#[macro_export]
-macro_rules! badmap {
-    ($process:expr, $map:expr) => {
-        $crate::erts::exception::badmap($process, $map, $crate::location!())
+    ($stacktrace:expr, $source:expr) => {
+        $crate::erts::exception::badarg(Some($stacktrace), $source)
     };
 }
 
@@ -76,21 +44,21 @@ macro_rules! raise {
 
 #[macro_export]
 macro_rules! error {
-    ($reason:expr) => {
-        $crate::erts::exception::error($reason, None, $crate::location!(), None)
+    ($reason:expr, $source:expr) => {
+        $crate::erts::exception::error($reason, None, None, $source)
     };
-    ($reason:expr, $arguments:expr) => {
-        $crate::erts::exception::error($reason, Some($arguments), $crate::location!(), None)
+    ($reason:expr, $arguments:expr, $source:expr) => {
+        $crate::erts::exception::error($reason, Some($arguments), None, $source)
     };
 }
 
 #[macro_export]
 macro_rules! exit {
-    ($reason:expr) => {
-        $crate::erts::exception::exit($reason, $crate::location!(), None)
+    ($reason:expr, $source:expr) => {
+        $crate::erts::exception::exit($reason, None, $source)
     };
-    ($reason:expr, $stacktrace:expr) => {
-        $crate::erts::exception::exit($reason, $crate::location!(), Some($stacktrace))
+    ($reason:expr, $stacktrace:expr, $source:expr) => {
+        $crate::erts::exception::exit($reason, Some($stacktrace), $source)
     };
 }
 

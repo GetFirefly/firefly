@@ -21,7 +21,7 @@ use crate::registry::pid_to_process;
 
 #[native_implemented_function(demonitor/2)]
 pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {
-    let reference_reference: Boxed<Reference> = reference.try_into()?;
+    let reference_reference = term_try_into_local_reference!(reference)?;
     let options_options: Options = options.try_into()?;
 
     demonitor(process, &reference_reference, options_options)

@@ -3,8 +3,8 @@ use std::env::ArgsOs;
 
 use once_cell::sync::OnceCell;
 
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::scheduler::Scheduler;
 
@@ -28,7 +28,7 @@ pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {
         literals.push(BinaryLiteral::from_raw_bytes(
             bytes.as_ptr() as *mut u8,
             bytes.len(),
-            Some(Encoding::Utf8)
+            Some(Encoding::Utf8),
         ));
     }
 
@@ -39,8 +39,8 @@ pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {
 
 #[allow(unused)]
 pub(crate) fn init_argv(argv: *const *const libc::c_char, argc: u32) -> anyhow::Result<()> {
-    use std::ffi::CStr;
     use liblumen_alloc::erts::string::Encoding;
+    use std::ffi::CStr;
 
     let argc = argc as usize;
     if argc == 0 {
@@ -115,9 +115,8 @@ fn get_plain_arguments_with_process(process: &Process) -> Term {
     let mut heap = process.acquire_heap();
     let mut builder = ListBuilder::new(&mut heap);
     for arg in argv {
-        let boxed: Boxed<BinaryLiteral> = unsafe {
-            Boxed::new_unchecked(arg as *const _ as *mut _)
-        };
+        let boxed: Boxed<BinaryLiteral> =
+            unsafe { Boxed::new_unchecked(arg as *const _ as *mut _) };
         builder = builder.push(boxed.into());
     }
 

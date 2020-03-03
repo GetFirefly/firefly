@@ -37,11 +37,13 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let after = arc_process.stack_pop().unwrap();
+    let after = arc_process.stack_peek(1).unwrap();
     assert!(after.is_integer());
-    let before = arc_process.stack_pop().unwrap();
+    let before = arc_process.stack_peek(2).unwrap();
     assert!(before.is_integer());
-    let value = arc_process.stack_pop().unwrap();
+    let value = arc_process.stack_peek(3).unwrap();
+
+    arc_process.stack_popn(3);
 
     label_4::place_frame_with_arguments(arc_process, Placement::Replace, value)?;
     subtract_2::place_frame_with_arguments(arc_process, Placement::Push, after, before)?;

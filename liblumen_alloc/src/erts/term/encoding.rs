@@ -5,13 +5,17 @@ use core::marker::PhantomData;
 use core::mem;
 use core::ptr::NonNull;
 
+use alloc::sync::Arc;
+
+use std::backtrace::Backtrace;
+
 use hashbrown::HashMap;
 use thiserror::Error;
 
 use liblumen_term::Encoding as TermEncoding;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::{AllocResult, Result};
+use crate::erts::exception::{AllocResult, InternalResult};
 use crate::erts::fragment::HeapFragment;
 use crate::erts::process::alloc::TermAlloc;
 
@@ -19,7 +23,7 @@ use super::arch::{Repr, Word};
 use super::prelude::*;
 
 /// Represents the various conditions under which encoding can fail
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum TermEncodingError {
     /// Occurs when attempting to encode an unaligned pointer
     #[error("invalid attempt to encode unaligned pointer")]
@@ -32,7 +36,7 @@ pub enum TermEncodingError {
 }
 
 /// Used to indicate that some value was not a valid encoding of a term
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Error, Debug, Clone)]
 pub enum TermDecodingError {
     /// Occurs primarily with header tags, as there are some combinations
     /// of tag bits that are unused. Primary tags are (currently) fully
@@ -40,19 +44,27 @@ pub enum TermDecodingError {
     /// change if additional representations are added that have free
     /// primary tags
     #[error("invalid type tag")]
-    InvalidTag,
+    InvalidTag { backtrace: Arc<Backtrace> },
     /// Decoding a Term that is a move marker is considered an error,
     /// code which needs to be aware of move markers should already be
     /// manually checking for this possibility
     #[error("tried to decode a move marker")]
-    MoveMarker,
+    MoveMarker { backtrace: Arc<Backtrace> },
     /// Decoding a Term that is a none value is considered an error,
     /// as this value is primarily used to indicate an error; and in cases
     /// where it represents a real value (namely as a move marker), it is
     /// meaningless to decode it. In all other cases, it represents uninitialized
     /// memory
     #[error("tried to decode a none value")]
-    NoneValue,
+    NoneValue { backtrace: Arc<Backtrace> },
+}
+
+impl Eq for TermDecodingError {}
+
+impl PartialEq for TermDecodingError {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
 }
 
 /// This trait provides the ability to encode a type to some output encoding.
@@ -62,7 +74,7 @@ pub enum TermDecodingError {
 /// necessary to use the `Boxable::as_box` trait function to obtain an
 /// encoded pointer when needed.
 pub trait Encode<T: Encoded> {
-    fn encode(&self) -> Result<T>;
+    fn encode(&self) -> InternalResult<T>;
 }
 
 /// This is a marker trait for terms which can be boxed
@@ -355,7 +367,7 @@ pub trait Encoded: Repr + Copy {
     /// to make this as safe as possible. The only exception to this rule should
     /// be the case of decoding a pointer which can not be validated unless it
     /// is dereferenced.
-    fn decode(&self) -> Result<TypedTerm>;
+    fn decode(&self) -> Result<TypedTerm, TermDecodingError>;
 
     /// Returns `true` if the encoded value represents `NONE`
     #[inline]

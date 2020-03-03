@@ -22,7 +22,7 @@ fn with_exiting_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::process(), |other_arc_process| {
-                other_arc_process.exit_normal();
+                other_arc_process.exit_normal(anyhow!("Test").into());
 
                 prop_assert!(other_arc_process.is_exiting());
                 prop_assert_eq!(

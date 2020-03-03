@@ -33,7 +33,7 @@ where
 
 pub fn lower(input: &str, config: ParseConfig) -> Result<Module, ()> {
     let (parsed, parser): (ErlAstModule, _) = parse(input, config);
-    let (res, messages) = lower_module(&parsed);
+    let (res, messages) = lower_module(&parser.config.codemap, &parsed);
 
     let emitter =
         StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());

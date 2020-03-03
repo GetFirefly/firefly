@@ -16,7 +16,11 @@ fn returns_true() {
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference, OPTIONS),
+            native(
+                &monitoring_arc_process,
+                monitor_reference,
+                options(&monitoring_arc_process)
+            ),
             Ok(true.into())
         );
 
@@ -54,24 +58,28 @@ fn does_not_flush_existing_message() {
 
         let tag = Atom::str_to_term("DOWN");
 
-        assert!(has_message(
+        assert_has_message!(
             &monitoring_arc_process,
             monitoring_arc_process
                 .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
                 .unwrap()
-        ));
+        );
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference, OPTIONS),
+            native(
+                &monitoring_arc_process,
+                monitor_reference,
+                options(&monitoring_arc_process)
+            ),
             Ok(true.into())
         );
 
-        assert!(has_message(
+        assert_has_message!(
             &monitoring_arc_process,
             monitoring_arc_process
                 .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
                 .unwrap()
-        ));
+        );
     });
 }
 
@@ -95,7 +103,11 @@ fn prevents_future_messages() {
         ));
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference, OPTIONS),
+            native(
+                &monitoring_arc_process,
+                monitor_reference,
+                options(&monitoring_arc_process)
+            ),
             Ok(true.into())
         );
 

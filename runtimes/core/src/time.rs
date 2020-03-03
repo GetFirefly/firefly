@@ -4,12 +4,14 @@ pub mod system;
 
 use core::convert::{TryFrom, TryInto};
 
+use anyhow::*;
+
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use liblumen_alloc::erts::exception::{AllocResult, Exception};
+use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, Process};
+use liblumen_alloc::{atom, Process};
 
 // Must be at least a `u64` because `u32` is only ~49 days (`(1 << 32)`)
 pub type Milliseconds = u64;
@@ -90,38 +92,43 @@ impl Unit {
     pub fn to_term(&self, process: &Process) -> AllocResult<Term> {
         match self {
             Unit::Hertz(hertz) => process.integer(*hertz),
-            Unit::Second => Ok(Atom::str_to_term("second")),
-            Unit::Millisecond => Ok(Atom::str_to_term("millisecond")),
-            Unit::Microsecond => Ok(Atom::str_to_term("microsecond")),
-            Unit::Nanosecond => Ok(Atom::str_to_term("nanosecond")),
-            Unit::Native => Ok(Atom::str_to_term("native")),
-            Unit::PerformanceCounter => Ok(Atom::str_to_term("perf_counter")),
+            Unit::Second => Ok(atom!("second")),
+            Unit::Millisecond => Ok(atom!("millisecond")),
+            Unit::Microsecond => Ok(atom!("microsecond")),
+            Unit::Nanosecond => Ok(atom!("nanosecond")),
+            Unit::Native => Ok(atom!("native")),
+            Unit::PerformanceCounter => Ok(atom!("perf_counter")),
         }
     }
 }
 
-impl TryFrom<Term> for Unit {
-    type Error = Exception;
+const NON_POSITIVE_HERTZ_CONTEXT: &str = "hertz must be positive";
 
-    fn try_from(term: Term) -> Result<Unit, Self::Error> {
-        match term.decode()? {
+impl TryFrom<Term> for Unit {
+    type Error = anyhow::Error;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        match term.decode().unwrap() {
             TypedTerm::SmallInteger(small_integer) => {
-                let hertz: usize = small_integer.try_into()?;
+                let hertz: usize = small_integer
+                    .try_into()
+                    .context(NON_POSITIVE_HERTZ_CONTEXT)?;
 
                 if 0 < hertz {
                     Ok(Unit::Hertz(hertz))
                 } else {
-                    Err(badarg!().into())
+                    Err(TryIntoIntegerError::OutOfRange).context(NON_POSITIVE_HERTZ_CONTEXT)
                 }
             }
             TypedTerm::BigInteger(big_integer) => {
-                let big_integer_usize: usize = big_integer.try_into()?;
+                let big_integer_usize: usize =
+                    big_integer.try_into().context(NON_POSITIVE_HERTZ_CONTEXT)?;
 
                 Ok(Unit::Hertz(big_integer_usize))
             }
             TypedTerm::Atom(atom) => {
-                let term_string = atom.name();
-                let mut result = Err(badarg!().into());
+                let atom_name = atom.name();
+                let mut option = None;
 
                 for (s, unit) in [
                     ("second", Unit::Second),
@@ -135,39 +142,20 @@ impl TryFrom<Term> for Unit {
                     ("native", Unit::Native),
                     ("perf_counter", Unit::PerformanceCounter),
                 ]
-                .iter()
+                    .iter()
                 {
-                    if &term_string == s {
-                        result = Ok(*unit);
+                    if &atom_name == s {
+                        option = Some(*unit);
                         break;
                     }
                 }
 
-                result
+                match option {
+                    Some(unit) => Ok(unit),
+                    None => Err(TryAtomFromTermError(atom_name).into())
+                }
             }
-            _ => Err(badarg!().into()),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod unit {
-        use super::*;
-
-        use crate::scheduler::with_process;
-
-        #[test]
-        fn zero_errors_badarg() {
-            with_process(|process| {
-                let term: Term = process.integer(0).unwrap();
-
-                let result: Result<Unit, Exception> = term.try_into();
-
-                assert_badarg!(result);
-            });
-        }
+            _ => Err(TypeError.into()),
+        }.context("supported units are :second, :seconds, :millisecond, :milli_seconds, :microsecond, :micro_seconds, :nanosecond, :nano_seconds, :native, :perf_counter, or hertz (positive integer)")
     }
 }

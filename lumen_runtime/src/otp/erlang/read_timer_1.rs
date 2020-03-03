@@ -15,5 +15,5 @@ use crate::otp::erlang::read_timer;
 
 #[native_implemented_function(read_timer/1)]
 pub fn native(process: &Process, timer_reference: Term) -> exception::Result<Term> {
-    read_timer(timer_reference, Default::default(), process)
+    read_timer(timer_reference, Default::default(), process).map_err(From::from)
 }

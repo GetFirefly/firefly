@@ -12,7 +12,7 @@ use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::{self, AllocResult};
+use crate::erts::exception::{AllocResult, InternalResult};
 use crate::erts::module_function_arity::Arity;
 use crate::erts::process::code::Code;
 use crate::erts::string::Encoding;
@@ -285,7 +285,7 @@ pub trait TermAlloc: Heap {
         node_id: usize,
         number: usize,
         serial: usize,
-    ) -> exception::Result<Pid> {
+    ) -> InternalResult<Pid> {
         assert_eq!(node_id, 0);
 
         Ok(Pid::new(number, serial)?)
@@ -296,7 +296,7 @@ pub trait TermAlloc: Heap {
         arc_node: Arc<Node>,
         number: usize,
         serial: usize,
-    ) -> exception::Result<Boxed<ExternalPid>>
+    ) -> InternalResult<Boxed<ExternalPid>>
     where
         Self: Sized,
     {

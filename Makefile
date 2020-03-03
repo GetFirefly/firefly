@@ -68,9 +68,9 @@ format-rust: ## Format Rust code
 	cargo fmt
 
 format-cpp: ## Format C++ code
-	clang-format -i --Werror --verbose \
-		liblumen_codegen/lib/**/*.h \
-		liblumen_codegen/lib/**/*.cpp
+	find liblumen_codegen/lib/{tools,lumen} \
+		-type f \( -name '*.cpp' -or -name '*.h' \) \
+		-print0 | xargs -0 clang-format -i --verbose
 
 clean: ## Clean all
 	cargo clean

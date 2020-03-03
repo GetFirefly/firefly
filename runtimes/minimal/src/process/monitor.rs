@@ -1,3 +1,4 @@
+#![allow(unused)]
 use core::alloc::Layout;
 use core::mem;
 use std::convert::TryInto;

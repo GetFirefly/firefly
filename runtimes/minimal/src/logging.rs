@@ -4,7 +4,7 @@ use log::LevelFilter;
 
 use anyhow::bail;
 
-pub fn init(level: LevelFilter) -> anyhow::Result<()> {
+pub fn init(_level: LevelFilter) -> anyhow::Result<()> {
     // Initialize logger
     let mut builder = env_logger::from_env("LUMEN_DEBUG_LOG");
     builder.format_indent(Some(2));

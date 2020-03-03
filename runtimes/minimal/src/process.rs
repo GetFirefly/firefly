@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub mod monitor;
 
 use std::sync::Arc;
@@ -9,9 +10,8 @@ use liblumen_core::locks::RwLockWriteGuard;
 
 use liblumen_alloc::erts::exception::{self, AllocResult, RuntimeException};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
-use liblumen_alloc::erts::process::{self, Process, ProcessHeap};
+use liblumen_alloc::erts::process::{Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
 use lumen_rt_core::registry::*;

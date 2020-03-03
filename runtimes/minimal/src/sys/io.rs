@@ -6,7 +6,6 @@ use liblumen_alloc::erts::term::prelude::*;
 
 #[export_name = "__lumen_builtin_printf"]
 pub extern "C" fn printf_1(term: Term) -> Term {
-    use liblumen_alloc::erts::term::arch::Repr;
     match term.decode() {
         Ok(TypedTerm::BinaryLiteral(boxed)) => {
             println!("{:?}", boxed.as_str());
@@ -32,9 +31,9 @@ pub extern "C" fn put_chars_1(s: *const libc::c_char) -> Option<Term> {
 
 #[export_name = "io:format/2"]
 pub extern "C" fn format_2(
-    s: *const libc::c_char,
-    argv: *const Term,
-    argc: libc::c_uint,
+    _s: *const libc::c_char,
+    _argv: *const Term,
+    _argc: libc::c_uint,
 ) -> Option<Term> {
     unimplemented!();
 }

@@ -15,6 +15,7 @@ mod scheduler;
 mod sys;
 mod distribution;
 mod process;
+pub mod env;
 
 use bus::Bus;
 use log::Level;
@@ -34,12 +35,12 @@ fn main() -> impl ::std::process::Termination + 'static {
 }
 
 fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()> {
+    self::env::init_argv_from_slice(std::env::args_os()).unwrap();
     // Load system configuration
     let _config = match Config::from_argv(name.to_string(), version.to_string(), argv) {
         Ok(config) => config,
         Err(err) => {
             panic!("Config error: {}", err);
-            return Err(());
         }
     };
 

@@ -1,16 +1,18 @@
+#![allow(unused)]
 mod run_queue;
 
 use std::ptr;
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
-use std::cell::Cell;
+use std::cell::{RefCell, Cell};
 use std::ops::Deref;
 
 use hashbrown::HashMap;
 
-use anyhow::anyhow;
 use lazy_static::lazy_static;
+
+use log::info;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
@@ -38,6 +40,10 @@ thread_local! {
   static SCHEDULER: Arc<Scheduler> = Scheduler::registered();
 }
 
+thread_local! {
+  static CURRENT_PROCESS: RefCell<Option<Arc<Process>>> = RefCell::new(None);
+}
+
 lazy_static! {
     static ref SCHEDULERS: Mutex<HashMap<id::ID, Weak<Scheduler>>> = Mutex::new(Default::default());
 }
@@ -45,7 +51,7 @@ lazy_static! {
 #[derive(Copy, Clone)]
 struct StackPointer(*mut u64);
 
-#[link_name = "__lumen_builtin_yield"]
+#[export_name = "__lumen_builtin_yield"]
 pub unsafe extern "C" fn process_yield() -> bool {
     let s = <Scheduler as rt_core::Scheduler>::current();
     // NOTE: We always set root=false here because the root
@@ -56,7 +62,7 @@ pub unsafe extern "C" fn process_yield() -> bool {
 #[naked]
 #[inline(never)]
 #[cfg(all(unix, target_arch = "x86_64"))]
-#[link_name = "__lumen_builtin_return"]
+#[export_name = "__lumen_builtin_return"]
 pub unsafe extern "C" fn process_return_continuation() {
     let f: fn () -> () = process_return;
     asm!("
@@ -276,6 +282,12 @@ impl Scheduler {
         self.run_queues.read().contains(value)
     }
 
+    pub fn current_process() -> Arc<Process> {
+        CURRENT_PROCESS.with(|cp| {
+          cp.borrow().clone().expect("no process currently scheduled")
+        })
+    }
+
     // TODO: Request application master termination for controlled shutdown
     // This request will always come from the thread which spawned the application
     // master, i.e. the "main" scheduler thread
@@ -285,6 +297,7 @@ impl Scheduler {
     pub fn shutdown(&self) -> anyhow::Result<()> {
         // For now just Ok(()), but this needs to be addressed when proper
         // system startup/shutdown is in place
+        CURRENT_PROCESS.with(|cp| cp.replace(None));
         Ok(())
     }
 }
@@ -357,6 +370,7 @@ impl Scheduler {
     /// auxilary tasks, after which the scheduler will call it again to
     /// swap in a new process.
     fn process_yield(&self, is_root: bool) -> bool {
+        info!("entering core scheduler loop");
         self.hierarchy.write().timeout();
 
         loop {
@@ -367,25 +381,33 @@ impl Scheduler {
 
             match next {
                 Run::Now(process) => {
+                    info!("found process to schedule");
                     // Don't allow exiting processes to run again.
                     //
                     // Without this check, a process.exit() from outside the process during WAITING
                     // will return to the Frame that called `process.wait()`
                     if !process.is_exiting() {
+                        info!("swapping into process (is_root = {})", is_root);
                         unsafe {
                             self.swap_process(process, is_root);
                         }
                     } else {
+                        info!("process is exiting");
                         process.reduce()
                     }
 
+                    info!("exiting scheduler loop");
                     // When reached, either the process scheduled is the root process,
                     // or the process is exiting and we called .reduce(); either way we're
                     // returning to the main scheduler loop to check for signals, etc.
                     break true;
                 }
-                Run::Delayed => continue,
+                Run::Delayed => {
+                    info!("found process, but it is delayed");
+                    continue
+                },
                 Run::None if is_root => {
+                    info!("no processes remaining to schedule, exiting loop");
                     // If no processes are available, then the scheduler should steal,
                     // but if it can't/doesn't, then it must terminate, as there is
                     // nothing we can swap to. When we break here, we're returning
@@ -420,6 +442,7 @@ impl Scheduler {
         }
 
         // Replace the previous process with the new as the currently scheduled process
+        let _ = CURRENT_PROCESS.with(|cp| cp.replace(Some(new.clone())));
         let prev = self.current.replace(new.clone());
 
         // Increment reduction count if not the root process
@@ -492,7 +515,7 @@ impl Scheduler {
     // Root process uses the original thread stack, no initialization required.
     //
     // It also starts "running", so we don't put it on the run queue
-    fn spawn_root(process: Arc<Process>, id: id::ID, run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
+    fn spawn_root(process: Arc<Process>, id: id::ID, _run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
         process.schedule_with(id);
 
         *process.status.write() = Status::Running;

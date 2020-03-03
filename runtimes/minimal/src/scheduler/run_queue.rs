@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::borrow::Borrow;
 use std::collections::vec_deque::VecDeque;
 use std::collections::HashSet;

@@ -1,3 +1,4 @@
+#![allow(unused)]
 mod options;
 pub use self::options::*;
 

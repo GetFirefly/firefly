@@ -1,5 +1,4 @@
 use core::slice;
-use std::ffi::OsString;
 use std::env::ArgsOs;
 
 use once_cell::sync::OnceCell;
@@ -12,6 +11,7 @@ use crate::scheduler::Scheduler;
 static ARGV: OnceCell<Vec<String>> = OnceCell::new();
 static ARGV_TERM: OnceCell<Vec<BinaryLiteral>> = OnceCell::new();
 
+#[allow(unused)]
 pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {
     use liblumen_alloc::erts::string::Encoding;
 
@@ -19,7 +19,7 @@ pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {
     for arg in argv {
         args.push(arg.to_string_lossy().into_owned());
     }
-    ARGV.set(args);
+    ARGV.set(args).unwrap();
 
     let argv = ARGV.get().map(|v| v.as_slice()).unwrap();
     let mut literals = Vec::with_capacity(argv.len());
@@ -32,18 +32,19 @@ pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {
         ));
     }
 
-    ARGV_TERM.set(literals);
+    ARGV_TERM.set(literals).unwrap();
 
     Ok(())
 }
 
+#[allow(unused)]
 pub(crate) fn init_argv(argv: *const *const libc::c_char, argc: u32) -> anyhow::Result<()> {
     use std::ffi::CStr;
     use liblumen_alloc::erts::string::Encoding;
 
     let argc = argc as usize;
     if argc == 0 {
-        ARGV.set(Vec::new());
+        ARGV.set(Vec::new()).unwrap();
         return Ok(());
     }
 
@@ -82,8 +83,8 @@ pub(crate) fn init_argv(argv: *const *const libc::c_char, argc: u32) -> anyhow::
         }
     }
 
-    ARGV.set(args);
-    ARGV_TERM.set(literals);
+    ARGV.set(args).unwrap();
+    ARGV_TERM.set(literals).unwrap();
 
     Ok(())
 }

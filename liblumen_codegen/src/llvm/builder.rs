@@ -1,21 +1,35 @@
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
+use std::slice;
+
+use llvm_sys::prelude::LLVMBuilderRef;
 
 use crate::llvm::*;
 use crate::Result;
+
+/// Empty string, to be used where LLVM expects an instruction name, indicating
+/// that the instruction is to be left unnamed (i.e. numbered, in textual IR).
+const EMPTY_C_STR: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
+const UNNAMED: *const ::libc::c_char = EMPTY_C_STR.as_ptr();
 
 pub struct ModuleBuilder<'ctx> {
     context: &'ctx Context,
     module: Module,
     target_data: TargetData,
+    builder: LLVMBuilderRef,
 }
 impl<'ctx> ModuleBuilder<'ctx> {
     pub fn new(name: &str, context: &'ctx Context, target_machine: &TargetMachine) -> Result<Self> {
+        use llvm_sys::core::LLVMCreateBuilderInContext;
+
         let target_data = target_machine.get_target_data();
         let module = Module::create(name, context, target_machine.as_ref())?;
+        let builder = unsafe { LLVMCreateBuilderInContext(context.as_ref()) };
+
         Ok(Self {
             context,
             module,
             target_data,
+            builder,
         })
     }
 
@@ -203,10 +217,54 @@ impl<'ctx> ModuleBuilder<'ctx> {
         }
     }
 
-    pub fn add_function(&self, name: &CString, ty: LLVMTypeRef) -> LLVMValueRef {
+    pub fn build_function(&self, name: &CString, ty: LLVMTypeRef) -> LLVMValueRef {
         use llvm_sys::core::LLVMAddFunction;
        
         unsafe { LLVMAddFunction(self.module.as_ref(), name.as_ptr(), ty) }
+    }
+
+    pub fn get_function_params(&self, fun: LLVMValueRef) -> Vec<LLVMValueRef> {
+        use llvm_sys::core::{LLVMCountParams, LLVMGetParams};
+        let paramc = unsafe { LLVMCountParams(fun) as usize };
+        let mut params = Vec::with_capacity(paramc);
+        unsafe {
+            LLVMGetParams(fun, params.as_mut_ptr());
+            params.set_len(paramc);
+        };
+        params
+    }
+
+    pub fn build_entry_block(&self, fun: LLVMValueRef) -> LLVMBasicBlockRef {
+        use llvm_sys::core::LLVMAppendBasicBlock;
+
+        let entry_name = CString::new("entry").unwrap();
+        unsafe { LLVMAppendBasicBlock(fun, entry_name.as_ptr()) }
+    }
+
+    pub fn position_at_end(&self, block: LLVMBasicBlockRef) {
+        use llvm_sys::core::LLVMPositionBuilderAtEnd;
+
+        unsafe { LLVMPositionBuilderAtEnd(self.builder, block); }
+    }
+
+    pub fn build_call(&self, fun: LLVMValueRef, fun_ty: LLVMTypeRef, args: &[LLVMValueRef]) -> LLVMValueRef {
+        use llvm_sys::core::LLVMBuildCall2;
+
+        let argv = args.as_ptr() as *mut _;
+        let argc = args.len() as libc::c_uint;
+        unsafe { LLVMBuildCall2(self.builder, fun_ty, fun, argv, argc, UNNAMED) }
+    }
+
+    pub fn set_is_tail(&self, call: LLVMValueRef, is_tail: bool) {
+        use llvm_sys::prelude::LLVMBool;
+        use llvm_sys::core::LLVMSetTailCall;
+        unsafe { LLVMSetTailCall(call, is_tail as LLVMBool) }
+    }
+
+    pub fn build_return(&self, ret: LLVMValueRef) -> LLVMValueRef {
+        use llvm_sys::core::LLVMBuildRet;
+
+        unsafe { LLVMBuildRet(self.builder, ret) }
     }
 
     pub fn add_constant(

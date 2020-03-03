@@ -44,7 +44,7 @@ pub fn compile_symbol_table(
         };
         let name = CString::new(ident.to_string()).unwrap();
         let ty = builder.get_erlang_function_type(ident.arity);
-        Ok(builder.add_function(&name, ty))
+        Ok(builder.build_function(&name, ty))
     }
 
     // Translate FunctionIdent to FunctionSymbol with pointer to declared function
@@ -92,6 +92,37 @@ pub fn compile_symbol_table(
         Some(table_size_global_init),
     );
     builder.set_alignment(table_size_global, 8);
+
+    // We have to build a shim for the Rust libstd `lang_start_internal`
+    // function to start the Rust runtime. Since that symbol is internal,
+    // we locate the mangled symbol name at build time and build a shim
+    // function that calls it while exporting itself with a non-mangled name
+    //
+    // We do that here, since logically its another symbol in our symbol table,
+    // except we call it directly like any other function in the generated code.
+    let lang_start_symbol_name = CString::new(env!("LANG_START_SYMBOL_NAME")).unwrap();
+    let lang_start_alias_name = CString::new("__lumen_lang_start_internal").unwrap();
+
+    let i32_type = builder.get_i32_type();
+    let i8ptrptr_type = builder.get_pointer_type(
+        builder.get_pointer_type(i8_type)
+    );
+    let main_ptr_ty = builder.get_pointer_type(builder.get_function_type(i32_type, &[], false));
+    let lang_start_ty = builder.get_function_type(
+        usize_type,
+        &[main_ptr_ty, usize_type, i8ptrptr_type],
+        /*varidic=*/false,
+    );
+    let lang_start_fn_decl = builder.build_function(&lang_start_symbol_name, lang_start_ty);
+    builder.set_linkage(lang_start_fn_decl, Linkage::External);
+    let lang_start_shim_fn = builder.build_function(&lang_start_alias_name, lang_start_ty);
+    builder.set_linkage(lang_start_shim_fn, Linkage::External);
+    let entry_block = builder.build_entry_block(lang_start_shim_fn);
+    builder.position_at_end(entry_block);
+    let lang_start_args = builder.get_function_params(lang_start_shim_fn);
+    let lang_start_call = builder.build_call(lang_start_fn_decl, lang_start_ty, &lang_start_args);
+    builder.set_is_tail(lang_start_call, true);
+    builder.build_return(lang_start_call);
 
     // Finalize module
     let module = builder.finish();

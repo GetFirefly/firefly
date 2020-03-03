@@ -15,7 +15,7 @@ extern "C" {
     fn lumen_entry() -> i32;
 
     #[allow(improper_ctypes)]
-    #[link_name = "_ZN3std2rt19lang_start_internal17ha98eaa5639bc1589E"]
+    #[link_name = "__lumen_lang_start_internal"]
     fn lang_start(main: &dyn Fn () -> i32, argc: isize, argv: *const *const i8) -> isize;
 }
 

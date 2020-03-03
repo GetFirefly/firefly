@@ -36,7 +36,7 @@ pub type TargetMachineRef = llvm_sys::target_machine::LLVMTargetMachineRef;
 pub type ModuleImpl = llvm_sys::LLVMModule;
 pub type ModuleRef = llvm_sys::prelude::LLVMModuleRef;
 
-pub use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef};
+pub use llvm_sys::prelude::{LLVMTypeRef, LLVMValueRef, LLVMBasicBlockRef};
 pub use llvm_sys::target::LLVMTargetDataRef;
 
 #[repr(transparent)]

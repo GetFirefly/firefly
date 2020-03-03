@@ -182,6 +182,57 @@ fn main() {
     }
 
     print_libcpp_flags(llvm_config_path.as_path(), target.as_str());
+
+    // Get demangled lang_start_internal name
+
+    let mut sysroot_cmd = Command::new("rustc");
+    let mut sysroot_cmd = sysroot_cmd.args(&["--print", "sysroot"]);
+    let sysroot = PathBuf::from(output(&mut sysroot_cmd).trim());
+    let toolchain_libs = sysroot.join("lib/rustlib").join(target).join("lib");
+    println!("toolchain_libs: {:?}", &toolchain_libs);
+    let libstd_rlib = toolchain_libs
+        .read_dir()
+        .unwrap()
+        .map(|e| e.unwrap())
+        .filter(|e| {
+            let path = e.path();
+            let filename = path.file_name().map(|s| s.to_string_lossy());
+            if let Some(fname) = filename {
+                if fname.starts_with("libstd") && fname.ends_with(".rlib") {
+                    return true;
+                }
+            }
+            false
+        })
+        .take(1)
+        .next()
+        .map(|e| e.path().to_string_lossy().into_owned())
+        .expect("unable to find libstd rlib in toolchain directory!");
+
+
+    let llvm_objdump = llvm_prefix.join("bin/llvm-objdump");
+    let mut objdump_cmd = Command::new(llvm_objdump);
+    let objdump_cmd = objdump_cmd
+        .args(&["--syms", &libstd_rlib])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .expect("failed to open llvm-objdump");
+    let mut grep_cmd = Command::new("grep");
+    let grep_cmd = grep_cmd
+        .args(&["lang_start_internal"])
+        .stdin(objdump_cmd.stdout.unwrap())
+        .stderr(Stdio::inherit());
+
+    let results = output(grep_cmd);
+    let lang_start_symbol = results
+        .trim()
+        .split(' ')
+        .last()
+        .expect("expected non-empty lang_start_symbol result");
+
+    // Strip off leading `_` when printing symbol name
+    println!("cargo:rustc-env=LANG_START_SYMBOL_NAME={}", &lang_start_symbol[1..]);
 }
 
 pub fn output(cmd: &mut Command) -> String {

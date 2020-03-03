@@ -1,6 +1,7 @@
 #![feature(extern_types)]
 #![feature(arbitrary_enum_discriminant)]
 #![feature(associated_type_bounds)]
+#![feature(const_cstr_unchecked)]
 
 pub mod atoms;
 pub mod codegen;

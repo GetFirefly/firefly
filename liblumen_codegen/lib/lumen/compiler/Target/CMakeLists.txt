@@ -8,6 +8,7 @@ lumen_cc_library(
     "Target.cpp"
     "TargetInfo.cpp"
   DEPS
+    lumen::compiler::Dialect::EIR::IR
     LLVMSupport
     LLVMCodeGen
     LLVMTarget

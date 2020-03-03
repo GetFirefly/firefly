@@ -41,3 +41,15 @@ macro_rules! unwrap_const_int {
         }
     }}
 }
+
+/// Used with ScopedFunctionBuilder, but placing it here makes it available
+/// to all of the sub-builders
+#[macro_export]
+macro_rules! debug_in {
+    ($this:expr, $format:expr) => {
+        debug!("{}: {}", $this.name(), $format);
+    };
+    ($this:expr, $format:expr, $($arg:expr),+) => {
+        debug!("{}: {}", $this.name(), &format!($format, $($arg),+));
+    }
+}

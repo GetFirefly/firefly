@@ -16,7 +16,7 @@ impl TraceCaptureBuilder {
         let Branch { block, args } = branch;
 
         let block_ref = builder.block_ref(block);
-        let mut block_args = args
+        let block_args = args
             .iter()
             .copied()
             .map(|a| builder.value_ref(a))
@@ -25,8 +25,6 @@ impl TraceCaptureBuilder {
         // Append captured trace as the only explicit argument
         let builder_ref = builder.as_ref();
 
-        let nil = ir::AtomicTerm::Nil.as_value_ref(builder_ref, builder.options())?;
-        block_args.push(nil);
         unsafe {
             MLIRBuildTraceCaptureOp(
                 builder_ref,

@@ -82,6 +82,24 @@ pub extern "C" fn is_type(ty: u32, value: usize) -> bool {
     do_is_type::<E64>(ty, value)
 }
 
+#[export_name = "__lumen_builtin_is_boxed_type"]
+#[cfg(target_pointer_width = "32")]
+pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
+    do_is_boxed_type::<E32>(ty, value)
+}
+
+#[export_name = "__lumen_builtin_is_boxed_type"]
+#[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
+pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
+    do_is_boxed_type::<E64N>(ty, value)
+}
+
+#[export_name = "__lumen_builtin_is_boxed_type"]
+#[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
+pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
+    do_is_boxed_type::<E64>(ty, value)
+}
+
 /// This is a less efficient, but more general type checking function,
 /// primarily meant for consumption during compile-time
 #[export_name = "lumen_is_type"]
@@ -150,6 +168,27 @@ pub extern "C" fn literal_tag(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
+#[export_name = "lumen_immediate_mask"]
+pub extern "C" fn immediate_mask(encoding: *const EncodingInfo) -> MaskInfo {
+    let encoding = unsafe { &*encoding };
+    match encoding.pointer_size {
+        32 => Encoding32::immediate_mask_info(),
+        64 if encoding.supports_nanboxing => Encoding64Nanboxed::immediate_mask_info(),
+        64 => Encoding64::immediate_mask_info(),
+        _ => unreachable!(),
+    }
+}
+
+#[export_name = "lumen_list_mask"]
+pub extern "C" fn list_mask(encoding: *const EncodingInfo) -> u64 {
+    let encoding = unsafe { &*encoding };
+    match encoding.pointer_size {
+        32 => Encoding32::MASK_PRIMARY as u64,
+        64 if encoding.supports_nanboxing => Encoding64Nanboxed::TAG_MASK,
+        64 => Encoding64::MASK_PRIMARY,
+        _ => unreachable!(),
+    }
+}
 
 #[inline]
 fn do_is_type<T>(ty: u32, value: usize) -> bool
@@ -159,6 +198,36 @@ where
     <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
 {
     let kind = unwrap_term_kind!(ty);
+    let tag = T::type_of(value.try_into().unwrap());
+    match kind {
+        TermKind::Term => tag.is_term(),
+        TermKind::List => tag.is_list(),
+        TermKind::Number => tag.is_number(),
+        TermKind::Integer => tag.is_integer(),
+        TermKind::Binary => tag.is_binary(),
+        _ => {
+            let expected: Result<Tag<T::Type>, _> = kind.try_into();
+            match expected {
+                Ok(t) => tag == t,
+                Err(_) => unreachable!(),
+            }
+        }
+    }
+}
+
+#[inline]
+fn do_is_boxed_type<T>(ty: u32, value: usize) -> bool
+where
+    T: Encoding,
+    <T as Encoding>::Type: Word,
+    <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
+{
+    let kind = unwrap_term_kind!(ty);
+    let tag = T::type_of(value.try_into().unwrap());
+    if Tag::Box != tag {
+        return false;
+    }
+    let value = unsafe { *(value as *const usize) };
     let tag = T::type_of(value.try_into().unwrap());
     match kind {
         TermKind::Term => tag.is_term(),

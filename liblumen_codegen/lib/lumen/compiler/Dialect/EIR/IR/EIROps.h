@@ -62,6 +62,11 @@ private:
 /// Calculates the size of the boxed type for allocation
 int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType type);
 
+/// Performs lowering of a match operation
+void lowerPatternMatch(::mlir::OpBuilder &builder,
+                       Value selector,
+                       ArrayRef<MatchBranch> branches);
+  
 //===----------------------------------------------------------------------===//
 // TableGen
 //===----------------------------------------------------------------------===//

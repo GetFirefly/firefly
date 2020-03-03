@@ -81,6 +81,24 @@ struct BoxTypeStorage : public mlir::TypeStorage {
   OpaqueTermType boxedType;
 };
 
+struct RefTypeStorage : public mlir::TypeStorage {
+  RefTypeStorage(Type innerType, unsigned subclassData = 0)
+      : TypeStorage(subclassData),
+        innerType(innerType.cast<OpaqueTermType>()) {}
+
+  /// The hash key used for uniquing.
+  using KeyTy = Type;
+  bool operator==(const KeyTy &key) const { return key == innerType; }
+
+  static RefTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                   const KeyTy &key) {
+    // Initialize the memory using placement new.
+    return new (allocator.allocate<RefTypeStorage>()) RefTypeStorage(key);
+  }
+
+  OpaqueTermType innerType;
+};
+
 } // namespace detail
 } // namespace eir
 } // namespace lumen
@@ -184,6 +202,22 @@ BoxType BoxType::getChecked(Type type, Location location) {
 }
 
 OpaqueTermType BoxType::getBoxedType() const { return getImpl()->boxedType; }
+
+// Ref<T>
+
+RefType RefType::get(OpaqueTermType innerType) {
+  return Base::get(innerType.getContext(), TypeKind::Ref, innerType);
+}
+
+RefType RefType::get(MLIRContext *context, OpaqueTermType innerType) {
+  return Base::get(context, TypeKind::Ref, innerType);
+}
+
+RefType RefType::getChecked(Type type, Location location) {
+  return Base::getChecked(location, type.getContext(), TypeKind::Ref, type);
+}
+
+OpaqueTermType RefType::getInnerType() const { return getImpl()->innerType; }
 
 } // namespace eir
 } // namespace lumen
@@ -423,6 +457,9 @@ void printTuple(TupleType type,
 void EirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
   auto &os = p.getStream();
   switch (ty.getKind()) {
+    case TypeKind::None:
+      os << "none";
+      break;
     case TypeKind::Term:
       os << "term";
       break;
@@ -442,7 +479,7 @@ void EirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
       os << "atom";
       break;
     case TypeKind::Boolean:
-      os << "boolean";
+      os << "bool";
       break;
     case TypeKind::Fixnum:
       os << "fixnum";
@@ -478,6 +515,12 @@ void EirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
       auto type = ty.cast<BoxType>();
       os << "box<";
       p.printType(type.getBoxedType());
+      os << '>';
+    } break;
+    case TypeKind::Ref: {
+      auto type = ty.cast<RefType>();
+      os << "ref<";
+      p.printType(type.getInnerType());
       os << '>';
     } break;
     default:

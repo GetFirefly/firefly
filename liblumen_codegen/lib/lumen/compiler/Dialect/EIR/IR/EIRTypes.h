@@ -6,6 +6,7 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
@@ -39,6 +40,7 @@ namespace detail {
 struct OpaqueTermTypeStorage;
 struct TupleTypeStorage;
 struct BoxTypeStorage;
+struct RefTypeStorage;
 } // namespace detail
 
 namespace TypeKind {
@@ -46,6 +48,9 @@ enum Kind {
 #define EIR_TERM_KIND(Name, Val) Name = mlir::Type::FIRST_EIR_TYPE + Val,
 #define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
 #include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
+#undef EIR_TERM_KIND
+#undef FIRST_EIR_TERM_KIND
+  Ref = mlir::Type::LAST_EIR_TYPE,
 };
 } // namespace TypeKind
 
@@ -124,9 +129,22 @@ public:
     return 0;
   }
 
+  static bool isTypeKind(Type type, TypeKind::Kind kind) {
+    if (!OpaqueTermType::classof(type)) {
+      assert(false && "isTypeKind");
+      return false;
+    }
+    return type.cast<OpaqueTermType>().getImplKind() == kind;
+  }
+
   static bool classof(Type type) {
     auto kind = type.getKind();
-    return kind >= TypeKind::Term && kind <= TypeKind::Box;
+#define EIR_TERM_KIND(Name, Val) if (kind == (mlir::Type::FIRST_EIR_TYPE + Val)) { return true; }
+#define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
+#include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
+#undef EIR_TERM_KIND
+#undef FIRST_EIR_TERM_KIND
+    return true;
   }
 
 private:
@@ -216,6 +234,7 @@ private:
     static bool kindof(unsigned kind) { return kind == KIND; }                 \
   }
 
+PrimitiveType(NoneType, TypeKind::None);
 PrimitiveType(TermType, TypeKind::Term);
 PrimitiveType(ListType, TypeKind::List);
 PrimitiveType(NumberType, TypeKind::Number);
@@ -300,10 +319,30 @@ class BoxType
   static bool kindof(unsigned kind) { return kind == TypeKind::Box; }
 };
 
+/// A pointer to a term
+class RefType
+    : public Type::TypeBase<RefType, Type, detail::RefTypeStorage> {
+ public:
+  using Base::Base;
+
+  /// Gets or creates a RefType with the provided target object type.
+  static RefType get(OpaqueTermType innerType);
+  static RefType get(MLIRContext *context, OpaqueTermType innerType);
+
+  /// Gets or creates a RefType with the provided target object type.
+  /// This emits an error at the specified location and returns null if the
+  /// object type isn't supported.
+  static RefType getChecked(Type innerType, mlir::Location location);
+
+  OpaqueTermType getInnerType() const;
+
+  static bool kindof(unsigned kind) { return kind == TypeKind::Ref; }
+};
+
 
 template <typename A, typename B>
 bool inbounds(A v, B lb, B ub) {
-  return v >= lb && v < ub;
+  return v >= lb && v <= ub;
 }
 
 } // namespace eir

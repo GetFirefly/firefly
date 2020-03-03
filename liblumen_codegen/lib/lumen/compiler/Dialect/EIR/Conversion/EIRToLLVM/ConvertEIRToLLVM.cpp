@@ -34,7 +34,10 @@ namespace LLVM = ::mlir::LLVM;
 using llvm_add = ValueBuilder<LLVM::AddOp>;
 using llvm_and = ValueBuilder<LLVM::AndOp>;
 using llvm_or = ValueBuilder<LLVM::OrOp>;
+using llvm_xor = ValueBuilder<LLVM::XOrOp>;
+using llvm_shl = ValueBuilder<LLVM::ShlOp>;
 using llvm_bitcast = ValueBuilder<LLVM::BitcastOp>;
+using llvm_trunc = ValueBuilder<LLVM::TruncOp>;
 using llvm_constant = ValueBuilder<LLVM::ConstantOp>;
 using llvm_extractvalue = ValueBuilder<LLVM::ExtractValueOp>;
 using llvm_gep = ValueBuilder<LLVM::GEPOp>;
@@ -47,6 +50,7 @@ using llvm_store = OperationBuilder<LLVM::StoreOp>;
 using llvm_select = ValueBuilder<LLVM::SelectOp>;
 using llvm_mul = ValueBuilder<LLVM::MulOp>;
 using llvm_ptrtoint = ValueBuilder<LLVM::PtrToIntOp>;
+using llvm_inttoptr = ValueBuilder<LLVM::IntToPtrOp>;
 using llvm_sub = ValueBuilder<LLVM::SubOp>;
 using llvm_undef = ValueBuilder<LLVM::UndefOp>;
 using llvm_urem = ValueBuilder<LLVM::URemOp>;
@@ -74,12 +78,24 @@ static Optional<Type> convertType(Type type, LLVMTypeConverter &converter, Targe
     return Optional<Type>();
 
   MLIRContext *context = type.getContext();
-  OpaqueTermType termTy = type.cast<OpaqueTermType>();
-  if (termTy.isOpaque())
-    return targetInfo.getTermType();
+  auto termTy = targetInfo.getTermType();
 
-  if (termTy.isImmediate() && !termTy.isBox())
-    return targetInfo.getTermType();
+  if (auto refTy = type.dyn_cast_or_null<RefType>()) {
+    auto innerTy = converter.convertType(refTy.getInnerType()).cast<LLVMType>();
+    return innerTy.getPointerTo();
+  }
+
+  if (auto boxTy = type.dyn_cast_or_null<BoxType>()) {
+    auto boxedTy = converter.convertType(boxTy.getBoxedType()).cast<LLVMType>();
+    return boxedTy.getPointerTo();
+  }
+
+  OpaqueTermType ty = type.cast<OpaqueTermType>();
+  if (ty.isOpaque() || ty.isImmediate())
+    return termTy;
+
+  if (ty.isNonEmptyList())
+    return targetInfo.getConsType();
 
   llvm::outs() << "\ntype: ";
   type.dump();
@@ -98,31 +114,52 @@ static LLVMType getPtrToElementType(T containerType,
       .getPointerTo();
 }
 
+static FlatSymbolRefAttr getOrInsertFunction(PatternRewriter &rewriter,
+                                             ModuleOp mod,
+                                             LLVMDialect *dialect,
+                                             TargetInfo &targetInfo,
+                                             StringRef symbol,
+                                             LLVMType resultType,
+                                             ArrayRef<LLVMType> argTypes = {}) {
+  auto *context = mod.getContext();
+
+  if (mod.lookupSymbol<mlir::FuncOp>(symbol))
+    return SymbolRefAttr::get(symbol, context);
+
+  if (mod.lookupSymbol<FuncOp>(symbol))
+    return SymbolRefAttr::get(symbol, context);
+
+  if (mod.lookupSymbol<LLVM::LLVMFuncOp>(symbol))
+    return SymbolRefAttr::get(symbol, context);
+
+  // Create a function declaration for the symbol
+  auto fnTy = LLVMType::getFunctionTy(resultType, argTypes, /*isVarArg=*/false);
+
+  // Insert the function into the body of the parent module.
+  PatternRewriter::InsertionGuard insertGuard(rewriter);
+  rewriter.setInsertionPointToStart(mod.getBody());
+  rewriter.create<LLVM::LLVMFuncOp>(mod.getLoc(), symbol, fnTy);
+  return SymbolRefAttr::get(symbol, context);
+}
+
+
 /// Return a symbol reference to the printf function, inserting it into the
 /// module if necessary.
 static FlatSymbolRefAttr getOrInsertPrintf(PatternRewriter &rewriter,
                                            ModuleOp mod,
                                            LLVMDialect *dialect,
                                            TargetInfo &targetInfo) {
-  auto *context = mod.getContext();
-  if (mod.lookupSymbol<LLVM::LLVMFuncOp>("__lumen_builtin_printf"))
-    return SymbolRefAttr::get("__lumen_builtin_printf", context);
-
-  // Create a function declaration for printf, the signature is:
-  //   * `term (i8*, term)`
-  // Where the return value is the atom `ok` or the none value,
-  // and the term argument should be a box of list type.
   auto termTy = targetInfo.getTermType();
-  //auto i8PtrTy = LLVMType::getInt8PtrTy(dialect);
-  //ArrayRef<LLVMType> argTypes({i8PtrTy, termTy});
   ArrayRef<LLVMType> argTypes({termTy});
-  auto fnTy = LLVMType::getFunctionTy(termTy, argTypes, /*isVarArg=*/false);
-
-  // Insert the printf function into the body of the parent module.
-  PatternRewriter::InsertionGuard insertGuard(rewriter);
-  rewriter.setInsertionPointToStart(mod.getBody());
-  rewriter.create<LLVM::LLVMFuncOp>(mod.getLoc(), "__lumen_builtin_printf", fnTy);
-  return SymbolRefAttr::get("__lumen_builtin_printf", context);
+  return getOrInsertFunction(
+    rewriter,
+    mod,
+    dialect,
+    targetInfo,
+    "__lumen_builtin_printf",
+    termTy,
+    argTypes
+  );
 }
 
 /// Return a value representing an access into a global string with the given
@@ -169,38 +206,84 @@ static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
   return llvm_addressof(global);
 }
 
+// Builds IR to construct a boxed term that points to the given header value,
+// it is expected that the header value is a pointer value, not an immediate.
+//
+// The type of the resulting term is Term
+static Value make_box(OpBuilder &builder,
+                      edsc::ScopedContext &context,
+                      LLVMTypeConverter &converter,
+                      TargetInfo &targetInfo,
+                      Value header) {
+  auto headerTy = targetInfo.getHeaderType();
+  Value headerPtrInt = llvm_ptrtoint(headerTy, header);
+  auto boxTag = targetInfo.boxTag();
+  auto tagAttr = builder.getIntegerAttr(builder.getIntegerType(targetInfo.pointerSizeInBits), boxTag);
+  Value boxTagConst = llvm_constant(headerTy, tagAttr);
+  return llvm_or(headerPtrInt, boxTagConst);
+}
+
+// Builds IR to construct a boxed list term
+// it is expected that the cons cell value is a pointer value, not an immediate.
+//
+// The type of the resulting term is Term
+static Value make_list(OpBuilder &builder,
+                       edsc::ScopedContext &context,
+                       LLVMTypeConverter &converter,
+                       TargetInfo &targetInfo,
+                       Value cons) {
+  auto headerTy = targetInfo.getHeaderType();
+  Value consPtrInt = llvm_ptrtoint(headerTy, cons);
+  auto listTag = targetInfo.listTag();
+  auto tagAttr = builder.getIntegerAttr(builder.getIntegerType(targetInfo.pointerSizeInBits), listTag);
+  Value listTagConst = llvm_constant(headerTy, tagAttr);
+  return llvm_or(consPtrInt, listTagConst);
+}
+
+static Value unbox(OpBuilder &builder,
+                   edsc::ScopedContext &context,
+                   LLVMTypeConverter &converter,
+                   TargetInfo &targetInfo,
+                   LLVMType innerTy,
+                   Value box) {
+  auto intNTy = builder.getIntegerType(targetInfo.pointerSizeInBits);
+  auto termTy = targetInfo.getTermType();
+  auto boxTy = box.getType().cast<LLVMType>();
+  assert(boxTy == termTy && "expected boxed pointer type");
+  auto boxTag = targetInfo.boxTag();
+  // No unboxing required, pointers are pointers
+  if (boxTag == 0) {
+    return llvm_inttoptr(innerTy, box);
+  }
+  auto tagAttr = builder.getIntegerAttr(intNTy, boxTag);
+  Value boxTagConst = llvm_constant(termTy, tagAttr);
+  auto neg1Attr = builder.getIntegerAttr(intNTy, -1);
+  Value neg1Const = llvm_constant(termTy, neg1Attr);
+  Value untagged = llvm_and(box, llvm_xor(boxTagConst, neg1Const));
+  return llvm_inttoptr(innerTy, untagged);
+}
+
+static Value unbox_list(OpBuilder &builder,
+                        edsc::ScopedContext &context,
+                        LLVMTypeConverter &converter,
+                        TargetInfo &targetInfo,
+                        LLVMType innerTy,
+                        Value box) {
+  auto intNTy = builder.getIntegerType(targetInfo.pointerSizeInBits);
+  auto termTy = targetInfo.getTermType();
+  auto listTag = targetInfo.listTag();
+  auto listTagAttr = builder.getIntegerAttr(intNTy, listTag);
+  Value listTagConst = llvm_constant(termTy, listTagAttr);
+  auto listMask = targetInfo.listMask();
+  auto listMaskAttr = builder.getIntegerAttr(intNTy, listMask);
+  Value listMaskConst = llvm_constant(termTy, listMaskAttr);
+  auto neg1Attr = builder.getIntegerAttr(intNTy, -1);
+  Value neg1Const = llvm_constant(termTy, neg1Attr);
+  Value untagged = llvm_and(box, llvm_xor(listMaskConst, neg1Const));
+  return llvm_inttoptr(innerTy, untagged);
+}
 
 namespace {
-
-/// Rewrite Patterns
-
-class TraceConstructOpConversion : public OpRewritePattern<TraceConstructOp> {
-public:
-  using OpRewritePattern<TraceConstructOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(TraceConstructOp op,
-                                     PatternRewriter &rewriter) const override {
-
-    auto context = rewriter.getContext();
-    auto traceType = TupleType::get(context, 3);
-    rewriter.replaceOpWithNewOp<mlir::CallOp>(
-      op, "__lumen_builtin_construct_trace", ArrayRef<Type>{traceType});
-    return this->matchSuccess();
-  }
-};
-
-class YieldOpConversion : public OpRewritePattern<YieldOp> {
-public:
-  using OpRewritePattern<YieldOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(YieldOp op,
-                                     PatternRewriter &rewriter) const override {
-
-    rewriter.replaceOpWithNewOp<mlir::CallOp>(
-      op, "__lumen_builtin_yield", ArrayRef<Type>{});
-    return this->matchSuccess();
-  }
-};
 
 /// Conversion Patterns
 
@@ -218,6 +301,108 @@ class EIROpConversion : public mlir::OpConversionPattern<Op> {
  protected:
   LLVMTypeConverter &typeConverter;
   TargetInfo &targetInfo;
+};
+
+struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(TraceConstructOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    LLVMDialect *dialect = typeConverter.getDialect();
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+    auto termTy = targetInfo.getHeaderType();
+    ArrayRef<LLVMType> argTypes({});
+    auto callee = getOrInsertFunction(rewriter, parentModule, dialect, targetInfo, "__lumen_builtin_trace_construct", termTy, argTypes);
+
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, ArrayRef<Type>{termTy}, operands);
+    return matchSuccess();
+  }
+};
+
+struct TraceCaptureOpConversion : public EIROpConversion<TraceCaptureOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(TraceCaptureOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    LLVMDialect *dialect = typeConverter.getDialect();
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+    auto termTy = targetInfo.getHeaderType();
+    auto callee = getOrInsertFunction(rewriter, parentModule, dialect, targetInfo, "__lumen_builtin_trace_capture", termTy);
+
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, ArrayRef<Type>{termTy});
+    return matchSuccess();
+  }
+};
+
+struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(IsTypeOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    IsTypeOpOperandAdaptor adaptor(operands);
+
+    LLVMDialect *dialect = typeConverter.getDialect();
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+    auto termTy = targetInfo.getHeaderType();
+    auto int1Ty = LLVMType::getInt1Ty(dialect);
+    auto int32Ty = LLVMType::getIntNTy(dialect, 32);
+    ArrayRef<LLVMType> argTypes({int32Ty, termTy});
+
+    auto matchType = op.getMatchType().cast<OpaqueTermType>();
+    if (matchType.isBox()) {
+      auto boxType = matchType.cast<BoxType>();
+      auto boxedType = boxType.getBoxedType();
+      // Lists
+      if (boxedType.isa<ConsType>()) {
+        auto listTag = targetInfo.listTag();
+        auto listTagAttr = rewriter.getIntegerAttr(rewriter.getIntegerType(targetInfo.pointerSizeInBits), listTag);
+        Value listTagConst = llvm_constant(termTy, listTagAttr);
+        auto listMask = targetInfo.listMask();
+        auto listMaskAttr = rewriter.getIntegerAttr(rewriter.getIntegerType(targetInfo.pointerSizeInBits), listMask);
+        Value listMaskConst = llvm_constant(termTy, listMaskAttr);
+        Value masked = llvm_and(adaptor.value(), listMaskConst);
+        rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq, listTagConst, masked);
+      } else {
+        auto matchKind = boxedType.getForeignKind();
+        auto matchAttr = rewriter.getIntegerAttr(rewriter.getIntegerType(32), matchKind);
+        Value matchConst = llvm_constant(int32Ty, matchAttr);
+        auto callee = getOrInsertFunction(rewriter, parentModule, dialect, targetInfo, "__lumen_builtin_is_boxed_type", int1Ty, argTypes);
+        ArrayRef<Value> isTypeOperands({matchConst, adaptor.value()});
+        auto isType = rewriter.create<mlir::CallOp>(op.getLoc(), callee, ArrayRef<Type>({int1Ty}), isTypeOperands);
+        rewriter.replaceOp(op, isType.getResults());
+      }
+    } else {
+      auto matchKind = matchType.getForeignKind();
+      auto matchAttr = rewriter.getIntegerAttr(rewriter.getIntegerType(32), matchKind);
+      Value matchConst = llvm_constant(int32Ty, matchAttr);
+      auto callee = getOrInsertFunction(rewriter, parentModule, dialect, targetInfo, "__lumen_builtin_is_type", int1Ty, argTypes);
+      ArrayRef<Value> isTypeOperands({matchConst, adaptor.value()});
+      auto isType = rewriter.create<mlir::CallOp>(op.getLoc(), callee, ArrayRef<Type>({int1Ty}), isTypeOperands);
+      rewriter.replaceOp(op, isType.getResults());
+    }
+
+    return matchSuccess();
+  }
+};
+
+struct YieldOpConversion : public EIROpConversion<YieldOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(YieldOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    LLVMDialect *dialect = typeConverter.getDialect();
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+    auto termTy = targetInfo.getHeaderType();
+    auto callee = getOrInsertFunction(rewriter, parentModule, dialect, targetInfo, "__lumen_builtin_yield", termTy);
+
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, ArrayRef<Type>({}));
+    return matchSuccess();
+  }
 };
 
 struct ReturnOpConversion : public EIROpConversion<ReturnOp> {
@@ -243,6 +428,111 @@ struct BranchOpConversion : public EIROpConversion<eir::BranchOp> {
     auto dest = destinations.front();
     auto destArgs = operands.front();
     rewriter.replaceOpWithNewOp<mlir::BranchOp>(op, dest, destArgs);
+    return matchSuccess();
+  }
+};
+
+// Need to lower condition to i1
+struct CondBranchOpConversion : public EIROpConversion<eir::CondBranchOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(eir::CondBranchOp op, ArrayRef<Value> properOperands,
+                  ArrayRef<Block *> destinations,
+                  ArrayRef<ArrayRef<Value>> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    CondBranchOpOperandAdaptor adaptor(properOperands);
+
+    auto cond = adaptor.condition();
+    auto trueDest = op.getTrueDest();
+    auto falseDest = op.getFalseDest();
+    auto trueArgs = ValueRange(op.getTrueOperands());
+    auto falseArgs = ValueRange(op.getFalseOperands());
+
+    Value finalCond;
+    bool requiresCondLowering = false;
+    if (auto condTy = cond.getType().dyn_cast_or_null<LLVMType>()) {
+      if (condTy.isIntegerTy(1)) {
+        finalCond = cond;
+      } else {
+        requiresCondLowering = true;
+      }
+    } else {
+        requiresCondLowering = true;
+    }
+
+    if (requiresCondLowering) {
+      auto maskInfo = targetInfo.immediateMask();
+
+      // We're building the equivalent of:
+      //   (bool)(cond & IMMED_MASK)
+      //
+      //   or
+      //   
+      //   (bool)((cond & IMMED_MASK) >> IMMED_SHIFT)
+      //   
+      // This relies on the fact that 0 is false, and 1 is true,
+      // both in the native representation and in our atom table
+      auto headerTy = targetInfo.getHeaderType();
+      auto maskAttr = rewriter.getIntegerAttr(rewriter.getIntegerType(targetInfo.pointerSizeInBits), maskInfo.mask);
+      Value maskConst = llvm_constant(headerTy, maskAttr);
+      Value maskedCond =  llvm_and(cond, maskConst);
+      if (maskInfo.requiresShift()) {
+        auto shiftAttr = rewriter.getIntegerAttr(rewriter.getIntegerType(targetInfo.pointerSizeInBits), maskInfo.shift);
+        Value shiftConst = llvm_constant(headerTy, shiftAttr);
+        Value shiftedCond = llvm_shl(maskedCond, shiftConst);
+        finalCond = llvm_trunc(targetInfo.getI1Type(), shiftedCond);
+      } else {
+        finalCond = llvm_trunc(targetInfo.getI1Type(), maskedCond);
+      }     
+    }
+
+    auto attrs = op.getAttrs();
+    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
+      op,
+      ValueRange({finalCond}),
+      ArrayRef({trueDest, falseDest}),
+      ArrayRef({trueArgs, falseArgs}),
+      attrs
+    );
+    return matchSuccess();
+  }
+};
+
+// The purpose of this conversion is to build a function that contains
+// all of the prologue setup our Erlang functions need (in cases where
+// this isn't a declaration). Specifically:
+//
+// - Check if reduction count is exceeded
+// - Check if we should garbage collect
+//   - If either of the above are true, yield
+//
+// TODO: Need to actually perform the above, right now we just handle
+// the translation to mlir::FuncOp
+struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(eir::FuncOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    SmallVector<NamedAttribute, 2> attrs;
+    for (auto fa : op.getAttrs()) {
+      if (fa.first.is(SymbolTable::getSymbolAttrName()) ||
+          fa.first.is(::mlir::impl::getTypeAttrName())) {
+        continue;
+      }
+    }
+    SmallVector<NamedAttributeList, 4> argAttrs;
+    for (unsigned i = 0, e = op.getNumArguments(); i < e; ++i) {
+      auto aa = ::mlir::impl::getArgAttrs(op, i);
+      argAttrs.push_back(NamedAttributeList(aa));
+    }
+    auto newFunc = rewriter.create<mlir::FuncOp>(
+      op.getLoc(), op.getName(), op.getType(), attrs, argAttrs
+    );
+    rewriter.inlineRegionBefore(op.getBody(), newFunc.getBody(), newFunc.end());
+    rewriter.eraseOp(op);
     return matchSuccess();
   }
 };
@@ -281,6 +571,174 @@ struct UnreachableOpConversion : public EIROpConversion<UnreachableOp> {
   }
 };
 
+struct CallOpConversion : public EIROpConversion<CallOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(CallOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    CallOpOperandAdaptor adaptor(operands);
+
+    LLVMDialect *dialect = typeConverter.getDialect();
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+    SmallVector<LLVMType, 2> argTypes;
+    for (auto operand : operands) {
+      argTypes.push_back(operand.getType().cast<LLVMType>());
+    }
+    auto opResultTypes = op.getResultTypes();
+    SmallVector<Type, 2> resultTypes;
+    LLVMType resultType;
+    if (opResultTypes.size() == 1) {
+      resultType = typeConverter.convertType(opResultTypes.front()).cast<LLVMType>();
+      if (!resultType) {
+        return matchFailure();
+      }
+      resultTypes.push_back(resultType);
+    } else if (opResultTypes.size() > 1) {
+      return matchFailure();
+    }
+    
+    auto calleeName = op.getCallee();
+    auto callee = getOrInsertFunction(rewriter, parentModule, dialect, targetInfo, calleeName, resultType, argTypes);
+
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, resultTypes, adaptor.operands());
+    return matchSuccess();
+  }
+};
+  
+struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(CmpEqOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    CmpEqOpOperandAdaptor adaptor(operands);
+
+    LLVMDialect *dialect = typeConverter.getDialect();
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+    auto termTy = targetInfo.getHeaderType();
+    ArrayRef<LLVMType> argTypes({termTy, termTy});
+    auto int1ty = LLVMType::getInt1Ty(dialect);
+    auto callee = getOrInsertFunction(rewriter, parentModule, dialect, targetInfo, "__lumen_builtin_cmpeq", int1ty, argTypes);
+
+    auto lhs = adaptor.lhs();
+    auto rhs = adaptor.rhs();
+    ArrayRef<Value> args({lhs, rhs});
+    auto callOp = rewriter.create<mlir::CallOp>(
+      op.getLoc(), callee, ArrayRef<Type>{int1ty}, args);
+    auto result = callOp.getResult(0);
+
+    /*
+    auto maskInfo = targetInfo.immediateMask();
+    auto maskAttr = rewriter.getIntegerAttr(rewriter.getIntegerType(targetInfo.pointerSizeInBits), maskInfo.mask);
+    Value maskConst = llvm_constant(termTy, maskAttr);
+    Value maskedCond =  llvm_and(result, maskConst);
+    Value loweredCond;
+    if (maskInfo.requiresShift()) {
+      auto shiftAttr = rewriter.getIntegerAttr(rewriter.getIntegerType(targetInfo.pointerSizeInBits), maskInfo.shift);
+      Value shiftConst = llvm_constant(termTy, shiftAttr);
+      Value shiftedCond = llvm_shl(maskedCond, shiftConst);
+      loweredCond = llvm_trunc(targetInfo.getI1Type(), shiftedCond);
+    } else {
+      loweredCond = llvm_trunc(targetInfo.getI1Type(), maskedCond);
+    }
+
+    rewriter.replaceOp(op, loweredCond);
+    */
+    rewriter.replaceOp(op, result);
+    return matchSuccess();
+  }
+};
+
+struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(GetElementPtrOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    GetElementPtrOpOperandAdaptor adaptor(operands);
+
+    Value base = adaptor.base();
+    Type resultTyOrig = op.getType();
+    auto resultTy = typeConverter.convertType(resultTyOrig).cast<LLVMType>();
+    //Value ptr = unbox(rewriter, context, typeConverter, targetInfo, resultTy, base);
+
+    auto pointerSize = targetInfo.pointerSizeInBits;
+    auto int32Ty = LLVMType::getIntNTy(typeConverter.getDialect(), 32);
+    auto indexTy = rewriter.getIntegerType(32);
+    auto indexAttr = rewriter.getIntegerAttr(indexTy, op.getIndex());
+    Value cns0 = llvm_constant(int32Ty, rewriter.getIntegerAttr(indexTy, 0));
+    Value index = llvm_constant(int32Ty, indexAttr);
+    Value gep = llvm_gep(resultTy.getPointerTo(), base, ArrayRef<Value>({cns0, index}));
+
+    rewriter.replaceOp(op, gep);
+    return matchSuccess();
+  }
+};
+
+struct LoadOpConversion : public EIROpConversion<LoadOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(LoadOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    LoadOpOperandAdaptor adaptor(operands);
+
+    Value ptr = adaptor.ref();
+    Value load = llvm_load(ptr);
+
+    rewriter.replaceOp(op, load);
+    return matchSuccess();
+  }
+};
+
+struct CastOpConversion : public EIROpConversion<CastOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult
+  matchAndRewrite(CastOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    CastOpOperandAdaptor adaptor(operands);
+
+    Value in = adaptor.input();
+    Value out = op.getResult();
+
+    LLVMType inTy = in.getType().cast<LLVMType>();
+    Type origOutTy = out.getType();
+    LLVMType outTy = typeConverter.convertType(origOutTy).cast<LLVMType>();
+    
+    // Remove redundant casts
+    if (inTy == outTy) {
+      rewriter.replaceOp(op, in);
+      return matchSuccess();
+    }
+
+    auto termTy = targetInfo.getTermType();
+    Value ptr;
+    if (inTy == termTy && outTy.isPointerTy()) {
+      // This is a cast from opaque term to pointer type, i.e. unboxing
+      if (auto boxType = origOutTy.dyn_cast_or_null<BoxType>()) {
+        if (boxType.getBoxedType().isa<ConsType>()) {
+          // We're unboxing a list
+          ptr = unbox_list(rewriter, context, typeConverter, targetInfo, outTy, in);
+        } else {
+          ptr = unbox(rewriter, context, typeConverter, targetInfo, outTy, in);
+        }
+      } else {
+          ptr = unbox(rewriter, context, typeConverter, targetInfo, outTy, in);
+      }
+      rewriter.replaceOp(op, ptr);
+      return matchSuccess();
+    }
+
+    return matchFailure();
+  }
+};
+
 struct ConstantFloatOpToStdConversion : public EIROpConversion<ConstantFloatOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -299,40 +757,6 @@ struct ConstantFloatOpToStdConversion : public EIROpConversion<ConstantFloatOp> 
     return matchSuccess();
   }
 };
-
-// Builds IR to construct a boxed term that points to the given header value,
-// it is expected that the header value is a pointer value, not an immediate.
-//
-// The type of the resulting term is Term
-static Value make_box(OpBuilder &builder,
-                      edsc::ScopedContext &context,
-                      LLVMTypeConverter &converter,
-                      TargetInfo &targetInfo,
-                      Value header) {
-  auto headerTy = targetInfo.getHeaderType();
-  Value headerPtrInt = llvm_ptrtoint(headerTy, header);
-  auto boxTag = targetInfo.boxTag();
-  Value boxTagConst = llvm_constant(headerTy, builder.getIntegerAttr(headerTy, boxTag));
-  Value box = llvm_or(headerPtrInt, boxTagConst);
-  return llvm_bitcast(targetInfo.getTermType(), box);
-}
-
-// Builds IR to construct a boxed list term
-// it is expected that the cons cell value is a pointer value, not an immediate.
-//
-// The type of the resulting term is Term
-static Value make_list(OpBuilder &builder,
-                       edsc::ScopedContext &context,
-                       LLVMTypeConverter &converter,
-                       TargetInfo &targetInfo,
-                       Value cons) {
-  auto headerTy = targetInfo.getHeaderType();
-  Value consPtrInt = llvm_ptrtoint(headerTy, cons);
-  auto listTag = targetInfo.listTag();
-  Value listTagConst = llvm_constant(headerTy, builder.getIntegerAttr(headerTy, listTag));
-  Value list = llvm_or(consPtrInt, listTagConst);
-  return llvm_bitcast(targetInfo.getTermType(), list);
-}
 
 struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
   using EIROpConversion::EIROpConversion;
@@ -415,7 +839,7 @@ struct ConstantAtomOpConversion : public EIROpConversion<ConstantAtomOp> {
 
     auto atomAttr = op.getValue().cast<AtomAttr>();
     auto id = (uint64_t)atomAttr.getValue().getLimitedValue();
-    auto ty = targetInfo.getAtomType();
+    auto ty = targetInfo.getHeaderType();
     auto taggedAtom = targetInfo.encodeImmediate(TypeKind::Atom, id);
     auto val = llvm_constant(ty, rewriter.getIntegerAttr(rewriter.getIntegerType(64), taggedAtom));
 
@@ -492,7 +916,7 @@ struct ConstantNilOpConversion : public EIROpConversion<ConstantNilOp> {
                   ConversionPatternRewriter &rewriter) const override {
     edsc::ScopedContext context(rewriter, op.getLoc());
 
-    auto ty = targetInfo.getNilType();
+    auto ty = targetInfo.getTermType();
     auto val = llvm_constant(ty, rewriter.getIntegerAttr(ty, targetInfo.getNilValue()));
 
     rewriter.replaceOp(op, {val});
@@ -509,8 +933,9 @@ struct ConstantNoneOpConversion : public EIROpConversion<ConstantNoneOp> {
                   ConversionPatternRewriter &rewriter) const override {
     edsc::ScopedContext context(rewriter, op.getLoc());
 
-    auto ty = targetInfo.getNoneType();
-    auto val = llvm_constant(ty, rewriter.getIntegerAttr(ty, targetInfo.getNoneValue()));
+    auto ty = targetInfo.getTermType();
+    auto intNTy = rewriter.getIntegerType(targetInfo.pointerSizeInBits);
+    auto val = llvm_constant(ty, rewriter.getIntegerAttr(intNTy, targetInfo.getNoneValue()));
 
     rewriter.replaceOp(op, {val});
     return matchSuccess();
@@ -685,13 +1110,10 @@ static void populateEIRToStandardConversionPatterns(
     LLVMTypeConverter &converter,
     TargetInfo &targetInfo) {
   patterns.insert<ReturnOpConversion,
-                  /*FuncOpConversion,
-                  */
+                  FuncOpConversion,
                   BranchOpConversion,
                   /*
-                  CondBranchOpConversion,
                   IfOpConversion,
-                  MatchOpConversion,
                   ConstructMapOpConversion,
                   MapInsertOpConversion,
                   MapUpdateOpConversion,
@@ -708,17 +1130,20 @@ void populateEIRToLLVMConversionPatterns(
     LLVMTypeConverter &converter,
     TargetInfo &targetInfo) {
   patterns.insert<
-                  YieldOpConversion,
-                  TraceConstructOpConversion>(context);
-  patterns.insert<UnreachableOpConversion,
-                  /*
+                  CondBranchOpConversion,
+                  UnreachableOpConversion,
                   CallOpConversion,
+                  YieldOpConversion,
                   GetElementPtrOpConversion,
                   LoadOpConversion,
                   IsTypeOpConversion,
+                  CastOpConversion,
+                  /*
                   LogicalAndOpConversion,
                   LogicalOrOpConversion,
+                  */
                   CmpEqOpConversion,
+                  /*
                   CmpNeqOpConversion,
                   CmpLtOpConversion,
                   CmpLteOpConversion,
@@ -726,10 +1151,12 @@ void populateEIRToLLVMConversionPatterns(
                   CmpGteOpConversion,
                   CmpNerrOpConversion,
                   ThrowOpConversion,
-                  CastOpConversion,
                   ConsOpConversion,
                   TupleOpConversion,
+                  */
                   TraceCaptureOpConversion,
+                  TraceConstructOpConversion,
+                  /*
                   BinaryPushOpConversion,
                   */
                   ConstantFloatOpConversion,

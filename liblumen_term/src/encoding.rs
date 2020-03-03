@@ -13,6 +13,13 @@ use core::convert::{TryFrom, TryInto};
 
 use crate::Tag;
 
+#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+pub struct MaskInfo {
+    pub shift: i32,
+    pub mask: u64
+}
+
 pub trait Word: Copy +
     PartialEq +
     Eq +
@@ -74,6 +81,8 @@ pub trait Encoding {
     const FALSE: Self::Type;
 
     fn type_of(value: Self::Type) -> Tag<Self::Type>;
+
+    fn immediate_mask_info() -> MaskInfo;
 
     fn encode_immediate(value: Self::Type, tag: Self::Type) -> Self::Type;
 

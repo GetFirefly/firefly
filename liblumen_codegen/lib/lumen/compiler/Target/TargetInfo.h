@@ -23,8 +23,16 @@ enum class TargetDialect {
 
 extern "C"
 struct Encoding {
-    uint32_t pointerWidth;
-    bool supportsNanboxing;
+  uint32_t pointerWidth;
+  bool supportsNanboxing;
+};
+
+extern "C"
+struct MaskInfo {
+  int32_t shift;
+  uint64_t mask;
+
+  bool requiresShift() const { return shift != 0; }
 };
 
 struct TargetInfoImpl {
@@ -54,7 +62,7 @@ struct TargetInfoImpl {
     LLVMType pointerWidthIntTy;
     LLVMType termTy;
     LLVMType fixnumTy, bigIntTy, floatTy;
-    LLVMType atomTy;
+    LLVMType atomTy, i1Ty;
     LLVMType binaryTy;
     LLVMType nilTy, consTy;
     LLVMType noneTy;
@@ -65,6 +73,8 @@ struct TargetInfoImpl {
     uint64_t listTag;
     uint64_t boxTag;
     uint64_t literalTag;
+    MaskInfo immediateMask;
+    uint64_t listMask;
 };
 
 class TargetInfo {
@@ -86,6 +96,7 @@ public:
   mlir::LLVM::LLVMType getNilType();
   mlir::LLVM::LLVMType getNoneType();
   mlir::LLVM::LLVMType makeTupleType(mlir::LLVM::LLVMDialect *, llvm::ArrayRef<mlir::LLVM::LLVMType>);
+  mlir::LLVM::LLVMType getI1Type();
 
   llvm::APInt encodeImmediate(uint32_t type, uint64_t value);
   llvm::APInt encodeHeader(uint32_t type, uint64_t arity);
@@ -94,8 +105,10 @@ public:
   llvm::APInt &getNoneValue() const;
 
   uint64_t listTag() const;
+  uint64_t listMask() const;
   uint64_t boxTag() const;
   uint64_t literalTag() const;
+  MaskInfo &immediateMask() const;
 
   unsigned pointerSizeInBits;
 private:

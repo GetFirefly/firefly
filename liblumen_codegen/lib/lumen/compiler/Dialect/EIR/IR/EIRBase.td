@@ -114,28 +114,32 @@ def eir_TK_Box     : eir_TermKind<"Box", 18>;
 
 class eir_TermType<eir_TermKind kind, string description> : DialectType<
     eir_Dialect,
-    CPred<"$_self.isa<OpaqueTermType>() && $_self.cast<OpaqueTermType>().isKind(" # kind.value # ")">,
+    CPred<"OpaqueTermType::isTypeKind($_self, TypeKind::" # kind.symbol # ")">,
     description> {
 
   eir_TermKind termKind = kind;
 }
 
-def eir_AtomType : eir_TermType<eir_TK_Atom, "atom term">;
-def eir_BoolType : eir_TermType<eir_TK_Boolean, "boolean term">;
-def eir_FixnumType : eir_TermType<eir_TK_Fixnum, "fixed-width integer term">;
-def eir_BigIntType : eir_TermType<eir_TK_BigInt, "big integer term">;
-def eir_IntegerType : eir_TermType<eir_TK_Integer, "any integer term">;
-def eir_FloatType : eir_TermType<eir_TK_Float, "float term">;
-def eir_NilType : eir_TermType<eir_TK_Nil, "nil term">;
-def eir_ConsType : eir_TermType<eir_TK_Cons, "cons cell term">;
-def eir_ListType : eir_TermType<eir_TK_List, "any list like term">;
-def eir_TupleType : eir_TermType<eir_TK_Tuple, "tuple term">;
-def eir_MapType : eir_TermType<eir_TK_Map, "map term">;
-def eir_ClosureType : eir_TermType<eir_TK_Closure, "closure term">;
-def eir_BinaryType : eir_TermType<eir_TK_Binary, "any binary term">;
-def eir_HeapBinType : eir_TermType<eir_TK_HeapBin, "heapbin term">;
-def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin term">;
-def eir_BoxType : eir_TermType<eir_TK_Box, "boxed term">;
+def eir_NoneType : eir_TermType<eir_TK_None, "none">;
+def eir_AtomType : eir_TermType<eir_TK_Atom, "atom">;
+def eir_BoolType : eir_TermType<eir_TK_Boolean, "bool">;
+def eir_FixnumType : eir_TermType<eir_TK_Fixnum, "fixnum">;
+def eir_BigIntType : eir_TermType<eir_TK_BigInt, "bixint">;
+def eir_NumberType : eir_TermType<eir_TK_Number, "number">;
+def eir_IntegerType : eir_TermType<eir_TK_Integer, "integer">;
+def eir_FloatType : eir_TermType<eir_TK_Float, "float">;
+def eir_NilType : eir_TermType<eir_TK_Nil, "nil">;
+def eir_ConsType : eir_TermType<eir_TK_Cons, "cons">;
+def eir_ListType : eir_TermType<eir_TK_List, "list">;
+def eir_TupleType : eir_TermType<eir_TK_Tuple, "tuple">;
+def eir_MapType : eir_TermType<eir_TK_Map, "map">;
+def eir_ClosureType : eir_TermType<eir_TK_Closure, "closure">;
+def eir_BinaryType : eir_TermType<eir_TK_Binary, "binary">;
+def eir_HeapBinType : eir_TermType<eir_TK_HeapBin, "heapbin">;
+def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin">;
+def eir_BoxType : eir_TermType<eir_TK_Box, "box">;
+
+def eir_RefType : Type<CPred<"$_self.isa<eir::RefType>()">, "pointer type">;
 
 def eir_AnyTerm : Type<CPred<"$_self.isa<eir::TermType>()">, "dynamic term type">;
 def eir_AnyType : Type<CPred<"$_self.isa<eir::OpaqueTermType>()">, "any term type">;
@@ -144,6 +148,7 @@ def eir_FixnumLike : AnyTypeOf<[I32, I64, eir_FixnumType], "fixed-width integer 
 def eir_FloatLike : AnyTypeOf<[F64, eir_FixnumType], "float-like type">;
 def eir_ListLike : AnyTypeOf<[eir_NilType, eir_ConsType, eir_ListType], "list-like type">;
 def eir_BinaryLike : AnyTypeOf<[eir_BinaryType, eir_HeapBinType, eir_ProcBinType], "binary-like type">;
+def eir_PointerLike : AnyTypeOf<[eir_BoxType, eir_RefType], "pointer-like type">;
 
 //===----------------------------------------------------------------------===//
 // Traits

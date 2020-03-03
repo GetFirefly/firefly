@@ -6,6 +6,7 @@ impl ReturnBuilder {
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         value: Option<Value>,
     ) -> Result<Option<Value>> {
+        debug_in!(builder, "building return");
         let value_ref = value.map(|v| builder.value_ref(v)).unwrap_or_default();
         unsafe {
             MLIRBuildReturn(builder.as_ref(), value_ref);
@@ -20,6 +21,7 @@ impl ThrowBuilder {
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         _op: Throw,
     ) -> Result<Option<Value>> {
+        debug_in!(builder, "building throw");
         // TODO: For now we just lower to an abort until we decide on how this should work
         unsafe {
             MLIRBuildUnreachable(builder.as_ref());
@@ -32,6 +34,7 @@ impl ThrowBuilder {
 pub struct UnreachableBuilder;
 impl UnreachableBuilder {
     pub fn build<'f, 'o>(builder: &mut ScopedFunctionBuilder<'f, 'o>) -> Result<Option<Value>> {
+        debug_in!(builder, "building unreachable");
         unsafe {
             MLIRBuildUnreachable(builder.as_ref());
         }
@@ -46,6 +49,8 @@ impl BranchBuilder {
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         branch: Branch,
     ) -> Result<Option<Value>> {
+        debug_in!(builder, "building branch");
+
         let Branch { block, args } = branch;
         let block_ref = builder.block_ref(block);
         let block_argc = args.len();
@@ -78,7 +83,7 @@ impl IfBuilder {
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         op: If,
     ) -> Result<Option<Value>> {
-        builder.debug(&format!("building if {:?}", &op));
+        debug_in!(builder, "building if");
 
         let cond_ref = builder.value_ref(op.cond);
         let yes_ref = builder.block_ref(op.yes.block);

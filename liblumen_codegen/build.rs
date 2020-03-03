@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const ENV_LLVM_PREFIX: &'static str = "LLVM_SYS_90_PREFIX";
+const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
 
 fn main() {
     // Emit custom cfg types:
@@ -32,6 +33,7 @@ fn main() {
     let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
 
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
+    println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
 
     let llvm_config_path = env::var_os("LLVM_CONFIG")
         .map(PathBuf::from)
@@ -61,7 +63,7 @@ fn main() {
     if use_ninja {
         config = config.generator("Ninja");
     }
-    let build_shared = if env::var_os("LLVM_BUILD_STATIC").is_some() {
+    let build_shared = if env::var_os(ENV_LLVM_BUILD_STATIC).is_some() {
         "OFF"
     } else {
         "ON"
@@ -220,7 +222,19 @@ pub fn rerun_if_changed_anything_in_dir(dir: &Path) {
 fn ignore_changes(name: &Path) -> bool {
     return name
         .file_name()
-        .map(|f| f.to_string_lossy().starts_with("."))
+        .map(|f| {
+            let name = f.to_string_lossy();
+            if name.starts_with(".") {
+                return true;
+            }
+            if name == "CMakeLists.txt" {
+                return false;
+            }
+            if name.ends_with(".cpp") || name.ends_with(".h") || name.ends_with(".td") {
+                return false;
+            }
+            true
+        })
         .unwrap_or(false);
 }
 
@@ -275,7 +289,7 @@ fn cleanup_link_lib(lib: &str) -> Option<&str> {
 fn read_link_libs(llvm_config_path: &Path, outdir: &Path) -> Vec<String> {
     let mut link_libs = Vec::new();
 
-    if let Some(_) = env::var_os("LLVM_BUILD_STATIC") {
+    if let Some(_) = env::var_os(ENV_LLVM_BUILD_STATIC) {
         read_link_libs_static(outdir, &mut link_libs);
     } else {
         read_link_libs_shared(llvm_config_path, &mut link_libs);
@@ -313,6 +327,7 @@ fn read_link_libs_shared(llvm_config_path: &Path, link_libs: &mut Vec<String>) {
 fn read_link_libs_static(outdir: &Path, link_libs: &mut Vec<String>) {
     // If statically linking, we need to link against the same libs as libLumen
     let lumen_libs_txt = outdir.join("build").join("llvm_deps.txt");
+    println!("cargo:rerun-if-changed={}", lumen_libs_txt.display());
     let lumen_libs = fs::read_to_string(lumen_libs_txt).unwrap();
 
     // LLVM
@@ -378,7 +393,7 @@ fn print_libcpp_flags(llvm_config_path: &Path, target: &str) {
 
 
 fn link_libs(libs: &[&str]) {
-    if env::var_os("LLVM_BUILD_STATIC").is_none() {
+    if env::var_os(ENV_LLVM_BUILD_STATIC).is_none() {
         link_libs_dylib(libs);
     } else {
         link_libs_static(libs);

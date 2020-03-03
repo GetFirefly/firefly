@@ -6,9 +6,6 @@ fn main() {
     let (hash, hash_date) = git_version();
     println!("cargo:rustc-env=LUMEN_COMMIT_HASH={}", hash);
     println!("cargo:rustc-env=LUMEN_COMMIT_DATE={}", hash_date);
-    println!("cargo:rerun-if-env-changed=LUMEN_COMMIT_DATE");
-    println!("cargo:rerun-if-env-changed=LUMEN_COMMIT_HASH");
-    println!("cargo:rerun-if-changed=build.rs");
 }
 
 pub fn git_version() -> (String, String) {
@@ -19,7 +16,7 @@ pub fn git_version() -> (String, String) {
     cmd.arg("log")
         .arg("-n1")
         .arg("--pretty=format:\"%h %cd\"")
-        .arg("--date=human");
+        .arg("--date=iso-strict");
 
     let out = output(&mut cmd);
     let mut split = out.splitn(2, ' ');

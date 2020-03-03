@@ -58,9 +58,14 @@ macro_rules! assert_no_arguments {
 macro_rules! assert_optional_argument {
     ($builder:expr, $args:ident, $msg:expr) => {
         match $args.len() {
-            0 => Default::default(),
+            0 => {
+                debug_in!($builder, "pattern has no arguments");
+                Default::default()
+            }
             1 => {
-                let v = $builder.build_value($args[0])?;
+                let arg = $args[0];
+                debug_in!($builder, "pattern has one argument: {:?}", arg);
+                let v = $builder.build_value(arg)?;
                 $builder.value_ref(v)
             }
             n => {
@@ -83,7 +88,9 @@ macro_rules! assert_single_argument {
                 $args.len()
             ));
         } else {
-            let v = $builder.build_value($args[0])?;
+            let arg = $args[0];
+            debug_in!($builder, "pattern argument is {:?}", arg);
+            let v = $builder.build_value(arg)?;
             $builder.value_ref(v)
         }
     };
@@ -103,6 +110,7 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
     }
 
     fn do_build(mut self, mut op: Match) -> Result<Option<Value>> {
+        debug_in!(self.builder, "building match op");
         debug_assert!(
             op.branches.len() > 0,
             "invalid match operation, no patterns defined"
@@ -110,9 +118,12 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
 
         // Get match inputs
         let selector = self.builder.value_ref(op.selector);
+        debug_in!(self.builder, "selector is {:?}", op.selector);
         let reads = op.reads.as_slice();
+        debug_in!(self.builder, "reads are {:?}", reads);
         let mut branches = Vec::with_capacity(op.branches.len());
         for Pattern { kind, block, args } in op.branches.drain(..) {
+            debug_in!(self.builder, "lowering pattern ({:?}) for block {:?}", kind, block);
             branches.push(self.translate_branch_kind(kind, block, args.as_slice(), reads)?);
         }
 
@@ -170,6 +181,8 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
                 MatchPattern::Any
             }
         };
+
+        debug_in!(self.builder, "pattern is valid, building successor block arguments");
 
         // Move ownership of block arguments vector to builder
         let arglist = self

@@ -42,6 +42,8 @@ pub struct BinaryLiteral {
     flags: BinaryFlags,
     bytes: *mut u8,
 }
+unsafe impl Send for BinaryLiteral {}
+unsafe impl Sync for BinaryLiteral {}
 impl_static_header!(BinaryLiteral, Term::HEADER_BINARY_LITERAL);
 impl BinaryLiteral {
     #[inline]

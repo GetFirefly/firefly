@@ -25,7 +25,7 @@ DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Builder, MLIRBuilderRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Location, MLIRLocationRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Block, MLIRBlockRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::TargetMachine, LLVMTargetMachineRef);
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::FuncOp, MLIRFunctionOpRef);
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::FuncOp, MLIRFunctionOpRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::ModuleBuilder, MLIRModuleBuilderRef);
 
 inline Attribute unwrap(const void *P) {
@@ -168,26 +168,16 @@ ModuleBuilder::~ModuleBuilder() {
 extern "C"
 MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
   ModuleBuilder *builder = unwrap(b);
-  //builder->build_external_declarations();
   auto finished = builder->finish();
   delete builder;
   if (failed(mlir::verify(finished))) {
+    finished.dump();
     finished.emitError("module verification error");
     return nullptr;
   }
 
   // Move to the heap
   return wrap(new mlir::ModuleOp(finished));
-}
-
-void ModuleBuilder::build_external_declarations() {
-  for (auto &kvp : calledSymbols) {
-    auto cs = kvp.getKey();
-    if (theModule.lookupSymbol<mlir::FuncOp>(cs))
-      continue;
-    auto fnType = kvp.getValue();
-    declare_function(cs, fnType);
-  }
 }
 
 mlir::ModuleOp ModuleBuilder::finish() {
@@ -213,8 +203,8 @@ FunctionDeclResult MLIRCreateFunction(MLIRModuleBuilderRef b,
   if (!fun)
     return {nullptr, nullptr};
 
-  MLIRFunctionOpRef funRef = wrap(new mlir::FuncOp(fun));
-  mlir::FuncOp *tempFun = unwrap(funRef);
+  MLIRFunctionOpRef funRef = wrap(new FuncOp(fun));
+  FuncOp *tempFun = unwrap(funRef);
   auto *entryBlock = tempFun->addEntryBlock();
   builder->position_at_end(entryBlock);
   MLIRBlockRef entry = wrap(entryBlock);
@@ -222,7 +212,7 @@ FunctionDeclResult MLIRCreateFunction(MLIRModuleBuilderRef b,
   return {funRef, entry};
 }
 
-mlir::FuncOp ModuleBuilder::create_function(StringRef functionName,
+FuncOp ModuleBuilder::create_function(StringRef functionName,
                                       SmallVectorImpl<Arg> &functionArgs,
                                       EirType *resultType) {
   llvm::SmallVector<Type, 2> argTypes;
@@ -236,26 +226,26 @@ mlir::FuncOp ModuleBuilder::create_function(StringRef functionName,
   ArrayRef<NamedAttribute> attrs({});
   if (resultType->any.tag == EirTypeTag::None) {
     auto fnType = builder.getFunctionType(argTypes, llvm::None);
-    return mlir::FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
+    return FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
   } else {
     auto fnType = builder.getFunctionType(argTypes, fromRust(builder, resultType));
-    return mlir::FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
+    return FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
   }
 }
 
 void ModuleBuilder::declare_function(StringRef functionName, mlir::FunctionType fnType) {
   ArrayRef<NamedAttribute> attrs({});
-  mlir::FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
+  builder.create<FuncOp>(builder.getUnknownLoc(), functionName, fnType, attrs);
 }
 
 extern "C"
 void MLIRAddFunction(MLIRModuleBuilderRef b, MLIRFunctionOpRef f) {
   ModuleBuilder *builder = unwrap(b);
-  mlir::FuncOp *fun = unwrap(f);
+  FuncOp *fun = unwrap(f);
   builder->add_function(*fun);
 }
 
-void ModuleBuilder::add_function(mlir::FuncOp f) {
+void ModuleBuilder::add_function(FuncOp f) {
   theModule.push_back(f);
 }
 
@@ -285,7 +275,7 @@ MLIRValueRef MLIRGetBlockArgument(MLIRBlockRef b, unsigned id) {
 extern "C"
 MLIRBlockRef MLIRAppendBasicBlock(MLIRModuleBuilderRef b, MLIRFunctionOpRef f, const Arg *argv, unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
-  mlir::FuncOp *fun = unwrap(f);
+  FuncOp *fun = unwrap(f);
   auto *block = builder->add_block(*fun);
   if (!block)
     return nullptr;
@@ -303,7 +293,7 @@ MLIRBlockRef MLIRAppendBasicBlock(MLIRModuleBuilderRef b, MLIRFunctionOpRef f, c
   return wrap(block);
 }
 
-Block *ModuleBuilder::add_block(mlir::FuncOp &f) { return f.addBlock(); }
+Block *ModuleBuilder::add_block(FuncOp &f) { return f.addBlock(); }
 
 extern "C"
 void MLIRBlockPositionAtEnd(MLIRModuleBuilderRef b, MLIRBlockRef blk) {
@@ -400,7 +390,7 @@ void MLIRBuildMatchOp(MLIRModuleBuilderRef b, eir::Match op) {
   builder->build_match(op);
 }
 
-std::unique_ptr<MatchPattern> ModuleBuilder::convertMatchPattern(MLIRMatchPattern &inPattern) {
+std::unique_ptr<MatchPattern> ModuleBuilder::convertMatchPattern(const MLIRMatchPattern &inPattern) {
   auto tag = inPattern.tag;
   switch (tag) {
     default:
@@ -437,14 +427,13 @@ void ModuleBuilder::build_match(Match op) {
   SmallVector<MatchBranch, 2> branches;
 
   ArrayRef<MLIRMatchBranch> inBranches(op.branches, op.branches + op.numBranches);
-  for (auto it = inBranches.begin(); it + 1 != inBranches.end(); ++it) {
-    MLIRMatchBranch inBranch = *it;
+  for (auto &inBranch : inBranches) {
     // Extract destination block and base arguments
     Block *dest = unwrap(inBranch.dest);
     ArrayRef<MLIRValueRef> inDestArgs(inBranch.destArgv, inBranch.destArgv + inBranch.destArgc);
     SmallVector<Value, 1> destArgs;
-    for (auto it2 = inDestArgs.begin(); it2 + 1 != inDestArgs.end(); ++it2) {
-      Value arg = unwrap(*it2);
+    for (auto argRef : inDestArgs) {
+      Value arg = unwrap(argRef);
       destArgs.push_back(arg);
     }
     // Convert match pattern payload
@@ -454,10 +443,10 @@ void ModuleBuilder::build_match(Match op) {
     branches.push_back(std::move(branch));
   }
   
-  // Create the operation using the internal representation
-  builder.create<MatchOp>(builder.getUnknownLoc(),
-                          selector,
-                          branches);
+  // We don't use an explicit operation for matches, as currently
+  // there isn't enough structure in place to allow nested regions
+  // to reference blocks from containing ops
+  lumen::eir::lowerPatternMatch(builder, selector, branches);
 }
 
 //===----------------------------------------------------------------------===//
@@ -500,14 +489,27 @@ extern "C"
 void MLIRBuildTraceCaptureOp(MLIRModuleBuilderRef b, MLIRBlockRef d, MLIRValueRef *argv, unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
   Block *dest = unwrap(d);
-  // TODO: We should generate a runtime call to capture the trace before the branch
   if (argc > 0) {
-    SmallVector<Value, 1> args;
-    unwrapValues(argv, argc, args);
-    builder->build_br(dest, args);
+    ArrayRef<MLIRValueRef> args(argv, argv + argc);
+    builder->build_trace_capture_op(dest, args);
   } else {
-    builder->build_br(dest);
+    builder->build_trace_capture_op(dest);
   }
+}
+
+void ModuleBuilder::build_trace_capture_op(Block *dest, ArrayRef<MLIRValueRef> destArgs) {
+  auto termType = TermType::get(builder.getContext());
+  auto captureOp = builder.create<TraceCaptureOp>(builder.getUnknownLoc(), termType);
+  auto capture = captureOp.getResult();
+
+  SmallVector<Value, 1> extendedArgs;
+  extendedArgs.push_back(capture);
+  for (auto destArg : destArgs) {
+    Value arg = unwrap(destArg);
+    extendedArgs.push_back(arg);
+  }
+
+  builder.create<BranchOp>(builder.getUnknownLoc(), dest, extendedArgs);
 }
 
 extern "C"
@@ -804,7 +806,7 @@ void ModuleBuilder::build_static_call(
 
   // Create symbolref and lookup function definition (if present)
   auto symbol = builder.getSymbolRefAttr(target);
-  auto fn = theModule.lookupSymbol<mlir::FuncOp>(symbol.getValue());
+  auto fn = theModule.lookupSymbol<FuncOp>(symbol.getValue());
 
   // Build result types list
   SmallVector<Type, 1> fnResults;
@@ -865,7 +867,7 @@ void ModuleBuilder::build_static_call(
     okArgsFinal.push_back(callResult);
     errArgsFinal.append(errArgs.begin(), errArgs.end());
     errArgsFinal.push_back(callResult);
-    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, ok, okArgsFinal, err, errArgsFinal);
+    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, err, errArgsFinal, ok, okArgsFinal);
   } else if (!err) {
     // When not successful, the function throws.
     // - Create err block with an argument for the error value
@@ -882,7 +884,7 @@ void ModuleBuilder::build_static_call(
     okArgsFinal.append(okArgs.begin(), okArgs.end());
     okArgsFinal.push_back(callResult);
     errArgsFinal.push_back(callResult);
-    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, ok, okArgsFinal, err, errArgsFinal);
+    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, err, errArgsFinal, ok, okArgsFinal);
   } else {
     // Simplest case, both ok/err branches already exist
     Value rhs = builder.create<ConstantNoneOp>(builder.getUnknownLoc());
@@ -891,7 +893,7 @@ void ModuleBuilder::build_static_call(
     okArgsFinal.push_back(callResult);
     errArgsFinal.append(errArgs.begin(), errArgs.end());
     errArgsFinal.push_back(callResult);
-    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, ok, okArgsFinal, err, errArgsFinal);
+    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, err, errArgsFinal, ok, okArgsFinal);
   }
 }
 
@@ -1037,7 +1039,10 @@ MLIRValueRef MLIRBuildConstantAtom(MLIRModuleBuilderRef b, const char *str, uint
 Value ModuleBuilder::build_constant_atom(StringRef value, uint64_t valueId) {
   APInt id(64, valueId, /*isSigned=*/false);
   auto op = builder.create<ConstantAtomOp>(builder.getUnknownLoc(), id, value);
-  return op.getResult();
+  auto result = op.getResult();
+  auto termTy = builder.getType<TermType>();
+  auto castOp = builder.create<CastOp>(builder.getUnknownLoc(), result, termTy);
+  return castOp.getResult();
 }
 
 extern "C"

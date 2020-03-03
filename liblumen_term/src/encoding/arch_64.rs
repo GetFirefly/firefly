@@ -13,7 +13,7 @@
 ///! processors to use up to 54 bits for addresses, which would cause issues as well.
 use crate::Tag;
 
-use super::Encoding;
+use super::{Encoding, MaskInfo};
 
 const PRIMARY_SHIFT: u64 = 3;
 const HEADER_SHIFT: u64 = 8;
@@ -27,6 +27,9 @@ const MASK_HEADER: u64 = 0b11111_111;
 pub struct Encoding64;
 
 impl Encoding64 {
+    // Re-export this for use in ffi.rs
+    pub const MASK_PRIMARY: u64 = MASK_PRIMARY;
+
     // Primary tags (use lowest 3 bits, since minimum alignment is 8)
     pub const TAG_HEADER: u64 = 0; // 0b000
     pub const TAG_BOXED: u64 = 1; // 0b001
@@ -117,6 +120,14 @@ impl Encoding for Encoding64 {
             Self::TAG_MAP => Tag::Map,
             Self::TAG_NONE if value == Self::NONE => Tag::None,
             _ => Tag::Unknown(tag),
+        }
+    }
+
+    #[inline]
+    fn immediate_mask_info() -> MaskInfo {
+        MaskInfo {
+            shift: PRIMARY_SHIFT as i32,
+            mask: MASK_PRIMARY,
         }
     }
 

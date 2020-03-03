@@ -162,21 +162,19 @@ public:
   // Functions
   //===----------------------------------------------------------------------===//
 
-  mlir::FuncOp create_function(StringRef functionName,
+  FuncOp create_function(StringRef functionName,
                          SmallVectorImpl<Arg> &functionArgs,
                          EirType *resultType);
 
   void declare_function(StringRef functionName, mlir::FunctionType fnType);
 
-  void add_function(mlir::FuncOp f);
-
-  void build_external_declarations();
+  void add_function(FuncOp f);
 
   //===----------------------------------------------------------------------===//
   // Blocks
   //===----------------------------------------------------------------------===//
 
-  Block *add_block(mlir::FuncOp &f);
+  Block *add_block(FuncOp &f);
   Block *getBlock();
   void position_at_end(Block *block);
   //===----------------------------------------------------------------------===//
@@ -217,7 +215,7 @@ public:
   //===----------------------------------------------------------------------===//
 
   void build_match(Match op);
-  std::unique_ptr<MatchPattern> convertMatchPattern(MLIRMatchPattern &inPattern);
+  std::unique_ptr<MatchPattern> convertMatchPattern(const MLIRMatchPattern &inPattern);
 
   void build_map_update(MapUpdate op);
   void build_map_insert_op(Value map, Value key, Value val, Block *ok, Block *err);
@@ -237,6 +235,7 @@ public:
   Value build_map(ArrayRef<MapEntry> entries);
 
   Value build_print_op(ArrayRef<Value> args);
+  void build_trace_capture_op(Block *dest, ArrayRef<MLIRValueRef> destArgs = {});
 
   //===----------------------------------------------------------------------===//
   // Constants

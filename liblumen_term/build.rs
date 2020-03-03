@@ -62,7 +62,12 @@ fn main() {
         .very_verbose(false)
         .build();
 
-    rerun_if_changed_anything_in_dir(&cmakelists_path);
+    let compiler_path = cmakelists_path.join("lumen").join("compiler");
+    let dialect_eir_path = compiler_path.join("Dialect").join("EIR");
+    let target_lib_path = compiler_path.join("Target");
+    let encoding_gen_lib_path = dialect_eir_path.join("Tools");
+    rerun_if_changed_anything_in_dir(&target_lib_path);
+    rerun_if_changed_anything_in_dir(&encoding_gen_lib_path);
 
     let term_encoding_rs_src = outdir.join("build/lumen/compiler").join("term_encoding.rs");
     let term_encoding_rs_dest = outdir.join("term_encoding.rs");
@@ -91,7 +96,18 @@ pub fn rerun_if_changed_anything_in_dir(dir: &Path) {
 fn ignore_changes(name: &Path) -> bool {
     return name
         .file_name()
-        .map(|f| f.to_string_lossy().starts_with("."))
+        .map(|f| {
+            let name = f.to_string_lossy();
+            if name.starts_with(".") {
+                return true;
+            }
+
+            if name.ends_with(".cpp") || name.ends_with(".h") || name.ends_with(".td") {
+                return false;
+            }
+
+            true
+        })
         .unwrap_or(false);
 }
 

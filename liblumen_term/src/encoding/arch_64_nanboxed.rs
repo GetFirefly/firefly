@@ -13,7 +13,7 @@
 ///! processors to use up to 54 bits for addresses, which would cause issues as well.
 use crate::Tag;
 
-use super::Encoding;
+use super::{Encoding, MaskInfo};
 
 const NUM_BITS: u64 = 64;
 
@@ -37,6 +37,9 @@ const MAX_HEADER_VALUE: u64 = MAX_ADDR >> HEADER_SHIFT;
 pub struct Encoding64Nanboxed;
 
 impl Encoding64Nanboxed {
+    // Re-export this for use in ffi.rs
+    pub const TAG_MASK: u64 = TAG_MASK;
+
     // Primary classification:
     //
     // Float:    Value >= MIN_DOUBLE
@@ -175,6 +178,14 @@ impl Encoding for Encoding64Nanboxed {
                 Self::TAG_NONE if value == Self::NONE => Tag::None,
                 tag => Tag::Unknown(tag),
             }
+        }
+    }
+
+    #[inline]
+    fn immediate_mask_info() -> MaskInfo {
+        MaskInfo {
+            shift: 0,
+            mask: IMMEDIATE_MASK,
         }
     }
 

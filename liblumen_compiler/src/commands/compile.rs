@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::{mpsc::channel, Arc, RwLock};
 use std::thread;
 use std::time::Instant;
+use std::panic;
 
 use anyhow::anyhow;
 

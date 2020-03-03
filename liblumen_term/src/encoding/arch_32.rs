@@ -1,6 +1,6 @@
 use crate::Tag;
 
-use super::Encoding;
+use super::{Encoding, MaskInfo};
 
 pub const PRIMARY_SHIFT: u32 = 3;
 pub const HEADER_SHIFT: u32 = 8;
@@ -14,6 +14,9 @@ pub const MASK_HEADER: u32 = 0b11111_111;
 pub struct Encoding32;
 
 impl Encoding32 {
+    // Re-export this for use in ffi.rs
+    pub const MASK_PRIMARY: u32 = MASK_PRIMARY;
+
     // Primary tags (use lowest 3 bits, since minimum alignment is 8)
     pub const TAG_HEADER: u32 = 0; // 0b000
     pub const TAG_BOXED: u32 = 1; // 0b001
@@ -108,6 +111,14 @@ impl Encoding for Encoding32 {
     }
 
     #[inline]
+    fn immediate_mask_info() -> MaskInfo {
+        MaskInfo {
+            shift: PRIMARY_SHIFT as i32,
+            mask: MASK_PRIMARY as u64,
+        }
+    }
+
+    #[inline]
     fn encode_immediate(value: u32, tag: u32) -> u32 {
         debug_assert!(tag <= MASK_PRIMARY, "invalid primary tag");
         (value << PRIMARY_SHIFT) | tag
@@ -185,7 +196,7 @@ impl Encoding for Encoding32 {
     #[inline]
     fn decode_smallint(value: u32) -> i32 {
         let unmasked = (value & !MASK_PRIMARY) as i32;
-        unmasked >> 3
+        unmasked >> (PRIMARY_SHIFT as i32)
     }
 
     #[inline]

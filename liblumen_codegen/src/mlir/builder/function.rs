@@ -178,16 +178,6 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     esc: Value,
 }
 
-#[macro_export]
-macro_rules! debug_in {
-    ($this:expr, $format:expr) => {
-        debug!("{}: {}", $this.name(), $format);
-    };
-    ($this:expr, $format:expr, $($arg:expr),+) => {
-        debug!("{}: {}", $this.name(), &format!($format, $($arg),+));
-    }
-}
-
 // Miscellaneous helper functions
 impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Returns the internal MLIR builder this builder wraps
@@ -523,6 +513,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 // are in the argument list. Those that are not, are implicit
                 // arguments, coming from a dominating block.
                 for live in live_at.iter() {
+                    // Ignore the function throw/return continuations
+                    if self.func.is_throw_ir(live) || self.func.is_return_ir(live) {
+                        continue;
+                    }
                     // If not an explicit argument, and live within the block, add it as implicit
                     if !explicit.contains(&live) && self.analysis.live.is_live_in(ir_block, live) {
                         implicits.push((
@@ -635,7 +629,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             let ir_value = self.func.value_to_ir_value(value);
             params.push((param, ir_value));
         }
-
+        debug_in!(self, "creating clone block");
         // Create a new block with the same params as the current one
         let cloned = self.create_block(None, params.as_slice()).unwrap();
         // Reposition builder
@@ -682,7 +676,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::OpKind::Call(ir::CallKind::ControlFlow) => {
                 debug_in!(self, "block contains control flow operation");
                 let ir_dest = reads[0];
-                let dest = self.get_value(ir_dest);
 
                 if self.func.is_return_ir(ir_dest) {
                     // get return values from reads
@@ -896,19 +889,24 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 debug_in!(self, "block contains match operation");
                 let dests = reads[0];
                 let num_dests = self.eir.value_list_length(dests);
+                let num_branches = branches.len();
+                debug_in!(self, "match has {} successors and {} branches", num_dests, num_branches);
                 debug_assert_eq!(
                     num_dests,
-                    branches.len(),
+                    num_branches,
                     "number of branches and destination blocks differs"
                 );
                 let branches = branches
                     .drain(..)
                     .enumerate()
                     .map(|(i, kind)| {
+                        debug_in!(self, "branch {} has kind {:?}", i, kind);
                         let block_value = self.eir.value_list_get_n(dests, i).unwrap();
                         let block = self.get_block_by_value(block_value);
+                        debug_in!(self, "branch {} has dest {:?}", i, block);
                         let args_vl = reads[i + 2];
                         let num_args = self.eir.value_list_length(args_vl);
+                        debug_in!(self, "branch {} has {} args", i, num_args);
                         let mut args = Vec::with_capacity(num_args);
                         for n in 0..num_args {
                             args.push(self.eir.value_list_get_n(args_vl, n).unwrap());
@@ -969,20 +967,28 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// never happen, as block arguments are defined when the block is created, so
     /// lookups should never fail. If the lookup fails, then we have a compiler bug.
     pub(super) fn build_value(&mut self, ir_value: ir::Value) -> Result<Value> {
+        let value = self.build_value_opt(ir_value)?
+            .expect("expected value, but got pseudo-value");
+        Ok(value)
+    }
+
+    /// Same as above, but represents value lists as the absence of a value
+    pub(super) fn build_value_opt(&mut self, ir_value: ir::Value) -> Result<Option<Value>> {
         if let Some(value) = self.find_value(ir_value) {
-            return Ok(value);
+            return Ok(Some(value));
         }
         debug_in!(self, "building value {:?}", ir_value);
-        match self.eir.value_kind(ir_value) {
-            ir::ValueKind::Const(c) => self.build_constant_value(ir_value, c),
-            ir::ValueKind::PrimOp(op) => self.build_primop_value(ir_value, op),
+        let value_opt = match self.eir.value_kind(ir_value) {
+            ir::ValueKind::Const(c) => Some(self.build_constant_value(ir_value, c)?),
+            ir::ValueKind::PrimOp(op) => self.build_primop_value(ir_value, op)?,
             ir::ValueKind::Block(b) => {
                 unreachable!("block {:?} used as a value ({:?})", b, ir_value)
             }
             ir::ValueKind::Argument(b, i) => {
                 unreachable!("block argument {:?}:{} should already be defined", b, i)
             }
-        }
+        };
+        Ok(value_opt)
     }
 
     /// This function returns a Value that represents the given IR value lowered as a constant
@@ -999,7 +1005,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Values which the primitive operation reads must themselves be lowered if not yet
     /// defined.
     #[inline]
-    fn build_primop_value(&mut self, ir_value: ir::Value, primop: ir::PrimOp) -> Result<Value> {
+    fn build_primop_value(&mut self, ir_value: ir::Value, primop: ir::PrimOp) -> Result<Option<Value>> {
         debug_in!(self, "building primop from value {:?}", ir_value);
         let primop_kind = self.primop_kind(primop).clone();
         let reads = self.primop_reads(primop).to_vec();
@@ -1095,9 +1101,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 let callee = Callee::new(self, ir_value)?;
                 OpKind::FunctionRef(callee)
             }
+            ir::PrimOpKind::ValueList => {
+                debug_in!(self, "value list: {:?} with {} reads", ir_value, num_reads);
+                return Ok(None);
+            }
             invalid => panic!("unexpected primop kind: {:?}", invalid),
         };
-        OpBuilder::build_one_result(self, ir_value, op)
+        Ok(Some(OpBuilder::build_one_result(self, ir_value, op)?))
     }
 
     /// Constructs an argument list for a target block, from the current block
@@ -1151,6 +1161,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         // provided by an operation, so we ignore them. If this value corresponds
                         // to an implicit, we have a compiler bug, as we would not expect the
                         // source value to be a block argument of the target
+                        //
+                        // NOTE: In a revision of the above, it appears that value lists are
+                        // being used to represent operation results (such as cons cells),
+                        // so we need to re-verify this logic.
                         assert!(
                             i >= num_implicits,
                             "expected this value to correspond to a read or operation result"
@@ -1163,12 +1177,14 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         } else {
                             debug_in!(self, "block arg is explicit argument");
                             // This is an explicit argument corresponding to the operations' reads
-                            Some(self.build_value(reads[read]).unwrap())
+                            //
+                            // NOTE: When this is None, it was a value list
+                            self.build_value_opt(reads[read]).unwrap()
                         }
                     } else {
                         debug_in!(self, "block arg is not a block argument, expected in scope");
                         // This value should have a definition in scope
-                        Some(self.build_value(ir_value).unwrap())
+                        self.build_value_opt(ir_value).unwrap()
                     }
                 } else {
                     debug_in!(self, "block has no corresponding eir value");
@@ -1187,7 +1203,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     } else {
                         debug_in!(self, "block arg is explicit argument");
                         // This is an explicit argument corresponding to the operations' reads
-                        Some(self.build_value(reads[read]).unwrap())
+                        self.build_value_opt(reads[read]).unwrap()
                     }
                 }
             })

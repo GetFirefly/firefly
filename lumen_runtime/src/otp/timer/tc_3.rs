@@ -44,9 +44,11 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let module = arc_process.stack_pop().unwrap();
-    let function = arc_process.stack_pop().unwrap();
-    let arguments = arc_process.stack_pop().unwrap();
+    let module = arc_process.stack_peek(1).unwrap();
+    let function = arc_process.stack_peek(2).unwrap();
+    let arguments = arc_process.stack_peek(3).unwrap();
+
+    arc_process.stack_popn(3);
 
     label_1::place_frame_with_arguments(
         arc_process,
@@ -54,8 +56,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         module,
         function,
         arguments,
-    )?;
-    monotonic_time_0::place_frame_with_arguments(arc_process, Placement::Push)?;
+    )
+    .unwrap();
+    monotonic_time_0::place_frame_with_arguments(arc_process, Placement::Push).unwrap();
 
     Process::call_code(arc_process)
 }

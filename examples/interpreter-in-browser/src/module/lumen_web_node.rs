@@ -8,7 +8,7 @@ pub fn make_lumen_web_node() -> NativeModule {
     native.add_simple(
         Atom::try_from_str("append_child").unwrap(),
         2,
-        |_proc, args| Ok(lumen_web::node::append_child_2::native(args[0], args[1]).unwrap()),
+        |proc, args| Ok(lumen_web::node::append_child_2::native(proc, args[0], args[1]).unwrap()),
     );
 
     native

@@ -1,27 +1,29 @@
 #![allow(unused)]
 mod run_queue;
 
-use std::ptr;
+use std::cell::{Cell, RefCell};
 use std::fmt::{self, Debug};
+use std::ops::Deref;
+use std::ptr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
-use std::cell::{RefCell, Cell};
-use std::ops::Deref;
 
 use hashbrown::HashMap;
 
+use anyhow::anyhow;
 use lazy_static::lazy_static;
 
 use log::info;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::apply;
 use liblumen_alloc::erts::process;
-use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::erts::process::{Process, Priority, CalleeSavedRegisters, Status};
+use liblumen_alloc::erts::process::{CalleeSavedRegisters, Priority, Process, Status};
 use liblumen_alloc::erts::scheduler::id;
 use liblumen_alloc::erts::term::prelude::{Atom, ReferenceNumber};
+use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_rt_core as rt_core;
 use lumen_rt_core::timer::Hierarchy;
@@ -64,7 +66,7 @@ pub unsafe extern "C" fn process_yield() -> bool {
 #[cfg(all(unix, target_arch = "x86_64"))]
 #[export_name = "__lumen_builtin_return"]
 pub unsafe extern "C" fn process_return_continuation() {
-    let f: fn () -> () = process_return;
+    let f: fn() -> () = process_return;
     asm!("
         callq *$0
         retq
@@ -88,7 +90,9 @@ fn process_return() {
 fn do_process_return(scheduler: &Scheduler) -> bool {
     use liblumen_alloc::erts::term::prelude::*;
     if scheduler.current.pid() != scheduler.root.pid() {
-        scheduler.current.exit(Atom::from_str("shutdown").encode().unwrap());
+        scheduler
+            .current
+            .exit(atom!("normal"), anyhow!("Out of code").into());
         // NOTE: We always set root=false here, even though this can
         // be called from the root process, since returning from the
         // root process exits the scheduler loop anyway, so no stack
@@ -259,7 +263,6 @@ impl Scheduler {
         SCHEDULER.with(|s| if &s.id == id { Some(s.clone()) } else { None })
     }
 
-
     /// Gets the next available unique integer
     pub fn next_unique_integer(&self) -> u64 {
         self.unique_integer.fetch_add(1, Ordering::SeqCst)
@@ -283,9 +286,7 @@ impl Scheduler {
     }
 
     pub fn current_process() -> Arc<Process> {
-        CURRENT_PROCESS.with(|cp| {
-          cp.borrow().clone().expect("no process currently scheduled")
-        })
+        CURRENT_PROCESS.with(|cp| cp.borrow().clone().expect("no process currently scheduled"))
     }
 
     // TODO: Request application master termination for controlled shutdown
@@ -404,8 +405,8 @@ impl Scheduler {
                 }
                 Run::Delayed => {
                     info!("found process, but it is delayed");
-                    continue
-                },
+                    continue;
+                }
                 Run::None if is_root => {
                     info!("no processes remaining to schedule, exiting loop");
                     // If no processes are available, then the scheduler should steal,
@@ -417,7 +418,7 @@ impl Scheduler {
                     // TODO: stealing
                     break false;
                 }
-                Run::None => unreachable!()
+                Run::None => unreachable!(),
             }
         }
     }
@@ -497,7 +498,11 @@ impl Scheduler {
 
     /// Schedules the given process for execution
     pub fn schedule(&mut self, process: Arc<Process>) {
-        debug_assert_ne!(Some(self.id), process.scheduler_id(), "process is already scheduled here!");
+        debug_assert_ne!(
+            Some(self.id),
+            process.scheduler_id(),
+            "process is already scheduled here!"
+        );
 
         process.schedule_with(self.id);
 
@@ -515,7 +520,11 @@ impl Scheduler {
     // Root process uses the original thread stack, no initialization required.
     //
     // It also starts "running", so we don't put it on the run queue
-    fn spawn_root(process: Arc<Process>, id: id::ID, _run_queues: &RwLock<run_queue::Queues>) -> anyhow::Result<()> {
+    fn spawn_root(
+        process: Arc<Process>,
+        id: id::ID,
+        _run_queues: &RwLock<run_queue::Queues>,
+    ) -> anyhow::Result<()> {
         process.schedule_with(id);
 
         *process.status.write() = Status::Running;
@@ -529,7 +538,10 @@ impl Scheduler {
         let mfa = &process.initial_module_function_arity;
         let init_fn_result = apply::find_symbol(&mfa);
         if init_fn_result.is_none() {
-            panic!("invalid mfa provided for process ({}), no such symbol found", &mfa);
+            panic!(
+                "invalid mfa provided for process ({}), no such symbol found",
+                &mfa
+            );
         }
         let init_fn = init_fn_result.unwrap();
 

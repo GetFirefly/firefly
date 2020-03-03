@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::Alloc;
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::*;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -23,7 +25,7 @@ pub fn place_frame_with_arguments(
     last: Term,
     acc: Term,
     reducer: Term,
-) -> Result<(), Alloc> {
+) -> AllocResult<()> {
     process.stack_push(reducer)?;
     process.stack_push(acc)?;
     process.stack_push(last)?;
@@ -36,17 +38,21 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let new_first = arc_process.stack_pop().unwrap();
+    let new_first = arc_process.stack_peek(1).unwrap();
     assert!(new_first.is_integer());
-    let first = arc_process.stack_pop().unwrap();
+    let first = arc_process.stack_peek(2).unwrap();
     assert!(first.is_integer());
-    let last = arc_process.stack_pop().unwrap();
+    let last = arc_process.stack_peek(3).unwrap();
     assert!(last.is_integer());
-    let acc = arc_process.stack_pop().unwrap();
-    let reducer = arc_process.stack_pop().unwrap();
+    let acc = arc_process.stack_peek(4).unwrap();
+    let reducer = arc_process.stack_peek(5).unwrap();
+
+    const STACK_USED: usize = 5;
 
     match reducer.decode().unwrap() {
         TypedTerm::Closure(closure) => {
+            arc_process.stack_popn(STACK_USED);
+
             label_2::place_frame_with_arguments(
                 arc_process,
                 Placement::Replace,
@@ -68,11 +74,21 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
                 result_from_exception(
                     arc_process,
-                    liblumen_alloc::badarity!(arc_process, reducer, argument_list),
+                    STACK_USED,
+                    badarity(
+                        arc_process,
+                        reducer,
+                        argument_list,
+                        anyhow!("reducer").into(),
+                    ),
                 )
             }
         }
-        _ => result_from_exception(arc_process, liblumen_alloc::badfun!(arc_process, reducer)),
+        _ => result_from_exception(
+            arc_process,
+            STACK_USED,
+            badfun(arc_process, reducer, anyhow!("reducer").into()),
+        ),
     }
 }
 

@@ -397,3 +397,7 @@ impl Default for AtomTable {
 /// This is safe to implement because the only usage is the ATOMS static, which is wrapped in an
 /// `RwLock`, but it is _not_ `Sync` in general, so don't try and use it as such in other situations
 unsafe impl Sync for AtomTable {}
+
+#[derive(Debug, Error)]
+#[error("atom ({0}) is not supported")]
+pub struct TryAtomFromTermError(pub &'static str);

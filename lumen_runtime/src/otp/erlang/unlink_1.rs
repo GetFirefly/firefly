@@ -5,7 +5,8 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -34,6 +35,11 @@ fn native(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
         TypedTerm::Port(_) => unimplemented!(),
         TypedTerm::ExternalPid(_) => unimplemented!(),
         TypedTerm::ExternalPort(_) => unimplemented!(),
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!(
+                "pid_or_port ({}) is neither a pid nor a port",
+                pid_or_port
+            ))
+            .map_err(From::from),
     }
 }

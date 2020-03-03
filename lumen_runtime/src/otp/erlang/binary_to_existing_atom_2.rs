@@ -7,12 +7,35 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::string::Encoding;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
+
+use crate::context::*;
+
+macro_rules! maybe_aligned_maybe_binary_to_atom {
+    ($binary:ident, $maybe_aligned_maybe_binary:ident) => {
+        if $maybe_aligned_maybe_binary.is_binary() {
+            if $maybe_aligned_maybe_binary.is_aligned() {
+                let bytes = unsafe { $maybe_aligned_maybe_binary.as_bytes_unchecked() };
+
+                bytes_to_existing_atom($binary, bytes)
+            } else {
+                let byte_vec: Vec<u8> = $maybe_aligned_maybe_binary.full_byte_iter().collect();
+
+                bytes_to_existing_atom($binary, &byte_vec)
+            }
+        } else {
+            Err(NotABinary)
+                .with_context(|| term_is_not_binary("bitstring", $binary))
+                .map_err(From::from)
+        }
+    };
+}
 
 #[native_implemented_function(binary_to_existing_atom/2)]
 pub fn native(binary: Term, encoding: Term) -> exception::Result<Term> {
@@ -20,26 +43,27 @@ pub fn native(binary: Term, encoding: Term) -> exception::Result<Term> {
 
     match binary.decode()? {
         TypedTerm::HeapBinary(heap_binary) => {
-            Atom::try_from_latin1_bytes_existing(heap_binary.as_bytes())?.encode()
+            bytes_to_existing_atom(binary, heap_binary.as_bytes())
         }
         TypedTerm::ProcBin(process_binary) => {
-            Atom::try_from_latin1_bytes_existing(process_binary.as_bytes())?.encode()
+            bytes_to_existing_atom(binary, process_binary.as_bytes())
         }
-        TypedTerm::SubBinary(subbinary) => {
-            if subbinary.is_binary() {
-                if subbinary.is_aligned() {
-                    let bytes = unsafe { subbinary.as_bytes_unchecked() };
-
-                    Atom::try_from_latin1_bytes_existing(bytes)?.encode()
-                } else {
-                    let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
-
-                    Atom::try_from_latin1_bytes_existing(&byte_vec)?.encode()
-                }
-            } else {
-                Err(badarg!().into())
-            }
+        TypedTerm::BinaryLiteral(binary_literal) => {
+            bytes_to_existing_atom(binary, binary_literal.as_bytes())
         }
-        _ => Err(badarg!().into()),
+        TypedTerm::SubBinary(subbinary) => maybe_aligned_maybe_binary_to_atom!(binary, subbinary),
+        TypedTerm::MatchContext(match_context) => {
+            maybe_aligned_maybe_binary_to_atom!(binary, match_context)
+        }
+        _ => Err(TypeError)
+            .with_context(|| term_is_not_binary("binary", binary))
+            .map_err(From::from),
     }
+}
+
+fn bytes_to_existing_atom(binary: Term, bytes: &[u8]) -> exception::Result<Term> {
+    Atom::try_from_latin1_bytes_existing(bytes)
+        .with_context(|| format!("binary ({}) could not be converted to atom", binary))?
+        .encode()
+        .map_err(From::from)
 }

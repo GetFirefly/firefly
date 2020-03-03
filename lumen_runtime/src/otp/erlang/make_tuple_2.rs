@@ -5,18 +5,18 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 #[native_implemented_function(make_tuple/2)]
 pub fn native(process: &Process, arity: Term, initial_value: Term) -> exception::Result<Term> {
     // arity by definition is only 0-225, so `u8`, but ...
-    let arity_u8: u8 = arity.try_into()?;
+    let arity_u8: u8 = term_try_into_arity(arity)?;
     // ... everything else uses `usize`, so cast it back up
     let arity_usize: usize = arity_u8 as usize;
 

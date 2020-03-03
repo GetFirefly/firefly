@@ -18,5 +18,5 @@ use crate::otp::erlang::string_to_integer::base_string_to_integer;
 pub fn native(process: &Process, list: Term, base: Term) -> exception::Result<Term> {
     let string: String = list_to_string(list)?;
 
-    base_string_to_integer(process, base, &string)
+    base_string_to_integer(process, base, "list", '\'', &string).map_err(From::from)
 }

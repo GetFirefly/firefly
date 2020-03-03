@@ -92,6 +92,7 @@ impl<'a> Child<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn data(&self) -> &'a [u8] {
         unsafe {
             let mut data_len = 0;

@@ -5,7 +5,8 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -16,8 +17,8 @@ use lumen_runtime_macros::native_implemented_function;
 /// `bitstring` is not divisible by `8`, the last element of the list is a `bitstring` containing
 /// the remaining `1`-`7` bits.
 #[native_implemented_function(bitstring_to_list/1)]
-pub fn native<'process>(process: &'process Process, bitstring: Term) -> exception::Result<Term> {
-    match bitstring.decode().unwrap() {
+pub fn native(process: &Process, bitstring: Term) -> exception::Result<Term> {
+    match bitstring.decode()? {
         TypedTerm::HeapBinary(heap_binary) => {
             let byte_term_iter = heap_binary.as_bytes().iter().map(|byte| (*byte).into());
             let last = Term::NIL;
@@ -55,6 +56,8 @@ pub fn native<'process>(process: &'process Process, bitstring: Term) -> exceptio
                 .improper_list_from_iter(byte_term_iter, last)
                 .map_err(|error| error.into())
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!("bitstring ({}) is not a bitstring", bitstring))
+            .map_err(From::from),
     }
 }

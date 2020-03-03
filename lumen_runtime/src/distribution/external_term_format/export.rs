@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
@@ -10,7 +10,7 @@ pub fn decode<'a>(
     process: &Process,
     safe: bool,
     bytes: &'a [u8],
-) -> Result<(Term, &'a [u8]), Exception> {
+) -> InternalResult<(Term, &'a [u8])> {
     let (module, after_module_bytes) = atom::decode_tagged(safe, bytes)?;
     let (function, after_function_bytes) = atom::decode_tagged(safe, after_module_bytes)?;
     let (arity, after_arity_bytes) = small_integer::decode_tagged_u8(after_function_bytes)?;

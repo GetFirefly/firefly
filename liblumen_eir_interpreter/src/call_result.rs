@@ -4,6 +4,8 @@ use std::convert::TryInto;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
+use anyhow::*;
+
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::code;
@@ -188,7 +190,7 @@ fn return_ok(arc_process: &Arc<Process>) -> code::Result {
         })
         .unwrap();
 
-    Ok(arc_process.return_from_call(argument_vec[0])?)
+    Ok(arc_process.return_from_call(0, argument_vec[0])?)
 }
 
 fn return_throw(arc_process: &Arc<Process>) -> code::Result {
@@ -232,7 +234,12 @@ fn return_throw(arc_process: &Arc<Process>) -> code::Result {
 
     let reason = argument_vec[1];
     let stacktrace = Some(argument_vec[2]);
-    let exc = exception::raise(class, reason, exception::Location::default(), stacktrace);
+    let exc = exception::raise(
+        class,
+        reason,
+        stacktrace,
+        anyhow!("explicit throw from Erlang").into(),
+    );
 
-    code::result_from_exception(arc_process, exc.into())
+    code::result_from_exception(arc_process, 0, exc.into())
 }

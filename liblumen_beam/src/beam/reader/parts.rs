@@ -23,8 +23,7 @@ pub struct Atom {
 /// An imported function.
 ///
 /// ## Alternative Implementations
-/// - [`org.elixir_lang.beam.chunk.imports.Import` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.imports.Import` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/imports/Import.kt) in
 ///   Kotlin
 #[derive(Debug, PartialEq, Eq)]

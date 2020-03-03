@@ -33,4 +33,5 @@ pub fn native(
             Sent::SuspendRequired => "nosuspend",
         })
         .map(Atom::str_to_term)
+        .map_err(From::from)
 }

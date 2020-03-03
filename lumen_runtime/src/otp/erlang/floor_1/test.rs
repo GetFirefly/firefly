@@ -7,7 +7,6 @@ use num_traits::Num;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::{Encoded, Float};
 
 use crate::otp::erlang::floor_1::native;
@@ -16,31 +15,12 @@ use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_number(arc_process.clone()),
-                |number| {
-                    prop_assert_eq!(native(&arc_process, number), Err(badarg!().into()));
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+    crate::test::without_number_errors_badarg(file!(), native);
 }
 
 #[test]
 fn with_integer_returns_integer() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_integer(arc_process.clone()), |number| {
-                prop_assert_eq!(native(&arc_process, number), Ok(number));
-
-                Ok(())
-            })
-            .unwrap();
-    });
+    crate::test::with_integer_returns_integer(file!(), native);
 }
 
 #[test]

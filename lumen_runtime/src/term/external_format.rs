@@ -1,8 +1,7 @@
 //! [External Term Format](http://erlang.org/doc/apps/erts/erl_ext_dist.html)
 use core::convert::TryFrom;
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::Exception;
+use thiserror::Error;
 
 pub enum Tag {
     NewFloat = 70,
@@ -20,9 +19,9 @@ pub enum Tag {
 }
 
 impl TryFrom<u8> for Tag {
-    type Error = Exception;
+    type Error = anyhow::Error;
 
-    fn try_from(tag_byte: u8) -> Result<Tag, Self::Error> {
+    fn try_from(tag_byte: u8) -> Result<Self, Self::Error> {
         use crate::term::external_format::Tag::*;
 
         match tag_byte {
@@ -38,7 +37,11 @@ impl TryFrom<u8> for Tag {
             109 => Ok(Binary),
             110 => Ok(SmallBigInteger),
             119 => Ok(SmallAtomUTF8),
-            _ => Err(badarg!().into()),
+            byte => Err(TryFromByteError(byte).into()),
         }
     }
 }
+
+#[derive(Debug, Error)]
+#[error("byte ({0}) is not a tag")]
+pub struct TryFromByteError(pub u8);

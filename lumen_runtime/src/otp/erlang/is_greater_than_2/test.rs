@@ -15,7 +15,7 @@ mod with_tuple_left;
 use std::sync::Arc;
 
 use proptest::prop_assert_eq;
-use proptest::strategy::{BoxedStrategy, Strategy};
+use proptest::strategy::BoxedStrategy;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::process::Process;

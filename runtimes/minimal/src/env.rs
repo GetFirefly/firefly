@@ -1,11 +1,10 @@
 use core::slice;
-use std::ffi::OsString;
 use std::env::ArgsOs;
 
 use once_cell::sync::OnceCell;
 
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::scheduler::Scheduler;
 
@@ -19,7 +18,7 @@ pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {
     for arg in argv {
         args.push(arg.to_string_lossy().into_owned());
     }
-    ARGV.set(args);
+    ARGV.set(args).unwrap();
 
     let argv = ARGV.get().map(|v| v.as_slice()).unwrap();
     let mut literals = Vec::with_capacity(argv.len());
@@ -28,22 +27,23 @@ pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {
         literals.push(BinaryLiteral::from_raw_bytes(
             bytes.as_ptr() as *mut u8,
             bytes.len(),
-            Some(Encoding::Utf8)
+            Some(Encoding::Utf8),
         ));
     }
 
-    ARGV_TERM.set(literals);
+    ARGV_TERM.set(literals).unwrap();
 
     Ok(())
 }
 
+#[allow(dead_code)]
 pub(crate) fn init_argv(argv: *const *const libc::c_char, argc: u32) -> anyhow::Result<()> {
-    use std::ffi::CStr;
     use liblumen_alloc::erts::string::Encoding;
+    use std::ffi::CStr;
 
     let argc = argc as usize;
     if argc == 0 {
-        ARGV.set(Vec::new());
+        ARGV.set(Vec::new()).unwrap();
         return Ok(());
     }
 
@@ -82,8 +82,8 @@ pub(crate) fn init_argv(argv: *const *const libc::c_char, argc: u32) -> anyhow::
         }
     }
 
-    ARGV.set(args);
-    ARGV_TERM.set(literals);
+    ARGV.set(args).unwrap();
+    ARGV_TERM.set(literals).unwrap();
 
     Ok(())
 }
@@ -114,9 +114,8 @@ fn get_plain_arguments_with_process(process: &Process) -> Term {
     let mut heap = process.acquire_heap();
     let mut builder = ListBuilder::new(&mut heap);
     for arg in argv {
-        let boxed: Boxed<BinaryLiteral> = unsafe {
-            Boxed::new_unchecked(arg as *const _ as *mut _)
-        };
+        let boxed: Boxed<BinaryLiteral> =
+            unsafe { Boxed::new_unchecked(arg as *const _ as *mut _) };
         builder = builder.push(boxed.into());
     }
 

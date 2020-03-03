@@ -1,8 +1,11 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
+use anyhow::*;
+
 use liblumen_core::locks::RwLock;
 
+use liblumen_alloc::erts::exception::{self, ArcError};
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::Process;
@@ -61,9 +64,9 @@ pub fn place_frame_with_arguments(
 /// `module`, `function`, and arity of `argument_list` must have code registered with
 /// `crate::code::export::insert` or returns `undef` exception.
 pub fn code(arc_process: &Arc<Process>) -> code::Result {
-    let module = arc_process.stack_pop().unwrap();
-    let function = arc_process.stack_pop().unwrap();
-    let argument_list = arc_process.stack_pop().unwrap();
+    let module = arc_process.stack_peek(1).unwrap();
+    let function = arc_process.stack_peek(2).unwrap();
+    let argument_list = arc_process.stack_peek(3).unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
 
@@ -85,6 +88,8 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
     match crate::code::export::get(&module_atom, &function_atom, arity) {
         Some(code) => {
+            arc_process.stack_popn(3);
+
             crate::code::export::place_frame_with_arguments(
                 &arc_process,
                 Placement::Replace,
@@ -97,7 +102,20 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
             Process::call_code(arc_process)
         }
-        None => undef(arc_process, module, function, argument_list),
+        None => undef(
+            arc_process,
+            module,
+            function,
+            argument_list,
+            anyhow!(
+                ":{}.{}/{} is not exported",
+                module_atom.name(),
+                function_atom.name(),
+                arity
+            )
+            .into(),
+            3,
+        ),
     }
 }
 
@@ -122,10 +140,12 @@ fn undef(
     module: Term,
     function: Term,
     arguments: Term,
+    source: ArcError,
+    stack_used: usize,
 ) -> code::Result {
     arc_process.reduce();
-    let exception = liblumen_alloc::undef!(arc_process, module, function, arguments);
-    code::result_from_exception(arc_process, exception)
+    let exception = exception::undef(arc_process, module, function, arguments, Term::NIL, source);
+    code::result_from_exception(arc_process, stack_used, exception)
 }
 
 lazy_static! {

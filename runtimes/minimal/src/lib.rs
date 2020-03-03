@@ -10,16 +10,15 @@ compile_error!("lumen_rt_minimal is only supported on unix targets!");
 #[macro_use]
 mod macros;
 mod config;
+mod distribution;
+pub mod env;
 mod logging;
+mod process;
 mod scheduler;
 mod sys;
-mod distribution;
-mod process;
-pub mod env;
 
 use bus::Bus;
 use log::Level;
-use std::thread;
 
 use lumen_rt_core as rt_core;
 

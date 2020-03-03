@@ -1,12 +1,14 @@
-use std::convert::TryFrom;
+mod options;
+
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::{self, RuntimeException};
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::scheduler::Scheduler;
+
+pub use options::*;
 
 /// There are two types of unique integers both created using the erlang:unique_integer() BIF:
 ///
@@ -63,63 +65,6 @@ pub fn unique_integer(process: &Process, options: Options) -> exception::Result<
         }
     }
     .map_err(|alloc| alloc.into())
-}
-
-pub struct Options {
-    positive: bool,
-    monotonic: bool,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            monotonic: false,
-            positive: false,
-        }
-    }
-}
-
-impl Options {
-    fn put_option_term(&mut self, option: Term) -> Result<&Self, RuntimeException> {
-        match option.decode().unwrap() {
-            TypedTerm::Atom(atom) => match atom.name() {
-                "monotonic" => {
-                    self.monotonic = true;
-
-                    Ok(self)
-                }
-                "positive" => {
-                    self.positive = true;
-
-                    Ok(self)
-                }
-                _ => Err(badarg!()),
-            },
-            _ => Err(badarg!()),
-        }
-    }
-}
-
-impl TryFrom<Term> for Options {
-    type Error = RuntimeException;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let mut options: Options = Default::default();
-        let mut options_term = term;
-
-        loop {
-            match options_term.decode().unwrap() {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
-
-                    continue;
-                }
-                _ => return Err(badarg!().into()),
-            }
-        }
-    }
 }
 
 // have to add and then subtract to prevent overflow

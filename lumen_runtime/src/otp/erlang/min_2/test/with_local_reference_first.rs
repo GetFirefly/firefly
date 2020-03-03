@@ -2,21 +2,19 @@ use super::*;
 
 #[test]
 fn with_number_or_atom_second_returns_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::local_reference(arc_process.clone()),
-                    strategy::term::number_or_atom(arc_process.clone()),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), second);
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::local_reference(arc_process.clone()),
+                strategy::term::number_or_atom(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), second);
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -41,23 +39,19 @@ fn with_greater_local_reference_second_returns_first() {
 
 #[test]
 fn with_function_port_pid_tuple_map_list_or_bitstring_second_returns_first() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::local_reference(arc_process.clone()),
-                    strategy::term::function_port_pid_tuple_map_list_or_bitstring(
-                        arc_process.clone(),
-                    ),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), first);
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                strategy::term::local_reference(arc_process.clone()),
+                strategy::term::function_port_pid_tuple_map_list_or_bitstring(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(first, second)| {
+            prop_assert_eq!(native(first, second), first);
+
+            Ok(())
+        },
+    );
 }
 
 fn min<R>(second: R, which: FirstSecond)

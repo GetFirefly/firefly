@@ -1,5 +1,4 @@
 use std::ffi::{CStr, CString};
-use std::slice;
 
 use llvm_sys::prelude::LLVMBuilderRef;
 
@@ -120,7 +119,14 @@ impl<'ctx> ModuleBuilder<'ctx> {
         use llvm_sys::core::LLVMFunctionType;
 
         let params_ptr = params.as_ptr() as *mut _;
-        unsafe { LLVMFunctionType(ret, params_ptr, params.len() as libc::c_uint, variadic as libc::c_int) }
+        unsafe {
+            LLVMFunctionType(
+                ret,
+                params_ptr,
+                params.len() as libc::c_uint,
+                variadic as libc::c_int,
+            )
+        }
     }
 
     pub fn get_erlang_function_type(&self, arity: usize) -> LLVMTypeRef {
@@ -219,7 +225,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
 
     pub fn build_function(&self, name: &CString, ty: LLVMTypeRef) -> LLVMValueRef {
         use llvm_sys::core::LLVMAddFunction;
-       
+
         unsafe { LLVMAddFunction(self.module.as_ref(), name.as_ptr(), ty) }
     }
 
@@ -244,10 +250,17 @@ impl<'ctx> ModuleBuilder<'ctx> {
     pub fn position_at_end(&self, block: LLVMBasicBlockRef) {
         use llvm_sys::core::LLVMPositionBuilderAtEnd;
 
-        unsafe { LLVMPositionBuilderAtEnd(self.builder, block); }
+        unsafe {
+            LLVMPositionBuilderAtEnd(self.builder, block);
+        }
     }
 
-    pub fn build_call(&self, fun: LLVMValueRef, fun_ty: LLVMTypeRef, args: &[LLVMValueRef]) -> LLVMValueRef {
+    pub fn build_call(
+        &self,
+        fun: LLVMValueRef,
+        fun_ty: LLVMTypeRef,
+        args: &[LLVMValueRef],
+    ) -> LLVMValueRef {
         use llvm_sys::core::LLVMBuildCall2;
 
         let argv = args.as_ptr() as *mut _;
@@ -256,8 +269,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
     }
 
     pub fn set_is_tail(&self, call: LLVMValueRef, is_tail: bool) {
-        use llvm_sys::prelude::LLVMBool;
         use llvm_sys::core::LLVMSetTailCall;
+        use llvm_sys::prelude::LLVMBool;
         unsafe { LLVMSetTailCall(call, is_tail as LLVMBool) }
     }
 
@@ -327,7 +340,6 @@ impl<'ctx> ModuleBuilder<'ctx> {
 
         unsafe { LLVMConstPointerCast(value, ty) }
     }
-
 
     pub fn build_const_inbounds_gep(&self, value: LLVMValueRef, indices: &[usize]) -> LLVMValueRef {
         use llvm_sys::core::LLVMConstInBoundsGEP;

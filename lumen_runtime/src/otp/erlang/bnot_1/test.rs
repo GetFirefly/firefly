@@ -2,52 +2,56 @@ use num_bigint::BigInt;
 
 use num_traits::Num;
 
-use proptest::test_runner::{Config, TestRunner};
-use proptest::{prop_assert, prop_assert_eq};
+use proptest::prop_assert;
+use proptest::strategy::Just;
 
-use liblumen_alloc::badarith;
 use liblumen_alloc::erts::term::prelude::{Encoded, TypedTerm};
 
 use crate::otp::erlang::bnot_1::native;
-use crate::scheduler::{with_process, with_process_arc};
+use crate::scheduler::with_process;
 use crate::test::strategy;
 
 #[test]
 fn without_integer_errors_badarith() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_integer(arc_process.clone()),
-                |operand| {
-                    prop_assert_eq!(native(&arc_process, operand), Err(badarith!().into()));
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::is_not_integer(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, integer)| {
+            prop_assert_badarith!(
+                native(&arc_process, integer),
+                format!("integer ({}) is not an integer", integer)
+            );
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
 fn with_small_integer_returns_small_integer() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::integer::small(arc_process.clone()),
-                |operand| {
-                    let result = native(&arc_process, operand);
-
-                    prop_assert!(result.is_ok());
-
-                    let inverted = result.unwrap();
-
-                    prop_assert!(inverted.is_smallint());
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::integer::small(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, operand)| {
+            let result = native(&arc_process, operand);
+
+            prop_assert!(result.is_ok());
+
+            let inverted = result.unwrap();
+
+            prop_assert!(inverted.is_smallint());
+
+            Ok(())
+        },
+    );
 }
 
 #[test]
@@ -82,25 +86,26 @@ fn with_big_integer_inverts_bits() {
 
 #[test]
 fn with_big_integer_returns_big_integer() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::integer::big(arc_process.clone()),
-                |operand| {
-                    let result = native(&arc_process, operand);
-
-                    prop_assert!(result.is_ok());
-
-                    let inverted = result.unwrap();
-
-                    match inverted.decode().unwrap() {
-                        TypedTerm::BigInteger(_) => prop_assert!(true),
-                        _ => prop_assert!(false),
-                    }
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::integer::big(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, operand)| {
+            let result = native(&arc_process, operand);
+
+            prop_assert!(result.is_ok());
+
+            let inverted = result.unwrap();
+
+            match inverted.decode().unwrap() {
+                TypedTerm::BigInteger(_) => prop_assert!(true),
+                _ => prop_assert!(false),
+            }
+
+            Ok(())
+        },
+    );
 }

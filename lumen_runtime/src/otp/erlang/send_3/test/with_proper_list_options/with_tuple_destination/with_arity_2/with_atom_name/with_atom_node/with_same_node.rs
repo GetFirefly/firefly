@@ -4,27 +4,26 @@ mod registered;
 
 #[test]
 fn unregistered_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    valid_options(arc_process.clone()),
-                ),
-                |(message, options)| {
-                    let name = registered_name();
-                    let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0::native()])
-                        .unwrap();
-
-                    prop_assert_eq!(
-                        native(&arc_process, destination, message, options),
-                        Err(badarg!().into())
-                    );
-
-                    Ok(())
-                },
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term(arc_process.clone()),
+                valid_options(arc_process.clone()),
             )
-            .unwrap();
-    });
+        },
+        |(arc_process, message, options)| {
+            let name = registered_name();
+            let destination = arc_process
+                .tuple_from_slice(&[name, erlang::node_0::native()])
+                .unwrap();
+
+            prop_assert_badarg!(
+                native(&arc_process, destination, message, options),
+                format!("name ({}) not registered", name)
+            );
+
+            Ok(())
+        },
+    );
 }

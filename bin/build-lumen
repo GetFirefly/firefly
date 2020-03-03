@@ -170,12 +170,13 @@ else
 fi
 if [ "$is_darwin" = "true" ]; then
     build_use_libcxx="true"
+    build_link_args="-headerpad_max_install_names,$build_link_args"
 fi
 if [ "$build_static" = "true" ]; then
     export LLVM_BUILD_STATIC=1
 else
     #extra_rustc_flags="-C prefer-dynamic $extra_rustc_flags"
-    build_link_args="-rpath,${TOOLCHAIN_TARGET_LIB_PATH}"
+    build_link_args="-rpath,${TOOLCHAIN_TARGET_LIB_PATH},$build_link_args"
 fi
 if [ "$build_use_libcxx" = "true" ]; then
     export LLVM_USE_LIBCXX=1

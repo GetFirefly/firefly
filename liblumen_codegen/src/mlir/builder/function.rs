@@ -522,7 +522,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     }
                     let is_explicit = explicit.contains(&live);
                     let is_live_in = self.analysis.live.is_live_in(ir_block, live);
-                    debug_in!(self, "prepare: {:?}, is_explicit = {}, is_live_in = {}", live, is_explicit, is_live_in);
+                    debug_in!(
+                        self,
+                        "prepare: {:?}, is_explicit = {}, is_live_in = {}",
+                        live,
+                        is_explicit,
+                        is_live_in
+                    );
                     // If not an explicit argument, and live within the block, add it as implicit
                     if !is_explicit && is_live_in {
                         debug_in!(self, "prepare: {:?} is implicit", live);

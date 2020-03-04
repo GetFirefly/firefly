@@ -1,14 +1,14 @@
 #![allow(unused)]
 mod run_queue;
 
+use std::alloc::Layout;
 use std::cell::{Cell, RefCell};
 use std::fmt::{self, Debug};
+use std::mem;
 use std::ops::Deref;
 use std::ptr;
-use std::mem;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
-use std::alloc::Layout;
 
 use hashbrown::HashMap;
 
@@ -24,7 +24,7 @@ use liblumen_alloc::erts::apply;
 use liblumen_alloc::erts::process;
 use liblumen_alloc::erts::process::{CalleeSavedRegisters, Priority, Process, Status};
 use liblumen_alloc::erts::scheduler::id;
-use liblumen_alloc::erts::term::prelude::{Term, Atom, ReferenceNumber};
+use liblumen_alloc::erts::term::prelude::{Atom, ReferenceNumber, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_rt_core as rt_core;

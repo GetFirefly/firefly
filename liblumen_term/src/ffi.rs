@@ -117,7 +117,6 @@ pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
     do_is_tuple::<E64>(arity, value)
 }
 
-
 /// This is a less efficient, but more general type checking function,
 /// primarily meant for consumption during compile-time
 #[export_name = "lumen_is_type"]
@@ -288,8 +287,8 @@ where
     let value = unsafe { *(value as *const usize) };
     let value = value.try_into().unwrap();
     if T::is_tuple(value) {
-      let actual_arity = T::Type::as_usize(&T::decode_header_value(value));
-      return arity == actual_arity;
+        let actual_arity = T::Type::as_usize(&T::decode_header_value(value));
+        return arity == actual_arity;
     }
     false
 }

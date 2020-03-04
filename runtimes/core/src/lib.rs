@@ -1,9 +1,9 @@
+pub mod builtins;
 pub mod context;
 pub mod proplist;
 pub mod registry;
 pub mod time;
 pub mod timer;
-pub mod builtins;
 
 use std::sync::Arc;
 

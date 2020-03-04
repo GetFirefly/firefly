@@ -11,7 +11,7 @@ RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//')"
 RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
 TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
 TOOLCHAIN_LIB_PATH="$(cd "$TOOLCHAIN_BIN_PATH"/../lib && pwd -P)"
-BUILD_DEPS=(liblumen_llvm liblumen_term lumen_rt_minimal)
+BUILD_DEPS=(liblumen_llvm liblumen_term lumen_rt_core lumen_rt_minimal)
 RUNTIME_LIBS=(liblumen_core liblumen_crt liblumen_alloc lumen_rt_core lumen_rt_minimal)
 
 export LLVM_SYS_90_PREFIX

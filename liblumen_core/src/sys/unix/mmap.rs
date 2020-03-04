@@ -1,4 +1,11 @@
 use core::alloc::{AllocErr, Layout};
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "emscripten"),
+    not(target_os = "android"),
+    not(target_os = "freebsd"),
+    not(target_os = "netbsd"),
+))]
 use core::cmp;
 use core::intrinsics::unlikely;
 use core::ptr::{self, NonNull};
@@ -264,6 +271,13 @@ unsafe fn remap_internal(
 }
 
 #[inline]
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "emscripten"),
+    not(target_os = "android"),
+    not(target_os = "freebsd"),
+    not(target_os = "netbsd"),
+))]
 unsafe fn remap_fallback(
     ptr: *mut u8,
     layout: Layout,

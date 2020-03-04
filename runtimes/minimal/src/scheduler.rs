@@ -5,8 +5,10 @@ use std::cell::{Cell, RefCell};
 use std::fmt::{self, Debug};
 use std::ops::Deref;
 use std::ptr;
+use std::mem;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
+use std::alloc::Layout;
 
 use hashbrown::HashMap;
 
@@ -22,7 +24,7 @@ use liblumen_alloc::erts::apply;
 use liblumen_alloc::erts::process;
 use liblumen_alloc::erts::process::{CalleeSavedRegisters, Priority, Process, Status};
 use liblumen_alloc::erts::scheduler::id;
-use liblumen_alloc::erts::term::prelude::{Atom, ReferenceNumber};
+use liblumen_alloc::erts::term::prelude::{Term, Atom, ReferenceNumber};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_rt_core as rt_core;
@@ -82,6 +84,19 @@ pub unsafe extern "C" fn process_return_continuation() {
 fn process_return() {
     let s = <Scheduler as rt_core::Scheduler>::current();
     do_process_return(&s);
+}
+
+#[export_name = "__lumen_builtin_malloc"]
+pub unsafe extern "C" fn builtin_malloc(bytes: usize) -> *mut u8 {
+    if let Ok(layout) = Layout::from_size_align(bytes, mem::align_of::<Term>()) {
+        let s = <Scheduler as rt_core::Scheduler>::current();
+        let result = s.current.alloc_nofrag_layout(layout);
+        if let Ok(nn) = result {
+            return nn.as_ptr() as *mut u8;
+        }
+    }
+
+    ptr::null_mut()
 }
 
 /// Called when the current process has finished executing, and has

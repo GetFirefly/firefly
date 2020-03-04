@@ -132,6 +132,14 @@ impl Encoding for Encoding64 {
     }
 
     #[inline]
+    fn header_mask_info() -> MaskInfo {
+        MaskInfo {
+            shift: HEADER_SHIFT as i32,
+            mask: 0,
+        }
+    }
+
+    #[inline]
     fn encode_immediate(value: u64, tag: u64) -> u64 {
         debug_assert!(tag <= MASK_PRIMARY, "invalid primary tag");
         (value << PRIMARY_SHIFT) | tag

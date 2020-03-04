@@ -275,15 +275,6 @@ def eir_CmpGteOp :
   //let hasFolder = 1;
 }
 
-def eir_CmpNerrOp :
-    eir_UnaryComparisonOp<eir_AnyType, "cmp.nerr"> {
-  let summary = [{term not-an-error comparison operation}];
-  let description = [{
-    Compares the given term against the NONE value, condition is true if not NONE
-  }];
-  //let hasFolder = 1;
-}
-
 //===----------------------------------------------------------------------===//
 // Control Flow
 //===----------------------------------------------------------------------===//
@@ -1105,6 +1096,10 @@ def eir_ConsOp : eir_Op<"cons"> {
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, $out)
   }];
+
+  let extraClassDeclaration = [{
+      bool useAlloca() { return getAttrOfType<BoolAttr>("alloca").getValue(); }
+  }];
 }
 
 def eir_TupleOp : eir_Op<"tuple"> {
@@ -1122,6 +1117,10 @@ def eir_TupleOp : eir_Op<"tuple"> {
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, $out)
+  }];
+
+  let extraClassDeclaration = [{
+      bool useAlloca() { return getAttrOfType<BoolAttr>("alloca").getValue(); }
   }];
 }
 

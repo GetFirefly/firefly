@@ -88,6 +88,7 @@ pub trait Encoding {
     fn type_of(value: Self::Type) -> Tag<Self::Type>;
 
     fn immediate_mask_info() -> MaskInfo;
+    fn header_mask_info() -> MaskInfo;
 
     fn encode_immediate(value: Self::Type, tag: Self::Type) -> Self::Type;
 

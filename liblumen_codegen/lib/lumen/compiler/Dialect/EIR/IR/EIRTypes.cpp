@@ -165,7 +165,8 @@ LogicalResult TupleType::verifyConstructionInvariants(
   // Make sure elements are word-sized/immediates, and valid
   for (auto elementType : elementTypes) {
     if (auto termType = elementType.dyn_cast_or_null<OpaqueTermType>()) {
-      if (termType.isImmediate() || termType.isBox()) continue;
+      if (termType.isOpaque() || termType.isImmediate() || termType.isBox())
+        continue;
     }
     return failure();
   }

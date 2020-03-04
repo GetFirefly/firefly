@@ -190,6 +190,14 @@ impl Encoding for Encoding64Nanboxed {
     }
 
     #[inline]
+    fn header_mask_info() -> MaskInfo {
+        MaskInfo {
+            shift: 0,
+            mask: MAX_HEADER_VALUE,
+        }
+    }
+
+    #[inline]
     fn encode_immediate(value: u64, tag: u64) -> u64 {
         debug_assert!(tag <= TAG_MASK, "invalid primary tag: {}", tag);
         debug_assert!(tag > MAX_ADDR, "invalid primary tag: {}", tag);

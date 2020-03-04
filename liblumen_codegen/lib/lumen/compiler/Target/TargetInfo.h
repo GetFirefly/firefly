@@ -38,40 +38,40 @@ struct TargetInfoImpl {
       : triple(other.triple),
         encoding(other.encoding),
         pointerWidthIntTy(other.pointerWidthIntTy),
+        i1Ty(other.i1Ty),
         termTy(other.termTy),
-        fixnumTy(other.fixnumTy),
         bigIntTy(other.bigIntTy),
         floatTy(other.floatTy),
-        atomTy(other.atomTy),
         binaryTy(other.binaryTy),
-        nilTy(other.nilTy),
         consTy(other.consTy),
         nil(other.nil),
         none(other.none),
         listTag(other.listTag),
+        listMask(other.listMask),
         boxTag(other.boxTag),
-        literalTag(other.literalTag) {}
+        literalTag(other.literalTag),
+        immediateMask(other.immediateMask),
+        headerMask(other.headerMask) {}
 
   std::string triple;
 
   Encoding encoding;
 
-  LLVMType pointerWidthIntTy;
+  LLVMType pointerWidthIntTy, i1Ty;
   LLVMType termTy;
-  LLVMType fixnumTy, bigIntTy, floatTy;
-  LLVMType atomTy, i1Ty;
+  LLVMType bigIntTy, floatTy;
   LLVMType binaryTy;
-  LLVMType nilTy, consTy;
-  LLVMType noneTy;
+  LLVMType consTy;
 
   llvm::APInt nil;
   llvm::APInt none;
 
   uint64_t listTag;
+  uint64_t listMask;
   uint64_t boxTag;
   uint64_t literalTag;
   MaskInfo immediateMask;
-  uint64_t listMask;
+  MaskInfo headerMask;
 };
 
 class TargetInfo {
@@ -83,17 +83,14 @@ class TargetInfo {
   bool is_wasm32() const { return archType == llvm::Triple::ArchType::wasm32; }
   bool requiresPackedFloats() const { return !is_x86_64(); }
 
-  mlir::LLVM::LLVMType getHeaderType();
   mlir::LLVM::LLVMType getTermType();
   mlir::LLVM::LLVMType getConsType();
   mlir::LLVM::LLVMType getFloatType();
-  mlir::LLVM::LLVMType getFixnumType();
-  mlir::LLVM::LLVMType getAtomType();
   mlir::LLVM::LLVMType getBinaryType();
-  mlir::LLVM::LLVMType getNilType();
-  mlir::LLVM::LLVMType getNoneType();
   mlir::LLVM::LLVMType makeTupleType(mlir::LLVM::LLVMDialect *,
                                      llvm::ArrayRef<mlir::LLVM::LLVMType>);
+
+  mlir::LLVM::LLVMType getUsizeType();
   mlir::LLVM::LLVMType getI1Type();
 
   llvm::APInt encodeImmediate(uint32_t type, uint64_t value);
@@ -107,6 +104,7 @@ class TargetInfo {
   uint64_t boxTag() const;
   uint64_t literalTag() const;
   MaskInfo &immediateMask() const;
+  MaskInfo &headerMask() const;
 
   unsigned pointerSizeInBits;
 

@@ -99,6 +99,25 @@ pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
     do_is_boxed_type::<E64>(ty, value)
 }
 
+#[export_name = "__lumen_builtin_is_tuple"]
+#[cfg(target_pointer_width = "32")]
+pub extern "C" fn is_boxed_type(arity: usize, value: usize) -> bool {
+    do_is_tuple::<E32>(arity, value)
+}
+
+#[export_name = "__lumen_builtin_is_tuple"]
+#[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
+pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
+    do_is_tuple::<E64N>(arity, value)
+}
+
+#[export_name = "__lumen_builtin_is_tuple"]
+#[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
+pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
+    do_is_tuple::<E64>(arity, value)
+}
+
+
 /// This is a less efficient, but more general type checking function,
 /// primarily meant for consumption during compile-time
 #[export_name = "lumen_is_type"]
@@ -189,6 +208,17 @@ pub extern "C" fn list_mask(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
+#[export_name = "lumen_header_mask"]
+pub extern "C" fn header_mask(encoding: *const EncodingInfo) -> MaskInfo {
+    let encoding = unsafe { &*encoding };
+    match encoding.pointer_size {
+        32 => Encoding32::header_mask_info(),
+        64 if encoding.supports_nanboxing => Encoding64Nanboxed::header_mask_info(),
+        64 => Encoding64::header_mask_info(),
+        _ => unreachable!(),
+    }
+}
+
 #[inline]
 fn do_is_type<T>(ty: u32, value: usize) -> bool
 where
@@ -242,6 +272,26 @@ where
             }
         }
     }
+}
+
+#[inline]
+fn do_is_tuple<T>(arity: usize, value: usize) -> bool
+where
+    T: Encoding,
+    <T as Encoding>::Type: Word,
+    <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
+{
+    let tag = T::type_of(value.try_into().unwrap());
+    if Tag::Box != tag {
+        return false;
+    }
+    let value = unsafe { *(value as *const usize) };
+    let value = value.try_into().unwrap();
+    if T::is_tuple(value) {
+      let actual_arity = T::Type::as_usize(&T::decode_header_value(value));
+      return arity == actual_arity;
+    }
+    false
 }
 
 #[inline]

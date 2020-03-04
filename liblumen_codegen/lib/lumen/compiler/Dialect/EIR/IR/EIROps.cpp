@@ -257,6 +257,7 @@ void TupleOp::build(Builder *builder, OperationState &result,
   result.addOperands(elements);
   auto tupleType = builder->getType<eir::TupleType>(elementTypes);
   result.addTypes(tupleType);
+  result.addAttribute("alloca", builder->getBoolAttr(false));
 }
 
 static LogicalResult verify(TupleOp op) {
@@ -519,6 +520,11 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
   // complete
   auto finalIp = builder.saveInsertionPoint();
 
+  // Used whenever we need a set of empty args below
+  ArrayRef<Value> emptyArgs{};
+  // Common types used below
+  auto termType = builder.getType<TermType>();
+
   // For each branch, populate its block with the predicate and
   // appropriate conditional branching instruction to either jump
   // to the success block, or to the next branches' block (or in
@@ -566,12 +572,10 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto boxedConsType = builder.getType<BoxType>(consType);
         auto isConsOp = builder.create<IsTypeOp>(loc, selector, boxedConsType);
         auto isConsCond = isConsOp.getResult();
-        ArrayRef<Value> emptyArgs{};
         auto ifOp = builder.create<CondBranchOp>(
             loc, isConsCond, split, emptyArgs, nextPatternBlock, emptyArgs);
         // 2. In the split, extract head and tail values of the cons cell
         builder.setInsertionPointToEnd(split);
-        auto termType = builder.getType<TermType>();
         auto castOp = builder.create<CastOp>(loc, selector, boxedConsType);
         auto boxedCons = castOp.getResult();
         auto getHeadOp = builder.create<GetElementPtrOp>(loc, boxedCons, 0);
@@ -582,7 +586,8 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto tailLoadOp = builder.create<LoadOp>(loc, tailPointer);
         // 3. Unconditionally branch to the destination, with head/tail as
         // additional destArgs
-        SmallVector<Value, 2> destArgs;
+        SmallVector<Value, 2> destArgs(
+            {baseDestArgs.begin(), baseDestArgs.end()});
         destArgs.push_back(headLoadOp.getResult());
         destArgs.push_back(tailLoadOp.getResult());
         builder.create<BranchOp>(loc, dest, destArgs);
@@ -592,36 +597,34 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
       case MatchPatternType::Tuple: {
         assert(nextPatternBlock != nullptr &&
                "last match block must end in unconditional branch");
+        auto *pattern = b.getPatternTypeOrNull<TuplePattern>();
         // 1. Split block, and conditionally branch to split if is_tuple w/arity
         // N, otherwise the next pattern
         auto cip = builder.saveInsertionPoint();
         Block *split =
             builder.createBlock(region, Region::iterator(nextPatternBlock));
         builder.restoreInsertionPoint(cip);
-        auto *pattern = b.getPatternTypeOrNull<TuplePattern>();
         auto arity = pattern->getArity();
         auto tupleType = builder.getType<eir::TupleType>(arity);
-        auto isTupleOp = builder.create<IsTypeOp>(loc, selector, tupleType);
+        auto boxedTupleType = builder.getType<BoxType>(tupleType);
+        auto isTupleOp =
+            builder.create<IsTypeOp>(loc, selector, boxedTupleType);
         auto isTupleCond = isTupleOp.getResult();
-        ArrayRef<Value> emptyArgs{};
         auto ifOp = builder.create<CondBranchOp>(
             loc, isTupleCond, split, emptyArgs, nextPatternBlock, emptyArgs);
         // 2. In the split, extract the tuple elements as values
         builder.setInsertionPointToEnd(split);
-        auto termType = builder.getType<TermType>();
-        auto boxedTupleType = builder.getType<BoxType>(tupleType);
         auto castOp = builder.create<CastOp>(loc, selector, boxedTupleType);
         auto boxedTuple = castOp.getResult();
-        SmallVector<Value, 3> destArgs(baseDestArgs.begin(),
-                                       baseDestArgs.end());
+        SmallVector<Value, 2> destArgs(
+            {baseDestArgs.begin(), baseDestArgs.end()});
         destArgs.reserve(arity);
         for (int64_t i = 0; i < arity; i++) {
-          auto index = builder.create<ConstantIntOp>(loc, i);
-          auto getElementOp =
-              builder.create<GetElementPtrOp>(loc, boxedTuple, i);
-          auto elementPtr = getElementOp.getResult();
-          auto elementLoadOp = builder.create<LoadOp>(loc, elementPtr);
-          destArgs.push_back(elementLoadOp.getResult());
+          auto getElemOp =
+              builder.create<GetElementPtrOp>(loc, boxedTuple, i + 1);
+          auto elemPtr = getElemOp.getResult();
+          auto elemLoadOp = builder.create<LoadOp>(loc, elemPtr);
+          destArgs.push_back(elemLoadOp.getResult());
         }
         // 3. Unconditionally branch to the destination, with the tuple elements
         // as additional destArgs
@@ -644,7 +647,6 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto mapType = builder.getType<MapType>();
         auto isMapOp = builder.create<IsTypeOp>(loc, selector, mapType);
         auto isMapCond = isMapOp.getResult();
-        ArrayRef<Value> emptyArgs{};
         auto ifOp = builder.create<CondBranchOp>(
             loc, isMapCond, split, emptyArgs, nextPatternBlock, emptyArgs);
         // 2. In the split, call runtime function `is_map_key` to confirm
@@ -652,7 +654,6 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         //    then conditionally branch to the second split if successful,
         //    otherwise the next pattern
         builder.setInsertionPointToEnd(split);
-        auto termType = builder.getType<TermType>();
         ArrayRef<Type> getKeyResultTypes = {termType};
         ArrayRef<Value> getKeyArgs = {key, selector};
         auto hasKeyOp = builder.create<CallOp>(loc, "erlang::is_map_key/2",
@@ -689,7 +690,6 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto expectedType = pattern->getExpectedType();
         auto isTypeOp = builder.create<IsTypeOp>(loc, selector, expectedType);
         auto isTypeCond = isTypeOp.getResult();
-        ArrayRef<Value> emptyArgs{};
         builder.create<CondBranchOp>(loc, isTypeCond, dest, baseDestArgs,
                                      nextPatternBlock, emptyArgs);
         break;
@@ -705,7 +705,6 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto isEq =
             builder.create<CmpEqOp>(loc, selector, expected, /*strict=*/true);
         auto isEqCond = isEq.getResult();
-        ArrayRef<Value> emptyArgs{};
         builder.create<CondBranchOp>(loc, isEqCond, dest, baseDestArgs,
                                      nextPatternBlock, emptyArgs);
         break;

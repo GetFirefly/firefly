@@ -2,6 +2,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Target/TargetMachine.h"
@@ -10,6 +11,7 @@
 
 using ::llvm::APInt;
 using ::llvm::ArrayRef;
+using ::llvm::SmallVector;
 using ::llvm::StringRef;
 using ::mlir::LLVM::LLVMDialect;
 using ::mlir::LLVM::LLVMType;
@@ -26,10 +28,11 @@ extern "C" uint64_t lumen_encode_immediate(Encoding *encoding, uint32_t type,
 extern "C" uint64_t lumen_encode_header(Encoding *encoding, uint32_t type,
                                         uint64_t arity);
 extern "C" uint64_t lumen_list_tag(Encoding *encoding);
+extern "C" uint64_t lumen_list_mask(Encoding *encoding);
 extern "C" uint64_t lumen_box_tag(Encoding *encoding);
 extern "C" uint64_t lumen_literal_tag(Encoding *encoding);
 extern "C" MaskInfo lumen_immediate_mask(Encoding *encoding);
-extern "C" uint64_t lumen_list_mask(Encoding *encoding);
+extern "C" MaskInfo lumen_header_mask(Encoding *encoding);
 
 namespace lumen {
 
@@ -57,14 +60,6 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   // ArrayRef<LLVMType>(intNTy), StringRef("term"));
   auto termTy = intNTy;
   impl->termTy = termTy;
-  impl->atomTy = LLVMType::createStructTy(&dialect, ArrayRef<LLVMType>(intNTy),
-                                          StringRef("atom"));
-  impl->nilTy = LLVMType::createStructTy(&dialect, ArrayRef<LLVMType>(intNTy),
-                                         StringRef("nil"));
-  impl->noneTy = LLVMType::createStructTy(&dialect, ArrayRef<LLVMType>(intNTy),
-                                          StringRef("none"));
-  impl->fixnumTy = LLVMType::createStructTy(
-      &dialect, ArrayRef<LLVMType>(intNTy), StringRef("fixnum"));
   impl->bigIntTy = LLVMType::createStructTy(
       &dialect, ArrayRef<LLVMType>(intNTy), StringRef("bigint"));
   if (!supportsNanboxing) {
@@ -89,10 +84,11 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
       LLVMType::createStructTy(&dialect, binaryFields, StringRef("binary"));
 
   impl->listTag = lumen_list_tag(&impl->encoding);
+  impl->listMask = lumen_list_mask(&impl->encoding);
   impl->boxTag = lumen_box_tag(&impl->encoding);
   impl->literalTag = lumen_literal_tag(&impl->encoding);
   impl->immediateMask = lumen_immediate_mask(&impl->encoding);
-  impl->listMask = lumen_list_mask(&impl->encoding);
+  impl->headerMask = lumen_header_mask(&impl->encoding);
 }
 
 TargetInfo::TargetInfo(const TargetInfo &other)
@@ -100,19 +96,21 @@ TargetInfo::TargetInfo(const TargetInfo &other)
       pointerSizeInBits(other.pointerSizeInBits),
       impl(new TargetInfoImpl(*other.impl)) {}
 
-LLVMType TargetInfo::getHeaderType() { return impl->pointerWidthIntTy; }
-LLVMType TargetInfo::getTermType() { return impl->termTy; }
+LLVMType TargetInfo::getTermType() { return impl->pointerWidthIntTy; }
 LLVMType TargetInfo::getConsType() { return impl->consTy; }
 LLVMType TargetInfo::getFloatType() { return impl->floatTy; }
-LLVMType TargetInfo::getFixnumType() { return impl->fixnumTy; }
-LLVMType TargetInfo::getAtomType() { return impl->atomTy; }
 LLVMType TargetInfo::getBinaryType() { return impl->binaryTy; }
-LLVMType TargetInfo::getNilType() { return impl->nilTy; }
-LLVMType TargetInfo::getNoneType() { return impl->noneTy; }
 LLVMType TargetInfo::makeTupleType(LLVMDialect *dialect,
                                    ArrayRef<LLVMType> elementTypes) {
-  return LLVMType::createStructTy(dialect, elementTypes, llvm::None);
+  SmallVector<LLVMType, 3> withHeader;
+  withHeader.reserve(1 + elementTypes.size());
+  withHeader.push_back(impl->termTy);
+  for (auto elemTy : elementTypes) {
+    withHeader.push_back(elemTy);
+  }
+  return LLVMType::createStructTy(dialect, withHeader, llvm::None);
 }
+LLVMType TargetInfo::getUsizeType() { return impl->pointerWidthIntTy; }
 LLVMType TargetInfo::getI1Type() { return impl->i1Ty; }
 
 APInt TargetInfo::encodeImmediate(unsigned type, uint64_t value) {
@@ -137,5 +135,6 @@ uint64_t TargetInfo::listMask() const { return impl->listMask; }
 uint64_t TargetInfo::boxTag() const { return impl->boxTag; }
 uint64_t TargetInfo::literalTag() const { return impl->literalTag; }
 MaskInfo &TargetInfo::immediateMask() const { return impl->immediateMask; }
+MaskInfo &TargetInfo::headerMask() const { return impl->headerMask; }
 
 }  // namespace lumen

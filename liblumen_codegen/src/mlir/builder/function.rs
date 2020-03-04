@@ -501,9 +501,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         // Construct parameter list for the block
         // The result is implicit arguments followed by explicit arguments
         let block_args = self.eir.block_args(ir_block);
+        debug_in!(self, "prepare: block_args: {:?}", &block_args);
         let implicits = {
             let mut implicits = Vec::new();
             let live_at = self.analysis.live.live_at(ir_block);
+            debug_in!(self, "prepare: live_at: {:?}", &live_at);
             // Prefer to avoid extra work if we can
             if live_at.size() > 0 {
                 // Build a temporary set to keep lookups efficient
@@ -515,10 +517,15 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 for live in live_at.iter() {
                     // Ignore the function throw/return continuations
                     if self.func.is_throw_ir(live) || self.func.is_return_ir(live) {
+                        debug_in!(self, "prepare: {:?} is throw or return, skipping", live);
                         continue;
                     }
+                    let is_explicit = explicit.contains(&live);
+                    let is_live_in = self.analysis.live.is_live_in(ir_block, live);
+                    debug_in!(self, "prepare: {:?}, is_explicit = {}, is_live_in = {}", live, is_explicit, is_live_in);
                     // If not an explicit argument, and live within the block, add it as implicit
-                    if !explicit.contains(&live) && self.analysis.live.is_live_in(ir_block, live) {
+                    if !is_explicit && is_live_in {
+                        debug_in!(self, "prepare: {:?} is implicit", live);
                         implicits.push((
                             block_arg_to_param(self.eir, live, /* is_implicit */ true),
                             Some(live),
@@ -529,6 +536,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             implicits
         };
 
+        debug_in!(self, "prepare: implicits: {:?}", &implicits);
         // Build the final parameter list
         let mut params = Vec::with_capacity(block_args.len() + implicits.len());
         params.extend(implicits);
@@ -922,7 +930,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 OpKind::Match(Match {
                     selector: self.build_value(reads[1])?,
                     branches,
-                    reads: (&reads[1..]).to_vec(),
+                    reads: (&reads[2..]).to_vec(),
                 })
             }
             // Requests that a trace be saved

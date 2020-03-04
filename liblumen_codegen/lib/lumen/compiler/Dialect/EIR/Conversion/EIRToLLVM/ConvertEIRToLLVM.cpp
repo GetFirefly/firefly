@@ -91,6 +91,23 @@ static Optional<Type> convertType(Type type, LLVMTypeConverter &converter,
 
   if (ty.isNonEmptyList()) return targetInfo.getConsType();
 
+  if (auto tupleTy = type.dyn_cast_or_null<eir::TupleType>()) {
+    if (tupleTy.hasStaticShape()) {
+      auto arity = tupleTy.getArity();
+      SmallVector<LLVMType, 2> elementTypes;
+      elementTypes.reserve(arity);
+      for (unsigned i = 0; i < arity; i++) {
+        auto elemTy =
+            converter.convertType(tupleTy.getElementType(i)).cast<LLVMType>();
+        assert(elemTy && "expected convertible element type!");
+        elementTypes.push_back(elemTy);
+      }
+      return targetInfo.makeTupleType(converter.getDialect(), elementTypes);
+    } else {
+      return termTy;
+    }
+  }
+
   llvm::outs() << "\ntype: ";
   type.dump();
   llvm::outs() << "\n";
@@ -107,12 +124,10 @@ static LLVMType getPtrToElementType(T containerType,
       .getPointerTo();
 }
 
-static FlatSymbolRefAttr getOrInsertFunction(PatternRewriter &rewriter,
-                                             ModuleOp mod, LLVMDialect *dialect,
-                                             TargetInfo &targetInfo,
-                                             StringRef symbol,
-                                             LLVMType resultType,
-                                             ArrayRef<LLVMType> argTypes = {}) {
+static FlatSymbolRefAttr createOrInsertFunction(
+    PatternRewriter &rewriter, ModuleOp mod, LLVMDialect *dialect,
+    TargetInfo &targetInfo, StringRef symbol, LLVMType resultType,
+    ArrayRef<LLVMType> argTypes = {}) {
   auto *context = mod.getContext();
 
   if (mod.lookupSymbol<mlir::FuncOp>(symbol))
@@ -134,17 +149,6 @@ static FlatSymbolRefAttr getOrInsertFunction(PatternRewriter &rewriter,
   return SymbolRefAttr::get(symbol, context);
 }
 
-/// Return a symbol reference to the printf function, inserting it into the
-/// module if necessary.
-static FlatSymbolRefAttr getOrInsertPrintf(PatternRewriter &rewriter,
-                                           ModuleOp mod, LLVMDialect *dialect,
-                                           TargetInfo &targetInfo) {
-  auto termTy = targetInfo.getTermType();
-  ArrayRef<LLVMType> argTypes({termTy});
-  return getOrInsertFunction(rewriter, mod, dialect, targetInfo,
-                             "__lumen_builtin_printf", termTy, argTypes);
-}
-
 /// Return a value representing an access into a global string with the given
 /// name, creating the string if necessary.
 static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
@@ -153,7 +157,7 @@ static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
   assert(!name.empty() && "cannot create unnamed global string!");
 
   auto extendedName = name.str();
-  extendedName.append({'_', 'g', 'l', 'o', 'b', 'a', 'l'});
+  extendedName.append({'_', 'g'});
 
   auto i8PtrTy = LLVMType::getInt8PtrTy(dialect);
   auto i64Ty = LLVMType::getInt64Ty(dialect);
@@ -167,13 +171,13 @@ static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
     builder.setInsertionPointToStart(mod.getBody());
     auto type =
         LLVMType::getArrayTy(LLVMType::getInt8Ty(dialect), value.size());
-    globalConst = builder.create<LLVM::GlobalOp>(loc, type, /*isConstant=*/true,
-                                                 LLVM::Linkage::Internal, name,
-                                                 builder.getStringAttr(value));
+    globalConst = builder.create<LLVM::GlobalOp>(
+        loc, type, /*isConstant=*/true, LLVM::Linkage::Internal,
+        StringRef(extendedName), builder.getStringAttr(value));
     auto ptrType = LLVMType::getInt8PtrTy(dialect);
-    global = builder.create<LLVM::GlobalOp>(
-        loc, ptrType, /*isConstant=*/false, LLVM::Linkage::Internal,
-        StringRef(extendedName), Attribute());
+    global = builder.create<LLVM::GlobalOp>(loc, ptrType, /*isConstant=*/false,
+                                            LLVM::Linkage::Internal, name,
+                                            Attribute());
     auto &initRegion = global.getInitializerRegion();
     auto *initBlock = builder.createBlock(&initRegion);
 
@@ -190,30 +194,14 @@ static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
   return llvm_addressof(global);
 }
 
-// Builds IR to construct a boxed term that points to the given header value,
-// it is expected that the header value is a pointer value, not an immediate.
-//
-// The type of the resulting term is Term
-static Value make_box(OpBuilder &builder, edsc::ScopedContext &context,
-                      LLVMTypeConverter &converter, TargetInfo &targetInfo,
-                      Value header) {
-  auto headerTy = targetInfo.getHeaderType();
-  Value headerPtrInt = llvm_ptrtoint(headerTy, header);
-  auto boxTag = targetInfo.boxTag();
-  auto tagAttr = builder.getIntegerAttr(
-      builder.getIntegerType(targetInfo.pointerSizeInBits), boxTag);
-  Value boxTagConst = llvm_constant(headerTy, tagAttr);
-  return llvm_or(headerPtrInt, boxTagConst);
-}
-
 // Builds IR to construct a boxed list term
 // it is expected that the cons cell value is a pointer value, not an immediate.
 //
 // The type of the resulting term is Term
-static Value make_list(OpBuilder &builder, edsc::ScopedContext &context,
-                       LLVMTypeConverter &converter, TargetInfo &targetInfo,
-                       Value cons) {
-  auto headerTy = targetInfo.getHeaderType();
+static Value do_make_list(OpBuilder &builder, edsc::ScopedContext &context,
+                          LLVMTypeConverter &converter, TargetInfo &targetInfo,
+                          Value cons) {
+  auto headerTy = targetInfo.getUsizeType();
   Value consPtrInt = llvm_ptrtoint(headerTy, cons);
   auto listTag = targetInfo.listTag();
   auto tagAttr = builder.getIntegerAttr(
@@ -222,11 +210,27 @@ static Value make_list(OpBuilder &builder, edsc::ScopedContext &context,
   return llvm_or(consPtrInt, listTagConst);
 }
 
-static Value unbox(OpBuilder &builder, edsc::ScopedContext &context,
-                   LLVMTypeConverter &converter, TargetInfo &targetInfo,
-                   LLVMType innerTy, Value box) {
+static Value do_box(OpBuilder &builder, edsc::ScopedContext &context,
+                    LLVMTypeConverter &converter, TargetInfo &targetInfo,
+                    Value val) {
+  auto boxTag = targetInfo.boxTag();
   auto intNTy = builder.getIntegerType(targetInfo.pointerSizeInBits);
-  auto termTy = targetInfo.getTermType();
+  auto termTy = targetInfo.getUsizeType();
+  Value valInt = llvm_ptrtoint(termTy, val);
+  // No boxing required, pointers are pointers
+  if (boxTag == 0) {
+    return valInt;
+  }
+  auto tagAttr = builder.getIntegerAttr(intNTy, boxTag);
+  Value boxTagConst = llvm_constant(termTy, tagAttr);
+  return llvm_or(valInt, boxTagConst);
+}
+
+static Value do_unbox(OpBuilder &builder, edsc::ScopedContext &context,
+                      LLVMTypeConverter &converter, TargetInfo &targetInfo,
+                      LLVMType innerTy, Value box) {
+  auto intNTy = builder.getIntegerType(targetInfo.pointerSizeInBits);
+  auto termTy = targetInfo.getUsizeType();
   auto boxTy = box.getType().cast<LLVMType>();
   assert(boxTy == termTy && "expected boxed pointer type");
   auto boxTag = targetInfo.boxTag();
@@ -242,11 +246,11 @@ static Value unbox(OpBuilder &builder, edsc::ScopedContext &context,
   return llvm_inttoptr(innerTy, untagged);
 }
 
-static Value unbox_list(OpBuilder &builder, edsc::ScopedContext &context,
-                        LLVMTypeConverter &converter, TargetInfo &targetInfo,
-                        LLVMType innerTy, Value box) {
+static Value do_unbox_list(OpBuilder &builder, edsc::ScopedContext &context,
+                           LLVMTypeConverter &converter, TargetInfo &targetInfo,
+                           LLVMType innerTy, Value box) {
   auto intNTy = builder.getIntegerType(targetInfo.pointerSizeInBits);
-  auto termTy = targetInfo.getTermType();
+  auto termTy = targetInfo.getUsizeType();
   auto listTag = targetInfo.listTag();
   auto listTagAttr = builder.getIntegerAttr(intNTy, listTag);
   Value listTagConst = llvm_constant(termTy, listTagAttr);
@@ -270,12 +274,78 @@ class EIROpConversion : public mlir::OpConversionPattern<Op> {
                            TargetInfo &targetInfo_,
                            mlir::PatternBenefit benefit = 1)
       : mlir::OpConversionPattern<Op>::OpConversionPattern(context, benefit),
+        dialect(converter_.getDialect()),
         typeConverter(converter_),
         targetInfo(targetInfo_) {}
 
  protected:
   LLVMTypeConverter &typeConverter;
   TargetInfo &targetInfo;
+  LLVMDialect *dialect;
+
+  LLVMType getUsizeType() const { return targetInfo.getUsizeType(); }
+  LLVMType getI1Type() const { return targetInfo.getI1Type(); }
+  LLVMType getI32Type() const { return LLVMType::getIntNTy(dialect, 32); }
+
+  LLVMType getTupleType(ArrayRef<LLVMType> elementTypes) const {
+    return targetInfo.makeTupleType(dialect, elementTypes);
+  }
+
+  Type getIntegerType(OpBuilder &builder) const {
+    return builder.getIntegerType(targetInfo.pointerSizeInBits);
+  }
+
+  Attribute getIntegerAttr(OpBuilder &builder, int64_t i) const {
+    return builder.getIntegerAttr(getIntegerType(builder), i);
+  }
+
+  Attribute getIntegerAttr(OpBuilder &builder, APInt &i) const {
+    return builder.getIntegerAttr(getIntegerType(builder), i.getLimitedValue());
+  }
+
+  Attribute getI32Attr(OpBuilder &builder, int64_t i) const {
+    return builder.getIntegerAttr(builder.getIntegerType(32), i);
+  }
+
+  FlatSymbolRefAttr getOrInsertFunction(
+      PatternRewriter &builder, ModuleOp mod, StringRef name, LLVMType retTy,
+      ArrayRef<LLVMType> argTypes = {}) const {
+    return createOrInsertFunction(builder, mod, dialect, targetInfo, name,
+                                  retTy, argTypes);
+  }
+
+  Value processAlloc(PatternRewriter &builder, edsc::ScopedContext &context,
+                     ModuleOp parentModule, Location loc, LLVMType ty,
+                     Value allocBytes) const {
+    auto ptrTy = ty.getPointerTo();
+    auto usizeTy = getUsizeType();
+    auto callee = getOrInsertFunction(
+        builder, parentModule, "__lumen_builtin_malloc", ptrTy, {usizeTy});
+    auto call = builder.create<mlir::CallOp>(loc, callee, ArrayRef<Type>{ptrTy},
+                                             ArrayRef<Value>{allocBytes});
+    return call.getResult(0);
+  }
+
+  Value make_list(OpBuilder &builder, edsc::ScopedContext &context,
+                  Value cons) const {
+    return do_make_list(builder, context, typeConverter, targetInfo, cons);
+  }
+
+  Value make_box(OpBuilder &builder, edsc::ScopedContext &context,
+                 Value val) const {
+    return do_box(builder, context, typeConverter, targetInfo, val);
+  }
+
+  Value unbox(OpBuilder &builder, edsc::ScopedContext &context,
+              LLVMType innerTy, Value box) const {
+    return do_unbox(builder, context, typeConverter, targetInfo, innerTy, box);
+  }
+
+  Value unbox_list(OpBuilder &builder, edsc::ScopedContext &context,
+                   LLVMType innerTy, Value box) const {
+    return do_unbox_list(builder, context, typeConverter, targetInfo, innerTy,
+                         box);
+  }
 };
 
 struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
@@ -284,13 +354,10 @@ struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
   PatternMatchResult matchAndRewrite(
       TraceConstructOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    LLVMDialect *dialect = typeConverter.getDialect();
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
-    auto termTy = targetInfo.getHeaderType();
-    ArrayRef<LLVMType> argTypes({});
+    auto termTy = getUsizeType();
     auto callee = getOrInsertFunction(
-        rewriter, parentModule, dialect, targetInfo,
-        "__lumen_builtin_trace_construct", termTy, argTypes);
+        rewriter, parentModule, "__lumen_builtin_trace_construct", termTy);
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee,
                                               ArrayRef<Type>{termTy}, operands);
@@ -304,12 +371,10 @@ struct TraceCaptureOpConversion : public EIROpConversion<TraceCaptureOp> {
   PatternMatchResult matchAndRewrite(
       TraceCaptureOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    LLVMDialect *dialect = typeConverter.getDialect();
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
-    auto termTy = targetInfo.getHeaderType();
-    auto callee =
-        getOrInsertFunction(rewriter, parentModule, dialect, targetInfo,
-                            "__lumen_builtin_trace_capture", termTy);
+    auto termTy = getUsizeType();
+    auto callee = getOrInsertFunction(rewriter, parentModule,
+                                      "__lumen_builtin_trace_capture", termTy);
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee,
                                               ArrayRef<Type>{termTy});
@@ -326,56 +391,74 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
     edsc::ScopedContext context(rewriter, op.getLoc());
     IsTypeOpOperandAdaptor adaptor(operands);
 
-    LLVMDialect *dialect = typeConverter.getDialect();
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
-    auto termTy = targetInfo.getHeaderType();
-    auto int1Ty = LLVMType::getInt1Ty(dialect);
-    auto int32Ty = LLVMType::getIntNTy(dialect, 32);
-    ArrayRef<LLVMType> argTypes({int32Ty, termTy});
+    auto termTy = getUsizeType();
+    auto int1Ty = getI1Type();
+    auto int32Ty = getI32Type();
 
     auto matchType = op.getMatchType().cast<OpaqueTermType>();
+    // Boxed types and immediate types are dispatched differently
     if (matchType.isBox()) {
       auto boxType = matchType.cast<BoxType>();
       auto boxedType = boxType.getBoxedType();
-      // Lists
+
+      // Lists have a unique pointer tag, so we can avoid the function call
       if (boxedType.isa<ConsType>()) {
-        auto listTag = targetInfo.listTag();
-        auto listTagAttr = rewriter.getIntegerAttr(
-            rewriter.getIntegerType(targetInfo.pointerSizeInBits), listTag);
-        Value listTagConst = llvm_constant(termTy, listTagAttr);
-        auto listMask = targetInfo.listMask();
-        auto listMaskAttr = rewriter.getIntegerAttr(
-            rewriter.getIntegerType(targetInfo.pointerSizeInBits), listMask);
-        Value listMaskConst = llvm_constant(termTy, listMaskAttr);
-        Value masked = llvm_and(adaptor.value(), listMaskConst);
+        Value listTag = llvm_constant(
+            termTy, getIntegerAttr(rewriter, targetInfo.listTag()));
+        Value listMask = llvm_constant(
+            termTy, getIntegerAttr(rewriter, targetInfo.listMask()));
+        Value masked = llvm_and(adaptor.value(), listMask);
         rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
-                                                  listTagConst, masked);
-      } else {
-        auto matchKind = boxedType.getForeignKind();
-        auto matchAttr =
-            rewriter.getIntegerAttr(rewriter.getIntegerType(32), matchKind);
-        Value matchConst = llvm_constant(int32Ty, matchAttr);
-        auto callee = getOrInsertFunction(
-            rewriter, parentModule, dialect, targetInfo,
-            "__lumen_builtin_is_boxed_type", int1Ty, argTypes);
-        ArrayRef<Value> isTypeOperands({matchConst, adaptor.value()});
-        auto isType = rewriter.create<mlir::CallOp>(
-            op.getLoc(), callee, ArrayRef<Type>({int1Ty}), isTypeOperands);
-        rewriter.replaceOp(op, isType.getResults());
+                                                  listTag, masked);
+        return matchSuccess();
       }
-    } else {
-      auto matchKind = matchType.getForeignKind();
-      auto matchAttr =
-          rewriter.getIntegerAttr(rewriter.getIntegerType(32), matchKind);
-      Value matchConst = llvm_constant(int32Ty, matchAttr);
-      auto callee =
-          getOrInsertFunction(rewriter, parentModule, dialect, targetInfo,
-                              "__lumen_builtin_is_type", int1Ty, argTypes);
-      ArrayRef<Value> isTypeOperands({matchConst, adaptor.value()});
+
+      // For tuples with static shape, we use a specialized builtin
+      if (auto tupleType = boxedType.dyn_cast_or_null<eir::TupleType>()) {
+        if (tupleType.hasStaticShape()) {
+          Value arity = llvm_constant(
+              termTy, getIntegerAttr(rewriter, tupleType.getArity()));
+          ArrayRef<LLVMType> argTypes({termTy, termTy});
+          auto callee =
+              getOrInsertFunction(rewriter, parentModule,
+                                  "__lumen_builtin_is_tuple", int1Ty, argTypes);
+          auto isType = rewriter.create<mlir::CallOp>(
+              op.getLoc(), callee, int1Ty,
+              ArrayRef<Value>{arity, adaptor.value()});
+          rewriter.replaceOp(op, isType.getResults());
+          return matchSuccess();
+        }
+      }
+
+      // For all other boxed types, the check is performed via builtin
+      auto matchKind = boxedType.getForeignKind();
+      Value matchConst =
+          llvm_constant(int32Ty, getI32Attr(rewriter, matchKind));
+      auto callee = getOrInsertFunction(rewriter, parentModule,
+                                        "__lumen_builtin_is_boxed_type", int1Ty,
+                                        {int32Ty, termTy});
+      Value input = adaptor.value();
       auto isType = rewriter.create<mlir::CallOp>(
-          op.getLoc(), callee, ArrayRef<Type>({int1Ty}), isTypeOperands);
+          op.getLoc(), callee, int1Ty, ArrayRef<Value>{matchConst, input});
       rewriter.replaceOp(op, isType.getResults());
+      return matchSuccess();
     }
+
+    // For immediates, the check is performed via builtin
+    //
+    // TODO: With some additional foundation-laying, we could lower
+    // these checks to precise bit masking/shift operations, rather
+    // than a function call
+    auto matchKind = matchType.getForeignKind();
+    Value matchConst = llvm_constant(int32Ty, getI32Attr(rewriter, matchKind));
+    auto callee =
+        getOrInsertFunction(rewriter, parentModule, "__lumen_builtin_is_type",
+                            int1Ty, {int32Ty, termTy});
+    auto isType = rewriter.create<mlir::CallOp>(
+        op.getLoc(), callee, int1Ty,
+        ArrayRef<Value>{matchConst, adaptor.value()});
+    rewriter.replaceOp(op, isType.getResults());
 
     return matchSuccess();
   }
@@ -387,12 +470,10 @@ struct YieldOpConversion : public EIROpConversion<YieldOp> {
   PatternMatchResult matchAndRewrite(
       YieldOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    LLVMDialect *dialect = typeConverter.getDialect();
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
-    auto termTy = targetInfo.getHeaderType();
-    auto callee =
-        getOrInsertFunction(rewriter, parentModule, dialect, targetInfo,
-                            "__lumen_builtin_yield", termTy);
+    auto termTy = getUsizeType();
+    auto callee = getOrInsertFunction(rewriter, parentModule,
+                                      "__lumen_builtin_yield", termTy);
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, ArrayRef<Type>({}));
     return matchSuccess();
@@ -465,27 +546,26 @@ struct CondBranchOpConversion : public EIROpConversion<eir::CondBranchOp> {
       //
       // This relies on the fact that 0 is false, and 1 is true,
       // both in the native representation and in our atom table
-      auto headerTy = targetInfo.getHeaderType();
-      auto maskAttr = rewriter.getIntegerAttr(
-          rewriter.getIntegerType(targetInfo.pointerSizeInBits), maskInfo.mask);
-      Value maskConst = llvm_constant(headerTy, maskAttr);
+      auto termTy = getUsizeType();
+      auto i1Ty = getI1Type();
+      Value maskConst =
+          llvm_constant(termTy, getIntegerAttr(rewriter, maskInfo.mask));
       Value maskedCond = llvm_and(cond, maskConst);
       if (maskInfo.requiresShift()) {
-        auto shiftAttr = rewriter.getIntegerAttr(
-            rewriter.getIntegerType(targetInfo.pointerSizeInBits),
-            maskInfo.shift);
-        Value shiftConst = llvm_constant(headerTy, shiftAttr);
+        Value shiftConst =
+            llvm_constant(termTy, getIntegerAttr(rewriter, maskInfo.shift));
         Value shiftedCond = llvm_shl(maskedCond, shiftConst);
-        finalCond = llvm_trunc(targetInfo.getI1Type(), shiftedCond);
+        finalCond = llvm_trunc(i1Ty, shiftedCond);
       } else {
-        finalCond = llvm_trunc(targetInfo.getI1Type(), maskedCond);
+        finalCond = llvm_trunc(i1Ty, maskedCond);
       }
     }
 
     auto attrs = op.getAttrs();
-    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
-        op, ValueRange({finalCond}), ArrayRef({trueDest, falseDest}),
-        ArrayRef({trueArgs, falseArgs}), attrs);
+    ArrayRef<Block *> dests({trueDest, falseDest});
+    ArrayRef<ValueRange> destsArgs({trueArgs, falseArgs});
+    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(op, finalCond, dests, destsArgs,
+                                                attrs);
     return matchSuccess();
   }
 };
@@ -538,13 +618,13 @@ struct PrintOpConversion : public EIROpConversion<PrintOp> {
       return matchSuccess();
     }
 
-    LLVMDialect *dialect = typeConverter.getDialect();
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
-    auto printfRef =
-        getOrInsertPrintf(rewriter, parentModule, dialect, targetInfo);
 
-    rewriter.replaceOpWithNewOp<mlir::CallOp>(
-        op, printfRef, targetInfo.getTermType(), operands);
+    auto termTy = getUsizeType();
+    auto printfRef = getOrInsertFunction(
+        rewriter, parentModule, "__lumen_builtin_printf", termTy, {termTy});
+
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, printfRef, termTy, operands);
     return matchSuccess();
   }
 };
@@ -568,7 +648,6 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
       ConversionPatternRewriter &rewriter) const override {
     CallOpOperandAdaptor adaptor(operands);
 
-    LLVMDialect *dialect = typeConverter.getDialect();
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
     SmallVector<LLVMType, 2> argTypes;
     for (auto operand : operands) {
@@ -589,9 +668,8 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
     }
 
     auto calleeName = op.getCallee();
-    auto callee =
-        getOrInsertFunction(rewriter, parentModule, dialect, targetInfo,
-                            calleeName, resultType, argTypes);
+    auto callee = getOrInsertFunction(rewriter, parentModule, calleeName,
+                                      resultType, argTypes);
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, resultTypes,
                                               adaptor.operands());
@@ -608,14 +686,12 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
     edsc::ScopedContext context(rewriter, op.getLoc());
     CmpEqOpOperandAdaptor adaptor(operands);
 
-    LLVMDialect *dialect = typeConverter.getDialect();
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
-    auto termTy = targetInfo.getHeaderType();
-    ArrayRef<LLVMType> argTypes({termTy, termTy});
-    auto int1ty = LLVMType::getInt1Ty(dialect);
+    auto termTy = getUsizeType();
+    auto int1ty = getI1Type();
     auto callee =
-        getOrInsertFunction(rewriter, parentModule, dialect, targetInfo,
-                            "__lumen_builtin_cmpeq", int1ty, argTypes);
+        getOrInsertFunction(rewriter, parentModule, "__lumen_builtin_cmpeq",
+                            int1ty, {termTy, termTy});
 
     auto lhs = adaptor.lhs();
     auto rhs = adaptor.rhs();
@@ -624,22 +700,6 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
                                                 ArrayRef<Type>{int1ty}, args);
     auto result = callOp.getResult(0);
 
-    /*
-    auto maskInfo = targetInfo.immediateMask();
-    auto maskAttr =
-    rewriter.getIntegerAttr(rewriter.getIntegerType(targetInfo.pointerSizeInBits),
-    maskInfo.mask); Value maskConst = llvm_constant(termTy, maskAttr); Value
-    maskedCond =  llvm_and(result, maskConst); Value loweredCond; if
-    (maskInfo.requiresShift()) { auto shiftAttr =
-    rewriter.getIntegerAttr(rewriter.getIntegerType(targetInfo.pointerSizeInBits),
-    maskInfo.shift); Value shiftConst = llvm_constant(termTy, shiftAttr); Value
-    shiftedCond = llvm_shl(maskedCond, shiftConst); loweredCond =
-    llvm_trunc(targetInfo.getI1Type(), shiftedCond); } else { loweredCond =
-    llvm_trunc(targetInfo.getI1Type(), maskedCond);
-    }
-
-    rewriter.replaceOp(op, loweredCond);
-    */
     rewriter.replaceOp(op, result);
     return matchSuccess();
   }
@@ -657,17 +717,13 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
     Value base = adaptor.base();
     Type resultTyOrig = op.getType();
     auto resultTy = typeConverter.convertType(resultTyOrig).cast<LLVMType>();
-    // Value ptr = unbox(rewriter, context, typeConverter, targetInfo, resultTy,
-    // base);
+    auto ptrTy = resultTy.getPointerTo();
+    auto int32Ty = getI32Type();
 
-    auto pointerSize = targetInfo.pointerSizeInBits;
-    auto int32Ty = LLVMType::getIntNTy(typeConverter.getDialect(), 32);
-    auto indexTy = rewriter.getIntegerType(32);
-    auto indexAttr = rewriter.getIntegerAttr(indexTy, op.getIndex());
-    Value cns0 = llvm_constant(int32Ty, rewriter.getIntegerAttr(indexTy, 0));
-    Value index = llvm_constant(int32Ty, indexAttr);
-    Value gep =
-        llvm_gep(resultTy.getPointerTo(), base, ArrayRef<Value>({cns0, index}));
+    Value cns0 = llvm_constant(int32Ty, getI32Attr(rewriter, 0));
+    Value index = llvm_constant(int32Ty, getI32Attr(rewriter, op.getIndex()));
+    ArrayRef<Value> indices({cns0, index});
+    Value gep = llvm_gep(ptrTy, base, indices);
 
     rewriter.replaceOp(op, gep);
     return matchSuccess();
@@ -720,13 +776,12 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
       if (auto boxType = origOutTy.dyn_cast_or_null<BoxType>()) {
         if (boxType.getBoxedType().isa<ConsType>()) {
           // We're unboxing a list
-          ptr = unbox_list(rewriter, context, typeConverter, targetInfo, outTy,
-                           in);
+          ptr = unbox_list(rewriter, context, outTy, in);
         } else {
-          ptr = unbox(rewriter, context, typeConverter, targetInfo, outTy, in);
+          ptr = unbox(rewriter, context, outTy, in);
         }
       } else {
-        ptr = unbox(rewriter, context, typeConverter, targetInfo, outTy, in);
+        ptr = unbox(rewriter, context, outTy, in);
       }
       rewriter.replaceOp(op, ptr);
       return matchSuccess();
@@ -777,11 +832,11 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     // This requires generating a descriptor around the float,
     // which can then either be placed on the heap and boxed, or
     // passed by value on the stack and accessed directly
-    auto headerTy = targetInfo.getHeaderType();
+    auto headerTy = getUsizeType();
     APInt headerVal = targetInfo.encodeHeader(TypeKind::Float, 2);
     auto descTy = targetInfo.getFloatType();
-    Value header =
-        llvm_constant(headerTy, rewriter.getIntegerAttr(headerTy, headerVal));
+    Value header = llvm_constant(
+        headerTy, getIntegerAttr(rewriter, headerVal.getLimitedValue()));
     Value desc = llvm_undef(descTy);
     desc = llvm_insertvalue(descTy, desc, header, rewriter.getI64ArrayAttr(0));
     desc = llvm_insertvalue(descTy, desc, val, rewriter.getI64ArrayAttr(1));
@@ -803,10 +858,10 @@ struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
     edsc::ScopedContext context(rewriter, op.getLoc());
 
     auto attr = op.getValue().cast<IntegerAttr>();
-    auto ty = targetInfo.getFixnumType();
+    auto termTy = getUsizeType();
     auto i = (uint64_t)attr.getValue().getLimitedValue();
     auto taggedInt = targetInfo.encodeImmediate(TypeKind::Fixnum, i);
-    auto val = llvm_constant(ty, rewriter.getIntegerAttr(ty, taggedInt));
+    auto val = llvm_constant(termTy, getIntegerAttr(rewriter, taggedInt));
 
     rewriter.replaceOp(op, {val});
     return matchSuccess();
@@ -833,10 +888,9 @@ struct ConstantAtomOpConversion : public EIROpConversion<ConstantAtomOp> {
 
     auto atomAttr = op.getValue().cast<AtomAttr>();
     auto id = (uint64_t)atomAttr.getValue().getLimitedValue();
-    auto ty = targetInfo.getHeaderType();
+    auto termTy = getUsizeType();
     auto taggedAtom = targetInfo.encodeImmediate(TypeKind::Atom, id);
-    auto val = llvm_constant(
-        ty, rewriter.getIntegerAttr(rewriter.getIntegerType(64), taggedAtom));
+    Value val = llvm_constant(termTy, getIntegerAttr(rewriter, taggedAtom));
 
     rewriter.replaceOp(op, {val});
     return matchSuccess();
@@ -857,17 +911,16 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
     auto headerRaw = binAttr.getHeader();
     auto flagsRaw = binAttr.getFlags();
     auto ty = targetInfo.getBinaryType();
-    auto headerTy = targetInfo.getHeaderType();
+    auto ptrTy = ty.getPointerTo();
+    auto termTy = getUsizeType();
 
-    LLVMDialect *dialect = op.getContext()->getRegisteredDialect<LLVMDialect>();
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
 
     auto boxTag = targetInfo.boxTag();
     auto literalTag = targetInfo.literalTag();
     auto boxedLiteralTag = boxTag | literalTag;
-    Value literalTagConst = llvm_constant(
-        headerTy,
-        rewriter.getIntegerAttr(rewriter.getIntegerType(64), boxedLiteralTag));
+    Value literalTagConst =
+        llvm_constant(termTy, getIntegerAttr(rewriter, boxedLiteralTag));
 
     // We use the SHA-1 hash of the value as the name of the global,
     // this provides a nice way to de-duplicate constant strings while
@@ -877,26 +930,20 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
         getOrCreateGlobalString(context.getLocation(), context.getBuilder(),
                                 name, bytes, parentModule, dialect);
     Value valPtrLoad = llvm_load(valPtr);
-    Value header = llvm_constant(
-        headerTy,
-        rewriter.getIntegerAttr(rewriter.getIntegerType(64), headerRaw));
-    Value flags = llvm_constant(
-        headerTy,
-        rewriter.getIntegerAttr(rewriter.getIntegerType(64), flagsRaw));
+    Value header = llvm_constant(termTy, getIntegerAttr(rewriter, headerRaw));
+    Value flags = llvm_constant(termTy, getIntegerAttr(rewriter, flagsRaw));
+    Value allocN = llvm_constant(termTy, rewriter.getI64IntegerAttr(1));
+    Value descAlloc = llvm_alloca(ptrTy, allocN, rewriter.getI64IntegerAttr(8));
 
-    Value allocN = llvm_constant(headerTy, rewriter.getI64IntegerAttr(1));
-    Value descAlloc =
-        llvm_alloca(ty.getPointerTo(), allocN, rewriter.getI64IntegerAttr(8));
-
-    auto tyPtrTy = ty.getPointerTo();
     Value desc = llvm_undef(ty);
     desc = llvm_insertvalue(ty, desc, header, rewriter.getI64ArrayAttr(0));
     desc = llvm_insertvalue(ty, desc, flags, rewriter.getI64ArrayAttr(1));
     desc = llvm_insertvalue(ty, desc, valPtrLoad, rewriter.getI64ArrayAttr(2));
     llvm_store(desc, descAlloc);
-    Value descPtrInt = llvm_ptrtoint(headerTy, descAlloc);
+
+    Value descPtrInt = llvm_ptrtoint(termTy, descAlloc);
     Value boxedDescPtr = llvm_or(descPtrInt, literalTagConst);
-    Value boxedDesc = llvm_bitcast(targetInfo.getTermType(), boxedDescPtr);
+    Value boxedDesc = llvm_bitcast(termTy, boxedDescPtr);
 
     rewriter.replaceOp(op, boxedDesc);
     return matchSuccess();
@@ -911,9 +958,8 @@ struct ConstantNilOpConversion : public EIROpConversion<ConstantNilOp> {
       ConversionPatternRewriter &rewriter) const override {
     edsc::ScopedContext context(rewriter, op.getLoc());
 
-    auto ty = targetInfo.getTermType();
     auto val = llvm_constant(
-        ty, rewriter.getIntegerAttr(ty, targetInfo.getNilValue()));
+        getUsizeType(), getIntegerAttr(rewriter, targetInfo.getNilValue()));
 
     rewriter.replaceOp(op, {val});
     return matchSuccess();
@@ -928,10 +974,8 @@ struct ConstantNoneOpConversion : public EIROpConversion<ConstantNoneOp> {
       ConversionPatternRewriter &rewriter) const override {
     edsc::ScopedContext context(rewriter, op.getLoc());
 
-    auto ty = targetInfo.getTermType();
-    auto intNTy = rewriter.getIntegerType(targetInfo.pointerSizeInBits);
     auto val = llvm_constant(
-        ty, rewriter.getIntegerAttr(intNTy, targetInfo.getNoneValue()));
+        getUsizeType(), getIntegerAttr(rewriter, targetInfo.getNoneValue()));
 
     rewriter.replaceOp(op, {val});
     return matchSuccess();
@@ -944,24 +988,26 @@ static bool lowerElementValues(edsc::ScopedContext &context,
                                ArrayRef<Attribute> &elements,
                                SmallVector<Value, 2> &elementValues,
                                SmallVector<LLVMType, 2> &elementTypes) {
+  auto termTy = targetInfo.getTermType();
+  auto constIntTy = rewriter.getIntegerType(targetInfo.pointerSizeInBits);
   for (auto elementAttr : elements) {
     auto elementType = elementAttr.getType();
     if (auto atomAttr = elementAttr.dyn_cast_or_null<AtomAttr>()) {
       auto id = (uint64_t)atomAttr.getValue().getLimitedValue();
-      auto ty = targetInfo.getAtomType();
       auto tagged = targetInfo.encodeImmediate(TypeKind::Atom, id);
-      auto val = llvm_constant(ty, rewriter.getIntegerAttr(ty, tagged));
-      elementTypes.push_back(ty);
+      auto val =
+          llvm_constant(termTy, rewriter.getIntegerAttr(constIntTy, tagged));
+      elementTypes.push_back(termTy);
       elementValues.push_back(val);
       continue;
     }
     if (auto boolAttr = elementAttr.dyn_cast_or_null<BoolAttr>()) {
       auto b = boolAttr.getValue();
       uint64_t id = b ? 1 : 0;
-      auto ty = targetInfo.getAtomType();
       auto tagged = targetInfo.encodeImmediate(TypeKind::Atom, id);
-      auto val = llvm_constant(ty, rewriter.getIntegerAttr(ty, tagged));
-      elementTypes.push_back(ty);
+      auto val =
+          llvm_constant(termTy, rewriter.getIntegerAttr(constIntTy, tagged));
+      elementTypes.push_back(termTy);
       elementValues.push_back(val);
       continue;
     }
@@ -969,11 +1015,11 @@ static bool lowerElementValues(edsc::ScopedContext &context,
       auto i = intAttr.getValue();
       assert(i.getBitWidth() <= targetInfo.pointerSizeInBits &&
              "support for bigint in constant aggregates not yet implemented");
-      auto ty = targetInfo.getFixnumType();
       auto tagged =
           targetInfo.encodeImmediate(TypeKind::Fixnum, i.getLimitedValue());
-      auto val = llvm_constant(ty, rewriter.getIntegerAttr(ty, tagged));
-      elementTypes.push_back(ty);
+      auto val =
+          llvm_constant(termTy, rewriter.getIntegerAttr(constIntTy, tagged));
+      elementTypes.push_back(termTy);
       elementValues.push_back(val);
       continue;
     }
@@ -982,10 +1028,9 @@ static bool lowerElementValues(edsc::ScopedContext &context,
       assert(!targetInfo.requiresPackedFloats() &&
              "support for packed floats in constant aggregates is not yet "
              "implemented");
-      auto ty = targetInfo.getFloatType();
-      auto val =
-          llvm_constant(ty, rewriter.getIntegerAttr(ty, f.getLimitedValue()));
-      elementTypes.push_back(ty);
+      auto val = llvm_constant(
+          termTy, rewriter.getIntegerAttr(constIntTy, f.getLimitedValue()));
+      elementTypes.push_back(termTy);
       elementValues.push_back(val);
       continue;
     }
@@ -1003,29 +1048,135 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
       ConversionPatternRewriter &rewriter) const override {
     edsc::ScopedContext context(rewriter, op.getLoc());
 
+    auto termTy = getUsizeType();
     auto attr = op.getValue().cast<SeqAttr>();
     auto elements = attr.getValue();
     auto numElements = elements.size();
 
+    // Construct tuple header
+    auto headerRaw = targetInfo.encodeHeader(TypeKind::Tuple, numElements);
+    Value header = llvm_constant(
+        termTy, getIntegerAttr(rewriter, headerRaw.getLimitedValue()));
+
     SmallVector<LLVMType, 2> elementTypes;
-    elementTypes.resize(numElements);
+    elementTypes.reserve(numElements);
     SmallVector<Value, 2> elementValues;
-    elementValues.resize(numElements);
+    elementValues.reserve(numElements);
 
     auto lowered = lowerElementValues(context, rewriter, targetInfo, elements,
                                       elementValues, elementTypes);
     assert(lowered && "unsupported element type in tuple constant");
 
-    auto dialect = typeConverter.getDialect();
-    auto ty = targetInfo.makeTupleType(dialect, elementTypes);
+    auto ty = getTupleType(elementTypes);
+    auto ptrTy = ty.getPointerTo();
 
-    Value desc = llvm_undef(ty);
+    Value allocN = llvm_constant(termTy, rewriter.getI64IntegerAttr(1));
+    Value tupleAlloc =
+        llvm_alloca(ptrTy, allocN, rewriter.getI64IntegerAttr(8));
+
+    Value tuple = llvm_undef(ty);
+    tuple = llvm_insertvalue(ty, tuple, header, rewriter.getI64ArrayAttr(0));
     for (auto i = 0; i < numElements; i++) {
       auto val = elementValues[i];
-      desc = llvm_insertvalue(ty, desc, val, rewriter.getI64ArrayAttr(i));
+      tuple = llvm_insertvalue(ty, tuple, val, rewriter.getI64ArrayAttr(i + 1));
     }
+    llvm_store(tuple, tupleAlloc);
 
-    rewriter.replaceOp(op, desc);
+    auto boxTag = targetInfo.boxTag();
+    auto literalTag = targetInfo.literalTag();
+    auto boxedLiteralTag = boxTag | literalTag;
+    Value literalTagConst =
+        llvm_constant(termTy, getIntegerAttr(rewriter, boxedLiteralTag));
+
+    Value tuplePtrInt = llvm_ptrtoint(termTy, tupleAlloc);
+    Value boxedTuplePtr = llvm_or(tuplePtrInt, literalTagConst);
+    Value boxed = llvm_bitcast(termTy, boxedTuplePtr);
+
+    rewriter.replaceOp(op, boxed);
+    return matchSuccess();
+  }
+};
+
+struct TupleOpConversion : public EIROpConversion<TupleOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult matchAndRewrite(
+      TupleOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    TupleOpOperandAdaptor adaptor(operands);
+
+    auto termTy = getUsizeType();
+    auto elements = adaptor.elements();
+    auto numElements = elements.size();
+
+    // Construct tuple header
+    auto headerRaw = targetInfo.encodeHeader(TypeKind::Tuple, numElements);
+    Value header = llvm_constant(
+        termTy, getIntegerAttr(rewriter, headerRaw.getLimitedValue()));
+
+    // Construct tuple type
+    SmallVector<LLVMType, 2> elementTypes;
+    elementTypes.reserve(numElements);
+    for (auto val : elements) {
+      auto valTy = val.getType().cast<LLVMType>();
+      elementTypes.push_back(valTy);
+    }
+    auto ty = getTupleType(elementTypes);
+    auto ptrTy = ty.getPointerTo();
+
+    // Allocate tuple on the stack and insert all of the elements
+    int64_t size = (targetInfo.pointerSizeInBits / 8) * (numElements + 1);
+    Value allocBytes = llvm_constant(termTy, rewriter.getI64IntegerAttr(size));
+    // Value tupleAlloc =
+    //    llvm_alloca(ptrTy, allocN, rewriter.getI64IntegerAttr(8));
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+    Value tupleAlloc = processAlloc(rewriter, context, parentModule,
+                                    op.getLoc(), ty, allocBytes);
+    Value tuple = llvm_undef(ty);
+    tuple = llvm_insertvalue(ty, tuple, header, rewriter.getI64ArrayAttr(0));
+    for (auto i = 0; i < numElements; i++) {
+      auto val = elements[i];
+      tuple = llvm_insertvalue(ty, tuple, val, rewriter.getI64ArrayAttr(i + 1));
+    }
+    llvm_store(tuple, tupleAlloc);
+
+    // Box the allocated tuple
+    auto boxed = make_box(rewriter, context, tupleAlloc);
+
+    rewriter.replaceOp(op, boxed);
+    return matchSuccess();
+  }
+};
+
+struct ConsOpConversion : public EIROpConversion<ConsOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult matchAndRewrite(
+      ConsOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    ConsOpOperandAdaptor adaptor(operands);
+
+    auto termTy = getUsizeType();
+    auto consTy = targetInfo.getConsType();
+    auto ptrTy = consTy.getPointerTo();
+
+    auto head = adaptor.head();
+    auto tail = adaptor.tail();
+
+    // Allocate tuple on the stack and insert all of the elements
+    Value allocN = llvm_constant(termTy, rewriter.getI64IntegerAttr(1));
+    Value consAlloc = llvm_alloca(ptrTy, allocN, rewriter.getI64IntegerAttr(8));
+    Value cons = llvm_undef(consTy);
+    cons = llvm_insertvalue(consTy, cons, head, rewriter.getI64ArrayAttr(0));
+    cons = llvm_insertvalue(consTy, cons, tail, rewriter.getI64ArrayAttr(1));
+    llvm_store(cons, consAlloc);
+
+    // Box the allocated cons
+    auto boxed = make_list(rewriter, context, consAlloc);
+
+    rewriter.replaceOp(op, boxed);
     return matchSuccess();
   }
 };
@@ -1043,19 +1194,19 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
 
     auto numElements = elements.size();
 
+    auto termTy = getUsizeType();
     // Lower to nil if empty list
     if (numElements == 0) {
-      auto nilTy = targetInfo.getNilType();
-      auto nil = targetInfo.getNilValue();
-      auto val = llvm_constant(nilTy, rewriter.getIntegerAttr(nilTy, nil));
+      auto val = llvm_constant(
+          termTy, getIntegerAttr(rewriter, targetInfo.getNilValue()));
       rewriter.replaceOp(op, {val});
       return matchSuccess();
     }
 
     SmallVector<LLVMType, 2> elementTypes;
-    elementTypes.resize(numElements);
+    elementTypes.reserve(numElements);
     SmallVector<Value, 2> elementValues;
-    elementValues.resize(numElements);
+    elementValues.reserve(numElements);
 
     auto lowered = lowerElementValues(context, rewriter, targetInfo, elements,
                                       elementValues, elementTypes);
@@ -1082,9 +1233,8 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
     unsigned currentIndex = numElements;
     // Create final cons cell
     Value lastCons = llvm_undef(consTy);
-    auto nilTy = targetInfo.getNilType();
-    auto nil = targetInfo.getNilValue();
-    auto nilVal = llvm_constant(nilTy, rewriter.getIntegerAttr(nilTy, nil));
+    auto nilVal = llvm_constant(
+        termTy, getIntegerAttr(rewriter, targetInfo.getNilValue()));
     lastCons =
         llvm_insertvalue(consTy, lastCons, nilVal, rewriter.getI64ArrayAttr(1));
     lastCons = llvm_insertvalue(consTy, lastCons, elementValues[--currentIndex],
@@ -1093,8 +1243,7 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
     Value prev = lastCons;
     for (auto i = cellsRequired; i > 1; --i) {
       Value curr = llvm_undef(consTy);
-      auto prevBoxed =
-          make_list(rewriter, context, typeConverter, targetInfo, prev);
+      auto prevBoxed = make_list(rewriter, context, prev);
       curr = llvm_insertvalue(consTy, curr, prevBoxed,
                               rewriter.getI64ArrayAttr(1));
       curr = llvm_insertvalue(consTy, curr, elementValues[--currentIndex],
@@ -1102,7 +1251,7 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
       prev = curr;
     }
 
-    auto head = make_list(rewriter, context, typeConverter, targetInfo, prev);
+    auto head = make_list(rewriter, context, prev);
 
     rewriter.replaceOp(op, head);
     return matchSuccess();
@@ -1145,12 +1294,12 @@ void populateEIRToLLVMConversionPatterns(OwningRewritePatternList &patterns,
               CmpLteOpConversion,
               CmpGtOpConversion,
               CmpGteOpConversion,
-              CmpNerrOpConversion,
               ThrowOpConversion,
               ConsOpConversion,
               TupleOpConversion,
               */
               TraceCaptureOpConversion, TraceConstructOpConversion,
+              ConsOpConversion, TupleOpConversion,
               /*
               BinaryPushOpConversion,
               */

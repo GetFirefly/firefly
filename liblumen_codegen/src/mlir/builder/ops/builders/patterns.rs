@@ -197,6 +197,7 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
             .drain(..)
             .map(|v| self.builder.value_ref(v))
             .collect::<Vec<_>>();
+        debug_in!(self.builder, "destination args for {:?}: {:?}", &pattern, &arglist);
         self.arglists.push(arglist);
 
         // Then store the argc/argv in the branch

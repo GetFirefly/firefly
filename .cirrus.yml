@@ -42,7 +42,7 @@ task:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
   install_rustup_script: |
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2019-12-19
   <<: *x86_64_TASK_TEMPLATE
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
@@ -133,7 +133,7 @@ task:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
   install_rustup_script: |
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2019-12-19
   install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly
   install_wasm_bindgen_cli_script: cargo +nightly install wasm-bindgen-cli
   install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh

@@ -38,7 +38,13 @@ pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
 #[cfg(not(has_mmap))]
 #[inline]
 pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
-    sys_alloc::alloc(pages)
+    let page_size = crate::sys::sysconf::pagesize();
+    let (layout, _offset) = Layout::from_size_align(page_size, page_size)
+        .unwrap()
+        .repeat(pages)
+        .unwrap();
+
+    sys_alloc::alloc(layout)
 }
 
 /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new size

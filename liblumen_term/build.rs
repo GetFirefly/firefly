@@ -8,6 +8,10 @@ use std::path::{Path, PathBuf};
 const ENV_LLVM_PREFIX: &'static str = "LLVM_SYS_90_PREFIX";
 
 fn main() {
+    if env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "wasm32" {
+        return;
+    }
+
     // Emit custom cfg types:
     //     cargo:rustc-cfg=has_foo
     // Can then be used as `#[cfg(has_foo)]` when emitted

@@ -1,13 +1,22 @@
 FROM rust:latest
 
-RUN rustup default nightly
+RUN cd /tmp \
+  && wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
+  && tar -xvzf clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
+  && rm -f clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
+  && mv clang+llvm-10.0.0-x86_64-linux-gnu /opt/llvm
+
+ENV PATH="/opt/llvm/bin:${PATH}"
+ENV LLVM_SYS_90_PREFIX="/opt/llvm"
+
+RUN rustup default nightly-2019-12-19
 
 RUN rustup component add rustfmt
 
 # Add WASM target
-RUN rustup target add wasm32-unknown-unknown --toolchain nightly
+RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2019-12-19
 
-RUN cargo +nightly install wasm-bindgen-cli
+RUN cargo +nightly-2019-12-19 install wasm-bindgen-cli
 
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 

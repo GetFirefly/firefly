@@ -484,7 +484,7 @@ pub trait Encoded: Repr + Copy {
     }
     /// Returns `true` if the encoded value is the header of an `ExternalPid`
     fn is_remote_pid(self) -> bool {
-        Self::Encoding::is_local_pid(self.value())
+        Self::Encoding::is_remote_pid(self.value())
     }
     /// Returns `true` if the encoded value is a pointer to an `ExternalPid`
     fn is_boxed_remote_pid(self) -> bool {

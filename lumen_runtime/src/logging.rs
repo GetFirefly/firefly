@@ -1,6 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use colored::*;
-#[cfg(not(test))]
+#[cfg(not(any(test, target_arch = "wasm32")))]
 use log::SetLoggerError;
 use log::{Level, Log, Metadata, Record};
 
@@ -12,7 +12,7 @@ pub struct Logger {
 }
 
 impl Logger {
-    #[cfg(not(test))]
+    #[cfg(not(any(test, target_arch = "wasm32")))]
     pub fn init(level: Level) -> Result<(), SetLoggerError> {
         log::set_max_level(level.to_level_filter());
         Ok(())

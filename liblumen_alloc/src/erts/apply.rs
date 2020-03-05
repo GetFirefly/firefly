@@ -8,9 +8,13 @@ use once_cell::sync::OnceCell;
 
 use liblumen_arena::DroplessArena;
 use liblumen_core::symbols::FunctionSymbol;
-use liblumen_core::sys::dynamic_call::{self, DynamicCallee};
+#[cfg(all(unix, target_arch = "x86_64"))]
+use liblumen_core::sys::dynamic_call;
+use liblumen_core::sys::dynamic_call::DynamicCallee;
 
-use crate::erts::term::prelude::{Atom, Encoded, Term};
+use crate::erts::term::prelude::Atom;
+#[cfg(all(unix, target_arch = "x86_64"))]
+use crate::erts::term::prelude::{Encoded, Term};
 use crate::erts::ModuleFunctionArity;
 
 /// Dynamically invokes the function mapped to the given symbol.

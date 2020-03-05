@@ -43,7 +43,7 @@ mod binary;
 pub mod binary_to_string;
 // `pub` or `examples/spawn-chain`
 pub mod code;
-#[cfg(not(test))]
+#[cfg(not(any(test, target_arch = "wasm32")))]
 mod config;
 mod context;
 mod distribution;

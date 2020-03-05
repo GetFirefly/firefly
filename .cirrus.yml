@@ -35,7 +35,7 @@ task:
 task:
   name: macOS x86_64
   osx_instance:
-    image: mojave-base
+    image: catalina-base
   env:
     LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
     PATH: ${HOME}/.cargo/bin:${PATH}
@@ -132,7 +132,7 @@ task:
 task:
   name: macOS wasm32
   osx_instance:
-    image: mojave-base
+    image: catalina-base
   env:
     LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
     PATH: ${HOME}/.cargo/bin:${PATH}

@@ -19,6 +19,8 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
     cargo test -p liblumen_eir_interpreter
   examples_spawn_chain_test_script: |
     cargo test -p spawn-chain
+  make_build_script: |
+    make build
 
 task:
   name: Linux x86_64

@@ -35,7 +35,7 @@ task:
 task:
   name: macOS x86_64
   osx_instance:
-    image: mojave-base
+    image: catalina-base
   env:
     LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
     PATH: ${HOME}/.cargo/bin:${PATH}
@@ -132,7 +132,7 @@ task:
 task:
   name: macOS wasm32
   osx_instance:
-    image: mojave-base
+    image: catalina-base
   env:
     LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
     PATH: ${HOME}/.cargo/bin:${PATH}
@@ -155,7 +155,7 @@ task:
     brew cask install google-chrome
     brew cask info google-chrome
   install_chrome_driver_script: |
-    wget https://chromedriver.storage.googleapis.com/78.0.3904.70/chromedriver_mac64.zip
+    wget https://chromedriver.storage.googleapis.com/80.0.3987.106/chromedriver_mac64.zip
     unzip chromedriver_mac64.zip
     mv chromedriver /usr/local/bin/
     rm chromedriver_mac64.zip

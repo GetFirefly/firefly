@@ -1,6 +1,8 @@
 use core::ffi::c_void;
+#[cfg(all(unix, target_arch = "x86_64"))]
 use core::mem;
 
+#[cfg(all(unix, target_arch = "x86_64"))]
 use crate::sys::dynamic_call::{self, DynamicCallee};
 
 /// This struct represents the serialized form of a symbol table entry

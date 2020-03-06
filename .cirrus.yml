@@ -1,7 +1,7 @@
 task:
   name: Check Formatted
   container:
-    image: kronicdeth/lumen-development@sha256:3ec4d9b9ce6721d7ba1175342b92f00759da86e0c860ab9237c90f83939b33ca
+    image: kronicdeth/lumen-development@sha256:90d939ce213f4ed3cef6e9fb456eeca4732d13890895dbc56a0eee47b104e034
   script: cargo fmt -- --check
 
 x86_64_task_template: &x86_64_TASK_TEMPLATE
@@ -19,19 +19,28 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
     cargo test -p liblumen_eir_interpreter
   examples_spawn_chain_test_script: |
     cargo test -p spawn-chain
-  make_build_script: |
-    make build
 
 task:
-  name: Linux x86_64
+  name: Linux x86_64 libraries
   container:
-    image: kronicdeth/lumen-development@sha256:3ec4d9b9ce6721d7ba1175342b92f00759da86e0c860ab9237c90f83939b33ca
+    image: kronicdeth/lumen-development@sha256:90d939ce213f4ed3cef6e9fb456eeca4732d13890895dbc56a0eee47b104e034
     cpu: 4
     memory: 12
   linux_x86_64_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
   << : *x86_64_TASK_TEMPLATE
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+task:
+  name: Linux x86_64 compiler
+  container:
+    image: kronicdeth/lumen-development@sha256:90d939ce213f4ed3cef6e9fb456eeca4732d13890895dbc56a0eee47b104e034
+  linux_x86_64_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  make_build_script: |
+    make build
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
@@ -128,7 +137,7 @@ task:
 task:
   name: Linux wasm32
   container:
-    image: kronicdeth/lumen-development@sha256:3ec4d9b9ce6721d7ba1175342b92f00759da86e0c860ab9237c90f83939b33ca
+    image: kronicdeth/lumen-development@sha256:90d939ce213f4ed3cef6e9fb456eeca4732d13890895dbc56a0eee47b104e034
     memory: 6
   linux_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry

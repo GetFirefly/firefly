@@ -10,7 +10,7 @@ ENV PATH="/opt/llvm/bin:${PATH}"
 ENV LLVM_SYS_90_PREFIX="/opt/llvm"
 
 RUN apt-get update \
-  && apt-get install -y cmake ninja-build
+  && apt-get install -y cmake jq ninja-build
 
 RUN rustup default nightly-2019-12-19
 

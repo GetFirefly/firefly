@@ -33,13 +33,13 @@ task:
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
-  name: macOS x86_64
+  name: macOS x86_64 libraries
   osx_instance:
     image: catalina-base
   env:
     LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
     PATH: ${HOME}/.cargo/bin:${PATH}
-  macos_x86_64_cargo_cache:
+  macos_x86_64_libraries_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
   install_llvm_script: |
@@ -50,6 +50,27 @@ task:
   install_rustup_script: |
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2019-12-19
   <<: *x86_64_TASK_TEMPLATE
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+task:
+  name: macOS x86_64 compiler
+  osx_instance:
+    image: catalina-base
+  env:
+    LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
+    PATH: ${HOME}/.cargo/bin:${PATH}
+  macos_x86_64_compiler_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  install_llvm_script: |
+    pushd $HOME
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    popd
+  install_rustup_script: |
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2019-12-19
+  make_build_script: |
+    make build
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:

@@ -69,6 +69,8 @@ task:
     popd
   install_rustup_script: |
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2019-12-19
+  install_jq_script: |
+    brew install jq
   make_build_script: |
     make build
   before_cache_script: rm -rf $CARGO_HOME/registry/index

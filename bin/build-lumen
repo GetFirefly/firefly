@@ -125,7 +125,7 @@ if ! type -p jq >/dev/null; then
     exit 2
 fi
 
-if ! host_toolchain="$(echo "$RUST_TOOLCHAIN" | sed -e 's/nightly-//')"; then
+if ! host_toolchain="$(echo "$RUST_TOOLCHAIN" | sed -e 's/nightly-\([0-9]\{4,4\}-[0-9]\{2,2\}-[0-9]\{2,2\}-\)\{0,1\}//')"; then
     echo "Unable to determine default host toolchain!"
     exit 2
 fi

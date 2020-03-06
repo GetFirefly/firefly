@@ -75,6 +75,8 @@ task:
     brew install ninja
   make_build_script: |
     make build
+  test_lumen_script: |
+    cargo test -p lumen
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:

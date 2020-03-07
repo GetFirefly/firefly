@@ -125,7 +125,7 @@ if ! type -p jq >/dev/null; then
     exit 2
 fi
 
-if ! host_toolchain="$(echo "$RUST_TOOLCHAIN" | sed -e 's/nightly-//')"; then
+if ! host_toolchain="$(echo "$RUST_TOOLCHAIN" | sed -e 's/nightly-\([0-9]\{4,4\}-[0-9]\{2,2\}-[0-9]\{2,2\}-\)\{0,1\}//')"; then
     echo "Unable to determine default host toolchain!"
     exit 2
 fi
@@ -172,13 +172,13 @@ else
 fi
 if [ "$is_darwin" = "true" ]; then
     build_use_libcxx="true"
-    build_link_args="-headerpad_max_install_names,$build_link_args"
+    build_link_args="-headerpad_max_install_names${build_link_args:+,$build_link_args}"
 fi
 if [ "$build_static" = "true" ]; then
     export LLVM_BUILD_STATIC=1
 else
     #extra_rustc_flags="-C prefer-dynamic $extra_rustc_flags"
-    build_link_args="-rpath,${TOOLCHAIN_TARGET_LIB_PATH},$build_link_args"
+    build_link_args="-rpath,${TOOLCHAIN_TARGET_LIB_PATH}${build_link_args:+,$build_link_args}"
 fi
 if [ "$build_use_libcxx" = "true" ]; then
     export LLVM_USE_LIBCXX=1

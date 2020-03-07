@@ -227,10 +227,9 @@ fn main() {
         .last()
         .expect("expected non-empty lang_start_symbol result");
 
-    // Strip off leading `_` when printing symbol name
     println!(
         "cargo:rustc-env=LANG_START_SYMBOL_NAME={}",
-        &lang_start_symbol[1..]
+        lang_start_symbol_name(lang_start_symbol)
     );
 }
 
@@ -442,6 +441,17 @@ fn print_libcpp_flags(llvm_config_path: &Path, target: &str) {
         println!("cargo:rustc-link-lib=static-nobundle=pthread");
         println!("cargo:rustc-link-lib=dylib=uuid");
     }
+}
+
+#[cfg(target_os = "macos")]
+fn lang_start_symbol_name(lang_start_symbol: &str) -> &str {
+    // Strip off leading `_` when printing symbol name
+    &lang_start_symbol[1..]
+}
+
+#[cfg(not(target_os = "macos"))]
+fn lang_start_symbol_name(lang_start_symbol: &str) -> &str {
+    lang_start_symbol
 }
 
 fn link_libs(libs: &[&str]) {

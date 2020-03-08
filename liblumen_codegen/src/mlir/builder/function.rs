@@ -378,8 +378,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     ///
     /// Returns None if it is not defined in this block (yet)
     pub fn find_value(&self, ir_value: ir::Value) -> Option<Value> {
-        let block = self.current_block();
-        self.func.value_mapping[ir_value][block].into()
+        let blocks = &self.func.value_mapping[ir_value];
+        let mut defs = blocks.values().cloned().filter_map(|o| o.expand()).collect::<Vec<_>>();
+        assert!(defs.len() < 2, "expected no more than one definition per eir value");
+        defs.pop()
     }
 
     /// Gets the Block corresponding to the given EIR value
@@ -482,50 +484,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         // The result is implicit arguments followed by explicit arguments
         let block_args = self.eir.block_args(ir_block);
         debug_in!(self, "prepare: block_args: {:?}", &block_args);
-        let implicits = {
-            let mut implicits = Vec::new();
-            let live_at = self.analysis.live.live_at(ir_block);
-            debug_in!(self, "prepare: live_at: {:?}", &live_at);
-            // Prefer to avoid extra work if we can
-            if live_at.size() > 0 {
-                // Build a temporary set to keep lookups efficient
-                let mut explicit: HashSet<ir::Value> = HashSet::with_capacity(block_args.len());
-                explicit.extend(block_args);
-                // Check each value in the block live_at set to see which
-                // are in the argument list. Those that are not, are implicit
-                // arguments, coming from a dominating block.
-                for live in live_at.iter() {
-                    // Ignore the function throw/return continuations
-                    if self.func.is_throw_ir(live) || self.func.is_return_ir(live) {
-                        debug_in!(self, "prepare: {:?} is throw or return, skipping", live);
-                        continue;
-                    }
-                    let is_explicit = explicit.contains(&live);
-                    let is_live_in = self.analysis.live.is_live_in(ir_block, live);
-                    debug_in!(
-                        self,
-                        "prepare: {:?}, is_explicit = {}, is_live_in = {}",
-                        live,
-                        is_explicit,
-                        is_live_in
-                    );
-                    // If not an explicit argument, and live within the block, add it as implicit
-                    if !is_explicit && is_live_in {
-                        debug_in!(self, "prepare: {:?} is implicit", live);
-                        implicits.push((
-                            block_arg_to_param(self.eir, live, /* is_implicit */ true),
-                            Some(live),
-                        ));
-                    }
-                }
-            }
-            implicits
-        };
-
-        debug_in!(self, "prepare: implicits: {:?}", &implicits);
         // Build the final parameter list
-        let mut params = Vec::with_capacity(block_args.len() + implicits.len());
-        params.extend(implicits);
+        let mut params = Vec::with_capacity(block_args.len());
         params.extend(block_args.iter().copied().map(|a| {
             (
                 block_arg_to_param(self.eir, a, /* is_implicit */ false),
@@ -630,7 +590,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// _must_ be defined in the block already - namely, that the value must
     /// be a block argument.
     fn build_block(&mut self, block: Block, ir_block: ir::Block) -> Result<()> {
-        debug_in!(self, "building block {:?} from {:?}", block, ir_block);
+        debug_in!(self, "building block {:?} (origin = {:?})", block, ir_block);
         // Switch to the block
         self.position_at_end(block);
         // Get the set of values this block reads in its body
@@ -720,10 +680,9 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 } else {
                     if let Some(err_ir_block) = self.eir.value_block(ir_err) {
                         let err_block = self.get_block(err_ir_block);
-                        let err_args = self.build_target_block_args(err_block, &reads[3..]);
                         CallError::Branch(Branch {
                             block: err_block,
-                            args: err_args,
+                            args: Default::default(),
                         })
                     } else {
                         panic!(
@@ -764,23 +723,21 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 debug_in!(self, "has otherwise branch = {}", other.is_some());
 
                 let remaining_reads = &reads[reads_start..];
-                let yes_args = self.build_target_block_args(yes, remaining_reads);
-                let no_args = self.build_target_block_args(no, remaining_reads);
-                let other_args = other.map(|b| self.build_target_block_args(b, remaining_reads));
+                debug_in!(self, "remaining reads = {:?}", remaining_reads);
 
                 OpKind::If(If {
                     cond,
                     yes: Branch {
                         block: yes,
-                        args: yes_args,
+                        args: Default::default(),
                     },
                     no: Branch {
                         block: no,
-                        args: no_args,
+                        args: Default::default(),
                     },
                     otherwise: other.map(|o| Branch {
                         block: o,
-                        args: other_args.unwrap_or_default(),
+                        args: Default::default(),
                     }),
                 })
             }
@@ -896,8 +853,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::OpKind::TraceCaptureRaw => {
                 debug_in!(self, "block contains trace capture operation");
                 let block = self.get_block_by_value(reads[0]);
-                let args = self.build_target_block_args(block, &reads[1..]);
-                OpKind::TraceCapture(Branch { block, args })
+                OpKind::TraceCapture(Branch { block, args: Default::default() })
             }
             // Requests that a trace be constructed for consumption in a `catch`
             // Takes the captured trace reference as argument
@@ -956,7 +912,9 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 unreachable!("block {:?} used as a value ({:?})", b, ir_value)
             }
             ir::ValueKind::Argument(b, i) => {
-                unreachable!("block argument {:?}:{} should already be defined", b, i)
+                let blk = self.get_block(b);
+                let args = self.block_args(blk);
+                args.get(i).map(|a| a.clone())
             }
         };
         Ok(value_opt)
@@ -1129,21 +1087,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 if let Some(ir_value) = value_data.ir_value.expand() {
                     debug_in!(self, "block arg has original eir value {:?}", ir_value);
                     if self.is_block_argument(ir_value, target) {
-                        debug_in!(self, "block arg is a block argument of the target");
-                        // For EIR values that are defined as a block argument of the target,
-                        // we need to select the read which corresponds to the parameter. If
-                        // we don't have enough reads, then it is an argument we expect to be
-                        // provided by an operation, so we ignore them. If this value corresponds
-                        // to an implicit, we have a compiler bug, as we would not expect the
-                        // source value to be a block argument of the target
-                        //
-                        // NOTE: In a revision of the above, it appears that value lists are
-                        // being used to represent operation results (such as cons cells),
-                        // so we need to re-verify this logic.
-                        assert!(
-                            i >= num_implicits,
-                            "expected this value to correspond to a read or operation result"
-                        );
                         let read = i - num_implicits;
                         if read >= num_reads {
                             // This is an implicit argument provided by the operation

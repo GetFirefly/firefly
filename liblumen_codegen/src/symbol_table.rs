@@ -72,7 +72,7 @@ pub fn compile_symbol_table(
     // Generate global array of all idents
     let functions_const_init = builder.build_constant_array(function_type, functions.as_slice());
     let functions_const_ty = unsafe { llvm_sys::core::LLVMTypeOf(functions_const_init) };
-    let functions_const = builder.add_constant(
+    let functions_const = builder.build_constant(
         functions_const_ty,
         "__LUMEN_SYMBOL_TABLE_ENTRIES",
         Some(functions_const_init),
@@ -82,7 +82,7 @@ pub fn compile_symbol_table(
 
     let function_ptr_type = builder.get_pointer_type(function_type);
     let table_global_init = builder.build_const_inbounds_gep(functions_const, &[0, 0]);
-    let table_global = builder.add_global(
+    let table_global = builder.build_global(
         function_ptr_type,
         "__LUMEN_SYMBOL_TABLE",
         Some(table_global_init),
@@ -91,7 +91,7 @@ pub fn compile_symbol_table(
 
     // Generate array length global
     let table_size_global_init = builder.build_constant_uint(usize_type, functions.len());
-    let table_size_global = builder.add_global(
+    let table_size_global = builder.build_global(
         usize_type,
         "__LUMEN_SYMBOL_TABLE_SIZE",
         Some(table_size_global_init),

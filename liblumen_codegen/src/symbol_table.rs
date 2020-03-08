@@ -98,6 +98,17 @@ pub fn compile_symbol_table(
     );
     builder.set_alignment(table_size_global, 8);
 
+    // Generate thread local variable for current reduction count
+    let reduction_count_init = builder.build_constant_uint(usize_type, 0);
+    let reduction_count_global = builder.build_global(
+        usize_type,
+        "CURRENT_REDUCTION_COUNT",
+        Some(reduction_count_init),
+    );
+    builder.set_thread_local_mode(reduction_count_global, ThreadLocalMode::LocalExec);
+    builder.set_linkage(reduction_count_global, Linkage::External);
+    builder.set_alignment(reduction_count_global, 8);
+
     // We have to build a shim for the Rust libstd `lang_start_internal`
     // function to start the Rust runtime. Since that symbol is internal,
     // we locate the mangled symbol name at build time and build a shim

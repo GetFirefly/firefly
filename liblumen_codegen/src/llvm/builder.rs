@@ -327,6 +327,14 @@ impl<'ctx> ModuleBuilder<'ctx> {
         }
     }
 
+    pub fn set_thread_local_mode(&self, global: LLVMValueRef, tls: ThreadLocalMode) {
+        use llvm_sys::core::LLVMSetThreadLocalMode;
+
+        unsafe {
+            LLVMSetThreadLocalMode(global, tls.into());
+        }
+    }
+
     pub fn set_alignment(&self, value: LLVMValueRef, alignment: usize) {
         use llvm_sys::core::LLVMSetAlignment;
 

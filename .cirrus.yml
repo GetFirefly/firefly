@@ -57,7 +57,7 @@ task:
     fingerprint_script: cat Cargo.lock
   install_llvm_script: |
     pushd $HOME
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     popd
   install_rustup_script: |
@@ -77,7 +77,7 @@ task:
     fingerprint_script: cat Cargo.lock
   install_llvm_script: |
     pushd $HOME
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     popd
   install_rustup_script: |
@@ -181,7 +181,7 @@ task:
     fingerprint_script: cat Cargo.lock
   install_llvm_script: |
     pushd $HOME
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     popd
   install_rustup_script: |

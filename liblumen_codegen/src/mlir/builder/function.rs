@@ -439,36 +439,16 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     pub fn build(mut self) -> Result<FunctionOpRef> {
         debug_in!(self, "building..");
 
-        // NOTE: We start out in the init block
-        let init_block = self.current_block();
-
-        // TODO: Generate stack frame
-        // My current thinking is that we keep the stack opaque in the runtime,
-        // and let the generated code write directly to it to avoid calling into
-        // the runtime to record frames. We will eventually use stack maps, and
-        // in that case the runtime stack stuff that exists will mostly go away.
-        debug_in!(self, "building stack frame for function in init block");
+        // NOTE: We start out in the entry block
+        let entry_block = self.current_block();
 
         // If this is a closure, extract the environment
         // A closure will have more than 1 live value, otherwise it is a regular function
-        let live = self.live_at(init_block);
+        let live = self.live_at(entry_block);
         debug_in!(self, "found {} live values in the entry block", live.size());
         if live.size() > 0 {
             todo!("closure env unpacking");
         }
-
-        // Clone the init block, the clone will be used like the EIR entry block
-        // The init block, meanwhile, is used to set up any frame layout/init required
-        debug_in!(self, "creating entry block..");
-        let entry_block = self.clone_block();
-
-        // Forward all of the init block arguments to the entry block
-        debug_in!(self, "forwarding init block to entry block");
-        let init_block_args = self.block_args(self.current_block());
-        self.insert_branch(entry_block, init_block_args.as_slice())?;
-
-        debug_in!(self, "switching to entry block");
-        self.position_at_end(entry_block);
 
         let root_block = self.eir.block_entry();
 
@@ -622,34 +602,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         self.position_at_end(block);
 
         Ok(block)
-    }
-
-    /// Clones the current block by:
-    ///
-    /// 1. Creating a new block after the current block
-    /// 2. Copying the number and type of block arguments from the current block
-    ///
-    /// The builder will be positioned at the end of the original block once complete
-    fn clone_block(&mut self) -> Block {
-        let target_block = self.current_block();
-
-        debug_in!(self, "cloning block {:?}", target_block);
-
-        // Map source parameter metadata to original EIR values
-        let block_data = self.func.block_data(target_block);
-        let mut params = Vec::with_capacity(block_data.params.len());
-        for (i, &param) in block_data.params.iter().enumerate() {
-            let value = block_data.param_values[i];
-            let ir_value = self.func.value_to_ir_value(value);
-            params.push((param, ir_value));
-        }
-        debug_in!(self, "creating clone block");
-        // Create a new block with the same params as the current one
-        let cloned = self.create_block(None, params.as_slice()).unwrap();
-        // Reposition builder
-        self.position_at_end(target_block);
-        // Return cloned block
-        cloned
     }
 
     /// Positions the builder at the end of the given block

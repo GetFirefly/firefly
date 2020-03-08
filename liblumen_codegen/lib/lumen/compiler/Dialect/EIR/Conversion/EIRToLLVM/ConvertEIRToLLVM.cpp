@@ -1,63 +1,13 @@
 #include "lumen/compiler/Dialect/EIR/Conversion/EIRToLLVM/ConvertEIRToLLVM.h"
 
-#include "llvm/Target/TargetMachine.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "lumen/compiler/Target/TargetInfo.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
-#include "mlir/EDSC/Intrinsics.h"
-#include "mlir/IR/Attributes.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Matchers.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/SymbolTable.h"
-#include "mlir/Transforms/DialectConversion.h"
-
-using ::llvm::TargetMachine;
-using ::mlir::ConversionPatternRewriter;
-using ::mlir::LLVMTypeConverter;
-using ::mlir::PatternMatchResult;
-using ::mlir::edsc::intrinsics::OperationBuilder;
-using ::mlir::edsc::intrinsics::ValueBuilder;
-using ::mlir::LLVM::LLVMDialect;
-using ::mlir::LLVM::LLVMType;
-
-namespace LLVM = ::mlir::LLVM;
-
-using llvm_add = ValueBuilder<LLVM::AddOp>;
-using llvm_and = ValueBuilder<LLVM::AndOp>;
-using llvm_or = ValueBuilder<LLVM::OrOp>;
-using llvm_xor = ValueBuilder<LLVM::XOrOp>;
-using llvm_shl = ValueBuilder<LLVM::ShlOp>;
-using llvm_bitcast = ValueBuilder<LLVM::BitcastOp>;
-using llvm_trunc = ValueBuilder<LLVM::TruncOp>;
-using llvm_constant = ValueBuilder<LLVM::ConstantOp>;
-using llvm_extractvalue = ValueBuilder<LLVM::ExtractValueOp>;
-using llvm_gep = ValueBuilder<LLVM::GEPOp>;
-using llvm_addressof = ValueBuilder<LLVM::AddressOfOp>;
-using llvm_insertvalue = ValueBuilder<LLVM::InsertValueOp>;
-using llvm_call = OperationBuilder<LLVM::CallOp>;
-using llvm_icmp = ValueBuilder<LLVM::ICmpOp>;
-using llvm_load = ValueBuilder<LLVM::LoadOp>;
-using llvm_store = OperationBuilder<LLVM::StoreOp>;
-using llvm_select = ValueBuilder<LLVM::SelectOp>;
-using llvm_mul = ValueBuilder<LLVM::MulOp>;
-using llvm_ptrtoint = ValueBuilder<LLVM::PtrToIntOp>;
-using llvm_inttoptr = ValueBuilder<LLVM::IntToPtrOp>;
-using llvm_sub = ValueBuilder<LLVM::SubOp>;
-using llvm_undef = ValueBuilder<LLVM::UndefOp>;
-using llvm_urem = ValueBuilder<LLVM::URemOp>;
-using llvm_alloca = ValueBuilder<LLVM::AllocaOp>;
-using llvm_return = OperationBuilder<LLVM::ReturnOp>;
+#include "lumen/compiler/Dialect/EIR/Conversion/EIRToLLVM/ComparisonOpConversions.h"
+#include "lumen/compiler/Dialect/EIR/Conversion/EIRToLLVM/ConversionSupport.h"
+#include "lumen/compiler/Dialect/EIR/Conversion/EIRToLLVM/MathOpConversions.h"
 
 namespace lumen {
 namespace eir {
+
+const uint64_t MAX_REDUCTION_COUNT = 20;
 
 static bool isa_eir_type(Type t) {
   return inbounds(t.getKind(), Type::Kind::FIRST_EIR_TYPE,
@@ -124,10 +74,11 @@ static LLVMType getPtrToElementType(T containerType,
       .getPointerTo();
 }
 
-static FlatSymbolRefAttr createOrInsertFunction(
-    PatternRewriter &rewriter, ModuleOp mod, LLVMDialect *dialect,
-    TargetInfo &targetInfo, StringRef symbol, LLVMType resultType,
-    ArrayRef<LLVMType> argTypes = {}) {
+FlatSymbolRefAttr createOrInsertFunction(PatternRewriter &rewriter,
+                                         ModuleOp mod, LLVMDialect *dialect,
+                                         TargetInfo &targetInfo,
+                                         StringRef symbol, LLVMType resultType,
+                                         ArrayRef<LLVMType> argTypes) {
   auto *context = mod.getContext();
 
   if (mod.lookupSymbol<mlir::FuncOp>(symbol))
@@ -140,7 +91,13 @@ static FlatSymbolRefAttr createOrInsertFunction(
     return SymbolRefAttr::get(symbol, context);
 
   // Create a function declaration for the symbol
-  auto fnTy = LLVMType::getFunctionTy(resultType, argTypes, /*isVarArg=*/false);
+  LLVMType fnTy;
+  if (resultType) {
+    fnTy = LLVMType::getFunctionTy(resultType, argTypes, /*isVarArg=*/false);
+  } else {
+    auto voidTy = LLVMType::getVoidTy(dialect);
+    fnTy = LLVMType::getFunctionTy(voidTy, argTypes, /*isVarArg=*/false);
+  }
 
   // Insert the function into the body of the parent module.
   PatternRewriter::InsertionGuard insertGuard(rewriter);
@@ -149,8 +106,25 @@ static FlatSymbolRefAttr createOrInsertFunction(
   return SymbolRefAttr::get(symbol, context);
 }
 
-/// Return a value representing an access into a global string with the given
-/// name, creating the string if necessary.
+static LLVM::GlobalOp createOrInsertGlobal(PatternRewriter &rewriter,
+                                           ModuleOp mod, LLVMDialect *dialect,
+                                           TargetInfo &targetInfo,
+                                           StringRef name, LLVMType valueTy,
+                                           LLVM::Linkage linkage,
+                                           LLVM::ThreadLocalMode tlsMode) {
+  auto *context = mod.getContext();
+
+  if (auto global = mod.lookupSymbol<LLVM::GlobalOp>(name)) return global;
+
+  // Insert the function into the body of the parent module.
+  PatternRewriter::InsertionGuard insertGuard(rewriter);
+  rewriter.setInsertionPointToStart(mod.getBody());
+  auto global = rewriter.create<LLVM::GlobalOp>(mod.getLoc(), valueTy,
+                                                /*isConstant=*/false, linkage,
+                                                tlsMode, name, Attribute());
+  return global;
+}
+
 static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
                                      StringRef name, StringRef value,
                                      ModuleOp mod, LLVMDialect *dialect) {
@@ -194,10 +168,6 @@ static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
   return llvm_addressof(global);
 }
 
-// Builds IR to construct a boxed list term
-// it is expected that the cons cell value is a pointer value, not an immediate.
-//
-// The type of the resulting term is Term
 static Value do_make_list(OpBuilder &builder, edsc::ScopedContext &context,
                           LLVMTypeConverter &converter, TargetInfo &targetInfo,
                           Value cons) {
@@ -224,6 +194,18 @@ static Value do_box(OpBuilder &builder, edsc::ScopedContext &context,
   auto tagAttr = builder.getIntegerAttr(intNTy, boxTag);
   Value boxTagConst = llvm_constant(termTy, tagAttr);
   return llvm_or(valInt, boxTagConst);
+}
+
+static Value do_box_literal(OpBuilder &builder, edsc::ScopedContext &context,
+                            LLVMTypeConverter &converter,
+                            TargetInfo &targetInfo, Value val) {
+  auto literalTag = targetInfo.literalTag();
+  auto intNTy = builder.getIntegerType(targetInfo.pointerSizeInBits);
+  auto termTy = targetInfo.getUsizeType();
+  Value valInt = llvm_ptrtoint(termTy, val);
+  auto tagAttr = builder.getIntegerAttr(intNTy, literalTag);
+  Value literalTagConst = llvm_constant(termTy, tagAttr);
+  return llvm_or(valInt, literalTagConst);
 }
 
 static Value do_unbox(OpBuilder &builder, edsc::ScopedContext &context,
@@ -263,90 +245,51 @@ static Value do_unbox_list(OpBuilder &builder, edsc::ScopedContext &context,
   return llvm_inttoptr(innerTy, untagged);
 }
 
-namespace {
+static Value do_mask_immediate(OpBuilder &builder, edsc::ScopedContext &context,
+                               TargetInfo &targetInfo, Value val) {
+  auto maskInfo = targetInfo.immediateMask();
+
+  auto termTy = targetInfo.getUsizeType();
+  auto intTy = builder.getIntegerType(targetInfo.pointerSizeInBits);
+  auto maskAttr = builder.getIntegerAttr(intTy, maskInfo.mask);
+  auto tagAttr = builder.getIntegerAttr(intTy, 4ull << 47);
+  Value tagConst = llvm_constant(termTy, tagAttr);
+  Value tagged = llvm_or(val, tagConst);
+  return tagged;
+  /*
+  if (maskInfo.requiresShift()) {
+    auto shiftAttr = builder.getIntegerAttr(intTy, maskInfo.shift);
+    Value shiftConst = llvm_constant(termTy, shiftAttr);
+    Value shifted = llvm_shl(val, shiftConst);
+    Value maskConst = llvm_constant(termTy, maskAttr);
+    return llvm_or(shifted, maskConst);
+  } else {
+    Value maskConst = llvm_constant(termTy, maskAttr);
+    return llvm_or(val, maskConst);
+  }
+  */
+}
+
+Value do_unmask_immediate(OpBuilder &builder, edsc::ScopedContext &context,
+                          TargetInfo &targetInfo, Value val) {
+  auto maskInfo = targetInfo.immediateMask();
+
+  auto termTy = targetInfo.getUsizeType();
+  auto i1Ty = targetInfo.getI1Type();
+  auto intTy = builder.getIntegerType(targetInfo.pointerSizeInBits);
+  auto maskAttr = builder.getIntegerAttr(intTy, maskInfo.mask);
+  auto shiftAttr = builder.getIntegerAttr(intTy, maskInfo.shift);
+  Value maskConst = llvm_constant(termTy, maskAttr);
+  Value masked = llvm_and(val, maskConst);
+  if (maskInfo.requiresShift()) {
+    Value shiftConst = llvm_constant(termTy, shiftAttr);
+    return llvm_shr(masked, shiftConst);
+  } else {
+    return masked;
+  }
+}
 
 /// Conversion Patterns
-
-template <typename Op>
-class EIROpConversion : public mlir::OpConversionPattern<Op> {
- public:
-  explicit EIROpConversion(MLIRContext *context, LLVMTypeConverter &converter_,
-                           TargetInfo &targetInfo_,
-                           mlir::PatternBenefit benefit = 1)
-      : mlir::OpConversionPattern<Op>::OpConversionPattern(context, benefit),
-        dialect(converter_.getDialect()),
-        typeConverter(converter_),
-        targetInfo(targetInfo_) {}
-
- protected:
-  LLVMTypeConverter &typeConverter;
-  TargetInfo &targetInfo;
-  LLVMDialect *dialect;
-
-  LLVMType getUsizeType() const { return targetInfo.getUsizeType(); }
-  LLVMType getI1Type() const { return targetInfo.getI1Type(); }
-  LLVMType getI32Type() const { return LLVMType::getIntNTy(dialect, 32); }
-
-  LLVMType getTupleType(ArrayRef<LLVMType> elementTypes) const {
-    return targetInfo.makeTupleType(dialect, elementTypes);
-  }
-
-  Type getIntegerType(OpBuilder &builder) const {
-    return builder.getIntegerType(targetInfo.pointerSizeInBits);
-  }
-
-  Attribute getIntegerAttr(OpBuilder &builder, int64_t i) const {
-    return builder.getIntegerAttr(getIntegerType(builder), i);
-  }
-
-  Attribute getIntegerAttr(OpBuilder &builder, APInt &i) const {
-    return builder.getIntegerAttr(getIntegerType(builder), i.getLimitedValue());
-  }
-
-  Attribute getI32Attr(OpBuilder &builder, int64_t i) const {
-    return builder.getIntegerAttr(builder.getIntegerType(32), i);
-  }
-
-  FlatSymbolRefAttr getOrInsertFunction(
-      PatternRewriter &builder, ModuleOp mod, StringRef name, LLVMType retTy,
-      ArrayRef<LLVMType> argTypes = {}) const {
-    return createOrInsertFunction(builder, mod, dialect, targetInfo, name,
-                                  retTy, argTypes);
-  }
-
-  Value processAlloc(PatternRewriter &builder, edsc::ScopedContext &context,
-                     ModuleOp parentModule, Location loc, LLVMType ty,
-                     Value allocBytes) const {
-    auto ptrTy = ty.getPointerTo();
-    auto usizeTy = getUsizeType();
-    auto callee = getOrInsertFunction(
-        builder, parentModule, "__lumen_builtin_malloc", ptrTy, {usizeTy});
-    auto call = builder.create<mlir::CallOp>(loc, callee, ArrayRef<Type>{ptrTy},
-                                             ArrayRef<Value>{allocBytes});
-    return call.getResult(0);
-  }
-
-  Value make_list(OpBuilder &builder, edsc::ScopedContext &context,
-                  Value cons) const {
-    return do_make_list(builder, context, typeConverter, targetInfo, cons);
-  }
-
-  Value make_box(OpBuilder &builder, edsc::ScopedContext &context,
-                 Value val) const {
-    return do_box(builder, context, typeConverter, targetInfo, val);
-  }
-
-  Value unbox(OpBuilder &builder, edsc::ScopedContext &context,
-              LLVMType innerTy, Value box) const {
-    return do_unbox(builder, context, typeConverter, targetInfo, innerTy, box);
-  }
-
-  Value unbox_list(OpBuilder &builder, edsc::ScopedContext &context,
-                   LLVMType innerTy, Value box) const {
-    return do_unbox_list(builder, context, typeConverter, targetInfo, innerTy,
-                         box);
-  }
-};
 
 struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
   using EIROpConversion::EIROpConversion;
@@ -473,9 +416,71 @@ struct YieldOpConversion : public EIROpConversion<YieldOp> {
     ModuleOp parentModule = op.getParentOfType<ModuleOp>();
     auto termTy = getUsizeType();
     auto callee = getOrInsertFunction(rewriter, parentModule,
-                                      "__lumen_builtin_yield", termTy);
+                                      "__lumen_builtin_yield", LLVMType());
 
-    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, ArrayRef<Type>({}));
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, ArrayRef<Type>{});
+    return matchSuccess();
+  }
+};
+
+struct YieldCheckOpConversion : public EIROpConversion<YieldCheckOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult matchAndRewrite(
+      YieldCheckOp op, ArrayRef<Value> properOperands,
+      ArrayRef<Block *> destinations, ArrayRef<ArrayRef<Value>> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    YieldCheckOpOperandAdaptor adaptor(properOperands);
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+
+    auto termTy = getUsizeType();
+    auto reductionCountGlobal = getOrInsertGlobal(
+        rewriter, parentModule, "CURRENT_REDUCTION_COUNT", termTy,
+        LLVM::Linkage::External, LLVM::ThreadLocalMode::LocalExec);
+
+    // Load the current reduction count
+    Value reductionCount = llvm_load(reductionCountGlobal);
+    // If greater than or equal to the max reduction count, yield
+    Value maxReductions =
+        llvm_constant(termTy, getIntegerAttr(rewriter, MAX_REDUCTION_COUNT));
+    Value shouldYield =
+        llvm_icmp(LLVM::ICmpPredicate::uge, reductionCount, maxReductions);
+
+    auto trueDest = op.getTrueDest();
+    auto falseDest = op.getFalseDest();
+    auto trueArgs = ValueRange(op.getTrueOperands());
+    auto falseArgs = ValueRange(op.getFalseOperands());
+
+    auto attrs = op.getAttrs();
+    ArrayRef<Block *> dests({trueDest, falseDest});
+    ArrayRef<ValueRange> destsArgs({trueArgs, falseArgs});
+    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(op, shouldYield, dests,
+                                                destsArgs, attrs);
+    return matchSuccess();
+  }
+};
+
+struct IncrementReductionsOpConversion
+    : public EIROpConversion<IncrementReductionsOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult matchAndRewrite(
+      IncrementReductionsOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+
+    auto termTy = getUsizeType();
+    auto reductionCount = getOrInsertGlobal(
+        rewriter, parentModule, "CURRENT_REDUCTION_COUNT", termTy,
+        LLVM::Linkage::External, LLVM::ThreadLocalMode::LocalExec);
+
+    auto incBy = op.increment().getLimitedValue();
+    Value increment = llvm_constant(termTy, getIntegerAttr(rewriter, incBy));
+    llvm_atomicrmw(termTy, LLVM::AtomicBinOp::add, reductionCount, increment,
+                   LLVM::AtomicOrdering::unordered);
+    rewriter.eraseOp(op);
     return matchSuccess();
   }
 };
@@ -554,7 +559,7 @@ struct CondBranchOpConversion : public EIROpConversion<eir::CondBranchOp> {
       if (maskInfo.requiresShift()) {
         Value shiftConst =
             llvm_constant(termTy, getIntegerAttr(rewriter, maskInfo.shift));
-        Value shiftedCond = llvm_shl(maskedCond, shiftConst);
+        Value shiftedCond = llvm_shr(maskedCond, shiftConst);
         finalCond = llvm_trunc(i1Ty, shiftedCond);
       } else {
         finalCond = llvm_trunc(i1Ty, maskedCond);
@@ -586,6 +591,7 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
   PatternMatchResult matchAndRewrite(
       eir::FuncOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext context(rewriter, op.getLoc());
     SmallVector<NamedAttribute, 2> attrs;
     for (auto fa : op.getAttrs()) {
       if (fa.first.is(SymbolTable::getSymbolAttrName()) ||
@@ -602,6 +608,33 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
                                                  op.getType(), attrs, argAttrs);
     rewriter.inlineRegionBefore(op.getBody(), newFunc.getBody(), newFunc.end());
     rewriter.eraseOp(op);
+
+    // Insert yield check if this function is not extern
+    auto *region = newFunc.getCallableRegion();
+    if (region) {
+      auto ip = rewriter.saveInsertionPoint();
+      auto entry = &region->front();
+      auto entryOp = &entry->front();
+      // Splits `entry` returning a block containing all the previous
+      // contents of entry since we're splitting on the first op. This
+      // block is `doYield` because split it a second time to give us
+      // the success block. Since the values in `entry` dominate both
+      // splits, we don't have to pass arguments
+      Block *doYield = entry->splitBlock(&entry->front());
+      Block *dontYield = doYield->splitBlock(&doYield->front());
+      // Insert yield check in original entry block
+      rewriter.setInsertionPointToEnd(entry);
+      rewriter.create<YieldCheckOp>(op.getLoc(), doYield, ValueRange{},
+                                    dontYield, ValueRange{});
+      // Then insert the actual yield point in the yield block
+      rewriter.setInsertionPointToEnd(doYield);
+      rewriter.create<YieldOp>(op.getLoc());
+      // Then post-yield, branch to the real entry block
+      rewriter.create<BranchOp>(op.getLoc(), dontYield);
+      // Reset the builder to where it was originally
+      rewriter.restoreInsertionPoint(ip);
+    }
+
     return matchSuccess();
   }
 };
@@ -625,6 +658,29 @@ struct PrintOpConversion : public EIROpConversion<PrintOp> {
         rewriter, parentModule, "__lumen_builtin_printf", termTy, {termTy});
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, printfRef, termTy, operands);
+    return matchSuccess();
+  }
+};
+
+struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult matchAndRewrite(
+      ThrowOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    ThrowOpOperandAdaptor adaptor(operands);
+
+    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
+
+    Value reason = adaptor.reason();
+    auto termTy = getUsizeType();
+    auto voidTy = LLVMType::getVoidTy(dialect);
+    auto callee = getOrInsertFunction(
+        rewriter, parentModule, "__lumen_builtin_throw", voidTy, {termTy});
+
+    rewriter.create<mlir::CallOp>(op.getLoc(), callee, ArrayRef<Type>{},
+                                  operands);
+    rewriter.replaceOpWithNewOp<LLVM::UnreachableOp>(op, ArrayRef<Value>{});
     return matchSuccess();
   }
 };
@@ -667,40 +723,17 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
       return matchFailure();
     }
 
+    // Always increment reduction count when performing a call
+    rewriter.create<IncrementReductionsOp>(op.getLoc());
+
     auto calleeName = op.getCallee();
     auto callee = getOrInsertFunction(rewriter, parentModule, calleeName,
                                       resultType, argTypes);
 
-    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, callee, resultTypes,
-                                              adaptor.operands());
-    return matchSuccess();
-  }
-};
-
-struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
-  using EIROpConversion::EIROpConversion;
-
-  PatternMatchResult matchAndRewrite(
-      CmpEqOp op, ArrayRef<Value> operands,
-      ConversionPatternRewriter &rewriter) const override {
-    edsc::ScopedContext context(rewriter, op.getLoc());
-    CmpEqOpOperandAdaptor adaptor(operands);
-
-    ModuleOp parentModule = op.getParentOfType<ModuleOp>();
-    auto termTy = getUsizeType();
-    auto int1ty = getI1Type();
-    auto callee =
-        getOrInsertFunction(rewriter, parentModule, "__lumen_builtin_cmpeq",
-                            int1ty, {termTy, termTy});
-
-    auto lhs = adaptor.lhs();
-    auto rhs = adaptor.rhs();
-    ArrayRef<Value> args({lhs, rhs});
-    auto callOp = rewriter.create<mlir::CallOp>(op.getLoc(), callee,
-                                                ArrayRef<Type>{int1ty}, args);
-    auto result = callOp.getResult(0);
-
-    rewriter.replaceOp(op, result);
+    auto callOp = rewriter.create<mlir::CallOp>(
+        op.getLoc(), callee, resultTypes, adaptor.operands());
+    callOp.setAttr("tail", rewriter.getUnitAttr());
+    rewriter.replaceOp(op, callOp.getResults());
     return matchSuccess();
   }
 };
@@ -785,6 +818,23 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
       }
       rewriter.replaceOp(op, ptr);
       return matchSuccess();
+    }
+
+    // Convert immediate to opaque term
+    if (auto it = op.input().getType().dyn_cast_or_null<OpaqueTermType>()) {
+      // Special handling needed for booleans
+      if (inTy.isIntegerTy(1)) {
+        Value term = llvm_zext(termTy, in);
+        Value imm = mask_immediate(rewriter, context, term);
+        rewriter.replaceOp(op, imm);
+        return matchSuccess();
+      }
+      if (origOutTy.isa<TermType>()) {
+        Value term = llvm_bitcast(termTy, in);
+        Value imm = mask_immediate(rewriter, context, term);
+        rewriter.replaceOp(op, imm);
+        return matchSuccess();
+      }
     }
 
     return matchFailure();
@@ -932,8 +982,11 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
     Value valPtrLoad = llvm_load(valPtr);
     Value header = llvm_constant(termTy, getIntegerAttr(rewriter, headerRaw));
     Value flags = llvm_constant(termTy, getIntegerAttr(rewriter, flagsRaw));
-    Value allocN = llvm_constant(termTy, rewriter.getI64IntegerAttr(1));
-    Value descAlloc = llvm_alloca(ptrTy, allocN, rewriter.getI64IntegerAttr(8));
+
+    int64_t size = (targetInfo.pointerSizeInBits / 8) * 3;
+    Value allocBytes = llvm_constant(termTy, rewriter.getI64IntegerAttr(size));
+    Value descAlloc = processAlloc(rewriter, context, parentModule, op.getLoc(),
+                                   ty, allocBytes);
 
     Value desc = llvm_undef(ty);
     desc = llvm_insertvalue(ty, desc, header, rewriter.getI64ArrayAttr(0));
@@ -941,11 +994,10 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
     desc = llvm_insertvalue(ty, desc, valPtrLoad, rewriter.getI64ArrayAttr(2));
     llvm_store(desc, descAlloc);
 
-    Value descPtrInt = llvm_ptrtoint(termTy, descAlloc);
-    Value boxedDescPtr = llvm_or(descPtrInt, literalTagConst);
-    Value boxedDesc = llvm_bitcast(termTy, boxedDescPtr);
+    // Box the allocated tuple
+    auto boxed = make_literal(rewriter, context, descAlloc);
 
-    rewriter.replaceOp(op, boxedDesc);
+    rewriter.replaceOp(op, boxed);
     return matchSuccess();
   }
 };
@@ -1258,14 +1310,11 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
   }
 };
 
-}  // namespace
-
 static void populateEIRToStandardConversionPatterns(
     OwningRewritePatternList &patterns, mlir::MLIRContext *context,
     LLVMTypeConverter &converter, TargetInfo &targetInfo) {
   patterns.insert<ReturnOpConversion, FuncOpConversion, BranchOpConversion,
                   /*
-                  IfOpConversion,
                   ConstructMapOpConversion,
                   MapInsertOpConversion,
                   MapUpdateOpConversion,
@@ -1281,25 +1330,15 @@ void populateEIRToLLVMConversionPatterns(OwningRewritePatternList &patterns,
                                          TargetInfo &targetInfo) {
   patterns
       .insert<CondBranchOpConversion, UnreachableOpConversion, CallOpConversion,
-              YieldOpConversion, GetElementPtrOpConversion, LoadOpConversion,
-              IsTypeOpConversion, CastOpConversion,
+              YieldOpConversion, YieldCheckOpConversion,
+              IncrementReductionsOpConversion, GetElementPtrOpConversion,
+              LoadOpConversion, IsTypeOpConversion, CastOpConversion,
               /*
               LogicalAndOpConversion,
               LogicalOrOpConversion,
               */
-              CmpEqOpConversion,
-              /*
-              CmpNeqOpConversion,
-              CmpLtOpConversion,
-              CmpLteOpConversion,
-              CmpGtOpConversion,
-              CmpGteOpConversion,
-              ThrowOpConversion,
-              ConsOpConversion,
-              TupleOpConversion,
-              */
-              TraceCaptureOpConversion, TraceConstructOpConversion,
-              ConsOpConversion, TupleOpConversion,
+              ThrowOpConversion, TraceCaptureOpConversion,
+              TraceConstructOpConversion, ConsOpConversion, TupleOpConversion,
               /*
               BinaryPushOpConversion,
               */
@@ -1311,13 +1350,14 @@ void populateEIRToLLVMConversionPatterns(OwningRewritePatternList &patterns,
                ConstantMapOpConversion
                */
               >(context, converter, targetInfo);
+  populateComparisonOpConversionPatterns(patterns, context, converter,
+                                         targetInfo);
+  populateMathOpConversionPatterns(patterns, context, converter, targetInfo);
 
   // Populate the type conversions for EIR types.
   converter.addConversion(
       [&](Type type) { return convertType(type, converter, targetInfo); });
 }
-
-namespace {
 
 // A pass converting the EIR dialect into the Standard dialect.
 class ConvertEIRToLLVMPass : public mlir::ModulePass<ConvertEIRToLLVMPass> {
@@ -1369,8 +1409,6 @@ class ConvertEIRToLLVMPass : public mlir::ModulePass<ConvertEIRToLLVMPass> {
  private:
   TargetMachine *targetMachine;
 };
-
-}  // namespace
 
 std::unique_ptr<mlir::OpPassBase<mlir::ModuleOp>> createConvertEIRToLLVMPass(
     TargetMachine *targetMachine) {

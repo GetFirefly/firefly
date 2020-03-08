@@ -100,6 +100,36 @@ LogicalResult FuncOp::verifyType() {
 }
 
 //===----------------------------------------------------------------------===//
+// eir.call_indirect
+//===----------------------------------------------------------------------===//
+namespace {
+/// Fold indirect calls that have a constant function as the callee operand.
+struct SimplifyIndirectCallWithKnownCallee
+    : public OpRewritePattern<CallIndirectOp> {
+  using OpRewritePattern<CallIndirectOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(CallIndirectOp indirectCall,
+                                     PatternRewriter &rewriter) const override {
+    // Check that the callee is a constant callee.
+    FlatSymbolRefAttr calledFn;
+    if (!matchPattern(indirectCall.getCallee(), ::mlir::m_Constant(&calledFn)))
+      return matchFailure();
+
+    // Replace with a direct call.
+    rewriter.replaceOpWithNewOp<CallOp>(indirectCall, calledFn,
+                                        indirectCall.getResultTypes(),
+                                        indirectCall.getArgOperands());
+    return matchSuccess();
+  }
+};
+}  // end anonymous namespace.
+
+void CallIndirectOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<SimplifyIndirectCallWithKnownCallee>(context);
+}
+
+//===----------------------------------------------------------------------===//
 // eir.br
 //===----------------------------------------------------------------------===//
 
@@ -216,16 +246,46 @@ static void print(OpAsmPrinter &p, ReturnOp &op) {
 }
 
 //===----------------------------------------------------------------------===//
-// eir.yield
+// eir.yield.check
 //===----------------------------------------------------------------------===//
+static ParseResult parseYieldCheckOp(OpAsmParser &parser,
+                                     OperationState &result) {
+  SmallVector<Value, 4> destOperands;
+  Block *dest;
+  OpAsmParser::OperandType condInfo;
 
-static ParseResult parseYieldOp(OpAsmParser &parser, OperationState &result) {
-  return parser.parseOptionalAttrDict(result.attributes);
+  // Parse the true successor.
+  if (failed(parser.parseSuccessorAndUseList(dest, destOperands))) {
+    return failure();
+  }
+  result.addSuccessor(dest, destOperands);
+
+  // Parse the false successor.
+  destOperands.clear();
+  if (failed(parser.parseComma()) ||
+      failed(parser.parseSuccessorAndUseList(dest, destOperands))) {
+    return failure();
+  }
+  result.addSuccessor(dest, destOperands);
+
+  if (failed(parser.parseOptionalAttrDict(result.attributes))) {
+    return failure();
+  }
+
+  return success();
 }
 
-static void print(OpAsmPrinter &p, YieldOp &op) {
-  p << op.getOperationName();
+static void print(OpAsmPrinter &p, YieldCheckOp &op) {
+  p << op.getOperationName() << ' ';
+  p.printSuccessorAndUseList(op.getOperation(), CondBranchOp::trueIndex);
+  p << ", ";
+  p.printSuccessorAndUseList(op.getOperation(), CondBranchOp::falseIndex);
   p.printOptionalAttrDict(op.getAttrs());
+}
+
+static LogicalResult verify(YieldCheckOp op) {
+  // TODO
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -289,126 +349,6 @@ static LogicalResult verify(ConstructMapOp op) {
 
 static LogicalResult verify(BinaryPushOp op) {
   // TODO
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// IfOp
-//===----------------------------------------------------------------------===//
-
-void IfOp::build(Builder *builder, OperationState &result, Value cond,
-                 bool withOtherwiseRegion) {
-  result.addOperands(cond);
-
-  Region *ifRegion = result.addRegion();
-  Region *elseRegion = result.addRegion();
-  Region *otherwiseRegion = result.addRegion();
-
-  OpBuilder opBuilder(builder->getContext());
-
-  Block *ifEntry = opBuilder.createBlock(ifRegion);
-  Block *elseEntry = opBuilder.createBlock(elseRegion);
-  Block *otherwiseEntry = opBuilder.createBlock(otherwiseRegion);
-  if (!withOtherwiseRegion) {
-    opBuilder.create<eir::UnreachableOp>(result.location);
-  }
-}
-
-static ParseResult parseIfOp(OpAsmParser &parser, OperationState &result) {
-  // Create the regions
-  result.regions.reserve(3);
-  Region *ifRegion = result.addRegion();
-  Region *elseRegion = result.addRegion();
-  Region *otherwiseRegion = result.addRegion();
-
-  auto &builder = parser.getBuilder();
-  OpAsmParser::OperandType cond;
-  Type i1Type = builder.getIntegerType(1);
-  if (parser.parseOperand(cond) ||
-      parser.resolveOperand(cond, i1Type, result.operands))
-    return failure();
-
-  // Parse the 'if' region.
-  if (parser.parseRegion(*ifRegion, {}, {})) return failure();
-
-  // Parse the 'else' region.
-  if (parser.parseKeyword("else") || parser.parseRegion(*elseRegion, {}, {}))
-    return failure();
-
-  // If we find an 'otherwise' keyword then parse the 'otherwise' region.
-  if (!parser.parseOptionalKeyword("otherwise")) {
-    if (parser.parseRegion(*otherwiseRegion, {}, {})) return failure();
-  }
-
-  // Parse the optional attribute list.
-  if (parser.parseOptionalAttrDict(result.attributes)) return failure();
-
-  return success();
-}
-
-static void print(OpAsmPrinter &p, IfOp op) {
-  p << IfOp::getOperationName() << " " << op.condition();
-  p.printRegion(op.ifRegion(),
-                /*printEntryBlockArgs=*/false,
-                /*printBlockTerminators=*/false);
-
-  p << " else";
-  p.printRegion(op.elseRegion(),
-                /*printEntryBlockArgs=*/false,
-                /*printBlockTerminators=*/false);
-  // Print the 'otherwise' region if it exists and has a block.
-  auto &otherwiseRegion = op.otherwiseRegion();
-  if (!otherwiseRegion.empty()) {
-    p << " otherwise";
-    p.printRegion(otherwiseRegion,
-                  /*printEntryBlockArgs=*/false,
-                  /*printBlockTerminators=*/false);
-  }
-
-  p.printOptionalAttrDict(op.getAttrs());
-}
-
-static LogicalResult verify(IfOp op) {
-  // Verify that the entry of each child region does not have arguments.
-  for (auto &region : op.getOperation()->getRegions()) {
-    if (region.empty()) continue;
-
-    // Non-empty regions must contain a single basic block.
-    if (std::next(region.begin()) != region.end())
-      return op.emitOpError("expects region #")
-             << region.getRegionNumber() << " to have 0 or 1 blocks";
-
-    for (auto &b : region) {
-      // Verify that the block is not empty
-      if (b.empty()) return op.emitOpError("expects a non-empty block");
-
-      // Verify that the block takes no arguments
-      if (b.getNumArguments() != 0)
-        return op.emitOpError(
-            "requires that child entry blocks have no arguments");
-
-      // Verify that block terminates with valid terminator
-      Operation &terminator = b.back();
-      if (isa<ReturnOp>(terminator))
-        continue;
-      else if (isa<BranchOp>(terminator))
-        continue;
-      else if (isa<CondBranchOp>(terminator))
-        continue;
-      else if (isa<CallOp>(terminator))
-        continue;
-      else if (isa<eir::UnreachableOp>(terminator))
-        continue;
-
-      return op
-          .emitOpError(
-              "expects regions to end with 'return', 'br', 'cond_br', "
-              "'eir.unreachable' or 'eir.call', found '" +
-              terminator.getName().getStringRef() + "'")
-          .attachNote();
-    }
-  }
-
   return success();
 }
 

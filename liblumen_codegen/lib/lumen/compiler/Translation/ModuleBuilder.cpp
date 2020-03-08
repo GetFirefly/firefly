@@ -5,6 +5,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
@@ -19,6 +20,7 @@
 #include "mlir/IR/StandardTypes.h"
 
 using ::llvm::Optional;
+using ::llvm::StringSwitch;
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Builder, MLIRBuilderRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Location, MLIRLocationRef);
@@ -347,19 +349,43 @@ void ModuleBuilder::build_if(Value value, Block *yes, Block *no, Block *other,
                              SmallVectorImpl<Value> &yesArgs,
                              SmallVectorImpl<Value> &noArgs,
                              SmallVectorImpl<Value> &otherArgs) {
-  // Create the `if`
+  //  Create the `if`, if necessary
   bool withOtherwiseRegion = other != nullptr;
-  auto op =
-      builder.create<IfOp>(builder.getUnknownLoc(), value, withOtherwiseRegion);
-  // For each condition, generate a branch to the appropriate destination block
-  auto ifBuilder = op.getIfBodyBuilder();
-  ifBuilder.create<BranchOp>(builder.getUnknownLoc(), yes, yesArgs);
-  auto elseBuilder = op.getElseBodyBuilder();
-  ifBuilder.create<BranchOp>(builder.getUnknownLoc(), no, noArgs);
-  if (withOtherwiseRegion) {
-    auto otherBuilder = op.getOtherwiseBodyBuilder();
-    otherBuilder.create<BranchOp>(builder.getUnknownLoc(), other, otherArgs);
+  Value isTrue = value;
+  if (!value.getType().isa<BooleanType>()) {
+    // The condition is not boolean, so we need to do a comparison
+    auto trueConst =
+        builder.create<ConstantAtomOp>(builder.getUnknownLoc(), true);
+    isTrue = builder.create<CmpEqOp>(builder.getUnknownLoc(), value, trueConst,
+                                     /*strict=*/true);
   }
+
+  if (!other) {
+    // No need to do any additional comparisons
+    builder.create<CondBranchOp>(builder.getUnknownLoc(), isTrue, yes, yesArgs,
+                                 no, noArgs);
+    return;
+  }
+
+  // Otherwise we need an additional check to see if we use the otherwise branch
+  auto falseConst =
+      builder.create<ConstantAtomOp>(builder.getUnknownLoc(), false);
+  Value isFalse = builder.create<CmpEqOp>(builder.getUnknownLoc(), value,
+                                          falseConst, /*strict=*/true);
+
+  Block *currentBlock = builder.getBlock();
+  Block *falseBlock = currentBlock->splitBlock(falseConst);
+
+  builder.setInsertionPointToEnd(falseBlock);
+  builder.create<CondBranchOp>(builder.getUnknownLoc(), isFalse, no, noArgs,
+                               other, otherArgs);
+
+  // Go back to original block and insert conditional branch for first
+  // comparison
+  builder.setInsertionPointToEnd(currentBlock);
+  builder.create<CondBranchOp>(builder.getUnknownLoc(), isTrue, yes, yesArgs,
+                               falseBlock, ArrayRef<Value>{});
+  return;
 }
 
 //===----------------------------------------------------------------------===//
@@ -715,23 +741,104 @@ Value ModuleBuilder::build_logical_or(Value lhs, Value rhs) {
   return op.getResult();
 }
 
-extern "C" MLIRValueRef MLIRBuildPrintOp(MLIRModuleBuilderRef b,
-                                         MLIRValueRef *argv, unsigned argc) {
-  ModuleBuilder *builder = unwrap(b);
-  SmallVector<Value, 1> args;
-  unwrapValues(argv, argc, args);
-  return wrap(builder->build_print_op(args));
-}
-
-Value ModuleBuilder::build_print_op(ArrayRef<Value> args) {
-  auto termTy = TermType::get(builder.getContext());
-  auto op = builder.create<PrintOp>(builder.getUnknownLoc(), termTy, args);
-  return op.getResult();
-}
-
 //===----------------------------------------------------------------------===//
 // Function Calls
 //===----------------------------------------------------------------------===//
+
+#define INTRINSIC_BUILDER(Alias, Op)                             \
+  static Value Alias(OpBuilder &builder, ArrayRef<Value> args) { \
+    auto op = builder.create<Op>(builder.getUnknownLoc(), args); \
+                                                                 \
+    return op.getResult();                                       \
+  }
+
+INTRINSIC_BUILDER(buildIntrinsicPrintOp, PrintOp);
+INTRINSIC_BUILDER(buildIntrinsicAddOp, AddOp);
+INTRINSIC_BUILDER(buildIntrinsicSubOp, SubOp);
+INTRINSIC_BUILDER(buildIntrinsicMulOp, MulOp);
+INTRINSIC_BUILDER(buildIntrinsicDivOp, DivOp);
+INTRINSIC_BUILDER(buildIntrinsicRemOp, RemOp);
+INTRINSIC_BUILDER(buildIntrinsicFDivOp, FDivOp);
+INTRINSIC_BUILDER(buildIntrinsicBslOp, BslOp);
+INTRINSIC_BUILDER(buildIntrinsicBsrOp, BsrOp);
+INTRINSIC_BUILDER(buildIntrinsicBandOp, BandOp);
+// INTRINSIC_BUILDER(buildIntrinsicBnotOp, BnotOp);
+INTRINSIC_BUILDER(buildIntrinsicBorOp, BorOp);
+INTRINSIC_BUILDER(buildIntrinsicBxorOp, BxorOp);
+INTRINSIC_BUILDER(buildIntrinsicCmpEqOp, CmpEqOp);
+INTRINSIC_BUILDER(buildIntrinsicCmpNeqOp, CmpNeqOp);
+INTRINSIC_BUILDER(buildIntrinsicCmpLtOp, CmpLtOp);
+INTRINSIC_BUILDER(buildIntrinsicCmpLteOp, CmpLteOp);
+INTRINSIC_BUILDER(buildIntrinsicCmpGtOp, CmpGtOp);
+INTRINSIC_BUILDER(buildIntrinsicCmpGteOp, CmpGteOp);
+
+static Value buildIntrinsicCmpEqStrictOp(OpBuilder &builder,
+                                         ArrayRef<Value> args) {
+  assert(args.size() == 2 && "expected =:= operator to receive two operands");
+  Value lhs = args[0];
+  Value rhs = args[1];
+  auto op = builder.create<CmpEqOp>(builder.getUnknownLoc(), lhs, rhs,
+                                    /*strict=*/true);
+}
+
+static Value buildIntrinsicCmpNeqStrictOp(OpBuilder &builder,
+                                          ArrayRef<Value> args) {
+  assert(args.size() == 2 && "expected =/= operator to receive two operands");
+  Value lhs = args[0];
+  Value rhs = args[1];
+  auto op = builder.create<CmpNeqOp>(builder.getUnknownLoc(), lhs, rhs,
+                                     /*strict=*/true);
+}
+
+using BuildIntrinsicFnT = Value (*)(OpBuilder &, ArrayRef<Value>);
+
+static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
+  auto fnPtr = StringSwitch<BuildIntrinsicFnT>(target)
+                   .Case("erlang:print/1", buildIntrinsicPrintOp)
+                   .Case("erlang:+/2", buildIntrinsicAddOp)
+                   .Case("erlang:-/2", buildIntrinsicSubOp)
+                   .Case("erlang:*/2", buildIntrinsicMulOp)
+                   .Case("erlang:div/2", buildIntrinsicDivOp)
+                   .Case("erlang:rem/2", buildIntrinsicRemOp)
+                   .Case("erlang://2", buildIntrinsicFDivOp)
+                   .Case("erlang:bsl/2", buildIntrinsicBslOp)
+                   .Case("erlang:bsr/2", buildIntrinsicBsrOp)
+                   .Case("erlang:band/2", buildIntrinsicBandOp)
+                   //.Case("erlang:bnot/2", buildIntrinsicBnotOp)
+                   .Case("erlang:bor/2", buildIntrinsicBorOp)
+                   .Case("erlang:bxor/2", buildIntrinsicBxorOp)
+                   .Case("erlang:=:=/2", buildIntrinsicCmpEqStrictOp)
+                   .Case("erlang:=/=/2", buildIntrinsicCmpNeqStrictOp)
+                   .Case("erlang:==/2", buildIntrinsicCmpEqOp)
+                   .Case("erlang:/=/2", buildIntrinsicCmpNeqOp)
+                   .Case("erlang:</2", buildIntrinsicCmpLtOp)
+                   .Case("erlang:=</2", buildIntrinsicCmpLteOp)
+                   .Case("erlang:>/2", buildIntrinsicCmpGtOp)
+                   .Case("erlang:>=/2", buildIntrinsicCmpGteOp)
+                   .Default(nullptr);
+  if (fnPtr == nullptr) {
+    return llvm::None;
+  } else {
+    return fnPtr;
+  }
+}
+
+extern "C" bool MLIRIsIntrinsic(const char *name) {
+  return getIntrinsicBuilder(name).hasValue();
+}
+
+extern "C" MLIRValueRef MLIRBuildIntrinsic(MLIRModuleBuilderRef b,
+                                           const char *name, MLIRValueRef *argv,
+                                           unsigned argc) {
+  ModuleBuilder *builder = unwrap(b);
+  auto buildIntrinsicFnOpt = getIntrinsicBuilder(name);
+  if (!buildIntrinsicFnOpt) return nullptr;
+
+  SmallVector<Value, 1> args;
+  unwrapValues(argv, argc, args);
+  auto buildIntrinsicFn = buildIntrinsicFnOpt.getValue();
+  return wrap(buildIntrinsicFn(builder->getBuilder(), args));
+}
 
 extern "C" void MLIRBuildStaticCall(MLIRModuleBuilderRef b, const char *name,
                                     MLIRValueRef *argv, unsigned argc,
@@ -753,81 +860,73 @@ extern "C" void MLIRBuildStaticCall(MLIRModuleBuilderRef b, const char *name,
                              errArgs);
 }
 
-static bool is_intrinsic(StringRef target) {
-  // PrintOp
-  if (target == "erlang:print/1") {
-    return true;
-  }
-  return false;
-}
-
-void ModuleBuilder::translate_call_to_intrinsic(
-    StringRef target, ArrayRef<Value> args, bool isTail, Block *ok,
-    ArrayRef<Value> okArgs, Block *err, ArrayRef<Value> errArgs) {
-  Value result;
-  if (target == "erlang:print/1") {
-    result = build_print_op(args);
-  }
-
-  assert(isTail && "unsupported intrinsic usage");
-  // If this is a tail call, we're returning the results directly
-  if (isTail) {
-    // Return result of call directly
-    builder.create<ReturnOp>(builder.getUnknownLoc(), result);
-    return;
-  }
-}
-
 void ModuleBuilder::build_static_call(StringRef target, ArrayRef<Value> args,
                                       bool isTail, Block *ok,
                                       ArrayRef<Value> okArgs, Block *err,
                                       ArrayRef<Value> errArgs) {
-  if (is_intrinsic(target)) {
-    translate_call_to_intrinsic(target, args, isTail, ok, okArgs, err, errArgs);
+  // If this is a call to an intrinsic, lower accordingly
+  auto buildIntrinsicFnOpt = getIntrinsicBuilder(target);
+  Value result;
+  if (buildIntrinsicFnOpt.hasValue()) {
+    auto buildIntrinsicFn = buildIntrinsicFnOpt.getValue();
+    auto result = buildIntrinsicFn(builder, args);
+    if (isTail) {
+      if (result) {
+        builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+      } else {
+        builder.create<ReturnOp>(builder.getUnknownLoc());
+      }
+    } else {
+      if (result) {
+        auto termTy = builder.getType<TermType>();
+        auto boolResult =
+            builder.create<CastOp>(builder.getUnknownLoc(), result, termTy);
+        builder.create<BranchOp>(builder.getUnknownLoc(), ok,
+                                 ArrayRef<Value>{boolResult});
+      } else {
+        builder.create<BranchOp>(builder.getUnknownLoc(), ok,
+                                 ArrayRef<Value>{});
+      }
+    }
     return;
   }
 
   // Create symbolref and lookup function definition (if present)
-  auto symbol = builder.getSymbolRefAttr(target);
-  auto fn = theModule.lookupSymbol<FuncOp>(symbol.getValue());
+  auto callee = builder.getSymbolRefAttr(target);
+  auto fn = theModule.lookupSymbol<FuncOp>(callee.getValue());
 
   // Build result types list
   SmallVector<Type, 1> fnResults;
   if (fn) {
-    auto fnType = fn.getType();
-    // Register callee symbol as called
-    calledSymbols.insert(std::make_pair(target, fnType));
     auto rs = fn.getCallableResults();
     fnResults.append(rs.begin(), rs.end());
   } else {
     auto termType = builder.getType<TermType>();
-    // Register callee symbol as called
     SmallVector<Type, 1> argTypes;
     for (auto arg : args) {
       argTypes.push_back(arg.getType());
     }
-    auto fnType = builder.getFunctionType(argTypes, {termType});
-    calledSymbols.insert(std::make_pair(target, fnType));
     fnResults.push_back(termType);
   }
 
   // Build call
   Operation *call =
-      builder.create<CallOp>(builder.getUnknownLoc(), symbol, fnResults, args);
+      builder.create<CallOp>(builder.getUnknownLoc(), callee, fnResults, args);
   assert(call->getNumResults() == 1 && "unsupported number of results");
-
-  // Get result value reference
-  Value callResult = call->getResult(0);
-
-  auto currentBlock = builder.getBlock();
-  auto currentRegion = currentBlock->getParent();
+  result = call->getResult(0);
 
   // If this is a tail call, we're returning the results directly
   if (isTail) {
-    // Return result of call directly
-    builder.create<ReturnOp>(builder.getUnknownLoc(), callResult);
+    if (result) {
+      builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+    } else {
+      builder.create<ReturnOp>(builder.getUnknownLoc());
+    }
     return;
   }
+
+  auto currentBlock = builder.getBlock();
+  auto currentRegion = currentBlock->getParent();
 
   // It isn't possible at this point to have neither ok or err blocks
   assert(((!ok && !err) == false) &&
@@ -836,56 +935,36 @@ void ModuleBuilder::build_static_call(StringRef target, ArrayRef<Value> args,
   SmallVector<Value, 1> okArgsFinal;
   SmallVector<Value, 1> errArgsFinal;
 
+  Value rhs = builder.create<ConstantNoneOp>(builder.getUnknownLoc());
+  Value isErr = builder.create<CmpEqOp>(builder.getUnknownLoc(), result, rhs,
+                                        /*strict=*/true);
+  Block *ifOk = ok;
+  Block *ifErr = err;
+
+  // No success block provided, so create block to handle returning
   if (!ok) {
-    // When successful, the function returns.
-    // - Create ok block with an argument for the return value
-    // - Insert return in ok block
-    ok = builder.createBlock(currentRegion);
-    ok->addArgument(builder.getType<TermType>());
-    Value retVal = ok->getArgument(0);
-    builder.create<ReturnOp>(builder.getUnknownLoc(), retVal);
-    // Insert conditional branch in call block
-    // Use comparison to NONE as condition for cond_br
+    auto ret = builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+    ifOk = currentBlock->splitBlock(ret);
     builder.setInsertionPointToEnd(currentBlock);
-    Value rhs = builder.create<ConstantNoneOp>(builder.getUnknownLoc());
-    Value isErr = builder.create<CmpEqOp>(builder.getUnknownLoc(), callResult,
-                                          rhs, /*strict=*/false);
-    okArgsFinal.push_back(callResult);
-    errArgsFinal.append(errArgs.begin(), errArgs.end());
-    errArgsFinal.push_back(callResult);
-    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, err,
-                                 errArgsFinal, ok, okArgsFinal);
-  } else if (!err) {
-    // When not successful, the function throws.
-    // - Create err block with an argument for the error value
-    // - Insert throw in the err block
-    err = builder.createBlock(currentRegion);
-    err->addArgument(builder.getType<TermType>());
-    Value retVal = err->getArgument(0);
-    builder.create<ReturnOp>(builder.getUnknownLoc(), retVal);
-    // Insert conditional branch in call block
-    // Use comparison to NONE as condition for cond_br
-    builder.setInsertionPointToEnd(currentBlock);
-    Value rhs = builder.create<ConstantNoneOp>(builder.getUnknownLoc());
-    Value isErr = builder.create<CmpEqOp>(builder.getUnknownLoc(), callResult,
-                                          rhs, /*strict=*/false);
-    okArgsFinal.append(okArgs.begin(), okArgs.end());
-    okArgsFinal.push_back(callResult);
-    errArgsFinal.push_back(callResult);
-    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, err,
-                                 errArgsFinal, ok, okArgsFinal);
   } else {
-    // Simplest case, both ok/err branches already exist
-    Value rhs = builder.create<ConstantNoneOp>(builder.getUnknownLoc());
-    Value isErr = builder.create<CmpEqOp>(builder.getUnknownLoc(), callResult,
-                                          rhs, /*strict=*/false);
-    okArgsFinal.append(okArgs.begin(), okArgs.end());
-    okArgsFinal.push_back(callResult);
-    errArgsFinal.append(errArgs.begin(), errArgs.end());
-    errArgsFinal.push_back(callResult);
-    builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, err,
-                                 errArgsFinal, ok, okArgsFinal);
+    okArgsFinal.push_back(result);
   }
+
+  // No error block provided, so create block to handle throwing
+  if (!err) {
+    auto thr = builder.create<ThrowOp>(builder.getUnknownLoc(), result);
+    ifErr = currentBlock->splitBlock(thr);
+    builder.setInsertionPointToEnd(currentBlock);
+  } else {
+    errArgsFinal.append(errArgs.begin(), errArgs.end());
+    errArgsFinal.push_back(result);
+  }
+
+  // Insert conditional branch in call block
+  // Use comparison to NONE as condition for cond_br
+  builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, ifErr,
+                               errArgsFinal, ifOk, okArgsFinal);
+  return;
 }
 
 //===----------------------------------------------------------------------===//

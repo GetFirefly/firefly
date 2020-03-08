@@ -144,7 +144,8 @@ class OpaqueTermType : public Type {
   static bool isImmediate(unsigned implKind) {
     return implKind == TypeKind::Atom || implKind == TypeKind::Boolean ||
            implKind == TypeKind::Fixnum || implKind == TypeKind::Float ||
-           implKind == TypeKind::Nil || implKind == TypeKind::Box;
+           implKind == TypeKind::Nil || implKind == TypeKind::Box ||
+           implKind == TypeKind::Term;
   }
 
   static bool isBoxable(unsigned implKind) {

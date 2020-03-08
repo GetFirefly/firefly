@@ -3,8 +3,13 @@ lumen_cc_library(
     EIRToLLVM
   HDRS
     "ConvertEIRToLLVM.h"
+    "ConversionSupport.h"
+    "ComparisonOpConversions.h"
+    "MathOpConversions.h"
   SRCS
     "ConvertEIRToLLVM.cpp"
+    "ComparisonOpConversions.cpp"
+    "MathOpConversions.cpp"
   DEPS
     lumen::compiler::Dialect::EIR::IR::EIREncodingGen
     lumen::compiler::Dialect::EIR::IR

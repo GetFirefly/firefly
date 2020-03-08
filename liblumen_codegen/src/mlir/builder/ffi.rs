@@ -422,8 +422,10 @@ extern "C" {
         num_pairs: libc::c_uint,
     ) -> ValueRef;
 
-    pub fn MLIRBuildPrintOp(
+    pub fn MLIRIsIntrinsic(name: *const libc::c_char) -> bool;
+    pub fn MLIRBuildIntrinsic(
         builder: ModuleBuilderRef,
+        name: *const libc::c_char,
         argv: *const ValueRef,
         argc: libc::c_uint,
     ) -> ValueRef;

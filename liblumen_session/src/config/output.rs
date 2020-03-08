@@ -20,6 +20,10 @@ use crate::{Input, OptionInfo, Options, ParseOption};
 pub trait Emit {
     const TYPE: OutputType;
 
+    fn emit_output_type(&self) -> OutputType {
+        Self::TYPE
+    }
+
     fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()>;
 }
 impl Emit for syntax::ast::Module {

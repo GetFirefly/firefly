@@ -25,7 +25,7 @@ use liblumen_core::symbols::FunctionSymbol;
 use liblumen_session::Options;
 
 use crate::llvm;
-use crate::mlir::{Context, Module};
+use crate::mlir::{Context, Module, Dialect};
 use crate::Result;
 
 pub use self::function::{FunctionBuilder, ScopedFunctionBuilder};
@@ -124,7 +124,7 @@ impl<'m> ModuleBuilder<'m> {
         }
 
         Ok(GeneratedModule {
-            module: Module::new(result),
+            module: Module::new(result, Dialect::EIR),
             atoms: self.atoms.into_inner(),
             symbols: self.symbols.into_inner(),
         })

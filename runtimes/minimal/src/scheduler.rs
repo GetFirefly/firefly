@@ -28,24 +28,19 @@ use liblumen_alloc::erts::term::prelude::{Atom, ReferenceNumber, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_rt_core as rt_core;
+use lumen_rt_core::process::CURRENT_PROCESS;
 use lumen_rt_core::timer::Hierarchy;
 
-static CURRENT_REDUCTION_COUNT: AtomicU64 = AtomicU64::new(0);
+const MAX_REDUCTION_COUNT: u32 = 20;
 
-/*
 extern "C" {
     // External thread local owned by the generated code
     #[thread_local]
     static mut CURRENT_REDUCTION_COUNT: u32;
 }
-*/
 
 thread_local! {
   static SCHEDULER: Arc<Scheduler> = Scheduler::registered();
-}
-
-thread_local! {
-  static CURRENT_PROCESS: RefCell<Option<Arc<Process>>> = RefCell::new(None);
 }
 
 lazy_static! {
@@ -160,6 +155,7 @@ pub struct Scheduler {
 // ever accessed by the scheduler when scheduling
 unsafe impl Sync for Scheduler {}
 impl rt_core::Scheduler for Scheduler {
+    #[inline]
     fn current() -> Arc<Self> {
         SCHEDULER.with(|s| s.clone())
     }
@@ -298,10 +294,6 @@ impl Scheduler {
     #[cfg(test)]
     pub fn is_run_queued(&self, value: &Arc<Process>) -> bool {
         self.run_queues.read().contains(value)
-    }
-
-    pub fn current_process() -> Arc<Process> {
-        CURRENT_PROCESS.with(|cp| cp.borrow().clone().expect("no process currently scheduled"))
     }
 
     // TODO: Request application master termination for controlled shutdown
@@ -598,14 +590,12 @@ impl Scheduler {
 }
 
 fn reset_reduction_counter() -> u64 {
-    /*
     let count = unsafe { CURRENT_REDUCTION_COUNT };
     unsafe {
         CURRENT_REDUCTION_COUNT = 0;
     }
     count as u64
-    */
-    CURRENT_REDUCTION_COUNT.swap(0, Ordering::Relaxed)
+    //CURRENT_REDUCTION_COUNT.swap(0, Ordering::Relaxed)
 }
 
 /// This function uses inline assembly to save the callee-saved registers for the outgoing

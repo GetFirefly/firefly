@@ -456,6 +456,13 @@ macro_rules! bigint_binop_trait_impl {
                 BigInteger::new(self.value.clone().$fun(rhs.value.clone()))
             }
         }
+        impl $trait for Boxed<BigInteger> {
+            type Output = BigInteger;
+            #[inline]
+            fn $fun(self, rhs: Boxed<BigInteger>) -> Self::Output {
+                BigInteger::new(self.as_ref().value.clone().$fun(rhs.as_ref().value.clone()))
+            }
+        }
     };
 }
 macro_rules! bigint_unaryop_trait_impl {

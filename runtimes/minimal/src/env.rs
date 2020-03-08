@@ -6,7 +6,7 @@ use once_cell::sync::OnceCell;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::scheduler::Scheduler;
+use lumen_rt_core::process::current_process;
 
 static ARGV: OnceCell<Vec<String>> = OnceCell::new();
 static ARGV_TERM: OnceCell<Vec<BinaryLiteral>> = OnceCell::new();
@@ -99,7 +99,7 @@ pub fn get_argv_literals<'a>() -> Option<&'a [BinaryLiteral]> {
 
 #[export_name = "init:get_plain_arguments/0"]
 pub extern "C" fn get_plain_arguments() -> Term {
-    get_plain_arguments_with_process(&Scheduler::current_process())
+    get_plain_arguments_with_process(&current_process())
 }
 
 fn get_plain_arguments_with_process(process: &Process) -> Term {

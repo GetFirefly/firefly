@@ -1,7 +1,7 @@
 task:
   name: Check Formatted
   container:
-    image: kronicdeth/lumen-development@sha256:6beaa1e400658b3d2ab3236b474b52da0df4f18cfd5a7dd07c0d28955b780fd3
+    image: kronicdeth/lumen-development@sha256:273edaaffb45165e6f23d75990cdbfcc677ae47d1a41553f62852630d46d4b40
   script: cargo fmt -- --check
 
 x86_64_task_template: &x86_64_TASK_TEMPLATE
@@ -23,7 +23,7 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
 task:
   name: Linux x86_64 libraries
   container:
-    image: kronicdeth/lumen-development@sha256:6beaa1e400658b3d2ab3236b474b52da0df4f18cfd5a7dd07c0d28955b780fd3
+    image: kronicdeth/lumen-development@sha256:273edaaffb45165e6f23d75990cdbfcc677ae47d1a41553f62852630d46d4b40
     cpu: 4
     memory: 12
   linux_x86_64_cargo_cache:
@@ -35,7 +35,7 @@ task:
 task:
   name: Linux x86_64 compiler
   container:
-    image: kronicdeth/lumen-development@sha256:6beaa1e400658b3d2ab3236b474b52da0df4f18cfd5a7dd07c0d28955b780fd3
+    image: kronicdeth/lumen-development@sha256:273edaaffb45165e6f23d75990cdbfcc677ae47d1a41553f62852630d46d4b40
   linux_x86_64_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
@@ -139,7 +139,7 @@ task:
 task:
   name: Linux wasm32
   container:
-    image: kronicdeth/lumen-development@sha256:6beaa1e400658b3d2ab3236b474b52da0df4f18cfd5a7dd07c0d28955b780fd3
+    image: kronicdeth/lumen-development@sha256:273edaaffb45165e6f23d75990cdbfcc677ae47d1a41553f62852630d46d4b40
     memory: 6
   linux_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry

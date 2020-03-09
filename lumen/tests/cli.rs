@@ -57,14 +57,21 @@ mod cli {
     fn compile() {
         std::fs::create_dir_all("_build").unwrap();
 
-        let compile_output = Command::new("../bin/lumen")
+        let mut command = Command::new("../bin/lumen");
+
+        command
             .arg("compile")
             .arg("--output-dir")
             .arg("_build")
             .arg("-o")
             .arg("cli")
-            .arg("-lc")
+            .arg("-lc");
+
+        add_link_args(&mut command);
+
+        let compile_output = command
             .arg("tests/cli/init.erl")
+            .stdin(Stdio::null())
             .output()
             .unwrap();
 
@@ -74,5 +81,17 @@ mod cli {
             String::from_utf8_lossy(&compile_output.stdout),
             String::from_utf8_lossy(&compile_output.stderr)
         );
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn add_link_args(_command: &mut Command) {}
+
+    #[cfg(target_os = "linux")]
+    fn add_link_args(command: &mut Command) {
+        command
+            .arg("-lunwind")
+            .arg("-lpthread")
+            .arg("-ldl")
+            .arg("-lm");
     }
 }

@@ -25,7 +25,7 @@ use liblumen_core::symbols::FunctionSymbol;
 use liblumen_session::Options;
 
 use crate::llvm;
-use crate::mlir::{Context, Module, Dialect};
+use crate::mlir::{Context, Dialect, Module};
 use crate::Result;
 
 pub use self::function::{FunctionBuilder, ScopedFunctionBuilder};

@@ -1,5 +1,5 @@
-use std::panic;
 use std::convert::TryInto;
+use std::panic;
 
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -152,7 +152,7 @@ integer_math_builtin!("__lumen_builtin_math.rem", builtin_math_rem, rem);
 integer_math_builtin!("__lumen_builtin_math.bsl", builtin_math_bsl, shl);
 integer_math_builtin!("__lumen_builtin_math.bsr", builtin_math_bsr, shr);
 integer_math_builtin!("__lumen_builtin_math.band", builtin_math_band, bitand);
-integer_math_builtin!("__lumen_builtin_math.bor",  builtin_math_bor,  bitor);
+integer_math_builtin!("__lumen_builtin_math.bor", builtin_math_bor, bitor);
 integer_math_builtin!("__lumen_builtin_math.bxor", builtin_math_bxor, bitxor);
 
 /// Capture the current stack trace

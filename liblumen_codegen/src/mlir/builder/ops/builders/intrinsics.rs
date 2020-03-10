@@ -19,7 +19,12 @@ impl IntrinsicBuilder {
             }
 
             let result_ref = unsafe {
-                MLIRBuildIntrinsic(builder.as_ref(), name.as_ptr(), argv.as_ptr(), argv.len() as libc::c_uint)
+                MLIRBuildIntrinsic(
+                    builder.as_ref(),
+                    name.as_ptr(),
+                    argv.as_ptr(),
+                    argv.len() as libc::c_uint,
+                )
             };
 
             let result = builder.new_value(ir_value, result_ref, ValueDef::Result(0));

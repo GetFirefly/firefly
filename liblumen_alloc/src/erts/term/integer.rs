@@ -13,7 +13,7 @@ use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ops::*;
 
-use super::prelude::{TypedTerm, TypeError, Boxed};
+use super::prelude::{Boxed, TypeError, TypedTerm};
 
 /// This error type is used to indicate that a value cannot be converted to an integer
 #[derive(Error, Debug)]
@@ -97,7 +97,7 @@ impl TryFrom<TypedTerm> for Integer {
         match tt {
             TypedTerm::SmallInteger(si) => Ok(Self::Small(si)),
             TypedTerm::BigInteger(bi) => Ok(Self::Big(bi.as_ref().clone())),
-            _ => Err(TypeError)
+            _ => Err(TypeError),
         }
     }
 }

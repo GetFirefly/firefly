@@ -379,8 +379,15 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Returns None if it is not defined in this block (yet)
     pub fn find_value(&self, ir_value: ir::Value) -> Option<Value> {
         let blocks = &self.func.value_mapping[ir_value];
-        let mut defs = blocks.values().cloned().filter_map(|o| o.expand()).collect::<Vec<_>>();
-        assert!(defs.len() < 2, "expected no more than one definition per eir value");
+        let mut defs = blocks
+            .values()
+            .cloned()
+            .filter_map(|o| o.expand())
+            .collect::<Vec<_>>();
+        assert!(
+            defs.len() < 2,
+            "expected no more than one definition per eir value"
+        );
         defs.pop()
     }
 
@@ -853,7 +860,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::OpKind::TraceCaptureRaw => {
                 debug_in!(self, "block contains trace capture operation");
                 let block = self.get_block_by_value(reads[0]);
-                OpKind::TraceCapture(Branch { block, args: Default::default() })
+                OpKind::TraceCapture(Branch {
+                    block,
+                    args: Default::default(),
+                })
             }
             // Requests that a trace be constructed for consumption in a `catch`
             // Takes the captured trace reference as argument

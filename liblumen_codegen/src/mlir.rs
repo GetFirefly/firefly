@@ -196,7 +196,12 @@ impl Module {
 }
 impl fmt::Debug for Module {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MLIRModule({:p}, dialect = {:?})", self.as_ref(), self.dialect.borrow())
+        write!(
+            f,
+            "MLIRModule({:p}, dialect = {:?})",
+            self.as_ref(),
+            self.dialect.borrow()
+        )
     }
 }
 impl Eq for Module {}

@@ -1,8 +1,8 @@
 use core::cmp;
 use core::ptr::{self, NonNull};
 
-use crate::alloc::{AllocRef, AllocErr, GlobalAlloc, Layout};
 use crate::alloc::alloc_handle::{AsAllocHandle, Global};
+use crate::alloc::{AllocErr, AllocRef, GlobalAlloc, Layout};
 use crate::sys::alloc as sys_alloc;
 
 use super::StaticAlloc;

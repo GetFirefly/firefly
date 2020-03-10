@@ -10,7 +10,10 @@ pub mod utils;
 pub mod vec;
 
 #[rustversion::before(2020-01-30)]
-use core::{ptr::{self, NonNull}, cmp};
+use core::{
+    cmp,
+    ptr::{self, NonNull},
+};
 
 pub use self::region::Region;
 pub use self::static_alloc::StaticAlloc;
@@ -115,7 +118,9 @@ pub unsafe trait AllocRef {
         new_size: usize,
     ) -> Result<usize, CannotReallocInPlace> {
         let size = self.grow_in_place(ptr, layout, new_size)?;
-        ptr.as_ptr().add(layout.size()).write_bytes(0, new_size - layout.size());
+        ptr.as_ptr()
+            .add(layout.size())
+            .write_bytes(0, new_size - layout.size());
         Ok(size)
     }
 

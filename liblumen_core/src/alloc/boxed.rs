@@ -16,8 +16,8 @@ use core::str;
 
 use core_alloc::slice;
 
-use crate::alloc::{AllocRef, Layout};
 use crate::alloc::alloc_handle::{AllocHandle, AsAllocHandle};
+use crate::alloc::{AllocRef, Layout};
 
 /// This an alternative implementation of `Box` that
 /// supports the use of a custom allocator in place

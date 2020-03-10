@@ -8,10 +8,10 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 
 use intrusive_collections::{LinkedListLink, UnsafeRef};
-use liblumen_core::alloc::{AllocRef, AllocErr, CannotReallocInPlace, Layout};
 use liblumen_core::alloc::alloc_handle::{self, AsAllocHandle};
 use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::{SizeClass, SizeClassIndex};
+use liblumen_core::alloc::{AllocErr, AllocRef, CannotReallocInPlace, Layout};
 use liblumen_core::locks::RwLock;
 
 use crate::blocks::ThreadSafeBlockBitSubset;

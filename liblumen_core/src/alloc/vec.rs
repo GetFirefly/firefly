@@ -13,10 +13,10 @@ use core::ops::{self, Index, IndexMut};
 use core::ptr::{self, NonNull};
 use core::slice::{self, SliceIndex};
 
-use crate::alloc::AllocRef;
 use crate::alloc::alloc_handle::{AllocHandle, AsAllocHandle};
 use crate::alloc::boxed::Box;
 use crate::alloc::raw_vec::RawVec;
+use crate::alloc::AllocRef;
 
 pub struct Vec<'a, T, A: AllocHandle<'a>> {
     buf: RawVec<'a, T, A>,
@@ -975,7 +975,8 @@ unsafe impl<'a, #[may_dangle] T, A: AllocHandle<'a>> Drop for IntoIter<'a, T, A>
 
         // RawVec handles deallocation
         let alloc_handle = self.a.clone();
-        let _ =
-            unsafe { RawVec::from_raw_parts_and_alloc_handle(self.buf.as_ptr(), self.cap, alloc_handle) };
+        let _ = unsafe {
+            RawVec::from_raw_parts_and_alloc_handle(self.buf.as_ptr(), self.cap, alloc_handle)
+        };
     }
 }

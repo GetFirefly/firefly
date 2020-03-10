@@ -280,10 +280,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    #[rustversion::since(2019-01-30)]
-    use core::alloc::AllocRef;
     #[rustversion::before(2019-01-30)]
     use core::alloc::Alloc;
+    #[rustversion::since(2019-01-30)]
+    use core::alloc::AllocRef;
 
     use super::*;
 

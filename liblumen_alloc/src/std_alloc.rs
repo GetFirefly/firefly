@@ -46,9 +46,9 @@ use intrusive_collections::LinkedListLink;
 use intrusive_collections::{Bound, UnsafeRef};
 use intrusive_collections::{RBTree, RBTreeLink};
 
-use liblumen_core::alloc::{AllocRef, AllocErr, Layout};
 use liblumen_core::alloc::alloc_handle::{self, AsAllocHandle};
 use liblumen_core::alloc::mmap;
+use liblumen_core::alloc::{AllocErr, AllocRef, Layout};
 use liblumen_core::locks::SpinLock;
 use liblumen_core::util::cache_padded::CachePadded;
 

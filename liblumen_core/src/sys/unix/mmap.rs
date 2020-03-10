@@ -80,8 +80,7 @@ pub unsafe fn map(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
 
     // To avoid wasting space, we unmap the unused portions of
     // this initial memory mapping, and return the aligned region
-    let ptr = map_internal(ptr::null_mut(), size + extra)
-        .map(|(nn, _)| nn.as_ptr())?;
+    let ptr = map_internal(ptr::null_mut(), size + extra).map(|(nn, _)| nn.as_ptr())?;
     let addr = ptr as usize;
     let aligned_addr = alloc_utils::round_up_to_multiple_of(addr, align);
     let aligned_ptr = aligned_addr as *mut u8;

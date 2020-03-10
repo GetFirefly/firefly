@@ -9,9 +9,9 @@ use core::slice;
 use core_alloc::alloc::handle_alloc_error;
 use core_alloc::collections::TryReserveError::{self, *};
 
-use crate::alloc::{AllocRef, Layout};
 use crate::alloc::alloc_handle::{AllocHandle, AsAllocHandle};
 use crate::alloc::boxed::Box;
+use crate::alloc::{AllocRef, Layout};
 
 /// A low-level utility for more ergonomically allocating, reallocating, and deallocating
 /// a buffer of memory on the heap without having to worry about all the corner cases

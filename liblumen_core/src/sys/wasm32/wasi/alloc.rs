@@ -1,7 +1,7 @@
 use core::ptr::{self, NonNull};
 
-use crate::alloc::{AllocErr, GlobalAlloc, Layout};
 use crate::alloc::realloc_fallback;
+use crate::alloc::{AllocErr, GlobalAlloc, Layout};
 use crate::sys::sysconf::MIN_ALIGN;
 
 #[inline]

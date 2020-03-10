@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::{NonNull, Unique};
 
-use crate::alloc::{AllocRef, AllocErr, CannotReallocInPlace, Layout, StaticAlloc};
+use crate::alloc::{AllocErr, AllocRef, CannotReallocInPlace, Layout, StaticAlloc};
 
 /// This trait is an extension of `Alloc` which provides a way to obtain
 /// a reference to that allocator in a way that abstracts out the type of

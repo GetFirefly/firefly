@@ -4,7 +4,7 @@ use core::ptr::{self, NonNull};
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
-use liblumen_core::alloc::{AllocRef, AllocErr, GlobalAlloc, Layout};
+use liblumen_core::alloc::{AllocErr, AllocRef, GlobalAlloc, Layout};
 use liblumen_core::locks::RwLock;
 
 use crate::stats::hooks;

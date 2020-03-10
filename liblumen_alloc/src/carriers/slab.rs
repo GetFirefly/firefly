@@ -1,8 +1,8 @@
 use core::mem;
 use core::ptr::{self, NonNull};
 
-use liblumen_core::alloc::AllocErr;
 use liblumen_core::alloc::size_classes::SizeClass;
+use liblumen_core::alloc::AllocErr;
 
 use crate::blocks::{BlockBitSet, BlockBitSubset};
 use crate::sorted::Link;

@@ -1,4 +1,4 @@
-use core::alloc::Layout;
+use liblumen_core::alloc::Layout;
 
 use crate::sorted::Link;
 

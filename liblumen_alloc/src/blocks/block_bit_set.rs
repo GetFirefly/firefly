@@ -1,7 +1,8 @@
-use core::alloc::AllocErr;
 use core::marker::PhantomData;
 use core::mem;
 use core::sync::atomic::{AtomicUsize, Ordering};
+
+use liblumen_core::alloc::AllocErr;
 
 use crate::mem::bit_size_of;
 
@@ -330,11 +331,11 @@ const fn num_blocks_fit(num_bytes: usize, block_size: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use core::alloc::Layout;
     use core::mem;
 
     use intrusive_collections::LinkedListLink;
     use liblumen_alloc_macros::*;
+    use liblumen_core::alloc::Layout;
     use liblumen_core::alloc::mmap;
     use liblumen_core::alloc::size_classes::SizeClass;
 

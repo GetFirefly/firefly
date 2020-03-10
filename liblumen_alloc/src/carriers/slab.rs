@@ -1,7 +1,7 @@
-use core::alloc::AllocErr;
 use core::mem;
 use core::ptr::{self, NonNull};
 
+use liblumen_core::alloc::AllocErr;
 use liblumen_core::alloc::size_classes::SizeClass;
 
 use crate::blocks::{BlockBitSet, BlockBitSubset};

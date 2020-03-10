@@ -13,13 +13,18 @@ use crate::sys::sysconf::MIN_ALIGN;
 struct Header(*mut u8);
 
 #[inline]
-pub unsafe fn alloc(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-    NonNull::new(alloc_with_flags(layout, 0)).ok_or(AllocErr)
+pub unsafe fn alloc(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
+    let layout_size = layout.size();
+    NonNull::new(alloc_with_flags(layout, 0))
+        .ok_or(AllocErr)
+        .map(|ptr| (ptr, layout_size))
 }
 
 #[inline]
-pub unsafe fn alloc_zeroed(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-    NonNull::new(alloc_with_flags(layout, HEAP_ZERO_MEMORY)).ok_or(AllocErr)
+pub unsafe fn alloc_zeroed(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
+    NonNull::new(alloc_with_flags(layout, HEAP_ZERO_MEMORY))
+        .ok_or(AllocErr)
+        .map(|ptr| (ptr, layout_size))
 }
 
 #[inline]
@@ -31,6 +36,7 @@ pub unsafe fn realloc(
     if layout.align() <= MIN_ALIGN {
         NonNull::new(HeapReAlloc(GetProcessHeap(), 0, ptr as LPVOID, new_size) as *mut u8)
             .ok_or(AllocErr)
+            .map(|ptr| (ptr, new_size))
     } else {
         realloc_fallback(ptr, layout, new_size)
     }

@@ -1,10 +1,10 @@
-use core::alloc::Layout;
 use core::mem;
 use core::ptr::{self, NonNull};
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
 
+use liblumen_core::alloc::Layout;
 use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 
 use crate::erts;
@@ -58,7 +58,7 @@ impl HeapFragment {
         let (full_layout, offset) = Layout::new::<Self>().extend(layout.clone()).unwrap();
         let size = layout.size();
         let align = layout.align();
-        let ptr = unsafe { std_alloc::alloc(full_layout)?.as_ptr() as *mut Self };
+        let ptr = unsafe { std_alloc::alloc(full_layout).map(|(ptr, _)| ptr)?.as_ptr() as *mut Self };
         let data = unsafe { (ptr as *mut u8).add(offset) };
         let top = data;
         unsafe {

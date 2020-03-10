@@ -10,6 +10,7 @@ build = "build.rs"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
+rustversion = "1.0"
 cfg-if = "0.1"
 lazy_static = "1.2"
 liblumen_core_macros = { path = "../liblumen_core_macros" }

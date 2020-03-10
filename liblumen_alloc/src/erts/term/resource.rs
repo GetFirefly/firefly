@@ -283,6 +283,7 @@ impl ResourceInner {
 
         unsafe {
             let ptr = sys_alloc::alloc(layout)
+                .map(|(ptr, _)| ptr)
                 .map_err(|_| alloc!())?
                 .cast::<Self>()
                 .as_ptr();

@@ -1,4 +1,3 @@
-use core::alloc::{Alloc, AllocErr, CannotReallocInPlace, Layout};
 use core::cmp;
 use core::intrinsics::unlikely;
 use core::ptr::{self, NonNull};
@@ -9,7 +8,8 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 
 use intrusive_collections::{LinkedListLink, UnsafeRef};
-use liblumen_core::alloc::alloc_ref::{self, AsAllocRef};
+use liblumen_core::alloc::{AllocRef, AllocErr, CannotReallocInPlace, Layout};
+use liblumen_core::alloc::alloc_handle::{self, AsAllocHandle};
 use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::{SizeClass, SizeClassIndex};
 use liblumen_core::locks::RwLock;
@@ -65,7 +65,7 @@ impl SizeClassAlloc {
         self.max_size_class.to_bytes()
     }
 
-    pub unsafe fn allocate(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    pub unsafe fn allocate(&self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let size = layout.size();
         if unlikely(size > self.max_size_class.to_bytes()) {
@@ -76,7 +76,7 @@ impl SizeClassAlloc {
         let carriers = self.carriers[index].read();
         for carrier in carriers.iter() {
             if let Ok(ptr) = carrier.alloc_block() {
-                return Ok(ptr);
+                return Ok((ptr, size_class.to_bytes()));
             }
         }
         drop(carriers);
@@ -91,7 +91,7 @@ impl SizeClassAlloc {
         let result = carrier.alloc_block();
         debug_assert!(result.is_ok());
         carriers.push_front(UnsafeRef::from_raw(carrier_ptr));
-        result
+        result.map(|ptr| (ptr, size_class.to_bytes()))
     }
 
     pub unsafe fn reallocate(
@@ -99,7 +99,7 @@ impl SizeClassAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, AllocErr> {
+    ) -> Result<(NonNull<u8>, usize), AllocErr> {
         if unlikely(new_size > self.max_size_class.to_bytes()) {
             return Err(AllocErr);
         }
@@ -108,19 +108,19 @@ impl SizeClassAlloc {
         let new_size_class = self.size_class_for_unchecked(new_size);
         // If the size is in the same size class, we don't have to do anything
         if size_class == new_size_class {
-            return Ok(ptr);
+            return Ok((ptr, size_class.to_bytes()));
         }
         // Otherwise we have to allocate in the new size class,
         // copy to that new block, and deallocate the original block
         let align = layout.align();
         let new_layout = Layout::from_size_align_unchecked(new_size, align);
-        let new_ptr = self.allocate(new_layout)?;
+        let (new_ptr, new_ptr_size) = self.allocate(new_layout)?;
         // Copy
         ptr::copy_nonoverlapping(ptr.as_ptr(), new_ptr.as_ptr(), cmp::min(size, new_size));
         // Deallocate the original block
         self.deallocate(ptr, layout);
         // Return new block
-        Ok(new_ptr)
+        Ok((new_ptr, new_ptr_size))
     }
 
     #[inline]
@@ -129,13 +129,13 @@ impl SizeClassAlloc {
         _ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(), CannotReallocInPlace> {
+    ) -> Result<usize, CannotReallocInPlace> {
         let size = layout.size();
         let size_class = self.size_class_for_unchecked(size);
         let new_size_class = self.size_class_for_unchecked(new_size);
         // As long as we're in the same size class, success!
         if size_class == new_size_class {
-            return Ok(());
+            return Ok(size_class.to_bytes());
         }
         // Otherwise we definitely can't grow, and we want callers to
         // decide whether to reallocate or just live within the same
@@ -177,9 +177,9 @@ impl SizeClassAlloc {
     }
 }
 
-unsafe impl Alloc for SizeClassAlloc {
+unsafe impl AllocRef for SizeClassAlloc {
     #[inline]
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
         self.allocate(layout)
     }
 
@@ -189,7 +189,7 @@ unsafe impl Alloc for SizeClassAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, AllocErr> {
+    ) -> Result<(NonNull<u8>, usize), AllocErr> {
         self.reallocate(ptr, layout, new_size)
     }
 
@@ -199,7 +199,7 @@ unsafe impl Alloc for SizeClassAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(), CannotReallocInPlace> {
+    ) -> Result<usize, CannotReallocInPlace> {
         self.realloc_in_place(ptr, layout, new_size)
     }
 
@@ -209,7 +209,7 @@ unsafe impl Alloc for SizeClassAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(), CannotReallocInPlace> {
+    ) -> Result<usize, CannotReallocInPlace> {
         self.realloc_in_place(ptr, layout, new_size)
     }
 
@@ -219,12 +219,12 @@ unsafe impl Alloc for SizeClassAlloc {
     }
 }
 
-impl<'a> AsAllocRef<'a> for SizeClassAlloc {
-    type Handle = alloc_ref::Handle<'a, Self>;
+impl<'a> AsAllocHandle<'a> for SizeClassAlloc {
+    type Handle = alloc_handle::Handle<'a, Self>;
 
     #[inline]
-    fn as_alloc_ref(&self) -> Self::Handle {
-        alloc_ref::Handle::new(self)
+    fn as_alloc_handle(&self) -> Self::Handle {
+        alloc_handle::Handle::new(self)
     }
 }
 

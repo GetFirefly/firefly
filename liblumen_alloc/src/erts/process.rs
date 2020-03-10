@@ -8,7 +8,6 @@ mod mailbox;
 mod monitor;
 pub mod priority;
 
-use core::alloc::Layout;
 use core::any::Any;
 use core::cell::RefCell;
 use core::fmt;
@@ -25,6 +24,7 @@ use anyhow::*;
 use hashbrown::{HashMap, HashSet};
 use intrusive_collections::{LinkedList, UnsafeRef};
 
+use liblumen_core::alloc::Layout;
 use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;

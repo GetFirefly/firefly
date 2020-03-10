@@ -2,8 +2,9 @@
 ///!
 ///! On platforms without actual memory mapping primitives,
 ///! this delegates to the system allocator
-use core::alloc::{AllocErr, Layout};
 use core::ptr::NonNull;
+
+use crate::alloc::{AllocErr, Layout};
 
 #[cfg(not(has_mmap))]
 use crate::sys::alloc as sys_alloc;
@@ -14,14 +15,14 @@ use crate::sys::mmap;
 #[cfg(has_mmap)]
 #[inline]
 pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-    mmap::map(layout)
+    mmap::map(layout).map(|(ptr, _)| ptr)
 }
 
 /// Creates a memory mapping for the given `Layout`
 #[cfg(not(has_mmap))]
 #[inline]
 pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-    sys_alloc::alloc(layout)
+    sys_alloc::alloc(layout).map(|(ptr, _)| ptr)
 }
 
 /// Creates a memory mapping specifically set up to behave like a stack
@@ -44,7 +45,7 @@ pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
         .repeat(pages)
         .unwrap();
 
-    sys_alloc::alloc(layout)
+    sys_alloc::alloc(layout).map(|(ptr, _)| ptr)
 }
 
 /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new size
@@ -55,7 +56,7 @@ pub unsafe fn remap(
     layout: Layout,
     new_size: usize,
 ) -> Result<NonNull<u8>, AllocErr> {
-    mmap::remap(ptr, layout, new_size)
+    mmap::remap(ptr, layout, new_size).map(|(ptr, _)| ptr)
 }
 
 /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new size
@@ -66,7 +67,7 @@ pub unsafe fn remap(
     layout: Layout,
     new_size: usize,
 ) -> Result<NonNull<u8>, AllocErr> {
-    sys_alloc::realloc(ptr, layout, new_size)
+    sys_alloc::realloc(ptr, layout, new_size).map(|(ptr, _)| ptr)
 }
 
 /// Destroys a mapping given a pointer to the mapping and the layout which created it

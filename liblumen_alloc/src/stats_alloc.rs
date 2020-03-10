@@ -1,10 +1,10 @@
-use core::alloc::{Alloc, AllocErr, GlobalAlloc, Layout};
 use core::fmt;
 use core::intrinsics::type_name;
 use core::ptr::{self, NonNull};
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
+use liblumen_core::alloc::{AllocRef, AllocErr, GlobalAlloc, Layout};
 use liblumen_core::locks::RwLock;
 
 use crate::stats::hooks;
@@ -83,8 +83,8 @@ impl<T: Default, H: Histogram + Clone + Default> Default for StatsAlloc<T, H> {
         Self::new(T::default())
     }
 }
-unsafe impl<T: Alloc + Sync, H: Histogram + Clone + Default> Sync for StatsAlloc<T, H> {}
-unsafe impl<T: Alloc + Send, H: Histogram + Clone + Default> Send for StatsAlloc<T, H> {}
+unsafe impl<T: AllocRef + Sync, H: Histogram + Clone + Default> Sync for StatsAlloc<T, H> {}
+unsafe impl<T: AllocRef + Send, H: Histogram + Clone + Default> Send for StatsAlloc<T, H> {}
 
 /// This struct represents a snapshot of the stats gathered
 /// by an instances of `StatsAlloc`, and is used for display
@@ -114,9 +114,9 @@ impl<H: Histogram + Clone + Default> fmt::Display for Statistics<H> {
     }
 }
 
-unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H> {
+unsafe impl<T: AllocRef, H: Histogram + Clone + Default> AllocRef for StatsAlloc<T, H> {
     #[inline]
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
         let size = layout.size();
         let align = layout.align();
         match self.allocator.alloc(layout) {
@@ -124,14 +124,14 @@ unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H>
                 hooks::on_alloc(self.tag.to_owned(), size, align, ptr::null_mut());
                 err
             }
-            Ok(result) => {
+            Ok((ptr, ptr_size)) => {
                 self.alloc_calls.fetch_add(1, Ordering::SeqCst);
                 self.total_bytes_alloced.fetch_add(size, Ordering::SeqCst);
                 let mut h = self.histogram.write();
-                h.add(size as u64).ok();
+                h.add(ptr_size as u64).ok();
                 drop(h);
-                hooks::on_alloc(self.tag.to_owned(), size, align, result.as_ptr());
-                Ok(result)
+                hooks::on_alloc(self.tag.to_owned(), ptr_size, align, ptr.as_ptr());
+                Ok((ptr, ptr_size))
             }
         }
     }
@@ -142,7 +142,7 @@ unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H>
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, AllocErr> {
+    ) -> Result<(NonNull<u8>, usize), AllocErr> {
         let old_ptr = ptr.as_ptr();
         let old_size = layout.size();
         let align = layout.align();
@@ -158,27 +158,27 @@ unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H>
                 );
                 err
             }
-            Ok(result) => {
+            Ok((ptr, ptr_size)) => {
                 self.realloc_calls.fetch_add(1, Ordering::SeqCst);
-                if old_size < new_size {
-                    let diff = new_size - old_size;
+                if old_size < ptr_size {
+                    let diff = ptr_size - old_size;
                     self.total_bytes_alloced.fetch_add(diff, Ordering::SeqCst);
                 } else {
-                    let diff = old_size - new_size;
+                    let diff = old_size - ptr_size;
                     self.total_bytes_alloced.fetch_sub(diff, Ordering::SeqCst);
                 }
                 let mut h = self.histogram.write();
-                h.add(new_size as u64).ok();
+                h.add(ptr_size as u64).ok();
                 drop(h);
                 hooks::on_realloc(
                     self.tag.to_owned(),
                     old_size,
-                    new_size,
+                    ptr_size,
                     align,
                     old_ptr,
-                    result.as_ptr(),
+                    ptr.as_ptr(),
                 );
-                Ok(result)
+                Ok((ptr, ptr_size))
             }
         }
     }

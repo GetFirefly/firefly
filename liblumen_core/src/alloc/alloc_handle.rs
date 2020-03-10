@@ -1,10 +1,9 @@
-use core::alloc::{Alloc, AllocErr, CannotReallocInPlace, Excess, Layout};
 use core::borrow::{Borrow, BorrowMut};
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::{NonNull, Unique};
 
-use crate::alloc::StaticAlloc;
+use crate::alloc::{AllocRef, AllocErr, CannotReallocInPlace, Layout, StaticAlloc};
 
 /// This trait is an extension of `Alloc` which provides a way to obtain
 /// a reference to that allocator in a way that abstracts out the type of
@@ -14,7 +13,7 @@ use crate::alloc::StaticAlloc;
 ///
 /// This extra reference would be unnecessary overhead in many cases,
 /// such as global allocators, or stateless allocators, where the struct is
-/// a zero-sized type. Rather than making the reference a pointer, an `AllocRef`
+/// a zero-sized type. Rather than making the reference a pointer, an `AllocHandle`
 /// allows the reference to be implemented as either a zero-sized type, a pointer,
 /// or some other type acting as a proxy which is able to calculate the correct
 /// allocator based on object pointer/layout information. This allows allocators
@@ -31,17 +30,17 @@ use crate::alloc::StaticAlloc;
 /// because while it _can_ be global, it is also possible to have multiple instances,
 /// so the only way to find the correct instance is to store a pointer in objects it
 /// allocates.
-pub trait AsAllocRef<'a> {
-    type Handle: AllocRef<'a>;
+pub trait AsAllocHandle<'a> {
+    type Handle: AllocHandle<'a>;
 
-    fn as_alloc_ref(&'a self) -> Self::Handle;
+    fn as_alloc_handle(&'a self) -> Self::Handle;
 }
-impl<'a, H: AllocRef<'a>, T: AsAllocRef<'a, Handle = H>> AsAllocRef<'a> for &'a T {
+impl<'a, H: AllocHandle<'a>, T: AsAllocHandle<'a, Handle = H>> AsAllocHandle<'a> for &'a T {
     type Handle = H;
 
     #[inline]
-    fn as_alloc_ref(&'a self) -> Self::Handle {
-        (*self).as_alloc_ref()
+    fn as_alloc_handle(&'a self) -> Self::Handle {
+        (*self).as_alloc_handle()
     }
 }
 
@@ -50,11 +49,11 @@ impl<'a, H: AllocRef<'a>, T: AsAllocRef<'a, Handle = H>> AsAllocRef<'a> for &'a 
 ///
 /// See `Global` and `Handle` for the two types of allocator references
 /// provided by this crate
-pub trait AllocRef<'a>: Clone + Alloc + Sync {
-    type Alloc: ?Sized + Alloc + Sync;
+pub trait AllocHandle<'a>: Clone + AllocRef + Sync {
+    type AllocRef: ?Sized + AllocRef + Sync;
 
-    fn alloc_ref(&self) -> &Self::Alloc;
-    fn alloc_mut(&mut self) -> &mut Self::Alloc;
+    fn alloc_handle(&self) -> &Self::AllocRef;
+    fn alloc_mut(&mut self) -> &mut Self::AllocRef;
 }
 
 /// A zero-sized type for global allocators which only have a single instance
@@ -72,16 +71,16 @@ impl<A: StaticAlloc> Clone for Global<A> {
         Self(PhantomData)
     }
 }
-impl<A: StaticAlloc> AllocRef<'static> for Global<A> {
-    type Alloc = A;
+impl<A: StaticAlloc> AllocHandle<'static> for Global<A> {
+    type AllocRef = A;
 
     #[inline]
-    fn alloc_ref(&self) -> &Self::Alloc {
+    fn alloc_handle(&self) -> &Self::AllocRef {
         self.borrow()
     }
 
     #[inline]
-    fn alloc_mut(&mut self) -> &mut Self::Alloc {
+    fn alloc_mut(&mut self) -> &mut Self::AllocRef {
         self.borrow_mut()
     }
 }
@@ -112,9 +111,9 @@ impl<A: StaticAlloc> BorrowMut<A> for Global<A> {
         unsafe { <A as StaticAlloc>::static_mut() }
     }
 }
-unsafe impl<A: StaticAlloc> Alloc for Global<A> {
+unsafe impl<A: StaticAlloc> AllocRef for Global<A> {
     #[inline]
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
         <A as StaticAlloc>::static_mut().alloc(layout)
     }
     #[inline]
@@ -123,23 +122,17 @@ unsafe impl<A: StaticAlloc> Alloc for Global<A> {
     }
 
     #[inline]
-    fn usable_size(&self, layout: &Layout) -> (usize, usize) {
-        let alloc_ref = unsafe { <A as StaticAlloc>::static_ref() };
-        alloc_ref.usable_size(layout)
-    }
-
-    #[inline]
     unsafe fn realloc(
         &mut self,
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, AllocErr> {
+    ) -> Result<(NonNull<u8>, usize), AllocErr> {
         <A as StaticAlloc>::static_mut().realloc(ptr, layout, new_size)
     }
 
     #[inline]
-    unsafe fn alloc_zeroed(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn alloc_zeroed(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
         <A as StaticAlloc>::static_mut().alloc_zeroed(layout)
     }
 
@@ -149,7 +142,7 @@ unsafe impl<A: StaticAlloc> Alloc for Global<A> {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(), CannotReallocInPlace> {
+    ) -> Result<usize, CannotReallocInPlace> {
         <A as StaticAlloc>::static_mut().grow_in_place(ptr, layout, new_size)
     }
 
@@ -159,7 +152,7 @@ unsafe impl<A: StaticAlloc> Alloc for Global<A> {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(), CannotReallocInPlace> {
+    ) -> Result<usize, CannotReallocInPlace> {
         <A as StaticAlloc>::static_mut().shrink_in_place(ptr, layout, new_size)
     }
 }
@@ -167,60 +160,60 @@ unsafe impl<A: StaticAlloc> Alloc for Global<A> {
 /// A pointer-sized type for allocators which may have multiple instances, and
 /// so need a handle to the allocator in which an object was allocated
 pub struct Handle<'a, A>(Unique<A>, PhantomData<&'a A>);
-impl<'a, A: Alloc + Sync> Handle<'a, A> {
+impl<'a, A: AllocRef + Sync> Handle<'a, A> {
     #[inline]
     pub fn new(alloc: &A) -> Self {
         let nn = unsafe { Unique::new_unchecked(alloc as *const _ as *mut _) };
         Self(nn, PhantomData)
     }
 }
-impl<'a, A: Alloc + Sync> Clone for Handle<'a, A> {
+impl<'a, A: AllocRef + Sync> Clone for Handle<'a, A> {
     fn clone(&self) -> Self {
         let nn = unsafe { Unique::new_unchecked(self.0.as_ptr()) };
         Self(nn, PhantomData)
     }
 }
-impl<'a, A: Alloc + Sync> AllocRef<'a> for Handle<'a, A> {
-    type Alloc = A;
+impl<'a, A: AllocRef + Sync> AllocHandle<'a> for Handle<'a, A> {
+    type AllocRef = A;
 
     #[inline]
-    fn alloc_ref(&self) -> &Self::Alloc {
+    fn alloc_handle(&self) -> &Self::AllocRef {
         self.borrow()
     }
 
     #[inline]
-    fn alloc_mut(&mut self) -> &mut Self::Alloc {
+    fn alloc_mut(&mut self) -> &mut Self::AllocRef {
         self.borrow_mut()
     }
 }
-impl<'a, A: Alloc + Sync> Deref for Handle<'a, A> {
+impl<'a, A: AllocRef + Sync> Deref for Handle<'a, A> {
     type Target = A;
 
     fn deref(&self) -> &Self::Target {
         unsafe { self.0.as_ref() }
     }
 }
-impl<'a, A: Alloc + Sync> DerefMut for Handle<'a, A> {
+impl<'a, A: AllocRef + Sync> DerefMut for Handle<'a, A> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.0.as_mut() }
     }
 }
-impl<'a, A: Alloc + Sync> Borrow<A> for Handle<'a, A> {
+impl<'a, A: AllocRef + Sync> Borrow<A> for Handle<'a, A> {
     fn borrow(&self) -> &A {
         unsafe { self.0.as_ref() }
     }
 }
-impl<'a, A: Alloc + Sync> BorrowMut<A> for Handle<'a, A> {
+impl<'a, A: AllocRef + Sync> BorrowMut<A> for Handle<'a, A> {
     fn borrow_mut(&mut self) -> &mut A {
         unsafe { self.0.as_mut() }
     }
 }
-unsafe impl<'a, A: Alloc + Sync> Sync for Handle<'a, A> {}
-unsafe impl<'a, A: Alloc + Sync> Send for Handle<'a, A> {}
+unsafe impl<'a, A: AllocRef + Sync> Sync for Handle<'a, A> {}
+unsafe impl<'a, A: AllocRef + Sync> Send for Handle<'a, A> {}
 
-unsafe impl<'a, A: Alloc + Sync> Alloc for Handle<'a, A> {
+unsafe impl<'a, A: AllocRef + Sync> AllocRef for Handle<'a, A> {
     #[inline]
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
         self.0.as_mut().alloc(layout)
     }
     #[inline]
@@ -229,39 +222,18 @@ unsafe impl<'a, A: Alloc + Sync> Alloc for Handle<'a, A> {
     }
 
     #[inline]
-    fn usable_size(&self, layout: &Layout) -> (usize, usize) {
-        let alloc_ref = unsafe { self.0.as_ref() };
-        alloc_ref.usable_size(layout)
-    }
-
-    #[inline]
     unsafe fn realloc(
         &mut self,
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, AllocErr> {
+    ) -> Result<(NonNull<u8>, usize), AllocErr> {
         self.0.as_mut().realloc(ptr, layout, new_size)
     }
 
     #[inline]
-    unsafe fn alloc_zeroed(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn alloc_zeroed(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
         self.0.as_mut().alloc_zeroed(layout)
-    }
-
-    #[inline]
-    unsafe fn alloc_excess(&mut self, layout: Layout) -> Result<Excess, AllocErr> {
-        self.0.as_mut().alloc_excess(layout)
-    }
-
-    #[inline]
-    unsafe fn realloc_excess(
-        &mut self,
-        ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-    ) -> Result<Excess, AllocErr> {
-        self.0.as_mut().realloc_excess(ptr, layout, new_size)
     }
 
     #[inline]
@@ -270,7 +242,7 @@ unsafe impl<'a, A: Alloc + Sync> Alloc for Handle<'a, A> {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(), CannotReallocInPlace> {
+    ) -> Result<usize, CannotReallocInPlace> {
         self.0.as_mut().grow_in_place(ptr, layout, new_size)
     }
 
@@ -280,7 +252,7 @@ unsafe impl<'a, A: Alloc + Sync> Alloc for Handle<'a, A> {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(), CannotReallocInPlace> {
+    ) -> Result<usize, CannotReallocInPlace> {
         self.0.as_mut().shrink_in_place(ptr, layout, new_size)
     }
 }

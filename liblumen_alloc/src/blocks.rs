@@ -14,11 +14,10 @@ pub use self::free_block_tree::{FreeBlockTree, FreeBlocks};
 
 #[cfg(test)]
 mod tests {
-    use core::alloc::{Alloc, Layout};
     use core::mem;
     use core::ptr;
 
-    use liblumen_core::alloc::SysAlloc;
+    use liblumen_core::alloc::{AllocRef, Layout, SysAlloc};
     use liblumen_core::sys::sysconf;
 
     use crate::sorted::SortOrder;

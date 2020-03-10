@@ -29,9 +29,9 @@ impl ProcessHeapAlloc {
     /// Size of word in bytes
     const WORD_SIZE: usize = mem::size_of::<usize>();
 
-    /// An array of heap sizes, using the same growth pattern as BEAM
-    /// Fibonnaci growth from 233 words, until 1M words, at which point
-    /// the growth increases 20% at a time
+    // An array of heap sizes, using the same growth pattern as BEAM
+    // Fibonnaci growth from 233 words, until 1M words, at which point
+    // the growth increases 20% at a time
     generate_heap_sizes! {
         pub(super) const HEAP_SIZES: [usize; PLACEHOLDER] = [];
     }
@@ -71,7 +71,7 @@ impl ProcessHeapAlloc {
         }
 
         // Allocate region
-        match unsafe { self.alloc.allocate(layout) } {
+        match unsafe { self.alloc.allocate(layout).map(|(ptr, _)| ptr) } {
             Ok(non_null) => {
                 let ptr = non_null.as_ptr() as *mut Term;
 

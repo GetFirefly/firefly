@@ -1,4 +1,3 @@
-use core::alloc::{AllocErr, Layout};
 use core::cmp;
 use core::convert::TryFrom;
 use core::mem;
@@ -9,6 +8,7 @@ use alloc::fmt::{self, Debug, Formatter};
 use intrusive_collections::container_of;
 use intrusive_collections::RBTreeLink;
 
+use liblumen_core::alloc::{AllocErr, Layout};
 use liblumen_core::alloc::utils as alloc_utils;
 
 use crate::sorted::{SortKey, SortOrder, Sortable};

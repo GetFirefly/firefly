@@ -6,12 +6,11 @@ use core::ops::Drop;
 use core::ptr::{self, NonNull, Unique};
 use core::slice;
 
-use core::alloc::{Alloc, Layout};
-
 use core_alloc::alloc::handle_alloc_error;
 use core_alloc::collections::TryReserveError::{self, *};
 
-use crate::alloc::alloc_ref::{AllocRef, AsAllocRef};
+use crate::alloc::{AllocRef, Layout};
+use crate::alloc::alloc_handle::{AllocHandle, AsAllocHandle};
 use crate::alloc::boxed::Box;
 
 /// A low-level utility for more ergonomically allocating, reallocating, and deallocating
@@ -42,18 +41,18 @@ use crate::alloc::boxed::Box;
 /// field. This allows zero-sized types to not be special-cased by consumers of
 /// this type.
 #[allow(missing_debug_implementations)]
-pub struct RawVec<'a, T, A: AllocRef<'a>> {
+pub struct RawVec<'a, T, A: AllocHandle<'a>> {
     ptr: Unique<T>,
     cap: usize,
     a: A,
     _phantom: PhantomData<&'a A>,
 }
 
-impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> RawVec<'a, T, H> {
+impl<'a, T, A: ?Sized + AllocRef + Sync, H: AllocHandle<'a, AllocRef = A>> RawVec<'a, T, H> {
     /// Like `new` but parameterized over the choice of allocator for
     /// the returned RawVec.
     #[inline]
-    pub fn new_in<R: 'a + AsAllocRef<'a, Handle = H>>(a: &'a R) -> Self {
+    pub fn new_in<R: 'a + AsAllocHandle<'a, Handle = H>>(a: &'a R) -> Self {
         // !0 is usize::MAX. This branch should be stripped at compile time.
         // FIXME(mark-i-m): use this line when `if`s are allowed in `const`
         //let cap = if mem::size_of::<T>() == 0 { !0 } else { 0 };
@@ -63,7 +62,7 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> RawVec<'a, T, 
             ptr: Unique::empty(),
             // FIXME(mark-i-m): use `cap` when ifs are allowed in const
             cap: [0, !0][(mem::size_of::<T>() == 0) as usize],
-            a: a.as_alloc_ref(),
+            a: a.as_alloc_handle(),
             _phantom: PhantomData,
         }
     }
@@ -71,18 +70,18 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> RawVec<'a, T, 
     /// Like `with_capacity` but parameterized over the choice of
     /// allocator for the returned RawVec.
     #[inline]
-    pub fn with_capacity_in<R: 'a + AsAllocRef<'a, Handle = H>>(cap: usize, a: &'a R) -> Self {
-        RawVec::allocate_in(cap, false, a.as_alloc_ref())
+    pub fn with_capacity_in<R: 'a + AsAllocHandle<'a, Handle = H>>(cap: usize, a: &'a R) -> Self {
+        RawVec::allocate_in(cap, false, a.as_alloc_handle())
     }
 
     /// Like `with_capacity_zeroed` but parameterized over the choice
     /// of allocator for the returned RawVec.
     #[inline]
-    pub fn with_capacity_zeroed_in<R: 'a + AsAllocRef<'a, Handle = H>>(
+    pub fn with_capacity_zeroed_in<R: 'a + AsAllocHandle<'a, Handle = H>>(
         cap: usize,
         a: &'a R,
     ) -> Self {
-        RawVec::allocate_in(cap, true, a.as_alloc_ref())
+        RawVec::allocate_in(cap, true, a.as_alloc_handle())
     }
 
     fn allocate_in(cap: usize, zeroed: bool, mut a: H) -> Self {
@@ -105,7 +104,7 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> RawVec<'a, T, 
                 } else {
                     a.alloc(layout)
                 };
-                match result {
+                match result.map(|(ptr, _)| ptr) {
                     Ok(ptr) => ptr.cast(),
                     Err(_) => handle_alloc_error(layout),
                 }
@@ -127,7 +126,7 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> RawVec<'a, T, 
     /// The ptr must be allocated (via the given allocator `a`), and with the given capacity. The
     /// capacity cannot exceed `isize::MAX` (only a concern on 32-bit systems).
     /// If the ptr and capacity come from a RawVec created via `a`, then this is guaranteed.
-    pub unsafe fn from_raw_parts_in<R: 'a + AsAllocRef<'a, Handle = H>>(
+    pub unsafe fn from_raw_parts_in<R: 'a + AsAllocHandle<'a, Handle = H>>(
         ptr: *mut T,
         cap: usize,
         a: &'a R,
@@ -135,16 +134,16 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> RawVec<'a, T, 
         RawVec {
             ptr: Unique::new_unchecked(ptr),
             cap,
-            a: a.as_alloc_ref(),
+            a: a.as_alloc_handle(),
             _phantom: PhantomData,
         }
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> RawVec<'a, T, A> {
     #[doc(hidden)]
     #[inline]
-    pub fn new_with_alloc_ref(a: A) -> Self {
+    pub fn new_with_alloc_handle(a: A) -> Self {
         RawVec {
             ptr: Unique::empty(),
             cap: [0, !0][(mem::size_of::<T>() == 0) as usize],
@@ -155,13 +154,13 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
 
     #[doc(hidden)]
     #[inline]
-    pub fn with_capacity_and_alloc_ref(cap: usize, a: A) -> Self {
+    pub fn with_capacity_and_alloc_handle(cap: usize, a: A) -> Self {
         RawVec::allocate_in(cap, false, a)
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn with_capacity_zeroed_and_alloc_ref(cap: usize, a: A) -> Self {
+    pub fn with_capacity_zeroed_and_alloc_handle(cap: usize, a: A) -> Self {
         RawVec::allocate_in(cap, true, a)
     }
 
@@ -172,7 +171,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     /// The ptr must be allocated (via the given allocator `a`), and with the given capacity. The
     /// capacity cannot exceed `isize::MAX` (only a concern on 32-bit systems).
     /// If the ptr and capacity come from a RawVec created via `a`, then this is guaranteed.
-    pub unsafe fn from_raw_parts_and_alloc_ref(ptr: *mut T, cap: usize, a: A) -> Self {
+    pub unsafe fn from_raw_parts_and_alloc_handle(ptr: *mut T, cap: usize, a: A) -> Self {
         RawVec {
             ptr: Unique::new_unchecked(ptr),
             cap,
@@ -218,19 +217,19 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
 
     /// Returns a shared reference to the allocator backing this RawVec.
     #[inline]
-    pub fn alloc(&self) -> &A::Alloc {
-        self.a.alloc_ref()
+    pub fn alloc(&self) -> &A::AllocRef {
+        self.a.alloc_handle()
     }
 
     /// Returns a mutable reference to the allocator backing this RawVec.
     #[inline]
-    pub fn alloc_mut(&mut self) -> &mut A::Alloc {
+    pub fn alloc_mut(&mut self) -> &mut A::AllocRef {
         self.a.alloc_mut()
     }
 
     /// Returns a reference to this RawVec's allocator handle
     #[inline]
-    pub fn alloc_ref(&self) -> &A {
+    pub fn alloc_handle(&self) -> &A {
         &self.a
     }
 
@@ -293,7 +292,8 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
                     alloc_guard(new_size).unwrap_or_else(|_| capacity_overflow());
                     let ptr_res = self
                         .a
-                        .realloc(NonNull::from(self.ptr).cast(), cur, new_size);
+                        .realloc(NonNull::from(self.ptr).cast(), cur, new_size)
+                        .map(|(ptr, _)| ptr);
                     match ptr_res {
                         Ok(ptr) => (new_cap, ptr.cast().into()),
                         Err(_) => handle_alloc_error(Layout::from_size_align_unchecked(
@@ -306,8 +306,9 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
                     // skip to 4 because tiny Vec's are dumb; but not if that
                     // would cause overflow
                     let new_cap = if elem_size > (!0) / 8 { 1 } else { 4 };
-                    match self.a.alloc_array::<T>(new_cap) {
-                        Ok(ptr) => (new_cap, ptr.into()),
+                    let layout = Layout::array::<T>(new_cap).unwrap();
+                    match self.a.alloc(layout) {
+                        Ok((ptr, _ptr_size)) => (new_cap, ptr.cast::<T>().into()),
                         Err(_) => handle_alloc_error(Layout::array::<T>(new_cap).unwrap()),
                     }
                 }
@@ -547,7 +548,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
             unsafe {
                 let a = ptr::read(&self.a as *const A);
                 self.dealloc_buffer();
-                ptr::write(self, RawVec::new_with_alloc_ref(a));
+                ptr::write(self, RawVec::new_with_alloc_handle(a));
             }
         } else if self.cap != amount {
             unsafe {
@@ -566,6 +567,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
                 match self
                     .a
                     .realloc(NonNull::from(self.ptr).cast(), old_layout, new_size)
+                    .map(|(ptr, _)| ptr)
                 {
                     Ok(p) => self.ptr = p.cast().into(),
                     Err(_) => {
@@ -592,7 +594,7 @@ enum ReserveStrategy {
 
 use ReserveStrategy::*;
 
-impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> RawVec<'a, T, A> {
     fn reserve_internal(
         &mut self,
         used_cap: usize,
@@ -601,7 +603,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
         strategy: ReserveStrategy,
     ) -> Result<(), TryReserveError> {
         unsafe {
-            use core::alloc::AllocErr;
+            use crate::alloc::AllocErr;
 
             // NOTE: we don't early branch on ZSTs here because we want this
             // to actually catch "asking for more than usize::MAX" in that case.
@@ -639,7 +641,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
                 _ => {}
             }
 
-            self.ptr = res.unwrap().cast().into();
+            self.ptr = res.map(|(ptr, _)| ptr).unwrap().cast().into();
             self.cap = new_cap;
 
             Ok(())
@@ -657,7 +659,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     }
 }
 
-unsafe impl<'a, #[may_dangle] T, A: AllocRef<'a>> Drop for RawVec<'a, T, A> {
+unsafe impl<'a, #[may_dangle] T, A: AllocHandle<'a>> Drop for RawVec<'a, T, A> {
     /// Frees the memory owned by the RawVec *without* trying to Drop its contents.
     fn drop(&mut self) {
         unsafe {
@@ -695,14 +697,14 @@ fn capacity_overflow() -> ! {
 mod tests {
     use super::*;
 
-    use crate::alloc::alloc_ref::{AsAllocRef, Handle};
+    use crate::alloc::alloc_handle::{AsAllocHandle, Handle};
     use crate::alloc::SysAlloc;
 
     static SYS_ALLOC: SysAlloc = SysAlloc;
 
     #[test]
     fn allocator_param() {
-        use core::alloc::AllocErr;
+        use crate::alloc::AllocErr;
 
         // Writing a test of integration between third-party
         // allocators and RawVec is a little tricky because the RawVec
@@ -719,9 +721,9 @@ mod tests {
         struct BoundedAlloc {
             fuel: usize,
         }
-        unsafe impl Alloc for BoundedAlloc {
+        unsafe impl AllocRef for BoundedAlloc {
             unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-                use core::alloc::GlobalAlloc;
+                use crate::alloc::GlobalAlloc;
                 let size = layout.size();
                 if size > self.fuel {
                     return Err(AllocErr);
@@ -734,14 +736,14 @@ mod tests {
                 Ok(NonNull::new_unchecked(ptr))
             }
             unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-                use core::alloc::GlobalAlloc;
+                use crate::alloc::GlobalAlloc;
                 <SysAlloc as GlobalAlloc>::dealloc(&SYS_ALLOC, ptr.as_ptr(), layout)
             }
         }
-        impl<'a> AsAllocRef<'a> for BoundedAlloc {
+        impl<'a> AsAllocHandle<'a> for BoundedAlloc {
             type Handle = Handle<'a, BoundedAlloc>;
 
-            fn as_alloc_ref(&self) -> Self::Handle {
+            fn as_alloc_handle(&self) -> Self::Handle {
                 Handle::new(self)
             }
         }

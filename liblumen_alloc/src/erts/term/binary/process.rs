@@ -137,7 +137,7 @@ impl ProcBin {
         let layout = unpadded_layout.pad_to_align();
 
         unsafe {
-            let non_null = sys_alloc::alloc(layout)?;
+            let (non_null, _) = sys_alloc::alloc(layout)?;
             let len = s.len();
 
             let ptr: *mut u8 = non_null.as_ptr();

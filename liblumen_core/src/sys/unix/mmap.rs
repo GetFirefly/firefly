@@ -64,7 +64,7 @@ const STACK_FLAGS: libc::c_int = MMAP_FLAGS;
 /// If `hint_ptr` is not a null pointer, it will be used to hint to the OS
 /// where we would like the region mapped.
 #[inline]
-pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn map(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
     let page_size = sysconf::pagesize();
     let size = alloc_utils::round_up_to_multiple_of(layout.size(), page_size);
     let align = layout.align();
@@ -80,7 +80,8 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
 
     // To avoid wasting space, we unmap the unused portions of
     // this initial memory mapping, and return the aligned region
-    let ptr = map_internal(ptr::null_mut(), size + extra)?.as_ptr();
+    let ptr = map_internal(ptr::null_mut(), size + extra)
+        .map(|(nn, _)| nn.as_ptr())?;
     let addr = ptr as usize;
     let aligned_addr = alloc_utils::round_up_to_multiple_of(addr, align);
     let aligned_ptr = aligned_addr as *mut u8;
@@ -97,9 +98,10 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
     }
 
     // Commit the precise memory region for the requested layout
-    commit(aligned_ptr, layout.size());
+    let commit_size = layout.size();
+    commit(aligned_ptr, commit_size);
 
-    Ok(NonNull::new_unchecked(aligned_ptr))
+    Ok((NonNull::new_unchecked(aligned_ptr), commit_size))
 }
 
 #[inline]
@@ -131,7 +133,7 @@ pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
 }
 
 #[inline(always)]
-unsafe fn map_internal(hint_ptr: *mut u8, size: usize) -> Result<NonNull<u8>, AllocErr> {
+unsafe fn map_internal(hint_ptr: *mut u8, size: usize) -> Result<(NonNull<u8>, usize), AllocErr> {
     let res = libc::mmap(
         hint_ptr as *mut libc::c_void,
         size,
@@ -144,7 +146,7 @@ unsafe fn map_internal(hint_ptr: *mut u8, size: usize) -> Result<NonNull<u8>, Al
         return Err(AllocErr);
     }
 
-    Ok(NonNull::new_unchecked(res as *mut u8))
+    Ok((NonNull::new_unchecked(res as *mut u8), size))
 }
 
 #[inline(always)]
@@ -178,13 +180,13 @@ pub unsafe fn remap(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocErr> {
     let old_size = layout.size();
     let align = layout.align();
     let new_size = alloc_utils::round_up_to_multiple_of(new_size, align);
 
     if unlikely(new_size < old_size) {
-        return Ok(NonNull::new_unchecked(ptr));
+        return Ok((NonNull::new_unchecked(ptr), new_size));
     }
 
     remap_internal(ptr, old_size, align, new_size)
@@ -197,12 +199,12 @@ unsafe fn remap_internal(
     old_size: usize,
     _align: usize,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocErr> {
     let new_seg = libc::mremap(ptr as *mut _, old_size, new_size, libc::MREMAP_MAYMOVE);
     if new_seg == MAP_FAILED {
         return Err(AllocErr);
     }
-    Ok(NonNull::new_unchecked(new_seg as *mut _))
+    Ok((NonNull::new_unchecked(new_seg as *mut _), new_size))
 }
 
 /// Remaps the memory mapping at `ptr` using the alignment of `layout` and `new_size`
@@ -215,12 +217,12 @@ unsafe fn remap_internal(
     old_size: usize,
     _align: usize,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocErr> {
     let new_seg = libc::mremap(ptr as *mut _, old_size, 0, new_size, 0 as libc::c_int);
     if new_seg == MAP_FAILED {
         return Err(AllocErr);
     }
-    Ok(NonNull::new_unchecked(new_seg as *mut _))
+    Ok((NonNull::new_unchecked(new_seg as *mut _), new_size))
 }
 
 /// Remaps the memory mapping at `ptr` using the alignment of `layout` and `new_size`
@@ -239,7 +241,7 @@ unsafe fn remap_internal(
     old_size: usize,
     align: usize,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocErr> {
     // Try and map the extra space at the end of the old mapping
     let hint_ptr = ((ptr as usize) + old_size) as *mut libc::c_void;
     let extend_size = new_size - old_size;
@@ -267,7 +269,7 @@ unsafe fn remap_internal(
     }
 
     // We were able to remap the original mapping
-    Ok(NonNull::new_unchecked(ret as *mut _))
+    Ok((NonNull::new_unchecked(ret as *mut _), new_size))
 }
 
 #[inline]
@@ -282,15 +284,15 @@ unsafe fn remap_fallback(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocErr> {
     // Allocate new mapping
     let new_layout = Layout::from_size_align(new_size, layout.align()).expect("invalid layout");
-    let new_ptr = map(new_layout)?;
+    let (new_ptr, new_ptr_size) = map(new_layout)?;
     // Copy over the old mapping to the new
     let old_size = layout.size();
     ptr::copy_nonoverlapping(ptr, new_ptr.as_ptr(), cmp::min(old_size, new_size));
     // Free the old mapping
     unmap(ptr, layout);
 
-    Ok(new_ptr)
+    Ok((new_ptr, new_ptr_size))
 }

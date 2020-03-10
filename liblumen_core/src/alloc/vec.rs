@@ -2,7 +2,6 @@
 //! A contiguous growable array type with heap-allocated contents, same
 //! as the standard library `Vec<T>`, but also parameterized on the backing
 //! allocator
-use core::alloc::Alloc;
 use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{self, Hash};
@@ -14,18 +13,19 @@ use core::ops::{self, Index, IndexMut};
 use core::ptr::{self, NonNull};
 use core::slice::{self, SliceIndex};
 
-use crate::alloc::alloc_ref::{AllocRef, AsAllocRef};
+use crate::alloc::AllocRef;
+use crate::alloc::alloc_handle::{AllocHandle, AsAllocHandle};
 use crate::alloc::boxed::Box;
 use crate::alloc::raw_vec::RawVec;
 
-pub struct Vec<'a, T, A: AllocRef<'a>> {
+pub struct Vec<'a, T, A: AllocHandle<'a>> {
     buf: RawVec<'a, T, A>,
     len: usize,
 }
 
-impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> Vec<'a, T, H> {
+impl<'a, T, A: ?Sized + AllocRef + Sync, H: AllocHandle<'a, AllocRef = A>> Vec<'a, T, H> {
     #[inline]
-    pub fn new<R: 'a + AsAllocRef<'a, Handle = H>>(a: &'a R) -> Self {
+    pub fn new<R: 'a + AsAllocHandle<'a, Handle = H>>(a: &'a R) -> Self {
         Vec {
             buf: RawVec::new_in(a),
             len: 0,
@@ -33,7 +33,7 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> Vec<'a, T, H> 
     }
 
     #[inline]
-    pub fn with_capacity<R: 'a + AsAllocRef<'a, Handle = H>>(capacity: usize, a: &'a R) -> Self {
+    pub fn with_capacity<R: 'a + AsAllocHandle<'a, Handle = H>>(capacity: usize, a: &'a R) -> Self {
         Vec {
             buf: RawVec::with_capacity_in(capacity, a),
             len: 0,
@@ -246,8 +246,8 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> Vec<'a, T, H> 
         assert!(at <= self.len(), "`at` out of bounds");
 
         let other_len = self.len - at;
-        let alloc_ref = self.buf.alloc_ref().clone();
-        let mut other = Vec::with_capacity_and_alloc_ref(other_len, alloc_ref);
+        let alloc_handle = self.buf.alloc_handle().clone();
+        let mut other = Vec::with_capacity_and_alloc_handle(other_len, alloc_handle);
 
         // Unsafely `set_len` and copy items to `other`.
         unsafe {
@@ -272,17 +272,17 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> Vec<'a, T, H> 
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> Vec<'a, T, A> {
     #[inline]
-    pub fn with_capacity_and_alloc_ref(capacity: usize, a: A) -> Self {
+    pub fn with_capacity_and_alloc_handle(capacity: usize, a: A) -> Self {
         Vec {
-            buf: RawVec::with_capacity_and_alloc_ref(capacity, a),
+            buf: RawVec::with_capacity_and_alloc_handle(capacity, a),
             len: 0,
         }
     }
 }
 
-impl<'a, T: Clone, A: AllocRef<'a>> Vec<'a, T, A> {
+impl<'a, T: Clone, A: AllocHandle<'a>> Vec<'a, T, A> {
     pub fn resize(&mut self, new_len: usize, value: T) {
         let len = self.len();
 
@@ -334,7 +334,7 @@ impl<T, F: FnMut() -> T> ExtendWith<T> for ExtendFunc<F> {
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> Vec<'a, T, A> {
     /// Extend the vector by `n` values, using the given generator.
     fn extend_with<E: ExtendWith<T>>(&mut self, n: usize, mut value: E) {
         self.reserve(n);
@@ -366,7 +366,7 @@ impl<'a, T, A: AllocRef<'a>> Vec<'a, T, A> {
 
     #[inline]
     pub unsafe fn from_raw_parts(ptr: *mut T, len: usize, cap: usize, a: A) -> Self {
-        let buf = RawVec::from_raw_parts_and_alloc_ref(ptr, cap, a);
+        let buf = RawVec::from_raw_parts_and_alloc_handle(ptr, cap, a);
         Self { buf, len }
     }
 }
@@ -408,7 +408,7 @@ impl Drop for SetLenOnDrop<'_> {
     }
 }
 
-impl<'a, T: PartialEq, A: AllocRef<'a>> Vec<'a, T, A> {
+impl<'a, T: PartialEq, A: AllocHandle<'a>> Vec<'a, T, A> {
     #[inline]
     pub fn dedup(&mut self) {
         self.dedup_by(|a, b| a == b)
@@ -477,12 +477,12 @@ unsafe impl<T: ?Sized> IsZero for *mut T {
 // Common trait implementations for Vec
 ////////////////////////////////////////////////////////////////////////////////
 
-impl<'a, T: Clone, A: AllocRef<'a>> Clone for Vec<'a, T, A> {
+impl<'a, T: Clone, A: AllocHandle<'a>> Clone for Vec<'a, T, A> {
     fn clone(&self) -> Self {
         let cap = self.buf.cap();
         let len = self.len;
-        let alloc_ref = self.buf.alloc_ref().clone();
-        let buf = RawVec::with_capacity_and_alloc_ref(cap, alloc_ref);
+        let alloc_handle = self.buf.alloc_handle().clone();
+        let buf = RawVec::with_capacity_and_alloc_handle(cap, alloc_handle);
         let ptr = buf.ptr();
         unsafe {
             ptr::copy_nonoverlapping(self.buf.ptr(), ptr, cap);
@@ -491,14 +491,14 @@ impl<'a, T: Clone, A: AllocRef<'a>> Clone for Vec<'a, T, A> {
     }
 }
 
-impl<'a, T: Hash, A: AllocRef<'a>> Hash for Vec<'a, T, A> {
+impl<'a, T: Hash, A: AllocHandle<'a>> Hash for Vec<'a, T, A> {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         Hash::hash(&**self, state)
     }
 }
 
-impl<'a, T, I: SliceIndex<[T]>, A: AllocRef<'a>> Index<I> for Vec<'a, T, A> {
+impl<'a, T, I: SliceIndex<[T]>, A: AllocHandle<'a>> Index<I> for Vec<'a, T, A> {
     type Output = I::Output;
 
     #[inline]
@@ -507,14 +507,14 @@ impl<'a, T, I: SliceIndex<[T]>, A: AllocRef<'a>> Index<I> for Vec<'a, T, A> {
     }
 }
 
-impl<'a, T, I: SliceIndex<[T]>, A: AllocRef<'a>> IndexMut<I> for Vec<'a, T, A> {
+impl<'a, T, I: SliceIndex<[T]>, A: AllocHandle<'a>> IndexMut<I> for Vec<'a, T, A> {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         IndexMut::index_mut(&mut **self, index)
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> ops::Deref for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> ops::Deref for Vec<'a, T, A> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
@@ -526,7 +526,7 @@ impl<'a, T, A: AllocRef<'a>> ops::Deref for Vec<'a, T, A> {
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> ops::DerefMut for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> ops::DerefMut for Vec<'a, T, A> {
     fn deref_mut(&mut self) -> &mut [T] {
         unsafe {
             let ptr = self.buf.ptr();
@@ -536,7 +536,7 @@ impl<'a, T, A: AllocRef<'a>> ops::DerefMut for Vec<'a, T, A> {
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> IntoIterator for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> IntoIterator for Vec<'a, T, A> {
     type Item = T;
     type IntoIter = IntoIter<'a, T, A>;
 
@@ -550,7 +550,7 @@ impl<'a, T, A: AllocRef<'a>> IntoIterator for Vec<'a, T, A> {
             } else {
                 begin.add(self.len()) as *const T
             };
-            let a = self.buf.alloc_ref().clone();
+            let a = self.buf.alloc_handle().clone();
             let cap = self.buf.cap();
             mem::forget(self);
             IntoIter {
@@ -566,7 +566,7 @@ impl<'a, T, A: AllocRef<'a>> IntoIterator for Vec<'a, T, A> {
     }
 }
 
-impl<'a, 'b: 'a, T, A: AllocRef<'a>> IntoIterator for &'b Vec<'a, T, A> {
+impl<'a, 'b: 'a, T, A: AllocHandle<'a>> IntoIterator for &'b Vec<'a, T, A> {
     type Item = &'b T;
     type IntoIter = slice::Iter<'b, T>;
 
@@ -575,7 +575,7 @@ impl<'a, 'b: 'a, T, A: AllocRef<'a>> IntoIterator for &'b Vec<'a, T, A> {
     }
 }
 
-impl<'a, 'b: 'a, T, A: AllocRef<'a>> IntoIterator for &'b mut Vec<'a, T, A> {
+impl<'a, 'b: 'a, T, A: AllocHandle<'a>> IntoIterator for &'b mut Vec<'a, T, A> {
     type Item = &'b mut T;
     type IntoIter = slice::IterMut<'b, T>;
 
@@ -584,7 +584,7 @@ impl<'a, 'b: 'a, T, A: AllocRef<'a>> IntoIterator for &'b mut Vec<'a, T, A> {
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> Extend<T> for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> Extend<T> for Vec<'a, T, A> {
     #[inline]
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         <Self as SpecExtend<T, I::IntoIter>>::spec_extend(self, iter.into_iter())
@@ -596,7 +596,7 @@ trait SpecExtend<T, I> {
     fn spec_extend(&mut self, iter: I);
 }
 
-impl<'a, T, I, A: AllocRef<'a>> SpecExtend<T, I> for Vec<'a, T, A>
+impl<'a, T, I, A: AllocHandle<'a>> SpecExtend<T, I> for Vec<'a, T, A>
 where
     I: Iterator<Item = T>,
 {
@@ -605,7 +605,7 @@ where
     }
 }
 
-impl<'a, T, I, A: AllocRef<'a>> SpecExtend<T, I> for Vec<'a, T, A>
+impl<'a, T, I, A: AllocHandle<'a>> SpecExtend<T, I> for Vec<'a, T, A>
 where
     I: TrustedLen<Item = T>,
 {
@@ -638,7 +638,7 @@ where
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> SpecExtend<T, IntoIter<'a, T, A>> for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> SpecExtend<T, IntoIter<'a, T, A>> for Vec<'a, T, A> {
     fn spec_extend(&mut self, mut iterator: IntoIter<'a, T, A>) {
         unsafe {
             self.append_elements(iterator.as_slice() as _);
@@ -647,7 +647,7 @@ impl<'a, T, A: AllocRef<'a>> SpecExtend<T, IntoIter<'a, T, A>> for Vec<'a, T, A>
     }
 }
 
-impl<'a, 'b: 'a, T: 'b, I, A: AllocRef<'a>> SpecExtend<&'b T, I> for Vec<'a, T, A>
+impl<'a, 'b: 'a, T: 'b, I, A: AllocHandle<'a>> SpecExtend<&'b T, I> for Vec<'a, T, A>
 where
     I: Iterator<Item = &'b T>,
     T: Clone,
@@ -657,7 +657,7 @@ where
     }
 }
 
-impl<'a, 'b: 'a, T: 'b, A: AllocRef<'a>> SpecExtend<&'b T, slice::Iter<'b, T>> for Vec<'a, T, A>
+impl<'a, 'b: 'a, T: 'b, A: AllocHandle<'a>> SpecExtend<&'b T, slice::Iter<'b, T>> for Vec<'a, T, A>
 where
     T: Copy,
 {
@@ -672,7 +672,7 @@ where
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> Vec<'a, T, A> {
     fn extend_desugared<I: Iterator<Item = T>>(&mut self, mut iterator: I) {
         // This is the case for a general iterator.
         //
@@ -702,13 +702,13 @@ impl<'a, T, A: AllocRef<'a>> Vec<'a, T, A> {
 /// append the entire slice at once.
 ///
 /// [`copy_from_slice`]: ../../std/primitive.slice.html#method.copy_from_slice
-impl<'a, 'b: 'a, T: 'b + Copy, A: AllocRef<'a>> Extend<&'b T> for Vec<'a, T, A> {
+impl<'a, 'b: 'a, T: 'b + Copy, A: AllocHandle<'a>> Extend<&'b T> for Vec<'a, T, A> {
     fn extend<I: IntoIterator<Item = &'b T>>(&mut self, iter: I) {
         self.spec_extend(iter.into_iter())
     }
 }
 
-impl<'a, 'b, T: Sized, U, A: AllocRef<'a>, B: AllocRef<'b>> PartialEq<Vec<'b, U, B>>
+impl<'a, 'b, T: Sized, U, A: AllocHandle<'a>, B: AllocHandle<'b>> PartialEq<Vec<'b, U, B>>
     for Vec<'a, T, A>
 where
     T: PartialEq<U>,
@@ -723,7 +723,7 @@ where
         self[..] != other[..]
     }
 }
-impl<'a, 'b, T: Sized, U, A: AllocRef<'a>> PartialEq<&'b [U]> for Vec<'a, T, A>
+impl<'a, 'b, T: Sized, U, A: AllocHandle<'a>> PartialEq<&'b [U]> for Vec<'a, T, A>
 where
     T: PartialEq<U>,
 {
@@ -737,7 +737,7 @@ where
         self[..] != other[..]
     }
 }
-impl<'a, 'b, T: Sized, U, A: AllocRef<'a>> PartialEq<&'b mut [U]> for Vec<'a, T, A>
+impl<'a, 'b, T: Sized, U, A: AllocHandle<'a>> PartialEq<&'b mut [U]> for Vec<'a, T, A>
 where
     T: PartialEq<U>,
 {
@@ -755,14 +755,14 @@ where
 macro_rules! array_impls {
     ($($N: expr)+) => {
         $(
-            impl<'a, T: Sized, U, A: AllocRef<'a>> PartialEq<[U; $N]> for Vec<'a, T, A> where T: PartialEq<U> {
+            impl<'a, T: Sized, U, A: AllocHandle<'a>> PartialEq<[U; $N]> for Vec<'a, T, A> where T: PartialEq<U> {
                 #[inline]
                 fn eq(&self, other: &[U; $N]) -> bool { self[..] == other[..] }
 
                 #[inline]
                 fn ne(&self, other: &[U; $N]) -> bool { self[..] != other[..] }
             }
-            impl<'a, 'b, T: Sized, U, A: AllocRef<'a>> PartialEq<&'b [U; $N]> for Vec<'a, T, A> where T: PartialEq<U> {
+            impl<'a, 'b, T: Sized, U, A: AllocHandle<'a>> PartialEq<&'b [U; $N]> for Vec<'a, T, A> where T: PartialEq<U> {
                 #[inline]
                 fn eq(&self, other: &&'b [U; $N]) -> bool { self[..] == other[..] }
 
@@ -786,24 +786,24 @@ array_impls! {
 }
 
 /// Implements comparison of vectors, lexicographically.
-impl<'a, T: PartialOrd, A: AllocRef<'a>> PartialOrd for Vec<'a, T, A> {
+impl<'a, T: PartialOrd, A: AllocHandle<'a>> PartialOrd for Vec<'a, T, A> {
     #[inline]
     fn partial_cmp(&self, other: &Vec<'a, T, A>) -> Option<Ordering> {
         PartialOrd::partial_cmp(&**self, &**other)
     }
 }
 
-impl<'a, T: Eq, A: AllocRef<'a>> Eq for Vec<'a, T, A> {}
+impl<'a, T: Eq, A: AllocHandle<'a>> Eq for Vec<'a, T, A> {}
 
 /// Implements ordering of vectors, lexicographically.
-impl<'a, T: Ord, A: AllocRef<'a>> Ord for Vec<'a, T, A> {
+impl<'a, T: Ord, A: AllocHandle<'a>> Ord for Vec<'a, T, A> {
     #[inline]
     fn cmp(&self, other: &Vec<'a, T, A>) -> Ordering {
         Ord::cmp(&**self, &**other)
     }
 }
 
-unsafe impl<'a, #[may_dangle] T, A: AllocRef<'a>> Drop for Vec<'a, T, A> {
+unsafe impl<'a, #[may_dangle] T, A: AllocHandle<'a>> Drop for Vec<'a, T, A> {
     fn drop(&mut self) {
         unsafe {
             // use drop for [T]
@@ -813,37 +813,37 @@ unsafe impl<'a, #[may_dangle] T, A: AllocRef<'a>> Drop for Vec<'a, T, A> {
     }
 }
 
-impl<'a, T: fmt::Debug, A: AllocRef<'a>> fmt::Debug for Vec<'a, T, A> {
+impl<'a, T: fmt::Debug, A: AllocHandle<'a>> fmt::Debug for Vec<'a, T, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> AsRef<Vec<'a, T, A>> for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> AsRef<Vec<'a, T, A>> for Vec<'a, T, A> {
     fn as_ref(&self) -> &Vec<'a, T, A> {
         self
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> AsMut<Vec<'a, T, A>> for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> AsMut<Vec<'a, T, A>> for Vec<'a, T, A> {
     fn as_mut(&mut self) -> &mut Vec<'a, T, A> {
         self
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> AsRef<[T]> for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> AsRef<[T]> for Vec<'a, T, A> {
     fn as_ref(&self) -> &[T] {
         self
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> AsMut<[T]> for Vec<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> AsMut<[T]> for Vec<'a, T, A> {
     fn as_mut(&mut self) -> &mut [T] {
         self
     }
 }
 
-impl<'a, A: AllocRef<'a>> From<Box<'a, str, A>> for Vec<'a, u8, A> {
+impl<'a, A: AllocHandle<'a>> From<Box<'a, str, A>> for Vec<'a, u8, A> {
     fn from(s: Box<'a, str, A>) -> Vec<'a, u8, A> {
         let bytes = s.as_bytes();
         let cap = bytes.len();
@@ -863,7 +863,7 @@ impl<'a, A: AllocRef<'a>> From<Box<'a, str, A>> for Vec<'a, u8, A> {
 ///
 /// [`Vec`]: struct.Vec.html
 /// [`IntoIterator`]: ../../std/iter/trait.IntoIterator.html
-pub struct IntoIter<'a, T, A: AllocRef<'a>> {
+pub struct IntoIter<'a, T, A: AllocHandle<'a>> {
     buf: NonNull<T>,
     phantom: PhantomData<T>,
     cap: usize,
@@ -873,13 +873,13 @@ pub struct IntoIter<'a, T, A: AllocRef<'a>> {
     _a: PhantomData<&'a A>,
 }
 
-impl<'a, T: fmt::Debug, A: AllocRef<'a>> fmt::Debug for IntoIter<'a, T, A> {
+impl<'a, T: fmt::Debug, A: AllocHandle<'a>> fmt::Debug for IntoIter<'a, T, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("IntoIter").field(&self.as_slice()).finish()
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> IntoIter<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> IntoIter<'a, T, A> {
     pub fn as_slice(&self) -> &[T] {
         unsafe { slice::from_raw_parts(self.ptr, self.len()) }
     }
@@ -889,10 +889,10 @@ impl<'a, T, A: AllocRef<'a>> IntoIter<'a, T, A> {
     }
 }
 
-unsafe impl<'a, T: Send, A: AllocRef<'a>> Send for IntoIter<'a, T, A> {}
-unsafe impl<'a, T: Sync, A: AllocRef<'a>> Sync for IntoIter<'a, T, A> {}
+unsafe impl<'a, T: Send, A: AllocHandle<'a>> Send for IntoIter<'a, T, A> {}
+unsafe impl<'a, T: Sync, A: AllocHandle<'a>> Sync for IntoIter<'a, T, A> {}
 
-impl<'a, T, A: AllocRef<'a>> Iterator for IntoIter<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> Iterator for IntoIter<'a, T, A> {
     type Item = T;
 
     #[inline]
@@ -935,7 +935,7 @@ impl<'a, T, A: AllocRef<'a>> Iterator for IntoIter<'a, T, A> {
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> DoubleEndedIterator for IntoIter<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> DoubleEndedIterator for IntoIter<'a, T, A> {
     #[inline]
     fn next_back(&mut self) -> Option<T> {
         unsafe {
@@ -958,24 +958,24 @@ impl<'a, T, A: AllocRef<'a>> DoubleEndedIterator for IntoIter<'a, T, A> {
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> ExactSizeIterator for IntoIter<'a, T, A> {
+impl<'a, T, A: AllocHandle<'a>> ExactSizeIterator for IntoIter<'a, T, A> {
     fn is_empty(&self) -> bool {
         self.ptr == self.end
     }
 }
 
-impl<'a, T, A: AllocRef<'a>> FusedIterator for IntoIter<'a, T, A> {}
+impl<'a, T, A: AllocHandle<'a>> FusedIterator for IntoIter<'a, T, A> {}
 
-unsafe impl<'a, T, A: AllocRef<'a>> TrustedLen for IntoIter<'a, T, A> {}
+unsafe impl<'a, T, A: AllocHandle<'a>> TrustedLen for IntoIter<'a, T, A> {}
 
-unsafe impl<'a, #[may_dangle] T, A: AllocRef<'a>> Drop for IntoIter<'a, T, A> {
+unsafe impl<'a, #[may_dangle] T, A: AllocHandle<'a>> Drop for IntoIter<'a, T, A> {
     fn drop(&mut self) {
         // destroy the remaining elements
         for _x in self.by_ref() {}
 
         // RawVec handles deallocation
-        let alloc_ref = self.a.clone();
+        let alloc_handle = self.a.clone();
         let _ =
-            unsafe { RawVec::from_raw_parts_and_alloc_ref(self.buf.as_ptr(), self.cap, alloc_ref) };
+            unsafe { RawVec::from_raw_parts_and_alloc_handle(self.buf.as_ptr(), self.cap, alloc_handle) };
     }
 }

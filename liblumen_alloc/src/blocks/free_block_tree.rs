@@ -1,8 +1,8 @@
-use core::alloc::Layout;
-
 #[cfg(test)]
 use intrusive_collections::rbtree;
 use intrusive_collections::RBTree;
+
+use liblumen_core::alloc::Layout;
 
 use crate::sorted::{SortOrder, SortedKeyAdapter};
 

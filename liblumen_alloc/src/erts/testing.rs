@@ -1,8 +1,8 @@
-use core::alloc::Layout;
 use core::fmt;
 use core::mem;
 use core::ptr::NonNull;
 
+use liblumen_core::alloc::Layout;
 use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 use liblumen_core::sys::alloc as sys_alloc;
 use liblumen_core::sys::sysconf::MIN_ALIGN;

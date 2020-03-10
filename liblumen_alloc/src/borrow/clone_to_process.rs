@@ -1,7 +1,8 @@
-use core::alloc::Layout;
 use core::fmt::Debug;
 use core::mem;
 use core::ptr::NonNull;
+
+use liblumen_core::alloc::Layout;
 
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::TermAlloc;

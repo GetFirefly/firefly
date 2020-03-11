@@ -68,6 +68,7 @@ libeir_lowerutils = { git = "https://github.com/bitwalker/eir.git", branch = "bi
 libeir_passes = { git = "https://github.com/bitwalker/eir.git", branch = "bitwalker/lumen-changes" }
 libeir_util_datastructures = { git = "https://github.com/bitwalker/eir.git", branch = "bitwalker/lumen-changes" }
 #libeir_diagnostics = { path = "../eir/libeir_diagnostics" }
+#libeir_frontend = { path = "../eir/libeir_frontend" }
 #libeir_syntax_erl = { path = "../eir/libeir_syntax_erl" }
 #libeir_ir = { path = "../eir/libeir_ir" }
 #libeir_intern = { path = "../eir/libeir_intern" }

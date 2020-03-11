@@ -1,11 +1,13 @@
 use std::convert::{AsRef, From};
 use std::fmt;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::ptr;
 use std::sync::Arc;
 
 use libeir_ir as eir;
 use libeir_syntax_erl as syntax;
+
+use crate::config::{Emit, OutputType};
 
 /// Holds a reference to a module in AST form
 ///
@@ -90,6 +92,11 @@ impl Deref for IRModule {
         self.module.deref()
     }
 }
+impl DerefMut for IRModule {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Arc::get_mut(&mut self.module).unwrap()
+    }
+}
 impl AsRef<eir::Module> for IRModule {
     fn as_ref(&self) -> &eir::Module {
         self.module.deref()
@@ -100,5 +107,12 @@ impl From<eir::Module> for IRModule {
         Self {
             module: Arc::new(module),
         }
+    }
+}
+impl Emit for IRModule {
+    const TYPE: OutputType = OutputType::EIR;
+
+    fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
+        self.module.emit(f)
     }
 }

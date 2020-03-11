@@ -36,7 +36,7 @@ impl Emit for eir::Module {
 
     fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
         use std::io::Write;
-        let text = self.to_text();
+        let text = self.to_text_standard();
         f.write_all(text.as_bytes())?;
         Ok(())
     }

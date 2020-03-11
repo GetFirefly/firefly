@@ -106,7 +106,7 @@ where
     C: CodegenDatabase,
 {
     match db.input_type(input) {
-        InputType::Erlang => {
+        InputType::Erlang | InputType::AbstractErlang | InputType::EIR => {
             debug!("input {:?} is erlang", input);
             Ok(db.generate_mlir(thread_id, input)?)
         }

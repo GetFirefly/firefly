@@ -1,12 +1,12 @@
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use liblumen_session::{IRModule, Input, InputType, ParsedModule};
+use liblumen_session::{IRModule, Input, InputType};
 use liblumen_util::{seq, seq::Seq};
 
 use libeir_diagnostics::FileName;
-use libeir_syntax_erl::{self as syntax, ParseConfig};
+use libeir_frontend::{AnyFrontend, DynFrontend};
+use libeir_syntax_erl::ParseConfig;
 
 use crate::intern::InternedInput;
 use crate::query_groups::ParserDatabase;
@@ -93,8 +93,7 @@ where
     P: ParserDatabase,
 {
     let options = db.options();
-    let codemap = db.codemap().clone();
-    let mut parse_config = ParseConfig::new(codemap);
+    let mut parse_config = ParseConfig::new();
     parse_config.warnings_as_errors = options.warnings_as_errors;
     parse_config.no_warn = options.no_warn;
     parse_config.include_paths = options.include_path.clone();
@@ -102,29 +101,39 @@ where
     parse_config
 }
 
-pub(crate) fn input_parsed<P>(db: &P, input: InternedInput) -> QueryResult<ParsedModule>
+pub(crate) fn input_parsed<P>(db: &P, input: InternedInput) -> QueryResult<IRModule>
 where
     P: ParserDatabase,
 {
-    use syntax::{ParseResult, Parser};
+    use libeir_frontend::abstr_erlang::AbstrErlangFrontend;
+    use libeir_frontend::eir::EirFrontend;
+    use libeir_frontend::erlang::ErlangFrontend;
 
-    let options = db.options();
-    let parser = Parser::new(db.parse_config());
-    let result: ParseResult<syntax::ast::Module> = match db.lookup_intern_input(input) {
-        Input::File(ref path) => parser.parse_file(path),
-        Input::Str { ref input, .. } => parser.parse_string(input),
+    let frontend: AnyFrontend = match db.input_type(input) {
+        InputType::Erlang => ErlangFrontend::new(db.parse_config()).into(),
+        InputType::AbstractErlang => AbstrErlangFrontend::new().into(),
+        InputType::EIR => EirFrontend::new().into(),
+        _ => unreachable!(),
     };
+
+    let codemap = db.codemap().clone();
+
+    let (result, diags) = match db.lookup_intern_input(input) {
+        Input::File(ref path) => frontend.parse_file_dyn(codemap, path),
+        Input::Str { ref input, .. } => frontend.parse_string_dyn(codemap, input),
+    };
+
+    for ref diagnostic in diags.iter() {
+        db.diagnostic(diagnostic);
+    }
+
     match result {
         Ok(module) => {
+            let options = db.options();
             db.maybe_emit_file_with_opts(&options, input, &module)?;
             Ok(module.into())
         }
-        Err(errors) => {
-            for ref diagnostic in errors.iter().map(|e| e.to_diagnostic()) {
-                db.diagnostic(diagnostic);
-            }
-            Err(())
-        }
+        Err(_) => Err(()),
     }
 }
 
@@ -134,25 +143,13 @@ where
 {
     use libeir_passes::PassManager;
 
-    let module = db.input_parsed(input)?;
-    let parse_config = db.parse_config();
-    let codemap = &parse_config.codemap;
-    match syntax::lower_module(codemap.deref(), module.as_ref()) {
-        (Ok(mut ir_module), _) => {
-            // Run EIR passes
-            let mut pass_manager = PassManager::default();
-            pass_manager.run(&mut ir_module);
+    let mut module = db.input_parsed(input)?;
 
-            db.maybe_emit_file(input, &ir_module)?;
-            Ok(ir_module.into())
-        }
-        (_, errors) => {
-            for ref diagnostic in errors.iter().map(|e| e.to_diagnostic()) {
-                db.diagnostic(diagnostic);
-            }
-            Err(())
-        }
-    }
+    let mut pass_manager = PassManager::default();
+    pass_manager.run(&mut module);
+
+    db.maybe_emit_file(input, &module)?;
+    Ok(module.into())
 }
 
 pub fn find_sources<D, P>(db: &D, dir: P) -> QueryResult<Arc<Seq<InternedInput>>>

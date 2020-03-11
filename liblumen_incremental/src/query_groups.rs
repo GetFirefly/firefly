@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
+use liblumen_session::IRModule;
 use liblumen_session::{DiagnosticsHandler, Emit, Input, InputType, Options, OutputType};
-use liblumen_session::{IRModule, ParsedModule};
 use liblumen_util::seq::Seq;
 
 use libeir_diagnostics::{CodeMap, Diagnostic};
@@ -30,7 +30,7 @@ pub trait ParserDatabase: ParserDatabaseBase {
     fn parse_config(&self) -> ParseConfig;
 
     #[salsa::invoke(queries::input_parsed)]
-    fn input_parsed(&self, input: InternedInput) -> QueryResult<ParsedModule>;
+    fn input_parsed(&self, input: InternedInput) -> QueryResult<IRModule>;
 
     #[salsa::invoke(queries::input_eir)]
     fn input_eir(&self, input: InternedInput) -> QueryResult<IRModule>;

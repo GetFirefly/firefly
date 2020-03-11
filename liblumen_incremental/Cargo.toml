@@ -17,6 +17,7 @@ liblumen_session = { path = "../liblumen_session" }
 liblumen_util = { path = "../liblumen_util" }
 
 libeir_diagnostics = { git = "https://github.com/eirproject/eir" }
+libeir_frontend = { git = "https://github.com/eirproject/eir" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir" }
 libeir_ir = { git = "https://github.com/eirproject/eir" }
 libeir_passes = { git = "https://github.com/eirproject/eir" }

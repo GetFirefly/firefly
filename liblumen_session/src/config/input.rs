@@ -8,11 +8,18 @@ use libeir_diagnostics::FileName;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum InputType {
     Erlang,
+    AbstractErlang,
+    EIR,
     MLIR,
     Unknown(Option<String>),
 }
 impl InputType {
-    const TYPES: &'static [InputType] = &[InputType::Erlang, InputType::MLIR];
+    const TYPES: &'static [InputType] = &[
+        InputType::Erlang,
+        InputType::AbstractErlang,
+        InputType::EIR,
+        InputType::MLIR,
+    ];
 
     pub fn is_valid(path: &Path) -> bool {
         if !path.exists() || !path.is_file() {
@@ -21,6 +28,8 @@ impl InputType {
         match path.extension().and_then(|s| s.to_str()) {
             None => false,
             Some("erl") => true,
+            Some("eir") => true,
+            Some("abstr") => true,
             Some("mlir") => true,
             Some(_) => false,
         }
@@ -38,6 +47,8 @@ impl fmt::Display for InputType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Erlang => f.write_str("erl"),
+            Self::AbstractErlang => f.write_str("abstr"),
+            Self::EIR => f.write_str("eir"),
             Self::MLIR => f.write_str("mlir"),
             Self::Unknown(None) => f.write_str("unknown (no extension)"),
             Self::Unknown(Some(ref ext)) => write!(f, "unknown ({})", ext),
@@ -70,6 +81,8 @@ impl Input {
         match self {
             Input::File(ref file) => match file.extension().and_then(|ext| ext.to_str()) {
                 Some("erl") => InputType::Erlang,
+                Some("abstr") => InputType::AbstractErlang,
+                Some("eir") => InputType::EIR,
                 Some("mlir") => InputType::MLIR,
                 Some(t) => InputType::Unknown(Some(t.to_string())),
                 None => InputType::Unknown(None),
@@ -77,6 +90,10 @@ impl Input {
             Input::Str { ref name, .. } => {
                 if name.ends_with(".erl") {
                     InputType::Erlang
+                } else if name.ends_with(".abstr") {
+                    InputType::AbstractErlang
+                } else if name.ends_with(".eir") {
+                    InputType::EIR
                 } else if name.ends_with(".mlir") {
                     InputType::MLIR
                 } else {

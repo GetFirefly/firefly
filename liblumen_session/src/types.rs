@@ -1,6 +1,6 @@
 use std::convert::{AsRef, From};
 use std::fmt;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::ptr;
 use std::sync::Arc;
 
@@ -68,6 +68,14 @@ impl From<syntax::ast::Module> for ParsedModule {
 pub struct IRModule {
     module: Arc<eir::Module>,
 }
+impl IRModule {
+    #[inline]
+    pub fn new(module: eir::Module) -> Self {
+        Self {
+            module: Arc::new(module),
+        }
+    }
+}
 impl fmt::Debug for IRModule {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ident = self.module.name().clone();
@@ -92,14 +100,9 @@ impl Deref for IRModule {
         self.module.deref()
     }
 }
-impl DerefMut for IRModule {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        Arc::get_mut(&mut self.module).unwrap()
-    }
-}
 impl AsRef<eir::Module> for IRModule {
     fn as_ref(&self) -> &eir::Module {
-        self.module.deref()
+        self.module.as_ref()
     }
 }
 impl From<eir::Module> for IRModule {

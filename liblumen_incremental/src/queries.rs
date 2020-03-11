@@ -143,13 +143,15 @@ where
 {
     use libeir_passes::PassManager;
 
-    let mut module = db.input_parsed(input)?;
+    let module: IRModule = db.input_parsed(input)?;
+    let mut ir_module: libeir_ir::Module = module.as_ref().clone();
 
     let mut pass_manager = PassManager::default();
-    pass_manager.run(&mut module);
+    pass_manager.run(&mut ir_module);
 
-    db.maybe_emit_file(input, &module)?;
-    Ok(module.into())
+    let new_module = IRModule::new(ir_module);
+    db.maybe_emit_file(input, &new_module)?;
+    Ok(new_module)
 }
 
 pub fn find_sources<D, P>(db: &D, dir: P) -> QueryResult<Arc<Seq<InternedInput>>>

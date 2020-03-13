@@ -1,7 +1,7 @@
 task:
   name: Check Formatted
   container:
-    image: kronicdeth/lumen-development@sha256:273edaaffb45165e6f23d75990cdbfcc677ae47d1a41553f62852630d46d4b40
+    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
   script: cargo fmt -- --check
 
 x86_64_task_template: &x86_64_TASK_TEMPLATE
@@ -23,7 +23,7 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
 task:
   name: Linux x86_64 libraries
   container:
-    image: kronicdeth/lumen-development@sha256:273edaaffb45165e6f23d75990cdbfcc677ae47d1a41553f62852630d46d4b40
+    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
     cpu: 4
     memory: 12
   linux_x86_64_cargo_cache:
@@ -35,7 +35,7 @@ task:
 task:
   name: Linux x86_64 compiler
   container:
-    image: kronicdeth/lumen-development@sha256:273edaaffb45165e6f23d75990cdbfcc677ae47d1a41553f62852630d46d4b40
+    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
   linux_x86_64_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
@@ -61,7 +61,7 @@ task:
     tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     popd
   install_rustup_script: |
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2019-12-19
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
   <<: *x86_64_TASK_TEMPLATE
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
@@ -81,7 +81,7 @@ task:
     tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     popd
   install_rustup_script: |
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2019-12-19
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
   install_jq_script: |
     brew install jq
   install_ninja_script: |
@@ -139,7 +139,7 @@ task:
 task:
   name: Linux wasm32
   container:
-    image: kronicdeth/lumen-development@sha256:273edaaffb45165e6f23d75990cdbfcc677ae47d1a41553f62852630d46d4b40
+    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
     memory: 6
   linux_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry
@@ -185,9 +185,9 @@ task:
     tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     popd
   install_rustup_script: |
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2019-12-19
-  install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly-2019-12-19
-  install_wasm_bindgen_cli_script: cargo +nightly-2019-12-19 install wasm-bindgen-cli
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
+  install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
+  install_wasm_bindgen_cli_script: cargo +nightly-2020-03-10 install wasm-bindgen-cli
   install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
   update_homebrew_script: |
     brew update

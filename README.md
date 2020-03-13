@@ -23,10 +23,11 @@ In order to build Lumen, or make changes to it, you'll need the following instal
 
 First, you will need to install [rustup](https://rustup.rs/). Follow the instructions at that link.
 
-Once you have installed `rustup`, you will need to install the nightly version of Rust, this is
-currently required due to our dependency on `wasm-bindgen` when targeting WebAssembly:
+Once you have installed `rustup`, you will need to install the nightly version of Rust from 2020-03-10. A nightly
+version is currently required due to our dependency on `wasm-bindgen` when targeting WebAssembly and `AllocRef` for
+memory allocation:
 
-    rustup default nightly # install nightly toolchain
+    rustup default nightly-2020-03-10 # install nightly toolchain from 2020-03-10 to match CI
 
 You may also want to install the following tools for editor support (`rustfmt` will be required on
 all pull requests!):
@@ -35,11 +36,11 @@ all pull requests!):
 
 Next, you will need to install the `wasm32` targets for the toolchain:
 
-    rustup target add wasm32-unknown-unknown --toolchain nightly
+    rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
 
 You will also need to install the `wasm-bindgen** command-line tools:
 
-    cargo +nightly install wasm-bindgen-cli
+    cargo +nightly-2020-03-10 install wasm-bindgen-cli
 
 Finally we will need `wasm-pack`. It is needed to build the examples and get up and running. Follow their installation instructions from [the wasm-pack repository](https://github.com/rustwasm/wasm-pack).
 

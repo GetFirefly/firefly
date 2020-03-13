@@ -31,7 +31,7 @@ mod tests {
         let size = sysconf::pagesize();
         let usable = size - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let ptr = unsafe {
+        let (ptr, _) = unsafe {
             SYS_ALLOC
                 .alloc(layout.clone())
                 .expect("unable to map memory")
@@ -75,7 +75,7 @@ mod tests {
         let size = sysconf::pagesize();
         let usable = size - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let ptr = unsafe {
+        let (ptr, _) = unsafe {
             SYS_ALLOC
                 .alloc(layout.clone())
                 .expect("unable to map memory")
@@ -125,7 +125,7 @@ mod tests {
         let size = sysconf::pagesize() * 2;
         let usable = sysconf::pagesize() - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let ptr = unsafe {
+        let (ptr, _) = unsafe {
             SYS_ALLOC
                 .alloc(layout.clone())
                 .expect("unable to map memory")

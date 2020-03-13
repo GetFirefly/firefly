@@ -2,8 +2,6 @@ use std::path::Path;
 
 use clap::{App, Arg};
 
-use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
-
 use libeir_ir::{FunctionIdent, Module};
 
 use libeir_passes::PassManager;
@@ -12,6 +10,8 @@ use libeir_syntax_erl::ast::Module as ErlAstModule;
 use libeir_syntax_erl::lower_module;
 use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
+use libeir_util_parse::{ArcCodemap, Errors};
+
 use liblumen_eir_interpreter::call_result::call_run_erlang;
 use liblumen_eir_interpreter::VM;
 
@@ -19,21 +19,19 @@ use liblumen_alloc::erts::term::prelude::Atom;
 
 use lumen_runtime::scheduler::Scheduler;
 
-fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, Parser)
+fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, ArcCodemap)
 where
     T: Parse<T>,
     P: AsRef<Path>,
 {
     let parser = Parser::new(config);
-    let errs = match parser.parse_file::<_, T>(path) {
-        Ok(ast) => return (ast, parser),
+    let mut errors = Errors::new();
+    let codemap: ArcCodemap = Default::default();
+    match parser.parse_file::<_, T>(&mut errors, &codemap, path) {
+        Ok(ast) => return (ast, codemap),
         Err(errs) => errs,
     };
-    let emitter =
-        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
-    for err in errs.iter() {
-        emitter.diagnostic(&err.to_diagnostic()).unwrap();
-    }
+    errors.print(&codemap);
     panic!("parse failed");
 }
 
@@ -41,17 +39,10 @@ fn lower_file<P>(path: P, config: ParseConfig) -> Result<Module, ()>
 where
     P: AsRef<Path>,
 {
-    let (parsed, parser): (ErlAstModule, _) = parse_file(path, config);
-    let (res, messages) = {
-        let codemap = &*parser.config.codemap;
-        lower_module(codemap, &parsed)
-    };
-
-    let emitter =
-        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
-    for err in messages.iter() {
-        emitter.diagnostic(&err.to_diagnostic()).unwrap();
-    }
+    let (parsed, codemap): (ErlAstModule, _) = parse_file(path, config);
+    let mut errors = Errors::new();
+    let res = lower_module(&mut errors, &codemap, &parsed);
+    errors.print(&codemap);
 
     res
 }

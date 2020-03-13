@@ -37,7 +37,7 @@ impl RegionHeap {
     /// Creates a new scratch heap from the given layout
     pub fn new(layout: Layout) -> Self {
         let size = layout.size();
-        let ptr =
+        let (ptr, _) =
             unsafe { sys_alloc::alloc(layout.clone()).expect("unable to allocate scratch heap!") };
         let raw = ptr.as_ptr();
         let end = unsafe { raw.add(size) };

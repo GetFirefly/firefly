@@ -22,6 +22,7 @@ libeir_intern = { git = "https://github.com/eirproject/eir.git" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git" }
 libeir_passes = { git = "https://github.com/eirproject/eir.git" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
+libeir_util_parse = { git = "https://github.com/eirproject/eir.git" }
 
 # workspace crates
 liblumen_alloc = { path = "../liblumen_alloc" }

@@ -46,6 +46,36 @@ Finally we will need `wasm-pack`. It is needed to build the examples and get up 
 
 #### LLVM
 
+##### Using prebuilt tarballs
+
+LLVM takes a long time to compile (~2 hours) and a lot of space (~29G), so if you can, we recommend using the prebuilt tarballs.
+
+###### Linux
+
+    mkdir -p ~/.local/share/llvm
+    cd ~/.local/share/llvm 
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    tar xvfz clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    rm clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    mv clang+llvm-10.0.0-x86_64-linux-gnu lumen
+    cd -
+
+###### MacOS
+
+    mkdir -p ~/.local/share/llvm
+    cd ~/.local/share/llvm 
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    rm clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    mv clang+llvm-10.0.0-x86_64-apple-darwin19.3.0 lumen
+    cd -
+
+###### Other Operating Systems
+
+You'll need to build from scratch using the below instructions. 
+
+##### Building from scratch
+
 Now that Rust is setup and ready to go, you will also need LLVM for building the compiler.
 
 LLVM requires Cmake, a C/C++ compiler (i.e. GCC/Clang), and Python. It is also
@@ -67,7 +97,12 @@ likewise you can change the setting to use CCache by removing that option as wel
 
 **NOTE:** Building LLVM the first time will take a long time, so grab a coffee, smoke 'em if you got 'em, etc.
 
-Once LLVM is built, you can run `make build` from the root to fetch all dependencies and build the project.
+### Lumen Compiler
+
+Once LLVM is installed, you can run fetch all dependencies and build the project.
+
+    export LLVM_SYS_90_PREFIX=$HOME/.local/share/llvm/lumen
+    make build
 
 <a name="contrib-project"/>
 

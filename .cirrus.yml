@@ -1,96 +1,96 @@
-task:
-  name: Check Formatted
-  container:
-    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
-  script: cargo fmt -- --check
-
-x86_64_task_template: &x86_64_TASK_TEMPLATE
-  build_script: cargo build
-  # `*_test_script`s in order of crate dependency graph
-  liblumen_arena_test_script: |
-    cargo test -p liblumen_arena
-  liblumen_core_test_script: |
-    cargo test -p liblumen_core
-  liblumen_alloc_test_script: |
-    cargo test -p liblumen_alloc
-  lumen_runtime_test_script: |
-    cargo test -p lumen_runtime
-  liblumen_eir_interpreter_test_script: |
-    cargo test -p liblumen_eir_interpreter
-  examples_spawn_chain_test_script: |
-    cargo test -p spawn-chain
-
-task:
-  name: Linux x86_64 libraries
-  container:
-    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
-    cpu: 4
-    memory: 12
-  linux_x86_64_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
-  << : *x86_64_TASK_TEMPLATE
-  before_cache_script: rm -rf $CARGO_HOME/registry/index
-
-task:
-  name: Linux x86_64 compiler
-  container:
-    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
-  linux_x86_64_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
-  make_build_script: |
-    make build
-  test_lumen_script: |
-    cargo test -p lumen
-  before_cache_script: rm -rf $CARGO_HOME/registry/index
-
-task:
-  name: macOS x86_64 libraries
-  osx_instance:
-    image: catalina-base
-  env:
-    LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
-    PATH: ${HOME}/.cargo/bin:${PATH}
-  macos_x86_64_libraries_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
-  install_llvm_script: |
-    pushd $HOME
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-    popd
-  install_rustup_script: |
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
-  <<: *x86_64_TASK_TEMPLATE
-  before_cache_script: rm -rf $CARGO_HOME/registry/index
-
-task:
-  name: macOS x86_64 compiler
-  osx_instance:
-    image: catalina-base
-  env:
-    LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
-    PATH: ${HOME}/.cargo/bin:${PATH}
-  macos_x86_64_compiler_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
-  install_llvm_script: |
-    pushd $HOME
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-    popd
-  install_rustup_script: |
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
-  install_jq_script: |
-    brew install jq
-  install_ninja_script: |
-    brew install ninja
-  make_build_script: |
-    make build
-  test_lumen_script: |
-    cargo test -p lumen
-  before_cache_script: rm -rf $CARGO_HOME/registry/index
+#task:
+#  name: Check Formatted
+#  container:
+#    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
+#  script: cargo fmt -- --check
+#
+#x86_64_task_template: &x86_64_TASK_TEMPLATE
+#  build_script: cargo build
+#  # `*_test_script`s in order of crate dependency graph
+#  liblumen_arena_test_script: |
+#    cargo test -p liblumen_arena
+#  liblumen_core_test_script: |
+#    cargo test -p liblumen_core
+#  liblumen_alloc_test_script: |
+#    cargo test -p liblumen_alloc
+#  lumen_runtime_test_script: |
+#    cargo test -p lumen_runtime
+#  liblumen_eir_interpreter_test_script: |
+#    cargo test -p liblumen_eir_interpreter
+#  examples_spawn_chain_test_script: |
+#    cargo test -p spawn-chain
+#
+#task:
+#  name: Linux x86_64 libraries
+#  container:
+#    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
+#    cpu: 4
+#    memory: 12
+#  linux_x86_64_cargo_cache:
+#    folder: $CARGO_HOME/registry
+#    fingerprint_script: cat Cargo.lock
+#  << : *x86_64_TASK_TEMPLATE
+#  before_cache_script: rm -rf $CARGO_HOME/registry/index
+#
+#task:
+#  name: Linux x86_64 compiler
+#  container:
+#    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
+#  linux_x86_64_cargo_cache:
+#    folder: $CARGO_HOME/registry
+#    fingerprint_script: cat Cargo.lock
+#  make_build_script: |
+#    make build
+#  test_lumen_script: |
+#    cargo test -p lumen
+#  before_cache_script: rm -rf $CARGO_HOME/registry/index
+#
+#task:
+#  name: macOS x86_64 libraries
+#  osx_instance:
+#    image: catalina-base
+#  env:
+#    LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
+#    PATH: ${HOME}/.cargo/bin:${PATH}
+#  macos_x86_64_libraries_cargo_cache:
+#    folder: $CARGO_HOME/registry
+#    fingerprint_script: cat Cargo.lock
+#  install_llvm_script: |
+#    pushd $HOME
+#    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+#    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+#    popd
+#  install_rustup_script: |
+#    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
+#  <<: *x86_64_TASK_TEMPLATE
+#  before_cache_script: rm -rf $CARGO_HOME/registry/index
+#
+#task:
+#  name: macOS x86_64 compiler
+#  osx_instance:
+#    image: catalina-base
+#  env:
+#    LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
+#    PATH: ${HOME}/.cargo/bin:${PATH}
+#  macos_x86_64_compiler_cargo_cache:
+#    folder: $CARGO_HOME/registry
+#    fingerprint_script: cat Cargo.lock
+#  install_llvm_script: |
+#    pushd $HOME
+#    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+#    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+#    popd
+#  install_rustup_script: |
+#    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
+#  install_jq_script: |
+#    brew install jq
+#  install_ninja_script: |
+#    brew install ninja
+#  make_build_script: |
+#    make build
+#  test_lumen_script: |
+#    cargo test -p lumen
+#  before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
   name: Windows x86_64
@@ -102,7 +102,7 @@ task:
     CIRRUS_SHELL: powershell
     CARGO_HOME: $USERPROFILE\.cargo
     PATH: $PATH;$CARGO_HOME\bin
-  install_rustup_script: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly-x86_64-pc-windows-msvc"
+  install_rustup_script: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly-2020-03-10-x86_64-pc-windows-msvc"
   build_script: cargo build
   # `*_test_script`s in order of crate dependency graph
   liblumen_arena_test_script: |
@@ -136,86 +136,86 @@ task:
       throw "cargo test exited $$LastExitCode"
     }
 
-task:
-  name: Linux wasm32
-  container:
-    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
-    memory: 6
-  linux_wasm32_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
-  firefox_version_script: firefox --version
-  gecko_driver_version_script: geckodriver --version
-  lumen_web_test_script: |
-    wasm-pack test --headless --chrome --firefox lumen_web
-  examples_spawn_chain_build_script: |
-    wasm-pack build examples/spawn-chain
-  examples_spawn_chain_test_script: |
-    wasm-pack test --headless --chrome --firefox examples/spawn-chain
-  examples_spawn_chain_package_script: |
-    pushd examples/spawn-chain
-    pushd www
-    npm install
-    popd
-    pushd pkg
-    npm link
-    popd
-    pushd www
-    npm link spawn-chain
-    npm run build
-    popd
-    popd
-  examples_chain_chain_package_artifacts:
-    path: "examples/spawn-chain/www/dist/*"
-  before_cache_script: rm -rf $CARGO_HOME/registry/index
-
-task:
-  name: macOS wasm32
-  osx_instance:
-    image: catalina-base
-  env:
-    LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
-    PATH: ${HOME}/.cargo/bin:${PATH}
-  macos_wasm32_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
-  install_llvm_script: |
-    pushd $HOME
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-    popd
-  install_rustup_script: |
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
-  install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
-  install_wasm_bindgen_cli_script: cargo +nightly-2020-03-10 install wasm-bindgen-cli
-  install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-  update_homebrew_script: |
-    brew update
-  install_chrome_script: |
-    brew cask install google-chrome
-    brew cask info google-chrome
-  install_chrome_driver_script: |
-    wget https://chromedriver.storage.googleapis.com/80.0.3987.106/chromedriver_mac64.zip
-    unzip chromedriver_mac64.zip
-    mv chromedriver /usr/local/bin/
-    rm chromedriver_mac64.zip
-    chromedriver --version
-  install_firefox_script: |
-    wget https://download-installer.cdn.mozilla.net/pub/firefox/releases/69.0/mac/en-US/Firefox%2069.0.dmg
-    hdiutil attach "Firefox 69.0.dmg"
-    cp -rf /Volumes/Firefox/Firefox.app /Applications
-    hdiutil detach /Volumes/Firefox
-  install_gecko_driver_script: |
-    wget https://github.com/mozilla/geckodriver/releases/download/v0.24.0/geckodriver-v0.24.0-macos.tar.gz
-    tar xvfz geckodriver-v0.24.0-macos.tar.gz
-    mv geckodriver /usr/local/bin/
-    rm geckodriver-v0.24.0-macos.tar.gz
-    geckodriver --version
-  enable_safari_driver_script: sudo safaridriver --enable
-  lumen_web_test_script: |
-    wasm-pack test --headless --chrome --firefox --safari lumen_web
-  examples_spawn_chain_build_script: |
-    wasm-pack build examples/spawn-chain
-  examples_spawn_chain_test_script: |
-    wasm-pack test --headless --chrome --firefox --safari examples/spawn-chain
-  before_cache_script: rm -rf $CARGO_HOME/registry/index
+#task:
+#  name: Linux wasm32
+#  container:
+#    image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
+#    memory: 6
+#  linux_wasm32_cargo_cache:
+#    folder: $CARGO_HOME/registry
+#    fingerprint_script: cat Cargo.lock
+#  firefox_version_script: firefox --version
+#  gecko_driver_version_script: geckodriver --version
+#  lumen_web_test_script: |
+#    wasm-pack test --headless --chrome --firefox lumen_web
+#  examples_spawn_chain_build_script: |
+#    wasm-pack build examples/spawn-chain
+#  examples_spawn_chain_test_script: |
+#    wasm-pack test --headless --chrome --firefox examples/spawn-chain
+#  examples_spawn_chain_package_script: |
+#    pushd examples/spawn-chain
+#    pushd www
+#    npm install
+#    popd
+#    pushd pkg
+#    npm link
+#    popd
+#    pushd www
+#    npm link spawn-chain
+#    npm run build
+#    popd
+#    popd
+#  examples_chain_chain_package_artifacts:
+#    path: "examples/spawn-chain/www/dist/*"
+#  before_cache_script: rm -rf $CARGO_HOME/registry/index
+#
+#task:
+#  name: macOS wasm32
+#  osx_instance:
+#    image: catalina-base
+#  env:
+#    LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
+#    PATH: ${HOME}/.cargo/bin:${PATH}
+#  macos_wasm32_cargo_cache:
+#    folder: $CARGO_HOME/registry
+#    fingerprint_script: cat Cargo.lock
+#  install_llvm_script: |
+#    pushd $HOME
+#    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-04/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+#    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+#    popd
+#  install_rustup_script: |
+#    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
+#  install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
+#  install_wasm_bindgen_cli_script: cargo +nightly-2020-03-10 install wasm-bindgen-cli
+#  install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+#  update_homebrew_script: |
+#    brew update
+#  install_chrome_script: |
+#    brew cask install google-chrome
+#    brew cask info google-chrome
+#  install_chrome_driver_script: |
+#    wget https://chromedriver.storage.googleapis.com/80.0.3987.106/chromedriver_mac64.zip
+#    unzip chromedriver_mac64.zip
+#    mv chromedriver /usr/local/bin/
+#    rm chromedriver_mac64.zip
+#    chromedriver --version
+#  install_firefox_script: |
+#    wget https://download-installer.cdn.mozilla.net/pub/firefox/releases/69.0/mac/en-US/Firefox%2069.0.dmg
+#    hdiutil attach "Firefox 69.0.dmg"
+#    cp -rf /Volumes/Firefox/Firefox.app /Applications
+#    hdiutil detach /Volumes/Firefox
+#  install_gecko_driver_script: |
+#    wget https://github.com/mozilla/geckodriver/releases/download/v0.24.0/geckodriver-v0.24.0-macos.tar.gz
+#    tar xvfz geckodriver-v0.24.0-macos.tar.gz
+#    mv geckodriver /usr/local/bin/
+#    rm geckodriver-v0.24.0-macos.tar.gz
+#    geckodriver --version
+#  enable_safari_driver_script: sudo safaridriver --enable
+#  lumen_web_test_script: |
+#    wasm-pack test --headless --chrome --firefox --safari lumen_web
+#  examples_spawn_chain_build_script: |
+#    wasm-pack build examples/spawn-chain
+#  examples_spawn_chain_test_script: |
+#    wasm-pack test --headless --chrome --firefox --safari examples/spawn-chain
+#  before_cache_script: rm -rf $CARGO_HOME/registry/index

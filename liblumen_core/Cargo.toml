@@ -18,7 +18,9 @@ liblumen_core_macros = { path = "../liblumen_core_macros" }
 # On wasm32-unknown-unknown, use dlmalloc for malloc/free
 [target.'cfg(all(target_arch = "wasm32", target_vendor = "unknown"))'.dependencies.dlmalloc]
 version = "0.1"
-features = ["allocator-api"]
+features = ["allocator-api", "nightly"]
+git = "https://github.com/lumen/dlmalloc-rs.git"
+branch = "nightly-2020-03-10"
 
 # We use libc for all platforms except wasm32-unknown-unknown
 # NOTE: On win32 we use libc for malloc/free

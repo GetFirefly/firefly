@@ -23,10 +23,11 @@ In order to build Lumen, or make changes to it, you'll need the following instal
 
 First, you will need to install [rustup](https://rustup.rs/). Follow the instructions at that link.
 
-Once you have installed `rustup`, you will need to install the nightly version of Rust, this is
-currently required due to our dependency on `wasm-bindgen` when targeting WebAssembly:
+Once you have installed `rustup`, you will need to install the nightly version of Rust from 2020-03-10. A nightly
+version is currently required due to our dependency on `wasm-bindgen` when targeting WebAssembly and `AllocRef` for
+memory allocation:
 
-    rustup default nightly # install nightly toolchain
+    rustup default nightly-2020-03-10 # install nightly toolchain from 2020-03-10 to match CI
 
 You may also want to install the following tools for editor support (`rustfmt` will be required on
 all pull requests!):
@@ -35,15 +36,45 @@ all pull requests!):
 
 Next, you will need to install the `wasm32` targets for the toolchain:
 
-    rustup target add wasm32-unknown-unknown --toolchain nightly
+    rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
 
 You will also need to install the `wasm-bindgen** command-line tools:
 
-    cargo +nightly install wasm-bindgen-cli
+    cargo +nightly-2020-03-10 install wasm-bindgen-cli
 
 Finally we will need `wasm-pack`. It is needed to build the examples and get up and running. Follow their installation instructions from [the wasm-pack repository](https://github.com/rustwasm/wasm-pack).
 
 #### LLVM
+
+##### Using prebuilt tarballs
+
+LLVM takes a long time to compile (~2 hours) and a lot of space (~29G), so if you can, we recommend using the prebuilt tarballs.
+
+###### Linux
+
+    mkdir -p ~/.local/share/llvm
+    cd ~/.local/share/llvm 
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    tar xvfz clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    rm clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    mv clang+llvm-10.0.0-x86_64-linux-gnu lumen
+    cd -
+
+###### MacOS
+
+    mkdir -p ~/.local/share/llvm
+    cd ~/.local/share/llvm 
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    rm clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    mv clang+llvm-10.0.0-x86_64-apple-darwin19.3.0 lumen
+    cd -
+
+###### Other Operating Systems
+
+You'll need to build from scratch using the below instructions. 
+
+##### Building from scratch
 
 Now that Rust is setup and ready to go, you will also need LLVM for building the compiler.
 
@@ -66,7 +97,12 @@ likewise you can change the setting to use CCache by removing that option as wel
 
 **NOTE:** Building LLVM the first time will take a long time, so grab a coffee, smoke 'em if you got 'em, etc.
 
-Once LLVM is built, you can run `make build` from the root to fetch all dependencies and build the project.
+### Lumen Compiler
+
+Once LLVM is installed, you can run fetch all dependencies and build the project.
+
+    export LLVM_SYS_90_PREFIX=$HOME/.local/share/llvm/lumen
+    make build
 
 <a name="contrib-project"/>
 

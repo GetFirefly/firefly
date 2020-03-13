@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io;
@@ -39,11 +38,6 @@ impl std::fmt::Display for ConfigError {
 }
 
 impl std::error::Error for ConfigError {
-    fn description(&self) -> &str {
-        match *self {
-            ConfigError::FileError(_, ref err) => err.to_string(),
-        }
-    }
     fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
             ConfigError::FileError(ref _path, ref err) => Some(err),

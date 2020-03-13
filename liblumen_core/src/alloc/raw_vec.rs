@@ -722,7 +722,7 @@ mod tests {
             fuel: usize,
         }
         unsafe impl AllocRef for BoundedAlloc {
-            unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+            unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
                 use crate::alloc::GlobalAlloc;
                 let size = layout.size();
                 if size > self.fuel {
@@ -733,7 +733,7 @@ mod tests {
                     return Err(AllocErr);
                 }
                 self.fuel -= size;
-                Ok(NonNull::new_unchecked(ptr))
+                Ok((NonNull::new_unchecked(ptr), size))
             }
             unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
                 use crate::alloc::GlobalAlloc;

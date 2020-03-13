@@ -280,9 +280,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    #[rustversion::before(2019-01-30)]
-    use core::alloc::Alloc;
-    #[rustversion::since(2019-01-30)]
     use core::alloc::AllocRef;
 
     use super::*;
@@ -301,7 +298,7 @@ mod tests {
         let size = SUPERALIGNED_CARRIER_SIZE;
         let carrier_layout = Layout::from_size_align(size, size).unwrap();
         // Allocate region
-        let ptr = unsafe { SYS_ALLOC.alloc(carrier_layout).unwrap() };
+        let (ptr, _) = unsafe { SYS_ALLOC.alloc(carrier_layout).unwrap() };
         // Get pointer to carrier header location
         let carrier = ptr.as_ptr() as *mut MultiBlockCarrier<RBTreeLink>;
         // Write initial carrier header

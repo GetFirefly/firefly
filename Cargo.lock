@@ -468,7 +468,7 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/lumen/dlmalloc-rs.git?branch=nightly-2020-03-10#fc8d2b734abfd69adcbaef0b95523a646510151f"
 dependencies = [
  "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1090,7 +1090,7 @@ name = "liblumen_core"
 version = "0.1.0"
 dependencies = [
  "cfg-if 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "dlmalloc 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dlmalloc 0.1.3 (git+https://github.com/lumen/dlmalloc-rs.git?branch=nightly-2020-03-10)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_core_macros 0.1.0",
@@ -1131,6 +1131,7 @@ dependencies = [
  "libeir_ir 0.1.0 (git+https://github.com/bitwalker/eir?branch=bitwalker/lumen-changes)",
  "libeir_passes 0.1.0 (git+https://github.com/bitwalker/eir?branch=bitwalker/lumen-changes)",
  "libeir_syntax_erl 0.1.0 (git+https://github.com/bitwalker/eir?branch=bitwalker/lumen-changes)",
+ "libeir_util_parse 0.1.0 (git+https://github.com/bitwalker/eir?branch=bitwalker/lumen-changes)",
  "liblumen_alloc 0.1.0",
  "lumen_runtime 0.1.0",
 ]
@@ -2738,7 +2739,7 @@ dependencies = [
 "checksum difference 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "524cbf6897b527295dff137cec09ecf3a05f4fddffd7dfcd1585403449e74198"
 "checksum digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f3d0c8c8752312f9713efd397ff63acb9f85585afbf179282e720e7704954dd5"
 "checksum dirs 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)" = "3fd78930633bd1c6e35c4b42b1df7b0cbc6bc191146e512bb3bedf243fcc3901"
-"checksum dlmalloc 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "f283302e035e61c23f2b86b3093e8c6273a4c3125742d6087e96ade001ca5e63"
+"checksum dlmalloc 0.1.3 (git+https://github.com/lumen/dlmalloc-rs.git?branch=nightly-2020-03-10)" = "<none>"
 "checksum doc-comment 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "923dea538cea0aa3025e8685b20d6ee21ef99c4f77e954a30febbaac5ec73a97"
 "checksum docopt 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7f525a586d310c87df72ebcd98009e57f1cc030c8c268305287a476beb653969"
 "checksum either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"

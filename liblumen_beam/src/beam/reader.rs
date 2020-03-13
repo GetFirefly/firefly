@@ -81,16 +81,6 @@ impl std::fmt::Display for ReadError {
 }
 
 impl std::error::Error for ReadError {
-    fn description(&self) -> &str {
-        use self::ReadError::*;
-        match *self {
-            FileError(ref x) => x.description(),
-            InvalidString(ref x) => x.description(),
-            UnexpectedMagicNumber(_) => "Unexpected magic number",
-            UnexpectedFormType(_) => "Unexpected form type",
-            UnexpectedChunk { .. } => "Unexpected chunk",
-        }
-    }
     fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
             ReadError::FileError(ref x) => Some(x),

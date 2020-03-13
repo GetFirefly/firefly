@@ -93,7 +93,7 @@
 #  before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
-  name: Windows x86_64
+  name: Windows x86_64 libraries
   windows_container:
     image: cirrusci/windowsservercore:cmake
     os_version: 2019

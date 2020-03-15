@@ -5,17 +5,22 @@
 
 namespace lumen {
 namespace eir {
+// Arithmetic
 class AddOpConversion;
-class SubOpConversion;
-class MulOpConversion;
 class DivOpConversion;
-class RemOpConversion;
 class FDivOpConversion;
+class MulOpConversion;
+class RemOpConversion;
+class SubOpConversion;
+// Bitwise
 class BandOpConversion;
 class BorOpConversion;
-class BxorOpConversion;
 class BslOpConversion;
 class BsrOpConversion;
+class BxorOpConversion;
+// Logical
+// class LogicalAndOpConversion;
+// class LogicalOrOpConversion;
 
 void populateMathOpConversionPatterns(OwningRewritePatternList &patterns,
                                       MLIRContext *context,

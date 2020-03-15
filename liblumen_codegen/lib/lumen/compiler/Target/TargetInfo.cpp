@@ -40,6 +40,19 @@ static APInt make_tag(unsigned pointerSize, uint64_t tag) {
   return APInt(pointerSize, tag, /*signed=*/false);
 }
 
+// Used for size calculations
+struct AnonymousClosureDefinition {
+  uint32_t index;
+  char unique[16];
+  uint32_t old_unique;
+};
+
+// Used for size calculations
+union ClosureDefinitionBody {
+  unsigned function;
+  AnonymousClosureDefinition anon;
+};
+
 TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
     : archType(targetMachine->getTargetTriple().getArch()),
       pointerSizeInBits(
@@ -52,16 +65,20 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
 
   // Initialize named types
   LLVMType intNTy = LLVMType::getIntNTy(&dialect, pointerSizeInBits);
+  LLVMType int8Ty = LLVMType::getInt8Ty(&dialect);
+  LLVMType int32Ty = LLVMType::getInt32Ty(&dialect);
   LLVMType i8PtrTy = LLVMType::getInt8PtrTy(&dialect);
   LLVMType f64Ty = LLVMType::getDoubleTy(&dialect);
   impl->pointerWidthIntTy = intNTy;
   impl->i1Ty = LLVMType::getInt1Ty(&dialect);
-  // auto termTy = LLVMType::createStructTy(&dialect,
-  // ArrayRef<LLVMType>(intNTy), StringRef("term"));
-  auto termTy = intNTy;
-  impl->termTy = termTy;
+  impl->i8Ty = int8Ty;
+  impl->i32Ty = int32Ty;
+
+  // BigInt
   impl->bigIntTy = LLVMType::createStructTy(
       &dialect, ArrayRef<LLVMType>(intNTy), StringRef("bigint"));
+
+  // Float
   if (!supportsNanboxing) {
     // Packed floats
     impl->floatTy = LLVMType::createStructTy(
@@ -70,19 +87,44 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
     // Immediate floats
     impl->floatTy = f64Ty;
   }
+
+  // Cons
   impl->consTy = LLVMType::createStructTy(
-      &dialect, ArrayRef<LLVMType>({termTy, termTy}), StringRef("cons"));
+      &dialect, ArrayRef<LLVMType>({intNTy, intNTy}), StringRef("cons"));
+
+  // Nil
   auto nilTypeKind = TypeKind::Nil - mlir::Type::FIRST_EIR_TYPE;
   auto nil = lumen_encode_immediate(&impl->encoding, nilTypeKind, 0);
   impl->nil = APInt(pointerSizeInBits, nil, /*signed=*/false);
+
+  // None
   auto noneTypeKind = TypeKind::None - mlir::Type::FIRST_EIR_TYPE;
   auto none = lumen_encode_immediate(&impl->encoding, noneTypeKind, 0);
   impl->none = APInt(pointerSizeInBits, none, /*signed=*/false);
 
+  // Binary types
   ArrayRef<LLVMType> binaryFields({intNTy, intNTy, i8PtrTy});
   impl->binaryTy =
       LLVMType::createStructTy(&dialect, binaryFields, StringRef("binary"));
 
+  // Closure types
+  // [i8 x 16]
+  impl->uniqueTy = LLVMType::getArrayTy(int8Ty, 16);
+  // [i8 x <sizeof(DefinitionBody)>]
+  impl->defBodyTy = LLVMType::getArrayTy(int8Ty, sizeof(ClosureDefinitionBody));
+  // struct { i8 tag, i32 index, [i8 x 16] unique, i32 oldUnique }
+  impl->anonBodyTy = LLVMType::createStructTy(
+      &dialect, ArrayRef<LLVMType>{int32Ty, impl->uniqueTy, int32Ty},
+      StringRef("closure.export"));
+  // struct { i8 tag, usize functionAtom }
+  impl->exportBodyTy = LLVMType::createStructTy(
+      &dialect, ArrayRef<LLVMType>(intNTy), StringRef("closure.export"));
+  // struct { i8 tag, definition body }
+  impl->defTy = LLVMType::createStructTy(
+      &dialect, ArrayRef<LLVMType>{int8Ty, impl->defBodyTy},
+      StringRef("closure.definition"));
+
+  // Tags/boxes
   impl->listTag = lumen_list_tag(&impl->encoding);
   impl->listMask = lumen_list_mask(&impl->encoding);
   impl->boxTag = lumen_box_tag(&impl->encoding);
@@ -96,15 +138,24 @@ TargetInfo::TargetInfo(const TargetInfo &other)
       pointerSizeInBits(other.pointerSizeInBits),
       impl(new TargetInfoImpl(*other.impl)) {}
 
-LLVMType TargetInfo::getTermType() { return impl->pointerWidthIntTy; }
 LLVMType TargetInfo::getConsType() { return impl->consTy; }
 LLVMType TargetInfo::getFloatType() { return impl->floatTy; }
 LLVMType TargetInfo::getBinaryType() { return impl->binaryTy; }
+LLVMType TargetInfo::makeTupleType(LLVMDialect *dialect, unsigned arity) {
+  SmallVector<LLVMType, 2> fieldTypes;
+  fieldTypes.reserve(1 + arity);
+  auto termTy = getUsizeType();
+  fieldTypes.push_back(termTy);
+  for (auto i = 0; i < arity; i++) {
+    fieldTypes.push_back(termTy);
+  }
+  return LLVMType::createStructTy(dialect, fieldTypes, llvm::None);
+}
 LLVMType TargetInfo::makeTupleType(LLVMDialect *dialect,
                                    ArrayRef<LLVMType> elementTypes) {
   SmallVector<LLVMType, 3> withHeader;
   withHeader.reserve(1 + elementTypes.size());
-  withHeader.push_back(impl->termTy);
+  withHeader.push_back(getUsizeType());
   for (auto elemTy : elementTypes) {
     withHeader.push_back(elemTy);
   }
@@ -112,6 +163,38 @@ LLVMType TargetInfo::makeTupleType(LLVMDialect *dialect,
 }
 LLVMType TargetInfo::getUsizeType() { return impl->pointerWidthIntTy; }
 LLVMType TargetInfo::getI1Type() { return impl->i1Ty; }
+LLVMType TargetInfo::getI8Type() { return impl->i8Ty; }
+LLVMType TargetInfo::getI32Type() { return impl->i32Ty; }
+
+/*
+#[repr(C)]
+pub struct Closure {
+    header: Header<Closure>,
+    module: Atom,
+    definition: Definition,
+    arity: u8,
+    code: Option<*const ()>,
+    env: [Term],
+}
+*/
+LLVMType TargetInfo::makeClosureType(LLVMDialect *dialect, unsigned size) {
+  // Construct type of the fields
+  auto intNTy = impl->pointerWidthIntTy;
+  auto defTy = getClosureDefinitionType();
+  auto int8Ty = getI8Type();
+  auto voidPtrTy = LLVMType::getVoidTy(dialect).getPointerTo();
+  auto envTy = LLVMType::getArrayTy(intNTy, size);
+  ArrayRef<LLVMType> fields{intNTy, intNTy, defTy, int8Ty, voidPtrTy, envTy};
+
+  // Name the type based on the arity of the env, makes IR more readable
+  const char *fmt = "closure%d";
+  int bufferSize = std::snprintf(nullptr, 0, fmt, size);
+  std::vector<char> buffer(bufferSize + 1);
+  std::snprintf(&buffer[0], buffer.size(), fmt, size);
+  StringRef typeName(&buffer[0], buffer.size());
+
+  return LLVMType::createStructTy(dialect, fields, typeName);
+}
 
 APInt TargetInfo::encodeImmediate(unsigned type, uint64_t value) {
   auto t = type - mlir::Type::FIRST_EIR_TYPE;

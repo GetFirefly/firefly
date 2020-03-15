@@ -78,6 +78,63 @@ def eir_FuncOp : eir_Op<"func", [
   }];
 }
 
+def eir_ClosureOp : eir_Op<"closure", []> {
+  let summary = "Creates a closure capture at the current point in the function";
+
+  let arguments = (ins
+    eir_FuncRefAttr:$callee,
+    Variadic<eir_AnyType>:$operands
+  );
+  let results = (outs
+    Variadic<eir_AnyType>:$results
+  );
+
+  let assemblyFormat = [{
+    $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<[{
+      Builder *builder, OperationState &result, eir::Closure *closure, ValueRange operands = {}
+    }], [{
+      auto termTy = builder->getType<TermType>();
+      auto i8Ty = builder->getIntegerType(8);
+      auto i32Ty = builder->getIntegerType(32);
+      auto callee = builder->getSymbolRefAttr(StringRef(closure->name));
+      result.addAttribute("callee", callee);
+      result.addAttribute("module", Attribute::getFromOpaquePointer(closure->module));
+      result.addAttribute("arity", builder->getIntegerAttr(i8Ty, closure->arity));
+      result.addAttribute("env_len", builder->getIntegerAttr(i8Ty, closure->envLen));
+      result.addAttribute("index", builder->getIntegerAttr(i32Ty, closure->index));
+      result.addAttribute("old_unique", builder->getIntegerAttr(i32Ty, closure->index));
+      StringRef unique(&closure->unique[0], 16);
+      result.addAttribute("unique", builder->getStringAttr(unique));
+      result.addOperands(operands);
+      result.addTypes(termTy);
+    }]>
+  ];
+
+  let verifier = [{ /*TODO*/return success(); }];
+
+  let extraClassDeclaration = [{
+    IntegerAttr arityAttr() { return getAttrOfType<IntegerAttr>("arity"); }
+    AtomAttr module() { return getAttrOfType<AtomAttr>("module"); }
+    IntegerAttr envLenAttr() { return getAttrOfType<IntegerAttr>("env_len"); }
+    IntegerAttr indexAttr() { return getAttrOfType<IntegerAttr>("index"); }
+    IntegerAttr oldUniqueAttr() { return getAttrOfType<IntegerAttr>("old_unique"); }
+    StringAttr uniqueAttr() { return getAttrOfType<StringAttr>("unique"); }
+
+    unsigned arity() { return arityAttr().getValue().getLimitedValue(); }
+    unsigned envLen() { return envLenAttr().getValue().getLimitedValue(); }
+    unsigned index() { return indexAttr().getValue().getLimitedValue(); }
+    unsigned oldUnique() { return oldUniqueAttr().getValue().getLimitedValue(); }
+    StringRef unique() { return uniqueAttr().getValue(); }
+
+    bool isAnonymous() { return arityAttr() != nullptr; }
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Comparisons
 //===----------------------------------------------------------------------===//
@@ -680,7 +737,7 @@ def eir_ReturnOp : eir_Op<"return", [
 }
 
 def eir_YieldOp : eir_Op<"yield", [
-    HasParent<"mlir::FuncOp">,
+    //HasParent<"mlir::FuncOp">,
     YieldPoint,
   ]> {
   let summary = [{scheduler yield operation}];
@@ -696,7 +753,7 @@ def eir_YieldOp : eir_Op<"yield", [
 }
 
 def eir_YieldCheckOp : eir_Op<"yield.check", [
-    HasParent<"mlir::FuncOp">,
+    //HasParent<"mlir::FuncOp">,
     Terminator,
   ]> {
   let summary = "Terminator which branches based on the need for a yield";
@@ -841,7 +898,7 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
 // Miscellaneous Operations
 //===----------------------------------------------------------------------===//
 
-def eir_IncrementReductionsOp : eir_Op<"reductions.inc", [HasParent<"mlir::FuncOp">]> {
+def eir_IncrementReductionsOp : eir_Op<"reductions.inc", [/*HasParent<"mlir::FuncOp">*/]> {
   let summary = "Increments the current processes' reduction counter";
 
   let arguments = (ins DefaultValuedAttr<NonNegativeI32Attr, "1">:$increment);
@@ -870,6 +927,8 @@ def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
     OpBuilder<"Builder *builder, OperationState &result, Value source, Type destType",
     [{
       result.addOperands(source);
+      result.addAttribute("from", TypeAttr::get(source.getType()));
+      result.addAttribute("to", TypeAttr::get(destType));
       result.addTypes(destType);
     }]>
   ];
@@ -904,7 +963,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
       %0 = eir.malloc(%1) {alignment = 8} : !eir.box<<!eir.tuple<?xf32>>
   }];
 
-  let arguments = (ins Variadic<eir_AnyType>:$index,
+  let arguments = (ins Variadic<eir_AnyType>:$arity,
                    Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$alignment);
   let results = (outs eir_BoxType);
 
@@ -912,6 +971,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
     OpBuilder<"Builder *builder, OperationState &result, BoxType boxType, "
               "IntegerAttr alignment = IntegerAttr()",
     [{
+       result.addAttribute("type", TypeAttr::get(boxType));
        result.types.push_back(boxType);
        if (alignment)
          result.addAttribute(getAlignmentAttrName(), alignment);
@@ -919,21 +979,19 @@ def eir_MallocOp : eir_Op<"malloc"> {
     OpBuilder<"Builder *builder, OperationState &result, BoxType boxType, "
               "ArrayRef<Value> operands, IntegerAttr alignment = IntegerAttr()",
     [{
-       result.addOperands(operands);
+       result.addAttribute("type", TypeAttr::get(boxType));
        result.types.push_back(boxType);
        if (alignment)
          result.addAttribute(getAlignmentAttrName(), alignment);
+       result.addOperands(operands);
     }]>
   ];
 
   let extraClassDeclaration = [{
     static StringRef getAlignmentAttrName() { return "alignment"; }
 
-    BoxType getType() { return getResult().getType().cast<BoxType>(); }
-
-    /// Returns the dynamic sizes for this alloc operation if specified.
-    int64_t getAllocSize(unsigned pointerSizeInBits) {
-      return calculateAllocSize(pointerSizeInBits, getType());
+    BoxType getAllocType() {
+        return getOperation()->getAttrOfType<TypeAttr>("type").getValue().cast<BoxType>();
     }
   }];
 
@@ -1003,25 +1061,31 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
       if (auto boxTy = boxedTy.dyn_cast_or_null<eir::BoxType>()) {
         elementTy = boxTy.getBoxedType();
       } else {
-        return;
+        assert(false && "expected element type to be a boxed term type");
       }
+      result.addAttribute("pointee", TypeAttr::get(elementTy));
       auto termTy = builder->getType<eir::TermType>().cast<OpaqueTermType>();
       if (elementTy.isa<ConsType>()) {
+        result.addAttribute("element", TypeAttr::get(termTy));
         auto refTy = builder->getType<eir::RefType>(termTy);
         result.addTypes(refTy);
       } else if (auto tupleTy = elementTy.dyn_cast_or_null<TupleType>()) {
         if (tupleTy.hasDynamicShape()) {
+          result.addAttribute("element", TypeAttr::get(termTy));
           auto refTy = builder->getType<eir::RefType>(termTy);
           result.addTypes(refTy);
         } else if (tupleTy.getArity() > index) {
           auto innerTy = tupleTy.getElementType(index).cast<OpaqueTermType>();
+          result.addAttribute("element", TypeAttr::get(innerTy));
           auto refTy = builder->getType<eir::RefType>(innerTy);
           result.addTypes(refTy);
         } else {
+          result.addAttribute("element", TypeAttr::get(termTy));
           auto refTy = builder->getType<eir::RefType>(termTy);
           result.addTypes(refTy);
         }
       } else {
+        result.addAttribute("element", TypeAttr::get(termTy));
         auto refTy = builder->getType<eir::RefType>(termTy);
         result.addTypes(refTy);
       }
@@ -1040,6 +1104,8 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
   let extraClassDeclaration = [{
     static StringRef getIndexAttrName() { return "index"; }
 
+    Type getPointeeType() { return getAttrOfType<TypeAttr>("pointee").getValue(); }
+    Type getElementType() { return getAttrOfType<TypeAttr>("element").getValue(); }
     Type getType() { return getResult().getType().cast<RefType>().getInnerType(); }
 
     uint64_t getIndex() {
@@ -1246,7 +1312,7 @@ def eir_ConstantNoneOp : eir_ConstantOp<eir_NoneType, "constant.none"> {
     "Builder *builder, OperationState &result",
     [{
       auto type = builder->getType<eir::NoneType>();
-      auto attr = builder->getUnitAttr();
+      auto attr = TypeAttr::get(type);
       build(builder, result, type, attr);
     }]>
   ];
@@ -1275,7 +1341,28 @@ def eir_ConstantTupleOp : eir_ConstantOp<eir_TupleType, "constant.tuple"> {
   ];
 }
 
-def eir_ConstantListOp : eir_ConstantOp<eir_ConsType, "constant.list"> {
+def eir_ConstantConsOp : eir_ConstantOp<eir_BoxType, "constant.cons"> {
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, ArrayRef<Attribute> elements",
+    [{
+      assert(elements.size() > 0 && "cons requires at least one value");
+      auto type = builder->getType<ConsType>();
+      result.addAttribute("value", SeqAttr::get(type, elements));
+      result.addTypes(BoxType::get(type));
+    }]>,
+    OpBuilder<
+    "Builder *builder, OperationState &result, Attribute head, Attribute tail",
+    [{
+      auto type = builder->getType<ConsType>();
+      auto attr = SeqAttr::get(type, ArrayRef<Attribute>{head, tail});
+      result.addAttribute("value", attr);
+      result.addTypes(BoxType::get(type));
+    }]>
+  ];
+}
+
+def eir_ConstantListOp : eir_ConstantOp<eir_BoxType, "constant.list"> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, Type type, Attribute val",
@@ -1288,7 +1375,7 @@ def eir_ConstantListOp : eir_ConstantOp<eir_ConsType, "constant.list"> {
     [{
       auto type = builder->getType<ConsType>();
       auto attr = SeqAttr::get(type, elements);
-      build(builder, result, type, attr);
+      build(builder, result, BoxType::get(type), attr);
     }]>
   ];
 }

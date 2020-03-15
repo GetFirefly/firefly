@@ -13,6 +13,8 @@
 #include "llvm/Target/TargetMachine.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
 #include "mlir/Analysis/Verifier.h"
+#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
+#include "mlir/EDSC/Intrinsics.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
@@ -21,6 +23,18 @@
 
 using ::llvm::Optional;
 using ::llvm::StringSwitch;
+using ::mlir::edsc::intrinsics::OperationBuilder;
+using ::mlir::edsc::intrinsics::ValueBuilder;
+using eir_cast = ValueBuilder<::lumen::eir::CastOp>;
+using eir_cmpeq = ValueBuilder<::lumen::eir::CmpEqOp>;
+using eir_cmpneq = ValueBuilder<::lumen::eir::CmpNeqOp>;
+using eir_cmpgt = ValueBuilder<::lumen::eir::CmpGtOp>;
+using eir_cmpgte = ValueBuilder<::lumen::eir::CmpGteOp>;
+using eir_cmplt = ValueBuilder<::lumen::eir::CmpLtOp>;
+using eir_cmplte = ValueBuilder<::lumen::eir::CmpLteOp>;
+using eir_atom = ValueBuilder<::lumen::eir::ConstantAtomOp>;
+using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
+using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Builder, MLIRBuilderRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Location, MLIRLocationRef);
@@ -172,6 +186,7 @@ extern "C" MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
   delete builder;
   if (failed(mlir::verify(finished))) {
     finished.dump();
+    llvm::outs() << "\n";
     finished.emitError("module verification error");
     return nullptr;
   }
@@ -243,6 +258,20 @@ extern "C" void MLIRAddFunction(MLIRModuleBuilderRef b, MLIRFunctionOpRef f) {
 }
 
 void ModuleBuilder::add_function(FuncOp f) { theModule.push_back(f); }
+
+extern "C" MLIRValueRef MLIRBuildClosure(MLIRModuleBuilderRef b,
+                                         eir::Closure *closure) {
+  ModuleBuilder *builder = unwrap(b);
+  return wrap(builder->build_closure(closure));
+}
+
+Value ModuleBuilder::build_closure(Closure *closure) {
+  llvm::SmallVector<Value, 2> args;
+  unwrapValues(closure->env, closure->envLen, args);
+  auto op = builder.create<ClosureOp>(builder.getUnknownLoc(), closure, args);
+  assert(op.getNumResults() == 1 && "unsupported number of results");
+  return op.getResult(0);
+}
 
 //===----------------------------------------------------------------------===//
 // Blocks
@@ -638,8 +667,8 @@ extern "C" MLIRValueRef MLIRBuildIsEqualOp(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_is_equal(Value lhs, Value rhs, bool isExact) {
-  auto op = builder.create<CmpEqOp>(builder.getUnknownLoc(), lhs, rhs, isExact);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+  return eir_cmpeq(lhs, rhs, isExact);
 }
 
 extern "C" MLIRValueRef MLIRBuildIsNotEqualOp(MLIRModuleBuilderRef b,
@@ -652,9 +681,8 @@ extern "C" MLIRValueRef MLIRBuildIsNotEqualOp(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_is_not_equal(Value lhs, Value rhs, bool isExact) {
-  auto op =
-      builder.create<CmpNeqOp>(builder.getUnknownLoc(), lhs, rhs, isExact);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+  return eir_cmpneq(lhs, rhs, isExact);
 }
 
 extern "C" MLIRValueRef MLIRBuildLessThanOrEqualOp(MLIRModuleBuilderRef b,
@@ -667,8 +695,8 @@ extern "C" MLIRValueRef MLIRBuildLessThanOrEqualOp(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_is_less_than_or_equal(Value lhs, Value rhs) {
-  auto op = builder.create<CmpLteOp>(builder.getUnknownLoc(), lhs, rhs);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+  return eir_cmplte(lhs, rhs);
 }
 
 extern "C" MLIRValueRef MLIRBuildLessThanOp(MLIRModuleBuilderRef b,
@@ -680,8 +708,8 @@ extern "C" MLIRValueRef MLIRBuildLessThanOp(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_is_less_than(Value lhs, Value rhs) {
-  auto op = builder.create<CmpLtOp>(builder.getUnknownLoc(), lhs, rhs);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+  return eir_cmplt(lhs, rhs);
 }
 
 extern "C" MLIRValueRef MLIRBuildGreaterThanOrEqualOp(MLIRModuleBuilderRef b,
@@ -694,8 +722,8 @@ extern "C" MLIRValueRef MLIRBuildGreaterThanOrEqualOp(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_is_greater_than_or_equal(Value lhs, Value rhs) {
-  auto op = builder.create<CmpGteOp>(builder.getUnknownLoc(), lhs, rhs);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+  return eir_cmpgte(lhs, rhs);
 }
 
 extern "C" MLIRValueRef MLIRBuildGreaterThanOp(MLIRModuleBuilderRef b,
@@ -707,8 +735,8 @@ extern "C" MLIRValueRef MLIRBuildGreaterThanOp(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_is_greater_than(Value lhs, Value rhs) {
-  auto op = builder.create<CmpGtOp>(builder.getUnknownLoc(), lhs, rhs);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+  return eir_cmpgt(lhs, rhs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -879,10 +907,15 @@ void ModuleBuilder::build_static_call(StringRef target, ArrayRef<Value> args,
     } else {
       if (result) {
         auto termTy = builder.getType<TermType>();
-        auto boolResult =
-            builder.create<CastOp>(builder.getUnknownLoc(), result, termTy);
-        builder.create<BranchOp>(builder.getUnknownLoc(), ok,
-                                 ArrayRef<Value>{boolResult});
+        if (result.getType() != termTy) {
+          auto cast =
+              builder.create<CastOp>(builder.getUnknownLoc(), result, termTy);
+          builder.create<BranchOp>(builder.getUnknownLoc(), ok,
+                                   ArrayRef<Value>{cast});
+        } else {
+          builder.create<BranchOp>(builder.getUnknownLoc(), ok,
+                                   ArrayRef<Value>{result});
+        }
       } else {
         builder.create<BranchOp>(builder.getUnknownLoc(), ok,
                                  ArrayRef<Value>{});
@@ -1108,12 +1141,10 @@ extern "C" MLIRValueRef MLIRBuildConstantAtom(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_constant_atom(StringRef value, uint64_t valueId) {
+  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
   APInt id(64, valueId, /*isSigned=*/false);
-  auto op = builder.create<ConstantAtomOp>(builder.getUnknownLoc(), id, value);
-  auto result = op.getResult();
   auto termTy = builder.getType<TermType>();
-  auto castOp = builder.create<CastOp>(builder.getUnknownLoc(), result, termTy);
-  return castOp.getResult();
+  return eir_cast(eir_atom(id, value), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildAtomAttr(MLIRModuleBuilderRef b,
@@ -1176,8 +1207,8 @@ extern "C" MLIRValueRef MLIRBuildConstantNil(MLIRModuleBuilderRef b) {
 }
 
 Value ModuleBuilder::build_constant_nil() {
-  auto op = builder.create<ConstantNilOp>(builder.getUnknownLoc());
-  return op.getResult();
+  edsc::ScopedContext(builder, builder.getUnknownLoc());
+  return eir_nil();
 }
 
 extern "C" MLIRAttributeRef MLIRBuildNilAttr(MLIRModuleBuilderRef b) {

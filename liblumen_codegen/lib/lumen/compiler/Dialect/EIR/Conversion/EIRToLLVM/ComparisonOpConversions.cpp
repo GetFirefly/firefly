@@ -16,32 +16,31 @@ class ComparisonOpConversion : public EIROpConversion<Op> {
   PatternMatchResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    edsc::ScopedContext context(rewriter, op.getLoc());
     OperandAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
+
     StringRef builtinSymbol = Op::builtinSymbol();
 
-    ModuleOp parentModule = op.template getParentOfType<ModuleOp>();
-    auto termTy = getUsizeType();
-    auto int1ty = getI1Type();
-    auto callee = getOrInsertFunction(rewriter, parentModule, builtinSymbol,
-                                      int1ty, {termTy, termTy});
+    auto termTy = ctx.getUsizeType();
+    auto int1ty = ctx.getI1Type();
+
+    auto callee =
+        ctx.getOrInsertFunction(builtinSymbol, int1ty, {termTy, termTy});
 
     auto lhs = adaptor.lhs();
     auto rhs = adaptor.rhs();
     ArrayRef<Value> args({lhs, rhs});
-    auto callOp = rewriter.create<mlir::CallOp>(op.getLoc(), callee,
-                                                ArrayRef<Type>{int1ty}, args);
-    auto result = callOp.getResult(0);
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+    Operation *callOp = std_call(calleeSymbol, ArrayRef<Type>{int1ty}, args);
 
-    rewriter.replaceOp(op, result);
+    rewriter.replaceOp(op, callOp->getResult(0));
     return matchSuccess();
   }
 
  private:
+  using EIROpConversion<Op>::getRewriteContext;
   using EIROpConversion<Op>::matchSuccess;
-  using EIROpConversion<Op>::getUsizeType;
-  using EIROpConversion<Op>::getI1Type;
-  using EIROpConversion<Op>::getOrInsertFunction;
 };
 
 struct CmpEqOpConversion

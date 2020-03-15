@@ -39,11 +39,17 @@ struct TargetInfoImpl {
         encoding(other.encoding),
         pointerWidthIntTy(other.pointerWidthIntTy),
         i1Ty(other.i1Ty),
-        termTy(other.termTy),
+        i8Ty(other.i8Ty),
+        i32Ty(other.i32Ty),
         bigIntTy(other.bigIntTy),
         floatTy(other.floatTy),
         binaryTy(other.binaryTy),
         consTy(other.consTy),
+        uniqueTy(other.uniqueTy),
+        defBodyTy(other.defBodyTy),
+        anonBodyTy(other.anonBodyTy),
+        exportBodyTy(other.exportBodyTy),
+        defTy(other.defTy),
         nil(other.nil),
         none(other.none),
         listTag(other.listTag),
@@ -57,11 +63,11 @@ struct TargetInfoImpl {
 
   Encoding encoding;
 
-  LLVMType pointerWidthIntTy, i1Ty;
-  LLVMType termTy;
+  LLVMType pointerWidthIntTy, i1Ty, i8Ty, i32Ty;
   LLVMType bigIntTy, floatTy;
   LLVMType binaryTy;
   LLVMType consTy;
+  LLVMType uniqueTy, defBodyTy, anonBodyTy, exportBodyTy, defTy;
 
   llvm::APInt nil;
   llvm::APInt none;
@@ -83,15 +89,31 @@ class TargetInfo {
   bool is_wasm32() const { return archType == llvm::Triple::ArchType::wasm32; }
   bool requiresPackedFloats() const { return !is_x86_64(); }
 
-  mlir::LLVM::LLVMType getTermType();
   mlir::LLVM::LLVMType getConsType();
   mlir::LLVM::LLVMType getFloatType();
   mlir::LLVM::LLVMType getBinaryType();
+  mlir::LLVM::LLVMType makeClosureType(mlir::LLVM::LLVMDialect *,
+                                       unsigned size);
+  mlir::LLVM::LLVMType makeTupleType(mlir::LLVM::LLVMDialect *, unsigned arity);
   mlir::LLVM::LLVMType makeTupleType(mlir::LLVM::LLVMDialect *,
                                      llvm::ArrayRef<mlir::LLVM::LLVMType>);
 
   mlir::LLVM::LLVMType getUsizeType();
   mlir::LLVM::LLVMType getI1Type();
+  mlir::LLVM::LLVMType getI8Type();
+  mlir::LLVM::LLVMType getI32Type();
+
+  mlir::LLVM::LLVMType getClosureUniqueType() { return impl->uniqueTy; }
+  mlir::LLVM::LLVMType getClosureDefinitionType() { return impl->defTy; }
+  mlir::LLVM::LLVMType getClosureDefinitionBodyType() {
+    return impl->defBodyTy;
+  }
+  mlir::LLVM::LLVMType getClosureDefinitionAnonBodyType() {
+    return impl->anonBodyTy;
+  }
+  mlir::LLVM::LLVMType getClosureDefinitionExportBodyType() {
+    return impl->exportBodyTy;
+  }
 
   llvm::APInt encodeImmediate(uint32_t type, uint64_t value);
   llvm::APInt encodeHeader(uint32_t type, uint64_t arity);

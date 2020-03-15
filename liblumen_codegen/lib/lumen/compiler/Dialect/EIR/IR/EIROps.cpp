@@ -419,57 +419,65 @@ static LogicalResult verify(CastOp op) {
 
 void lowerPatternMatch(OpBuilder &builder, Value selector,
                        ArrayRef<MatchBranch> branches) {
-  assert(branches.size() > 0 && "expected at least one branch in a match");
+  auto numBranches = branches.size();
+  assert(numBranches > 0 && "expected at least one branch in a match");
 
   auto *context = builder.getContext();
   auto *currentBlock = builder.getInsertionBlock();
   auto *region = currentBlock->getParent();
   auto loc = builder.getUnknownLoc();
+  auto selectorType = selector.getType();
 
   // Save our insertion point in the current block
   auto startIp = builder.saveInsertionPoint();
 
-  // Create blocks for all branches
-  SmallVector<Block *, 2> blocks;
-  blocks.reserve(branches.size());
+  // Create blocks for all match arms
   bool needsFallbackBranch = true;
-  for (auto &branch : branches) {
+  SmallVector<Block *, 3> blocks;
+  // The first match arm is evaluated in the current block, so we
+  // handle it specially
+  blocks.reserve(numBranches);
+  blocks.push_back(currentBlock);
+  if (branches[0].isCatchAll()) {
+    needsFallbackBranch = false;
+  }
+  // All other match arms need blocks for the evaluation of their patterns
+  for (auto &branch : branches.take_back(numBranches - 1)) {
     if (branch.isCatchAll()) {
       needsFallbackBranch = false;
     }
     Block *block = builder.createBlock(region);
+    block->addArgument(selectorType);
     blocks.push_back(block);
   }
 
-  // Create fallback block, if needed, after all other branches, so
+  // Create fallback block, if needed, after all other match blocks, so
   // that after all other conditions have been tried, we branch to an
   // unreachable to force a trap
   Block *failed = nullptr;
   if (needsFallbackBranch) {
     failed = builder.createBlock(region);
+    failed->addArgument(selectorType);
     builder.create<eir::UnreachableOp>(loc);
   }
 
   // Restore our original insertion point
   builder.restoreInsertionPoint(startIp);
 
-  // Unconditionally branch to the first pattern
-  builder.create<BranchOp>(loc, blocks[0]);
-
   // Save the current insertion point, which we'll restore when lowering is
   // complete
   auto finalIp = builder.saveInsertionPoint();
 
-  // Used whenever we need a set of empty args below
-  ArrayRef<Value> emptyArgs{};
   // Common types used below
   auto termType = builder.getType<TermType>();
+
+  // Used whenever we need a set of empty args below
+  ArrayRef<Value> emptyArgs{};
 
   // For each branch, populate its block with the predicate and
   // appropriate conditional branching instruction to either jump
   // to the success block, or to the next branches' block (or in
   // the case of the last branch, the 'failed' block)
-  auto numBranches = branches.size();
   for (unsigned i = 0; i < numBranches; i++) {
     auto &b = branches[i];
     bool isLast = i == numBranches - 1;
@@ -477,6 +485,17 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
 
     // Set our insertion point to the end of the pattern block
     builder.setInsertionPointToEnd(block);
+
+    // Get the selector value in this block,
+    // in the case of the first block, its our original
+    // input selector value
+    Value selectorArg;
+    if (i == 0) {
+      selectorArg = selector;
+    } else {
+      selectorArg = block->getArgument(0);
+    }
+    ArrayRef<Value> withSelectorArgs{selectorArg};
 
     // Store the next pattern to try if this one fails
     // If this is the last pattern, we validate that the
@@ -510,13 +529,15 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         builder.restoreInsertionPoint(cip);
         auto consType = builder.getType<ConsType>();
         auto boxedConsType = builder.getType<BoxType>(consType);
-        auto isConsOp = builder.create<IsTypeOp>(loc, selector, boxedConsType);
+        auto isConsOp =
+            builder.create<IsTypeOp>(loc, selectorArg, boxedConsType);
         auto isConsCond = isConsOp.getResult();
-        auto ifOp = builder.create<CondBranchOp>(
-            loc, isConsCond, split, emptyArgs, nextPatternBlock, emptyArgs);
+        auto ifOp =
+            builder.create<CondBranchOp>(loc, isConsCond, split, emptyArgs,
+                                         nextPatternBlock, withSelectorArgs);
         // 2. In the split, extract head and tail values of the cons cell
         builder.setInsertionPointToEnd(split);
-        auto castOp = builder.create<CastOp>(loc, selector, boxedConsType);
+        auto castOp = builder.create<CastOp>(loc, selectorArg, boxedConsType);
         auto boxedCons = castOp.getResult();
         auto getHeadOp = builder.create<GetElementPtrOp>(loc, boxedCons, 0);
         auto getTailOp = builder.create<GetElementPtrOp>(loc, boxedCons, 1);
@@ -548,13 +569,14 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto tupleType = builder.getType<eir::TupleType>(arity);
         auto boxedTupleType = builder.getType<BoxType>(tupleType);
         auto isTupleOp =
-            builder.create<IsTypeOp>(loc, selector, boxedTupleType);
+            builder.create<IsTypeOp>(loc, selectorArg, boxedTupleType);
         auto isTupleCond = isTupleOp.getResult();
-        auto ifOp = builder.create<CondBranchOp>(
-            loc, isTupleCond, split, emptyArgs, nextPatternBlock, emptyArgs);
+        auto ifOp =
+            builder.create<CondBranchOp>(loc, isTupleCond, split, emptyArgs,
+                                         nextPatternBlock, withSelectorArgs);
         // 2. In the split, extract the tuple elements as values
         builder.setInsertionPointToEnd(split);
-        auto castOp = builder.create<CastOp>(loc, selector, boxedTupleType);
+        auto castOp = builder.create<CastOp>(loc, selectorArg, boxedTupleType);
         auto boxedTuple = castOp.getResult();
         SmallVector<Value, 2> destArgs(
             {baseDestArgs.begin(), baseDestArgs.end()});
@@ -580,35 +602,40 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto cip = builder.saveInsertionPoint();
         Block *split2 =
             builder.createBlock(region, Region::iterator(nextPatternBlock));
+        split2->addArgument(selectorType);
         Block *split = builder.createBlock(region, Region::iterator(split2));
+        split->addArgument(selectorType);
         builder.restoreInsertionPoint(cip);
         auto *pattern = b.getPatternTypeOrNull<MapPattern>();
         auto key = pattern->getKey();
         auto mapType = builder.getType<MapType>();
-        auto isMapOp = builder.create<IsTypeOp>(loc, selector, mapType);
+        auto isMapOp = builder.create<IsTypeOp>(loc, selectorArg, mapType);
         auto isMapCond = isMapOp.getResult();
         auto ifOp = builder.create<CondBranchOp>(
-            loc, isMapCond, split, emptyArgs, nextPatternBlock, emptyArgs);
+            loc, isMapCond, split, withSelectorArgs, nextPatternBlock,
+            withSelectorArgs);
         // 2. In the split, call runtime function `is_map_key` to confirm
         // existence of the key in the map,
         //    then conditionally branch to the second split if successful,
         //    otherwise the next pattern
         builder.setInsertionPointToEnd(split);
+        Value splitSelector = split->getArgument(0);
+        ArrayRef<Value> splitSelectorArgs{splitSelector};
         ArrayRef<Type> getKeyResultTypes = {termType};
-        ArrayRef<Value> getKeyArgs = {key, selector};
+        ArrayRef<Value> getKeyArgs = {key, splitSelector};
         auto hasKeyOp = builder.create<CallOp>(loc, "erlang::is_map_key/2",
                                                getKeyResultTypes, getKeyArgs);
         auto hasKeyCondTerm = hasKeyOp.getResult(0);
         auto toBoolOp = builder.create<CastOp>(loc, hasKeyCondTerm,
                                                builder.getType<BooleanType>());
         auto hasKeyCond = toBoolOp.getResult();
-        builder.create<CondBranchOp>(loc, hasKeyCond, split2, emptyArgs,
-                                     nextPatternBlock, emptyArgs);
+        builder.create<CondBranchOp>(loc, hasKeyCond, split2, splitSelectorArgs,
+                                     nextPatternBlock, splitSelectorArgs);
         // 3. In the second split, call runtime function `map_get` to obtain the
         // value for the key
         builder.setInsertionPointToEnd(split2);
         ArrayRef<Type> mapGetResultTypes = {termType};
-        ArrayRef<Value> mapGetArgs = {key, selector};
+        ArrayRef<Value> mapGetArgs = {key, split2->getArgument(0)};
         auto mapGetOp = builder.create<CallOp>(loc, "erlang::map_get/2",
                                                mapGetResultTypes, mapGetArgs);
         auto valueTerm = mapGetOp.getResult(0);
@@ -628,10 +655,11 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         // next pattern
         auto *pattern = b.getPatternTypeOrNull<IsTypePattern>();
         auto expectedType = pattern->getExpectedType();
-        auto isTypeOp = builder.create<IsTypeOp>(loc, selector, expectedType);
+        auto isTypeOp =
+            builder.create<IsTypeOp>(loc, selectorArg, expectedType);
         auto isTypeCond = isTypeOp.getResult();
         builder.create<CondBranchOp>(loc, isTypeCond, dest, baseDestArgs,
-                                     nextPatternBlock, emptyArgs);
+                                     nextPatternBlock, withSelectorArgs);
         break;
       }
 
@@ -642,11 +670,11 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         //    passing the value as an additional destArg
         auto *pattern = b.getPatternTypeOrNull<ValuePattern>();
         auto expected = pattern->getValue();
-        auto isEq =
-            builder.create<CmpEqOp>(loc, selector, expected, /*strict=*/true);
+        auto isEq = builder.create<CmpEqOp>(loc, selectorArg, expected,
+                                            /*strict=*/true);
         auto isEqCond = isEq.getResult();
         builder.create<CondBranchOp>(loc, isEqCond, dest, baseDestArgs,
-                                     nextPatternBlock, emptyArgs);
+                                     nextPatternBlock, withSelectorArgs);
         break;
       }
 
@@ -754,7 +782,7 @@ static LogicalResult verifyConstantOp(ConstantOp &) {
 static void print(OpAsmPrinter &p, MallocOp op) {
   p << MallocOp::getOperationName();
 
-  BoxType type = op.getType();
+  BoxType type = op.getAllocType();
   p.printOperands(op.getOperands());
   p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"map"});
   p << " : " << type;
@@ -822,65 +850,6 @@ static mlir::detail::op_matcher<ConstantIntOp> m_ConstantDimension() {
 }
 
 namespace {
-/// Fold constant dimensions into an alloc operation.
-struct SimplifyMallocConst : public OpRewritePattern<MallocOp> {
-  using OpRewritePattern<MallocOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(MallocOp alloc,
-                                     PatternRewriter &rewriter) const override {
-    auto boxType = alloc.getType();
-    auto boxedType = boxType.getBoxedType();
-    if (!boxedType.isTuple()) return matchFailure();
-
-    auto tuple = boxedType.cast<TupleType>();
-    auto numOperands = alloc.getNumOperands();
-    if (tuple.hasStaticShape()) {
-      // We can remove any operands as the shape is known
-      if (numOperands > 0) {
-        auto alignment = alloc.alignment();
-        if (alignment) {
-          auto alignTy = rewriter.getIntegerType(64);
-          auto align = rewriter.getIntegerAttr(alignTy, alignment.getValue());
-          rewriter.replaceOpWithNewOp<MallocOp>(alloc, boxType, align);
-        } else {
-          rewriter.replaceOpWithNewOp<MallocOp>(alloc, boxType);
-        }
-        return matchSuccess();
-      } else {
-        return matchFailure();
-      }
-    }
-
-    // Check to see if any dimensions operands are constants.  If so, we can
-    // substitute and drop them.
-    if (llvm::none_of(alloc.getOperands(), [](Value operand) {
-          return matchPattern(operand, m_ConstantDimension());
-        }))
-      return matchFailure();
-
-    assert(numOperands > 1 &&
-           "malloc op only permits one level of dynamic dimensionality");
-    SmallVector<Value, 1> newOperands;
-
-    auto *defOp = alloc.getOperand(0).getDefiningOp();
-    auto constantIntOp = cast<ConstantIntOp>(defOp);
-    auto arityAP = constantIntOp.getValue().cast<IntegerAttr>().getValue();
-    auto arity = (unsigned)arityAP.getLimitedValue();
-    auto newTuple = TupleType::get(tuple.getContext(), arity);
-    auto newType = BoxType::get(newTuple);
-    auto alignment = alloc.alignment();
-
-    if (alignment) {
-      auto alignTy = rewriter.getIntegerType(64);
-      auto align = rewriter.getIntegerAttr(alignTy, alignment.getValue());
-      rewriter.replaceOpWithNewOp<MallocOp>(alloc, newType, align);
-    } else {
-      rewriter.replaceOpWithNewOp<MallocOp>(alloc, newType);
-    }
-    return matchSuccess();
-  }
-};
-
 /// Fold malloc operations with no uses. Malloc has side effects on the heap,
 /// but can still be deleted if it has zero uses.
 struct SimplifyDeadMalloc : public OpRewritePattern<MallocOp> {
@@ -899,7 +868,7 @@ struct SimplifyDeadMalloc : public OpRewritePattern<MallocOp> {
 
 void MallocOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
-  results.insert<SimplifyMallocConst, SimplifyDeadMalloc>(context);
+  results.insert<SimplifyDeadMalloc>(context);
 }
 
 int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {

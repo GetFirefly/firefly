@@ -2,42 +2,23 @@
 
 namespace lumen {
 namespace eir {
-template <typename T>
-static Value specializeIntegerMathOp(OpBuilder &builder,
-                                     edsc::ScopedContext &context,
-                                     TargetInfo &targetInfo, Location loc,
-                                     Value lhs, Value rhs) {
-  Value lhsInt = do_unmask_immediate(builder, context, targetInfo, lhs);
-  Value rhsInt = do_unmask_immediate(builder, context, targetInfo, rhs);
-  auto mathOp = builder.create<T>(loc, lhsInt, rhsInt);
+template <typename Op, typename T>
+static Value specializeIntegerMathOp(RewritePatternContext<Op> &ctx, Value lhs,
+                                     Value rhs) {
+  Value lhsInt = ctx.decodeImmediate(lhs);
+  Value rhsInt = ctx.decodeImmediate(rhs);
+  auto mathOp = ctx.rewriter.template create<T>(ctx.getLoc(), lhsInt, rhsInt);
   return mathOp.getResult();
 }
 
-template <typename T>
-static Value specializeFloatMathOp(OpBuilder &builder,
-                                   edsc::ScopedContext &context,
-                                   TargetInfo &targetInfo, LLVMDialect *dialect,
-                                   Location loc, Value lhs, Value rhs) {
-  auto fpTy = LLVMType::getDoubleTy(dialect);
-  if (!targetInfo.requiresPackedFloats()) {
-    Value lhsFp = llvm_bitcast(fpTy, lhs);
-    Value rhsFp = llvm_bitcast(fpTy, rhs);
-    auto fpOp = builder.create<T>(loc, lhs, rhs);
-    return fpOp.getResult();
-  } else {
-    auto int32Ty = LLVMType::getInt32Ty(dialect);
-    auto floatTy = targetInfo.getFloatType();
-    auto indexTy = builder.getIntegerType(32);
-    Value cns0 = llvm_constant(int32Ty, builder.getIntegerAttr(indexTy, 0));
-    Value index = llvm_constant(int32Ty, builder.getIntegerAttr(indexTy, 1));
-    ArrayRef<Value> indices({cns0, index});
-    Value lhsPtr = llvm_gep(fpTy.getPointerTo(), lhs, indices);
-    Value rhsPtr = llvm_gep(fpTy.getPointerTo(), rhs, indices);
-    Value lhsVal = llvm_load(lhsPtr);
-    Value rhsVal = llvm_load(rhsPtr);
-    auto fpOp = builder.create<T>(loc, lhsVal, rhsVal);
-    return fpOp.getResult();
-  }
+template <typename Op, typename T>
+static Value specializeFloatMathOp(RewritePatternContext<Op> &ctx, Value lhs,
+                                   Value rhs) {
+  auto fpTy = LLVMType::getDoubleTy(ctx.dialect);
+  Value l = eir_cast(lhs, fpTy);
+  Value r = eir_cast(rhs, fpTy);
+  auto fpOp = ctx.rewriter.template create<T>(ctx.getLoc(), l, r);
+  return fpOp.getResult();
 }
 
 template <typename Op, typename OperandAdaptor, typename IntOp,
@@ -53,8 +34,8 @@ class MathOpConversion : public EIROpConversion<Op> {
   PatternMatchResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    edsc::ScopedContext context(rewriter, op.getLoc());
     OperandAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
 
     Value lhs = adaptor.lhs();
     Value rhs = adaptor.rhs();
@@ -63,40 +44,34 @@ class MathOpConversion : public EIROpConversion<Op> {
 
     // Use specialized lowerings if types are compatible
     if (lhsTy.isa<FixnumType>() && rhsTy.isa<FixnumType>()) {
-      auto newOp = specializeIntegerMathOp<IntOp>(rewriter, context, targetInfo,
-                                                  op.getLoc(), lhs, rhs);
+      auto newOp = specializeIntegerMathOp<Op, IntOp>(ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
       return matchSuccess();
     }
     if (lhsTy.isa<FloatType>() && rhsTy.isa<FloatType>()) {
-      auto newOp = specializeFloatMathOp<FloatOp>(
-          rewriter, context, targetInfo, dialect, op.getLoc(), lhs, rhs);
+      auto newOp = specializeFloatMathOp<Op, FloatOp>(ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
       return matchSuccess();
     }
 
     // Call builtin function
     StringRef builtinSymbol = Op::builtinSymbol();
-    ModuleOp parentModule = op.template getParentOfType<ModuleOp>();
-    auto termTy = getUsizeType();
-    auto callee = getOrInsertFunction(rewriter, parentModule, builtinSymbol,
-                                      termTy, {termTy, termTy});
+    auto termTy = ctx.getUsizeType();
+    auto callee =
+        ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
     ArrayRef<Value> args({lhs, rhs});
-    auto callOp = rewriter.create<mlir::CallOp>(op.getLoc(), callee,
-                                                ArrayRef<Type>{termTy}, args);
-    auto result = callOp.getResult(0);
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
 
-    rewriter.replaceOp(op, result);
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
+                                              ArrayRef<Type>{termTy}, args);
     return matchSuccess();
   }
 
  private:
+  using EIROpConversion<Op>::getRewriteContext;
   using EIROpConversion<Op>::matchSuccess;
-  using EIROpConversion<Op>::getUsizeType;
-  using EIROpConversion<Op>::getOrInsertFunction;
-  using EIROpConversion<Op>::targetInfo;
-  using EIROpConversion<Op>::dialect;
 };
 
 struct AddOpConversion : public MathOpConversion<AddOp, AddOpOperandAdaptor,
@@ -125,8 +100,8 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
   PatternMatchResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    edsc::ScopedContext context(rewriter, op.getLoc());
     OperandAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
 
     Value lhs = adaptor.lhs();
     Value rhs = adaptor.rhs();
@@ -135,34 +110,28 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
 
     // Use specialized lowerings if types are compatible
     if (lhsTy.isa<FixnumType>() && rhsTy.isa<FixnumType>()) {
-      auto newOp = specializeIntegerMathOp<IntOp>(rewriter, context, targetInfo,
-                                                  op.getLoc(), lhs, rhs);
+      auto newOp = specializeIntegerMathOp<Op, IntOp>(ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
       return matchSuccess();
     }
 
     // Call builtin function
     StringRef builtinSymbol = Op::builtinSymbol();
-    ModuleOp parentModule = op.template getParentOfType<ModuleOp>();
-    auto termTy = getUsizeType();
-    auto callee = getOrInsertFunction(rewriter, parentModule, builtinSymbol,
-                                      termTy, {termTy, termTy});
+    auto termTy = ctx.getUsizeType();
+    auto callee =
+        ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
     ArrayRef<Value> args({lhs, rhs});
-    auto callOp = rewriter.create<mlir::CallOp>(op.getLoc(), callee,
-                                                ArrayRef<Type>{termTy}, args);
-    auto result = callOp.getResult(0);
-
-    rewriter.replaceOp(op, result);
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
+                                              ArrayRef<Type>{termTy}, args);
     return matchSuccess();
   }
 
  private:
+  using EIROpConversion<Op>::getRewriteContext;
   using EIROpConversion<Op>::matchSuccess;
-  using EIROpConversion<Op>::getUsizeType;
-  using EIROpConversion<Op>::getOrInsertFunction;
-  using EIROpConversion<Op>::targetInfo;
-  using EIROpConversion<Op>::dialect;
 };
 
 struct DivOpConversion
@@ -209,8 +178,8 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
   PatternMatchResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    edsc::ScopedContext context(rewriter, op.getLoc());
     OperandAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
 
     Value lhs = adaptor.lhs();
     Value rhs = adaptor.rhs();
@@ -219,34 +188,29 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
 
     // Use specialized lowerings if types are compatible
     if (lhsTy.isa<FloatType>() && rhsTy.isa<FloatType>()) {
-      auto newOp = specializeIntegerMathOp<FloatOp>(
-          rewriter, context, targetInfo, op.getLoc(), lhs, rhs);
+      auto newOp = specializeIntegerMathOp<Op, FloatOp>(ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
       return matchSuccess();
     }
 
     // Call builtin function
     StringRef builtinSymbol = Op::builtinSymbol();
-    ModuleOp parentModule = op.template getParentOfType<ModuleOp>();
-    auto termTy = getUsizeType();
-    auto callee = getOrInsertFunction(rewriter, parentModule, builtinSymbol,
-                                      termTy, {termTy, termTy});
+    auto termTy = ctx.getUsizeType();
+    auto callee =
+        ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
     ArrayRef<Value> args({lhs, rhs});
-    auto callOp = rewriter.create<mlir::CallOp>(op.getLoc(), callee,
-                                                ArrayRef<Type>{termTy}, args);
-    auto result = callOp.getResult(0);
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
 
-    rewriter.replaceOp(op, result);
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
+                                              ArrayRef<Type>{termTy}, args);
     return matchSuccess();
   }
 
  private:
+  using EIROpConversion<Op>::getRewriteContext;
   using EIROpConversion<Op>::matchSuccess;
-  using EIROpConversion<Op>::getUsizeType;
-  using EIROpConversion<Op>::getOrInsertFunction;
-  using EIROpConversion<Op>::targetInfo;
-  using EIROpConversion<Op>::dialect;
 };
 
 struct FDivOpConversion

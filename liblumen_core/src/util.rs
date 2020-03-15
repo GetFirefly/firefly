@@ -3,6 +3,7 @@
 pub mod cache_padded;
 pub mod pointer;
 pub mod reference;
+pub mod thread_local;
 
 #[macro_export]
 macro_rules! offset_of {

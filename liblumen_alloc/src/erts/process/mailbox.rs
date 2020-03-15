@@ -36,8 +36,12 @@ impl Mailbox {
     pub fn recv_peek_with_type(&self) -> Option<(Term, MessageType)> {
         match self.messages.get(self.cursor) {
             None => None,
-            Some(Message::Process(message::Process { data })) => Some((*data, MessageType::Process)),
-            Some(Message::HeapFragment(message::HeapFragment { data, .. })) => Some((*data, MessageType::HeapFragment)),
+            Some(Message::Process(message::Process { data })) => {
+                Some((*data, MessageType::Process))
+            }
+            Some(Message::HeapFragment(message::HeapFragment { data, .. })) => {
+                Some((*data, MessageType::HeapFragment))
+            }
         }
     }
 

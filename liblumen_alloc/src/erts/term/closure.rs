@@ -1,12 +1,12 @@
 use core::alloc::Layout;
 use core::cmp::Ordering;
 use core::convert::TryFrom;
+use core::ffi::c_void;
 use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
+use core::mem;
 use core::ptr;
 use core::slice;
-use core::mem;
-use core::ffi::c_void;
 
 use alloc::sync::Arc;
 
@@ -53,7 +53,9 @@ impl ClosureLayout {
             .unwrap();
         let (layout, _definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, _arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
-        let (layout, _code_offset) = layout.extend(Layout::new::<Option<*const c_void>>()).unwrap();
+        let (layout, _code_offset) = layout
+            .extend(Layout::new::<Option<*const c_void>>())
+            .unwrap();
         layout.size()
     }
 
@@ -63,7 +65,9 @@ impl ClosureLayout {
             .unwrap();
         let (layout, definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
-        let (layout, code_offset) = layout.extend(Layout::new::<Option<*const c_void>>()).unwrap();
+        let (layout, code_offset) = layout
+            .extend(Layout::new::<Option<*const c_void>>())
+            .unwrap();
         let (layout, env_offset) = layout.extend(Layout::for_value(env)).unwrap();
 
         let layout = layout.pad_to_align();
@@ -161,7 +165,8 @@ impl Closure {
             definition_ptr.write(definition);
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
             arity_ptr.write(arity);
-            let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Option<*const c_void>;
+            let code_ptr =
+                ptr.offset(closure_layout.code_offset as isize) as *mut Option<*const c_void>;
             code_ptr.write(code);
             // Construct actual Closure reference
             Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_len))
@@ -223,7 +228,8 @@ impl Closure {
             definition_ptr.write(definition);
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
             arity_ptr.write(arity);
-            let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Option<*const c_void>;
+            let code_ptr =
+                ptr.offset(closure_layout.code_offset as isize) as *mut Option<*const c_void>;
             code_ptr.write(code);
             // Construct pointer to first env element
             let mut env_ptr = ptr.offset(closure_layout.env_offset as isize) as *mut Term;
@@ -261,14 +267,14 @@ impl Closure {
     }
 
     pub fn code(&self) -> Code {
-        self.code.map(|ptr| {
-            unsafe { mem::transmute::<*const c_void, Code>(ptr) }
-        }).unwrap_or_else(|| {
-            panic!(
-                "{} does not have code associated with it",
-                self.module_function_arity()
-            )
-        })
+        self.code
+            .map(|ptr| unsafe { mem::transmute::<*const c_void, Code>(ptr) })
+            .unwrap_or_else(|| {
+                panic!(
+                    "{} does not have code associated with it",
+                    self.module_function_arity()
+                )
+            })
     }
 
     pub fn frame(&self) -> Frame {

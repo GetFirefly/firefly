@@ -60,7 +60,7 @@ pub struct ClosureInfo {
     pub ident: FunctionIdent,
     pub index: u32,
     pub old_unique: u32,
-    pub unique: [u8; 16]
+    pub unique: [u8; 16],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

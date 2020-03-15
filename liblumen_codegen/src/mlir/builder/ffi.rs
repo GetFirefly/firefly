@@ -92,7 +92,6 @@ pub struct Closure {
     pub env_len: libc::c_uint,
 }
 
-
 /// The endianness of a binary specifier entry
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]

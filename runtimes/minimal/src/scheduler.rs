@@ -97,10 +97,10 @@ fn process_return() {
 #[export_name = "__lumen_builtin_malloc"]
 pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
     use core::convert::TryInto;
+    use liblumen_alloc::erts::term::closure::ClosureLayout;
+    use liblumen_alloc::erts::term::prelude::*;
     use liblumen_core::alloc::Layout;
     use liblumen_term::TermKind;
-    use liblumen_alloc::erts::term::prelude::*;
-    use liblumen_alloc::erts::term::closure::ClosureLayout;
 
     let kind_result: Result<TermKind, _> = kind.try_into();
     match kind_result {
@@ -264,7 +264,9 @@ impl Scheduler {
             init_heap_size,
         )?);
         let clone = init.clone();
-        unsafe { self.init.set(init); }
+        unsafe {
+            self.init.set(init);
+        }
         Scheduler::spawn_internal(clone, self.id, &self.run_queues);
 
         Ok(())

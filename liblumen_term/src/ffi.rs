@@ -149,7 +149,11 @@ pub extern "C" fn generic_is_type(encoding: *const EncodingInfo, ty: u32, value:
 }
 
 #[export_name = "lumen_encode_immediate"]
-pub extern "C" fn generic_encode_immediate(encoding: *const EncodingInfo, ty: u32, value: u64) -> u64 {
+pub extern "C" fn generic_encode_immediate(
+    encoding: *const EncodingInfo,
+    ty: u32,
+    value: u64,
+) -> u64 {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => do_encode_immediate::<E32>(ty, value as usize) as u64,

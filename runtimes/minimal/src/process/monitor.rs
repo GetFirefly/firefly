@@ -1,14 +1,14 @@
 #![allow(unused)]
-use core::mem;
 use core::convert::TryInto;
+use core::mem;
 
-use liblumen_core::alloc::Layout;
 use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{self, Message};
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment};
+use liblumen_core::alloc::Layout;
 
 use lumen_rt_core::registry::pid_to_process;
 

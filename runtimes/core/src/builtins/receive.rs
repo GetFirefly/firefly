@@ -1,8 +1,8 @@
 use std::panic;
 
-use liblumen_alloc::erts::timeout::{Timeout, ReceiveTimeout};
 use liblumen_alloc::erts::message::MessageType;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::timeout::{ReceiveTimeout, Timeout};
 
 use crate::process::current_process;
 use crate::time::monotonic;
@@ -87,13 +87,9 @@ impl ReceiveContext {
 pub extern "C" fn builtin_receive_start(timeout: Term) -> ReceiveContext {
     let result = panic::catch_unwind(move || {
         let to = match timeout.decode().unwrap() {
-            TypedTerm::Atom(atom) if atom == "infinity" => {
-                Timeout::Infinity
-            }
-            TypedTerm::SmallInteger(si) => {
-                Timeout::from_millis(si).expect("invalid timeout value")
-            }
-            _ => unreachable!("should never get non-atom/non-integer receive timeout")
+            TypedTerm::Atom(atom) if atom == "infinity" => Timeout::Infinity,
+            TypedTerm::SmallInteger(si) => Timeout::from_millis(si).expect("invalid timeout value"),
+            _ => unreachable!("should never get non-atom/non-integer receive timeout"),
         };
         let context = ReceiveContext::new(to);
         let p = current_process();
@@ -132,7 +128,9 @@ pub extern "C" fn builtin_receive_wait(context: *mut ReceiveContext) -> bool {
             // We put our yield here to ensure that we're not holding
             // the mailbox lock while waiting, when resuming from the
             // yield, we'll continue looping
-            unsafe { builtin_yield(); }
+            unsafe {
+                builtin_yield();
+            }
         }
     });
     if let Ok(res) = result {
@@ -157,7 +155,7 @@ pub extern "C" fn builtin_receive_done(context: ReceiveContext) -> bool {
             ReceiveState::Received | ReceiveState::Timeout => {
                 mbox.recv_finish(&p);
                 true
-            },
+            }
             _ => {
                 unreachable!();
             }

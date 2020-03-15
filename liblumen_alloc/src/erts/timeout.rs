@@ -15,10 +15,8 @@ impl Timeout {
     pub fn from_millis<T: Into<isize>>(to: T) -> Result<Self, InvalidTimeoutError> {
         match to.into() {
             0 => Ok(Self::Immediate),
-            ms if ms >= 0 => {
-                Ok(Self::Duration(Duration::from_millis(ms as u64)))
-            }
-            _ => Err(InvalidTimeoutError)
+            ms if ms >= 0 => Ok(Self::Duration(Duration::from_millis(ms as u64))),
+            _ => Err(InvalidTimeoutError),
         }
     }
 
@@ -50,10 +48,7 @@ impl ReceiveTimeout {
             Timeout::Immediate => Self::Immediate,
             Timeout::Duration(duration) => {
                 let start = Duration::from_millis(time);
-                Self::Duration {
-                    start,
-                    duration,
-                }
+                Self::Duration { start, duration }
             }
         }
     }

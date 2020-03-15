@@ -12,26 +12,30 @@ impl ClosureBuilder {
         ir_value: Option<ir::Value>,
         target: ir::Block,
     ) -> Result<Option<Value>> {
-
-        let block_args = builder.ir_block_args(target)
-                                .iter()
-                                .skip(2)
-                                .copied()
-                                .collect::<Vec<_>>();
+        let block_args = builder
+            .ir_block_args(target)
+            .iter()
+            .skip(2)
+            .copied()
+            .collect::<Vec<_>>();
         // Find all free variables in the target block, and add them to the
         // closure environment. We determine free variables to be any values live
         // at the target block
-        let env = builder.ir_live_at(target)
-                         .iter()
-                         .map(|v| builder.value_ref(builder.get_value(v)))
-                         .collect::<Vec<_>>();
+        let env = builder
+            .ir_live_at(target)
+            .iter()
+            .map(|v| builder.value_ref(builder.get_value(v)))
+            .collect::<Vec<_>>();
         let info = builder.block_to_closure_info(target);
         let ident = info.ident;
         let module = CString::new(ident.module.name.as_str().get()).unwrap();
         let name = CString::new(ident.to_string()).unwrap();
 
         let builder_ref = builder.as_ref();
-        let module_ref = ident.module.name.as_attribute_ref(builder_ref, builder.options())?;
+        let module_ref = ident
+            .module
+            .name
+            .as_attribute_ref(builder_ref, builder.options())?;
         let closure = Closure {
             module: module_ref,
             name: name.as_ptr(),

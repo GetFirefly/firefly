@@ -1,9 +1,9 @@
 use core::alloc::Layout;
 use core::any::Any;
-use core::ptr;
-use core::mem;
-use core::str::Chars;
 use core::ffi::c_void;
+use core::mem;
+use core::ptr;
+use core::str::Chars;
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;

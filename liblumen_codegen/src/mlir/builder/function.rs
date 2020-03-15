@@ -3,8 +3,8 @@ pub use self::function::*;
 
 use std::collections::HashSet;
 use std::ffi::CString;
-use std::ptr;
 use std::mem;
+use std::ptr;
 
 use anyhow::anyhow;
 
@@ -25,7 +25,7 @@ use liblumen_session::Options;
 
 use super::block::{Block, BlockData};
 use super::ffi::*;
-use super::ops::builders::{BranchBuilder, CallBuilder, ConstantBuilder, ClosureBuilder};
+use super::ops::builders::{BranchBuilder, CallBuilder, ClosureBuilder, ConstantBuilder};
 use super::ops::*;
 use super::value::{Value, ValueData, ValueDef};
 use super::ModuleBuilder;
@@ -266,13 +266,19 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 let containing_ident = self.eir.ident();
                 let arity = self.eir.block_args(entry_block).len() - 2;
                 let index = i as u32;
-                let fun = Ident::from_str(&format!("{}-{}-{}", containing_ident.name, index, arity));
+                let fun =
+                    Ident::from_str(&format!("{}-{}-{}", containing_ident.name, index, arity));
                 let ident = FunctionIdent {
                     module: containing_ident.module.clone(),
                     name: fun,
-                    arity: arity,
+                    arity,
                 };
-                let unique = unsafe { mem::transmute::<[u64; 2], [u8; 16]>([fxhash::hash64(&ident), fxhash::hash64(&index)]) };
+                let unique = unsafe {
+                    mem::transmute::<[u64; 2], [u8; 16]>([
+                        fxhash::hash64(&ident),
+                        fxhash::hash64(&index),
+                    ])
+                };
                 let old_unique = fxhash::hash32(&unique);
                 return ClosureInfo {
                     ident,
@@ -498,7 +504,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         // If this is a closure, extract the environment
         // A closure will have more than 1 live value, otherwise it is a regular function
         let live_at = self.live_at(entry_block);
-        debug_in!(self, "found {} live values at the entry block", live_at.size());
+        debug_in!(
+            self,
+            "found {} live values at the entry block",
+            live_at.size()
+        );
         if live_at.size() > 0 {
             todo!("closure env unpacking");
         }
@@ -973,7 +983,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         let args = self.block_args(blk);
                         args.get(i).map(|a| a.clone())
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 Ok(value_opt)
             }
@@ -982,7 +992,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 
     #[inline]
     fn build_closure(&mut self, ir_value: ir::Value, target: ir::Block) -> Result<Value> {
-        debug_in!(self, "building closure for value {:?} (target block = {:?})", ir_value, target);
+        debug_in!(
+            self,
+            "building closure for value {:?} (target block = {:?})",
+            ir_value,
+            target
+        );
         ClosureBuilder::build(self, Some(ir_value), target)
             .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected constant to have result")))
     }

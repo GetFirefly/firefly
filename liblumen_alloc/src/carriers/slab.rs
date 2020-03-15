@@ -36,7 +36,7 @@ where
     S: BlockBitSubset,
 {
     // The pattern for bytes written to blocks that are freed
-    const FREE_PATTERN: u8 = 0x57;
+    const FREE_PATTERN: u8 = 0x00;
 
     pub fn can_fit_multiple_blocks(byte_len: usize, size_class: &SizeClass) -> bool {
         BlockBitSet::<S>::can_fit_multiple_blocks(byte_len, size_class.to_bytes())

@@ -91,7 +91,7 @@ impl Block {
     // value is encountered, we know that we have unintentionally
     // used free memory without initialization.
     #[cfg(debug_assertions)]
-    const FREE_PATTERN: u8 = 0x57;
+    const FREE_PATTERN: u8 = 0x00;
 
     /// Creates a new Block with the given size
     #[inline(always)]

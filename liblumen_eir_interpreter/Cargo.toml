@@ -17,12 +17,12 @@ cranelift-entity = "0.56.0"
 lazy_static = "1.3.0"
 
 # eirproject/eir crates
-libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
-libeir_intern = { git = "https://github.com/eirproject/eir.git" }
-libeir_ir = { git = "https://github.com/eirproject/eir.git" }
-libeir_passes = { git = "https://github.com/eirproject/eir.git" }
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
-libeir_util_parse = { git = "https://github.com/eirproject/eir.git" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_intern = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_passes = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_util_parse = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 
 # workspace crates
 liblumen_alloc = { path = "../liblumen_alloc" }

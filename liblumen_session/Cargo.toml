@@ -15,6 +15,6 @@ liblumen_compiler_macros = { path = "../liblumen_compiler_macros" }
 liblumen_target = { path = "../liblumen_target" }
 liblumen_util = { path = "../liblumen_util" }
 
-libeir_diagnostics = { git = "https://github.com/eirproject/eir" }
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir" }
-libeir_ir = { git = "https://github.com/eirproject/eir" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir", branch = "lumen" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir", branch = "lumen" }
+libeir_ir = { git = "https://github.com/eirproject/eir", branch = "lumen" }

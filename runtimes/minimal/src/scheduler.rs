@@ -2,7 +2,6 @@
 mod run_queue;
 
 use std::alloc::Layout;
-use std::cell::{Cell, RefCell};
 use std::fmt::{self, Debug};
 use std::mem;
 use std::ops::Deref;
@@ -18,6 +17,7 @@ use lazy_static::lazy_static;
 use log::info;
 
 use liblumen_core::locks::{Mutex, RwLock};
+use liblumen_core::util::thread_local::ThreadLocalCell;
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::apply;
@@ -33,8 +33,8 @@ use lumen_rt_core::timer::Hierarchy;
 
 const MAX_REDUCTION_COUNT: u32 = 20;
 
+// External thread locals owned by the generated code
 extern "C" {
-    // External thread local owned by the generated code
     #[thread_local]
     static mut CURRENT_REDUCTION_COUNT: u32;
 }
@@ -47,8 +47,21 @@ lazy_static! {
     static ref SCHEDULERS: Mutex<HashMap<id::ID, Weak<Scheduler>>> = Mutex::new(Default::default());
 }
 
+#[export_name = "__scheduler_stop_waiting"]
+pub fn scheduler_stop_waiting(process: &Process) {
+    let id = process.scheduler_id().unwrap();
+    if let Some(scheduler) = SCHEDULERS.lock().get(&id).and_then(|s| s.upgrade()) {
+        scheduler.stop_waiting(process)
+    }
+}
+
 #[derive(Copy, Clone)]
 struct StackPointer(*mut u64);
+
+#[export_name = "__lumen_builtin_spawn"]
+pub extern "C" fn builtin_spawn(to: Term, msg: Term) -> Term {
+    unimplemented!()
+}
 
 #[export_name = "__lumen_builtin_yield"]
 pub unsafe extern "C" fn process_yield() -> bool {
@@ -82,12 +95,44 @@ fn process_return() {
 }
 
 #[export_name = "__lumen_builtin_malloc"]
-pub unsafe extern "C" fn builtin_malloc(bytes: usize) -> *mut u8 {
-    if let Ok(layout) = Layout::from_size_align(bytes, mem::align_of::<Term>()) {
-        let s = <Scheduler as rt_core::Scheduler>::current();
-        let result = s.current.alloc_nofrag_layout(layout);
-        if let Ok(nn) = result {
-            return nn.as_ptr() as *mut u8;
+pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
+    use core::convert::TryInto;
+    use liblumen_core::alloc::Layout;
+    use liblumen_term::TermKind;
+    use liblumen_alloc::erts::term::prelude::*;
+    use liblumen_alloc::erts::term::closure::ClosureLayout;
+
+    let kind_result: Result<TermKind, _> = kind.try_into();
+    match kind_result {
+        Ok(TermKind::Closure) => {
+            let s = <Scheduler as rt_core::Scheduler>::current();
+            let cl = ClosureLayout::for_env_len(arity);
+            let result = s.current.alloc_nofrag_layout(cl.layout().clone());
+            if let Ok(nn) = result {
+                return nn.as_ptr() as *mut u8;
+            }
+        }
+        Ok(TermKind::Tuple) => {
+            let s = <Scheduler as rt_core::Scheduler>::current();
+            let layout = Tuple::layout_for_len(arity);
+            let result = s.current.alloc_nofrag_layout(layout);
+            if let Ok(nn) = result {
+                return nn.as_ptr() as *mut u8;
+            }
+        }
+        Ok(TermKind::Cons) => {
+            let s = <Scheduler as rt_core::Scheduler>::current();
+            let layout = Layout::new::<Cons>();
+            let result = s.current.alloc_nofrag_layout(layout);
+            if let Ok(nn) = result {
+                return nn.as_ptr() as *mut u8;
+            }
+        }
+        Ok(tk) => {
+            unimplemented!("unhandled use of malloc for {:?}", tk);
+        }
+        Err(_) => {
+            panic!("invalid term kind: {}", kind);
         }
     }
 
@@ -113,31 +158,6 @@ fn do_process_return(scheduler: &Scheduler) -> bool {
     }
 }
 
-struct ScheduledProcess {
-    process: Cell<Arc<Process>>,
-}
-impl ScheduledProcess {
-    fn replace(&self, process: Arc<Process>) -> Arc<Process> {
-        self.process.replace(process)
-    }
-}
-impl Deref for ScheduledProcess {
-    type Target = Process;
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.process.as_ptr() }
-    }
-}
-// This is safe as the only way fields in this
-// struct are even accessed are when swapping processes
-unsafe impl Sync for ScheduledProcess {}
-impl From<Arc<Process>> for ScheduledProcess {
-    fn from(process: Arc<Process>) -> Self {
-        Self {
-            process: Cell::new(process),
-        }
-    }
-}
-
 pub struct Scheduler {
     id: id::ID,
     hierarchy: RwLock<Hierarchy>,
@@ -148,8 +168,8 @@ pub struct Scheduler {
     // `u64`.
     unique_integer: AtomicU64,
     root: Arc<Process>,
-    init: Cell<Arc<Process>>,
-    current: ScheduledProcess,
+    init: ThreadLocalCell<Arc<Process>>,
+    current: ThreadLocalCell<Arc<Process>>,
 }
 // This guarantee holds as long as `init` and `current` are only
 // ever accessed by the scheduler when scheduling
@@ -209,13 +229,13 @@ impl Scheduler {
         ));
 
         // The scheduler starts with the root process running
-        let current = ScheduledProcess::from(root.clone());
+        let current = ThreadLocalCell::new(root.clone());
 
         Ok(Self {
             id,
             run_queues,
             root,
-            init: Cell::new(init),
+            init: ThreadLocalCell::new(init),
             current,
             hierarchy: Default::default(),
             reference_count: AtomicU64::new(0),
@@ -244,7 +264,7 @@ impl Scheduler {
             init_heap_size,
         )?);
         let clone = init.clone();
-        self.init.replace(init);
+        unsafe { self.init.set(init); }
         Scheduler::spawn_internal(clone, self.id, &self.run_queues);
 
         Ok(())
@@ -294,6 +314,10 @@ impl Scheduler {
     #[cfg(test)]
     pub fn is_run_queued(&self, value: &Arc<Process>) -> bool {
         self.run_queues.read().contains(value)
+    }
+
+    pub fn stop_waiting(&self, process: &Process) {
+        self.run_queues.write().stop_waiting(process);
     }
 
     // TODO: Request application master termination for controlled shutdown

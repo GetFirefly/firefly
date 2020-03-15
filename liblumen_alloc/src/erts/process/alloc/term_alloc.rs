@@ -1,7 +1,9 @@
 use core::alloc::Layout;
 use core::any::Any;
 use core::ptr;
+use core::mem;
 use core::str::Chars;
+use core::ffi::c_void;
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -537,6 +539,7 @@ pub trait TermAlloc: Heap {
         creator: Creator,
         slice: &[Term],
     ) -> AllocResult<Boxed<Closure>> {
+        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
         Closure::from_slice(
             self, module, index, old_unique, unique, arity, code, creator, slice,
         )
@@ -561,6 +564,7 @@ pub trait TermAlloc: Heap {
         creator: Creator,
         slices: &[&[Term]],
     ) -> AllocResult<Boxed<Closure>> {
+        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
         let len = slices.iter().map(|slice| slice.len()).sum();
         let mut closure_box = Closure::new_anonymous(
             self, module, index, old_unique, unique, arity, code, creator, len,
@@ -590,6 +594,7 @@ pub trait TermAlloc: Heap {
         arity: u8,
         code: Option<Code>,
     ) -> AllocResult<Boxed<Closure>> {
+        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
         Closure::new_export(self, module, function, arity, code)
     }
 }

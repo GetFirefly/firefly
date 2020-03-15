@@ -59,7 +59,7 @@ cfg_if::cfg_if! {
   }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 #[repr(C)]
 pub struct CalleeSavedRegisters {
     pub rsp: u64,

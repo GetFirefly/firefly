@@ -1,4 +1,4 @@
-use llvm_sys::LLVMLinkage;
+use llvm_sys::{LLVMLinkage, LLVMThreadLocalMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Linkage {
@@ -19,6 +19,31 @@ impl Into<LLVMLinkage> for Linkage {
             Self::Internal => LLVMLinkage::LLVMInternalLinkage,
             Self::External => LLVMLinkage::LLVMExternalLinkage,
             Self::Weak => LLVMLinkage::LLVMWeakAnyLinkage,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThreadLocalMode {
+    NotThreadLocal,
+    GeneralDynamic,
+    LocalDynamic,
+    InitialExec,
+    LocalExec,
+}
+impl Default for ThreadLocalMode {
+    fn default() -> Self {
+        Self::NotThreadLocal
+    }
+}
+impl Into<LLVMThreadLocalMode> for ThreadLocalMode {
+    fn into(self) -> LLVMThreadLocalMode {
+        match self {
+            Self::NotThreadLocal => LLVMThreadLocalMode::LLVMNotThreadLocal,
+            Self::GeneralDynamic => LLVMThreadLocalMode::LLVMGeneralDynamicTLSModel,
+            Self::LocalDynamic => LLVMThreadLocalMode::LLVMLocalDynamicTLSModel,
+            Self::InitialExec => LLVMThreadLocalMode::LLVMInitialExecTLSModel,
+            Self::LocalExec => LLVMThreadLocalMode::LLVMLocalExecTLSModel,
         }
     }
 }

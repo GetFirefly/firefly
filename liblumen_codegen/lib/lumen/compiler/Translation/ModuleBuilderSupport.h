@@ -13,9 +13,21 @@ using ::mlir::Type;
 using ::mlir::Value;
 
 typedef struct MLIROpaqueValue *MLIRValueRef;
+typedef struct MLIROpaqueAttribute *MLIRAttributeRef;
 
 namespace lumen {
 namespace eir {
+
+struct Closure {
+  MLIRAttributeRef module;
+  char *name;
+  uint8_t arity;
+  uint32_t index;
+  uint32_t oldUnique;
+  char unique[16];
+  MLIRValueRef *env;
+  unsigned envLen;
+};
 
 //===----------------------------------------------------------------------===//
 // Binary Support Types

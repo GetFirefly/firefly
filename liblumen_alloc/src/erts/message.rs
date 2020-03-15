@@ -3,6 +3,12 @@ use crate::erts::term::prelude::Term;
 
 use intrusive_collections::UnsafeRef;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageType {
+    Process,
+    HeapFragment,
+}
+
 #[derive(Debug)]
 pub enum Message {
     /// A message whose `data` is allocated inside the receiving process's heap.

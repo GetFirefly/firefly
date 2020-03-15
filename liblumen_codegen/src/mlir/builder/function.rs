@@ -3,6 +3,7 @@ pub use self::function::*;
 
 use std::collections::HashSet;
 use std::ffi::CString;
+use std::mem;
 use std::ptr;
 
 use anyhow::anyhow;
@@ -24,7 +25,7 @@ use liblumen_session::Options;
 
 use super::block::{Block, BlockData};
 use super::ffi::*;
-use super::ops::builders::{BranchBuilder, CallBuilder, ConstantBuilder};
+use super::ops::builders::{BranchBuilder, CallBuilder, ClosureBuilder, ConstantBuilder};
 use super::ops::*;
 use super::value::{Value, ValueData, ValueDef};
 use super::ModuleBuilder;
@@ -215,6 +216,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         self.analysis.live.live_at(ir_block)
     }
 
+    /// Same as `live_at`, but takes an EIR block as argument instead
+    #[inline]
+    pub fn ir_live_at(&self, ir_block: ir::Block) -> BoundEntitySet<'f, ir::Value> {
+        self.analysis.live.live_at(ir_block)
+    }
+
     /// Gets the set of EIR values that are live in the given block
     #[inline]
     pub fn live_in(&self, block: Block) -> BoundEntitySet<'f, ir::Value> {
@@ -245,6 +252,43 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Finds the EIR block the given block represents
     pub fn get_ir_block(&self, block: Block) -> ir::Block {
         self.func.block_to_ir_block(block).unwrap()
+    }
+
+    /// Maps a given entry block to its corresponding function identifier
+    ///
+    /// NOTE: This is intended for use only with blocks that are the capture
+    /// target of a function call, i.e. a call to a closure. It does _not_ accept
+    /// arbitrary blocks.
+    pub fn block_to_closure_info(&self, block: ir::Block) -> ClosureInfo {
+        for (i, (entry_block, data)) in self.analysis.functions.iter().enumerate() {
+            let entry_block = *entry_block;
+            if entry_block == block {
+                let containing_ident = self.eir.ident();
+                let arity = self.eir.block_args(entry_block).len() - 2;
+                let index = i as u32;
+                let fun =
+                    Ident::from_str(&format!("{}-{}-{}", containing_ident.name, index, arity));
+                let ident = FunctionIdent {
+                    module: containing_ident.module.clone(),
+                    name: fun,
+                    arity,
+                };
+                let unique = unsafe {
+                    mem::transmute::<[u64; 2], [u8; 16]>([
+                        fxhash::hash64(&ident),
+                        fxhash::hash64(&index),
+                    ])
+                };
+                let old_unique = fxhash::hash32(&unique);
+                return ClosureInfo {
+                    ident,
+                    index,
+                    old_unique,
+                    unique,
+                };
+            }
+        }
+        panic!("expected block to correspond to the entry block in this functions' scope");
     }
 
     /// Finds the EIR value the given value represents
@@ -378,8 +422,17 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     ///
     /// Returns None if it is not defined in this block (yet)
     pub fn find_value(&self, ir_value: ir::Value) -> Option<Value> {
-        let block = self.current_block();
-        self.func.value_mapping[ir_value][block].into()
+        let blocks = &self.func.value_mapping[ir_value];
+        let mut defs = blocks
+            .values()
+            .cloned()
+            .filter_map(|o| o.expand())
+            .collect::<Vec<_>>();
+        assert!(
+            defs.len() < 2,
+            "expected no more than one definition per eir value"
+        );
+        defs.pop()
     }
 
     /// Gets the Block corresponding to the given EIR value
@@ -424,6 +477,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         block_data.param_values.clone()
     }
 
+    /// Returns the (EIR) block arguments for a given EIR block
+    #[inline]
+    pub fn ir_block_args(&self, block: ir::Block) -> &[ir::Value] {
+        self.eir.block_args(block)
+    }
+
     /// Returns the current block
     #[inline]
     pub fn current_block(&self) -> Block {
@@ -439,36 +498,20 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     pub fn build(mut self) -> Result<FunctionOpRef> {
         debug_in!(self, "building..");
 
-        // NOTE: We start out in the init block
-        let init_block = self.current_block();
-
-        // TODO: Generate stack frame
-        // My current thinking is that we keep the stack opaque in the runtime,
-        // and let the generated code write directly to it to avoid calling into
-        // the runtime to record frames. We will eventually use stack maps, and
-        // in that case the runtime stack stuff that exists will mostly go away.
-        debug_in!(self, "building stack frame for function in init block");
+        // NOTE: We start out in the entry block
+        let entry_block = self.current_block();
 
         // If this is a closure, extract the environment
         // A closure will have more than 1 live value, otherwise it is a regular function
-        let live = self.live_at(init_block);
-        debug_in!(self, "found {} live values in the entry block", live.size());
-        if live.size() > 0 {
+        let live_at = self.live_at(entry_block);
+        debug_in!(
+            self,
+            "found {} live values at the entry block",
+            live_at.size()
+        );
+        if live_at.size() > 0 {
             todo!("closure env unpacking");
         }
-
-        // Clone the init block, the clone will be used like the EIR entry block
-        // The init block, meanwhile, is used to set up any frame layout/init required
-        debug_in!(self, "creating entry block..");
-        let entry_block = self.clone_block();
-
-        // Forward all of the init block arguments to the entry block
-        debug_in!(self, "forwarding init block to entry block");
-        let init_block_args = self.block_args(self.current_block());
-        self.insert_branch(entry_block, init_block_args.as_slice())?;
-
-        debug_in!(self, "switching to entry block");
-        self.position_at_end(entry_block);
 
         let root_block = self.eir.block_entry();
 
@@ -502,50 +545,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         // The result is implicit arguments followed by explicit arguments
         let block_args = self.eir.block_args(ir_block);
         debug_in!(self, "prepare: block_args: {:?}", &block_args);
-        let implicits = {
-            let mut implicits = Vec::new();
-            let live_at = self.analysis.live.live_at(ir_block);
-            debug_in!(self, "prepare: live_at: {:?}", &live_at);
-            // Prefer to avoid extra work if we can
-            if live_at.size() > 0 {
-                // Build a temporary set to keep lookups efficient
-                let mut explicit: HashSet<ir::Value> = HashSet::with_capacity(block_args.len());
-                explicit.extend(block_args);
-                // Check each value in the block live_at set to see which
-                // are in the argument list. Those that are not, are implicit
-                // arguments, coming from a dominating block.
-                for live in live_at.iter() {
-                    // Ignore the function throw/return continuations
-                    if self.func.is_throw_ir(live) || self.func.is_return_ir(live) {
-                        debug_in!(self, "prepare: {:?} is throw or return, skipping", live);
-                        continue;
-                    }
-                    let is_explicit = explicit.contains(&live);
-                    let is_live_in = self.analysis.live.is_live_in(ir_block, live);
-                    debug_in!(
-                        self,
-                        "prepare: {:?}, is_explicit = {}, is_live_in = {}",
-                        live,
-                        is_explicit,
-                        is_live_in
-                    );
-                    // If not an explicit argument, and live within the block, add it as implicit
-                    if !is_explicit && is_live_in {
-                        debug_in!(self, "prepare: {:?} is implicit", live);
-                        implicits.push((
-                            block_arg_to_param(self.eir, live, /* is_implicit */ true),
-                            Some(live),
-                        ));
-                    }
-                }
-            }
-            implicits
-        };
-
-        debug_in!(self, "prepare: implicits: {:?}", &implicits);
         // Build the final parameter list
-        let mut params = Vec::with_capacity(block_args.len() + implicits.len());
-        params.extend(implicits);
+        let mut params = Vec::with_capacity(block_args.len());
         params.extend(block_args.iter().copied().map(|a| {
             (
                 block_arg_to_param(self.eir, a, /* is_implicit */ false),
@@ -624,34 +625,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         Ok(block)
     }
 
-    /// Clones the current block by:
-    ///
-    /// 1. Creating a new block after the current block
-    /// 2. Copying the number and type of block arguments from the current block
-    ///
-    /// The builder will be positioned at the end of the original block once complete
-    fn clone_block(&mut self) -> Block {
-        let target_block = self.current_block();
-
-        debug_in!(self, "cloning block {:?}", target_block);
-
-        // Map source parameter metadata to original EIR values
-        let block_data = self.func.block_data(target_block);
-        let mut params = Vec::with_capacity(block_data.params.len());
-        for (i, &param) in block_data.params.iter().enumerate() {
-            let value = block_data.param_values[i];
-            let ir_value = self.func.value_to_ir_value(value);
-            params.push((param, ir_value));
-        }
-        debug_in!(self, "creating clone block");
-        // Create a new block with the same params as the current one
-        let cloned = self.create_block(None, params.as_slice()).unwrap();
-        // Reposition builder
-        self.position_at_end(target_block);
-        // Return cloned block
-        cloned
-    }
-
     /// Positions the builder at the end of the given block
     fn position_at_end(&mut self, block: Block) {
         debug_in!(self, "positioning builder at end of block {:?}", block);
@@ -678,7 +651,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// _must_ be defined in the block already - namely, that the value must
     /// be a block argument.
     fn build_block(&mut self, block: Block, ir_block: ir::Block) -> Result<()> {
-        debug_in!(self, "building block {:?} from {:?}", block, ir_block);
+        debug_in!(self, "building block {:?} (origin = {:?})", block, ir_block);
         // Switch to the block
         self.position_at_end(block);
         // Get the set of values this block reads in its body
@@ -768,10 +741,9 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 } else {
                     if let Some(err_ir_block) = self.eir.value_block(ir_err) {
                         let err_block = self.get_block(err_ir_block);
-                        let err_args = self.build_target_block_args(err_block, &reads[3..]);
                         CallError::Branch(Branch {
                             block: err_block,
-                            args: err_args,
+                            args: Default::default(),
                         })
                     } else {
                         panic!(
@@ -812,23 +784,21 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 debug_in!(self, "has otherwise branch = {}", other.is_some());
 
                 let remaining_reads = &reads[reads_start..];
-                let yes_args = self.build_target_block_args(yes, remaining_reads);
-                let no_args = self.build_target_block_args(no, remaining_reads);
-                let other_args = other.map(|b| self.build_target_block_args(b, remaining_reads));
+                debug_in!(self, "remaining reads = {:?}", remaining_reads);
 
                 OpKind::If(If {
                     cond,
                     yes: Branch {
                         block: yes,
-                        args: yes_args,
+                        args: Default::default(),
                     },
                     no: Branch {
                         block: no,
-                        args: no_args,
+                        args: Default::default(),
                     },
                     otherwise: other.map(|o| Branch {
                         block: o,
-                        args: other_args.unwrap_or_default(),
+                        args: Default::default(),
                     }),
                 })
             }
@@ -944,8 +914,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::OpKind::TraceCaptureRaw => {
                 debug_in!(self, "block contains trace capture operation");
                 let block = self.get_block_by_value(reads[0]);
-                let args = self.build_target_block_args(block, &reads[1..]);
-                OpKind::TraceCapture(Branch { block, args })
+                OpKind::TraceCapture(Branch {
+                    block,
+                    args: Default::default(),
+                })
             }
             // Requests that a trace be constructed for consumption in a `catch`
             // Takes the captured trace reference as argument
@@ -993,28 +965,48 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 
     /// Same as above, but represents value lists as the absence of a value
     pub(super) fn build_value_opt(&mut self, ir_value: ir::Value) -> Result<Option<Value>> {
-        if let Some(value) = self.find_value(ir_value) {
-            return Ok(Some(value));
+        match self.eir.value_kind(ir_value) {
+            // Always lower constants as fresh values
+            ir::ValueKind::Const(c) => self.build_constant_value(c).map(|v| Some(v)),
+            kind => {
+                debug_in!(self, "building value {:?} (kind = {:?})", ir_value, kind);
+                // If the value has already been lowered, return a reference to it
+                if let Some(value) = self.find_value(ir_value) {
+                    return Ok(Some(value));
+                }
+                // Otherwise construct it
+                let value_opt = match kind {
+                    ir::ValueKind::PrimOp(op) => self.build_primop_value(ir_value, op)?,
+                    ir::ValueKind::Block(b) => Some(self.build_closure(ir_value, b)?),
+                    ir::ValueKind::Argument(b, i) => {
+                        let blk = self.get_block(b);
+                        let args = self.block_args(blk);
+                        args.get(i).map(|a| a.clone())
+                    }
+                    _ => unreachable!(),
+                };
+                Ok(value_opt)
+            }
         }
-        debug_in!(self, "building value {:?}", ir_value);
-        let value_opt = match self.eir.value_kind(ir_value) {
-            ir::ValueKind::Const(c) => Some(self.build_constant_value(ir_value, c)?),
-            ir::ValueKind::PrimOp(op) => self.build_primop_value(ir_value, op)?,
-            ir::ValueKind::Block(b) => {
-                unreachable!("block {:?} used as a value ({:?})", b, ir_value)
-            }
-            ir::ValueKind::Argument(b, i) => {
-                unreachable!("block argument {:?}:{} should already be defined", b, i)
-            }
-        };
-        Ok(value_opt)
+    }
+
+    #[inline]
+    fn build_closure(&mut self, ir_value: ir::Value, target: ir::Block) -> Result<Value> {
+        debug_in!(
+            self,
+            "building closure for value {:?} (target block = {:?})",
+            ir_value,
+            target
+        );
+        ClosureBuilder::build(self, Some(ir_value), target)
+            .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected constant to have result")))
     }
 
     /// This function returns a Value that represents the given IR value lowered as a constant
     #[inline]
-    fn build_constant_value(&mut self, ir_value: ir::Value, constant: ir::Const) -> Result<Value> {
+    fn build_constant_value(&mut self, constant: ir::Const) -> Result<Value> {
         debug_in!(self, "building constant value {:?}", constant);
-        ConstantBuilder::build(self, Some(ir_value), constant)
+        ConstantBuilder::build(self, None, constant)
             .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected constant to have result")))
     }
 
@@ -1177,21 +1169,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 if let Some(ir_value) = value_data.ir_value.expand() {
                     debug_in!(self, "block arg has original eir value {:?}", ir_value);
                     if self.is_block_argument(ir_value, target) {
-                        debug_in!(self, "block arg is a block argument of the target");
-                        // For EIR values that are defined as a block argument of the target,
-                        // we need to select the read which corresponds to the parameter. If
-                        // we don't have enough reads, then it is an argument we expect to be
-                        // provided by an operation, so we ignore them. If this value corresponds
-                        // to an implicit, we have a compiler bug, as we would not expect the
-                        // source value to be a block argument of the target
-                        //
-                        // NOTE: In a revision of the above, it appears that value lists are
-                        // being used to represent operation results (such as cons cells),
-                        // so we need to re-verify this logic.
-                        assert!(
-                            i >= num_implicits,
-                            "expected this value to correspond to a read or operation result"
-                        );
                         let read = i - num_implicits;
                         if read >= num_reads {
                             // This is an implicit argument provided by the operation

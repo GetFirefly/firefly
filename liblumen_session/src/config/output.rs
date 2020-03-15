@@ -20,6 +20,10 @@ use crate::{Input, OptionInfo, Options, ParseOption};
 pub trait Emit {
     const TYPE: OutputType;
 
+    fn emit_output_type(&self) -> OutputType {
+        Self::TYPE
+    }
+
     fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()>;
 }
 impl Emit for syntax::ast::Module {
@@ -302,10 +306,34 @@ impl OutputTypes {
     }
 
     // Returns `true` if any of the output types require codegen or linking.
+    pub fn should_generate_mlir(&self) -> bool {
+        self.0.keys().any(|k| match *k {
+            OutputType::AST => false,
+            OutputType::EIR => false,
+            _ => true,
+        })
+    }
+
+    pub fn should_generate_llvm(&self) -> bool {
+        self.0.keys().any(|k| match *k {
+            OutputType::AST => false,
+            OutputType::EIR => false,
+            OutputType::EIRDialect => false,
+            OutputType::StandardDialect => false,
+            OutputType::LLVMDialect => false,
+            _ => true,
+        })
+    }
+
     pub fn should_codegen(&self) -> bool {
         self.0.keys().any(|k| match *k {
             OutputType::AST => false,
             OutputType::EIR => false,
+            OutputType::EIRDialect => false,
+            OutputType::StandardDialect => false,
+            OutputType::LLVMDialect => false,
+            OutputType::LLVMAssembly => false,
+            OutputType::LLVMBitcode => false,
             _ => true,
         })
     }

@@ -3,9 +3,7 @@
 
 #include <memory>
 
-#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/DialectConversion.h"
 
 namespace llvm {
 class TargetMachine;

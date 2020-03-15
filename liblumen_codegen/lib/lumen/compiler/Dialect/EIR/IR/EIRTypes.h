@@ -68,13 +68,19 @@ class OpaqueTermType : public Type {
 
   bool isOpaque() const { return isOpaque(getImplKind()); }
 
+  bool hasDynamicExtent() const { return hasDynamicExtent(getImplKind()); }
+
   bool isImmediate() const { return isImmediate(getImplKind()); }
 
   bool isBoxable() const { return isBoxable(getImplKind()); }
 
   bool isAtom() const { return isAtom(getImplKind()); }
 
+  bool isBoolean() const { return isBoolean(getImplKind()); }
+
   bool isNumber() const { return isNumber(getImplKind()); }
+
+  bool isFixnum() const { return isFixnum(getImplKind()); }
 
   bool isInteger() const { return isInteger(getImplKind()); }
 
@@ -141,10 +147,17 @@ class OpaqueTermType : public Type {
  private:
   static bool isOpaque(unsigned implKind) { return implKind == TypeKind::Term; }
 
+  static bool hasDynamicExtent(unsigned implKind) {
+    return implKind == TypeKind::Tuple || implKind == TypeKind::Binary ||
+           implKind == TypeKind::HeapBin || implKind == TypeKind::ProcBin ||
+           implKind == TypeKind::Closure;
+  }
+
   static bool isImmediate(unsigned implKind) {
     return implKind == TypeKind::Atom || implKind == TypeKind::Boolean ||
            implKind == TypeKind::Fixnum || implKind == TypeKind::Float ||
-           implKind == TypeKind::Nil || implKind == TypeKind::Box;
+           implKind == TypeKind::Nil || implKind == TypeKind::Box ||
+           implKind == TypeKind::Term;
   }
 
   static bool isBoxable(unsigned implKind) {
@@ -159,10 +172,18 @@ class OpaqueTermType : public Type {
     return implKind >= TypeKind::Atom && implKind <= TypeKind::Boolean;
   }
 
+  static bool isBoolean(unsigned implKind) {
+    return implKind == TypeKind::Boolean;
+  }
+
   static bool isNumber(unsigned implKind) {
     return implKind == TypeKind::Number || implKind == TypeKind::Integer ||
            implKind == TypeKind::Fixnum || implKind == TypeKind::BigInt ||
            implKind == TypeKind::Float;
+  }
+
+  static bool isFixnum(unsigned implKind) {
+    return implKind == TypeKind::Fixnum;
   }
 
   static bool isInteger(unsigned implKind) {

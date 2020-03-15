@@ -280,7 +280,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
         unsafe { LLVMBuildRet(self.builder, ret) }
     }
 
-    pub fn add_constant(
+    pub fn build_constant(
         &self,
         ty: LLVMTypeRef,
         name: &str,
@@ -288,14 +288,14 @@ impl<'ctx> ModuleBuilder<'ctx> {
     ) -> LLVMValueRef {
         use llvm_sys::core::LLVMSetGlobalConstant;
 
-        let global = self.add_global(ty, name, initializer);
+        let global = self.build_global(ty, name, initializer);
         unsafe {
             LLVMSetGlobalConstant(global, true as libc::c_int);
         }
         global
     }
 
-    pub fn add_global(
+    pub fn build_global(
         &self,
         ty: LLVMTypeRef,
         name: &str,
@@ -324,6 +324,14 @@ impl<'ctx> ModuleBuilder<'ctx> {
 
         unsafe {
             LLVMSetLinkage(value, linkage.into());
+        }
+    }
+
+    pub fn set_thread_local_mode(&self, global: LLVMValueRef, tls: ThreadLocalMode) {
+        use llvm_sys::core::LLVMSetThreadLocalMode;
+
+        unsafe {
+            LLVMSetThreadLocalMode(global, tls.into());
         }
     }
 

@@ -117,6 +117,24 @@ pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
     do_is_tuple::<E64>(arity, value)
 }
 
+#[export_name = "__lumen_builtin_encode_immediate"]
+#[cfg(target_pointer_width = "32")]
+pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
+    do_encode_immediate::<E32>(ty, value)
+}
+
+#[export_name = "__lumen_builtin_encode_immediate"]
+#[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
+pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
+    do_encode_immediate::<E64N>(ty, value)
+}
+
+#[export_name = "__lumen_builtin_encode_immediate"]
+#[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
+pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
+    do_encode_immediate::<E64>(ty, value)
+}
+
 /// This is a less efficient, but more general type checking function,
 /// primarily meant for consumption during compile-time
 #[export_name = "lumen_is_type"]
@@ -131,12 +149,16 @@ pub extern "C" fn generic_is_type(encoding: *const EncodingInfo, ty: u32, value:
 }
 
 #[export_name = "lumen_encode_immediate"]
-pub extern "C" fn encode_immediate(encoding: *const EncodingInfo, ty: u32, value: u64) -> u64 {
+pub extern "C" fn generic_encode_immediate(
+    encoding: *const EncodingInfo,
+    ty: u32,
+    value: u64,
+) -> u64 {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
-        32 => do_encode_immediate::<E32>(ty, value),
-        64 if encoding.supports_nanboxing => do_encode_immediate::<E64N>(ty, value),
-        64 => do_encode_immediate::<E64>(ty, value),
+        32 => do_encode_immediate::<E32>(ty, value as usize) as u64,
+        64 if encoding.supports_nanboxing => do_encode_immediate::<E64N>(ty, value as usize) as u64,
+        64 => do_encode_immediate::<E64>(ty, value as usize) as u64,
         ps => unreachable!("invalid pointer size {:?}", ps),
     }
 }
@@ -145,9 +167,9 @@ pub extern "C" fn encode_immediate(encoding: *const EncodingInfo, ty: u32, value
 pub extern "C" fn encode_header(encoding: *const EncodingInfo, ty: u32, arity: u64) -> u64 {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
-        32 => do_encode_header::<E32>(ty, arity),
-        64 if encoding.supports_nanboxing => do_encode_header::<E64N>(ty, arity),
-        64 => do_encode_header::<E64>(ty, arity),
+        32 => do_encode_header::<E32>(ty, arity as usize) as u64,
+        64 if encoding.supports_nanboxing => do_encode_header::<E64N>(ty, arity as usize) as u64,
+        64 => do_encode_header::<E64>(ty, arity as usize) as u64,
         _ => unreachable!(),
     }
 }
@@ -294,19 +316,18 @@ where
 }
 
 #[inline]
-fn do_encode_immediate<T>(ty: u32, value: u64) -> u64
+fn do_encode_immediate<T>(ty: u32, value: usize) -> usize
 where
     T: Encoding,
     <T as Encoding>::Type: Word,
-    <<T as Encoding>::Type as TryFrom<u64>>::Error: core::fmt::Debug,
-    <<T as Encoding>::Type as TryInto<u64>>::Error: core::fmt::Debug,
+    <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
 {
     let kind = unwrap_term_kind!(ty);
     let tag: Result<Tag<T::Type>, _> = kind.try_into();
     match tag {
         Ok(t) => {
             let result = T::encode_immediate_with_tag(value.try_into().unwrap(), t);
-            result.try_into().unwrap()
+            result.as_usize()
         }
         Err(_) => {
             panic!(
@@ -318,19 +339,18 @@ where
 }
 
 #[inline]
-fn do_encode_header<T>(ty: u32, value: u64) -> u64
+fn do_encode_header<T>(ty: u32, value: usize) -> usize
 where
     T: Encoding,
     <T as Encoding>::Type: Word,
-    <<T as Encoding>::Type as TryFrom<u64>>::Error: core::fmt::Debug,
-    <<T as Encoding>::Type as TryInto<u64>>::Error: core::fmt::Debug,
+    <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
 {
     let kind = unwrap_term_kind!(ty);
     let tag: Result<Tag<T::Type>, _> = kind.try_into();
     match tag {
         Ok(t) => {
             let result = T::encode_header_with_tag(value.try_into().unwrap(), t);
-            result.try_into().unwrap()
+            result.as_usize()
         }
         Err(_) => {
             panic!("invalid term kind {:?} given to lumen_encode_header", kind);

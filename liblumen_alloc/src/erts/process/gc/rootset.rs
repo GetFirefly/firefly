@@ -1,4 +1,5 @@
 use core::slice;
+use core::fmt;
 
 use alloc::vec::Vec;
 
@@ -73,6 +74,25 @@ impl Default for RootSet {
         Self::empty()
     }
 }
+impl fmt::Debug for RootSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for root in self.0.iter().map(|b| b.as_ptr()) {
+             unsafe {
+                let term = &*root;
+                let decoded = term.decode();
+                f.write_fmt(format_args!(
+                    "  {:p}: {:0bit_len$b} {:?}\n",
+                    root,
+                    *(root as *const usize),
+                    decoded,
+                    bit_len = (core::mem::size_of::<usize>() * 8)
+                ))?;
+            }
+        }
+        Ok(())
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

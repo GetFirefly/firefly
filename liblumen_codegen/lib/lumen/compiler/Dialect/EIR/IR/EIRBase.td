@@ -162,6 +162,15 @@ def eir_OpInterface : OpInterface<"eir_Op"> {
   let methods = [];
 }
 
+def eir_BinaryOperatorInterface : OpInterface<"eir_BinaryOperator"> {
+  let description = "Common interface for binary comparison ops";
+
+  let methods = [
+    StaticInterfaceMethod<"get the builtin symbol name for this op",
+      "StringRef", "builtinSymbol">
+  ];
+}
+
 def YieldPoint : NativeOpTrait<"YieldPoint">;
 
 //===----------------------------------------------------------------------===//

@@ -74,6 +74,9 @@ extern "C" MLIRModuleRef MLIRLowerModule(MLIRContextRef context,
 
   OwningModuleRef ownedMod(*mod);
   if (mlir::failed(pm.run(*ownedMod))) {
+    ownedMod->dump();
+    llvm::outs() << "\n";
+    ownedMod->emitError("unable to lower to llvm dialect");
     return nullptr;
   }
 

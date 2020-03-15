@@ -78,6 +78,63 @@ def eir_FuncOp : eir_Op<"func", [
   }];
 }
 
+def eir_ClosureOp : eir_Op<"closure", []> {
+  let summary = "Creates a closure capture at the current point in the function";
+
+  let arguments = (ins
+    eir_FuncRefAttr:$callee,
+    Variadic<eir_AnyType>:$operands
+  );
+  let results = (outs
+    Variadic<eir_AnyType>:$results
+  );
+
+  let assemblyFormat = [{
+    $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<[{
+      Builder *builder, OperationState &result, eir::Closure *closure, ValueRange operands = {}
+    }], [{
+      auto termTy = builder->getType<TermType>();
+      auto i8Ty = builder->getIntegerType(8);
+      auto i32Ty = builder->getIntegerType(32);
+      auto callee = builder->getSymbolRefAttr(StringRef(closure->name));
+      result.addAttribute("callee", callee);
+      result.addAttribute("module", Attribute::getFromOpaquePointer(closure->module));
+      result.addAttribute("arity", builder->getIntegerAttr(i8Ty, closure->arity));
+      result.addAttribute("env_len", builder->getIntegerAttr(i8Ty, closure->envLen));
+      result.addAttribute("index", builder->getIntegerAttr(i32Ty, closure->index));
+      result.addAttribute("old_unique", builder->getIntegerAttr(i32Ty, closure->index));
+      StringRef unique(&closure->unique[0], 16);
+      result.addAttribute("unique", builder->getStringAttr(unique));
+      result.addOperands(operands);
+      result.addTypes(termTy);
+    }]>
+  ];
+
+  let verifier = [{ /*TODO*/return success(); }];
+
+  let extraClassDeclaration = [{
+    IntegerAttr arityAttr() { return getAttrOfType<IntegerAttr>("arity"); }
+    AtomAttr module() { return getAttrOfType<AtomAttr>("module"); }
+    IntegerAttr envLenAttr() { return getAttrOfType<IntegerAttr>("env_len"); }
+    IntegerAttr indexAttr() { return getAttrOfType<IntegerAttr>("index"); }
+    IntegerAttr oldUniqueAttr() { return getAttrOfType<IntegerAttr>("old_unique"); }
+    StringAttr uniqueAttr() { return getAttrOfType<StringAttr>("unique"); }
+
+    unsigned arity() { return arityAttr().getValue().getLimitedValue(); }
+    unsigned envLen() { return envLenAttr().getValue().getLimitedValue(); }
+    unsigned index() { return indexAttr().getValue().getLimitedValue(); }
+    unsigned oldUnique() { return oldUniqueAttr().getValue().getLimitedValue(); }
+    StringRef unique() { return uniqueAttr().getValue(); }
+
+    bool isAnonymous() { return arityAttr() != nullptr; }
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Comparisons
 //===----------------------------------------------------------------------===//
@@ -131,29 +188,41 @@ def eir_IsTypeOp : eir_Op<"is_type", [NoSideEffect]> {
   }];
 }
 
-class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
-      eir_Op<mnemonic, !listconcat(traits, [AllTypesMatch<["lhs", "rhs"]>])> {
+class eir_BinaryOperator<string mnemonic, Type left, Type right, Type result, list<OpTrait> traits = []>
+    : eir_Op<mnemonic, !listconcat(traits, [eir_BinaryOperatorInterface])> {
+  // Defines the name of the builtin associated with this comparison op
+  string builtinSymbol = "__lumen_builtin_" # mnemonic;
 
-  let arguments = (ins
-      type:$lhs,
-      type:$rhs
-  );
-  let results = (outs
-    eir_BoolType:$result
-  );
+  let summary = ?;
+  let description = ?;
+
+  let arguments = (ins left:$lhs, right:$rhs);
+  let results = (outs result:$result);
 
   let assemblyFormat = "operands attr-dict `:` functional-type(operands, $result)";
   let verifier = [{ return mlir::success(); }];
 
   let builders = [
     OpBuilder<
-    "Builder *builder, OperationState &result, Value lhs, Value rhs",
+    "Builder *builder, OperationState &result, Type resultTy, Value lhs, Value rhs,"
+    "ArrayRef<NamedAttribute> attrs = {}",
     [{
-      result.addOperands(lhs);
-      result.addOperands(rhs);
-      auto boolType = builder->getType<BooleanType>();
-      result.addTypes(boolType);
+      result.addOperands(ValueRange({lhs, rhs}));
+      result.addTypes(resultTy);
+      result.addAttributes(attrs);
     }]>
+  ];
+
+  let extraClassDeclaration = "static StringRef builtinSymbol() { return \"" # builtinSymbol # "\"; }";
+}
+
+class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
+    eir_BinaryOperator<mnemonic, type, type, eir_BoolType, traits> {
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value lhs, Value rhs",
+    [{ build(builder, result, builder->getType<BooleanType>(), lhs, rhs); }]>
   ];
 }
 
@@ -184,30 +253,26 @@ class eir_UnaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = [
   let verifier = [{ return mlir::success(); }];
 }
 
-class eir_BinaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = []> : eir_Op<mnemonic, traits> {
-  let description = [{
-    Compares two operands with the specified predicate.
-  }];
+class eir_BinaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = []>
+    : eir_BinaryOperator<mnemonic, type, type, eir_BoolType, traits> {
 
-  let arguments = (ins
-    type:$lhs,
-    type:$rhs
-  );
-  let results = (outs
-    eir_BoolType:$result
-  );
-
-  let assemblyFormat = "operands attr-dict `:` functional-type(operands, $result)";
-  let verifier = [{ return mlir::success(); }];
+  let summary = "Compares two operands with the specified predicate.";
 
   let builders = [
     OpBuilder<
-    "Builder *builder, OperationState &result, Value lhs, Value rhs",
+    "Builder *builder, OperationState &result, ArrayRef<Value> args",
     [{
-      result.addOperands(lhs);
-      result.addOperands(rhs);
-      auto boolType = builder->getType<::lumen::eir::BooleanType>();
-      result.addTypes(boolType);
+      assert(args.size() == 2 && "expected binary operator to receive 2 arguments");
+      Value lhs = args[0];
+      Value rhs = args[1];
+      build(builder, result, lhs, rhs);
+    }]>,
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value lhs, Value rhs, bool strict = false",
+    [{
+      auto boolType = builder->getType<eir::BooleanType>();
+      result.addAttribute("strict", builder->getBoolAttr(strict));
+      build(builder, result, boolType, lhs, rhs);
     }]>
   ];
 }
@@ -216,39 +281,12 @@ def eir_CmpEqOp :
     eir_BinaryComparisonOp<eir_AnyType, "cmp.eq", [Commutative]> {
   let summary = [{term equality comparison operation}];
   //let hasFolder = 1;
-
-  let skipDefaultBuilders = 1;
-  let builders = [
-    OpBuilder<
-    "Builder *builder, OperationState &result, Value lhs, Value rhs, bool strict",
-    [{
-      result.addOperands(ValueRange({lhs, rhs}));
-      auto boolType = builder->getType<::lumen::eir::BooleanType>();
-      result.addTypes(boolType);
-      auto strictAttr = builder->getBoolAttr(strict);
-      result.addAttribute("strict", strictAttr);
-    }]>
-  ];
 }
 
 def eir_CmpNeqOp :
     eir_BinaryComparisonOp<eir_AnyType, "cmp.neq", [Commutative]> {
   let summary = [{term inequality comparison operation}];
   //let hasFolder = 1;
-
-  let skipDefaultBuilders = 1;
-  let builders = [
-    OpBuilder<
-    "Builder *builder, OperationState &result, Value lhs, Value rhs, bool strict",
-    [{
-      result.addOperands(lhs);
-      result.addOperands(rhs);
-      auto boolType = builder->getType<::lumen::eir::BooleanType>();
-      result.addTypes(boolType);
-      auto strictAttr = builder->getBoolAttr(strict);
-      result.addAttribute("strict", strictAttr);
-    }]>
-  ];
 }
 
 def eir_CmpLtOp :
@@ -273,6 +311,78 @@ def eir_CmpGteOp :
     eir_BinaryComparisonOp<eir_AnyType, "cmp.gte"> {
   let summary = [{term greater-than-or-equal comparison operation}];
   //let hasFolder = 1;
+}
+
+class eir_BinaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = []>
+    : eir_BinaryOperator<mnemonic, type, type, type, traits> {
+  let summary = "Peform the specified arithmetic operation over two operands";
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, ArrayRef<Value> args",
+    [{
+      assert(args.size() == 2 && "expected exactly two arguments for arithmetic operator");
+      Value lhs = args[0];
+      Value rhs = args[1];
+      Type resultTy = lhs.getType();
+      build(builder, result, resultTy, lhs, rhs);
+    }]>
+  ];
+}
+
+def eir_AddOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.add", [Commutative]> {
+  let summary = "Addition operator";
+}
+
+def eir_SubOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.sub"> {
+  let summary = "Subraction operator";
+}
+
+def eir_MulOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.mul", [Commutative]> {
+  let summary = "Multiplication operator";
+}
+
+def eir_DivOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.div"> {
+  let summary = "Integer division operator";
+}
+
+def eir_FDivOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.fdiv"> {
+  let summary = "Floating-point division operator";
+}
+
+def eir_RemOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.rem"> {
+  let summary = "Integer remainder operator";
+}
+
+def eir_BslOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.bsl"> {
+  let summary = "Bitwise shift-left operator";
+}
+
+def eir_BsrOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.bsr"> {
+  let summary = "Bitwise shift-right operator";
+}
+
+def eir_BandOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.band"> {
+  let summary = "Bitwise AND operator";
+}
+
+def eir_BorOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.bor"> {
+  let summary = "Bitwise OR operator";
+}
+
+def eir_BxorOp :
+    eir_BinaryArithmeticOp<eir_AnyType, "math.bxor"> {
+  let summary = "Bitwise XOR operator";
 }
 
 //===----------------------------------------------------------------------===//
@@ -505,6 +615,97 @@ def eir_CallOp : eir_CallBaseOp<"call"> {
   //let hasCanonicalizer = 1;
 }
 
+def CallIndirectOp : eir_Op<"call_indirect", [CallOpInterface]> {
+  let summary = "indirect call operation";
+  let description = [{
+    The "call_indirect" operation represents an indirect call to a value of
+    function type.  Functions are first class types in MLIR, and may be passed
+    as arguments and merged together with block arguments.  The operands
+    and result types of the call must match the specified function type.
+
+      %3 = eir.call_indirect %2(%0, %1) : (f32, f32) -> f32
+  }];
+
+  let arguments = (ins FunctionType:$callee, Variadic<eir_AnyType>:$operands);
+  let results = (outs Variadic<eir_AnyType>:$results);
+
+  let builders = [OpBuilder<
+    "Builder *, OperationState &result, Value callee,"
+    "ValueRange operands = {}", [{
+      result.operands.push_back(callee);
+      result.addOperands(operands);
+      FunctionType fnTy = callee.getType().cast<FunctionType>();
+      result.addTypes(fnTy.getResults());
+  }]>];
+
+  let extraClassDeclaration = [{
+    Value getCallee() { return getOperand(0); }
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return ++operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of this operation.
+    CallInterfaceCallable getCallableForCallee() { return getCallee(); }
+  }];
+
+  let verifier = ?;
+  let hasCanonicalizer = 1;
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def ApplyOp : eir_Op<"apply", []> {
+  let summary = "dynamic call operation";
+  let description = [{
+    The "apply" operation represents an dynamic call to an MFA.
+
+    The first two operands are the module, and function; the arity
+    is inferred by the number of arguments passed.
+
+      %0 = eir.constant.atom { value = "erlang" }
+      %1 = eir.constant.atom { value = "+" }
+      %4 = eir.apply [%0, %1](%2, %3) : (f32, f32) -> f32
+  }];
+
+  let arguments = (ins eir_AnyType:$module, eir_AnyType:$fun, Variadic<eir_AnyType>:$operands);
+  let results = (outs eir_AnyType:$result);
+
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<
+    "Builder *builder, OperationState &result, Value module, Value fun,"
+    "ValueRange operands = {}", [{
+      result.operands.push_back(module);
+      result.operands.push_back(fun);
+      result.addOperands(operands);
+      result.addTypes(builder->getType<TermType>());
+  }]>];
+
+  let extraClassDeclaration = [{
+    Value getTargetModule() { return getOperand(0); }
+    Value getTargetFun() { return getOperand(1); }
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return operand_begin() + 2; }
+    operand_iterator arg_operand_end() { return operand_end(); }
+  }];
+
+  let verifier = ?;
+
+  let assemblyFormat = "`[` $module `:` type($module) `,` $fun `:` type($fun) `]` `(` $operands `)` attr-dict `:` functional-type($operands, $result)";
+}
+
+
 def eir_ReturnOp : eir_Op<"return", [
     //HasParent<"mlir::FuncOp">,
     Terminator,
@@ -536,7 +737,7 @@ def eir_ReturnOp : eir_Op<"return", [
 }
 
 def eir_YieldOp : eir_Op<"yield", [
-    HasParent<"mlir::FuncOp">,
+    //HasParent<"mlir::FuncOp">,
     YieldPoint,
   ]> {
   let summary = [{scheduler yield operation}];
@@ -544,66 +745,116 @@ def eir_YieldOp : eir_Op<"yield", [
     Yields execution back to the scheduler
   }];
 
+  let parser = [{ return mlir::success(); }];
+  let printer = [{ p << getOperationName(); }];
   let verifier = [{ return success(); }];
+
+  let assemblyFormat = [{ attr-dict }];
 }
 
-def eir_IfOp : eir_Op<"if", [Terminator]> {
-  let summary = "if-then-else operation";
-  let description = [{
-    The "eir.if" operation represents an if-then-else construct for
-    conditionally executing two regions of code, with an optional fallback region.
-    The operand to an `if` operation is a term value, and the `if` branch is taken when
-    the term is the atom 'true', the `else` branch is taken when the term is the atom 'false',
-    and the `otherwise` branch is taken when the value is not an atom.
+def eir_YieldCheckOp : eir_Op<"yield.check", [
+    //HasParent<"mlir::FuncOp">,
+    Terminator,
+  ]> {
+  let summary = "Terminator which branches based on the need for a yield";
 
-    If the `otherwise` branch is not given, then it is implicitly unreachable.
-    The operation is a terminator, and produces no results.
+  let verifier = [{ return success(); }];
 
-    For example:
-
-       eir.if %b  {
-         ...
-       } else {
-         ...
-       } otherwise {
-         ...
-       }
-
-    Or without the optional `else`:
-
-       eir.if %b  {
-         ...
-       } else {
-
-       }
-  }];
-  let arguments = (ins eir_BoolLike:$condition);
-  let regions = (region SizedRegion<1>:$ifRegion, SizedRegion<1>:$elseRegion, AnyRegion:$otherwiseRegion);
+  let arguments = (ins Variadic<eir_AnyType>:$branchOperands);
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-      "Builder *builder, OperationState &result, "
-      "Value cond, bool withOtherwiseRegion">
+    OpBuilder<[{
+      Builder *, OperationState &result,
+      Block *trueDest, ValueRange trueOperands,
+      Block *falseDest, ValueRange falseOperands
+    }], [{
+      result.addSuccessor(trueDest, trueOperands);
+      result.addSuccessor(falseDest, falseOperands);
+    }]>,
   ];
 
   let extraClassDeclaration = [{
-    OpBuilder getIfBodyBuilder() {
-      assert(!ifRegion().empty() && "Unexpected empty 'if' region.");
-      Block &body = ifRegion().front();
-      return OpBuilder(&body, std::prev(body.end()));
+    /// These are the indices into the dests list.
+    enum { trueIndex = 0, falseIndex = 1 };
+
+    /// Return the destination if the condition is true.
+    Block *getTrueDest() {
+      return getOperation()->getSuccessor(trueIndex);
     }
-    OpBuilder getElseBodyBuilder() {
-      assert(!elseRegion().empty() && "Unexpected empty 'else' region.");
-      Block &body = elseRegion().front();
-      return OpBuilder(&body, std::prev(body.end()));
+
+    /// Return the destination if the condition is false.
+    Block *getFalseDest() {
+      return getOperation()->getSuccessor(falseIndex);
     }
-    OpBuilder getOtherwiseBodyBuilder() {
-      assert(!otherwiseRegion().empty() && "Unexpected empty 'otherwise' region.");
-      Block &body = otherwiseRegion().front();
-      return OpBuilder(&body, std::prev(body.end()));
+
+    /// Accessors for operands to the 'true' destination.
+    Value getTrueOperand(unsigned idx) {
+      assert(idx < getNumTrueOperands());
+      return getOperand(getTrueDestOperandIndex() + idx);
+    }
+
+    void setTrueOperand(unsigned idx, Value value) {
+      assert(idx < getNumTrueOperands());
+      setOperand(getTrueDestOperandIndex() + idx, value);
+    }
+
+    operand_iterator true_operand_begin() {
+      return operand_begin() + getTrueDestOperandIndex();
+    }
+    operand_iterator true_operand_end() {
+      return true_operand_begin() + getNumTrueOperands();
+    }
+    operand_range getTrueOperands() {
+      return {true_operand_begin(), true_operand_end()};
+    }
+
+    unsigned getNumTrueOperands()  {
+      return getOperation()->getNumSuccessorOperands(trueIndex);
+    }
+
+    /// Erase the operand at 'index' from the true operand list.
+    void eraseTrueOperand(unsigned index)  {
+      getOperation()->eraseSuccessorOperand(trueIndex, index);
+    }
+
+    /// Accessors for operands to the 'false' destination.
+    Value getFalseOperand(unsigned idx) {
+      assert(idx < getNumFalseOperands());
+      return getOperand(getFalseDestOperandIndex() + idx);
+    }
+    void setFalseOperand(unsigned idx, Value value) {
+      assert(idx < getNumFalseOperands());
+      setOperand(getFalseDestOperandIndex() + idx, value);
+    }
+
+    operand_iterator false_operand_begin() { return true_operand_end(); }
+    operand_iterator false_operand_end() {
+      return false_operand_begin() + getNumFalseOperands();
+    }
+    operand_range getFalseOperands() {
+      return {false_operand_begin(), false_operand_end()};
+    }
+
+    unsigned getNumFalseOperands() {
+      return getOperation()->getNumSuccessorOperands(falseIndex);
+    }
+
+    /// Erase the operand at 'index' from the false operand list.
+    void eraseFalseOperand(unsigned index) {
+      getOperation()->eraseSuccessorOperand(falseIndex, index);
+    }
+
+  private:
+    /// Get the index of the first true destination operand.
+    unsigned getTrueDestOperandIndex() { return 0; }
+
+    /// Get the index of the first false destination operand.
+    unsigned getFalseDestOperandIndex() {
+      return getTrueDestOperandIndex() + getNumTrueOperands();
     }
   }];
+
 }
 
 //===----------------------------------------------------------------------===//
@@ -633,6 +884,7 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
     A corollary to `eir.return`, this function terminates execution of
     the current function, returning control up the stack by unwinding.
   }];
+  let results = (outs);
   let arguments = (ins eir_AnyType:$reason);
 
   let verifier = [{ return success(); }];
@@ -646,6 +898,26 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
 // Miscellaneous Operations
 //===----------------------------------------------------------------------===//
 
+def eir_IncrementReductionsOp : eir_Op<"reductions.inc", [/*HasParent<"mlir::FuncOp">*/]> {
+  let summary = "Increments the current processes' reduction counter";
+
+  let arguments = (ins DefaultValuedAttr<NonNegativeI32Attr, "1">:$increment);
+  let results = (outs);
+
+  let builders = [
+    OpBuilder<"Builder *builder, OperationState &result",
+    [{
+      result.addAttribute("increment", builder->getI32IntegerAttr(1));
+    }]>
+  ];
+
+  let parser = [{ return mlir::success(); }];
+  let printer = [{ p << getOperationName(); }];
+  let verifier = [{ return success(); }];
+
+  let assemblyFormat = [{ attr-dict }];
+}
+
 def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
 
   let arguments = (ins eir_AnyType:$input);
@@ -655,6 +927,8 @@ def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
     OpBuilder<"Builder *builder, OperationState &result, Value source, Type destType",
     [{
       result.addOperands(source);
+      result.addAttribute("from", TypeAttr::get(source.getType()));
+      result.addAttribute("to", TypeAttr::get(destType));
       result.addTypes(destType);
     }]>
   ];
@@ -689,7 +963,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
       %0 = eir.malloc(%1) {alignment = 8} : !eir.box<<!eir.tuple<?xf32>>
   }];
 
-  let arguments = (ins Variadic<eir_AnyType>:$index,
+  let arguments = (ins Variadic<eir_AnyType>:$arity,
                    Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$alignment);
   let results = (outs eir_BoxType);
 
@@ -697,6 +971,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
     OpBuilder<"Builder *builder, OperationState &result, BoxType boxType, "
               "IntegerAttr alignment = IntegerAttr()",
     [{
+       result.addAttribute("type", TypeAttr::get(boxType));
        result.types.push_back(boxType);
        if (alignment)
          result.addAttribute(getAlignmentAttrName(), alignment);
@@ -704,21 +979,19 @@ def eir_MallocOp : eir_Op<"malloc"> {
     OpBuilder<"Builder *builder, OperationState &result, BoxType boxType, "
               "ArrayRef<Value> operands, IntegerAttr alignment = IntegerAttr()",
     [{
-       result.addOperands(operands);
+       result.addAttribute("type", TypeAttr::get(boxType));
        result.types.push_back(boxType);
        if (alignment)
          result.addAttribute(getAlignmentAttrName(), alignment);
+       result.addOperands(operands);
     }]>
   ];
 
   let extraClassDeclaration = [{
     static StringRef getAlignmentAttrName() { return "alignment"; }
 
-    BoxType getType() { return getResult().getType().cast<BoxType>(); }
-
-    /// Returns the dynamic sizes for this alloc operation if specified.
-    int64_t getAllocSize(unsigned pointerSizeInBits) {
-      return calculateAllocSize(pointerSizeInBits, getType());
+    BoxType getAllocType() {
+        return getOperation()->getAttrOfType<TypeAttr>("type").getValue().cast<BoxType>();
     }
   }];
 
@@ -788,25 +1061,31 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
       if (auto boxTy = boxedTy.dyn_cast_or_null<eir::BoxType>()) {
         elementTy = boxTy.getBoxedType();
       } else {
-        return;
+        assert(false && "expected element type to be a boxed term type");
       }
+      result.addAttribute("pointee", TypeAttr::get(elementTy));
       auto termTy = builder->getType<eir::TermType>().cast<OpaqueTermType>();
       if (elementTy.isa<ConsType>()) {
+        result.addAttribute("element", TypeAttr::get(termTy));
         auto refTy = builder->getType<eir::RefType>(termTy);
         result.addTypes(refTy);
       } else if (auto tupleTy = elementTy.dyn_cast_or_null<TupleType>()) {
         if (tupleTy.hasDynamicShape()) {
+          result.addAttribute("element", TypeAttr::get(termTy));
           auto refTy = builder->getType<eir::RefType>(termTy);
           result.addTypes(refTy);
         } else if (tupleTy.getArity() > index) {
           auto innerTy = tupleTy.getElementType(index).cast<OpaqueTermType>();
+          result.addAttribute("element", TypeAttr::get(innerTy));
           auto refTy = builder->getType<eir::RefType>(innerTy);
           result.addTypes(refTy);
         } else {
+          result.addAttribute("element", TypeAttr::get(termTy));
           auto refTy = builder->getType<eir::RefType>(termTy);
           result.addTypes(refTy);
         }
       } else {
+        result.addAttribute("element", TypeAttr::get(termTy));
         auto refTy = builder->getType<eir::RefType>(termTy);
         result.addTypes(refTy);
       }
@@ -825,6 +1104,8 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
   let extraClassDeclaration = [{
     static StringRef getIndexAttrName() { return "index"; }
 
+    Type getPointeeType() { return getAttrOfType<TypeAttr>("pointee").getValue(); }
+    Type getElementType() { return getAttrOfType<TypeAttr>("element").getValue(); }
     Type getType() { return getResult().getType().cast<RefType>().getInnerType(); }
 
     uint64_t getIndex() {
@@ -834,7 +1115,7 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
 
 }
 
-def eir_PrintOp : eir_Op<"intrinsics.print"> {
+def eir_PrintOp : eir_Op<"print"> {
   let summary = "intrinsic printing operation";
   let description = [{
     Prints to standard output using the provided format string and operands.
@@ -844,6 +1125,16 @@ def eir_PrintOp : eir_Op<"intrinsics.print"> {
     Variadic<eir_AnyType>:$operands
   );
   let results = (outs eir_AnyTerm:$result);
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, ArrayRef<Value> args",
+    [{
+      Value arg = args.front();
+      Type termTy = builder->getType<TermType>();
+      build(builder, result, termTy, arg);
+    }]>
+  ];
 
   let verifier = [{ return success(); }];
 
@@ -941,6 +1232,16 @@ def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, "constant.atom"> {
       result.addTypes(type);
     }]>,
     OpBuilder<
+    "Builder *builder, OperationState &result, bool truth",
+    [{
+      auto id = APInt(64, truth ? 1 : 0, /*signed=*/false);
+      if (truth) {
+        build(builder, result, id, "true");
+      } else {
+        build(builder, result, id, "false");
+      }
+    }]>,
+    OpBuilder<
     "Builder *builder, OperationState &result, APInt id, StringRef name",
     [{
       auto type = builder->getType<AtomType>();
@@ -1011,7 +1312,7 @@ def eir_ConstantNoneOp : eir_ConstantOp<eir_NoneType, "constant.none"> {
     "Builder *builder, OperationState &result",
     [{
       auto type = builder->getType<eir::NoneType>();
-      auto attr = builder->getUnitAttr();
+      auto attr = TypeAttr::get(type);
       build(builder, result, type, attr);
     }]>
   ];
@@ -1040,7 +1341,28 @@ def eir_ConstantTupleOp : eir_ConstantOp<eir_TupleType, "constant.tuple"> {
   ];
 }
 
-def eir_ConstantListOp : eir_ConstantOp<eir_ConsType, "constant.list"> {
+def eir_ConstantConsOp : eir_ConstantOp<eir_BoxType, "constant.cons"> {
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, ArrayRef<Attribute> elements",
+    [{
+      assert(elements.size() > 0 && "cons requires at least one value");
+      auto type = builder->getType<ConsType>();
+      result.addAttribute("value", SeqAttr::get(type, elements));
+      result.addTypes(BoxType::get(type));
+    }]>,
+    OpBuilder<
+    "Builder *builder, OperationState &result, Attribute head, Attribute tail",
+    [{
+      auto type = builder->getType<ConsType>();
+      auto attr = SeqAttr::get(type, ArrayRef<Attribute>{head, tail});
+      result.addAttribute("value", attr);
+      result.addTypes(BoxType::get(type));
+    }]>
+  ];
+}
+
+def eir_ConstantListOp : eir_ConstantOp<eir_BoxType, "constant.list"> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, Type type, Attribute val",
@@ -1053,7 +1375,7 @@ def eir_ConstantListOp : eir_ConstantOp<eir_ConsType, "constant.list"> {
     [{
       auto type = builder->getType<ConsType>();
       auto attr = SeqAttr::get(type, elements);
-      build(builder, result, type, attr);
+      build(builder, result, BoxType::get(type), attr);
     }]>
   ];
 }

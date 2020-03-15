@@ -26,11 +26,11 @@ num-bigint = "0.2"
 wasm-bindgen = "0.2"
 
 liblumen_eir_interpreter = { path = "../../liblumen_eir_interpreter" }
-libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
-libeir_intern = { git = "https://github.com/eirproject/eir.git" }
-libeir_ir = { git = "https://github.com/eirproject/eir.git" }
-libeir_passes = { git = "https://github.com/eirproject/eir.git" }
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_intern = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_passes = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 
 # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
 # compared to the default allocator's ~10K. It is slower than the default

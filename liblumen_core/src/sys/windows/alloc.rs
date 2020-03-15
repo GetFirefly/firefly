@@ -32,7 +32,7 @@ pub unsafe fn realloc(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocErr> {
     if layout.align() <= MIN_ALIGN {
         NonNull::new(HeapReAlloc(GetProcessHeap(), 0, ptr as LPVOID, new_size) as *mut u8)
             .ok_or(AllocErr)

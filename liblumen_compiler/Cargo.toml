@@ -26,10 +26,10 @@ liblumen_codegen = { path = "../liblumen_codegen" }
 liblumen_util = { path = "../liblumen_util" }
 liblumen_core = { path = "../liblumen_core" }
 
-libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
-libeir_ir = { git = "https://github.com/eirproject/eir.git" }
-libeir_intern = { git = "https://github.com/eirproject/eir.git" }
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_intern = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 
 [build-dependencies]
 which = "2.0"

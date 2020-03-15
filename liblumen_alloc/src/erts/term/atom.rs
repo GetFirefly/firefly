@@ -68,6 +68,9 @@ pub struct Atom(usize);
 impl Atom {
     pub const SIZE_IN_WORDS: usize = 1;
 
+    pub const TRUE: Self = Self(1);
+    pub const FALSE: Self = Self(0);
+
     /// Gets the identifier associated with this atom
     #[inline(always)]
     pub fn id(&self) -> usize {
@@ -184,6 +187,11 @@ impl PartialEq<bool> for Atom {
         id == (b as usize)
     }
 }
+impl PartialEq<&str> for Atom {
+    fn eq(&self, s: &&str) -> bool {
+        self.name() == *s
+    }
+}
 
 impl From<bool> for Atom {
     #[inline]
@@ -192,9 +200,9 @@ impl From<bool> for Atom {
         // is initialized in a deterministic way - it is critical that
         // if the initialization changes that these values get updated
         if b {
-            unsafe { Atom::from_id(1) }
+            Atom::TRUE
         } else {
-            unsafe { Atom::from_id(0) }
+            Atom::FALSE
         }
     }
 }

@@ -12,7 +12,7 @@ use std::backtrace::Backtrace;
 use hashbrown::HashMap;
 use thiserror::Error;
 
-use liblumen_term::Encoding as TermEncoding;
+use liblumen_term::{Tag, Encoding as TermEncoding};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{AllocResult, InternalResult};
@@ -368,6 +368,10 @@ pub trait Encoded: Repr + Copy {
     /// be the case of decoding a pointer which can not be validated unless it
     /// is dereferenced.
     fn decode(&self) -> Result<TypedTerm, TermDecodingError>;
+
+    fn type_of(&self) -> Tag<<<Self as Repr>::Encoding as TermEncoding>::Type> {
+        Self::Encoding::type_of(self.value())
+    }
 
     /// Returns `true` if the encoded value represents `NONE`
     #[inline]

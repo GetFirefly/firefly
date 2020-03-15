@@ -46,7 +46,7 @@ pub fn compile_atom_table(
         // The initializer is just the string contents
         let init = builder.build_constant_cstring(s, /* null_terminate= */ true);
         let constant =
-            builder.add_constant(string_type, &format!("__atom{}.value", id), Some(init));
+            builder.build_constant(string_type, &format!("__atom{}.value", id), Some(init));
         // The atom constants are not accessible directly, only via the table
         builder.set_linkage(constant, Linkage::Private);
         builder.set_alignment(constant, 8);
@@ -75,7 +75,7 @@ pub fn compile_atom_table(
     // Generate constants array
     let entries_const_init = builder.build_constant_array(entry_type, entries.as_slice());
     let entries_const_ty = unsafe { llvm_sys::core::LLVMTypeOf(entries_const_init) };
-    let entries_const = builder.add_constant(
+    let entries_const = builder.build_constant(
         entries_const_ty,
         "__LUMEN_ATOM_TABLE_ENTRIES",
         Some(entries_const_init),
@@ -86,7 +86,7 @@ pub fn compile_atom_table(
     // Generate atom table global itself
     let entry_ptr_type = builder.get_pointer_type(entry_type);
     let table_global_init = builder.build_const_inbounds_gep(entries_const, &[0, 0]);
-    let table_global = builder.add_global(
+    let table_global = builder.build_global(
         entry_ptr_type,
         "__LUMEN_ATOM_TABLE",
         Some(table_global_init),
@@ -95,7 +95,7 @@ pub fn compile_atom_table(
 
     // Generate atom table size global
     let table_size_global_init = builder.build_constant_uint(i64_type, entries.len());
-    let table_size_global = builder.add_global(
+    let table_size_global = builder.build_global(
         i64_type,
         "__LUMEN_ATOM_TABLE_SIZE",
         Some(table_size_global_init),

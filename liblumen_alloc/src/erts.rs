@@ -10,6 +10,7 @@ pub mod string;
 pub mod term;
 #[cfg(test)]
 pub mod testing;
+pub mod timeout;
 
 pub use fragment::{HeapFragment, HeapFragmentAdapter};
 pub use message::Message;

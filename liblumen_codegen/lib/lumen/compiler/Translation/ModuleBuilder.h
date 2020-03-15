@@ -172,6 +172,8 @@ class ModuleBuilder {
 
   void add_function(FuncOp f);
 
+  Value build_closure(Closure *closure);
+
   //===----------------------------------------------------------------------===//
   // Blocks
   //===----------------------------------------------------------------------===//
@@ -226,7 +228,6 @@ class ModuleBuilder {
   Value build_tuple(ArrayRef<Value> elements);
   Value build_map(ArrayRef<MapEntry> entries);
 
-  Value build_print_op(ArrayRef<Value> args);
   void build_trace_capture_op(Block *dest,
                               ArrayRef<MLIRValueRef> destArgs = {});
 
@@ -258,6 +259,8 @@ class ModuleBuilder {
   }
 
   Type getArgType(const Arg *arg);
+
+  mlir::OpBuilder &getBuilder() { return builder; }
 
  private:
   const TargetMachine *targetMachine;

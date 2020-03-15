@@ -60,13 +60,22 @@ impl Context {
             thread::current().id(),
             "contexts cannot be shared across threads"
         );
-        let s = filename.as_ref().to_string_lossy().into_owned();
+        let path = filename.as_ref();
+        let file = path.file_name().unwrap().to_string_lossy().into_owned();
+        let dialect = if file.ends_with(OutputType::EIRDialect.extension()) {
+            Dialect::EIR
+        } else if file.ends_with(OutputType::LLVMDialect.extension()) {
+            Dialect::LLVM
+        } else {
+            Dialect::Standard
+        };
+        let s = path.to_string_lossy().into_owned();
         let f = CString::new(s)?;
         let result = unsafe { MLIRParseFile(self.as_ref(), f.as_ptr()) };
         if result.is_null() {
             Err(anyhow!("failed to parse {}", f.to_string_lossy()))
         } else {
-            Ok(Module::new(result))
+            Ok(Module::new(result, dialect))
         }
     }
 
@@ -81,7 +90,7 @@ impl Context {
         if result.is_null() {
             Err(anyhow!("failed to parse MLIR input"))
         } else {
-            Ok(Module::new(result))
+            Ok(Module::new(result, Dialect::EIR))
         }
     }
 
@@ -106,14 +115,19 @@ impl PartialEq for Context {
     }
 }
 
-#[repr(transparent)]
-pub struct Module(RefCell<ModuleRef>);
+pub struct Module {
+    module: RefCell<ModuleRef>,
+    dialect: RefCell<Dialect>,
+}
 unsafe impl Send for Module {}
 unsafe impl Sync for Module {}
 impl Module {
-    pub fn new(ptr: ModuleRef) -> Self {
+    pub fn new(ptr: ModuleRef, dialect: Dialect) -> Self {
         assert!(!ptr.is_null());
-        Self(RefCell::new(ptr))
+        Self {
+            module: RefCell::new(ptr),
+            dialect: RefCell::new(dialect),
+        }
     }
 
     pub fn lower(
@@ -133,7 +147,8 @@ impl Module {
             )
         };
         if !result.is_null() {
-            self.0.replace(result);
+            self.module.replace(result);
+            self.dialect.replace(dialect);
             return Ok(());
         }
         Err(anyhow!("lowering to {} failed", dialect))
@@ -176,12 +191,17 @@ impl Module {
     }
 
     pub fn as_ref(&self) -> ModuleRef {
-        unsafe { *self.0.as_ptr() }
+        unsafe { *self.module.as_ptr() }
     }
 }
 impl fmt::Debug for Module {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MLIRModule({:p})", self.as_ref())
+        write!(
+            f,
+            "MLIRModule({:p}, dialect = {:?})",
+            self.as_ref(),
+            self.dialect.borrow()
+        )
     }
 }
 impl Eq for Module {}
@@ -192,12 +212,21 @@ impl PartialEq for Module {
 }
 impl Clone for Module {
     fn clone(&self) -> Module {
-        Self::new(self.as_ref())
+        Self::new(self.as_ref(), self.dialect.borrow().clone())
     }
 }
 
 impl Emit for Module {
     const TYPE: OutputType = OutputType::EIRDialect;
+
+    fn emit_output_type(&self) -> OutputType {
+        match *self.dialect.borrow() {
+            Dialect::EIR => OutputType::EIRDialect,
+            Dialect::LLVM => OutputType::LLVMDialect,
+            Dialect::Standard => OutputType::StandardDialect,
+            _ => Self::TYPE,
+        }
+    }
 
     fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
         let fd = util::fs::get_file_descriptor(f);

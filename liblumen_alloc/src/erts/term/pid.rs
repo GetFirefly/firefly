@@ -80,6 +80,11 @@ impl From<Boxed<ExternalPid>> for AnyPid {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Pid(usize);
+impl Default for Pid {
+    fn default() -> Self {
+        unsafe { Self::new_unchecked(1, 0) }
+    }
+}
 impl Pid {
     const NUMBER_BIT_COUNT: u8 = 15;
     const NUMBER_MASK: usize = 0b111_1111_1111_1111;

@@ -1,6 +1,5 @@
-use core::alloc::Layout;
+use core::convert::TryInto;
 use core::mem;
-use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
@@ -8,6 +7,7 @@ use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{self, Message};
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment};
+use liblumen_core::alloc::Layout;
 
 use crate::otp::erlang::node_0;
 use crate::registry::pid_to_process;

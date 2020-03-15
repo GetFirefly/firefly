@@ -258,8 +258,9 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
                         index,
                         old_unique,
                         unique,
-                        creator,
+                        //creator,
                     } => {
+                        let default_creator = Creator::Local(Pid::default());
                         let mut sized_byte_vec: Vec<u8> = Vec::new();
 
                         let module_function_arity = closure.module_function_arity();
@@ -289,7 +290,7 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
                         )
                         .unwrap();
 
-                        append_creator(&mut sized_byte_vec, &creator);
+                        append_creator(&mut sized_byte_vec, &default_creator);
 
                         for term in closure.env_slice() {
                             sized_byte_vec.append(&mut term_to_byte_vec(process, options, *term));

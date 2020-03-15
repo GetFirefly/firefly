@@ -554,6 +554,8 @@ pub enum Definition {
         /// The hash value of the parse tree for the fun, but must fit in i32, so not the same as
         /// `unique`.
         old_unique: u32,
+        /* Not used in Lumen, needed for term_to_binary/external communication
+         * creator: Creator, */
     },
 }
 

@@ -1140,7 +1140,7 @@ dependencies = [
  "libeir_ir 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_passes 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_syntax_erl 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
- "libeir_util_parse 0.1.0 (git+https://github.com/bitwalker/eir?branch=lumen)",
+ "libeir_util_parse 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "liblumen_alloc 0.1.0",
  "lumen_runtime 0.1.0",
 ]

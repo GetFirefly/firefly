@@ -4,6 +4,7 @@ pub use self::function::*;
 use std::collections::HashSet;
 use std::ffi::CString;
 use std::ptr;
+use std::mem;
 
 use anyhow::anyhow;
 
@@ -212,6 +213,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     #[inline]
     pub fn live_at(&self, block: Block) -> BoundEntitySet<'f, ir::Value> {
         let ir_block = self.func.block_to_ir_block(block).unwrap();
+        self.analysis.live.live_at(ir_block)
+    }
+
+    /// Same as `live_at`, but takes an EIR block as argument instead
+    #[inline]
+    pub fn ir_live_at(&self, ir_block: ir::Block) -> BoundEntitySet<'f, ir::Value> {
         self.analysis.live.live_at(ir_block)
     }
 
@@ -433,6 +440,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         block_data.param_values.clone()
     }
 
+    /// Returns the (EIR) block arguments for a given EIR block
+    #[inline]
+    pub fn ir_block_args(&self, block: ir::Block) -> &[ir::Value] {
+        self.eir.block_args(block)
+    }
+
     /// Returns the current block
     #[inline]
     pub fn current_block(&self) -> Block {
@@ -453,9 +466,9 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 
         // If this is a closure, extract the environment
         // A closure will have more than 1 live value, otherwise it is a regular function
-        let live = self.live_at(entry_block);
-        debug_in!(self, "found {} live values in the entry block", live.size());
-        if live.size() > 0 {
+        let live_at = self.live_at(entry_block);
+        debug_in!(self, "found {} live values at the entry block", live_at.size());
+        if live_at.size() > 0 {
             todo!("closure env unpacking");
         }
 
@@ -911,30 +924,36 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 
     /// Same as above, but represents value lists as the absence of a value
     pub(super) fn build_value_opt(&mut self, ir_value: ir::Value) -> Result<Option<Value>> {
-        if let Some(value) = self.find_value(ir_value) {
-            return Ok(Some(value));
+        match self.eir.value_kind(ir_value) {
+            // Always lower constants as fresh values
+            ir::ValueKind::Const(c) => self.build_constant_value(c).map(|v| Some(v)),
+            kind => {
+                debug_in!(self, "building value {:?} (kind = {:?})", ir_value, kind);
+                // If the value has already been lowered, return a reference to it
+                if let Some(value) = self.find_value(ir_value) {
+                    return Ok(Some(value));
+                }
+                // Otherwise construct it
+                let value_opt = match kind {
+                    ir::ValueKind::PrimOp(op) => self.build_primop_value(ir_value, op)?,
+                    ir::ValueKind::Block(b) => Some(self.build_closure(ir_value, b)?),
+                    ir::ValueKind::Argument(b, i) => {
+                        let blk = self.get_block(b);
+                        let args = self.block_args(blk);
+                        args.get(i).map(|a| a.clone())
+                    }
+                    _ => unreachable!()
+                };
+                Ok(value_opt)
+            }
         }
-        debug_in!(self, "building value {:?}", ir_value);
-        let value_opt = match self.eir.value_kind(ir_value) {
-            ir::ValueKind::Const(c) => Some(self.build_constant_value(ir_value, c)?),
-            ir::ValueKind::PrimOp(op) => self.build_primop_value(ir_value, op)?,
-            ir::ValueKind::Block(b) => {
-                unreachable!("block {:?} used as a value ({:?})", b, ir_value)
-            }
-            ir::ValueKind::Argument(b, i) => {
-                let blk = self.get_block(b);
-                let args = self.block_args(blk);
-                args.get(i).map(|a| a.clone())
-            }
-        };
-        Ok(value_opt)
     }
 
     /// This function returns a Value that represents the given IR value lowered as a constant
     #[inline]
-    fn build_constant_value(&mut self, ir_value: ir::Value, constant: ir::Const) -> Result<Value> {
+    fn build_constant_value(&mut self, constant: ir::Const) -> Result<Value> {
         debug_in!(self, "building constant value {:?}", constant);
-        ConstantBuilder::build(self, Some(ir_value), constant)
+        ConstantBuilder::build(self, None, constant)
             .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected constant to have result")))
     }
 

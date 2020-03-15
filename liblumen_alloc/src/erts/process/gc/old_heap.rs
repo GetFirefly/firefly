@@ -176,6 +176,8 @@ impl Drop for OldHeap {
 }
 impl fmt::Debug for OldHeap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use crate::erts::term::arch::repr::Repr;
+
         f.write_fmt(format_args!(
             "OldHeap (heap: {:p}-{:p}, used: {}, unused: {}) [\n",
             self.heap_start(),
@@ -189,10 +191,11 @@ impl fmt::Debug for OldHeap {
                 let term = &*pos;
                 let skip = term.arity();
                 f.write_fmt(format_args!(
-                    "  {:p}: {:0bit_len$b} {:?}\n",
+                    "  {:p}: {:0bit_len$b} {:?}({:08x})\n",
                     pos,
                     *(pos as *const usize),
-                    term,
+                    term.type_of(),
+                    term.as_usize(),
                     bit_len = (bit_size_of::<usize>())
                 ))?;
                 pos = pos.add(1 + skip);

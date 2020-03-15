@@ -79,6 +79,20 @@ pub struct FunctionDeclResult {
     pub entry_block: BlockRef,
 }
 
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct Closure {
+    pub module: AttributeRef,
+    pub name: *const libc::c_char,
+    pub arity: u8,
+    pub index: u32,
+    pub old_unique: u32,
+    pub unique: [u8; 16],
+    pub env: *const ValueRef,
+    pub env_len: libc::c_uint,
+}
+
+
 /// The endianness of a binary specifier entry
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
@@ -294,6 +308,8 @@ extern "C" {
     ) -> FunctionDeclResult;
 
     pub fn MLIRAddFunction(builder: ModuleBuilderRef, function: FunctionOpRef);
+
+    pub fn MLIRBuildClosure(builder: ModuleBuilderRef, closure: *const Closure) -> ValueRef;
 
     //---------------
     // Blocks

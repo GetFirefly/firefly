@@ -25,7 +25,7 @@ use liblumen_session::Options;
 
 use super::block::{Block, BlockData};
 use super::ffi::*;
-use super::ops::builders::{BranchBuilder, CallBuilder, ConstantBuilder};
+use super::ops::builders::{BranchBuilder, CallBuilder, ConstantBuilder, ClosureBuilder};
 use super::ops::*;
 use super::value::{Value, ValueData, ValueDef};
 use super::ModuleBuilder;
@@ -252,6 +252,37 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Finds the EIR block the given block represents
     pub fn get_ir_block(&self, block: Block) -> ir::Block {
         self.func.block_to_ir_block(block).unwrap()
+    }
+
+    /// Maps a given entry block to its corresponding function identifier
+    ///
+    /// NOTE: This is intended for use only with blocks that are the capture
+    /// target of a function call, i.e. a call to a closure. It does _not_ accept
+    /// arbitrary blocks.
+    pub fn block_to_closure_info(&self, block: ir::Block) -> ClosureInfo {
+        for (i, (entry_block, data)) in self.analysis.functions.iter().enumerate() {
+            let entry_block = *entry_block;
+            if entry_block == block {
+                let containing_ident = self.eir.ident();
+                let arity = self.eir.block_args(entry_block).len() - 2;
+                let index = i as u32;
+                let fun = Ident::from_str(&format!("{}-{}-{}", containing_ident.name, index, arity));
+                let ident = FunctionIdent {
+                    module: containing_ident.module.clone(),
+                    name: fun,
+                    arity: arity,
+                };
+                let unique = unsafe { mem::transmute::<[u64; 2], [u8; 16]>([fxhash::hash64(&ident), fxhash::hash64(&index)]) };
+                let old_unique = fxhash::hash32(&unique);
+                return ClosureInfo {
+                    ident,
+                    index,
+                    old_unique,
+                    unique,
+                };
+            }
+        }
+        panic!("expected block to correspond to the entry block in this functions' scope");
     }
 
     /// Finds the EIR value the given value represents
@@ -947,6 +978,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 Ok(value_opt)
             }
         }
+    }
+
+    #[inline]
+    fn build_closure(&mut self, ir_value: ir::Value, target: ir::Block) -> Result<Value> {
+        debug_in!(self, "building closure for value {:?} (target block = {:?})", ir_value, target);
+        ClosureBuilder::build(self, Some(ir_value), target)
+            .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected constant to have result")))
     }
 
     /// This function returns a Value that represents the given IR value lowered as a constant

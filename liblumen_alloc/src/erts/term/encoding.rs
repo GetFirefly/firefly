@@ -12,7 +12,7 @@ use std::backtrace::Backtrace;
 use hashbrown::HashMap;
 use thiserror::Error;
 
-use liblumen_term::{Tag, Encoding as TermEncoding};
+use liblumen_term::{Encoding as TermEncoding, Tag};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{AllocResult, InternalResult};

@@ -1,5 +1,5 @@
-use core::slice;
 use core::fmt;
+use core::slice;
 
 use alloc::vec::Vec;
 
@@ -77,7 +77,7 @@ impl Default for RootSet {
 impl fmt::Debug for RootSet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for root in self.0.iter().map(|b| b.as_ptr()) {
-             unsafe {
+            unsafe {
                 let term = &*root;
                 let decoded = term.decode();
                 f.write_fmt(format_args!(
@@ -92,7 +92,6 @@ impl fmt::Debug for RootSet {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {

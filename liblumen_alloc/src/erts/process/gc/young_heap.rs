@@ -528,7 +528,7 @@ impl Drop for YoungHeap {
 impl fmt::Debug for YoungHeap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use crate::erts::term::arch::repr::Repr;
-       
+
         f.write_fmt(format_args!(
             "YoungHeap (heap: {:p}-{:p}, stack: {:p}-{:p}, used: {}, unused: {}) [\n",
             self.heap_start(),

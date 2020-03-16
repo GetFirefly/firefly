@@ -36,6 +36,8 @@ task:
   name: Linux x86_64 compiler
   container:
     image: kronicdeth/lumen-development@sha256:99f157b5ef2b5a7a57e25c7d0ff4ca75151d141934c9ac2bb4125461fc3f4673
+    cpu: 4
+    memory: 12
   linux_x86_64_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
@@ -93,7 +95,7 @@ task:
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
-  name: Windows x86_64
+  name: Windows x86_64 libraries
   windows_container:
     image: cirrusci/windowsservercore:cmake
     os_version: 2019
@@ -102,7 +104,7 @@ task:
     CIRRUS_SHELL: powershell
     CARGO_HOME: $USERPROFILE\.cargo
     PATH: $PATH;$CARGO_HOME\bin
-  install_rustup_script: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly-x86_64-pc-windows-msvc"
+  install_rustup_script: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly-2020-03-10-x86_64-pc-windows-msvc"
   build_script: cargo build
   # `*_test_script`s in order of crate dependency graph
   liblumen_arena_test_script: |

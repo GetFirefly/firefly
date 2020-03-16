@@ -403,7 +403,7 @@ class EIROpConversion : public mlir::OpConversionPattern<Op> {
   ConversionContext ctx;
 
  protected:
-  ConversionContext &getContext() const { return ctx; }
+  ConversionContext const &getContext() const { return ctx; }
 
   RewritePatternContext<Op> getRewriteContext(
       Op op, ConversionPatternRewriter &rewriter) const {

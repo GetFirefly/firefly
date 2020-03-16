@@ -101,6 +101,8 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         options: &'o Options,
     ) -> Result<ScopedFunctionBuilder<'s, 'o>> {
         debug!("entering scope for {}", &name);
+        debug!("entry = {:?}", &data.entry);
+        debug!("scope = {:?}", &data.scope);
 
         let ret = data
             .ret

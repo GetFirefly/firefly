@@ -1042,6 +1042,68 @@ Value ModuleBuilder::build_map(ArrayRef<MapEntry> entries) {
   return op.getResult(0);
 }
 
+extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b,
+                                    MLIRValueRef h,
+                                    MLIRValueRef t,
+                                    MLIRValueRef sz,
+                                    BinarySpecifier *spec,
+                                    MLIRBlockRef okBlock,
+                                    MLIRBlockRef errBlock) {
+  ModuleBuilder *builder = unwrap(b);
+  Block *ok = unwrap(okBlock);
+  Block *err = unwrap(errBlock);
+  Value head = unwrap(h);
+  Value tail = unwrap(t);
+  Value size;
+  if (sz) {
+    size = unwrap(sz);
+  }
+
+  builder->build_binary_push(head, tail, size, spec, ok, err);
+}
+
+void ModuleBuilder::build_binary_push(Value head,
+                                      Value tail,
+                                      Value size,
+                                      BinarySpecifier *spec,
+                                      Block *ok,
+                                      Block *err) {
+  NamedAttributeList attrs;
+  auto tag = spec->tag;
+  switch (tag) {
+    case BinarySpecifierType::Bytes:
+    case BinarySpecifierType::Bits:
+      attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
+      attrs.set(builder.getIdentifier("unit"), builder.getI8IntegerAttr(spec->payload.us.unit));
+      break;
+    case BinarySpecifierType::Utf8:
+    case BinarySpecifierType::Utf16:
+    case BinarySpecifierType::Utf32:
+      attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
+      attrs.set(builder.getIdentifier("endianness"), builder.getI8IntegerAttr(spec->payload.es.endianness));
+      break;
+    case BinarySpecifierType::Integer:
+      attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
+      attrs.set(builder.getIdentifier("unit"), builder.getI8IntegerAttr(spec->payload.i.unit));
+      attrs.set(builder.getIdentifier("endianness"), builder.getI8IntegerAttr(spec->payload.i.endianness));
+      attrs.set(builder.getIdentifier("signed"), builder.getBoolAttr(spec->payload.i.isSigned));
+      break;
+    case BinarySpecifierType::Float:
+      attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
+      attrs.set(builder.getIdentifier("unit"), builder.getI8IntegerAttr(spec->payload.f.unit));
+      attrs.set(builder.getIdentifier("endianness"), builder.getI8IntegerAttr(spec->payload.f.endianness));
+      break;
+    default:
+      llvm_unreachable("invalid binary specifier type");
+  }
+  auto op = builder.create<BinaryPushOp>(builder.getUnknownLoc(), head, tail, size, attrs);
+  auto bin = op.getResult(0);
+  auto success = op.getResult(1);
+  ArrayRef<Value> okArgs{bin};
+  ArrayRef<Value> errArgs{};
+  builder.create<::mlir::CondBranchOp>(builder.getUnknownLoc(), success, ok, okArgs, err, errArgs);
+}
+
 //===----------------------------------------------------------------------===//
 // ConstantFloat
 //===----------------------------------------------------------------------===//

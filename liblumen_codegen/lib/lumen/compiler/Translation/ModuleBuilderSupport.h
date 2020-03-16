@@ -38,13 +38,16 @@ struct MapEntry {
   MLIRValueRef value;
 };
 
-enum class Endianness : uint32_t {
+namespace Endianness {
+enum Type: uint32_t {
   Big,
   Little,
   Native,
 };
+}
 
-enum class BinarySpecifierType : uint32_t {
+namespace BinarySpecifierType {
+enum Type: uint32_t {
   Integer,
   Float,
   Bytes,
@@ -53,45 +56,36 @@ enum class BinarySpecifierType : uint32_t {
   Utf16,
   Utf32,
 };
+}
 
 struct IntegerSpecifier {
   bool isSigned;
-  Endianness endianness;
+  Endianness::Type endianness;
   int64_t unit;
 };
 
 struct FloatSpecifier {
-  Endianness endianness;
+  Endianness::Type endianness;
   int64_t unit;
 };
 
-struct BytesSpecifier {
+struct UnitSpecifier {
   int64_t unit;
 };
 
-struct BitsSpecifier {
-  int64_t unit;
-};
-
-struct Utf16Specifier {
-  Endianness endianness;
-};
-
-struct Utf32Specifier {
-  Endianness endianness;
+struct EndiannessSpecifier {
+  Endianness::Type endianness;
 };
 
 union BinarySpecifierPayload {
   IntegerSpecifier i;
   FloatSpecifier f;
-  BytesSpecifier bytes;
-  BitsSpecifier bits;
-  Utf16Specifier utf16;
-  Utf32Specifier utf32;
+  UnitSpecifier us;
+  EndiannessSpecifier es;
 };
 
 struct BinarySpecifier {
-  BinarySpecifierType tag;
+  BinarySpecifierType::Type tag;
   BinarySpecifierPayload payload;
 };
 

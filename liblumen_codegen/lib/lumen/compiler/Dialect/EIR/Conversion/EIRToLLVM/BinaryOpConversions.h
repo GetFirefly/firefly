@@ -5,7 +5,7 @@
 
 namespace lumen {
 namespace eir {
-// class BinaryPushOpConversion;
+class BinaryPushOpConversion;
 
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,

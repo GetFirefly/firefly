@@ -227,6 +227,7 @@ class ModuleBuilder {
   Value build_cons(Value head, Value tail);
   Value build_tuple(ArrayRef<Value> elements);
   Value build_map(ArrayRef<MapEntry> entries);
+  void build_binary_push(Value head, Value tail, Value size, BinarySpecifier *spec, Block *ok, Block *err);
 
   void build_trace_capture_op(Block *dest,
                               ArrayRef<MLIRValueRef> destArgs = {});

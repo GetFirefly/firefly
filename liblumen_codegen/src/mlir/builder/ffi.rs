@@ -436,6 +436,15 @@ extern "C" {
         pairs: *const MapEntry,
         num_pairs: libc::c_uint,
     ) -> ValueRef;
+    pub fn MLIRBuildBinaryPush(
+        builder: ModuleBuilderRef,
+        head: ValueRef,
+        tail: ValueRef,
+        size: ValueRef,
+        spec: &BinarySpecifier,
+        ok_block: BlockRef,
+        err_block: BlockRef,
+    );
 
     pub fn MLIRIsIntrinsic(name: *const libc::c_char) -> bool;
     pub fn MLIRBuildIntrinsic(

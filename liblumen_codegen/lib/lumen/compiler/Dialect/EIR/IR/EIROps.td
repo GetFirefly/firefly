@@ -1590,12 +1590,31 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
         %0, %err = eir.binary_push(%bin, %val) { type = bytes, unit = 1 }, %size : !eir.fixnum
   }];
 
-  let arguments = (ins eir_BinaryType:$bin, eir_AnyType:$val, Variadic<eir_AnyType>:$size);
-  let results = (outs eir_BinaryType:$updatedBin);
+  let arguments = (ins eir_AnyType:$head, eir_AnyType:$tail, Variadic<eir_AnyType>:$size);
+  let results = (outs eir_AnyType:$bin, I1:$status);
 
   let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, $updatedBin)
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value head, Value tail, Value size, NamedAttributeList attrs",
+    [{
+      if (size) {
+        result.addOperands({head, tail, size});
+      } else {
+        result.addOperands({head, tail});
+      }
+      auto binTy = head.getType();
+      auto i1Ty = builder->getI1Type();
+      result.addTypes({binTy, i1Ty});
+      result.addAttributes(attrs.getAttrs());
+    }]>
+  ];
+
+  let verifier = [{ return success(); }];
 }
 
 #endif // EIR_OPS

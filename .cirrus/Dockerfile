@@ -8,6 +8,8 @@ RUN cd /tmp \
 
 ENV PATH="/opt/llvm/bin:${PATH}"
 ENV LLVM_SYS_90_PREFIX="/opt/llvm"
+ENV CC=/opt/llvm/bin/clang
+ENV CXX=/opt/llvm/bin/clang++
 
 RUN apt-get update \
   && apt-get install -y cmake jq libc++-dev libc++abi-dev libunwind-dev ninja-build rsync

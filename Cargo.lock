@@ -798,7 +798,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "libeir_diagnostics"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -810,7 +810,7 @@ dependencies = [
 [[package]]
 name = "libeir_frontend"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_ir 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
@@ -822,7 +822,7 @@ dependencies = [
 [[package]]
 name = "libeir_intern"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
@@ -832,7 +832,7 @@ dependencies = [
 [[package]]
 name = "libeir_ir"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "bumpalo 3.2.0 (git+https://github.com/bitwalker/bumpalo?branch=nightly_alloc)",
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -858,7 +858,7 @@ dependencies = [
 [[package]]
 name = "libeir_lowerutils"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libeir_ir 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
@@ -868,7 +868,7 @@ dependencies = [
 [[package]]
 name = "libeir_passes"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "bumpalo 3.2.0 (git+https://github.com/bitwalker/bumpalo?branch=nightly_alloc)",
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -886,7 +886,7 @@ dependencies = [
 [[package]]
 name = "libeir_syntax_erl"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "bumpalo 3.2.0 (git+https://github.com/bitwalker/bumpalo?branch=nightly_alloc)",
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -911,7 +911,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_datastructures"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "cranelift-entity 0.56.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashbrown 0.7.0 (git+https://github.com/bitwalker/hashbrown.git)",
@@ -920,12 +920,12 @@ dependencies = [
 [[package]]
 name = "libeir_util_dot_graph"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 
 [[package]]
 name = "libeir_util_number"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "num-bigint 0.2.2 (git+https://github.com/hansihe/num-bigint.git)",
  "num-traits 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -934,7 +934,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "scoped_cell 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
@@ -944,7 +944,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse_listing"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "lalrpop 0.17.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "lalrpop-util 0.17.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -957,7 +957,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_pattern_compiler"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 dependencies = [
  "derivative 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2066,7 +2066,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "scoped_cell"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#b2f754dce471ae7f95bb981f67ac3ef96ebd3f1d"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#c3ca08a8613c119fcb567a6aa98df467eb812292"
 
 [[package]]
 name = "scopeguard"

@@ -7,8 +7,6 @@ task:
 x86_64_task_template: &x86_64_TASK_TEMPLATE
   build_script: cargo build
   # `*_test_script`s in order of crate dependency graph
-  liblumen_arena_test_script: |
-    cargo test -p liblumen_arena
   liblumen_core_test_script: |
     cargo test -p liblumen_core
   lumen_runtime_test_script: |

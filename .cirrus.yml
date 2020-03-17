@@ -11,8 +11,6 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
     cargo test -p liblumen_arena
   liblumen_core_test_script: |
     cargo test -p liblumen_core
-  liblumen_alloc_test_script: |
-    cargo test -p liblumen_alloc
   lumen_runtime_test_script: |
     cargo test -p lumen_runtime
   liblumen_eir_interpreter_test_script: |
@@ -116,11 +114,6 @@ task:
     cargo test -p liblumen_core
     if ($LastExitCode -ne 0) {
       throw "cargo test exited $$LastExitCode"
-    }
-  liblumen_alloc_test_script: |
-    cargo test -p liblumen_alloc
-    if ($LastExitCode -ne 0) {
-       throw "cargo test exited $$LastExitCode"
     }
   lumen_runtime_test_script: |
     cargo test -p lumen_runtime

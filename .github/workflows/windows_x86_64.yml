@@ -1,0 +1,20 @@
+name: Windows x86_64
+
+on: [push, pull_request]
+
+jobs:
+  liblumen_alloc:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set Cargo Home
+        run: echo "::set-env CARGO_HOME=$USERPROFILE\.cargo"
+      - name: Install Rustup
+        run: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly-2020-03-10-x86_64-pc-windows-msvc"
+      - name: Add rustup cargo to PATH
+        run: echo "::add-path::${HOME}/.cargo/bin"
+      - name: Build
+        run: cargo test --package liblumen_alloc
+      - name: Test
+        run: cargo test --package liblumen_alloc

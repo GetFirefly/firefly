@@ -1,0 +1,18 @@
+name: macOS x86_64
+
+on: [push, pull_request]
+
+jobs:
+  liblumen_alloc:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rustup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
+      - name: Add rustup cargo to PATH
+        run: echo "::add-path::${HOME}/.cargo/bin"
+      - name: Build
+        run: cargo test --package liblumen_alloc
+      - name: Test
+        run: cargo test --package liblumen_alloc

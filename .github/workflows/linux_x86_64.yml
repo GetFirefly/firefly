@@ -1,0 +1,15 @@
+name: Linux x86_64
+
+on: [push, pull_request]
+
+jobs:
+  liblumen_alloc:
+    runs-on: ubuntu-latest
+    container: kronicdeth/lumen-development@sha256:a91994aa0332b7f0d94c7342cc4edde50295f73ad2b7b9db3c7da8524f340b12
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo test --package liblumen_alloc
+      - name: Test
+        run: cargo test --package liblumen_alloc

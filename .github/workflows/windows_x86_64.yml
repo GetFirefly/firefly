@@ -13,6 +13,15 @@ jobs:
         with:
           toolchain: nightly-2020-03-10
           override: true
+      - name: Install LLVM
+        run: |
+          mkdir -p ~/.local/share/llvm
+          pushd ~/.local/share/llvm
+          wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-windows.tar.gz
+          tar xvfz clang+llvm-10.0.0-x86_64-windows.tar.gz
+          mv clang+llvm-10.0.0-x86_64-windows lumen
+          popd
+          echo "::set-env name=LLVM_SYS_90_PREFIX::$HOME/.local/share/llvm/lumen"
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:

@@ -8,10 +8,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Install Rustup
-        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
-      - name: Add rustup cargo to PATH
-        run: echo "::add-path::${HOME}/.cargo/bin"
+      - name: Install nightly-2020-03-10
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2020-03-10
+          override: true
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:

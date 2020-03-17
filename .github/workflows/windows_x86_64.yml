@@ -14,7 +14,22 @@ jobs:
         run: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly-2020-03-10-x86_64-pc-windows-msvc"
       - name: Add rustup cargo to PATH
         run: echo "::add-path::${HOME}/.cargo/bin"
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
-        run: cargo test --package liblumen_alloc
+        run: cargo test --package liblumen_alloc --no-run
       - name: Test
         run: cargo test --package liblumen_alloc

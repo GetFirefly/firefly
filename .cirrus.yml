@@ -11,14 +11,26 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
     cargo test -p liblumen_arena
   liblumen_core_test_script: |
     cargo test -p liblumen_core
-  liblumen_alloc_test_script: |
-    cargo test -p liblumen_alloc
   lumen_runtime_test_script: |
     cargo test -p lumen_runtime
   liblumen_eir_interpreter_test_script: |
     cargo test -p liblumen_eir_interpreter
   examples_spawn_chain_test_script: |
     cargo test -p spawn-chain
+
+task:
+  name: Linux x86_64 liblumen_alloc
+  skip: "!changesInclude('liblumen_alloc_macros/**', 'liblumen_alloc/**', 'liblumen_arena/**', 'liblumen_core/**', 'liblumen_core_macros/**', 'liblumen_term/**')"
+  container:
+    image: kronicdeth/lumen-development@sha256:a91994aa0332b7f0d94c7342cc4edde50295f73ad2b7b9db3c7da8524f340b12
+  linux_x86_64_liblumne_alloc_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  build_script: |
+    cargo test --package liblumen_alloc --no-run
+  test_script: |
+    cargo test --package liblumen_alloc
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
   name: Linux x86_64 libraries
@@ -45,6 +57,30 @@ task:
     make build
   test_lumen_script: |
     cargo test -p lumen
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+task:
+  name: macOS x86_64 liblumen_alloc
+  skip: "!changesInclude('liblumen_alloc_macros/**', 'liblumen_alloc/**', 'liblumen_arena/**', 'liblumen_core/**', 'liblumen_core_macros/**', 'liblumen_term/**')"
+  osx_instance:
+    image: catalina-base
+  env:
+    LLVM_SYS_90_PREFIX: ${HOME}/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0
+    PATH: ${HOME}/.cargo/bin:${PATH}
+  macos_x86_64_libraries_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  install_llvm_script: |
+    pushd $HOME
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    popd
+  install_rustup_script: |
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly-2020-03-10
+  build_script: |
+    cargo test --package liblumen_alloc --no-run
+  test_script: |
+    cargo test --package liblumen_alloc
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:

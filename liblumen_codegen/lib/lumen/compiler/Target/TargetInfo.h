@@ -45,10 +45,8 @@ struct TargetInfoImpl {
         floatTy(other.floatTy),
         binaryTy(other.binaryTy),
         consTy(other.consTy),
+        opaqueFnTy(other.opaqueFnTy),
         uniqueTy(other.uniqueTy),
-        defBodyTy(other.defBodyTy),
-        anonBodyTy(other.anonBodyTy),
-        exportBodyTy(other.exportBodyTy),
         defTy(other.defTy),
         nil(other.nil),
         none(other.none),
@@ -67,7 +65,8 @@ struct TargetInfoImpl {
   LLVMType bigIntTy, floatTy;
   LLVMType binaryTy;
   LLVMType consTy;
-  LLVMType uniqueTy, defBodyTy, anonBodyTy, exportBodyTy, defTy;
+  LLVMType opaqueFnTy;
+  LLVMType uniqueTy, defTy;
 
   llvm::APInt nil;
   llvm::APInt none;
@@ -102,18 +101,10 @@ class TargetInfo {
   mlir::LLVM::LLVMType getI1Type();
   mlir::LLVM::LLVMType getI8Type();
   mlir::LLVM::LLVMType getI32Type();
+  mlir::LLVM::LLVMType getOpaqueFnType();
 
   mlir::LLVM::LLVMType getClosureUniqueType() { return impl->uniqueTy; }
   mlir::LLVM::LLVMType getClosureDefinitionType() { return impl->defTy; }
-  mlir::LLVM::LLVMType getClosureDefinitionBodyType() {
-    return impl->defBodyTy;
-  }
-  mlir::LLVM::LLVMType getClosureDefinitionAnonBodyType() {
-    return impl->anonBodyTy;
-  }
-  mlir::LLVM::LLVMType getClosureDefinitionExportBodyType() {
-    return impl->exportBodyTy;
-  }
 
   llvm::APInt encodeImmediate(uint32_t type, uint64_t value);
   llvm::APInt encodeHeader(uint32_t type, uint64_t arity);

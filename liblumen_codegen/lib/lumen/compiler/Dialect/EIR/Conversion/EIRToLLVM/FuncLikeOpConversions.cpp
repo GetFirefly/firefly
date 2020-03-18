@@ -3,6 +3,8 @@
 namespace lumen {
 namespace eir {
 
+const unsigned CLOSURE_ENV_INDEX = 5;
+
 // The purpose of this conversion is to build a function that contains
 // all of the prologue setup our Erlang functions need (in cases where
 // this isn't a declaration). Specifically:
@@ -90,6 +92,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     LLVMType termTy = ctx.getUsizeType();
     LLVMType termPtrTy = termTy.getPointerTo();
     LLVMType i8Ty = ctx.getI8Type();
+    LLVMType i8PtrTy = i8Ty.getPointerTo();
     LLVMType i32Ty = ctx.getI32Type();
     LLVMType i32PtrTy = i32Ty.getPointerTo();
     auto indexTy = rewriter.getIndexType();
@@ -102,17 +105,16 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     auto target = ctx.getOrInsertFunction(callee.getValue(), termTy, argTypes);
 
     auto envLen = op.envLen();
-    LLVMType opaqueFnTy = LLVMType::getVoidTy(ctx.dialect).getPointerTo();
+    LLVMType opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
     LLVMType closureTy = ctx.targetInfo.makeClosureType(ctx.dialect, envLen);
     LLVMType uniqueTy = ctx.targetInfo.getClosureUniqueType();
     LLVMType uniquePtrTy = uniqueTy.getPointerTo();
     LLVMType defTy = ctx.targetInfo.getClosureDefinitionType();
-    LLVMType defBodyTy = ctx.targetInfo.getClosureDefinitionBodyType();
-    LLVMType anonDefTy = ctx.targetInfo.getClosureDefinitionAnonBodyType();
 
     // Allocate closure header block
     auto boxedClosureTy = BoxType::get(rewriter.getType<ClosureType>());
-    auto mallocOp = rewriter.create<MallocOp>(loc, boxedClosureTy);
+    Value arityConst = llvm_constant(termTy, ctx.getIntegerAttr(arity));
+    auto mallocOp = rewriter.create<MallocOp>(loc, boxedClosureTy, arityConst);
     auto valRef = mallocOp.getResult();
 
     // Calculate pointers to each field in the header and write the
@@ -142,15 +144,15 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     // Definition - type
     Value defTypeIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
     ArrayRef<Value> defTypeIndices({zero, defIdx, defTypeIdx});
-    Value definitionTypePtrGep = llvm_gep(closureTy, valRef, defTypeIndices);
-    Value anonTypeConst = llvm_constant(i8Ty, ctx.getIntegerAttr(1));
+    Value definitionTypePtrGep = llvm_gep(i8PtrTy, valRef, defTypeIndices);
+    Value anonTypeConst = llvm_constant(i8Ty, ctx.getI8Attr(1));
     llvm_store(anonTypeConst, definitionTypePtrGep);
 
     // Definition - index
     Value defIndexIdx = llvm_constant(i32Ty, ctx.getI32Attr(1));
     ArrayRef<Value> defIndexIndices({zero, defIdx, defIndexIdx});
-    Value definitionIndexGep = llvm_gep(i32PtrTy, valRef, defIndexIndices);
-    Value indexConst = llvm_constant(i32Ty, ctx.getI32Attr(index));
+    Value definitionIndexGep = llvm_gep(termPtrTy, valRef, defIndexIndices);
+    Value indexConst = llvm_constant(termTy, ctx.getIntegerAttr(index));
     llvm_store(indexConst, definitionIndexGep);
 
     // Definition - unique
@@ -172,23 +174,23 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     // arity: u8,
     Value arityIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
     ArrayRef<Value> arityIndices({zero, arityIdx});
-    Value arityPtrGep = llvm_gep(i8Ty.getPointerTo(), valRef, arityIndices);
-    Value arityConst = llvm_constant(i8Ty, ctx.getIntegerAttr(arity));
-    llvm_store(arityConst, arityPtrGep);
+    Value arityPtrGep = llvm_gep(i8PtrTy, valRef, arityIndices);
+    llvm_store(llvm_trunc(i8Ty, arityConst), arityPtrGep);
 
     // Code
     // code: Option<*const ()>,
     Value codeIdx = llvm_constant(i32Ty, ctx.getI32Attr(4));
     ArrayRef<Value> codeIndices({zero, codeIdx});
-    Value codePtrGep = llvm_gep(opaqueFnTy, valRef, codeIndices);
+    LLVMType opaqueFnPtrTy = opaqueFnTy.getPointerTo();
+    Value codePtrGep =
+        llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef, codeIndices);
     Value codePtr =
-        llvm_constant(opaqueFnTy, rewriter.getSymbolRefAttr(target));
-    // Value codePtr = llvm_bitcast(opaqueFnTy, target);
-    llvm_store(codePtr, codePtrGep);
+        llvm_constant(opaqueFnPtrTy, rewriter.getSymbolRefAttr(target));
+    llvm_store(llvm_bitcast(opaqueFnPtrTy, codePtr), codePtrGep);
 
     auto opOperands = adaptor.operands();
     if (opOperands.size() > 0) {
-      Value envIdx = llvm_constant(i32Ty, ctx.getI32Attr(5));
+      Value envIdx = llvm_constant(i32Ty, ctx.getI32Attr(CLOSURE_ENV_INDEX));
       // Env
       // env: [Term],
       unsigned opIndex = 0;
@@ -208,12 +210,40 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
   }
 };
 
+struct UnpackEnvOpConversion : public EIROpConversion<UnpackEnvOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult matchAndRewrite(
+      UnpackEnvOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    UnpackEnvOpOperandAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
+
+    LLVMType termTy = ctx.getUsizeType();
+    LLVMType termPtrTy = termTy.getPointerTo();
+    LLVMType i32Ty = ctx.getI32Type();
+
+    Value env = adaptor.env();
+
+    Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
+    Value fieldIndex = llvm_constant(i32Ty, ctx.getI32Attr(CLOSURE_ENV_INDEX));
+    Value envIndex = llvm_constant(i32Ty, ctx.getI32Attr(op.envIndex()));
+
+    ArrayRef<Value> indices({zero, fieldIndex, envIndex});
+    Value ptr = llvm_gep(termPtrTy, env, indices);
+    Value unpacked = llvm_load(ptr);
+
+    rewriter.replaceOp(op, unpacked);
+    return matchSuccess();
+  }
+};
+
 void populateFuncLikeOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,
                                           LLVMTypeConverter &converter,
                                           TargetInfo &targetInfo) {
-  patterns.insert<FuncOpConversion, ClosureOpConversion>(context, converter,
-                                                         targetInfo);
+  patterns.insert<FuncOpConversion, ClosureOpConversion, UnpackEnvOpConversion>(
+      context, converter, targetInfo);
 }
 
 }  // namespace eir

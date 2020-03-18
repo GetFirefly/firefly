@@ -10,6 +10,7 @@ class BranchOpConversion;
 class CondBranchOpConversion;
 // class CallIndirectOpConversion;
 class CallOpConversion;
+class CallClosureOpConversion;
 class ReturnOpConversion;
 class ThrowOpConversion;
 class UnreachableOpConversion;

@@ -66,14 +66,14 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         }
 
         let root_block = f.block_entry();
-        for (entry_block, data) in analysis.functions.iter() {
+        for (index, (entry_block, data)) in analysis.functions.iter().enumerate() {
             let entry_block = *entry_block;
             let func = if entry_block == root_block {
                 self.with_scope(ident.clone(), loc, f, &analysis, data, options)
                     .and_then(|scope| scope.build())?
             } else {
                 let arity = f.block_args(entry_block).len() - 2;
-                let fun = Ident::from_str(&format!("{}-fun-{}", ident.name, arity));
+                let fun = Ident::from_str(&format!("{}-fun-{}-{}", ident.name, index, arity));
                 let fi = FunctionIdent {
                     module: ident.module.clone(),
                     name: fun,
@@ -111,11 +111,25 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             .thr
             .expect("expected function to have escape continuation");
 
+        let is_closure = analysis.live.live_at(data.entry).size() > 0;
+
         // Construct signature
         let mut signature = Signature::new(CallConv::Fast);
         let entry_args = eir.block_args(data.entry);
         {
-            signature.params.reserve(entry_args.len() - 2);
+            if is_closure {
+                // Remove the return/escape continuation parameters,
+                // and add one parameter, the closure env
+                signature.params.reserve(entry_args.len() - 2 + 1);
+                signature.params.push(Param {
+                    ty: Type::Box,
+                    span: Span::default(),
+                    is_implicit: false,
+                });
+            } else {
+                // Remove the return/escape continuation parameters
+                signature.params.reserve(entry_args.len() - 2);
+            }
             for arg in entry_args.iter().skip(2).copied() {
                 signature
                     .params
@@ -125,13 +139,17 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         }
 
         // Construct the parameter value metadata
-        let entry_params = entry_args
-            .iter()
-            .skip(2)
-            .copied()
-            .enumerate()
-            .map(|(i, v)| (signature.params[i].clone(), Some(v)))
-            .collect::<Vec<_>>();
+        let mut entry_params = Vec::with_capacity(signature.params.len());
+        let entry_arg_offset = if is_closure {
+            entry_params.push((signature.params[0].clone(), None));
+            1
+        } else {
+            0
+        };
+        for (i, v) in entry_args.iter().skip(2).copied().enumerate() {
+            let offs = entry_arg_offset + i;
+            entry_params.push((signature.params[offs].clone(), Some(v)));
+        }
 
         // Create function
         let mut func = Function::with_name_signature(name, signature);
@@ -157,6 +175,7 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             pos: Position::at(init_block),
             ret,
             esc,
+            is_closure,
         })
     }
 }
@@ -179,6 +198,7 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     pos: Position,
     ret: Value,
     esc: Value,
+    is_closure: bool,
 }
 
 // Miscellaneous helper functions
@@ -268,8 +288,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 let containing_ident = self.eir.ident();
                 let arity = self.eir.block_args(entry_block).len() - 2;
                 let index = i as u32;
-                let fun =
-                    Ident::from_str(&format!("{}-{}-{}", containing_ident.name, index, arity));
+                let fun = Ident::from_str(&format!(
+                    "{}-fun-{}-{}",
+                    containing_ident.name, index, arity
+                ));
                 let ident = FunctionIdent {
                     module: containing_ident.module.clone(),
                     name: fun,
@@ -458,7 +480,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Panics if the block doesn't exist
     #[inline]
     pub fn get_block(&self, ir_block: ir::Block) -> Block {
-        self.func.block_mapping[ir_block]
+        self.func
+            .block_mapping
+            .get(ir_block)
+            .copied()
+            .unwrap_or_else(|| panic!("eir block has no corresponding mlir block{:?}", ir_block))
     }
 
     /// Registers an EIR value with the MLIR value that corresponds to it
@@ -512,10 +538,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             live_at.size()
         );
         if live_at.size() > 0 {
-            todo!("closure env unpacking");
+            self.unpack_closure_env(entry_block, &live_at)?;
         }
 
-        let root_block = self.eir.block_entry();
+        let root_block = self.data.entry;
+        debug_in!(self, "root block = {:?}", root_block);
+        debug_in!(self, "entry block = {:?}", entry_block);
 
         // Make sure all blocks are created first
         let mut blocks = Vec::with_capacity(self.data.scope.len());
@@ -534,6 +562,54 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         }
 
         Ok(self.mlir)
+    }
+
+    fn unpack_closure_env(
+        &mut self,
+        entry: Block,
+        live_at: &BoundEntitySet<'f, ir::Value>,
+    ) -> Result<()> {
+        debug_in!(self, "unpacking closure environment: {:?}", live_at);
+        for live in live_at.iter() {
+            debug_in!(
+                self,
+                "env value origin: {:?} <= {:?}",
+                live,
+                self.eir.value_kind(live)
+            );
+            debug_assert_eq!(
+                None,
+                self.find_value(live),
+                "expected env value to be unmapped at entry block"
+            );
+        }
+
+        let env_value = self
+            .block_args(entry)
+            .get(0)
+            .copied()
+            .expect("expected closure env argument from block");
+        let env = self.value_ref(env_value);
+        let num_values = live_at.size();
+        let mut values: Vec<ValueRef> = Vec::with_capacity(num_values);
+        unsafe {
+            let result = MLIRBuildUnpackEnv(
+                self.builder,
+                env,
+                values.as_mut_ptr(),
+                num_values as libc::c_uint,
+            );
+            if !result {
+                return Err(anyhow!("failed to unpack closure environment"));
+            }
+            values.set_len(num_values);
+        }
+        for (i, (ir_value, value_ref)) in live_at.iter().zip(values.iter()).enumerate() {
+            debug_in!(self, "env value mapped: {:?} => {:?}", ir_value, value_ref);
+            self.new_value(Some(ir_value), *value_ref, ValueDef::Env(i));
+        }
+
+        Ok(())
     }
 
     // Prepares an MLIR block for lowering from an EIR block
@@ -616,11 +692,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         };
         assert!(!block_ref.is_null());
 
-        debug_in!(self, "created block {:?}", block_ref);
+        debug_in!(self, "created block ref {:?}", block_ref);
 
         let block = self
             .func
             .new_block_with_params(ir_block, block_ref, param_info);
+
+        debug_in!(self, "created block {:?}", block);
 
         self.position_at_end(block);
 
@@ -705,7 +783,14 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             // Call a function
             ir::OpKind::Call(ir::CallKind::Function) => {
                 debug_in!(self, "block contains call operation");
-                debug_in!(self, "reads = {:?}", reads);
+                debug_in!(
+                    self,
+                    "reads = {:?}",
+                    reads
+                        .iter()
+                        .map(|r| (r, self.eir.value_kind(*r)))
+                        .collect::<Vec<_>>()
+                );
                 let ir_callee = reads[0];
                 let ir_ok = reads[1];
                 let ir_err = reads[2];
@@ -723,6 +808,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     CallSuccess::Return
                 } else {
                     if let Some(ok_ir_block) = self.eir.value_block(ir_ok) {
+                        debug_in!(self, "ok continues to {:?}", ok_ir_block);
                         let ok_block = self.get_block(ok_ir_block);
                         let ok_args = self.build_target_block_args(ok_block, &reads[3..]);
                         CallSuccess::Branch(Branch {
@@ -742,6 +828,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     CallError::Throw
                 } else {
                     if let Some(err_ir_block) = self.eir.value_block(ir_err) {
+                        debug_in!(self, "exception continues to {:?}", err_ir_block);
                         let err_block = self.get_block(err_ir_block);
                         CallError::Branch(Branch {
                             block: err_block,

@@ -73,6 +73,8 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   impl->i1Ty = LLVMType::getInt1Ty(&dialect);
   impl->i8Ty = int8Ty;
   impl->i32Ty = int32Ty;
+  impl->opaqueFnTy =
+      LLVMType::getFunctionTy(LLVMType::getVoidTy(&dialect), false);
 
   // BigInt
   impl->bigIntTy = LLVMType::createStructTy(
@@ -110,18 +112,10 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   // Closure types
   // [i8 x 16]
   impl->uniqueTy = LLVMType::getArrayTy(int8Ty, 16);
-  // [i8 x <sizeof(DefinitionBody)>]
-  impl->defBodyTy = LLVMType::getArrayTy(int8Ty, sizeof(ClosureDefinitionBody));
-  // struct { i8 tag, i32 index, [i8 x 16] unique, i32 oldUnique }
-  impl->anonBodyTy = LLVMType::createStructTy(
-      &dialect, ArrayRef<LLVMType>{int32Ty, impl->uniqueTy, int32Ty},
-      StringRef("closure.export"));
-  // struct { i8 tag, usize functionAtom }
-  impl->exportBodyTy = LLVMType::createStructTy(
-      &dialect, ArrayRef<LLVMType>(intNTy), StringRef("closure.export"));
-  // struct { i8 tag, definition body }
+  // struct { i8 tag, usize index_or_function_atom, [i8 x 16] unique, i32
+  // oldUnique }
   impl->defTy = LLVMType::createStructTy(
-      &dialect, ArrayRef<LLVMType>{int8Ty, impl->defBodyTy},
+      &dialect, ArrayRef<LLVMType>{int8Ty, intNTy, impl->uniqueTy, int32Ty},
       StringRef("closure.definition"));
 
   // Tags/boxes
@@ -165,6 +159,7 @@ LLVMType TargetInfo::getUsizeType() { return impl->pointerWidthIntTy; }
 LLVMType TargetInfo::getI1Type() { return impl->i1Ty; }
 LLVMType TargetInfo::getI8Type() { return impl->i8Ty; }
 LLVMType TargetInfo::getI32Type() { return impl->i32Ty; }
+LLVMType TargetInfo::getOpaqueFnType() { return impl->opaqueFnTy; }
 
 /*
 #[repr(C)]
@@ -182,7 +177,8 @@ LLVMType TargetInfo::makeClosureType(LLVMDialect *dialect, unsigned size) {
   auto intNTy = impl->pointerWidthIntTy;
   auto defTy = getClosureDefinitionType();
   auto int8Ty = getI8Type();
-  auto voidPtrTy = LLVMType::getVoidTy(dialect).getPointerTo();
+  auto voidPtrTy = LLVMType::getFunctionTy(LLVMType::getVoidTy(dialect), false)
+                       .getPointerTo();
   auto envTy = LLVMType::getArrayTy(intNTy, size);
   ArrayRef<LLVMType> fields{intNTy, intNTy, defTy, int8Ty, voidPtrTy, envTy};
 
@@ -193,7 +189,7 @@ LLVMType TargetInfo::makeClosureType(LLVMDialect *dialect, unsigned size) {
   std::snprintf(&buffer[0], buffer.size(), fmt, size);
   StringRef typeName(&buffer[0], buffer.size());
 
-  return LLVMType::createStructTy(dialect, fields, typeName);
+  return LLVMType::createStructTy(dialect, fields, typeName.drop_back());
 }
 
 APInt TargetInfo::encodeImmediate(unsigned type, uint64_t value) {

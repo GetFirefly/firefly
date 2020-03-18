@@ -135,6 +135,34 @@ def eir_ClosureOp : eir_Op<"closure", []> {
   }];
 }
 
+def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
+  let summary = "Unpacks a value from a closure environment";
+
+  let arguments = (ins eir_BoxType:$env, NonNegativeI32Attr:$index);
+  let results = (outs eir_AnyType:$result);
+
+  let assemblyFormat = [{
+    $env `[` $index `]` attr-dict `:` functional-type(operands, results)
+  }];
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value env, unsigned index",
+    [{
+      result.addOperands(env);
+      result.addTypes(builder->getType<TermType>());
+      result.addAttribute("index", builder->getI32IntegerAttr(index));
+    }]>
+  ];
+
+  let verifier = [{ return success(); }];
+
+  let extraClassDeclaration = [{
+    unsigned envIndex() { return getAttrOfType<IntegerAttr>("index").getValue().getLimitedValue(); }
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Comparisons
 //===----------------------------------------------------------------------===//
@@ -705,6 +733,42 @@ def ApplyOp : eir_Op<"apply", []> {
   let assemblyFormat = "`[` $module `:` type($module) `,` $fun `:` type($fun) `]` `(` $operands `)` attr-dict `:` functional-type($operands, $result)";
 }
 
+def CallClosureOp : eir_Op<"call_closure", []> {
+  let summary = "operation to call a closure";
+  let description = [{
+      %3 = eir.call_closure %2(%0, %1) : (f32, f32) -> f32
+  }];
+
+  let arguments = (ins eir_BoxType:$callee, Variadic<eir_AnyType>:$operands);
+  let results = (outs eir_AnyType:$result);
+
+  let builders = [OpBuilder<
+    "Builder *builder, OperationState &result, Value callee,"
+    "ValueRange operands = {}", [{
+      result.operands.push_back(callee);
+      result.addOperands(operands);
+      FunctionType fnTy = callee.getType().cast<FunctionType>();
+      auto closureTy = builder->getType<ClosureType>();
+      result.addTypes(fnTy.getResults());
+  }]>];
+
+  let extraClassDeclaration = [{
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return ++operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+  }];
+
+  let verifier = ?;
+  //let hasCanonicalizer = 1;
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
 
 def eir_ReturnOp : eir_Op<"return", [
     //HasParent<"mlir::FuncOp">,
@@ -971,7 +1035,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
     OpBuilder<"Builder *builder, OperationState &result, BoxType boxType, "
               "IntegerAttr alignment = IntegerAttr()",
     [{
-       result.addAttribute("type", TypeAttr::get(boxType));
+       result.addAttribute("type", TypeAttr::get(boxType.getBoxedType()));
        result.types.push_back(boxType);
        if (alignment)
          result.addAttribute(getAlignmentAttrName(), alignment);
@@ -979,7 +1043,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
     OpBuilder<"Builder *builder, OperationState &result, BoxType boxType, "
               "ArrayRef<Value> operands, IntegerAttr alignment = IntegerAttr()",
     [{
-       result.addAttribute("type", TypeAttr::get(boxType));
+       result.addAttribute("type", TypeAttr::get(boxType.getBoxedType()));
        result.types.push_back(boxType);
        if (alignment)
          result.addAttribute(getAlignmentAttrName(), alignment);
@@ -990,8 +1054,8 @@ def eir_MallocOp : eir_Op<"malloc"> {
   let extraClassDeclaration = [{
     static StringRef getAlignmentAttrName() { return "alignment"; }
 
-    BoxType getAllocType() {
-        return getOperation()->getAttrOfType<TypeAttr>("type").getValue().cast<BoxType>();
+    OpaqueTermType getAllocType() {
+        return getOperation()->getAttrOfType<TypeAttr>("type").getValue().cast<OpaqueTermType>();
     }
   }];
 

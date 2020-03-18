@@ -58,6 +58,13 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           rewriter.replaceOp(op, in);
           return matchSuccess();
         }
+        if (ft.isBox() && tt.isBox()) {
+          auto tbt = ctx.typeConverter.convertType(tt.cast<BoxType>())
+                         .cast<LLVMType>();
+          Value cast = llvm_bitcast(tbt, in);
+          rewriter.replaceOp(op, cast);
+          return matchSuccess();
+        }
         llvm::outs() << "invalid opaque term cast: \n";
         llvm::outs() << "to: " << toTy << "\n";
         llvm::outs() << "from: " << fromTy << "\n";
@@ -322,7 +329,7 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
       } else if (pointeeTy.isa<TupleType>()) {
         auto innerTy =
             ctx.typeConverter.convertType(pointeeTy).cast<LLVMType>();
-        pointeeCast = ctx.decodeBox(innerTy.getPointerTo(), base);
+        pointeeCast = ctx.decodeBox(innerTy, base);
       } else {
         op.emitError("invalid pointee value: expected cons or tuple");
         return matchFailure();

@@ -273,6 +273,27 @@ Value ModuleBuilder::build_closure(Closure *closure) {
   return op.getResult(0);
 }
 
+extern "C" bool MLIRBuildUnpackEnv(MLIRModuleBuilderRef b, MLIRValueRef ev,
+                                   MLIRValueRef *values, unsigned numValues) {
+  assert(numValues > 0 && "expected env size of 1 or more");
+  ModuleBuilder *builder = unwrap(b);
+  Value envBox = unwrap(ev);
+  auto opBuilder = builder->getBuilder();
+  Value env =
+      opBuilder.create<CastOp>(opBuilder.getUnknownLoc(), envBox,
+                               BoxType::get(opBuilder.getType<ClosureType>()));
+  for (auto i = 0; i < numValues; i++) {
+    values[i] = wrap(builder->build_unpack_op(env, i));
+  }
+  return true;
+}
+
+Value ModuleBuilder::build_unpack_op(Value env, unsigned index) {
+  auto unpack =
+      builder.create<UnpackEnvOp>(builder.getUnknownLoc(), env, index);
+  return unpack.getResult();
+}
+
 //===----------------------------------------------------------------------===//
 // Blocks
 //===----------------------------------------------------------------------===//
@@ -805,8 +826,8 @@ static Value buildIntrinsicCmpEqStrictOp(OpBuilder &builder,
   assert(args.size() == 2 && "expected =:= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
-  auto op = builder.create<CmpEqOp>(builder.getUnknownLoc(), lhs, rhs,
-                                    /*strict=*/true);
+  return builder.create<CmpEqOp>(builder.getUnknownLoc(), lhs, rhs,
+                                 /*strict=*/true);
 }
 
 static Value buildIntrinsicCmpNeqStrictOp(OpBuilder &builder,
@@ -814,8 +835,8 @@ static Value buildIntrinsicCmpNeqStrictOp(OpBuilder &builder,
   assert(args.size() == 2 && "expected =/= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
-  auto op = builder.create<CmpNeqOp>(builder.getUnknownLoc(), lhs, rhs,
-                                     /*strict=*/true);
+  return builder.create<CmpNeqOp>(builder.getUnknownLoc(), lhs, rhs,
+                                  /*strict=*/true);
 }
 
 using BuildIntrinsicFnT = Value (*)(OpBuilder &, ArrayRef<Value>);
@@ -958,6 +979,67 @@ void ModuleBuilder::build_static_call(StringRef target, ArrayRef<Value> args,
     return;
   }
 
+  build_call_landing_pad(result, ok, okArgs, err, errArgs);
+  return;
+}
+
+extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b, MLIRValueRef cls,
+                                     MLIRValueRef *argv, unsigned argc,
+                                     bool isTail, MLIRBlockRef okBlock,
+                                     MLIRValueRef *okArgv, unsigned okArgc,
+                                     MLIRBlockRef errBlock,
+                                     MLIRValueRef *errArgv, unsigned errArgc) {
+  ModuleBuilder *builder = unwrap(b);
+  Value closure = unwrap(cls);
+  Block *ok = unwrap(okBlock);
+  Block *err = unwrap(errBlock);
+  SmallVector<Value, 2> args;
+  unwrapValues(argv, argc, args);
+  SmallVector<Value, 1> okArgs;
+  unwrapValues(okArgv, okArgc, okArgs);
+  SmallVector<Value, 1> errArgs;
+  unwrapValues(errArgv, errArgc, errArgs);
+  builder->build_closure_call(closure, args, isTail, ok, okArgs, err, errArgs);
+}
+
+void ModuleBuilder::build_closure_call(Value cls, ArrayRef<Value> args,
+                                       bool isTail, Block *ok,
+                                       ArrayRef<Value> okArgs, Block *err,
+                                       ArrayRef<Value> errArgs) {
+  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+  // The closure call operation requires the callee to be of the
+  // correct type, so cast to closure type if not already
+  Value closure;
+  if (auto box = cls.getType().dyn_cast_or_null<BoxType>()) {
+    if (box.getBoxedType().isClosure()) {
+      closure = cls;
+    } else {
+      closure = eir_cast(cls, BoxType::get(builder.getType<ClosureType>()));
+    }
+  } else {
+    closure = eir_cast(cls, BoxType::get(builder.getType<ClosureType>()));
+  }
+
+  //  Build call
+  auto termTy = builder.getType<TermType>();
+  auto call = builder.create<CallClosureOp>(builder.getUnknownLoc(), termTy,
+                                            closure, args);
+  Value result = call.getResult();
+
+  // If this is a tail call, we're returning the results directly
+  if (isTail) {
+    builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+    return;
+  }
+
+  build_call_landing_pad(result, ok, okArgs, err, errArgs);
+  return;
+}
+
+void ModuleBuilder::build_call_landing_pad(Value result, Block *ok,
+                                           ArrayRef<Value> okArgs, Block *err,
+                                           ArrayRef<Value> errArgs) {
+  // Build call
   auto currentBlock = builder.getBlock();
   auto currentRegion = currentBlock->getParent();
 
@@ -1042,12 +1124,9 @@ Value ModuleBuilder::build_map(ArrayRef<MapEntry> entries) {
   return op.getResult(0);
 }
 
-extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b,
-                                    MLIRValueRef h,
-                                    MLIRValueRef t,
-                                    MLIRValueRef sz,
-                                    BinarySpecifier *spec,
-                                    MLIRBlockRef okBlock,
+extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b, MLIRValueRef h,
+                                    MLIRValueRef t, MLIRValueRef sz,
+                                    BinarySpecifier *spec, MLIRBlockRef okBlock,
                                     MLIRBlockRef errBlock) {
   ModuleBuilder *builder = unwrap(b);
   Block *ok = unwrap(okBlock);
@@ -1062,11 +1141,8 @@ extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b,
   builder->build_binary_push(head, tail, size, spec, ok, err);
 }
 
-void ModuleBuilder::build_binary_push(Value head,
-                                      Value tail,
-                                      Value size,
-                                      BinarySpecifier *spec,
-                                      Block *ok,
+void ModuleBuilder::build_binary_push(Value head, Value tail, Value size,
+                                      BinarySpecifier *spec, Block *ok,
                                       Block *err) {
   NamedAttributeList attrs;
   auto tag = spec->tag;
@@ -1074,34 +1150,43 @@ void ModuleBuilder::build_binary_push(Value head,
     case BinarySpecifierType::Bytes:
     case BinarySpecifierType::Bits:
       attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
-      attrs.set(builder.getIdentifier("unit"), builder.getI8IntegerAttr(spec->payload.us.unit));
+      attrs.set(builder.getIdentifier("unit"),
+                builder.getI8IntegerAttr(spec->payload.us.unit));
       break;
     case BinarySpecifierType::Utf8:
     case BinarySpecifierType::Utf16:
     case BinarySpecifierType::Utf32:
       attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
-      attrs.set(builder.getIdentifier("endianness"), builder.getI8IntegerAttr(spec->payload.es.endianness));
+      attrs.set(builder.getIdentifier("endianness"),
+                builder.getI8IntegerAttr(spec->payload.es.endianness));
       break;
     case BinarySpecifierType::Integer:
       attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
-      attrs.set(builder.getIdentifier("unit"), builder.getI8IntegerAttr(spec->payload.i.unit));
-      attrs.set(builder.getIdentifier("endianness"), builder.getI8IntegerAttr(spec->payload.i.endianness));
-      attrs.set(builder.getIdentifier("signed"), builder.getBoolAttr(spec->payload.i.isSigned));
+      attrs.set(builder.getIdentifier("unit"),
+                builder.getI8IntegerAttr(spec->payload.i.unit));
+      attrs.set(builder.getIdentifier("endianness"),
+                builder.getI8IntegerAttr(spec->payload.i.endianness));
+      attrs.set(builder.getIdentifier("signed"),
+                builder.getBoolAttr(spec->payload.i.isSigned));
       break;
     case BinarySpecifierType::Float:
       attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
-      attrs.set(builder.getIdentifier("unit"), builder.getI8IntegerAttr(spec->payload.f.unit));
-      attrs.set(builder.getIdentifier("endianness"), builder.getI8IntegerAttr(spec->payload.f.endianness));
+      attrs.set(builder.getIdentifier("unit"),
+                builder.getI8IntegerAttr(spec->payload.f.unit));
+      attrs.set(builder.getIdentifier("endianness"),
+                builder.getI8IntegerAttr(spec->payload.f.endianness));
       break;
     default:
       llvm_unreachable("invalid binary specifier type");
   }
-  auto op = builder.create<BinaryPushOp>(builder.getUnknownLoc(), head, tail, size, attrs);
+  auto op = builder.create<BinaryPushOp>(builder.getUnknownLoc(), head, tail,
+                                         size, attrs);
   auto bin = op.getResult(0);
   auto success = op.getResult(1);
   ArrayRef<Value> okArgs{bin};
   ArrayRef<Value> errArgs{};
-  builder.create<::mlir::CondBranchOp>(builder.getUnknownLoc(), success, ok, okArgs, err, errArgs);
+  builder.create<::mlir::CondBranchOp>(builder.getUnknownLoc(), success, ok,
+                                       okArgs, err, errArgs);
 }
 
 //===----------------------------------------------------------------------===//

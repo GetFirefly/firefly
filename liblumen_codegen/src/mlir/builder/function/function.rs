@@ -244,12 +244,22 @@ impl Function {
     /// Returns the block data for the given block
     #[inline]
     pub fn block_data(&self, block: Block) -> &BlockData {
+        assert!(
+            self.blocks.is_valid(block),
+            "invalid block requested {:?}",
+            block
+        );
         self.blocks.get(block).unwrap()
     }
 
     /// Returns the block data for the given block mutably
     #[inline]
     pub fn block_data_mut(&mut self, block: Block) -> &mut BlockData {
+        assert!(
+            self.blocks.is_valid(block),
+            "invalid block requested {:?}",
+            block
+        );
         self.blocks.get_mut(block).unwrap()
     }
 

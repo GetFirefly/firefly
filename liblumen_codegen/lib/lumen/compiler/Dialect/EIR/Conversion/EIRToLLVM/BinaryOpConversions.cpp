@@ -20,7 +20,8 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
       size = sizeOpt.front();
     }
 
-    auto pushType = static_cast<uint32_t>(op.getAttrOfType<IntegerAttr>("type").getValue().getLimitedValue());
+    auto pushType = static_cast<uint32_t>(
+        op.getAttrOfType<IntegerAttr>("type").getValue().getLimitedValue());
 
     unsigned unit = 1;
     auto endianness = Endianness::Big;
@@ -28,30 +29,42 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
     switch (pushType) {
       case BinarySpecifierType::Bytes:
       case BinarySpecifierType::Bits:
-        unit = static_cast<unsigned>(op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
+        unit = static_cast<unsigned>(
+            op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
         break;
       case BinarySpecifierType::Utf8:
       case BinarySpecifierType::Utf16:
       case BinarySpecifierType::Utf32:
-        endianness = static_cast<Endianness::Type>(op.getAttrOfType<IntegerAttr>("endianness").getValue().getLimitedValue());
+        endianness = static_cast<Endianness::Type>(
+            op.getAttrOfType<IntegerAttr>("endianness")
+                .getValue()
+                .getLimitedValue());
         break;
       case BinarySpecifierType::Integer:
-        unit = static_cast<unsigned>(op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
-        endianness = static_cast<Endianness::Type>(op.getAttrOfType<IntegerAttr>("endianness").getValue().getLimitedValue());
+        unit = static_cast<unsigned>(
+            op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
+        endianness = static_cast<Endianness::Type>(
+            op.getAttrOfType<IntegerAttr>("endianness")
+                .getValue()
+                .getLimitedValue());
         isSigned = op.getAttrOfType<BoolAttr>("signed").getValue();
         break;
       case BinarySpecifierType::Float:
-        unit = static_cast<unsigned>(op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
-        endianness = static_cast<Endianness::Type>(op.getAttrOfType<IntegerAttr>("endianness").getValue().getLimitedValue());
+        unit = static_cast<unsigned>(
+            op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
+        endianness = static_cast<Endianness::Type>(
+            op.getAttrOfType<IntegerAttr>("endianness")
+                .getValue()
+                .getLimitedValue());
         break;
       default:
-        llvm_unreachable("invalid binary specifier type encountered during conversion");
+        llvm_unreachable(
+            "invalid binary specifier type encountered during conversion");
     }
 
     return matchFailure();
   }
 };
-
 
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,

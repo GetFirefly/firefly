@@ -113,7 +113,7 @@ impl Closure {
         A: ?Sized + Heap,
     {
         let definition = Definition::Anonymous {
-            index,
+            index: index as usize,
             unique,
             old_unique,
         };
@@ -188,7 +188,7 @@ impl Closure {
         A: ?Sized + TermAlloc,
     {
         let definition = Definition::Anonymous {
-            index,
+            index: index as usize,
             unique,
             old_unique,
         };
@@ -548,7 +548,7 @@ pub enum Definition {
     /// Anonymous functions declared with `fun` in Erlang or `fn` in Elixir.
     Anonymous {
         /// Each anonymous function within a module has an unique index.
-        index: u32,
+        index: usize,
         /// The 16 bytes MD5 of the significant parts of the Beam file.
         unique: [u8; 16],
         /// The hash value of the parse tree for the fun, but must fit in i32, so not the same as

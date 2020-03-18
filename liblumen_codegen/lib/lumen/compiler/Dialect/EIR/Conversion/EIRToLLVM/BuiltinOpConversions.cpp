@@ -119,17 +119,16 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
     MallocOpOperandAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
-    BoxType boxTy = op.getAllocType();
-    OpaqueTermType innerTy = boxTy.getBoxedType();
-    auto ty = ctx.typeConverter.convertType(boxTy).cast<LLVMType>();
+    OpaqueTermType innerTy = op.getAllocType();
+    auto ty = ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
 
     if (innerTy.hasDynamicExtent()) {
-      Value allocPtr = ctx.buildMalloc(ty, innerTy.getForeignKind(),
-                                       adaptor.arity().front());
+      Value allocPtr =
+          ctx.buildMalloc(ty, innerTy.getKind(), adaptor.arity().front());
       rewriter.replaceOp(op, allocPtr);
     } else {
       Value zero = llvm_constant(ctx.getUsizeType(), ctx.getIntegerAttr(0));
-      Value allocPtr = ctx.buildMalloc(ty, innerTy.getForeignKind(), zero);
+      Value allocPtr = ctx.buildMalloc(ty, innerTy.getKind(), zero);
       rewriter.replaceOp(op, allocPtr);
     }
 

@@ -95,6 +95,58 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
   }
 };
 
+struct CallClosureOpConversion : public EIROpConversion<CallClosureOp> {
+  using EIROpConversion::EIROpConversion;
+
+  PatternMatchResult matchAndRewrite(
+      CallClosureOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    CallClosureOpOperandAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
+
+    auto opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
+    auto closureTy = ctx.targetInfo.makeClosureType(ctx.dialect, 1);
+    auto termTy = ctx.getUsizeType();
+    auto i32Ty = ctx.getI32Type();
+
+    // Always increment reduction count when performing a call
+    rewriter.create<IncrementReductionsOp>(op.getLoc());
+
+    // Extract closure pointer from box
+    auto boxedClosure = adaptor.callee();
+    auto closure = ctx.decodeBox(closureTy, boxedClosure);
+
+    // Extract code/function pointer from closure header
+    Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
+    Value codeIdx = llvm_constant(i32Ty, ctx.getI32Attr(4));
+    ArrayRef<Value> codePtrIndices({zero, codeIdx});
+    LLVMType opaqueFnTyPtr = opaqueFnTy.getPointerTo();
+    Value codePtr =
+        llvm_gep(opaqueFnTyPtr.getPointerTo(), closure, codePtrIndices);
+
+    // Build call op operands
+    SmallVector<LLVMType, 2> argTypes;
+    argTypes.push_back(closureTy.getPointerTo());
+    for (auto operand : adaptor.operands()) {
+      argTypes.push_back(operand.getType().cast<LLVMType>());
+    }
+    auto fnTy = LLVMType::getFunctionTy(termTy, argTypes, false);
+    Value fnPtr = llvm_bitcast(fnTy.getPointerTo(), llvm_load(codePtr));
+    SmallVector<Value, 2> args;
+    args.push_back(fnPtr);
+    args.push_back(closure);
+    for (auto operand : adaptor.operands()) {
+      args.push_back(operand);
+    }
+    auto callOp =
+        rewriter.create<LLVM::CallOp>(op.getLoc(), termTy, args, op.getAttrs());
+    callOp.setAttr("tail", rewriter.getUnitAttr());
+    Value result = callOp.getResult(0);
+    rewriter.replaceOp(op, result);
+    return matchSuccess();
+  }
+};
+
 struct ReturnOpConversion : public EIROpConversion<ReturnOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -208,12 +260,12 @@ void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
                                              MLIRContext *context,
                                              LLVMTypeConverter &converter,
                                              TargetInfo &targetInfo) {
-  patterns
-      .insert</*ApplyOpConversion,*/ BranchOpConversion, CondBranchOpConversion,
-              /*CallIndirectOpConversion,*/ CallOpConversion,
-              ReturnOpConversion, ThrowOpConversion, UnreachableOpConversion,
-              YieldOpConversion, YieldCheckOpConversion>(context, converter,
-                                                         targetInfo);
+  patterns.insert<
+      /*ApplyOpConversion,*/ BranchOpConversion, CondBranchOpConversion,
+      /*CallIndirectOpConversion,*/ CallOpConversion, CallClosureOpConversion,
+      ReturnOpConversion, ThrowOpConversion, UnreachableOpConversion,
+      YieldOpConversion, YieldCheckOpConversion>(context, converter,
+                                                 targetInfo);
 }
 
 }  // namespace eir

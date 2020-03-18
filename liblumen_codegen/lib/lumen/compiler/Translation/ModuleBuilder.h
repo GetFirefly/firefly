@@ -173,6 +173,7 @@ class ModuleBuilder {
   void add_function(FuncOp f);
 
   Value build_closure(Closure *closure);
+  Value build_unpack_op(Value env, unsigned index);
 
   //===----------------------------------------------------------------------===//
   // Blocks
@@ -201,6 +202,13 @@ class ModuleBuilder {
                          Block *ok, ArrayRef<Value> okArgs, Block *err,
                          ArrayRef<Value> errArgs);
 
+  void build_closure_call(Value closure, ArrayRef<Value> args, bool isTail,
+                          Block *ok, ArrayRef<Value> okArgs, Block *err,
+                          ArrayRef<Value> errArgs);
+
+  void build_call_landing_pad(Value result, Block *ok, ArrayRef<Value> okArgs,
+                              Block *err, ArrayRef<Value> errArgs);
+
   //===----------------------------------------------------------------------===//
   // Operations
   //===----------------------------------------------------------------------===//
@@ -227,7 +235,8 @@ class ModuleBuilder {
   Value build_cons(Value head, Value tail);
   Value build_tuple(ArrayRef<Value> elements);
   Value build_map(ArrayRef<MapEntry> entries);
-  void build_binary_push(Value head, Value tail, Value size, BinarySpecifier *spec, Block *ok, Block *err);
+  void build_binary_push(Value head, Value tail, Value size,
+                         BinarySpecifier *spec, Block *ok, Block *err);
 
   void build_trace_capture_op(Block *dest,
                               ArrayRef<MLIRValueRef> destArgs = {});

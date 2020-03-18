@@ -52,6 +52,10 @@ Optional<Type> convertType(Type type, LLVMTypeConverter &converter,
     }
   }
 
+  if (type.isa<eir::ClosureType>()) {
+    return targetInfo.makeClosureType(converter.getDialect(), 1);
+  }
+
   llvm::outs() << "\ntype: ";
   type.dump();
   llvm::outs() << "\n";
@@ -123,7 +127,7 @@ Value OpConversionContext::buildMalloc(ModuleOp mod, LLVMType ty,
   StringRef symbolName("__lumen_builtin_malloc");
   auto callee = getOrInsertFunction(mod, symbolName, i8PtrTy, {i32Ty, usizeTy});
   auto allocTyConst =
-      llvm_constant(i32Ty, getI32Attr(allocTy - mlir::Type::FIRST_EIR_TYPE));
+      llvm_constant(i32Ty, getU32Attr(allocTy - mlir::Type::FIRST_EIR_TYPE));
   auto calleeSymbol = FlatSymbolRefAttr::get(symbolName, callee->getContext());
   ArrayRef<Value> args{allocTyConst, arity};
   Operation *call = std_call(calleeSymbol, ArrayRef<Type>{i8PtrTy}, args);
@@ -187,12 +191,12 @@ Value OpConversionContext::decodeBox(LLVMType innerTy, Value box) const {
   auto rawTag = targetInfo.boxTag();
   // No unboxing required, pointers are pointers
   if (rawTag == 0) {
-    return llvm_inttoptr(innerTy, box);
+    return llvm_inttoptr(innerTy.getPointerTo(), box);
   } else {
     Value tag = llvm_constant(termTy, getIntegerAttr(rawTag));
     Value neg1 = llvm_constant(termTy, getIntegerAttr(-1));
     Value untagged = llvm_and(box, llvm_xor(tag, neg1));
-    return llvm_inttoptr(innerTy, untagged);
+    return llvm_inttoptr(innerTy.getPointerTo(), untagged);
   }
 }
 

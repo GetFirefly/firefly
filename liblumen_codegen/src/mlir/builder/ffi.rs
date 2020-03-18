@@ -310,6 +310,13 @@ extern "C" {
 
     pub fn MLIRBuildClosure(builder: ModuleBuilderRef, closure: *const Closure) -> ValueRef;
 
+    pub fn MLIRBuildUnpackEnv(
+        builder: ModuleBuilderRef,
+        env: ValueRef,
+        values: *mut ValueRef,
+        num_values: libc::c_uint,
+    ) -> bool;
+
     //---------------
     // Blocks
     //---------------
@@ -359,6 +366,20 @@ extern "C" {
     pub fn MLIRBuildStaticCall(
         builder: ModuleBuilderRef,
         name: *const libc::c_char,
+        argv: *const ValueRef,
+        argc: libc::c_uint,
+        is_tail: bool,
+        ok_block: BlockRef,
+        ok_argv: *const ValueRef,
+        ok_argc: libc::c_uint,
+        err_block: BlockRef,
+        err_argv: *const ValueRef,
+        err_argc: libc::c_uint,
+    );
+
+    pub fn MLIRBuildClosureCall(
+        builder: ModuleBuilderRef,
+        closure: ValueRef,
         argv: *const ValueRef,
         argc: libc::c_uint,
         is_tail: bool,

@@ -96,6 +96,8 @@ class OpaqueTermType : public Type {
 
   bool isBinary() const { return isBinary(getImplKind()); }
 
+  bool isClosure() const { return isClosure(getImplKind()); }
+
   bool isBox() const { return isBox(getImplKind()); }
 
   // Returns 0 for false, 1 for true, 2 for unknown
@@ -209,6 +211,10 @@ class OpaqueTermType : public Type {
   static bool isBinary(unsigned implKind) {
     return implKind == TypeKind::Binary || implKind == TypeKind::HeapBin ||
            implKind == TypeKind::ProcBin;
+  }
+
+  static bool isClosure(unsigned implKind) {
+    return implKind == TypeKind::Closure;
   }
 
   static bool isBox(unsigned implKind) { return implKind == TypeKind::Box; }

@@ -39,7 +39,7 @@ struct MapEntry {
 };
 
 namespace Endianness {
-enum Type: uint32_t {
+enum Type : uint32_t {
   Big,
   Little,
   Native,
@@ -47,7 +47,7 @@ enum Type: uint32_t {
 }
 
 namespace BinarySpecifierType {
-enum Type: uint32_t {
+enum Type : uint32_t {
   Integer,
   Float,
   Bytes,

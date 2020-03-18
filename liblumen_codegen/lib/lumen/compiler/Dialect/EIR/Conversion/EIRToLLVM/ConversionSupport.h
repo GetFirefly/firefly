@@ -151,7 +151,7 @@ class OpConversionContext : public ConversionContext {
   }
 
   inline IntegerAttr getIntegerAttr(APInt &i) const {
-    return rewriter.getIntegerAttr(getIntegerType(), i.getLimitedValue());
+    return rewriter.getIntegerAttr(getIntegerType(), i);
   }
 
   inline IntegerAttr getI1Attr(int64_t i) const {
@@ -162,8 +162,13 @@ class OpConversionContext : public ConversionContext {
     return rewriter.getIntegerAttr(getIntegerType(8), i);
   }
 
-  inline IntegerAttr getI32Attr(int64_t i) const {
+  inline IntegerAttr getI32Attr(int32_t i) const {
     return rewriter.getIntegerAttr(getIntegerType(32), i);
+  }
+
+  inline IntegerAttr getU32Attr(int32_t i) const {
+    return rewriter.getIntegerAttr(getIntegerType(32),
+                                   APInt(32, i, /*signed=*/false));
   }
 
   inline ArrayAttr getI64ArrayAttr(unsigned i) const {

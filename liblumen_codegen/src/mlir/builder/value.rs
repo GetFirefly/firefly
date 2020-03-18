@@ -37,6 +37,8 @@ pub enum ValueDef {
     Result(usize),
     /// Value is the n'th parameter to a block
     Param(usize),
+    /// Value is the n'th value in the source closure environment
+    Env(usize),
     /// Value is the return continuation
     Return,
     /// Value is the escape continuation

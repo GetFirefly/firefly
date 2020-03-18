@@ -380,6 +380,8 @@ static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
   if (srcType.isOpaque()) return true;
   // A cast must be to an immediate-sized type
   if (!destType.isImmediate()) return false;
+  // Box-to-box casts are always allowed
+  if (srcType.isBox() & destType.isBox()) return true;
   // Only header types can be boxed
   if (destType.isBox() && !srcType.isBoxable()) return false;
   // Only support casts between compatible types
@@ -782,10 +784,10 @@ static LogicalResult verifyConstantOp(ConstantOp &) {
 static void print(OpAsmPrinter &p, MallocOp op) {
   p << MallocOp::getOperationName();
 
-  BoxType type = op.getAllocType();
+  OpaqueTermType boxedType = op.getAllocType();
   p.printOperands(op.getOperands());
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"map"});
-  p << " : " << type;
+  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"type"});
+  p << " : " << BoxType::get(boxedType);
 }
 
 static ParseResult parseMallocOp(OpAsmParser &parser, OperationState &result) {

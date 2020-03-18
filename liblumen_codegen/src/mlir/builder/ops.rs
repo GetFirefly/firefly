@@ -76,6 +76,7 @@ pub enum Callee {
         function: Value,
         arity: usize,
     },
+    ClosureDynamic(Value),
 }
 impl Callee {
     pub fn new<'f, 'o>(
@@ -83,6 +84,17 @@ impl Callee {
         callee_value: ir::Value,
     ) -> Result<Self> {
         use libeir_ir::ValueKind;
+
+        let callee_kind = builder.value_kind(callee_value);
+        builder.debug(&format!(
+            "callee value is {:?} ({:?})",
+            callee_value, callee_kind
+        ));
+
+        // Handle calls to closures
+        if let ir::ValueKind::Argument(_, _) = callee_kind {
+            return Ok(Self::ClosureDynamic(builder.build_value(callee_value)?));
+        }
 
         let op = builder.get_primop(callee_value);
         debug_assert_eq!(ir::PrimOpKind::CaptureFunction, *builder.primop_kind(op));
@@ -143,6 +155,7 @@ impl fmt::Display for Callee {
                 function,
                 arity,
             } => write!(f, "{:?}:{:?}/{}", module, function, arity),
+            Self::ClosureDynamic(value) => write!(f, "<closure::{:?}>", value),
         }
     }
 }

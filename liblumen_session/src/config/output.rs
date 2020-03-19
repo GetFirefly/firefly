@@ -149,6 +149,7 @@ may also include a glob pattern, which filters the inputs for which
 that output type should apply.
 
 Supported output types:
+- all:       Emit everything
 - ast:       Abstract Syntax Tree
 - eir:       Erlang Intermediate Representation
 - mlir-eir:  MLIR (Erlang Dialect)
@@ -344,6 +345,19 @@ impl ParseOption for OutputTypes {
 
         if let Some(values) = matches.values_of(info.name) {
             for value in values {
+                if value.starts_with("all") {
+                    let split = value.splitn(2, '=').collect::<Vec<_>>();
+                    if split.len() == 1 {
+                        for v in OutputType::variants() {
+                            output_types.push((*v, None));
+                        }
+                    } else {
+                        for v in OutputType::variants() {
+                            output_types.push((*v, Some(split[1].to_string())));
+                        }
+                    }
+                    continue;
+                }
                 match OutputTypeSpec::from_str(value) {
                     Ok(OutputTypeSpec {
                         output_type,

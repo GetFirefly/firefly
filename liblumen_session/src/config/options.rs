@@ -14,7 +14,7 @@ pub use self::parse::*;
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::ArgMatches;
 
@@ -108,13 +108,7 @@ impl Options {
             }
         }
 
-        let project_name = args
-            .value_of("name")
-            .map(|s| s.to_owned())
-            .unwrap_or_else(|| {
-                let basename = cwd.file_name().unwrap();
-                basename.to_str().unwrap().to_owned()
-            });
+        let project_name = detect_project_name(args, cwd.as_path(), input_file.as_ref());
         let project_type_opt: Option<ProjectType> =
             ParseOption::parse_option(&option!("project-type"), &args)?;
         let project_type = project_type_opt.unwrap_or(ProjectType::Executable);
@@ -424,6 +418,31 @@ impl Options {
     /// Returns `true` if there will be an output file generated.
     pub fn will_create_output_file(&self) -> bool {
         !self.debugging_opts.parse_only // The file is just being parsed
+    }
+}
+
+fn detect_project_name<'a>(args: &ArgMatches<'a>, cwd: &Path, input: Option<&FileName>) -> String {
+    // If explicitly set, use the provided name
+    if let Some(name) = args.value_of("name") {
+        return name.to_owned();
+    }
+    match input {
+        // If we have a single input file, name the project after it
+        Some(FileName::Real(ref path)) if path.exists() && path.is_file() => path
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .expect("invalid utf-8 in input file name")
+            .to_owned(),
+        // If we have an input directory, name the project after the directory
+        Some(FileName::Real(ref path)) if path.exists() && path.is_dir() => path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .expect("invalid utf-8 in input file name")
+            .to_owned(),
+        // Fallback to using the current working directory name
+        _ => cwd.file_name().unwrap().to_str().unwrap().to_owned(),
     }
 }
 

@@ -59,7 +59,8 @@ pub fn link_binary(
         .unwrap_or_else(|| {
             let name = PathBuf::from(options.project_name.as_str());
             let ext = match project_type {
-                ProjectType::Executable => "exe",
+                ProjectType::Executable if options.target.options.is_like_windows => "exe",
+                ProjectType::Executable => "out",
                 ProjectType::Staticlib => "a",
                 _ => "o",
             };

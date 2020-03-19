@@ -126,8 +126,8 @@ if (BUILD_SHARED_LIBS)
       ${_LumenCodegen_LINK_LIBS}
       ${LIB_NAMES}
     PRIVATE
-      ${_CARGO_LINK_LIB_PATH}
-      "-lliblumen_llvm"
+      ${_CARGO_LINK_LIB_PATH}/deps
+      "-lliblumen_llvm-fdcc608a8bf21908"
       "-lliblumen_term"
     )
 else()

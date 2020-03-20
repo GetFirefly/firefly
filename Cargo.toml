@@ -21,9 +21,9 @@ members = [
   "liblumen_beam",
   "liblumen_core",
   "liblumen_core_macros",
-  "liblumen_crt",
   "liblumen_eir_interpreter",
   "liblumen_util",
+  "runtimes/crt",
   "runtimes/core",
   "runtimes/minimal",
 ]
@@ -47,9 +47,9 @@ default-members = [
   "liblumen_beam",
   "liblumen_core",
   "liblumen_core_macros",
-  "liblumen_crt",
   "liblumen_eir_interpreter",
   "liblumen_util",
+  "runtimes/crt",
 ]
 
 [profile.release]

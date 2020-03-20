@@ -9,4 +9,4 @@ edition = "2018"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
-liblumen_core = { path = "../liblumen_core" }
+liblumen_core = { path = "../../liblumen_core" }

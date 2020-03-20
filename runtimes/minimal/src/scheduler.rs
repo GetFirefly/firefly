@@ -74,12 +74,10 @@ pub unsafe extern "C" fn process_yield() -> bool {
 #[naked]
 #[inline(never)]
 #[cfg(all(unix, target_arch = "x86_64"))]
-#[export_name = "__lumen_builtin_return"]
 pub unsafe extern "C" fn process_return_continuation() {
     let f: fn() -> () = process_return;
     asm!("
         callq *$0
-        retq
         "
     :
     : "r"(f)

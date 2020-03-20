@@ -4,6 +4,7 @@
 
 * [Contributing](#contributing)
   * [Tools](#contrib-tools)
+  * [Building Lumen](#contrib-building-lumen)
   * [Project Structure](#contrib-project)
   * [Making Changes](#contrib-changes)
 * [About Lumen](#about)
@@ -112,7 +113,9 @@ likewise you can change the setting to use CCache by removing that option as wel
 
 **NOTE:** Building LLVM the first time will take a long time, so grab a coffee, smoke 'em if you got 'em, etc.
 
-### Lumen Compiler
+<a name="contrib-building-lumen"/>
+
+### Building Lumen
 
 Once LLVM is installed/built, you an build the `lumen` executable:
 

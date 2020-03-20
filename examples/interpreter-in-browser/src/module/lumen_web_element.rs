@@ -1,6 +1,6 @@
 use liblumen_alloc::erts::term::prelude::Atom;
 
-use liblumen_eir_interpreter::NativeModule;
+use lumen_interpreter::NativeModule;
 
 pub fn make_lumen_web_element() -> NativeModule {
     let mut native = NativeModule::new(Atom::try_from_str("Elixir.Lumen.Web.Element").unwrap());

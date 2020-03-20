@@ -9,7 +9,7 @@ mod start;
 
 use lumen_runtime::system;
 
-use liblumen_eir_interpreter::VM;
+use lumen_interpreter::VM;
 
 use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
 

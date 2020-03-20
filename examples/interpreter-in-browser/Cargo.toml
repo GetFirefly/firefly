@@ -25,7 +25,7 @@ lumen_web = { path = "../../lumen_web" }
 num-bigint = "0.2"
 wasm-bindgen = "0.2"
 
-liblumen_eir_interpreter = { path = "../../liblumen_eir_interpreter" }
+lumen_interpreter = { path = "../../interpreter" }
 libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 libeir_intern = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }

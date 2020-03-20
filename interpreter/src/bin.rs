@@ -12,8 +12,8 @@ use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
 use libeir_util_parse::{ArcCodemap, Errors};
 
-use liblumen_eir_interpreter::call_result::call_run_erlang;
-use liblumen_eir_interpreter::VM;
+use lumen_interpreter::call_result::call_run_erlang;
+use lumen_interpreter::VM;
 
 use liblumen_alloc::erts::term::prelude::Atom;
 
@@ -48,7 +48,7 @@ where
 }
 
 fn main() {
-    let matches = App::new("Lumen Eir Interpreter CLI")
+    let matches = App::new("Lumen Interpreter")
         .version("alpha")
         .arg(
             Arg::from_usage("<LOAD_ERL_FILES> 'load files into the interpreter'")

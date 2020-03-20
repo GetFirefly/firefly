@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_eir_interpreter"
+name = "lumen_interpreter"
 version = "0.1.0"
 authors = ["Hans Elias B. Josephsen <me@hansihe.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
 edition = "2018"

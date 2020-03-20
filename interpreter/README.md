@@ -1,6 +1,6 @@
-# liblumen_eir_interpreter
+# Lumen Interpreter
 
-Eir interpreter for the Lumen runtime.
+EIR interpreter for the Lumen runtime.
 
 This crate is primarily a library crate, but can also be run as a binary.
 

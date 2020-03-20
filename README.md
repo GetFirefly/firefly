@@ -23,75 +23,90 @@ In order to build Lumen, or make changes to it, you'll need the following instal
 
 First, you will need to install [rustup](https://rustup.rs/). Follow the instructions at that link.
 
-Once you have installed `rustup`, you will need to install the nightly version of Rust from 2020-03-10. A nightly
-version is currently required due to our dependency on `wasm-bindgen` when targeting WebAssembly and `AllocRef` for
-memory allocation:
+Once you have installed `rustup`, you will need to install the nightly version
+of Rust (currently our CI builds against the 2020-03-10 nightly). We require
+nightly due to a large number of nightly features we use, as well as some
+dependencies for the WebAssembly targets that we make use of.
 
-    rustup default nightly-2020-03-10 # install nightly toolchain from 2020-03-10 to match CI
+    # to use the latest nightly
+    rustup default nightly
+    
+    # or, in case of issues, install the 2020-03-10 nightly to match our CI
+    rustup default nightly-2020-03-10
 
 You may also want to install the following tools for editor support (`rustfmt` will be required on
 all pull requests!):
 
-    rustup component add rustfmt clippy
+    rustup component add rls rustfmt clippy
 
 Next, you will need to install the `wasm32` targets for the toolchain:
 
-    rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
+    rustup target add wasm32-unknown-unknown --toolchain <name of nightly you chose in the previous step>
 
 You will also need to install the `wasm-bindgen** command-line tools:
 
-    cargo +nightly-2020-03-10 install wasm-bindgen-cli
+    cargo install wasm-bindgen-cli
+    
+    # if you did not set the nightly toolchain as your default, you need this instead:
+    cargo +nightly install wasm-bindgen-cli
 
-Finally we will need `wasm-pack`. It is needed to build the examples and get up and running. Follow their installation instructions from [the wasm-pack repository](https://github.com/rustwasm/wasm-pack).
+Finally we will need `wasm-pack`. It is needed to build the examples and get up
+and running. Follow their installation instructions from [the wasm-pack repository](https://github.com/rustwasm/wasm-pack).
 
 #### LLVM
 
-##### Using prebuilt tarballs
+LLVM (with our modifications) is used by Lumen's code generation backend. It is needed to build the
+compiler. Typically, you'd need to build this yourself, which we have
+instructions for below; but we also provide prebuilt distributions that have everything needed.
 
-LLVM takes a long time to compile (~2 hours) and a lot of space (~29G), so if you can, we recommend using the prebuilt tarballs.
+##### Installing Prebuilt Distributions (Recommended)
 
 ###### Linux
 
-    mkdir -p ~/.local/share/llvm
-    cd ~/.local/share/llvm 
+The instructions below reference `$XDG_DATA_HOME` as an environment variable, it
+is recommended to export XDG variables in general, but if you have not, just
+replace the usages of `$XDG_DATA_HOME` below with `$HOME/.local/share`, which is
+the usual default for this XDG variable.
+
+    mkdir -p $XDG_DATA_HOME/llvm/lumen
+    cd $XDG_DATA_HOME/llvm/lumen
     wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
-    tar xvfz clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    tar -xz --strip-components 1 -f clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
     rm clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
-    mv clang+llvm-10.0.0-x86_64-linux-gnu lumen
     cd -
 
 ###### MacOS
 
-    mkdir -p ~/.local/share/llvm
-    cd ~/.local/share/llvm 
+    mkdir -p $XDG_DATA_HOME/llvm
+    cd $XDG_DATA_HOME/llvm/lumen
     wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-    tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    tar -xzf clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     rm clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     mv clang+llvm-10.0.0-x86_64-apple-darwin19.3.0 lumen
     cd -
 
-###### Other Operating Systems
+###### Other
 
-You'll need to build from scratch using the below instructions. 
+We don't yet provide prebuilt packages for other operating systems, you'll need
+to build from source following the directions below.
 
-##### Building from scratch
+##### Building From Source
 
-Now that Rust is setup and ready to go, you will also need LLVM for building the compiler.
+LLVM requires CMake, a C/C++ compiler, and Python. It is highly recommended that
+you also install [Ninja](https://ninja-build.org/) and
+[CCache](https://ccache.dev) to make the build significantly faster, especially
+on subsequent rebuilds. You can find all of these dependencies in your system
+package manager, including Homebrew on macOS.
 
-LLVM requires Cmake, a C/C++ compiler (i.e. GCC/Clang), and Python. It is also
-highly recommended that you also install [Ninja](https://ninja-build.org/) and
-[CCache](https://ccache.dev) to make the build significantly faster. You can
-find all of these dependencies in your system package manager, including
-Homebrew on macOS.
-
-To install LLVM:
+We have the build more or less fully automated, just three simple steps:
 
     git clone https://github.com/lumen/llvm-project
     cd llvm-project
     make llvm
 
-This will install LLVM to ~/.local/share/llvm/lumen, and assumes that Ninja and
-CCache are installed, you can customize the `llvm` target in the `Makefile` to
+This will install LLVM to `$XDG_DATA_HOME/llvm/lumen`, or
+`$HOME/.local/share/llvm/lumen`, if `$XDG_DATA_HOME` is not set. It assumes that Ninja and
+CCache are installed, but you can customize the `llvm` target in the `Makefile` to
 use `make` instead by removing `-G Ninja` from the invocation of `cmake`,
 likewise you can change the setting to use CCache by removing that option as well.
 
@@ -99,10 +114,27 @@ likewise you can change the setting to use CCache by removing that option as wel
 
 ### Lumen Compiler
 
-Once LLVM is installed, you can run fetch all dependencies and build the project.
+Once LLVM is installed/built, you an build the `lumen` executable:
 
-    export LLVM_SYS_90_PREFIX=$HOME/.local/share/llvm/lumen
     make build
+    
+This will create the compiler executable and associated toolchain for the host
+machine under `bin` in the root of the project. You can invoke `lumen` via the
+symlink `bin/lumen`, e.g.:
+
+    bin/lumen --help
+    
+You can compile an Erlang file to an executable (on x86_64 only, currently):
+
+    bin/lumen compile --output-dir _build -lc <path/to/source.erl>
+    
+This will produce an executable with the same name as the source file in the
+current working directory with the `.out` or `.exe` extension, depending on your
+platform.
+
+**NOTE:** The compiler/runtime are still in experimental stages, so stability is
+not guaranteed, and you may need to provide additional compiler flags if the
+linker warns about missing symbols, e.g. `-lpthread`.
 
 <a name="contrib-project"/>
 
@@ -110,35 +142,69 @@ Once LLVM is installed, you can run fetch all dependencies and build the project
 
 Lumen is currently divided into a few major components:
 
-* Compiler
-  * EIR
-  * liblumen_compiler
-  * liblumen_codegen
-  * lumen
-* Interpreter
-  * liblumen_eir_interpreter
-* Runtime
-  * liblumen_core
-  * liblumen_alloc
-  * lumen_runtime
-  * lumen_web
+- Compiler
+- Interpreter
+- Runtime(s)
 
-EIR is short for _Erlang Intermediate Representation_, it is managed in a
-separate project which can be found [here](https://github.com/eirproject/eir).
-Lumen's frontend parsers and IR are found there.
+Lumen's frontend and diagnostics libraries were moved into the [EIR
+Project]([https://github.com/eirproject/eir]), which includes both the Erlang
+parser and the high-level intermediate representation EIR, short for _Erlang
+Intermediate Representation_. Lumen depends on the EIR libraries for those
+components.
 
-At the moment, the compiler backend pieces are being worked on in another branch, and so
-should be ignored for now. These pieces will be merged soon, and this README
-will be updated at that point.
+#### Compiler
 
-The interpreter is currently how we are testing and executing Erlang code, and
-it builds on top of the same compiler frontend/IR that the compiler backend will
-use.
+The Lumen compiler is composed of the following sub-libraries/components:
 
-The runtime is built as a static library, which is ultimately linked into compiled Erlang programs,
-this runtime contains the machinery necessary to interact with the underlying system, as well as
-provide concurrency, garbage collection, and other necessities which are not part of the compiler
-transformation.
+- `liblumen_target`, contains target platform metadata and configuration
+- `liblumen_session`, contains state and configuration for a single
+  instantiation of the compiler, or "session". This is where you can find the
+  bulk of option processing, input/output generation, and related items.
+- `liblumen_incremental`, contains the core of the incremental compilation
+  engine (based on `salsa`). This is where queries for inputs/parsing are
+  defined.
+- `liblumen_compiler`, contains the core of the compiler driver, as well as all
+  of the higher level queries for generating artifacts from parsed sources.
+- `liblumen_codegen`, contains the code generation backend, which is divided
+  into two primary phases: the first handles translation from EIR to 
+  our own dialect of [MLIR](https://mlir.llvm.org/) (or, in some cases, LLVM IR
+  directly). This translation mostly aims to preserve the level of abstraction
+  found in EIR, while preparing for conversion to LLVM IR. The second phase is
+  conversion of our MLIR dialect to LLVM, which is where the bulk of the codegen
+  work occurs.
+- `liblumen_term`, contains the essential parts of our term encoding scheme, and
+  is shared with the runtime libraries. The compiler requires this in order to
+  handle encoding constant terms during compilation.
+
+#### Interpreter
+
+The interpreter is an alternative way to test and execute Erlang code, and
+builds on top of EIR similar to how the compiler works, albeit with some
+significant differences due to the nature of interpreting EIR rather than
+translating it for code generation.
+
+#### Runtime(s)
+
+The runtime is broken up into multiple libraries:
+
+- `liblumen_core`, contains the essential APIs for interacting with the system,
+  performing allocations, as well as various common types used throughout Lumen.
+- `liblumen_alloc`, contains the bulk of the Erlang Runtime System core data
+  types and APIs
+- `liblumen_crt`, acts as the core runtime entry point for executables, handles
+  bootstrapping the runtime system. This is linked in to all compiler-generated executables
+- `lumen_rt_core`, (wip) the core runtime library used across all
+  target-specific runtimes
+- `lumen_rt_minimal` (wip) an experimental runtime library built on top of
+  `lumen_rt_core`, designed for x86_64 platforms. Currently used as the runtime
+  for executables generated by the compiler.
+- `lumen_web`, original WebAssembly runtime, builds on `lumen_runtime`
+- `lumen_runtime`, original runtime library for all targets. This is slowly
+  being broken up into smaller pieces, either merged into `lumen_rt_core`, or
+  new more target-specific runtime crates. Currently used by the interpreter,
+  and contains all of the BIF functions implemented so far.
+
+The above collection of libraries correspond to ERTS in the BEAM virtual machine.
 
 <a name="contrib-changes"/>
 
@@ -192,7 +258,7 @@ Lumen is different than BEAM in the following ways:
   similar, differs in mostly transparent ways. One of the goals is to provide a
   better foundation for learning how the runtime is implemented, and to take
   advantage of Rust's more powerful static analysis to catch bugs early.
-* It has support for targeting WebAssembly
+* It has support for targeting WebAssembly, as well as other targets.
 
 The result of compiling a BEAM application via Lumen is a static executable. This differs
 significantly from how deployment on the BEAM works today (i.e. via OTP releases). While we
@@ -245,8 +311,18 @@ representation, prior to lowering to LLVM IR. See
 [eirproject/eir](https://github.com/eirproject/eir) for more information on the
 compiler frontend and EIR itself.
 
+During lowering to LLVM IR, the continuation representation is stripped away,
+and platform-specific methods for implementing various constructs are generated.
+For example, on x86_64, hand-written assembly is used to perform extremely cheap
+stack switching by the scheduler, and to provide dynamic function application
+facilities for the implementation of `apply`. Currently, the C++-style zero-cost 
+exception model is used for implementing exceptions. There are some future
+proposals in progress for WebAssembly that may allow us to use continuations for
+exceptions, but that is not yet stabilized or implemented in browsers.
+
 The compiler produces object files, and handles linking objects
-together into an executable.
+together into an executable. It can also dump all of the intermediate artifacts,
+such as the AST, EIR, MLIR in various forms, LLVM IR, LLVM bitcode, and plain assembly.
 
 ### Runtime
 

@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::ffi::CString;
 use std::mem;
 use std::ptr;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 
@@ -12,6 +13,7 @@ use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap};
 
 use log::debug;
 
+use libeir_diagnostics::{ByteIndex, FileMap};
 use libeir_intern::{Ident, Symbol};
 use libeir_ir as ir;
 use libeir_ir::{AtomTerm, AtomicTerm, ConstKind, FunctionIdent};
@@ -163,6 +165,8 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         let esc = func.set_escape_continuation(esc, init_block);
 
         Ok(ScopedFunctionBuilder {
+            filemap: self.builder.filemap().clone(),
+            filename: self.builder.filename().as_ptr(),
             func,
             name,
             loc,
@@ -186,6 +190,8 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
 /// function that contains no closures. A FunctionBuilder lowers each scoped
 /// function using the ScopedFunctionBuilder.
 pub struct ScopedFunctionBuilder<'f, 'o> {
+    filename: *const libc::c_char,
+    filemap: Arc<FileMap>,
     func: Function,
     name: FunctionIdent,
     loc: Span,
@@ -227,6 +233,15 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 
     #[cfg(not(debug_assertions))]
     pub(super) fn debug(&self, _message: &str) {}
+
+    fn location(&self, index: ByteIndex) -> Option<SourceLocation> {
+        let (li, ci) = self.filemap.location(index).ok()?;
+        Some(SourceLocation {
+            filename: self.filename,
+            line: li.number().to_usize() as u32,
+            column: ci.number().to_usize() as u32,
+        })
+    }
 }
 
 // EIR function metadata helpers
@@ -327,6 +342,29 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     #[inline]
     pub fn value_kind(&self, ir_value: ir::Value) -> ir::ValueKind {
         self.eir.value_kind(ir_value)
+    }
+
+    /// Gets the location data for the given EIR value
+    #[inline]
+    pub fn value_location(&self, ir_value: ir::Value) -> LocationRef {
+        if let Some(locs) = self.eir.value_locations(ir_value) {
+            let mut fused = Vec::with_capacity(locs.len());
+            for loc in locs.iter().copied() {
+                if let Some(sc) = self.location(loc.start()) {
+                    fused.push(unsafe { MLIRCreateLocation(self.builder, sc) });
+                }
+            }
+            if fused.len() > 0 {
+                return unsafe {
+                    MLIRCreateFusedLocation(
+                        self.builder,
+                        fused.as_ptr(),
+                        fused.len() as libc::c_uint,
+                    )
+                };
+            }
+        }
+        unsafe { MLIRUnknownLocation(self.builder) }
     }
 
     /// Returns true if the given EIR value is defined by an argument of the given block

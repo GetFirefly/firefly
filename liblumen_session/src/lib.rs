@@ -1,5 +1,5 @@
 mod config;
-mod diagnostics;
+pub mod diagnostics;
 pub mod filesearch;
 pub mod search_paths;
 mod types;

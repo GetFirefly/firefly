@@ -12,12 +12,14 @@ pub(super) mod value;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::convert::AsRef;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 
 use log::debug;
 
+use libeir_diagnostics::{ByteIndex, FileMap};
 use libeir_intern::Symbol;
 use libeir_ir as ir;
 
@@ -28,6 +30,7 @@ use crate::llvm;
 use crate::mlir::{Context, Dialect, Module};
 use crate::Result;
 
+use self::ffi::SourceLocation;
 pub use self::function::{FunctionBuilder, ScopedFunctionBuilder};
 
 pub struct GeneratedModule {
@@ -39,13 +42,14 @@ pub struct GeneratedModule {
 /// Constructs an MLIR module from an EIR module, using the provided context and options
 pub fn build(
     module: &ir::Module,
+    filemap: Arc<FileMap>,
     context: &Context,
     options: &Options,
     target_machine: &llvm::TargetMachine,
 ) -> Result<GeneratedModule> {
     debug!("building mlir module for {}", module.name());
 
-    let mut builder = ModuleBuilder::new(module, context, target_machine.as_ref());
+    let mut builder = ModuleBuilder::new(module, filemap, context, target_machine.as_ref());
     return builder.build(options);
 }
 
@@ -62,6 +66,8 @@ pub struct ModuleBuilder<'m> {
     atoms: RefCell<HashSet<Symbol>>,
     symbols: RefCell<HashSet<FunctionSymbol>>,
     target_machine: llvm::TargetMachineRef,
+    filemap: Arc<FileMap>,
+    source_filename: CString,
 }
 impl<'m> ModuleBuilder<'m> {
     /// Returns the underlying MLIR module builder
@@ -73,11 +79,13 @@ impl<'m> ModuleBuilder<'m> {
     /// Creates a new builder for the given EIR module, using the provided MLIR context
     pub fn new(
         module: &'m ir::Module,
+        filemap: Arc<FileMap>,
         context: &Context,
         target_machine: llvm::TargetMachineRef,
     ) -> Self {
         use ffi::MLIRCreateModuleBuilder;
 
+        let source_filename = CString::new(filemap.name().to_string()).unwrap();
         let name = module.name();
         let c_name = CString::new(name.to_string()).unwrap();
         let builder =
@@ -92,7 +100,19 @@ impl<'m> ModuleBuilder<'m> {
             atoms: RefCell::new(atoms),
             symbols: RefCell::new(HashSet::new()),
             target_machine,
+            filemap,
+            source_filename,
         }
+    }
+
+    #[inline]
+    pub fn filename(&self) -> &CStr {
+        self.source_filename.as_c_str()
+    }
+
+    #[inline]
+    pub fn filemap(&self) -> &Arc<FileMap> {
+        &self.filemap
     }
 
     /// Builds the module by building each function with a FunctionBuilder,

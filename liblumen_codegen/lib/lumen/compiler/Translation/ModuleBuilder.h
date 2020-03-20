@@ -272,6 +272,11 @@ class ModuleBuilder {
 
   mlir::OpBuilder &getBuilder() { return builder; }
 
+  mlir::MLIRContext *getContext() { return builder.getContext(); }
+
+  Location getLocation(SourceLocation sloc);
+  Location getFusedLocation(ArrayRef<Location> locs);
+
  private:
   const TargetMachine *targetMachine;
 

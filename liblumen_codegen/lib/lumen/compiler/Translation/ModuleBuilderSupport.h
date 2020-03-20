@@ -18,6 +18,12 @@ typedef struct MLIROpaqueAttribute *MLIRAttributeRef;
 namespace lumen {
 namespace eir {
 
+struct SourceLocation {
+  const char *filename;
+  uint32_t line;
+  uint32_t column;
+};
+
 struct Closure {
   MLIRAttributeRef module;
   char *name;

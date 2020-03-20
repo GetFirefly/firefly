@@ -78,7 +78,14 @@ where
     let options = db.options();
     debug!("generating mlir for {:?} on {:?}", input, thread_id);
     let target_machine = db.get_target_machine(thread_id);
-    match mlir::builder::build(&module, &context, &options, target_machine.deref()) {
+    let filemap = {
+        let codemap = db.codemap().read().unwrap();
+        codemap
+            .find_file(module.span().start())
+            .map(|fm| fm.clone())
+            .expect("expected input to have corresponding entry in code map")
+    };
+    match mlir::builder::build(&module, filemap, &context, &options, target_machine.deref()) {
         Ok(GeneratedModule {
             module: mlir_module,
             atoms,

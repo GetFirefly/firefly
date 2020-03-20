@@ -40,6 +40,23 @@ use self::foreign_types::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
+pub struct SourceLocation {
+    pub filename: *const libc::c_char,
+    pub line: u32,
+    pub column: u32,
+}
+impl From<&liblumen_session::diagnostics::Location> for SourceLocation {
+    fn from(loc: &liblumen_session::diagnostics::Location) -> Self {
+        Self {
+            filename: loc.file.as_ptr(),
+            line: loc.line,
+            column: loc.column,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(C)]
 pub struct Span {
     start: u32,
     end: u32,
@@ -287,12 +304,15 @@ extern "C" {
     // Locations
     //---------------
 
-    pub fn MLIRCreateLocation(
-        context: ContextRef,
-        filename: *const libc::c_char,
-        line: libc::c_uint,
-        column: libc::c_uint,
+    pub fn MLIRCreateLocation(builder: ModuleBuilderRef, loc: SourceLocation) -> LocationRef;
+
+    pub fn MLIRCreateFusedLocation(
+        builder: ModuleBuilderRef,
+        locs: *const LocationRef,
+        num_locs: libc::c_uint,
     ) -> LocationRef;
+
+    pub fn MLIRUnknownLocation(builder: ModuleBuilderRef) -> LocationRef;
 
     //---------------
     // Functions

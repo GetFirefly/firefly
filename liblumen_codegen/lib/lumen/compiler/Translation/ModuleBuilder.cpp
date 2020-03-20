@@ -37,7 +37,6 @@ using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Builder, MLIRBuilderRef);
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Location, MLIRLocationRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Block, MLIRBlockRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::TargetMachine, LLVMTargetMachineRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::FuncOp, MLIRFunctionOpRef);
@@ -55,9 +54,18 @@ inline MLIRAttributeRef wrap(const Attribute &attr) {
 
 inline Value unwrap(MLIRValueRef v) { return Value::getFromOpaquePointer(v); }
 
-inline MLIRValueRef wrap(const Value &attr) {
-  auto ptr = attr.getAsOpaquePointer();
+inline MLIRValueRef wrap(const Value &val) {
+  auto ptr = val.getAsOpaquePointer();
   return reinterpret_cast<MLIRValueRef>(const_cast<void *>(ptr));
+}
+
+inline Location unwrap(MLIRLocationRef l) {
+  return Location::getFromOpaquePointer(l);
+}
+
+inline MLIRLocationRef wrap(const Location &loc) {
+  auto ptr = loc.getAsOpaquePointer();
+  return reinterpret_cast<MLIRLocationRef>(const_cast<void *>(ptr));
 }
 
 namespace lumen {
@@ -1502,13 +1510,38 @@ extern "C" MLIRAttributeRef MLIRBuildMapAttr(MLIRModuleBuilderRef b,
 // Locations/Spans
 //===----------------------------------------------------------------------===//
 
-extern "C" MLIRLocationRef MLIRCreateLocation(MLIRContextRef context,
-                                              const char *filename,
-                                              unsigned line, unsigned column) {
-  MLIRContext *ctx = unwrap(context);
-  StringRef FileName(filename);
-  Location loc = mlir::FileLineColLoc::get(FileName, line, column, ctx);
-  return wrap(&loc);
+extern "C" MLIRLocationRef MLIRCreateLocation(MLIRModuleBuilderRef b,
+                                              SourceLocation sloc) {
+  ModuleBuilder *builder = unwrap(b);
+  return wrap(builder->getLocation(sloc));
+}
+
+extern "C" MLIRLocationRef MLIRCreateFusedLocation(MLIRModuleBuilderRef b,
+                                                   MLIRLocationRef *locRefs,
+                                                   unsigned numLocs) {
+  ModuleBuilder *builder = unwrap(b);
+  ArrayRef<MLIRLocationRef> lrs(locRefs, locRefs + numLocs);
+  SmallVector<Location, 1> locs;
+  for (auto it = lrs.begin(); it != lrs.end(); it++) {
+    Location loc = unwrap(*it);
+    locs.push_back(loc);
+  }
+  return wrap(builder->getFusedLocation(locs));
+}
+
+extern "C" MLIRLocationRef MLIRUnknownLocation(MLIRModuleBuilderRef b) {
+  ModuleBuilder *builder = unwrap(b);
+  return wrap(builder->getBuilder().getUnknownLoc());
+}
+
+Location ModuleBuilder::getLocation(SourceLocation sloc) {
+  StringRef filename(sloc.filename);
+  return mlir::FileLineColLoc::get(filename, sloc.line, sloc.column,
+                                   builder.getContext());
+}
+
+Location ModuleBuilder::getFusedLocation(ArrayRef<Location> locs) {
+  return mlir::FusedLoc::get(locs, builder.getContext());
 }
 
 //===----------------------------------------------------------------------===//

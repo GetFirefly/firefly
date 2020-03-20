@@ -4,7 +4,8 @@
 
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
-LLVM_SYS_90_PREFIX ?= `cd $$XDG_DATA_HOME/llvm/lumen && pwd`
+XDG_DATA_HOME ?= $(HOME)/.local/share
+LLVM_SYS_90_PREFIX ?= `cd $(XDG_DATA_HOME)/llvm/lumen && pwd`
 CWD ?= `pwd`
 
 help:

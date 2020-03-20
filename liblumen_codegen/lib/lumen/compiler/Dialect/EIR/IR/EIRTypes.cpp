@@ -168,6 +168,9 @@ LogicalResult TupleType::verifyConstructionInvariants(
       if (termType.isOpaque() || termType.isImmediate() || termType.isBox())
         continue;
     }
+    llvm::outs() << "invalid tuple type element:";
+    elementType.dump();
+    llvm::outs() << "\n";
     return failure();
   }
 

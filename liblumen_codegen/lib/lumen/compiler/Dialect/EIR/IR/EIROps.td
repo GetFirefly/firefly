@@ -1473,11 +1473,18 @@ def eir_ConsOp : eir_Op<"cons"> {
   }];
 
   let arguments = (ins eir_AnyType:$head, eir_AnyType:$tail);
-  let results = (outs eir_ConsType:$out);
+  let results = (outs eir_BoxType:$out);
 
   let builders = [
-    OpBuilder<"Builder *builder, OperationState &result, Value head, Value tail">
+    OpBuilder<"Builder *builder, OperationState &result, Value head, Value tail",
+    [{
+      result.addOperands(head);
+      result.addOperands(tail);
+      result.addTypes(BoxType::get(builder->getType<ConsType>()));
+    }]>
   ];
+
+  let verifier = [{ return success(); }];
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, $out)
@@ -1495,11 +1502,23 @@ def eir_TupleOp : eir_Op<"tuple"> {
   }];
 
   let arguments = (ins Variadic<eir_AnyType>:$elements);
-  let results = (outs eir_TupleType:$out);
+  let results = (outs eir_BoxType:$out);
 
   let builders = [
-    OpBuilder<"Builder *builder, OperationState &result, ArrayRef<Value> values">
+    OpBuilder<"Builder *builder, OperationState &result, ArrayRef<Value> elements",
+    [{
+      SmallVector<Type, 1> elementTypes;
+      for (auto val : elements) {
+        elementTypes.push_back(val.getType());
+      }
+      result.addOperands(elements);
+      auto tupleType = builder->getType<eir::TupleType>(elementTypes);
+      result.addTypes(BoxType::get(tupleType));
+      result.addAttribute("alloca", builder->getBoolAttr(false));
+    }]>
   ];
+
+  let verifier = [{ return success(); }];
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, $out)
@@ -1555,10 +1574,19 @@ def eir_ConstructMapOp : eir_Op<"map.new"> {
   }];
 
   let arguments = (ins Variadic<eir_AnyType>:$args);
-  let results = (outs eir_MapType:$out, eir_AnyType:$err);
+  let results = (outs eir_BoxType:$out, eir_AnyType:$err);
+
+  let verifier = [{ return success(); }];
 
   let builders = [
-    OpBuilder<"Builder *builder, OperationState &result, ArrayRef<eir::MapEntry> entries">
+    OpBuilder<"Builder *builder, OperationState &result, ArrayRef<eir::MapEntry> entries",
+    [{
+      for (auto &entry : entries) {
+        result.addOperands(Value::getFromOpaquePointer(entry.key));
+        result.addOperands(Value::getFromOpaquePointer(entry.value));
+      }
+      result.addTypes(BoxType::get(builder->getType<MapType>()));
+    }]>
   ];
 
   let assemblyFormat = [{
@@ -1656,6 +1684,8 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
 
   let arguments = (ins eir_AnyType:$head, eir_AnyType:$tail, Variadic<eir_AnyType>:$size);
   let results = (outs eir_AnyType:$bin, I1:$status);
+
+  let verifier = [{ return success(); }];
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)

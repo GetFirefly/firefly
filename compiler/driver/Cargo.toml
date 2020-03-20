@@ -19,12 +19,12 @@ salsa-macros = "0.14"
 executors = "0.5.3"
 num_cpus = "1.0"
 
-liblumen_session = { path = "../liblumen_session" }
-liblumen_target = { path = "../liblumen_target" }
-liblumen_incremental = { path = "../liblumen_incremental" }
-liblumen_codegen = { path = "../liblumen_codegen" }
-liblumen_util = { path = "../liblumen_util" }
-liblumen_core = { path = "../liblumen_core" }
+liblumen_session = { path = "../session" }
+liblumen_target = { path = "../target" }
+liblumen_incremental = { path = "../incremental" }
+liblumen_codegen = { path = "../codegen" }
+liblumen_util = { path = "../../liblumen_util" }
+liblumen_core = { path = "../../liblumen_core" }
 
 libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }

@@ -5,8 +5,8 @@ fn main() {
     let cwd = env::current_dir().expect("unable to access current directory");
 
     let root_dir = cwd.parent().unwrap();
-    let liblumen_llvm_dir = root_dir.join("liblumen_llvm");
-    let liblumen_term_dir = root_dir.join("liblumen_term");
+    let liblumen_llvm_dir = root_dir.join("compiler/llvm");
+    let liblumen_term_dir = root_dir.join("compiler/term");
     let lumen_rt_minimal_dir = root_dir.join("runtimes").join("minimal");
 
     rerun_if_changed_anything_in_dir(&liblumen_llvm_dir);

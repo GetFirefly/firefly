@@ -27,7 +27,12 @@ fn main() {
     let profile = env::var("PROFILE").expect("PROFILE was not set");
 
     let cwd = env::current_dir().expect("unable to access current directory");
-    let target_dir = cwd.parent().unwrap().join(&format!("target/{}", &profile));
+    let target_dir = cwd
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join(&format!("target/{}", &profile));
 
     let llvm_prefix_env = env::var(ENV_LLVM_PREFIX).expect(ENV_LLVM_PREFIX);
     let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
@@ -186,7 +191,6 @@ fn main() {
     let mut sysroot_cmd = sysroot_cmd.args(&["--print", "sysroot"]);
     let sysroot = PathBuf::from(output(&mut sysroot_cmd).trim());
     let toolchain_libs = sysroot.join("lib/rustlib").join(target).join("lib");
-    println!("toolchain_libs: {:?}", &toolchain_libs);
     let libstd_rlib = toolchain_libs
         .read_dir()
         .unwrap()

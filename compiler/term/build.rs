@@ -44,7 +44,7 @@ fn main() {
     let project_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let cmakelists_path = project_path
         .parent()
-        .map(|p| p.join("liblumen_codegen/lib"))
+        .map(|p| p.join("codegen/lib"))
         .unwrap();
     let mut config = &mut cmake::Config::new(&cmakelists_path);
     if use_ninja {

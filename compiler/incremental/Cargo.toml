@@ -13,8 +13,8 @@ salsa = "0.14"
 salsa-macros = "0.14"
 walkdir = "2.2"
 
-liblumen_session = { path = "../liblumen_session" }
-liblumen_util = { path = "../liblumen_util" }
+liblumen_session = { path = "../session" }
+liblumen_util = { path = "../../liblumen_util" }
 
 libeir_diagnostics = { git = "https://github.com/eirproject/eir", branch = "lumen" }
 libeir_frontend = { git = "https://github.com/eirproject/eir", branch = "lumen" }

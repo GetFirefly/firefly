@@ -9,4 +9,4 @@ build = "build.rs"
 
 [dependencies]
 thiserror = "1.0"
-liblumen_term = { path = "../liblumen_term" }
+liblumen_term = { path = "../term" }

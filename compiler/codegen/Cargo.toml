@@ -16,14 +16,14 @@ log = "0.4"
 cranelift-entity = "0.56.0"
 fxhash = "0.2"
 
-liblumen_llvm = { path = "../liblumen_llvm" }
-liblumen_session = { path = "../liblumen_session" }
-liblumen_target = { path = "../liblumen_target" }
-liblumen_term = { path = "../liblumen_term" }
-liblumen_util = { path = "../liblumen_util" }
-liblumen_alloc = { path = "../liblumen_alloc" }
-liblumen_core = { path = "../liblumen_core" }
-liblumen_compiler_macros = { path = "../liblumen_compiler_macros" }
+liblumen_llvm = { path = "../llvm" }
+liblumen_session = { path = "../session" }
+liblumen_target = { path = "../target" }
+liblumen_term = { path = "../term" }
+liblumen_util = { path = "../../liblumen_util" }
+liblumen_alloc = { path = "../../liblumen_alloc" }
+liblumen_core = { path = "../../liblumen_core" }
+liblumen_compiler_macros = { path = "../macros" }
 
 # eirproject/eir crates
 libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
@@ -42,4 +42,4 @@ features = ["no-llvm-linking"]
 [build-dependencies]
 cmake = "0.1"
 which = "2.0.1"
-liblumen_llvm = { path = "../liblumen_llvm" }
+liblumen_llvm = { path = "../llvm" }

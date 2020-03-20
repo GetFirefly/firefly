@@ -17,12 +17,12 @@ human-panic = "1.0"
 log = "0.4"
 env_logger = "0.7"
 anyhow = "1.0"
-liblumen_compiler = { path = "../liblumen_compiler" }
 liblumen_util = { path = "../liblumen_util" }
-liblumen_session = { path = "../liblumen_session" }
+liblumen_compiler = { path = "../compiler/driver" }
+liblumen_session = { path = "../compiler/session" }
 
 [build-dependencies]
-liblumen_llvm = { path = "../liblumen_llvm" }
-liblumen_term = { path = "../liblumen_term" }
+liblumen_llvm = { path = "../compiler/llvm" }
+liblumen_term = { path = "../compiler/term" }
 liblumen_crt = { path = "../liblumen_crt" }
 lumen_rt_minimal = { path = "../runtimes/minimal" }

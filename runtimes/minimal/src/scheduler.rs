@@ -648,8 +648,19 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         movq     40($1), %rbx
         movq     48($1), %rbp
 
-        # Return into the new process
-        retq
+        # We need to let the unwinder know that the CFA has changed, currently
+        # that is 8 bytes above %rsp, because the call to this function pushes
+        # %rip to the stack, and since we're restoring the stack pointer, the
+        # value of the CFA, from the perspective of the unwinder, has also been
+        # changed
+        .cfi_def_cfa %rsp, 8
+        .cfi_restore %rsp
+        .cfi_restore %r15
+        .cfi_restore %r14
+        .cfi_restore %r13
+        .cfi_restore %r12
+        .cfi_restore %rbx
+        .cfi_restore %rbp
         "
     :
     : "r"(prev), "r"(new)

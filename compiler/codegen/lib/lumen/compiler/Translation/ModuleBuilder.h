@@ -109,6 +109,7 @@ struct MapAction {
 };
 
 struct MapUpdate {
+  MLIRLocationRef loc;
   MLIRValueRef map;
   MLIRBlockRef ok;
   MLIRBlockRef err;
@@ -139,6 +140,7 @@ struct MLIRMatchPattern {
 };
 
 struct MLIRMatchBranch {
+  MLIRLocationRef loc;
   MLIRBlockRef dest;
   MLIRValueRef *destArgv;
   unsigned destArgc;
@@ -146,6 +148,7 @@ struct MLIRMatchBranch {
 };
 
 struct Match {
+  MLIRLocationRef loc;
   MLIRValueRef selector;
   MLIRMatchBranch *branches;
   unsigned numBranches;
@@ -153,7 +156,8 @@ struct Match {
 
 class ModuleBuilder {
  public:
-  ModuleBuilder(MLIRContext &context, StringRef name, const TargetMachine *tm);
+  ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
+                const TargetMachine *tm);
   ~ModuleBuilder();
 
   void dump();
@@ -164,16 +168,14 @@ class ModuleBuilder {
   // Functions
   //===----------------------------------------------------------------------===//
 
-  FuncOp create_function(StringRef functionName,
+  FuncOp create_function(Location loc, StringRef functionName,
                          SmallVectorImpl<Arg> &functionArgs,
                          EirType *resultType);
-
-  void declare_function(StringRef functionName, mlir::FunctionType fnType);
 
   void add_function(FuncOp f);
 
   Value build_closure(Closure *closure);
-  Value build_unpack_op(Value env, unsigned index);
+  Value build_unpack_op(Location loc, Value env, unsigned index);
 
   //===----------------------------------------------------------------------===//
   // Blocks
@@ -186,28 +188,24 @@ class ModuleBuilder {
   // Control Flow
   //===----------------------------------------------------------------------===//
 
-  void build_br(Block *dest, ValueRange destArgs = {});
-  void build_if(Value value, Block *yes, Block *no, Block *other,
+  void build_br(Location loc, Block *dest, ValueRange destArgs = {});
+  void build_if(Location loc, Value value, Block *yes, Block *no, Block *other,
                 SmallVectorImpl<Value> &yesArgs, SmallVectorImpl<Value> &noArgs,
                 SmallVectorImpl<Value> &otherArgs);
-  void build_unreachable();
-  void build_return(Value value);
+  void build_unreachable(Location loc);
+  void build_return(Location loc, Value value);
 
-  void translate_call_to_intrinsic(StringRef target, ArrayRef<Value> args,
-                                   bool isTail, Block *ok,
-                                   ArrayRef<Value> okArgs, Block *err,
-                                   ArrayRef<Value> errArgs);
+  void build_static_call(Location loc, StringRef target, ArrayRef<Value> args,
+                         bool isTail, Block *ok, ArrayRef<Value> okArgs,
+                         Block *err, ArrayRef<Value> errArgs);
 
-  void build_static_call(StringRef target, ArrayRef<Value> args, bool isTail,
-                         Block *ok, ArrayRef<Value> okArgs, Block *err,
-                         ArrayRef<Value> errArgs);
+  void build_closure_call(Location loc, Value closure, ArrayRef<Value> args,
+                          bool isTail, Block *ok, ArrayRef<Value> okArgs,
+                          Block *err, ArrayRef<Value> errArgs);
 
-  void build_closure_call(Value closure, ArrayRef<Value> args, bool isTail,
-                          Block *ok, ArrayRef<Value> okArgs, Block *err,
-                          ArrayRef<Value> errArgs);
-
-  void build_call_landing_pad(Value result, Block *ok, ArrayRef<Value> okArgs,
-                              Block *err, ArrayRef<Value> errArgs);
+  void build_call_landing_pad(Location loc, Value result, Block *ok,
+                              ArrayRef<Value> okArgs, Block *err,
+                              ArrayRef<Value> errArgs);
 
   //===----------------------------------------------------------------------===//
   // Operations
@@ -218,27 +216,27 @@ class ModuleBuilder {
       const MLIRMatchPattern &inPattern);
 
   void build_map_update(MapUpdate op);
-  void build_map_insert_op(Value map, Value key, Value val, Block *ok,
-                           Block *err);
-  void build_map_update_op(Value map, Value key, Value val, Block *ok,
-                           Block *err);
+  void build_map_insert_op(Location loc, Value map, Value key, Value val,
+                           Block *ok, Block *err);
+  void build_map_update_op(Location loc, Value map, Value key, Value val,
+                           Block *ok, Block *err);
 
-  Value build_is_type_op(Value value, Type matchType);
-  Value build_is_equal(Value lhs, Value rhs, bool isExact);
-  Value build_is_not_equal(Value lhs, Value rhs, bool isExact);
-  Value build_is_less_than_or_equal(Value lhs, Value rhs);
-  Value build_is_less_than(Value lhs, Value rhs);
-  Value build_is_greater_than_or_equal(Value lhs, Value rhs);
-  Value build_is_greater_than(Value lhs, Value rhs);
-  Value build_logical_and(Value lhs, Value rhs);
-  Value build_logical_or(Value lhs, Value rhs);
-  Value build_cons(Value head, Value tail);
-  Value build_tuple(ArrayRef<Value> elements);
-  Value build_map(ArrayRef<MapEntry> entries);
-  void build_binary_push(Value head, Value tail, Value size,
+  Value build_is_type_op(Location loc, Value value, Type matchType);
+  Value build_is_equal(Location loc, Value lhs, Value rhs, bool isExact);
+  Value build_is_not_equal(Location loc, Value lhs, Value rhs, bool isExact);
+  Value build_is_less_than_or_equal(Location loc, Value lhs, Value rhs);
+  Value build_is_less_than(Location loc, Value lhs, Value rhs);
+  Value build_is_greater_than_or_equal(Location loc, Value lhs, Value rhs);
+  Value build_is_greater_than(Location loc, Value lhs, Value rhs);
+  Value build_logical_and(Location loc, Value lhs, Value rhs);
+  Value build_logical_or(Location loc, Value lhs, Value rhs);
+  Value build_cons(Location loc, Value head, Value tail);
+  Value build_tuple(Location loc, ArrayRef<Value> elements);
+  Value build_map(Location loc, ArrayRef<MapEntry> entries);
+  void build_binary_push(Location loc, Value head, Value tail, Value size,
                          BinarySpecifier *spec, Block *ok, Block *err);
 
-  void build_trace_capture_op(Block *dest,
+  void build_trace_capture_op(Location loc, Block *dest,
                               ArrayRef<MLIRValueRef> destArgs = {});
 
   //===----------------------------------------------------------------------===//
@@ -246,21 +244,22 @@ class ModuleBuilder {
   //===----------------------------------------------------------------------===//
 
   Attribute build_float_attr(Type type, double value);
-  Value build_constant_float(double value);
-  Value build_constant_int(int64_t value);
+  Value build_constant_float(Location loc, double value);
+  Value build_constant_int(Location loc, int64_t value);
   Attribute build_int_attr(int64_t value, bool isSigned = true);
-  Value build_constant_bigint(StringRef value, unsigned width);
+  Value build_constant_bigint(Location loc, StringRef value, unsigned width);
   Attribute build_bigint_attr(StringRef value, unsigned width);
-  Value build_constant_atom(StringRef value, uint64_t valueId);
+  Value build_constant_atom(Location loc, StringRef value, uint64_t valueId);
   Attribute build_atom_attr(StringRef value, uint64_t valueId);
   Attribute build_string_attr(StringRef value);
-  Value build_constant_binary(StringRef value, uint64_t header, uint64_t flags);
+  Value build_constant_binary(Location loc, StringRef value, uint64_t header,
+                              uint64_t flags);
   Attribute build_binary_attr(StringRef value, uint64_t header, uint64_t flags);
-  Value build_constant_nil();
+  Value build_constant_nil(Location loc);
   Attribute build_nil_attr();
-  Value build_constant_list(ArrayRef<Attribute> elements);
-  Value build_constant_tuple(ArrayRef<Attribute> elements);
-  Value build_constant_map(ArrayRef<Attribute> elements);
+  Value build_constant_list(Location loc, ArrayRef<Attribute> elements);
+  Value build_constant_tuple(Location loc, ArrayRef<Attribute> elements);
+  Value build_constant_map(Location loc, ArrayRef<Attribute> elements);
   Attribute build_seq_attr(ArrayRef<Attribute> elements, Type type);
 
   template <typename Ty, typename... Args>

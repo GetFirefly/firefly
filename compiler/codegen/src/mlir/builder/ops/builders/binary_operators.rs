@@ -14,25 +14,53 @@ impl BinOpBuilder {
 
         let result_ref = match op.kind {
             ir::BinOp::Equal => unsafe {
-                MLIRBuildIsEqualOp(builder_ref, lhs_ref, rhs_ref, /* isExact= */ false)
+                MLIRBuildIsEqualOp(
+                    builder_ref,
+                    op.loc,
+                    lhs_ref,
+                    rhs_ref,
+                    /* isExact= */ false,
+                )
             },
             ir::BinOp::ExactEqual => unsafe {
-                MLIRBuildIsEqualOp(builder_ref, lhs_ref, rhs_ref, /* isExact= */ true)
+                MLIRBuildIsEqualOp(
+                    builder_ref,
+                    op.loc,
+                    lhs_ref,
+                    rhs_ref,
+                    /* isExact= */ true,
+                )
             },
             ir::BinOp::NotEqual => unsafe {
-                MLIRBuildIsNotEqualOp(builder_ref, lhs_ref, rhs_ref, /* isExact= */ false)
+                MLIRBuildIsNotEqualOp(
+                    builder_ref,
+                    op.loc,
+                    lhs_ref,
+                    rhs_ref,
+                    /* isExact= */ false,
+                )
             },
             ir::BinOp::ExactNotEqual => unsafe {
-                MLIRBuildIsNotEqualOp(builder_ref, lhs_ref, rhs_ref, /* isExact= */ true)
+                MLIRBuildIsNotEqualOp(
+                    builder_ref,
+                    op.loc,
+                    lhs_ref,
+                    rhs_ref,
+                    /* isExact= */ true,
+                )
             },
             ir::BinOp::LessEqual => unsafe {
-                MLIRBuildLessThanOrEqualOp(builder_ref, lhs_ref, rhs_ref)
+                MLIRBuildLessThanOrEqualOp(builder_ref, op.loc, lhs_ref, rhs_ref)
             },
-            ir::BinOp::Less => unsafe { MLIRBuildLessThanOp(builder_ref, lhs_ref, rhs_ref) },
+            ir::BinOp::Less => unsafe {
+                MLIRBuildLessThanOp(builder_ref, op.loc, lhs_ref, rhs_ref)
+            },
             ir::BinOp::GreaterEqual => unsafe {
-                MLIRBuildGreaterThanOrEqualOp(builder_ref, lhs_ref, rhs_ref)
+                MLIRBuildGreaterThanOrEqualOp(builder_ref, op.loc, lhs_ref, rhs_ref)
             },
-            ir::BinOp::Greater => unsafe { MLIRBuildGreaterThanOp(builder_ref, lhs_ref, rhs_ref) },
+            ir::BinOp::Greater => unsafe {
+                MLIRBuildGreaterThanOp(builder_ref, op.loc, lhs_ref, rhs_ref)
+            },
         };
         assert!(!result_ref.is_null());
 

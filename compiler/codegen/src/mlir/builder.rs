@@ -86,10 +86,24 @@ impl<'m> ModuleBuilder<'m> {
         use ffi::MLIRCreateModuleBuilder;
 
         let source_filename = CString::new(filemap.name().to_string()).unwrap();
+        let (li, ci) = filemap
+            .location(module.span().start())
+            .expect("expected source filename for module");
+        let module_loc = SourceLocation {
+            filename: source_filename.as_ptr(),
+            line: li.number().to_usize() as u32,
+            column: ci.number().to_usize() as u32,
+        };
         let name = module.name();
         let c_name = CString::new(name.to_string()).unwrap();
-        let builder =
-            unsafe { MLIRCreateModuleBuilder(context.as_ref(), c_name.as_ptr(), target_machine) };
+        let builder = unsafe {
+            MLIRCreateModuleBuilder(
+                context.as_ref(),
+                c_name.as_ptr(),
+                module_loc,
+                target_machine,
+            )
+        };
 
         let mut atoms = HashSet::new();
         atoms.insert(name.name);
@@ -113,6 +127,15 @@ impl<'m> ModuleBuilder<'m> {
     #[inline]
     pub fn filemap(&self) -> &Arc<FileMap> {
         &self.filemap
+    }
+
+    pub(super) fn location(&self, index: ByteIndex) -> Option<SourceLocation> {
+        let (li, ci) = self.filemap.location(index).ok()?;
+        Some(SourceLocation {
+            filename: self.source_filename.as_ptr(),
+            line: li.number().to_usize() as u32,
+            column: ci.number().to_usize() as u32,
+        })
     }
 
     /// Builds the module by building each function with a FunctionBuilder,

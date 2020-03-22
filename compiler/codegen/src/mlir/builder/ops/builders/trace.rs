@@ -11,9 +11,9 @@ pub struct TraceCaptureBuilder;
 impl TraceCaptureBuilder {
     pub fn build<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
-        branch: Branch,
+        op: TraceCapture,
     ) -> Result<Option<Value>> {
-        let Branch { block, args } = branch;
+        let Branch { block, args } = op.dest;
 
         let block_ref = builder.block_ref(block);
         let block_args = args
@@ -28,6 +28,7 @@ impl TraceCaptureBuilder {
         unsafe {
             MLIRBuildTraceCaptureOp(
                 builder_ref,
+                op.loc,
                 block_ref,
                 block_args.as_ptr(),
                 block_args.len() as libc::c_uint,
@@ -46,11 +47,11 @@ impl TraceConstructBuilder {
     pub fn build<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         ir_value: Option<ir::Value>,
-        capture: Value,
+        op: TraceConstruct,
     ) -> Result<Option<Value>> {
-        let capture_ref = builder.value_ref(capture);
+        let capture_ref = builder.value_ref(op.capture);
 
-        let trace_ref = unsafe { MLIRBuildTraceConstructOp(builder.as_ref(), capture_ref) };
+        let trace_ref = unsafe { MLIRBuildTraceConstructOp(builder.as_ref(), op.loc, capture_ref) };
         if trace_ref.is_null() {
             return Err(anyhow!("failed to build trace_construct operation"));
         }

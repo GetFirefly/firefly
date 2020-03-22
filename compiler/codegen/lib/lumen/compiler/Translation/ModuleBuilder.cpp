@@ -160,18 +160,21 @@ bool unwrapValues(MLIRValueRef *argv, unsigned argc,
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRModuleBuilderRef MLIRCreateModuleBuilder(
-    MLIRContextRef context, const char *name, LLVMTargetMachineRef tm) {
+    MLIRContextRef context, const char *name, SourceLocation sl,
+    LLVMTargetMachineRef tm) {
   MLIRContext *ctx = unwrap(context);
   TargetMachine *targetMachine = unwrap(tm);
   StringRef moduleName(name);
-  return wrap(new ModuleBuilder(*ctx, moduleName, targetMachine));
+  StringRef filename(sl.filename);
+  Location loc = mlir::FileLineColLoc::get(filename, sl.line, sl.column, ctx);
+  return wrap(new ModuleBuilder(*ctx, moduleName, loc, targetMachine));
 }
 
-ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name,
+ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
                              const TargetMachine *targetMachine)
     : builder(&context), targetMachine(targetMachine) {
   // Create an empty module into which we can codegen functions
-  theModule = mlir::ModuleOp::create(builder.getUnknownLoc(), name);
+  theModule = mlir::ModuleOp::create(loc, name);
   assert(isa<mlir::ModuleOp>(theModule) && "expected moduleop");
 }
 
@@ -214,13 +217,15 @@ mlir::ModuleOp ModuleBuilder::finish() {
 //===----------------------------------------------------------------------===//
 
 extern "C" FunctionDeclResult MLIRCreateFunction(MLIRModuleBuilderRef b,
+                                                 MLIRLocationRef locref,
                                                  const char *name,
                                                  const Arg *argv, int argc,
                                                  EirType *type) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   StringRef functionName(name);
   llvm::SmallVector<Arg, 2> functionArgs(argv, argv + argc);
-  auto fun = builder->create_function(functionName, functionArgs, type);
+  auto fun = builder->create_function(loc, functionName, functionArgs, type);
   if (!fun) return {nullptr, nullptr};
 
   MLIRFunctionOpRef funRef = wrap(new FuncOp(fun));
@@ -232,7 +237,7 @@ extern "C" FunctionDeclResult MLIRCreateFunction(MLIRModuleBuilderRef b,
   return {funRef, entry};
 }
 
-FuncOp ModuleBuilder::create_function(StringRef functionName,
+FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
                                       SmallVectorImpl<Arg> &functionArgs,
                                       EirType *resultType) {
   llvm::SmallVector<Type, 2> argTypes;
@@ -245,18 +250,12 @@ FuncOp ModuleBuilder::create_function(StringRef functionName,
   ArrayRef<NamedAttribute> attrs({});
   if (resultType->any.tag == EirTypeTag::None) {
     auto fnType = builder.getFunctionType(argTypes, llvm::None);
-    return FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
+    return FuncOp::create(loc, functionName, fnType, attrs);
   } else {
     auto fnType =
         builder.getFunctionType(argTypes, fromRust(builder, resultType));
-    return FuncOp::create(builder.getUnknownLoc(), functionName, fnType, attrs);
+    return FuncOp::create(loc, functionName, fnType, attrs);
   }
-}
-
-void ModuleBuilder::declare_function(StringRef functionName,
-                                     mlir::FunctionType fnType) {
-  ArrayRef<NamedAttribute> attrs({});
-  builder.create<FuncOp>(builder.getUnknownLoc(), functionName, fnType, attrs);
 }
 
 extern "C" void MLIRAddFunction(MLIRModuleBuilderRef b, MLIRFunctionOpRef f) {
@@ -276,29 +275,30 @@ extern "C" MLIRValueRef MLIRBuildClosure(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_closure(Closure *closure) {
   llvm::SmallVector<Value, 2> args;
   unwrapValues(closure->env, closure->envLen, args);
-  auto op = builder.create<ClosureOp>(builder.getUnknownLoc(), closure, args);
+  Location loc = unwrap(closure->loc);
+  auto op = builder.create<ClosureOp>(loc, closure, args);
   assert(op.getNumResults() == 1 && "unsupported number of results");
   return op.getResult(0);
 }
 
-extern "C" bool MLIRBuildUnpackEnv(MLIRModuleBuilderRef b, MLIRValueRef ev,
+extern "C" bool MLIRBuildUnpackEnv(MLIRModuleBuilderRef b,
+                                   MLIRLocationRef locref, MLIRValueRef ev,
                                    MLIRValueRef *values, unsigned numValues) {
   assert(numValues > 0 && "expected env size of 1 or more");
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value envBox = unwrap(ev);
   auto opBuilder = builder->getBuilder();
-  Value env =
-      opBuilder.create<CastOp>(opBuilder.getUnknownLoc(), envBox,
-                               BoxType::get(opBuilder.getType<ClosureType>()));
+  Value env = opBuilder.create<CastOp>(
+      loc, envBox, BoxType::get(opBuilder.getType<ClosureType>()));
   for (auto i = 0; i < numValues; i++) {
-    values[i] = wrap(builder->build_unpack_op(env, i));
+    values[i] = wrap(builder->build_unpack_op(loc, env, i));
   }
   return true;
 }
 
-Value ModuleBuilder::build_unpack_op(Value env, unsigned index) {
-  auto unpack =
-      builder.create<UnpackEnvOp>(builder.getUnknownLoc(), env, index);
+Value ModuleBuilder::build_unpack_op(Location loc, Value env, unsigned index) {
+  auto unpack = builder.create<UnpackEnvOp>(loc, env, index);
   return unpack.getResult();
 }
 
@@ -361,33 +361,36 @@ void ModuleBuilder::position_at_end(Block *block) {
 // BranchOp
 //===----------------------------------------------------------------------===//
 
-extern "C" void MLIRBuildBr(MLIRModuleBuilderRef b, MLIRBlockRef destBlk,
-                            MLIRValueRef *argv, unsigned argc) {
+extern "C" void MLIRBuildBr(MLIRModuleBuilderRef b, MLIRLocationRef locref,
+                            MLIRBlockRef destBlk, MLIRValueRef *argv,
+                            unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Block *dest = unwrap(destBlk);
   if (argc > 0) {
     llvm::SmallVector<Value, 2> args;
     unwrapValues(argv, argc, args);
-    builder->build_br(dest, args);
+    builder->build_br(loc, dest, args);
   } else {
-    builder->build_br(dest);
+    builder->build_br(loc, dest);
   }
 }
 
-void ModuleBuilder::build_br(Block *dest, ValueRange destArgs) {
-  builder.create<BranchOp>(builder.getUnknownLoc(), dest, destArgs);
+void ModuleBuilder::build_br(Location loc, Block *dest, ValueRange destArgs) {
+  builder.create<BranchOp>(loc, dest, destArgs);
 }
 
 //===----------------------------------------------------------------------===//
 // IfOp
 //===----------------------------------------------------------------------===//
 
-extern "C" void MLIRBuildIf(MLIRModuleBuilderRef b, MLIRValueRef val,
-                            MLIRBlockRef y, MLIRValueRef *yArgv, unsigned yArgc,
-                            MLIRBlockRef n, MLIRValueRef *nArgv, unsigned nArgc,
-                            MLIRBlockRef o, MLIRValueRef *oArgv,
-                            unsigned oArgc) {
+extern "C" void MLIRBuildIf(MLIRModuleBuilderRef b, MLIRLocationRef locref,
+                            MLIRValueRef val, MLIRBlockRef y,
+                            MLIRValueRef *yArgv, unsigned yArgc, MLIRBlockRef n,
+                            MLIRValueRef *nArgv, unsigned nArgc, MLIRBlockRef o,
+                            MLIRValueRef *oArgv, unsigned oArgc) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value value = unwrap(val);
   Block *yes = unwrap(y);
   Block *no = unwrap(n);
@@ -400,11 +403,11 @@ extern "C" void MLIRBuildIf(MLIRModuleBuilderRef b, MLIRValueRef val,
   SmallVector<Value, 1> otherArgs;
   unwrapValues(oArgv, oArgc, otherArgs);
   // Construct operation
-  builder->build_if(value, yes, no, other, yesArgs, noArgs, otherArgs);
+  builder->build_if(loc, value, yes, no, other, yesArgs, noArgs, otherArgs);
 }
 
-void ModuleBuilder::build_if(Value value, Block *yes, Block *no, Block *other,
-                             SmallVectorImpl<Value> &yesArgs,
+void ModuleBuilder::build_if(Location loc, Value value, Block *yes, Block *no,
+                             Block *other, SmallVectorImpl<Value> &yesArgs,
                              SmallVectorImpl<Value> &noArgs,
                              SmallVectorImpl<Value> &otherArgs) {
   //  Create the `if`, if necessary
@@ -412,37 +415,32 @@ void ModuleBuilder::build_if(Value value, Block *yes, Block *no, Block *other,
   Value isTrue = value;
   if (!value.getType().isa<BooleanType>()) {
     // The condition is not boolean, so we need to do a comparison
-    auto trueConst =
-        builder.create<ConstantAtomOp>(builder.getUnknownLoc(), true);
-    isTrue = builder.create<CmpEqOp>(builder.getUnknownLoc(), value, trueConst,
-                                     /*strict=*/true);
+    auto trueConst = builder.create<ConstantAtomOp>(loc, true);
+    isTrue = builder.create<CmpEqOp>(loc, value, trueConst, /*strict=*/true);
   }
 
   if (!other) {
     // No need to do any additional comparisons
-    builder.create<CondBranchOp>(builder.getUnknownLoc(), isTrue, yes, yesArgs,
-                                 no, noArgs);
+    builder.create<CondBranchOp>(loc, isTrue, yes, yesArgs, no, noArgs);
     return;
   }
 
   // Otherwise we need an additional check to see if we use the otherwise branch
-  auto falseConst =
-      builder.create<ConstantAtomOp>(builder.getUnknownLoc(), false);
-  Value isFalse = builder.create<CmpEqOp>(builder.getUnknownLoc(), value,
-                                          falseConst, /*strict=*/true);
+  auto falseConst = builder.create<ConstantAtomOp>(loc, false);
+  Value isFalse =
+      builder.create<CmpEqOp>(loc, value, falseConst, /*strict=*/true);
 
   Block *currentBlock = builder.getBlock();
   Block *falseBlock = currentBlock->splitBlock(falseConst);
 
   builder.setInsertionPointToEnd(falseBlock);
-  builder.create<CondBranchOp>(builder.getUnknownLoc(), isFalse, no, noArgs,
-                               other, otherArgs);
+  builder.create<CondBranchOp>(loc, isFalse, no, noArgs, other, otherArgs);
 
   // Go back to original block and insert conditional branch for first
   // comparison
   builder.setInsertionPointToEnd(currentBlock);
-  builder.create<CondBranchOp>(builder.getUnknownLoc(), isTrue, yes, yesArgs,
-                               falseBlock, ArrayRef<Value>{});
+  builder.create<CondBranchOp>(loc, isTrue, yes, yesArgs, falseBlock,
+                               ArrayRef<Value>{});
   return;
 }
 
@@ -496,6 +494,7 @@ std::unique_ptr<MatchPattern> ModuleBuilder::convertMatchPattern(
 void ModuleBuilder::build_match(Match op) {
   // Convert FFI types into internal MLIR representation
   Value selector = unwrap(op.selector);
+  Location loc = unwrap(op.loc);
   SmallVector<MatchBranch, 2> branches;
 
   ArrayRef<MLIRMatchBranch> inBranches(op.branches,
@@ -503,6 +502,7 @@ void ModuleBuilder::build_match(Match op) {
   for (auto &inBranch : inBranches) {
     // Extract destination block and base arguments
     Block *dest = unwrap(inBranch.dest);
+    Location branchLoc = unwrap(inBranch.loc);
     ArrayRef<MLIRValueRef> inDestArgs(inBranch.destArgv,
                                       inBranch.destArgv + inBranch.destArgc);
     SmallVector<Value, 1> destArgs;
@@ -513,43 +513,47 @@ void ModuleBuilder::build_match(Match op) {
     // Convert match pattern payload
     auto pattern = convertMatchPattern(inBranch.pattern);
     // Create internal branch type
-    MatchBranch branch(dest, destArgs, std::move(pattern));
+    MatchBranch branch(branchLoc, dest, destArgs, std::move(pattern));
     branches.push_back(std::move(branch));
   }
 
   // We don't use an explicit operation for matches, as currently
   // there isn't enough structure in place to allow nested regions
   // to reference blocks from containing ops
-  lumen::eir::lowerPatternMatch(builder, selector, branches);
+  lumen::eir::lowerPatternMatch(builder, loc, selector, branches);
 }
 
 //===----------------------------------------------------------------------===//
 // UnreachableOp
 //===----------------------------------------------------------------------===//
 
-extern "C" void MLIRBuildUnreachable(MLIRModuleBuilderRef b) {
+extern "C" void MLIRBuildUnreachable(MLIRModuleBuilderRef b,
+                                     MLIRLocationRef locref) {
   ModuleBuilder *builder = unwrap(b);
-  builder->build_unreachable();
+  Location loc = unwrap(locref);
+  builder->build_unreachable(loc);
 }
 
-void ModuleBuilder::build_unreachable() {
-  builder.create<UnreachableOp>(builder.getUnknownLoc());
+void ModuleBuilder::build_unreachable(Location loc) {
+  builder.create<UnreachableOp>(loc);
 }
 
 //===----------------------------------------------------------------------===//
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
-extern "C" void MLIRBuildReturn(MLIRModuleBuilderRef b, MLIRValueRef value) {
+extern "C" void MLIRBuildReturn(MLIRModuleBuilderRef b, MLIRLocationRef locref,
+                                MLIRValueRef value) {
   ModuleBuilder *builder = unwrap(b);
-  builder->build_return(unwrap(value));
+  Location loc = unwrap(locref);
+  builder->build_return(loc, unwrap(value));
 }
 
-void ModuleBuilder::build_return(Value value) {
+void ModuleBuilder::build_return(Location loc, Value value) {
   if (!value) {
-    builder.create<ReturnOp>(builder.getUnknownLoc());
+    builder.create<ReturnOp>(loc);
   } else {
-    builder.create<ReturnOp>(builder.getUnknownLoc(), value);
+    builder.create<ReturnOp>(loc, value);
   }
 }
 
@@ -557,23 +561,24 @@ void ModuleBuilder::build_return(Value value) {
 // TraceCaptureOp/TraceConstructOp
 //===----------------------------------------------------------------------===//
 
-extern "C" void MLIRBuildTraceCaptureOp(MLIRModuleBuilderRef b, MLIRBlockRef d,
+extern "C" void MLIRBuildTraceCaptureOp(MLIRModuleBuilderRef b,
+                                        MLIRLocationRef locref, MLIRBlockRef d,
                                         MLIRValueRef *argv, unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Block *dest = unwrap(d);
   if (argc > 0) {
     ArrayRef<MLIRValueRef> args(argv, argv + argc);
-    builder->build_trace_capture_op(dest, args);
+    builder->build_trace_capture_op(loc, dest, args);
   } else {
-    builder->build_trace_capture_op(dest);
+    builder->build_trace_capture_op(loc, dest);
   }
 }
 
-void ModuleBuilder::build_trace_capture_op(Block *dest,
+void ModuleBuilder::build_trace_capture_op(Location loc, Block *dest,
                                            ArrayRef<MLIRValueRef> destArgs) {
   auto termType = TermType::get(builder.getContext());
-  auto captureOp =
-      builder.create<TraceCaptureOp>(builder.getUnknownLoc(), termType);
+  auto captureOp = builder.create<TraceCaptureOp>(loc, termType);
   auto capture = captureOp.getResult();
 
   SmallVector<Value, 1> extendedArgs;
@@ -583,10 +588,11 @@ void ModuleBuilder::build_trace_capture_op(Block *dest,
     extendedArgs.push_back(arg);
   }
 
-  builder.create<BranchOp>(builder.getUnknownLoc(), dest, extendedArgs);
+  builder.create<BranchOp>(loc, dest, extendedArgs);
 }
 
 extern "C" MLIRValueRef MLIRBuildTraceConstructOp(MLIRModuleBuilderRef,
+                                                  MLIRLocationRef locref,
                                                   MLIRValueRef) {
   // TODO: For now we do nothing, but we'll want code that fetches
   // a term value representing the stack trace
@@ -605,6 +611,7 @@ extern "C" void MLIRBuildMapOp(MLIRModuleBuilderRef b, MapUpdate op) {
 void ModuleBuilder::build_map_update(MapUpdate op) {
   assert(op.actionsc > 0 && "cannot construct empty map op");
   SmallVector<MapAction, 2> actions(op.actionsv, op.actionsv + op.actionsc);
+  Location loc = unwrap(op.loc);
   Value map = unwrap(op.map);
   Block *ok = unwrap(op.ok);
   Block *err = unwrap(op.err);
@@ -627,10 +634,10 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
     builder.setInsertionPointToEnd(current);
     switch (action.action) {
       case MapActionType::Insert:
-        build_map_insert_op(map, key, val, cont, err);
+        build_map_insert_op(loc, map, key, val, cont, err);
         break;
       case MapActionType::Update:
-        build_map_update_op(map, key, val, cont, err);
+        build_map_update_op(loc, map, key, val, cont, err);
         break;
       default:
         llvm::report_fatal_error(
@@ -645,14 +652,14 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
   // could have occurred
   builder.setInsertionPointToEnd(current);
   ArrayRef<Value> okArgs = {map};
-  build_br(ok, okArgs);
+  build_br(loc, ok, okArgs);
 }
 
-void ModuleBuilder::build_map_insert_op(Value map, Value key, Value val,
-                                        Block *ok, Block *err) {
+void ModuleBuilder::build_map_insert_op(Location loc, Value map, Value key,
+                                        Value val, Block *ok, Block *err) {
   // Perform the insert
   ArrayRef<Value> pairs = {key, val};
-  auto op = builder.create<MapInsertOp>(builder.getUnknownLoc(), map, pairs);
+  auto op = builder.create<MapInsertOp>(loc, map, pairs);
   // Get the results, which is the updated map, and a error condition flag
   Value newMap = op.getResult(0);
   assert(newMap != nullptr);
@@ -661,15 +668,14 @@ void ModuleBuilder::build_map_insert_op(Value map, Value key, Value val,
   // Then branch to either the ok block, or the error block
   ValueRange okArgs = {newMap};
   ValueRange errArgs = {};
-  builder.create<CondBranchOp>(builder.getUnknownLoc(), isOk, ok, okArgs, err,
-                               errArgs);
+  builder.create<CondBranchOp>(loc, isOk, ok, okArgs, err, errArgs);
 }
 
-void ModuleBuilder::build_map_update_op(Value map, Value key, Value val,
-                                        Block *ok, Block *err) {
+void ModuleBuilder::build_map_update_op(Location loc, Value map, Value key,
+                                        Value val, Block *ok, Block *err) {
   // Perform the update
   ArrayRef<Value> pairs = {key, val};
-  auto op = builder.create<MapUpdateOp>(builder.getUnknownLoc(), map, pairs);
+  auto op = builder.create<MapUpdateOp>(loc, map, pairs);
   // Get the results, which is the updated map, and a error condition flag
   Value newMap = op.getResult(0);
   assert(newMap != nullptr);
@@ -678,8 +684,7 @@ void ModuleBuilder::build_map_update_op(Value map, Value key, Value val,
   // Then branch to either the ok block, or the error block
   ValueRange okArgs = {newMap};
   ValueRange errArgs = {};
-  builder.create<CondBranchOp>(builder.getUnknownLoc(), isOk, ok, okArgs, err,
-                               errArgs);
+  builder.create<CondBranchOp>(loc, isOk, ok, okArgs, err, errArgs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -687,84 +692,100 @@ void ModuleBuilder::build_map_update_op(Value map, Value key, Value val,
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRValueRef MLIRBuildIsEqualOp(MLIRModuleBuilderRef b,
+                                           MLIRLocationRef locref,
                                            MLIRValueRef l, MLIRValueRef r,
                                            bool isExact) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value lhs = unwrap(l);
   Value rhs = unwrap(r);
-  return wrap(builder->build_is_equal(lhs, rhs, isExact));
+  return wrap(builder->build_is_equal(loc, lhs, rhs, isExact));
 }
 
-Value ModuleBuilder::build_is_equal(Value lhs, Value rhs, bool isExact) {
-  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+Value ModuleBuilder::build_is_equal(Location loc, Value lhs, Value rhs,
+                                    bool isExact) {
+  edsc::ScopedContext scope(builder, loc);
   return eir_cmpeq(lhs, rhs, isExact);
 }
 
 extern "C" MLIRValueRef MLIRBuildIsNotEqualOp(MLIRModuleBuilderRef b,
+                                              MLIRLocationRef locref,
                                               MLIRValueRef l, MLIRValueRef r,
                                               bool isExact) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value lhs = unwrap(l);
   Value rhs = unwrap(r);
-  return wrap(builder->build_is_not_equal(lhs, rhs, isExact));
+  return wrap(builder->build_is_not_equal(loc, lhs, rhs, isExact));
 }
 
-Value ModuleBuilder::build_is_not_equal(Value lhs, Value rhs, bool isExact) {
-  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+Value ModuleBuilder::build_is_not_equal(Location loc, Value lhs, Value rhs,
+                                        bool isExact) {
+  edsc::ScopedContext scope(builder, loc);
   return eir_cmpneq(lhs, rhs, isExact);
 }
 
 extern "C" MLIRValueRef MLIRBuildLessThanOrEqualOp(MLIRModuleBuilderRef b,
+                                                   MLIRLocationRef locref,
                                                    MLIRValueRef l,
                                                    MLIRValueRef r) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value lhs = unwrap(l);
   Value rhs = unwrap(r);
-  return wrap(builder->build_is_less_than_or_equal(lhs, rhs));
+  return wrap(builder->build_is_less_than_or_equal(loc, lhs, rhs));
 }
 
-Value ModuleBuilder::build_is_less_than_or_equal(Value lhs, Value rhs) {
-  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+Value ModuleBuilder::build_is_less_than_or_equal(Location loc, Value lhs,
+                                                 Value rhs) {
+  edsc::ScopedContext scope(builder, loc);
   return eir_cmplte(lhs, rhs);
 }
 
 extern "C" MLIRValueRef MLIRBuildLessThanOp(MLIRModuleBuilderRef b,
+                                            MLIRLocationRef locref,
                                             MLIRValueRef l, MLIRValueRef r) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value lhs = unwrap(l);
   Value rhs = unwrap(r);
-  return wrap(builder->build_is_less_than(lhs, rhs));
+  return wrap(builder->build_is_less_than(loc, lhs, rhs));
 }
 
-Value ModuleBuilder::build_is_less_than(Value lhs, Value rhs) {
-  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+Value ModuleBuilder::build_is_less_than(Location loc, Value lhs, Value rhs) {
+  edsc::ScopedContext scope(builder, loc);
   return eir_cmplt(lhs, rhs);
 }
 
 extern "C" MLIRValueRef MLIRBuildGreaterThanOrEqualOp(MLIRModuleBuilderRef b,
+                                                      MLIRLocationRef locref,
                                                       MLIRValueRef l,
                                                       MLIRValueRef r) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value lhs = unwrap(l);
   Value rhs = unwrap(r);
-  return wrap(builder->build_is_greater_than_or_equal(lhs, rhs));
+  return wrap(builder->build_is_greater_than_or_equal(loc, lhs, rhs));
 }
 
-Value ModuleBuilder::build_is_greater_than_or_equal(Value lhs, Value rhs) {
-  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+Value ModuleBuilder::build_is_greater_than_or_equal(Location loc, Value lhs,
+                                                    Value rhs) {
+  edsc::ScopedContext scope(builder, loc);
   return eir_cmpgte(lhs, rhs);
 }
 
 extern "C" MLIRValueRef MLIRBuildGreaterThanOp(MLIRModuleBuilderRef b,
+                                               MLIRLocationRef locref,
                                                MLIRValueRef l, MLIRValueRef r) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value lhs = unwrap(l);
   Value rhs = unwrap(r);
-  return wrap(builder->build_is_greater_than(lhs, rhs));
+  return wrap(builder->build_is_greater_than(loc, lhs, rhs));
 }
 
-Value ModuleBuilder::build_is_greater_than(Value lhs, Value rhs) {
-  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+Value ModuleBuilder::build_is_greater_than(Location loc, Value lhs, Value rhs) {
+  edsc::ScopedContext scope(builder, loc);
   return eir_cmpgt(lhs, rhs);
 }
 
@@ -773,28 +794,32 @@ Value ModuleBuilder::build_is_greater_than(Value lhs, Value rhs) {
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRValueRef MLIRBuildLogicalAndOp(MLIRModuleBuilderRef b,
+                                              MLIRLocationRef locref,
                                               MLIRValueRef l, MLIRValueRef r) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value lhs = unwrap(l);
   Value rhs = unwrap(r);
-  return wrap(builder->build_logical_and(lhs, rhs));
+  return wrap(builder->build_logical_and(loc, lhs, rhs));
 }
 
-Value ModuleBuilder::build_logical_and(Value lhs, Value rhs) {
-  auto op = builder.create<LogicalAndOp>(builder.getUnknownLoc(), lhs, rhs);
+Value ModuleBuilder::build_logical_and(Location loc, Value lhs, Value rhs) {
+  auto op = builder.create<LogicalAndOp>(loc, lhs, rhs);
   return op.getResult();
 }
 
 extern "C" MLIRValueRef MLIRBuildLogicalOrOp(MLIRModuleBuilderRef b,
+                                             MLIRLocationRef locref,
                                              MLIRValueRef l, MLIRValueRef r) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value lhs = unwrap(l);
   Value rhs = unwrap(r);
-  return wrap(builder->build_logical_or(lhs, rhs));
+  return wrap(builder->build_logical_or(loc, lhs, rhs));
 }
 
-Value ModuleBuilder::build_logical_or(Value lhs, Value rhs) {
-  auto op = builder.create<LogicalOrOp>(builder.getUnknownLoc(), lhs, rhs);
+Value ModuleBuilder::build_logical_or(Location loc, Value lhs, Value rhs) {
+  auto op = builder.create<LogicalOrOp>(loc, lhs, rhs);
   return op.getResult();
 }
 
@@ -802,11 +827,11 @@ Value ModuleBuilder::build_logical_or(Value lhs, Value rhs) {
 // Function Calls
 //===----------------------------------------------------------------------===//
 
-#define INTRINSIC_BUILDER(Alias, Op)                             \
-  static Value Alias(OpBuilder &builder, ArrayRef<Value> args) { \
-    auto op = builder.create<Op>(builder.getUnknownLoc(), args); \
-                                                                 \
-    return op.getResult();                                       \
+#define INTRINSIC_BUILDER(Alias, Op)                                           \
+  static Value Alias(OpBuilder &builder, Location loc, ArrayRef<Value> args) { \
+    auto op = builder.create<Op>(loc, args);                                   \
+                                                                               \
+    return op.getResult();                                                     \
   }
 
 INTRINSIC_BUILDER(buildIntrinsicPrintOp, PrintOp);
@@ -829,25 +854,23 @@ INTRINSIC_BUILDER(buildIntrinsicCmpLteOp, CmpLteOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpGtOp, CmpGtOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpGteOp, CmpGteOp);
 
-static Value buildIntrinsicCmpEqStrictOp(OpBuilder &builder,
+static Value buildIntrinsicCmpEqStrictOp(OpBuilder &builder, Location loc,
                                          ArrayRef<Value> args) {
   assert(args.size() == 2 && "expected =:= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
-  return builder.create<CmpEqOp>(builder.getUnknownLoc(), lhs, rhs,
-                                 /*strict=*/true);
+  return builder.create<CmpEqOp>(loc, lhs, rhs, /*strict=*/true);
 }
 
-static Value buildIntrinsicCmpNeqStrictOp(OpBuilder &builder,
+static Value buildIntrinsicCmpNeqStrictOp(OpBuilder &builder, Location loc,
                                           ArrayRef<Value> args) {
   assert(args.size() == 2 && "expected =/= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
-  return builder.create<CmpNeqOp>(builder.getUnknownLoc(), lhs, rhs,
-                                  /*strict=*/true);
+  return builder.create<CmpNeqOp>(loc, lhs, rhs, /*strict=*/true);
 }
 
-using BuildIntrinsicFnT = Value (*)(OpBuilder &, ArrayRef<Value>);
+using BuildIntrinsicFnT = Value (*)(OpBuilder &, Location loc, ArrayRef<Value>);
 
 static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
   auto fnPtr = StringSwitch<BuildIntrinsicFnT>(target)
@@ -885,25 +908,29 @@ extern "C" bool MLIRIsIntrinsic(const char *name) {
 }
 
 extern "C" MLIRValueRef MLIRBuildIntrinsic(MLIRModuleBuilderRef b,
+                                           MLIRLocationRef locref,
                                            const char *name, MLIRValueRef *argv,
                                            unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   auto buildIntrinsicFnOpt = getIntrinsicBuilder(name);
   if (!buildIntrinsicFnOpt) return nullptr;
 
   SmallVector<Value, 1> args;
   unwrapValues(argv, argc, args);
   auto buildIntrinsicFn = buildIntrinsicFnOpt.getValue();
-  return wrap(buildIntrinsicFn(builder->getBuilder(), args));
+  return wrap(buildIntrinsicFn(builder->getBuilder(), loc, args));
 }
 
-extern "C" void MLIRBuildStaticCall(MLIRModuleBuilderRef b, const char *name,
+extern "C" void MLIRBuildStaticCall(MLIRModuleBuilderRef b,
+                                    MLIRLocationRef locref, const char *name,
                                     MLIRValueRef *argv, unsigned argc,
                                     bool isTail, MLIRBlockRef okBlock,
                                     MLIRValueRef *okArgv, unsigned okArgc,
                                     MLIRBlockRef errBlock,
                                     MLIRValueRef *errArgv, unsigned errArgc) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Block *ok = unwrap(okBlock);
   Block *err = unwrap(errBlock);
   StringRef functionName(name);
@@ -913,41 +940,37 @@ extern "C" void MLIRBuildStaticCall(MLIRModuleBuilderRef b, const char *name,
   unwrapValues(okArgv, okArgc, okArgs);
   SmallVector<Value, 1> errArgs;
   unwrapValues(errArgv, errArgc, errArgs);
-  builder->build_static_call(functionName, args, isTail, ok, okArgs, err,
+  builder->build_static_call(loc, functionName, args, isTail, ok, okArgs, err,
                              errArgs);
 }
 
-void ModuleBuilder::build_static_call(StringRef target, ArrayRef<Value> args,
-                                      bool isTail, Block *ok,
-                                      ArrayRef<Value> okArgs, Block *err,
-                                      ArrayRef<Value> errArgs) {
+void ModuleBuilder::build_static_call(Location loc, StringRef target,
+                                      ArrayRef<Value> args, bool isTail,
+                                      Block *ok, ArrayRef<Value> okArgs,
+                                      Block *err, ArrayRef<Value> errArgs) {
   // If this is a call to an intrinsic, lower accordingly
   auto buildIntrinsicFnOpt = getIntrinsicBuilder(target);
   Value result;
   if (buildIntrinsicFnOpt.hasValue()) {
     auto buildIntrinsicFn = buildIntrinsicFnOpt.getValue();
-    auto result = buildIntrinsicFn(builder, args);
+    auto result = buildIntrinsicFn(builder, loc, args);
     if (isTail) {
       if (result) {
-        builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+        builder.create<ReturnOp>(loc, result);
       } else {
-        builder.create<ReturnOp>(builder.getUnknownLoc());
+        builder.create<ReturnOp>(loc);
       }
     } else {
       if (result) {
         auto termTy = builder.getType<TermType>();
         if (result.getType() != termTy) {
-          auto cast =
-              builder.create<CastOp>(builder.getUnknownLoc(), result, termTy);
-          builder.create<BranchOp>(builder.getUnknownLoc(), ok,
-                                   ArrayRef<Value>{cast});
+          auto cast = builder.create<CastOp>(loc, result, termTy);
+          builder.create<BranchOp>(loc, ok, ArrayRef<Value>{cast});
         } else {
-          builder.create<BranchOp>(builder.getUnknownLoc(), ok,
-                                   ArrayRef<Value>{result});
+          builder.create<BranchOp>(loc, ok, ArrayRef<Value>{result});
         }
       } else {
-        builder.create<BranchOp>(builder.getUnknownLoc(), ok,
-                                 ArrayRef<Value>{});
+        builder.create<BranchOp>(loc, ok, ArrayRef<Value>{});
       }
     }
     return;
@@ -972,32 +995,33 @@ void ModuleBuilder::build_static_call(StringRef target, ArrayRef<Value> args,
   }
 
   // Build call
-  Operation *call =
-      builder.create<CallOp>(builder.getUnknownLoc(), callee, fnResults, args);
+  Operation *call = builder.create<CallOp>(loc, callee, fnResults, args);
   assert(call->getNumResults() == 1 && "unsupported number of results");
   result = call->getResult(0);
 
   // If this is a tail call, we're returning the results directly
   if (isTail) {
     if (result) {
-      builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+      builder.create<ReturnOp>(loc, result);
     } else {
-      builder.create<ReturnOp>(builder.getUnknownLoc());
+      builder.create<ReturnOp>(loc);
     }
     return;
   }
 
-  build_call_landing_pad(result, ok, okArgs, err, errArgs);
+  build_call_landing_pad(loc, result, ok, okArgs, err, errArgs);
   return;
 }
 
-extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b, MLIRValueRef cls,
+extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b,
+                                     MLIRLocationRef locref, MLIRValueRef cls,
                                      MLIRValueRef *argv, unsigned argc,
                                      bool isTail, MLIRBlockRef okBlock,
                                      MLIRValueRef *okArgv, unsigned okArgc,
                                      MLIRBlockRef errBlock,
                                      MLIRValueRef *errArgv, unsigned errArgc) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value closure = unwrap(cls);
   Block *ok = unwrap(okBlock);
   Block *err = unwrap(errBlock);
@@ -1007,14 +1031,15 @@ extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b, MLIRValueRef cls,
   unwrapValues(okArgv, okArgc, okArgs);
   SmallVector<Value, 1> errArgs;
   unwrapValues(errArgv, errArgc, errArgs);
-  builder->build_closure_call(closure, args, isTail, ok, okArgs, err, errArgs);
+  builder->build_closure_call(loc, closure, args, isTail, ok, okArgs, err,
+                              errArgs);
 }
 
-void ModuleBuilder::build_closure_call(Value cls, ArrayRef<Value> args,
-                                       bool isTail, Block *ok,
-                                       ArrayRef<Value> okArgs, Block *err,
-                                       ArrayRef<Value> errArgs) {
-  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+void ModuleBuilder::build_closure_call(Location loc, Value cls,
+                                       ArrayRef<Value> args, bool isTail,
+                                       Block *ok, ArrayRef<Value> okArgs,
+                                       Block *err, ArrayRef<Value> errArgs) {
+  edsc::ScopedContext scope(builder, loc);
   // The closure call operation requires the callee to be of the
   // correct type, so cast to closure type if not already
   Value closure;
@@ -1030,22 +1055,22 @@ void ModuleBuilder::build_closure_call(Value cls, ArrayRef<Value> args,
 
   //  Build call
   auto termTy = builder.getType<TermType>();
-  auto call = builder.create<CallClosureOp>(builder.getUnknownLoc(), termTy,
-                                            closure, args);
+  auto call = builder.create<CallClosureOp>(loc, termTy, closure, args);
   Value result = call.getResult();
 
   // If this is a tail call, we're returning the results directly
   if (isTail) {
-    builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+    builder.create<ReturnOp>(loc, result);
     return;
   }
 
-  build_call_landing_pad(result, ok, okArgs, err, errArgs);
+  build_call_landing_pad(loc, result, ok, okArgs, err, errArgs);
   return;
 }
 
-void ModuleBuilder::build_call_landing_pad(Value result, Block *ok,
-                                           ArrayRef<Value> okArgs, Block *err,
+void ModuleBuilder::build_call_landing_pad(Location loc, Value result,
+                                           Block *ok, ArrayRef<Value> okArgs,
+                                           Block *err,
                                            ArrayRef<Value> errArgs) {
   // Build call
   auto currentBlock = builder.getBlock();
@@ -1058,15 +1083,14 @@ void ModuleBuilder::build_call_landing_pad(Value result, Block *ok,
   SmallVector<Value, 1> okArgsFinal;
   SmallVector<Value, 1> errArgsFinal;
 
-  Value rhs = builder.create<ConstantNoneOp>(builder.getUnknownLoc());
-  Value isErr = builder.create<CmpEqOp>(builder.getUnknownLoc(), result, rhs,
-                                        /*strict=*/true);
+  Value rhs = builder.create<ConstantNoneOp>(loc);
+  Value isErr = builder.create<CmpEqOp>(loc, result, rhs, /*strict=*/true);
   Block *ifOk = ok;
   Block *ifErr = err;
 
   // No success block provided, so create block to handle returning
   if (!ok) {
-    auto ret = builder.create<ReturnOp>(builder.getUnknownLoc(), result);
+    auto ret = builder.create<ReturnOp>(loc, result);
     ifOk = currentBlock->splitBlock(ret);
     builder.setInsertionPointToEnd(currentBlock);
   } else {
@@ -1075,7 +1099,7 @@ void ModuleBuilder::build_call_landing_pad(Value result, Block *ok,
 
   // No error block provided, so create block to handle throwing
   if (!err) {
-    auto thr = builder.create<ThrowOp>(builder.getUnknownLoc(), result);
+    auto thr = builder.create<ThrowOp>(loc, result);
     ifErr = currentBlock->splitBlock(thr);
     builder.setInsertionPointToEnd(currentBlock);
   } else {
@@ -1085,8 +1109,8 @@ void ModuleBuilder::build_call_landing_pad(Value result, Block *ok,
 
   // Insert conditional branch in call block
   // Use comparison to NONE as condition for cond_br
-  builder.create<CondBranchOp>(builder.getUnknownLoc(), isErr, ifErr,
-                               errArgsFinal, ifOk, okArgsFinal);
+  builder.create<CondBranchOp>(loc, isErr, ifErr, errArgsFinal, ifOk,
+                               okArgsFinal);
   return;
 }
 
@@ -1094,49 +1118,56 @@ void ModuleBuilder::build_call_landing_pad(Value result, Block *ok,
 // Constructors
 //===----------------------------------------------------------------------===//
 
-extern "C" MLIRValueRef MLIRCons(MLIRModuleBuilderRef b, MLIRValueRef h,
-                                 MLIRValueRef t) {
+extern "C" MLIRValueRef MLIRCons(MLIRModuleBuilderRef b, MLIRLocationRef locref,
+                                 MLIRValueRef h, MLIRValueRef t) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value head = unwrap(h);
   Value tail = unwrap(t);
-  return wrap(builder->build_cons(head, tail));
+  return wrap(builder->build_cons(loc, head, tail));
 }
 
-Value ModuleBuilder::build_cons(Value head, Value tail) {
-  auto op = builder.create<ConsOp>(builder.getUnknownLoc(), head, tail);
+Value ModuleBuilder::build_cons(Location loc, Value head, Value tail) {
+  auto op = builder.create<ConsOp>(loc, head, tail);
   return op.getResult();
 }
 
 extern "C" MLIRValueRef MLIRConstructTuple(MLIRModuleBuilderRef b,
+                                           MLIRLocationRef locref,
                                            MLIRValueRef *ev, unsigned ec) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   SmallVector<Value, 2> elements;
   unwrapValues(ev, ec, elements);
-  return wrap(builder->build_tuple(elements));
+  return wrap(builder->build_tuple(loc, elements));
 }
 
-Value ModuleBuilder::build_tuple(ArrayRef<Value> elements) {
-  auto op = builder.create<TupleOp>(builder.getUnknownLoc(), elements);
+Value ModuleBuilder::build_tuple(Location loc, ArrayRef<Value> elements) {
+  auto op = builder.create<TupleOp>(loc, elements);
   return op.getResult();
 }
 
-extern "C" MLIRValueRef MLIRConstructMap(MLIRModuleBuilderRef b, MapEntry *ev,
+extern "C" MLIRValueRef MLIRConstructMap(MLIRModuleBuilderRef b,
+                                         MLIRLocationRef locref, MapEntry *ev,
                                          unsigned ec) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   ArrayRef<MapEntry> entries(ev, ev + ec);
-  return wrap(builder->build_map(entries));
+  return wrap(builder->build_map(loc, entries));
 }
 
-Value ModuleBuilder::build_map(ArrayRef<MapEntry> entries) {
-  auto op = builder.create<ConstructMapOp>(builder.getUnknownLoc(), entries);
+Value ModuleBuilder::build_map(Location loc, ArrayRef<MapEntry> entries) {
+  auto op = builder.create<ConstructMapOp>(loc, entries);
   return op.getResult(0);
 }
 
-extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b, MLIRValueRef h,
+extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b,
+                                    MLIRLocationRef locref, MLIRValueRef h,
                                     MLIRValueRef t, MLIRValueRef sz,
                                     BinarySpecifier *spec, MLIRBlockRef okBlock,
                                     MLIRBlockRef errBlock) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Block *ok = unwrap(okBlock);
   Block *err = unwrap(errBlock);
   Value head = unwrap(h);
@@ -1146,12 +1177,12 @@ extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b, MLIRValueRef h,
     size = unwrap(sz);
   }
 
-  builder->build_binary_push(head, tail, size, spec, ok, err);
+  builder->build_binary_push(loc, head, tail, size, spec, ok, err);
 }
 
-void ModuleBuilder::build_binary_push(Value head, Value tail, Value size,
-                                      BinarySpecifier *spec, Block *ok,
-                                      Block *err) {
+void ModuleBuilder::build_binary_push(Location loc, Value head, Value tail,
+                                      Value size, BinarySpecifier *spec,
+                                      Block *ok, Block *err) {
   NamedAttributeList attrs;
   auto tag = spec->tag;
   switch (tag) {
@@ -1187,14 +1218,12 @@ void ModuleBuilder::build_binary_push(Value head, Value tail, Value size,
     default:
       llvm_unreachable("invalid binary specifier type");
   }
-  auto op = builder.create<BinaryPushOp>(builder.getUnknownLoc(), head, tail,
-                                         size, attrs);
+  auto op = builder.create<BinaryPushOp>(loc, head, tail, size, attrs);
   auto bin = op.getResult(0);
   auto success = op.getResult(1);
   ArrayRef<Value> okArgs{bin};
   ArrayRef<Value> errArgs{};
-  builder.create<::mlir::CondBranchOp>(builder.getUnknownLoc(), success, ok,
-                                       okArgs, err, errArgs);
+  builder.create<::mlir::CondBranchOp>(loc, success, ok, okArgs, err, errArgs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1202,19 +1231,22 @@ void ModuleBuilder::build_binary_push(Value head, Value tail, Value size,
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRValueRef MLIRBuildConstantFloat(MLIRModuleBuilderRef b,
+                                               MLIRLocationRef locref,
                                                double value) {
   ModuleBuilder *builder = unwrap(b);
-  return wrap(builder->build_constant_float(value));
+  Location loc = unwrap(locref);
+  return wrap(builder->build_constant_float(loc, value));
 }
 
-Value ModuleBuilder::build_constant_float(double value) {
+Value ModuleBuilder::build_constant_float(Location loc, double value) {
   auto type = builder.getType<FloatType>();
   APFloat f(value);
-  auto op = builder.create<ConstantFloatOp>(builder.getUnknownLoc(), f);
+  auto op = builder.create<ConstantFloatOp>(loc, f);
   return op.getResult();
 }
 
 extern "C" MLIRAttributeRef MLIRBuildFloatAttr(MLIRModuleBuilderRef b,
+                                               MLIRLocationRef locref,
                                                double value) {
   ModuleBuilder *builder = unwrap(b);
   auto type = builder->getType<FloatType>();
@@ -1230,17 +1262,20 @@ Attribute ModuleBuilder::build_float_attr(Type type, double value) {
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRValueRef MLIRBuildConstantInt(MLIRModuleBuilderRef b,
+                                             MLIRLocationRef locref,
                                              int64_t value) {
   ModuleBuilder *builder = unwrap(b);
-  return wrap(builder->build_constant_int(value));
+  Location loc = unwrap(locref);
+  return wrap(builder->build_constant_int(loc, value));
 }
 
-Value ModuleBuilder::build_constant_int(int64_t value) {
-  auto op = builder.create<ConstantIntOp>(builder.getUnknownLoc(), value);
+Value ModuleBuilder::build_constant_int(Location loc, int64_t value) {
+  auto op = builder.create<ConstantIntOp>(loc, value);
   return op.getResult();
 }
 
 extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
+                                             MLIRLocationRef locref,
                                              int64_t value) {
   ModuleBuilder *builder = unwrap(b);
   return wrap(builder->build_int_attr(value, /*signed=*/true));
@@ -1257,20 +1292,24 @@ Attribute ModuleBuilder::build_int_attr(int64_t value, bool isSigned) {
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRValueRef MLIRBuildConstantBigInt(MLIRModuleBuilderRef b,
+                                                MLIRLocationRef locref,
                                                 const char *str,
                                                 unsigned width) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   StringRef value(str);
-  return wrap(builder->build_constant_bigint(value, width));
+  return wrap(builder->build_constant_bigint(loc, value, width));
 }
 
-Value ModuleBuilder::build_constant_bigint(StringRef value, unsigned width) {
+Value ModuleBuilder::build_constant_bigint(Location loc, StringRef value,
+                                           unsigned width) {
   APInt i(width, value, /*radix=*/10);
-  auto op = builder.create<ConstantBigIntOp>(builder.getUnknownLoc(), i);
+  auto op = builder.create<ConstantBigIntOp>(loc, i);
   return op.getResult();
 }
 
 extern "C" MLIRAttributeRef MLIRBuildBigIntAttr(MLIRModuleBuilderRef b,
+                                                MLIRLocationRef locref,
                                                 const char *str,
                                                 unsigned width) {
   ModuleBuilder *builder = unwrap(b);
@@ -1289,20 +1328,24 @@ Attribute ModuleBuilder::build_bigint_attr(StringRef value, unsigned width) {
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRValueRef MLIRBuildConstantAtom(MLIRModuleBuilderRef b,
+                                              MLIRLocationRef locref,
                                               const char *str, uint64_t id) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   StringRef value(str);
-  return wrap(builder->build_constant_atom(value, id));
+  return wrap(builder->build_constant_atom(loc, value, id));
 }
 
-Value ModuleBuilder::build_constant_atom(StringRef value, uint64_t valueId) {
-  edsc::ScopedContext scope(builder, builder.getUnknownLoc());
+Value ModuleBuilder::build_constant_atom(Location loc, StringRef value,
+                                         uint64_t valueId) {
+  edsc::ScopedContext scope(builder, loc);
   APInt id(64, valueId, /*isSigned=*/false);
   auto termTy = builder.getType<TermType>();
   return eir_cast(eir_atom(id, value), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildAtomAttr(MLIRModuleBuilderRef b,
+                                              MLIRLocationRef locref,
                                               const char *str, uint64_t id) {
   ModuleBuilder *builder = unwrap(b);
   StringRef value(str);
@@ -1323,22 +1366,24 @@ Attribute ModuleBuilder::build_string_attr(StringRef value) {
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRValueRef MLIRBuildConstantBinary(MLIRModuleBuilderRef b,
+                                                MLIRLocationRef locref,
                                                 const char *str, unsigned size,
                                                 uint64_t header,
                                                 uint64_t flags) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   StringRef value(str, (size_t)size);
-  return wrap(builder->build_constant_binary(value, header, flags));
+  return wrap(builder->build_constant_binary(loc, value, header, flags));
 }
 
-Value ModuleBuilder::build_constant_binary(StringRef value, uint64_t header,
-                                           uint64_t flags) {
-  auto op = builder.create<ConstantBinaryOp>(builder.getUnknownLoc(), value,
-                                             header, flags);
+Value ModuleBuilder::build_constant_binary(Location loc, StringRef value,
+                                           uint64_t header, uint64_t flags) {
+  auto op = builder.create<ConstantBinaryOp>(loc, value, header, flags);
   return op.getResult();
 }
 
 extern "C" MLIRAttributeRef MLIRBuildBinaryAttr(MLIRModuleBuilderRef b,
+                                                MLIRLocationRef locref,
                                                 const char *str, unsigned size,
                                                 uint64_t header,
                                                 uint64_t flags) {
@@ -1356,17 +1401,20 @@ Attribute ModuleBuilder::build_binary_attr(StringRef value, uint64_t header,
 // ConstantNil
 //===----------------------------------------------------------------------===//
 
-extern "C" MLIRValueRef MLIRBuildConstantNil(MLIRModuleBuilderRef b) {
+extern "C" MLIRValueRef MLIRBuildConstantNil(MLIRModuleBuilderRef b,
+                                             MLIRLocationRef locref) {
   ModuleBuilder *builder = unwrap(b);
-  return wrap(builder->build_constant_nil());
+  Location loc = unwrap(locref);
+  return wrap(builder->build_constant_nil(loc));
 }
 
-Value ModuleBuilder::build_constant_nil() {
-  edsc::ScopedContext(builder, builder.getUnknownLoc());
+Value ModuleBuilder::build_constant_nil(Location loc) {
+  edsc::ScopedContext(builder, loc);
   return eir_nil();
 }
 
-extern "C" MLIRAttributeRef MLIRBuildNilAttr(MLIRModuleBuilderRef b) {
+extern "C" MLIRAttributeRef MLIRBuildNilAttr(MLIRModuleBuilderRef b,
+                                             MLIRLocationRef locref) {
   ModuleBuilder *builder = unwrap(b);
   return wrap(builder->build_nil_attr());
 }
@@ -1380,9 +1428,11 @@ Attribute ModuleBuilder::build_nil_attr() {
 //===----------------------------------------------------------------------===//
 
 extern "C" MLIRValueRef MLIRBuildConstantList(MLIRModuleBuilderRef b,
+                                              MLIRLocationRef locref,
                                               const MLIRAttributeRef *elements,
                                               int num_elements) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   ArrayRef<MLIRAttributeRef> xs(elements, elements + num_elements);
   SmallVector<Attribute, 1> list;
   if (num_elements > 0) {
@@ -1390,39 +1440,45 @@ extern "C" MLIRValueRef MLIRBuildConstantList(MLIRModuleBuilderRef b,
       Attribute attr = unwrap(ar);
       list.push_back(attr);
     }
-    return wrap(builder->build_constant_list(list));
+    return wrap(builder->build_constant_list(loc, list));
   } else {
-    return wrap(builder->build_constant_nil());
+    return wrap(builder->build_constant_nil(loc));
   }
 }
 
-Value ModuleBuilder::build_constant_list(ArrayRef<Attribute> elements) {
-  auto op = builder.create<ConstantListOp>(builder.getUnknownLoc(), elements);
+Value ModuleBuilder::build_constant_list(Location loc,
+                                         ArrayRef<Attribute> elements) {
+  auto op = builder.create<ConstantListOp>(loc, elements);
   return op.getResult();
 }
 
 extern "C" MLIRValueRef MLIRBuildConstantTuple(MLIRModuleBuilderRef b,
+                                               MLIRLocationRef locref,
                                                const MLIRAttributeRef *elements,
                                                int num_elements) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   ArrayRef<MLIRAttributeRef> xs(elements, elements + num_elements);
   SmallVector<Attribute, 1> tuple;
   for (auto ar : xs) {
     Attribute attr = unwrap(ar);
     tuple.push_back(attr);
   }
-  return wrap(builder->build_constant_tuple(tuple));
+  return wrap(builder->build_constant_tuple(loc, tuple));
 }
 
-Value ModuleBuilder::build_constant_tuple(ArrayRef<Attribute> elements) {
-  auto op = builder.create<ConstantTupleOp>(builder.getUnknownLoc(), elements);
+Value ModuleBuilder::build_constant_tuple(Location loc,
+                                          ArrayRef<Attribute> elements) {
+  auto op = builder.create<ConstantTupleOp>(loc, elements);
   return op.getResult();
 }
 
 extern "C" MLIRValueRef MLIRBuildConstantMap(MLIRModuleBuilderRef b,
+                                             MLIRLocationRef locref,
                                              const KeyValuePair *elements,
                                              int num_elements) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   ArrayRef<KeyValuePair> xs(elements, elements + num_elements);
   SmallVector<Attribute, 4> list;
   list.reserve(xs.size() * 2);
@@ -1434,11 +1490,12 @@ extern "C" MLIRValueRef MLIRBuildConstantMap(MLIRModuleBuilderRef b,
     if (!value) return nullptr;
     list.push_back(value);
   }
-  return wrap(builder->build_constant_map(list));
+  return wrap(builder->build_constant_map(loc, list));
 }
 
-Value ModuleBuilder::build_constant_map(ArrayRef<Attribute> elements) {
-  auto op = builder.create<ConstantMapOp>(builder.getUnknownLoc(), elements);
+Value ModuleBuilder::build_constant_map(Location loc,
+                                        ArrayRef<Attribute> elements) {
+  auto op = builder.create<ConstantMapOp>(loc, elements);
   return op.getResult();
 }
 
@@ -1460,6 +1517,7 @@ Attribute ModuleBuilder::build_seq_attr(ArrayRef<Attribute> elements,
 }
 
 extern "C" MLIRAttributeRef MLIRBuildListAttr(MLIRModuleBuilderRef b,
+                                              MLIRLocationRef locref,
                                               const MLIRAttributeRef *elements,
                                               int num_elements) {
   ModuleBuilder *builder = unwrap(b);
@@ -1470,6 +1528,7 @@ extern "C" MLIRAttributeRef MLIRBuildListAttr(MLIRModuleBuilderRef b,
 }
 
 extern "C" MLIRAttributeRef MLIRBuildTupleAttr(MLIRModuleBuilderRef b,
+                                               MLIRLocationRef locref,
                                                const MLIRAttributeRef *elements,
                                                int num_elements) {
   ModuleBuilder *builder = unwrap(b);
@@ -1488,6 +1547,7 @@ extern "C" MLIRAttributeRef MLIRBuildTupleAttr(MLIRModuleBuilderRef b,
 }
 
 extern "C" MLIRAttributeRef MLIRBuildMapAttr(MLIRModuleBuilderRef b,
+                                             MLIRLocationRef locref,
                                              const KeyValuePair *elements,
                                              int num_elements) {
   ModuleBuilder *builder = unwrap(b);
@@ -1548,26 +1608,31 @@ Location ModuleBuilder::getFusedLocation(ArrayRef<Location> locs) {
 // Type Checking
 //===----------------------------------------------------------------------===//
 
-Value ModuleBuilder::build_is_type_op(Value value, Type matchType) {
-  auto op = builder.create<IsTypeOp>(builder.getUnknownLoc(), value, matchType);
+Value ModuleBuilder::build_is_type_op(Location loc, Value value,
+                                      Type matchType) {
+  auto op = builder.create<IsTypeOp>(loc, value, matchType);
   return op.getResult();
 }
 
 extern "C" MLIRValueRef MLIRBuildIsTypeTupleWithArity(MLIRModuleBuilderRef b,
+                                                      MLIRLocationRef locref,
                                                       MLIRValueRef value,
                                                       unsigned arity) {
   ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
   Value val = unwrap(value);
   auto type = builder->getType<eir::TupleType>(arity);
-  return wrap(builder->build_is_type_op(val, type));
+  return wrap(builder->build_is_type_op(loc, val, type));
 }
 
-#define DEFINE_IS_TYPE_OP(NAME, TYPE)                                        \
-  extern "C" MLIRValueRef NAME(MLIRModuleBuilderRef b, MLIRValueRef value) { \
-    ModuleBuilder *builder = unwrap(b);                                      \
-    Value val = unwrap(value);                                               \
-    auto type = builder->getType<TYPE>();                                    \
-    return wrap(builder->build_is_type_op(val, type));                       \
+#define DEFINE_IS_TYPE_OP(NAME, TYPE)                                          \
+  extern "C" MLIRValueRef NAME(MLIRModuleBuilderRef b, MLIRLocationRef locref, \
+                               MLIRValueRef value) {                           \
+    ModuleBuilder *builder = unwrap(b);                                        \
+    Location loc = unwrap(locref);                                             \
+    Value val = unwrap(value);                                                 \
+    auto type = builder->getType<TYPE>();                                      \
+    return wrap(builder->build_is_type_op(loc, val, type));                    \
   }
 
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeList, ListType);

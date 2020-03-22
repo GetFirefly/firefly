@@ -12,37 +12,82 @@ pub use self::builder::OpBuilder;
 use crate::Result;
 
 use super::block::Block;
-use super::ffi::{self, Type};
+use super::ffi::{self, LocationRef, Type};
 use super::value::Value;
 use super::ScopedFunctionBuilder;
 
 /// Represents the different types of operations that can be present in an EIR block
 #[derive(Debug, Clone)]
 pub enum OpKind {
-    Return(Option<Value>),
+    Return(Return),
     Throw(Throw),
-    Unreachable,
-    Branch(Branch),
+    Unreachable(LocationRef),
+    Branch(Br),
     Call(Call),
     If(If),
-    IsType { value: Value, expected: Type },
+    IsType(IsType),
     Match(Match),
     BinaryPush(BinaryPush),
     MapPut(MapPuts),
     BinOp(BinaryOperator),
     LogicOp(LogicalOperator),
-    Constant(ir::Const),
-    FunctionRef(Callee),
-    Tuple(Vec<Value>),
-    Cons(Value, Value),
-    Map(Vec<(Value, Value)>),
-    TraceCapture(Branch),
-    TraceConstruct(Value),
+    Constant(Constant),
+    FunctionRef(FunctionRef),
+    Tuple(Tuple),
+    Cons(Cons),
+    Map(Map),
+    TraceCapture(TraceCapture),
+    TraceConstruct(TraceConstruct),
     Intrinsic(Intrinsic),
+}
+
+#[derive(Debug, Clone)]
+pub struct Br {
+    pub loc: LocationRef,
+    pub dest: Branch,
+}
+
+#[derive(Debug, Clone)]
+pub struct IsType {
+    pub loc: LocationRef,
+    pub value: Value,
+    pub expected: Type,
+}
+
+#[derive(Debug, Clone)]
+pub struct Constant {
+    pub loc: LocationRef,
+    pub constant: ir::Const,
+}
+
+#[derive(Debug, Clone)]
+pub struct Tuple {
+    pub loc: LocationRef,
+    pub elements: Vec<Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Cons {
+    pub loc: LocationRef,
+    pub head: Value,
+    pub tail: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct Map {
+    pub loc: LocationRef,
+    pub elements: Vec<(Value, Value)>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Return {
+    pub loc: LocationRef,
+    pub value: Option<Value>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryOperator {
+    pub loc: LocationRef,
     pub kind: ir::BinOp,
     pub lhs: Value,
     pub rhs: Value,
@@ -50,6 +95,7 @@ pub struct BinaryOperator {
 
 #[derive(Debug, Clone, Copy)]
 pub struct LogicalOperator {
+    pub loc: LocationRef,
     pub kind: ir::LogicOp,
     pub lhs: Value,
     pub rhs: Option<Value>,
@@ -61,6 +107,12 @@ pub struct ClosureInfo {
     pub index: u32,
     pub old_unique: u32,
     pub unique: [u8; 16],
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionRef {
+    pub loc: LocationRef,
+    pub callee: Callee,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,6 +214,7 @@ impl fmt::Display for Callee {
 
 #[derive(Debug, Clone)]
 pub struct Call {
+    pub loc: LocationRef,
     pub callee: Callee,
     pub args: Vec<Value>,
     pub is_tail: bool,
@@ -183,6 +236,7 @@ pub enum CallError {
 
 #[derive(Debug, Clone)]
 pub struct If {
+    pub loc: LocationRef,
     pub cond: Value,
     pub yes: Branch,
     pub no: Branch,
@@ -197,6 +251,7 @@ pub struct Branch {
 
 #[derive(Debug, Clone)]
 pub struct Match {
+    pub loc: LocationRef,
     pub selector: Value,
     pub branches: Vec<Pattern>,
     pub reads: Vec<ir::Value>,
@@ -204,19 +259,34 @@ pub struct Match {
 
 #[derive(Debug, Clone)]
 pub struct Pattern {
+    pub loc: LocationRef,
     pub kind: ir::MatchKind,
     pub block: Block,
     pub args: Vec<ir::Value>,
 }
 
 #[derive(Debug, Clone)]
+pub struct TraceCapture {
+    pub loc: LocationRef,
+    pub dest: Branch,
+}
+
+#[derive(Debug, Clone)]
+pub struct TraceConstruct {
+    pub loc: LocationRef,
+    pub capture: Value,
+}
+
+#[derive(Debug, Clone)]
 pub struct Intrinsic {
+    pub loc: LocationRef,
     pub name: libeir_intern::Symbol,
     pub args: Vec<ir::Value>,
 }
 
 #[derive(Debug, Clone)]
 pub struct BinaryPush {
+    pub loc: LocationRef,
     pub ok: Block,
     pub err: Block,
     pub head: Value,
@@ -227,6 +297,7 @@ pub struct BinaryPush {
 
 #[derive(Debug, Clone)]
 pub struct MapPuts {
+    pub loc: LocationRef,
     pub ok: Block,
     pub err: Block,
     pub map: Value,
@@ -242,6 +313,7 @@ pub struct MapPut {
 
 #[derive(Debug, Clone)]
 pub struct Throw {
+    pub loc: LocationRef,
     pub kind: Value,
     pub class: Value,
     pub reason: Value,

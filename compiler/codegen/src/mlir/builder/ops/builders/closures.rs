@@ -32,11 +32,15 @@ impl ClosureBuilder {
         let name = CString::new(ident.to_string()).unwrap();
 
         let builder_ref = builder.as_ref();
+        let loc = ir_value
+            .map(|v| builder.value_location(v))
+            .unwrap_or_else(|| builder.unknown_value_location());
         let module_ref = ident
             .module
             .name
-            .as_attribute_ref(builder_ref, builder.options())?;
+            .as_attribute_ref(loc, builder_ref, builder.options())?;
         let closure = Closure {
+            loc,
             module: module_ref,
             name: name.as_ptr(),
             arity: ident.arity as u8,

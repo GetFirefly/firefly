@@ -35,12 +35,14 @@ namespace eir {
 
 class MatchBranch {
  public:
-  MatchBranch(Block *dest, ArrayRef<Value> destArgs,
+  MatchBranch(Location loc, Block *dest, ArrayRef<Value> destArgs,
               std::unique_ptr<MatchPattern> pattern)
-      : dest(dest),
+      : loc(loc),
+        dest(dest),
         destArgs(destArgs.begin(), destArgs.end()),
         pattern(std::move(pattern)) {}
 
+  Location getLoc() const { return loc; }
   Block *getDest() const { return dest; }
   ArrayRef<Value> getDestArgs() const { return destArgs; }
   MatchPatternType getPatternType() const { return pattern->getKind(); }
@@ -55,6 +57,7 @@ class MatchBranch {
   }
 
  private:
+  Location loc;
   Block *dest;
   SmallVector<Value, 3> destArgs;
   std::unique_ptr<MatchPattern> pattern;
@@ -64,7 +67,7 @@ class MatchBranch {
 int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType type);
 
 /// Performs lowering of a match operation
-void lowerPatternMatch(::mlir::OpBuilder &builder, Value selector,
+void lowerPatternMatch(::mlir::OpBuilder &builder, Location loc, Value selector,
                        ArrayRef<MatchBranch> branches);
 
 //===----------------------------------------------------------------------===//

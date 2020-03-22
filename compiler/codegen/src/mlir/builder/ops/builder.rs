@@ -51,29 +51,25 @@ impl OpBuilder {
         kind: OpKind,
     ) -> Result<Option<Value>> {
         match kind {
-            OpKind::Return(value) => ReturnBuilder::build(builder, value),
+            OpKind::Return(op) => ReturnBuilder::build(builder, op),
             OpKind::Throw(op) => ThrowBuilder::build(builder, op),
-            OpKind::Unreachable => UnreachableBuilder::build(builder),
-            OpKind::Call(call) => CallBuilder::build(builder, ir_value, call),
-            OpKind::Branch(branch) => BranchBuilder::build(builder, branch),
+            OpKind::Unreachable(loc) => UnreachableBuilder::build(builder, loc),
+            OpKind::Call(op) => CallBuilder::build(builder, ir_value, op),
+            OpKind::Branch(op) => BranchBuilder::build(builder, op),
             OpKind::If(op) => IfBuilder::build(builder, op),
-            OpKind::IsType { value, expected } => {
-                IsTypeBuilder::build(builder, ir_value, value, expected)
-            }
+            OpKind::IsType(op) => IsTypeBuilder::build(builder, ir_value, op),
             OpKind::Match(op) => MatchBuilder::build(builder, op),
             OpKind::BinOp(op) => BinOpBuilder::build(builder, ir_value, op),
             OpKind::LogicOp(op) => LogicOpBuilder::build(builder, ir_value, op),
-            OpKind::Constant(c) => ConstantBuilder::build(builder, ir_value, c),
-            OpKind::FunctionRef(callee) => CalleeBuilder::build(builder, ir_value, callee),
-            OpKind::Tuple(elements) => TupleBuilder::build(builder, ir_value, elements.as_slice()),
-            OpKind::Cons(head, tail) => ConsBuilder::build(builder, ir_value, head, tail),
-            OpKind::Map(items) => MapBuilder::build(builder, ir_value, items.as_slice()),
+            OpKind::Constant(op) => ConstantBuilder::build(builder, ir_value, op),
+            OpKind::FunctionRef(op) => CalleeBuilder::build(builder, ir_value, op),
+            OpKind::Tuple(op) => TupleBuilder::build(builder, ir_value, op),
+            OpKind::Cons(op) => ConsBuilder::build(builder, ir_value, op),
+            OpKind::Map(op) => MapBuilder::build(builder, ir_value, op),
             OpKind::MapPut(op) => MapPutBuilder::build(builder, op),
             OpKind::BinaryPush(op) => BinaryPushBuilder::build(builder, op),
-            OpKind::TraceCapture(branch) => TraceCaptureBuilder::build(builder, branch),
-            OpKind::TraceConstruct(capture) => {
-                TraceConstructBuilder::build(builder, ir_value, capture)
-            }
+            OpKind::TraceCapture(op) => TraceCaptureBuilder::build(builder, op),
+            OpKind::TraceConstruct(op) => TraceConstructBuilder::build(builder, ir_value, op),
             OpKind::Intrinsic(op) => IntrinsicBuilder::build(builder, ir_value, op),
         }
     }

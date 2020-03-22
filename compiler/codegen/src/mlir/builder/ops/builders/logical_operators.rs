@@ -15,8 +15,8 @@ impl LogicOpBuilder {
         let rhs_ref = op.rhs.map(|v| builder.value_ref(v)).unwrap_or_default();
 
         let result_ref = match op.kind {
-            LogicOp::And => unsafe { MLIRBuildLogicalAndOp(builder_ref, lhs_ref, rhs_ref) },
-            LogicOp::Or => unsafe { MLIRBuildLogicalOrOp(builder_ref, lhs_ref, rhs_ref) },
+            LogicOp::And => unsafe { MLIRBuildLogicalAndOp(builder_ref, op.loc, lhs_ref, rhs_ref) },
+            LogicOp::Or => unsafe { MLIRBuildLogicalOrOp(builder_ref, op.loc, lhs_ref, rhs_ref) },
             LogicOp::Eq => todo!("logical primop (eq)"),
         };
         assert!(!result_ref.is_null());

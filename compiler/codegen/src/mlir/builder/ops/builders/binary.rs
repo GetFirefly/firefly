@@ -15,7 +15,7 @@ impl BinaryPushBuilder {
         let spec = (&op.spec).into();
 
         unsafe {
-            MLIRBuildBinaryPush(builder.as_ref(), head, tail, size, &spec, ok, err);
+            MLIRBuildBinaryPush(builder.as_ref(), op.loc, head, tail, size, &spec, ok, err);
         }
 
         Ok(None)

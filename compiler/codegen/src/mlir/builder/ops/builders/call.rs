@@ -51,6 +51,7 @@ impl CallBuilder {
                 unsafe {
                     MLIRBuildClosureCall(
                         builder.as_ref(),
+                        op.loc,
                         closure_ref,
                         args.as_ptr(),
                         args.len() as libc::c_uint,
@@ -73,6 +74,7 @@ impl CallBuilder {
                 unsafe {
                     MLIRBuildStaticCall(
                         builder.as_ref(),
+                        op.loc,
                         name.as_ptr(),
                         args.as_ptr(),
                         args.len() as libc::c_uint,
@@ -99,12 +101,12 @@ impl CalleeBuilder {
     pub fn build<'f, 'o>(
         _builder: &mut ScopedFunctionBuilder<'f, 'o>,
         ir_value: Option<ir::Value>,
-        callee: Callee,
+        op: FunctionRef,
     ) -> Result<Option<Value>> {
         todo!(
             "build function reference constant for {:?} = {:?}",
             ir_value,
-            callee
+            &op.callee
         );
     }
 }

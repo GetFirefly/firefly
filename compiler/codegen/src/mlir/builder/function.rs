@@ -154,7 +154,7 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         }
 
         // Create function
-        let mut func = Function::with_name_signature(name, signature);
+        let mut func = Function::with_name_signature(eir.span(), name, signature);
         let (mlir, entry_ref) = func.build(self.builder)?;
 
         // Mirror the entry block for our init block
@@ -345,7 +345,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     }
 
     /// Gets the location data for the given EIR value
-    #[inline]
     pub fn value_location(&self, ir_value: ir::Value) -> LocationRef {
         if let Some(locs) = self.eir.value_locations(ir_value) {
             let mut fused = Vec::with_capacity(locs.len());
@@ -364,6 +363,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 };
             }
         }
+        self.unknown_value_location()
+    }
+
+    #[inline(always)]
+    pub fn unknown_value_location(&self) -> LocationRef {
         unsafe { MLIRUnknownLocation(self.builder) }
     }
 
@@ -622,6 +626,19 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             );
         }
 
+        let loc = {
+            let (li, ci) = self
+                .filemap
+                .location(self.func.span.start())
+                .expect("expected source span for function");
+            let loc = SourceLocation {
+                filename: self.filename,
+                line: li.number().to_usize() as u32,
+                column: ci.number().to_usize() as u32,
+            };
+            unsafe { MLIRCreateLocation(self.builder, loc) }
+        };
+
         let env_value = self
             .block_args(entry)
             .get(0)
@@ -633,6 +650,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         unsafe {
             let result = MLIRBuildUnpackEnv(
                 self.builder,
+                loc,
                 env,
                 values.as_mut_ptr(),
                 num_values as libc::c_uint,
@@ -674,24 +692,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         let block = self.create_block(Some(ir_block), params.as_slice())?;
 
         Ok((ir_block, block))
-    }
-
-    /// Inserts a branch operation at the current point, with the given destination and arguments
-    fn insert_branch(&mut self, block: Block, args: &[Value]) -> Result<()> {
-        debug_in!(
-            self,
-            "inserting branch to block {:?} with args {:?}",
-            block,
-            args
-        );
-        BranchBuilder::build(
-            self,
-            Branch {
-                block,
-                args: args.to_vec(),
-            },
-        )
-        .map(|_| ())
     }
 
     /// Creates a new block
@@ -775,6 +775,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         // Get the set of values this block reads in its body
         let reads = self.eir.block_reads(ir_block);
         let num_reads = reads.len();
+        let loc = self.value_location(self.eir.block_value(ir_block));
         // Build the operation contained in this block
         let op = match self.eir.block_kind(ir_block).unwrap().clone() {
             // Branch to another block in this function, return or throw
@@ -794,7 +795,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         debug_in!(self, "control flow type: return void");
                         None
                     };
-                    OpKind::Return(return_value)
+                    OpKind::Return(Return {
+                        loc,
+                        value: return_value,
+                    })
                 } else if self.func.is_throw_ir(ir_dest) {
                     debug_in!(self, "control flow type: throw");
                     // get exception value from reads
@@ -807,6 +811,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     let error_class = self.build_value(reads[2])?;
                     let error_reason = self.build_value(reads[3])?;
                     OpKind::Throw(Throw {
+                        loc,
                         kind: error_kind,
                         class: error_class,
                         reason: error_reason,
@@ -815,7 +820,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     debug_in!(self, "control flow type: branch");
                     let block = self.get_block_by_value(ir_dest);
                     let args = self.build_target_block_args(block, &reads[1..]);
-                    OpKind::Branch(Branch { block, args })
+                    OpKind::Branch(Br {
+                        loc,
+                        dest: Branch { block, args },
+                    })
                 }
             }
             // Call a function
@@ -849,6 +857,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         debug_in!(self, "ok continues to {:?}", ok_ir_block);
                         let ok_block = self.get_block(ok_ir_block);
                         let ok_args = self.build_target_block_args(ok_block, &reads[3..]);
+                        let ok_loc = self.value_location(ir_ok);
                         CallSuccess::Branch(Branch {
                             block: ok_block,
                             args: ok_args,
@@ -868,6 +877,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     if let Some(err_ir_block) = self.eir.value_block(ir_err) {
                         debug_in!(self, "exception continues to {:?}", err_ir_block);
                         let err_block = self.get_block(err_ir_block);
+                        let err_loc = self.value_location(ir_err);
                         CallError::Branch(Branch {
                             block: err_block,
                             args: Default::default(),
@@ -882,6 +892,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 };
                 debug_in!(self, "on error = {:?}", err);
                 OpKind::Call(Call {
+                    loc,
                     callee,
                     args,
                     is_tail,
@@ -914,6 +925,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 debug_in!(self, "remaining reads = {:?}", remaining_reads);
 
                 OpKind::If(If {
+                    loc,
                     cond,
                     yes: Branch {
                         block: yes,
@@ -967,7 +979,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     }
                 }
 
-                OpKind::MapPut(MapPuts { ok, err, map, puts })
+                OpKind::MapPut(MapPuts {
+                    loc,
+                    ok,
+                    err,
+                    map,
+                    puts,
+                })
             }
             // Construct a binary piece by pice
             // (ok: fn(bin), fail: fn(), head, tail)
@@ -987,6 +1005,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     None
                 };
                 OpKind::BinaryPush(BinaryPush {
+                    loc,
                     ok,
                     err,
                     head,
@@ -1017,6 +1036,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     .map(|(i, kind)| {
                         debug_in!(self, "branch {} has kind {:?}", i, kind);
                         let block_value = self.eir.value_list_get_n(dests, i).unwrap();
+                        let branch_loc = self.value_location(block_value);
                         let block = self.get_block_by_value(block_value);
                         debug_in!(self, "branch {} has dest {:?}", i, block);
                         let args_vl = reads[i + 2];
@@ -1026,11 +1046,17 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         for n in 0..num_args {
                             args.push(self.eir.value_list_get_n(args_vl, n).unwrap());
                         }
-                        Pattern { kind, block, args }
+                        Pattern {
+                            kind,
+                            loc: branch_loc,
+                            block,
+                            args,
+                        }
                     })
                     .collect();
 
                 OpKind::Match(Match {
+                    loc,
                     selector: self.build_value(reads[1])?,
                     branches,
                     reads: (&reads[2..]).to_vec(),
@@ -1041,9 +1067,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::OpKind::TraceCaptureRaw => {
                 debug_in!(self, "block contains trace capture operation");
                 let block = self.get_block_by_value(reads[0]);
-                OpKind::TraceCapture(Branch {
-                    block,
-                    args: Default::default(),
+                OpKind::TraceCapture(TraceCapture {
+                    loc,
+                    dest: Branch {
+                        block,
+                        args: Default::default(),
+                    },
                 })
             }
             // Requests that a trace be constructed for consumption in a `catch`
@@ -1052,12 +1081,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 debug_in!(self, "block contains trace construct operation");
                 // We use get_value here because the capture must always be a block argument
                 let capture = self.get_value(reads[0]);
-                OpKind::TraceConstruct(capture)
+                OpKind::TraceConstruct(TraceConstruct { loc, capture })
             }
             // Symbol + per-intrinsic args
             ir::OpKind::Intrinsic(name) => {
                 debug_in!(self, "block contains intrinsic {:?}", name);
                 OpKind::Intrinsic(Intrinsic {
+                    loc,
                     name,
                     args: reads.to_vec(),
                 })
@@ -1066,7 +1096,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             // intend to never reach this point during execution
             ir::OpKind::Unreachable => {
                 debug_in!(self, "block contains unreachable");
-                OpKind::Unreachable
+                OpKind::Unreachable(loc)
             }
             invalid => panic!("invalid operation kind: {:?}", invalid),
         };
@@ -1094,7 +1124,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     pub(super) fn build_value_opt(&mut self, ir_value: ir::Value) -> Result<Option<Value>> {
         match self.eir.value_kind(ir_value) {
             // Always lower constants as fresh values
-            ir::ValueKind::Const(c) => self.build_constant_value(c).map(|v| Some(v)),
+            ir::ValueKind::Const(c) => {
+                let loc = self.value_location(ir_value);
+                self.build_constant_value(loc, c).map(|v| Some(v))
+            }
             kind => {
                 debug_in!(self, "building value {:?} (kind = {:?})", ir_value, kind);
                 // If the value has already been lowered, return a reference to it
@@ -1131,8 +1164,9 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 
     /// This function returns a Value that represents the given IR value lowered as a constant
     #[inline]
-    fn build_constant_value(&mut self, constant: ir::Const) -> Result<Value> {
+    fn build_constant_value(&mut self, loc: LocationRef, constant: ir::Const) -> Result<Value> {
         debug_in!(self, "building constant value {:?}", constant);
+        let constant = Constant { loc, constant };
         ConstantBuilder::build(self, None, constant)
             .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected constant to have result")))
     }
@@ -1149,6 +1183,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         primop: ir::PrimOp,
     ) -> Result<Option<Value>> {
         debug_in!(self, "building primop from value {:?}", ir_value);
+        let loc = self.value_location(ir_value);
         let primop_kind = self.primop_kind(primop).clone();
         let reads = self.primop_reads(primop).to_vec();
         let num_reads = reads.len();
@@ -1163,7 +1198,12 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 );
                 let lhs = self.build_value(reads[0])?;
                 let rhs = self.build_value(reads[1])?;
-                OpKind::BinOp(BinaryOperator { kind, lhs, rhs })
+                OpKind::BinOp(BinaryOperator {
+                    loc,
+                    kind,
+                    lhs,
+                    rhs,
+                })
             }
             // (terms..)
             ir::PrimOpKind::LogicOp(kind) => {
@@ -1176,6 +1216,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 let lhs = self.build_value(reads[0])?;
                 let rhs = self.build_value(reads[1])?;
                 OpKind::LogicOp(LogicalOperator {
+                    loc,
                     kind,
                     lhs,
                     rhs: Some(rhs),
@@ -1185,10 +1226,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::PrimOpKind::IsType(bt) => {
                 debug_in!(self, "primop is type check");
                 debug_in!(self, "type = {:?}", bt);
-                OpKind::IsType {
+                OpKind::IsType(IsType {
+                    loc,
                     value: self.build_value(reads[0])?,
                     expected: bt.clone().into(),
-                }
+                })
             }
             // (terms..)
             ir::PrimOpKind::Tuple => {
@@ -1202,7 +1244,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     let element = self.build_value(read)?;
                     elements.push(element);
                 }
-                OpKind::Tuple(elements)
+                OpKind::Tuple(Tuple { loc, elements })
             }
             // (head, tail)
             ir::PrimOpKind::ListCell => {
@@ -1213,7 +1255,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 );
                 let head = self.build_value(reads[0])?;
                 let tail = self.build_value(reads[1])?;
-                OpKind::Cons(head, tail)
+                OpKind::Cons(Cons { loc, head, tail })
             }
             // (k1, v1, ...)
             ir::PrimOpKind::Map => {
@@ -1226,13 +1268,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     num_reads % 2 == 0,
                     "expected map primop to have a number of operands divisible into pairs"
                 );
-                let mut items = Vec::with_capacity(num_reads / 2);
+                let mut elements = Vec::with_capacity(num_reads / 2);
                 for chunk in reads.chunks_exact(2) {
                     let key = self.build_value(chunk[0])?;
                     let value = self.build_value(chunk[1])?;
-                    items.push((key, value));
+                    elements.push((key, value));
                 }
-                OpKind::Map(items)
+                OpKind::Map(Map { loc, elements })
             }
             ir::PrimOpKind::CaptureFunction => {
                 debug_in!(self, "primop is function capture");
@@ -1241,7 +1283,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     "expected capture function primop to have four operands"
                 );
                 let callee = Callee::new(self, ir_value)?;
-                OpKind::FunctionRef(callee)
+                OpKind::FunctionRef(FunctionRef { loc, callee })
             }
             ir::PrimOpKind::ValueList => {
                 debug_in!(self, "value list: {:?} with {} reads", ir_value, num_reads);

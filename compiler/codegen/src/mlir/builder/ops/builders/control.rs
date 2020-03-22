@@ -4,12 +4,12 @@ pub struct ReturnBuilder;
 impl ReturnBuilder {
     pub fn build<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
-        value: Option<Value>,
+        op: Return,
     ) -> Result<Option<Value>> {
         debug_in!(builder, "building return");
-        let value_ref = value.map(|v| builder.value_ref(v)).unwrap_or_default();
+        let value_ref = op.value.map(|v| builder.value_ref(v)).unwrap_or_default();
         unsafe {
-            MLIRBuildReturn(builder.as_ref(), value_ref);
+            MLIRBuildReturn(builder.as_ref(), op.loc, value_ref);
         }
         Ok(None)
     }
@@ -19,12 +19,12 @@ pub struct ThrowBuilder;
 impl ThrowBuilder {
     pub fn build<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
-        _op: Throw,
+        op: Throw,
     ) -> Result<Option<Value>> {
         debug_in!(builder, "building throw");
         // TODO: For now we just lower to an abort until we decide on how this should work
         unsafe {
-            MLIRBuildUnreachable(builder.as_ref());
+            MLIRBuildUnreachable(builder.as_ref(), op.loc);
         }
 
         Ok(None)
@@ -33,10 +33,13 @@ impl ThrowBuilder {
 
 pub struct UnreachableBuilder;
 impl UnreachableBuilder {
-    pub fn build<'f, 'o>(builder: &mut ScopedFunctionBuilder<'f, 'o>) -> Result<Option<Value>> {
+    pub fn build<'f, 'o>(
+        builder: &mut ScopedFunctionBuilder<'f, 'o>,
+        loc: LocationRef,
+    ) -> Result<Option<Value>> {
         debug_in!(builder, "building unreachable");
         unsafe {
-            MLIRBuildUnreachable(builder.as_ref());
+            MLIRBuildUnreachable(builder.as_ref(), loc);
         }
 
         Ok(None)
@@ -47,11 +50,11 @@ pub struct BranchBuilder;
 impl BranchBuilder {
     pub fn build<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
-        branch: Branch,
+        op: Br,
     ) -> Result<Option<Value>> {
         debug_in!(builder, "building branch");
 
-        let Branch { block, args } = branch;
+        let Branch { block, args } = op.dest;
         let block_ref = builder.block_ref(block);
         let block_argc = args.len();
         let mut block_args = args
@@ -67,6 +70,7 @@ impl BranchBuilder {
         unsafe {
             MLIRBuildBr(
                 builder.as_ref(),
+                op.loc,
                 block_ref,
                 block_argv,
                 block_argc as libc::c_uint,
@@ -116,6 +120,7 @@ impl IfBuilder {
         unsafe {
             MLIRBuildIf(
                 builder.as_ref(),
+                op.loc,
                 cond_ref,
                 yes_ref,
                 yes_args.as_ptr(),

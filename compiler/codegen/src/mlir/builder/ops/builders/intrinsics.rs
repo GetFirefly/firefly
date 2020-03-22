@@ -21,6 +21,7 @@ impl IntrinsicBuilder {
             let result_ref = unsafe {
                 MLIRBuildIntrinsic(
                     builder.as_ref(),
+                    op.loc,
                     name.as_ptr(),
                     argv.as_ptr(),
                     argv.len() as libc::c_uint,

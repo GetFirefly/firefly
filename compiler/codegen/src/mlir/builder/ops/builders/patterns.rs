@@ -8,24 +8,24 @@ impl IsTypeBuilder {
     pub fn build<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         ir_value: Option<ir::Value>,
-        value: Value,
-        expected: Type,
+        op: IsType,
     ) -> Result<Option<Value>> {
+        let loc = op.loc;
         let builder_ref = builder.as_ref();
-        let value_ref = builder.value_ref(value);
-        let result_ref = match expected {
+        let value_ref = builder.value_ref(op.value);
+        let result_ref = match op.expected {
             Type::Tuple(arity) => unsafe {
-                MLIRBuildIsTypeTupleWithArity(builder_ref, value_ref, arity)
+                MLIRBuildIsTypeTupleWithArity(builder_ref, loc, value_ref, arity)
             },
-            Type::List => unsafe { MLIRBuildIsTypeList(builder_ref, value_ref) },
-            Type::Cons => unsafe { MLIRBuildIsTypeNonEmptyList(builder_ref, value_ref) },
-            Type::Nil => unsafe { MLIRBuildIsTypeNil(builder_ref, value_ref) },
-            Type::Map => unsafe { MLIRBuildIsTypeMap(builder_ref, value_ref) },
-            Type::Number => unsafe { MLIRBuildIsTypeNumber(builder_ref, value_ref) },
-            Type::Float => unsafe { MLIRBuildIsTypeFloat(builder_ref, value_ref) },
-            Type::Integer => unsafe { MLIRBuildIsTypeInteger(builder_ref, value_ref) },
-            Type::Fixnum => unsafe { MLIRBuildIsTypeFixnum(builder_ref, value_ref) },
-            Type::BigInt => unsafe { MLIRBuildIsTypeBigInt(builder_ref, value_ref) },
+            Type::List => unsafe { MLIRBuildIsTypeList(builder_ref, loc, value_ref) },
+            Type::Cons => unsafe { MLIRBuildIsTypeNonEmptyList(builder_ref, loc, value_ref) },
+            Type::Nil => unsafe { MLIRBuildIsTypeNil(builder_ref, loc, value_ref) },
+            Type::Map => unsafe { MLIRBuildIsTypeMap(builder_ref, loc, value_ref) },
+            Type::Number => unsafe { MLIRBuildIsTypeNumber(builder_ref, loc, value_ref) },
+            Type::Float => unsafe { MLIRBuildIsTypeFloat(builder_ref, loc, value_ref) },
+            Type::Integer => unsafe { MLIRBuildIsTypeInteger(builder_ref, loc, value_ref) },
+            Type::Fixnum => unsafe { MLIRBuildIsTypeFixnum(builder_ref, loc, value_ref) },
+            Type::BigInt => unsafe { MLIRBuildIsTypeBigInt(builder_ref, loc, value_ref) },
             _ => unreachable!("unsupported type used in is_type operation"),
         };
 
@@ -120,17 +120,24 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
         let reads = op.reads.as_slice();
         debug_in!(self.builder, "reads are {:?}", reads);
         let mut branches = Vec::with_capacity(op.branches.len());
-        for Pattern { kind, block, args } in op.branches.drain(..) {
+        for Pattern {
+            loc,
+            kind,
+            block,
+            args,
+        } in op.branches.drain(..)
+        {
             debug_in!(
                 self.builder,
                 "lowering pattern ({:?}) for block {:?}",
                 kind,
                 block
             );
-            branches.push(self.translate_branch_kind(kind, block, args.as_slice(), reads)?);
+            branches.push(self.translate_branch_kind(loc, kind, block, args.as_slice(), reads)?);
         }
 
         let match_op = MatchOp {
+            loc: op.loc,
             selector,
             branches: branches.as_ptr(),
             num_branches: branches.len() as libc::c_uint,
@@ -143,6 +150,7 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
 
     fn translate_branch_kind(
         &mut self,
+        loc: LocationRef,
         kind: ir::MatchKind,
         block: Block,
         args: &[ir::Value],
@@ -211,6 +219,7 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
         let dest_argc = args.len() as libc::c_uint;
 
         Ok(MatchBranch {
+            loc,
             dest: self.builder.block_ref(block),
             dest_argv,
             dest_argc,

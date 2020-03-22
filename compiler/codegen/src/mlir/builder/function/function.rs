@@ -7,6 +7,7 @@ use anyhow::anyhow;
 use cranelift_entity::packed_option::{PackedOption, ReservedValue};
 use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap};
 
+use libeir_diagnostics::ByteSpan;
 use libeir_ir as ir;
 use libeir_ir::FunctionIdent;
 
@@ -23,6 +24,7 @@ use crate::Result;
 pub struct Function {
     // MFA of this function
     name: ir::FunctionIdent,
+    pub(super) span: ByteSpan,
     // Signature of this function
     signature: Signature,
     // Primary storage for blocks
@@ -55,9 +57,10 @@ impl Function {
     /// Initializes this function definition with the given name and signature
     ///
     /// NOTE: This does not construct the function in MLIR
-    pub fn with_name_signature(name: FunctionIdent, signature: Signature) -> Self {
+    pub fn with_name_signature(span: ByteSpan, name: FunctionIdent, signature: Signature) -> Self {
         Self {
             name,
+            span,
             signature,
             blocks: PrimaryMap::new(),
             block_mapping: SecondaryMap::new(),
@@ -111,6 +114,12 @@ impl Function {
         let c_name = CString::new(self.name.to_string()).unwrap();
         // TODO: support multi-return
         let result_type = returns.get(0).unwrap_or(&Type::None);
+        let loc = unsafe {
+            let sl = builder
+                .location(self.span.start())
+                .expect("expected source location for function");
+            ffi::MLIRCreateLocation(builder.as_ref(), sl)
+        };
 
         let ffi::FunctionDeclResult {
             function,
@@ -118,6 +127,7 @@ impl Function {
         } = unsafe {
             ffi::MLIRCreateFunction(
                 builder.as_ref(),
+                loc,
                 c_name.as_ptr(),
                 args.as_ptr(),
                 argc as libc::c_uint,

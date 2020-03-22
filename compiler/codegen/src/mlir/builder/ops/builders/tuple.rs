@@ -8,16 +8,22 @@ impl TupleBuilder {
     pub fn build<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         ir_value: Option<ir::Value>,
-        elements: &[Value],
+        op: Tuple,
     ) -> Result<Option<Value>> {
-        let args = elements
+        let args = op
+            .elements
             .iter()
             .copied()
             .map(|v| builder.value_ref(v))
             .collect::<Vec<_>>();
 
         let tuple_ref = unsafe {
-            MLIRConstructTuple(builder.as_ref(), args.as_ptr(), args.len() as libc::c_uint)
+            MLIRConstructTuple(
+                builder.as_ref(),
+                op.loc,
+                args.as_ptr(),
+                args.len() as libc::c_uint,
+            )
         };
         assert!(!tuple_ref.is_null());
 

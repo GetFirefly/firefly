@@ -99,6 +99,7 @@ pub struct FunctionDeclResult {
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct Closure {
+    pub loc: LocationRef,
     pub module: AttributeRef,
     pub name: *const libc::c_char,
     pub arity: u8,
@@ -212,6 +213,7 @@ impl From<libeir_ir::BasicType> for Type {
 /// Used to represent a map_update/map_insert operation
 #[repr(C)]
 pub struct MapUpdate {
+    pub loc: LocationRef,
     pub map: ValueRef,
     pub ok: BlockRef,
     pub err: BlockRef,
@@ -274,6 +276,7 @@ pub enum MatchPattern {
 #[repr(C)]
 #[derive(Debug)]
 pub struct MatchBranch {
+    pub loc: LocationRef,
     pub dest: BlockRef,
     pub dest_argv: *const ValueRef,
     pub dest_argc: libc::c_uint,
@@ -284,6 +287,7 @@ pub struct MatchBranch {
 #[repr(C)]
 #[derive(Debug)]
 pub struct MatchOp {
+    pub loc: LocationRef,
     pub selector: ValueRef,
     pub branches: *const MatchBranch,
     pub num_branches: libc::c_uint,
@@ -293,6 +297,7 @@ extern "C" {
     pub fn MLIRCreateModuleBuilder(
         context: ContextRef,
         name: *const libc::c_char,
+        loc: SourceLocation,
         target_machine: llvm::TargetMachineRef,
     ) -> ModuleBuilderRef;
 
@@ -320,6 +325,7 @@ extern "C" {
 
     pub fn MLIRCreateFunction(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         name: *const libc::c_char,
         argv: *const Param,
         argc: libc::c_uint,
@@ -332,6 +338,7 @@ extern "C" {
 
     pub fn MLIRBuildUnpackEnv(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         env: ValueRef,
         values: *mut ValueRef,
         num_values: libc::c_uint,
@@ -360,6 +367,7 @@ extern "C" {
 
     pub fn MLIRBuildBr(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         dest: BlockRef,
         argv: *const ValueRef,
         argc: libc::c_uint,
@@ -367,6 +375,7 @@ extern "C" {
 
     pub fn MLIRBuildIf(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         value: ValueRef,
         yes: BlockRef,
         yes_argv: *const ValueRef,
@@ -379,12 +388,17 @@ extern "C" {
         other_argc: libc::c_uint,
     );
 
-    pub fn MLIRBuildUnreachable(builder: ModuleBuilderRef);
+    pub fn MLIRBuildUnreachable(builder: ModuleBuilderRef, loc: LocationRef);
 
-    pub fn MLIRBuildReturn(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
+    pub fn MLIRBuildReturn(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
 
     pub fn MLIRBuildStaticCall(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         name: *const libc::c_char,
         argv: *const ValueRef,
         argc: libc::c_uint,
@@ -399,6 +413,7 @@ extern "C" {
 
     pub fn MLIRBuildClosureCall(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         closure: ValueRef,
         argv: *const ValueRef,
         argc: libc::c_uint,
@@ -419,66 +434,90 @@ extern "C" {
 
     pub fn MLIRBuildTraceCaptureOp(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         dest: BlockRef,
         argv: *const ValueRef,
         argc: libc::c_uint,
     );
-    pub fn MLIRBuildTraceConstructOp(builder: ModuleBuilderRef, trace: ValueRef) -> ValueRef;
+    pub fn MLIRBuildTraceConstructOp(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        trace: ValueRef,
+    ) -> ValueRef;
 
     pub fn MLIRBuildMapOp(builder: ModuleBuilderRef, op: MapUpdate);
     pub fn MLIRBuildIsEqualOp(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         lhs: ValueRef,
         rhs: ValueRef,
         is_exact: bool,
     ) -> ValueRef;
     pub fn MLIRBuildIsNotEqualOp(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         lhs: ValueRef,
         rhs: ValueRef,
         is_exact: bool,
     ) -> ValueRef;
     pub fn MLIRBuildLessThanOrEqualOp(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         lhs: ValueRef,
         rhs: ValueRef,
     ) -> ValueRef;
-    pub fn MLIRBuildLessThanOp(builder: ModuleBuilderRef, lhs: ValueRef, rhs: ValueRef)
-        -> ValueRef;
+    pub fn MLIRBuildLessThanOp(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        lhs: ValueRef,
+        rhs: ValueRef,
+    ) -> ValueRef;
     pub fn MLIRBuildGreaterThanOrEqualOp(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         lhs: ValueRef,
         rhs: ValueRef,
     ) -> ValueRef;
     pub fn MLIRBuildGreaterThanOp(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         lhs: ValueRef,
         rhs: ValueRef,
     ) -> ValueRef;
     pub fn MLIRBuildLogicalAndOp(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         lhs: ValueRef,
         rhs: ValueRef,
     ) -> ValueRef;
     pub fn MLIRBuildLogicalOrOp(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         lhs: ValueRef,
         rhs: ValueRef,
     ) -> ValueRef;
 
-    pub fn MLIRCons(builder: ModuleBuilderRef, head: ValueRef, tail: ValueRef) -> ValueRef;
+    pub fn MLIRCons(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        head: ValueRef,
+        tail: ValueRef,
+    ) -> ValueRef;
     pub fn MLIRConstructTuple(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         elements: *const ValueRef,
         num_elements: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRConstructMap(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         pairs: *const MapEntry,
         num_pairs: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildBinaryPush(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         head: ValueRef,
         tail: ValueRef,
         size: ValueRef,
@@ -490,6 +529,7 @@ extern "C" {
     pub fn MLIRIsIntrinsic(name: *const libc::c_char) -> bool;
     pub fn MLIRBuildIntrinsic(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         name: *const libc::c_char,
         argv: *const ValueRef,
         argc: libc::c_uint,
@@ -499,32 +539,53 @@ extern "C" {
     // Constants
     //---------------
 
-    pub fn MLIRBuildConstantFloat(builder: ModuleBuilderRef, value: f64) -> ValueRef;
-    pub fn MLIRBuildFloatAttr(builder: ModuleBuilderRef, value: f64) -> AttributeRef;
-    pub fn MLIRBuildConstantInt(builder: ModuleBuilderRef, value: i64) -> ValueRef;
-    pub fn MLIRBuildIntAttr(builder: ModuleBuilderRef, value: i64) -> AttributeRef;
+    pub fn MLIRBuildConstantFloat(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: f64,
+    ) -> ValueRef;
+    pub fn MLIRBuildFloatAttr(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: f64,
+    ) -> AttributeRef;
+    pub fn MLIRBuildConstantInt(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: i64,
+    ) -> ValueRef;
+    pub fn MLIRBuildIntAttr(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: i64,
+    ) -> AttributeRef;
     pub fn MLIRBuildConstantBigInt(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         value: *const libc::c_char,
         width: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildBigIntAttr(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         value: *const libc::c_char,
         width: libc::c_uint,
     ) -> AttributeRef;
     pub fn MLIRBuildConstantAtom(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         value: *const libc::c_char,
         id: u64,
     ) -> ValueRef;
     pub fn MLIRBuildAtomAttr(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         value: *const libc::c_char,
         id: u64,
     ) -> AttributeRef;
     pub fn MLIRBuildConstantBinary(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         value: *const libc::c_char,
         size: libc::c_uint,
         header: u64,
@@ -532,40 +593,47 @@ extern "C" {
     ) -> ValueRef;
     pub fn MLIRBuildBinaryAttr(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         value: *const libc::c_char,
         size: libc::c_uint,
         header: u64,
         flags: u64,
     ) -> AttributeRef;
-    pub fn MLIRBuildConstantNil(builder: ModuleBuilderRef) -> ValueRef;
-    pub fn MLIRBuildNilAttr(builder: ModuleBuilderRef) -> AttributeRef;
+    pub fn MLIRBuildConstantNil(builder: ModuleBuilderRef, loc: LocationRef) -> ValueRef;
+    pub fn MLIRBuildNilAttr(builder: ModuleBuilderRef, loc: LocationRef) -> AttributeRef;
     pub fn MLIRBuildConstantList(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         elements: *const AttributeRef,
         num_elements: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildListAttr(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         elements: *const AttributeRef,
         num_elements: libc::c_uint,
     ) -> AttributeRef;
     pub fn MLIRBuildConstantTuple(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         elements: *const AttributeRef,
         num_elements: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildTupleAttr(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         elements: *const AttributeRef,
         num_elements: libc::c_uint,
     ) -> AttributeRef;
     pub fn MLIRBuildConstantMap(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         elements: *const KeyValuePair,
         num_elements: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildMapAttr(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         elements: *const KeyValuePair,
         num_elements: libc::c_uint,
     ) -> AttributeRef;
@@ -576,16 +644,53 @@ extern "C" {
 
     pub fn MLIRBuildIsTypeTupleWithArity(
         builder: ModuleBuilderRef,
+        loc: LocationRef,
         value: ValueRef,
         arity: libc::c_uint,
     ) -> ValueRef;
-    pub fn MLIRBuildIsTypeList(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-    pub fn MLIRBuildIsTypeNonEmptyList(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-    pub fn MLIRBuildIsTypeNil(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-    pub fn MLIRBuildIsTypeMap(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-    pub fn MLIRBuildIsTypeNumber(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-    pub fn MLIRBuildIsTypeFloat(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-    pub fn MLIRBuildIsTypeInteger(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-    pub fn MLIRBuildIsTypeFixnum(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
-    pub fn MLIRBuildIsTypeBigInt(builder: ModuleBuilderRef, value: ValueRef) -> ValueRef;
+    pub fn MLIRBuildIsTypeList(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
+    pub fn MLIRBuildIsTypeNonEmptyList(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
+    pub fn MLIRBuildIsTypeNil(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
+    pub fn MLIRBuildIsTypeMap(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
+    pub fn MLIRBuildIsTypeNumber(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
+    pub fn MLIRBuildIsTypeFloat(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
+    pub fn MLIRBuildIsTypeInteger(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
+    pub fn MLIRBuildIsTypeFixnum(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
+    pub fn MLIRBuildIsTypeBigInt(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        value: ValueRef,
+    ) -> ValueRef;
 }

@@ -355,7 +355,7 @@ static LogicalResult verify(CastOp op) {
 // MatchOp
 //===----------------------------------------------------------------------===//
 
-void lowerPatternMatch(OpBuilder &builder, Value selector,
+void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
                        ArrayRef<MatchBranch> branches) {
   auto numBranches = branches.size();
   assert(numBranches > 0 && "expected at least one branch in a match");
@@ -363,7 +363,6 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
   auto *context = builder.getContext();
   auto *currentBlock = builder.getInsertionBlock();
   auto *region = currentBlock->getParent();
-  auto loc = builder.getUnknownLoc();
   auto selectorType = selector.getType();
 
   // Save our insertion point in the current block
@@ -418,6 +417,7 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
   // the case of the last branch, the 'failed' block)
   for (unsigned i = 0; i < numBranches; i++) {
     auto &b = branches[i];
+    Location branchLoc = b.getLoc();
     bool isLast = i == numBranches - 1;
     Block *block = blocks[i];
 
@@ -452,7 +452,7 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
     switch (b.getPatternType()) {
       case MatchPatternType::Any: {
         // This unconditionally branches to its destination
-        builder.create<BranchOp>(loc, dest, baseDestArgs);
+        builder.create<BranchOp>(branchLoc, dest, baseDestArgs);
         break;
       }
 
@@ -468,28 +468,31 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto consType = builder.getType<ConsType>();
         auto boxedConsType = builder.getType<BoxType>(consType);
         auto isConsOp =
-            builder.create<IsTypeOp>(loc, selectorArg, boxedConsType);
+            builder.create<IsTypeOp>(branchLoc, selectorArg, boxedConsType);
         auto isConsCond = isConsOp.getResult();
-        auto ifOp =
-            builder.create<CondBranchOp>(loc, isConsCond, split, emptyArgs,
-                                         nextPatternBlock, withSelectorArgs);
+        auto ifOp = builder.create<CondBranchOp>(branchLoc, isConsCond, split,
+                                                 emptyArgs, nextPatternBlock,
+                                                 withSelectorArgs);
         // 2. In the split, extract head and tail values of the cons cell
         builder.setInsertionPointToEnd(split);
-        auto castOp = builder.create<CastOp>(loc, selectorArg, boxedConsType);
+        auto castOp =
+            builder.create<CastOp>(branchLoc, selectorArg, boxedConsType);
         auto boxedCons = castOp.getResult();
-        auto getHeadOp = builder.create<GetElementPtrOp>(loc, boxedCons, 0);
-        auto getTailOp = builder.create<GetElementPtrOp>(loc, boxedCons, 1);
+        auto getHeadOp =
+            builder.create<GetElementPtrOp>(branchLoc, boxedCons, 0);
+        auto getTailOp =
+            builder.create<GetElementPtrOp>(branchLoc, boxedCons, 1);
         auto headPointer = getHeadOp.getResult();
         auto tailPointer = getTailOp.getResult();
-        auto headLoadOp = builder.create<LoadOp>(loc, headPointer);
-        auto tailLoadOp = builder.create<LoadOp>(loc, tailPointer);
+        auto headLoadOp = builder.create<LoadOp>(branchLoc, headPointer);
+        auto tailLoadOp = builder.create<LoadOp>(branchLoc, tailPointer);
         // 3. Unconditionally branch to the destination, with head/tail as
         // additional destArgs
         SmallVector<Value, 2> destArgs(
             {baseDestArgs.begin(), baseDestArgs.end()});
         destArgs.push_back(headLoadOp.getResult());
         destArgs.push_back(tailLoadOp.getResult());
-        builder.create<BranchOp>(loc, dest, destArgs);
+        builder.create<BranchOp>(branchLoc, dest, destArgs);
         break;
       }
 
@@ -507,28 +510,29 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto tupleType = builder.getType<eir::TupleType>(arity);
         auto boxedTupleType = builder.getType<BoxType>(tupleType);
         auto isTupleOp =
-            builder.create<IsTypeOp>(loc, selectorArg, boxedTupleType);
+            builder.create<IsTypeOp>(branchLoc, selectorArg, boxedTupleType);
         auto isTupleCond = isTupleOp.getResult();
-        auto ifOp =
-            builder.create<CondBranchOp>(loc, isTupleCond, split, emptyArgs,
-                                         nextPatternBlock, withSelectorArgs);
+        auto ifOp = builder.create<CondBranchOp>(branchLoc, isTupleCond, split,
+                                                 emptyArgs, nextPatternBlock,
+                                                 withSelectorArgs);
         // 2. In the split, extract the tuple elements as values
         builder.setInsertionPointToEnd(split);
-        auto castOp = builder.create<CastOp>(loc, selectorArg, boxedTupleType);
+        auto castOp =
+            builder.create<CastOp>(branchLoc, selectorArg, boxedTupleType);
         auto boxedTuple = castOp.getResult();
         SmallVector<Value, 2> destArgs(
             {baseDestArgs.begin(), baseDestArgs.end()});
         destArgs.reserve(arity);
         for (int64_t i = 0; i < arity; i++) {
           auto getElemOp =
-              builder.create<GetElementPtrOp>(loc, boxedTuple, i + 1);
+              builder.create<GetElementPtrOp>(branchLoc, boxedTuple, i + 1);
           auto elemPtr = getElemOp.getResult();
-          auto elemLoadOp = builder.create<LoadOp>(loc, elemPtr);
+          auto elemLoadOp = builder.create<LoadOp>(branchLoc, elemPtr);
           destArgs.push_back(elemLoadOp.getResult());
         }
         // 3. Unconditionally branch to the destination, with the tuple elements
         // as additional destArgs
-        builder.create<BranchOp>(loc, dest, destArgs);
+        builder.create<BranchOp>(branchLoc, dest, destArgs);
         break;
       }
 
@@ -547,10 +551,11 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto *pattern = b.getPatternTypeOrNull<MapPattern>();
         auto key = pattern->getKey();
         auto mapType = builder.getType<MapType>();
-        auto isMapOp = builder.create<IsTypeOp>(loc, selectorArg, mapType);
+        auto isMapOp =
+            builder.create<IsTypeOp>(branchLoc, selectorArg, mapType);
         auto isMapCond = isMapOp.getResult();
         auto ifOp = builder.create<CondBranchOp>(
-            loc, isMapCond, split, withSelectorArgs, nextPatternBlock,
+            branchLoc, isMapCond, split, withSelectorArgs, nextPatternBlock,
             withSelectorArgs);
         // 2. In the split, call runtime function `is_map_key` to confirm
         // existence of the key in the map,
@@ -561,20 +566,21 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         ArrayRef<Value> splitSelectorArgs{splitSelector};
         ArrayRef<Type> getKeyResultTypes = {termType};
         ArrayRef<Value> getKeyArgs = {key, splitSelector};
-        auto hasKeyOp = builder.create<CallOp>(loc, "erlang::is_map_key/2",
-                                               getKeyResultTypes, getKeyArgs);
+        auto hasKeyOp = builder.create<CallOp>(
+            branchLoc, "erlang::is_map_key/2", getKeyResultTypes, getKeyArgs);
         auto hasKeyCondTerm = hasKeyOp.getResult(0);
-        auto toBoolOp = builder.create<CastOp>(loc, hasKeyCondTerm,
+        auto toBoolOp = builder.create<CastOp>(branchLoc, hasKeyCondTerm,
                                                builder.getType<BooleanType>());
         auto hasKeyCond = toBoolOp.getResult();
-        builder.create<CondBranchOp>(loc, hasKeyCond, split2, splitSelectorArgs,
-                                     nextPatternBlock, splitSelectorArgs);
+        builder.create<CondBranchOp>(branchLoc, hasKeyCond, split2,
+                                     splitSelectorArgs, nextPatternBlock,
+                                     splitSelectorArgs);
         // 3. In the second split, call runtime function `map_get` to obtain the
         // value for the key
         builder.setInsertionPointToEnd(split2);
         ArrayRef<Type> mapGetResultTypes = {termType};
         ArrayRef<Value> mapGetArgs = {key, split2->getArgument(0)};
-        auto mapGetOp = builder.create<CallOp>(loc, "erlang::map_get/2",
+        auto mapGetOp = builder.create<CallOp>(branchLoc, "erlang::map_get/2",
                                                mapGetResultTypes, mapGetArgs);
         auto valueTerm = mapGetOp.getResult(0);
         // 4. Unconditionally branch to the destination, with the key's value as
@@ -582,7 +588,7 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         SmallVector<Value, 2> destArgs(baseDestArgs.begin(),
                                        baseDestArgs.end());
         destArgs.push_back(valueTerm);
-        builder.create<BranchOp>(loc, dest, destArgs);
+        builder.create<BranchOp>(branchLoc, dest, destArgs);
         break;
       }
 
@@ -594,9 +600,9 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         auto *pattern = b.getPatternTypeOrNull<IsTypePattern>();
         auto expectedType = pattern->getExpectedType();
         auto isTypeOp =
-            builder.create<IsTypeOp>(loc, selectorArg, expectedType);
+            builder.create<IsTypeOp>(branchLoc, selectorArg, expectedType);
         auto isTypeCond = isTypeOp.getResult();
-        builder.create<CondBranchOp>(loc, isTypeCond, dest, baseDestArgs,
+        builder.create<CondBranchOp>(branchLoc, isTypeCond, dest, baseDestArgs,
                                      nextPatternBlock, withSelectorArgs);
         break;
       }
@@ -608,10 +614,10 @@ void lowerPatternMatch(OpBuilder &builder, Value selector,
         //    passing the value as an additional destArg
         auto *pattern = b.getPatternTypeOrNull<ValuePattern>();
         auto expected = pattern->getValue();
-        auto isEq = builder.create<CmpEqOp>(loc, selectorArg, expected,
+        auto isEq = builder.create<CmpEqOp>(branchLoc, selectorArg, expected,
                                             /*strict=*/true);
         auto isEqCond = isEq.getResult();
-        builder.create<CondBranchOp>(loc, isEqCond, dest, baseDestArgs,
+        builder.create<CondBranchOp>(branchLoc, isEqCond, dest, baseDestArgs,
                                      nextPatternBlock, withSelectorArgs);
         break;
       }

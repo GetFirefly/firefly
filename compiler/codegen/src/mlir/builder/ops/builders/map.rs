@@ -6,9 +6,10 @@ impl MapBuilder {
     pub fn build<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         ir_value: Option<ir::Value>,
-        items: &[(Value, Value)],
+        op: Map,
     ) -> Result<Option<Value>> {
-        let pairs = items
+        let pairs = op
+            .elements
             .iter()
             .map(|(k, v)| MapEntry {
                 key: builder.value_ref(*k),
@@ -19,6 +20,7 @@ impl MapBuilder {
         let map_ref = unsafe {
             MLIRConstructMap(
                 builder.as_ref(),
+                op.loc,
                 pairs.as_ptr(),
                 pairs.len() as libc::c_uint,
             )
@@ -48,6 +50,7 @@ impl MapPutBuilder {
             .collect::<Vec<_>>();
 
         let update = MapUpdate {
+            loc: op.loc,
             map: builder.value_ref(op.map),
             ok: builder.block_ref(op.ok),
             err: builder.block_ref(op.err),

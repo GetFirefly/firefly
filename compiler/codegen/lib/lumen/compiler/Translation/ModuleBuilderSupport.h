@@ -13,6 +13,7 @@ using ::mlir::Type;
 using ::mlir::Value;
 
 typedef struct MLIROpaqueValue *MLIRValueRef;
+typedef struct MLIROpaqueLocation *MLIRLocationRef;
 typedef struct MLIROpaqueAttribute *MLIRAttributeRef;
 
 namespace lumen {
@@ -25,6 +26,7 @@ struct SourceLocation {
 };
 
 struct Closure {
+  MLIRLocationRef loc;
   MLIRAttributeRef module;
   char *name;
   uint8_t arity;

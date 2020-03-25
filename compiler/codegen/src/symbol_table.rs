@@ -99,9 +99,10 @@ pub fn compile_symbol_table(
     builder.set_alignment(table_size_global, 8);
 
     // Generate thread local variable for current reduction count
-    let reduction_count_init = builder.build_constant_uint(usize_type, 0);
+    let i32_type = builder.get_i32_type();
+    let reduction_count_init = builder.build_constant_uint(i32_type, 0);
     let reduction_count_global = builder.build_global(
-        usize_type,
+        i32_type,
         "CURRENT_REDUCTION_COUNT",
         Some(reduction_count_init),
     );

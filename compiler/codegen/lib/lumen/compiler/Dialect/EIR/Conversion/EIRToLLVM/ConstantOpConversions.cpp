@@ -15,7 +15,7 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
 struct ConstantAtomOpConversion : public EIROpConversion<ConstantAtomOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantAtomOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -27,14 +27,14 @@ struct ConstantAtomOpConversion : public EIROpConversion<ConstantAtomOp> {
     Value val = llvm_constant(termTy, ctx.getIntegerAttr(taggedAtom));
 
     rewriter.replaceOp(op, {val});
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConstantBigIntOpConversion : public EIROpConversion<ConstantBigIntOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantBigIntOp _op, ArrayRef<Value> _operands,
       ConversionPatternRewriter &_rewriter) const override {
     assert(false && "ConstantBigIntOpConversion is unimplemented");
@@ -44,7 +44,7 @@ struct ConstantBigIntOpConversion : public EIROpConversion<ConstantBigIntOp> {
 struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantBinaryOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -95,14 +95,14 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
     auto boxed = ctx.encodeLiteral(headerPtr);
 
     rewriter.replaceOp(op, boxed);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantFloatOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -116,7 +116,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     // On nanboxed targets, floats are treated normally
     if (!ctx.targetInfo.requiresPackedFloats()) {
       rewriter.replaceOp(op, {val});
-      return matchSuccess();
+      return success();
     }
 
     // All other targets use boxed, packed floats
@@ -160,14 +160,14 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     auto headerPtr = llvm_addressof(headerConst);
     auto boxed = ctx.encodeLiteral(headerPtr);
     rewriter.replaceOp(op, boxed);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantIntOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -179,14 +179,14 @@ struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
     auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedInt));
 
     rewriter.replaceOp(op, {val});
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConstantNilOpConversion : public EIROpConversion<ConstantNilOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantNilOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -196,14 +196,14 @@ struct ConstantNilOpConversion : public EIROpConversion<ConstantNilOp> {
         llvm_constant(termTy, ctx.getIntegerAttr(ctx.targetInfo.getNilValue()));
 
     rewriter.replaceOp(op, {val});
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConstantNoneOpConversion : public EIROpConversion<ConstantNoneOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantNoneOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -213,14 +213,14 @@ struct ConstantNoneOpConversion : public EIROpConversion<ConstantNoneOp> {
                              ctx.getIntegerAttr(ctx.targetInfo.getNoneValue()));
 
     rewriter.replaceOp(op, {val});
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConstantConsOpConversion : public EIROpConversion<ConstantConsOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantConsOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -232,14 +232,14 @@ struct ConstantConsOpConversion : public EIROpConversion<ConstantConsOp> {
     auto cellPtr = llvm_addressof(cell);
     auto boxed = ctx.encodeList(cellPtr, /*isLiteral=*/true);
     rewriter.replaceOp(op, boxed);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantListOp op, ArrayRef<mlir::Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -259,14 +259,14 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
       auto ptr = llvm_addressof(listConst);
       auto val = llvm_load(ptr);
       rewriter.replaceOp(op, {val});
-      return matchSuccess();
+      return success();
     }
 
     // Lower to nil if empty list
     if (numElements == 0) {
       auto val = llvm_constant(termTy, ctx.getIntegerAttr(ctx.getNilValue()));
       rewriter.replaceOp(op, {val});
-      return matchSuccess();
+      return success();
     }
 
     // Lower to single cons cell if it fits
@@ -275,7 +275,7 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
       auto ptr = llvm_addressof(cell);
       auto boxed = ctx.encodeList(ptr, /*literal=*/true);
       rewriter.replaceOp(op, boxed);
-      return matchSuccess();
+      return success();
     }
 
     // Otherwise, we need to lower multiple cons cells, boxing those
@@ -318,14 +318,14 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
 
     Value list = llvm_load(llvm_addressof(listConst));
     rewriter.replaceOp(op, list);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConstantTupleOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -345,7 +345,7 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
       auto ptr = llvm_addressof(tupleConst);
       auto val = llvm_load(ptr);
       rewriter.replaceOp(op, {val});
-      return matchSuccess();
+      return success();
     }
 
     SmallVector<Value, 2> elementValues;
@@ -399,7 +399,7 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
 
     Value tuple = llvm_load(llvm_addressof(tupleConst));
     rewriter.replaceOp(op, tuple);
-    return matchSuccess();
+    return success();
   }
 };
 

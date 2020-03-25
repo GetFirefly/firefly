@@ -550,10 +550,22 @@ extern "C" void MLIRBuildReturn(MLIRModuleBuilderRef b, MLIRLocationRef locref,
 }
 
 void ModuleBuilder::build_return(Location loc, Value value) {
+  edsc::ScopedContext scope(builder, loc);
+
   if (!value) {
     builder.create<ReturnOp>(loc);
   } else {
-    builder.create<ReturnOp>(loc, value);
+    Block *block = builder.getBlock();
+    auto func = cast<FuncOp>(block->getParentOp());
+    auto resultTypes = func.getCallableResults();
+    Type expectedType = resultTypes.front();
+    Type valueType = value.getType();
+    if (expectedType == valueType) {
+      builder.create<ReturnOp>(loc, value);
+    } else {
+      Value cast = eir_cast(value, expectedType);
+      builder.create<ReturnOp>(loc, cast);
+    }
   }
 }
 

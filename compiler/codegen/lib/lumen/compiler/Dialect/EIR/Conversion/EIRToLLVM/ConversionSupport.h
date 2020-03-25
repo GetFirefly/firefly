@@ -10,7 +10,7 @@
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/EDSC/Intrinsics.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -23,11 +23,12 @@
 using ::llvm::TargetMachine;
 using ::mlir::ConversionPatternRewriter;
 using ::mlir::LLVMTypeConverter;
-using ::mlir::PatternMatchResult;
+using ::mlir::LogicalResult;
 using ::mlir::edsc::intrinsics::OperationBuilder;
 using ::mlir::edsc::intrinsics::ValueBuilder;
 using ::mlir::LLVM::LLVMDialect;
 using ::mlir::LLVM::LLVMType;
+using ::mlir::success;
 
 namespace LLVM = ::mlir::LLVM;
 

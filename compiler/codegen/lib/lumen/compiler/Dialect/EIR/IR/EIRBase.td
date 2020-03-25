@@ -112,37 +112,47 @@ def eir_TK_HeapBin : eir_TermKind<"HeapBin", 16>;
 def eir_TK_ProcBin : eir_TermKind<"ProcBin", 17>;
 def eir_TK_Box     : eir_TermKind<"Box", 18>;
 
-class eir_TermType<eir_TermKind kind, string description> : DialectType<
-    eir_Dialect,
-    CPred<"OpaqueTermType::isTypeKind($_self, TypeKind::" # kind.symbol # ")">,
-    description> {
-
+class eir_TermTypeBase<eir_TermKind kind, string description> : DialectType<
+  eir_Dialect,
+  CPred<"OpaqueTermType::isTypeKind($_self, TypeKind::" # kind.symbol # ")">,
+  description> {
   eir_TermKind termKind = kind;
 }
 
-def eir_NoneType : eir_TermType<eir_TK_None, "none">;
-def eir_AtomType : eir_TermType<eir_TK_Atom, "atom">;
-def eir_BoolType : eir_TermType<eir_TK_Boolean, "bool">;
-def eir_FixnumType : eir_TermType<eir_TK_Fixnum, "fixnum">;
-def eir_BigIntType : eir_TermType<eir_TK_BigInt, "bixint">;
-def eir_NumberType : eir_TermType<eir_TK_Number, "number">;
-def eir_IntegerType : eir_TermType<eir_TK_Integer, "integer">;
-def eir_FloatType : eir_TermType<eir_TK_Float, "float">;
-def eir_NilType : eir_TermType<eir_TK_Nil, "nil">;
-def eir_ConsType : eir_TermType<eir_TK_Cons, "cons">;
-def eir_ListType : eir_TermType<eir_TK_List, "list">;
-def eir_TupleType : eir_TermType<eir_TK_Tuple, "tuple">;
-def eir_MapType : eir_TermType<eir_TK_Map, "map">;
-def eir_ClosureType : eir_TermType<eir_TK_Closure, "closure">;
-def eir_BinaryType : eir_TermType<eir_TK_Binary, "binary">;
-def eir_HeapBinType : eir_TermType<eir_TK_HeapBin, "heapbin">;
-def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin">;
-def eir_BoxType : eir_TermType<eir_TK_Box, "box">;
+class eir_BuildableTermType<eir_TermKind kind, string description, code builder> :
+  eir_TermTypeBase<kind, description>,
+  BuildableType<builder> {
+
+}
+
+class eir_TermType<eir_TermKind kind, string description, string typename> :
+  eir_BuildableTermType<kind, description, "$_builder.getType<::lumen::eir::" # typename # ">()"> {
+}
+
+def eir_NoneType : eir_TermType<eir_TK_None, "none", "NoneType">;
+def eir_AtomType : eir_TermType<eir_TK_Atom, "atom", "AtomType">;
+def eir_BoolType : eir_TermType<eir_TK_Boolean, "bool", "BooleanType">;
+def eir_FixnumType : eir_TermType<eir_TK_Fixnum, "fixnum", "FixnumType">;
+def eir_BigIntType : eir_TermType<eir_TK_BigInt, "bixint", "BigIntType">;
+def eir_NumberType : eir_TermType<eir_TK_Number, "number", "NumberType">;
+def eir_IntegerType : eir_TermType<eir_TK_Integer, "integer", "IntegerType">;
+def eir_FloatType : eir_TermType<eir_TK_Float, "float", "FloatType">;
+def eir_NilType : eir_TermType<eir_TK_Nil, "nil", "NilType">;
+def eir_ConsType : eir_TermType<eir_TK_Cons, "cons", "ConsType">;
+def eir_ListType : eir_TermType<eir_TK_List, "list", "ListType">;
+def eir_TupleType : eir_TermType<eir_TK_Tuple, "tuple", "TupleType">;
+def eir_MapType : eir_TermType<eir_TK_Map, "map", "MapType">;
+def eir_ClosureType : eir_TermType<eir_TK_Closure, "closure", "ClosureType">;
+def eir_BinaryType : eir_TermType<eir_TK_Binary, "binary", "BinaryType">;
+def eir_HeapBinType : eir_TermType<eir_TK_HeapBin, "heapbin", "HeapBinType">;
+def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin", "ProcBinType">;
+def eir_BoxType : eir_TermTypeBase<eir_TK_Box, "box">;
 
 def eir_RefType : Type<CPred<"$_self.isa<eir::RefType>()">, "pointer type">;
-
-def eir_AnyTerm : Type<CPred<"$_self.isa<eir::TermType>()">, "dynamic term type">;
-def eir_AnyType : Type<CPred<"$_self.isa<eir::OpaqueTermType>()">, "any term type">;
+def eir_AnyTerm : Type<CPred<"$_self.isa<::lumen::eir::TermType>()">, "dynamic term type">,
+                   BuildableType<"$_builder.getType<::lumen::eir::AnyTerm>">;
+def eir_AnyType : Type<CPred<"$_self.isa<::lumen::eir::OpaqueTermType>()">, "any term type">,
+                   BuildableType<"$_builder.getType<::lumen::eir::AnyType>">;
 def eir_BoolLike : AnyTypeOf<[I1, eir_BoolType], "boolean-like type">;
 def eir_FixnumLike : AnyTypeOf<[I32, I64, eir_FixnumType], "fixed-width integer type">;
 def eir_FloatLike : AnyTypeOf<[F64, eir_FixnumType], "float-like type">;

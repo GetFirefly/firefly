@@ -7,31 +7,31 @@ struct IncrementReductionsOpConversion
     : public EIROpConversion<IncrementReductionsOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       IncrementReductionsOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
     ModuleOp mod = ctx.getModule();
 
-    auto termTy = ctx.getUsizeType();
+    auto i32Ty = ctx.getI32Type();
 
     auto reductionCount = ctx.getOrInsertGlobal(
-        "CURRENT_REDUCTION_COUNT", termTy, ctx.getIntegerAttr(0),
+        "CURRENT_REDUCTION_COUNT", i32Ty, nullptr,
         LLVM::Linkage::External, LLVM::ThreadLocalMode::LocalExec);
 
     auto incBy = op.increment().getLimitedValue();
-    Value increment = llvm_constant(termTy, ctx.getIntegerAttr(incBy));
-    llvm_atomicrmw(termTy, LLVM::AtomicBinOp::add, reductionCount, increment,
+    Value increment = llvm_constant(i32Ty, ctx.getI32Attr(incBy));
+    llvm_atomicrmw(i32Ty, LLVM::AtomicBinOp::add, reductionCount, increment,
                    LLVM::AtomicOrdering::unordered);
     rewriter.eraseOp(op);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       IsTypeOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     IsTypeOpOperandAdaptor adaptor(operands);
@@ -56,7 +56,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
         Value masked = llvm_and(adaptor.value(), listMask);
         rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
                                                   listTag, masked);
-        return matchSuccess();
+        return success();
       }
 
       // For tuples with static shape, we use a specialized builtin
@@ -72,7 +72,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
           Operation *isType = std_call(calleeSymbol, int1Ty,
                                        ArrayRef<Value>{arity, adaptor.value()});
           rewriter.replaceOp(op, isType->getResults());
-          return matchSuccess();
+          return success();
         }
       }
 
@@ -88,7 +88,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
       Operation *isType =
           std_call(calleeSymbol, int1Ty, ArrayRef<Value>{matchConst, input});
       rewriter.replaceOp(op, isType->getResults());
-      return matchSuccess();
+      return success();
     }
 
     // For immediates, the check is performed via builtin
@@ -106,14 +106,14 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
     Operation *isType = std_call(calleeSymbol, int1Ty,
                                  ArrayRef<Value>{matchConst, adaptor.value()});
     rewriter.replaceOp(op, isType->getResults());
-    return matchSuccess();
+    return success();
   }
 };
 
 struct MallocOpConversion : public EIROpConversion<MallocOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       MallocOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     MallocOpOperandAdaptor adaptor(operands);
@@ -132,14 +132,14 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
       rewriter.replaceOp(op, allocPtr);
     }
 
-    return matchSuccess();
+    return success();
   }
 };
 
 struct PrintOpConversion : public EIROpConversion<PrintOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       PrintOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -147,7 +147,7 @@ struct PrintOpConversion : public EIROpConversion<PrintOp> {
     // If print is called with no operands, just remove it for now
     if (operands.empty()) {
       rewriter.eraseOp(op);
-      return matchSuccess();
+      return success();
     }
 
     auto termTy = ctx.getUsizeType();
@@ -158,14 +158,14 @@ struct PrintOpConversion : public EIROpConversion<PrintOp> {
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
                                               operands);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct TraceCaptureOpConversion : public EIROpConversion<TraceCaptureOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       TraceCaptureOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -178,14 +178,14 @@ struct TraceCaptureOpConversion : public EIROpConversion<TraceCaptureOp> {
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                               ArrayRef<Type>{termTy});
-    return matchSuccess();
+    return success();
   }
 };
 
 struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       TraceConstructOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -198,7 +198,7 @@ struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
                                               operands);
-    return matchSuccess();
+    return success();
   }
 };
 

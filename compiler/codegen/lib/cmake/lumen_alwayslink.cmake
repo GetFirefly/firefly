@@ -44,7 +44,7 @@ function(set_alwayslink_mlir_libs)
   set(_ALWAYSLINK_LIBS_MLIR
     LLVMSupport
     MLIRAnalysis
-    MLIRAffineOps
+    MLIRAffine
     MLIRDialect
     MLIREDSC
     MLIREDSCInterface

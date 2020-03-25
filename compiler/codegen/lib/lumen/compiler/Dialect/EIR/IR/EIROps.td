@@ -1,13 +1,15 @@
 #ifndef EIR_OPS
 #define EIR_OPS
 
-include "mlir/Analysis/CallInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
+include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/SideEffects.td"
+
 include "lumen/compiler/Dialect/EIR/IR/EIRBase.td"
 
 def eir_FuncOp : eir_Op<"func", [
     IsolatedFromAbove,
-    //HasParent<"ModuleOp">,
     FunctionLike,
     CallableOpInterface,
     Symbol,
@@ -32,7 +34,7 @@ def eir_FuncOp : eir_Op<"func", [
     }]>,
   ];
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let extraClassDeclaration = [{
 
@@ -115,7 +117,7 @@ def eir_ClosureOp : eir_Op<"closure", []> {
     }]>
   ];
 
-  let verifier = [{ /*TODO*/return success(); }];
+  let verifier = ?;
 
   let extraClassDeclaration = [{
     IntegerAttr arityAttr() { return getAttrOfType<IntegerAttr>("arity"); }
@@ -138,7 +140,7 @@ def eir_ClosureOp : eir_Op<"closure", []> {
 def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
   let summary = "Unpacks a value from a closure environment";
 
-  let arguments = (ins eir_BoxType:$env, NonNegativeI32Attr:$index);
+  let arguments = (ins eir_BoxType:$env, Confined<I32Attr, [IntNonNegative]>:$index);
   let results = (outs eir_AnyType:$result);
 
   let assemblyFormat = [{
@@ -156,7 +158,7 @@ def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
     }]>
   ];
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let extraClassDeclaration = [{
     unsigned envIndex() { return getAttrOfType<IntegerAttr>("index").getValue().getLimitedValue(); }
@@ -167,7 +169,7 @@ def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
 // Comparisons
 //===----------------------------------------------------------------------===//
 
-def eir_IsTypeOp : eir_Op<"is_type", [NoSideEffect]> {
+def eir_IsTypeOp : eir_Op<"is_type", []> {
   let summary = "A type checking primitive used in conditional branching.";
 
   let description = [{
@@ -228,7 +230,8 @@ class eir_BinaryOperator<string mnemonic, Type left, Type right, Type result, li
   let results = (outs result:$result);
 
   let assemblyFormat = "operands attr-dict `:` functional-type(operands, $result)";
-  let verifier = [{ return mlir::success(); }];
+
+  let verifier = ?;
 
   let builders = [
     OpBuilder<
@@ -278,7 +281,7 @@ class eir_UnaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = [
   );
 
   let assemblyFormat = "operands attr-dict `:` functional-type(operands, $result)";
-  let verifier = [{ return mlir::success(); }];
+  let verifier = ?;
 }
 
 class eir_BinaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = []>
@@ -417,8 +420,9 @@ def eir_BxorOp :
 // Control Flow
 //===----------------------------------------------------------------------===//
 
-def eir_BranchOp : eir_Op<"br", [Terminator]> {
-  let summary = [{unconditional branch operation}];
+def eir_BranchOp : eir_Op<"br",
+    [DeclareOpInterfaceMethods<BranchOpInterface>, NoSideEffect, Terminator]> {
+  let summary = "unconditional branch operation";
   let description = [{
     Represents an unconditional branch operation that branches to a target block
     with the given set of arguments.
@@ -426,36 +430,45 @@ def eir_BranchOp : eir_Op<"br", [Terminator]> {
     ```
     ^bb0(...):
       eir.br ^bb1(%a)
-    ^bb1(%blockArg1):
+    ^bb1(%blockArg1: i32):
       ...
    ```
   }];
 
-  let arguments = (ins
-    Variadic<eir_AnyType>:$operands
-  );
+  let arguments = (ins Variadic<eir_AnyType>:$destOperands);
+  let successors = (successor AnySuccessor:$dest);
 
   let builders = [
     OpBuilder<[{
-      Builder *, OperationState &result, Block *dest,
-      ValueRange operands = {}
+      Builder *builder, OperationState &result, Block *dest,
+      ValueRange destOperands = {}
     }], [{
-      result.addSuccessor(dest, operands);
+      result.addSuccessors(dest);
+      result.addOperands(destOperands);
     }]>,
    ];
 
+  // Fully verified by traits
+  let verifier = ?;
+
   let extraClassDeclaration = [{
-    Block *getDest();
-    Block *dest() { return getDest(); }
-    void setDest(Block *block);
+    Block *getDest() { return getSuccessor(); }
+    void setDest(Block *block) { setSuccessor(block); }
 
     /// Erase the operand at 'index' from the operand list.
-    void eraseOperand(unsigned index);
+    void eraseOperand(unsigned index) { return eraseSuccessorOperand(0, index); }
+  }];
+
+  let hasCanonicalizer = 1;
+  let assemblyFormat = [{
+      $dest (`(` $destOperands^ `:` type($destOperands) `)`)? attr-dict
   }];
 }
 
-def eir_CondBranchOp : eir_Op<"cond_br", [Terminator]> {
-  let summary = [{conditional branch operation}];
+def eir_CondBranchOp : eir_Op<"cond_br",
+  [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
+   NoSideEffect, Terminator]> {
+  let summary = "conditional branch operation";
   let description = [{
     Represents a conditional branch operation that branches to one of the two
     target blocks with the given set of arguments.
@@ -463,29 +476,33 @@ def eir_CondBranchOp : eir_Op<"cond_br", [Terminator]> {
     ```
     ^bb0(...):
       eir.cond_br %condition, ^bb1(%a), ^bb2(%b)
-    ^bb1(%blockArg1):
+    ^bb1(%blockArg1: i32):
       ...
-    ^bb2(%blockArg2):
+    ^bb2(%blockArg2: i32):
       ...
    ```
   }];
 
   let arguments = (ins
     eir_BoolType:$condition,
-    Variadic<eir_AnyType>:$branchOperands
+    Variadic<eir_AnyType>:$trueDestOperands,
+    Variadic<eir_AnyType>:$falseDestOperands
   );
+
+  let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
 
   let builders = [
     OpBuilder<[{
-      Builder *, OperationState &result, Value condition,
+      Builder *builder, OperationState &result, Value condition,
       Block *trueDest, ValueRange trueOperands,
       Block *falseDest, ValueRange falseOperands
     }], [{
-      result.addOperands(condition);
-      result.addSuccessor(trueDest, trueOperands);
-      result.addSuccessor(falseDest, falseOperands);
+      build(builder, result, condition, trueOperands, falseOperands, trueDest, falseDest);
     }]>,
   ];
+
+  // Fully verified by traits
+  let verifier = ?;
 
   let extraClassDeclaration = [{
     /// These are the indices into the dests list.
@@ -496,12 +513,12 @@ def eir_CondBranchOp : eir_Op<"cond_br", [Terminator]> {
 
     /// Return the destination if the condition is true.
     Block *getTrueDest() {
-      return getOperation()->getSuccessor(trueIndex);
+      return getSuccessor(trueIndex);
     }
 
     /// Return the destination if the condition is false.
     Block *getFalseDest() {
-      return getOperation()->getSuccessor(falseIndex);
+      return getSuccessor(falseIndex);
     }
 
     /// Accessors for operands to the 'true' destination.
@@ -515,23 +532,13 @@ def eir_CondBranchOp : eir_Op<"cond_br", [Terminator]> {
       setOperand(getTrueDestOperandIndex() + idx, value);
     }
 
-    operand_iterator true_operand_begin() {
-      return operand_begin() + getTrueDestOperandIndex();
-    }
-    operand_iterator true_operand_end() {
-      return true_operand_begin() + getNumTrueOperands();
-    }
-    operand_range getTrueOperands() {
-      return {true_operand_begin(), true_operand_end()};
-    }
+    OperandRange getTrueOperands() { return trueDestOperands(); }
 
-    unsigned getNumTrueOperands()  {
-      return getOperation()->getNumSuccessorOperands(trueIndex);
-    }
+    unsigned getNumTrueOperands()  { return getTrueOperands().size(); }
 
     /// Erase the operand at 'index' from the true operand list.
     void eraseTrueOperand(unsigned index)  {
-      getOperation()->eraseSuccessorOperand(trueIndex, index);
+      eraseSuccessorOperand(trueIndex, index);
     }
 
     /// Accessors for operands to the 'false' destination.
@@ -544,21 +551,13 @@ def eir_CondBranchOp : eir_Op<"cond_br", [Terminator]> {
       setOperand(getFalseDestOperandIndex() + idx, value);
     }
 
-    operand_iterator false_operand_begin() { return true_operand_end(); }
-    operand_iterator false_operand_end() {
-      return false_operand_begin() + getNumFalseOperands();
-    }
-    operand_range getFalseOperands() {
-      return {false_operand_begin(), false_operand_end()};
-    }
+    OperandRange getFalseOperands() { return falseDestOperands(); }
 
-    unsigned getNumFalseOperands() {
-      return getOperation()->getNumSuccessorOperands(falseIndex);
-    }
+    unsigned getNumFalseOperands() { return getFalseOperands().size(); }
 
     /// Erase the operand at 'index' from the false operand list.
     void eraseFalseOperand(unsigned index) {
-      getOperation()->eraseSuccessorOperand(falseIndex, index);
+      eraseSuccessorOperand(falseIndex, index);
     }
 
   private:
@@ -571,7 +570,13 @@ def eir_CondBranchOp : eir_Op<"cond_br", [Terminator]> {
     }
   }];
 
-  //let hasCanonicalizer = 1;
+  let hasCanonicalizer = 1;
+  let assemblyFormat = [{
+    $condition `,`
+    $trueDest (`(` $trueDestOperands^ `:` type($trueDestOperands) `)`)? `,`
+    $falseDest (`(` $falseDestOperands^ `:` type($falseDestOperands) `)`)?
+    attr-dict
+  }];
 }
 
 class eir_CallBaseOp<string mnemonic, list<OpTrait> traits = []> :
@@ -580,7 +585,7 @@ class eir_CallBaseOp<string mnemonic, list<OpTrait> traits = []> :
     StringRef getCallee() { return callee(); }
 
     /// Get the argument operands to the called function.
-    operand_range getArgOperands() {
+    OperandRange getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
     }
     operand_iterator arg_operand_begin() { return operand_begin(); }
@@ -658,7 +663,7 @@ def CallIndirectOp : eir_Op<"call_indirect", [CallOpInterface]> {
   let results = (outs Variadic<eir_AnyType>:$results);
 
   let builders = [OpBuilder<
-    "Builder *, OperationState &result, Value callee,"
+    "Builder *builder, OperationState &result, Value callee,"
     "ValueRange operands = {}", [{
       result.operands.push_back(callee);
       result.addOperands(operands);
@@ -670,7 +675,7 @@ def CallIndirectOp : eir_Op<"call_indirect", [CallOpInterface]> {
     Value getCallee() { return getOperand(0); }
 
     /// Get the argument operands to the called function.
-    operand_range getArgOperands() {
+    OperandRange getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
     }
 
@@ -720,7 +725,7 @@ def ApplyOp : eir_Op<"apply", []> {
     Value getTargetFun() { return getOperand(1); }
 
     /// Get the argument operands to the called function.
-    operand_range getArgOperands() {
+    OperandRange getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
     }
 
@@ -754,7 +759,7 @@ def CallClosureOp : eir_Op<"call_closure", []> {
 
   let extraClassDeclaration = [{
     /// Get the argument operands to the called function.
-    operand_range getArgOperands() {
+    OperandRange getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
     }
 
@@ -770,86 +775,79 @@ def CallClosureOp : eir_Op<"call_closure", []> {
   }];
 }
 
-def eir_ReturnOp : eir_Op<"return", [
-    //HasParent<"mlir::FuncOp">,
-    Terminator,
-  ]> {
+def eir_ReturnOp : eir_Op<"return", [NoSideEffect, Terminator]> {
   let summary = "return operation";
   let description = [{
-    Represents a return operation within a function.
+    The "return" operation represents a return operation within a function.
+    The operation takes variable number of operands and produces no results.
+    The operand number and types must match the signature of the function
+    that contains the operation. For example:
 
-    ```
-    eir.func @foo(%0, %1) : (i32, f8) {
-      eir.return %0, %1 : i32, f8
-    }
-    ```
+      func @foo() : (i32, f8) {
+      ...
+      return %0, %1 : i32, f8
   }];
 
-  let arguments = (ins
-    Variadic<eir_AnyType>:$operands
-  );
+  let arguments = (ins Variadic<AnyType>:$operands);
 
-  let verifier = [{ return success(); }];
+  let builders = [OpBuilder<
+    "Builder *b, OperationState &result", [{ build(b, result, llvm::None); }]
+  >];
 
-  let builders = [
-    OpBuilder<[{
-      Builder *b, OperationState &result
-    }], [{
-      build(b, result, llvm::None);
-    }]>,
-  ];
+  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
 }
 
-def eir_YieldOp : eir_Op<"yield", [
-    //HasParent<"mlir::FuncOp">,
-    YieldPoint,
-  ]> {
-  let summary = [{scheduler yield operation}];
+def eir_YieldOp : eir_Op<"yield", [ YieldPoint]> {
+  let summary = "scheduler yield operation";
   let description = [{
     Yields execution back to the scheduler
   }];
 
-  let parser = [{ return mlir::success(); }];
-  let printer = [{ p << getOperationName(); }];
-  let verifier = [{ return success(); }];
-
+  let verifier = ?;
   let assemblyFormat = [{ attr-dict }];
 }
 
-def eir_YieldCheckOp : eir_Op<"yield.check", [
-    //HasParent<"mlir::FuncOp">,
-    Terminator,
-  ]> {
+def eir_YieldCheckOp : eir_Op<"yield.check",
+    [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
+     NoSideEffect, Terminator]> {
   let summary = "Terminator which branches based on the need for a yield";
 
-  let verifier = [{ return success(); }];
+  let arguments = (ins
+    I32:$maxReductions,
+    Variadic<eir_AnyType>:$trueDestOperands,
+    Variadic<eir_AnyType>:$falseDestOperands
+  );
+  let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
 
-  let arguments = (ins Variadic<eir_AnyType>:$branchOperands);
-
-  let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<[{
-      Builder *, OperationState &result,
+      Builder *builder, OperationState &result,
+      Value maxReductions,
       Block *trueDest, ValueRange trueOperands,
       Block *falseDest, ValueRange falseOperands
     }], [{
-      result.addSuccessor(trueDest, trueOperands);
-      result.addSuccessor(falseDest, falseOperands);
+      build(builder, result, maxReductions,
+            trueOperands, falseOperands, trueDest, falseDest);
     }]>,
   ];
+
+  // Fully verified by traits
+  let verifier = ?;
 
   let extraClassDeclaration = [{
     /// These are the indices into the dests list.
     enum { trueIndex = 0, falseIndex = 1 };
 
+    Value getMaxReductions() { return getOperand(0); }
+
     /// Return the destination if the condition is true.
     Block *getTrueDest() {
-      return getOperation()->getSuccessor(trueIndex);
+      return getSuccessor(trueIndex);
     }
 
     /// Return the destination if the condition is false.
     Block *getFalseDest() {
-      return getOperation()->getSuccessor(falseIndex);
+      return getSuccessor(falseIndex);
     }
 
     /// Accessors for operands to the 'true' destination.
@@ -863,23 +861,13 @@ def eir_YieldCheckOp : eir_Op<"yield.check", [
       setOperand(getTrueDestOperandIndex() + idx, value);
     }
 
-    operand_iterator true_operand_begin() {
-      return operand_begin() + getTrueDestOperandIndex();
-    }
-    operand_iterator true_operand_end() {
-      return true_operand_begin() + getNumTrueOperands();
-    }
-    operand_range getTrueOperands() {
-      return {true_operand_begin(), true_operand_end()};
-    }
+    OperandRange getTrueOperands() { return trueDestOperands(); }
 
-    unsigned getNumTrueOperands()  {
-      return getOperation()->getNumSuccessorOperands(trueIndex);
-    }
+    unsigned getNumTrueOperands()  { return getTrueOperands().size(); }
 
     /// Erase the operand at 'index' from the true operand list.
     void eraseTrueOperand(unsigned index)  {
-      getOperation()->eraseSuccessorOperand(trueIndex, index);
+      eraseSuccessorOperand(trueIndex, index);
     }
 
     /// Accessors for operands to the 'false' destination.
@@ -892,21 +880,13 @@ def eir_YieldCheckOp : eir_Op<"yield.check", [
       setOperand(getFalseDestOperandIndex() + idx, value);
     }
 
-    operand_iterator false_operand_begin() { return true_operand_end(); }
-    operand_iterator false_operand_end() {
-      return false_operand_begin() + getNumFalseOperands();
-    }
-    operand_range getFalseOperands() {
-      return {false_operand_begin(), false_operand_end()};
-    }
+    OperandRange getFalseOperands() { return falseDestOperands(); }
 
-    unsigned getNumFalseOperands() {
-      return getOperation()->getNumSuccessorOperands(falseIndex);
-    }
+    unsigned getNumFalseOperands() { return getFalseOperands().size(); }
 
     /// Erase the operand at 'index' from the false operand list.
     void eraseFalseOperand(unsigned index) {
-      getOperation()->eraseSuccessorOperand(falseIndex, index);
+      eraseSuccessorOperand(falseIndex, index);
     }
 
   private:
@@ -919,6 +899,13 @@ def eir_YieldCheckOp : eir_Op<"yield.check", [
     }
   }];
 
+  // let hasCanonicalizer = 1;
+  let assemblyFormat = [{
+    $maxReductions `,`
+    $trueDest (`(` $trueDestOperands^ `:` type($trueDestOperands) `)`)? `,`
+    $falseDest (`(` $falseDestOperands^ `:` type($falseDestOperands) `)`)?
+    attr-dict
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -934,12 +921,9 @@ def eir_UnreachableOp : eir_Op<"unreachable", [Terminator]> {
     immediately after a call to the runtime to terminate the program.
   }];
 
-  let arguments = (ins);
-  let results = (outs);
+  let verifier = ?;
 
-  let parser = [{ return mlir::success(); }];
-  let printer = [{ p << getOperationName(); }];
-  let verifier = [{ return mlir::success(); }];
+  let assemblyFormat = [{ attr-dict }];
 }
 
 def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
@@ -951,10 +935,10 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
   let results = (outs);
   let arguments = (ins eir_AnyType:$reason);
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` type(operands)
+    `(` $reason `:` type($reason) `)` attr-dict
   }];
 }
 
@@ -962,10 +946,10 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
 // Miscellaneous Operations
 //===----------------------------------------------------------------------===//
 
-def eir_IncrementReductionsOp : eir_Op<"reductions.inc", [/*HasParent<"mlir::FuncOp">*/]> {
+def eir_IncrementReductionsOp : eir_Op<"reductions.inc", []> {
   let summary = "Increments the current processes' reduction counter";
 
-  let arguments = (ins DefaultValuedAttr<NonNegativeI32Attr, "1">:$increment);
+  let arguments = (ins DefaultValuedAttr<Confined<I32Attr, [IntNonNegative]>, "1">:$increment);
   let results = (outs);
 
   let builders = [
@@ -975,14 +959,12 @@ def eir_IncrementReductionsOp : eir_Op<"reductions.inc", [/*HasParent<"mlir::Fun
     }]>
   ];
 
-  let parser = [{ return mlir::success(); }];
-  let printer = [{ p << getOperationName(); }];
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let assemblyFormat = [{ attr-dict }];
 }
 
-def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
+def eir_CastOp : eir_Op<"cast", []> {
 
   let arguments = (ins eir_AnyType:$input);
   let results = (outs eir_AnyType:$output);
@@ -1106,7 +1088,7 @@ def eir_LoadOp : eir_Op<"load", []> {
   }];
 }
 
-def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
+def eir_GetElementPtrOp : eir_Op<"getelementptr", []> {
   let summary = "An aggregate access primitive used to calculate memory addresses to an element of an aggregate type";
   let description = [{
     An aggregate access primitive used to calculate memory addresses to an element of an aggregate type
@@ -1159,7 +1141,7 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
     }]>
   ];
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let assemblyFormat = [{
     $base `[` $indices `]` attr-dict `:` functional-type(operands, results)
@@ -1200,7 +1182,7 @@ def eir_PrintOp : eir_Op<"print"> {
     }]>
   ];
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -1211,8 +1193,7 @@ def eir_PrintOp : eir_Op<"print"> {
 // Constants
 //===----------------------------------------------------------------------===//
 
-class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic,
-    [NoSideEffect]> {
+class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic, [ConstantLike, NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let summary = "Constructs a constant term value";
@@ -1228,7 +1209,7 @@ class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic,
     Attribute getValue() { return getAttr("value"); }
   }];
 
-  //let hasFolder = 1;
+  let hasFolder = 1;
 }
 
 def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
@@ -1484,7 +1465,7 @@ def eir_ConsOp : eir_Op<"cons"> {
     }]>
   ];
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, $out)
@@ -1518,7 +1499,7 @@ def eir_TupleOp : eir_Op<"tuple"> {
     }]>
   ];
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, $out)
@@ -1543,9 +1524,9 @@ def eir_TraceCaptureOp : eir_Op<"trace_capture"> {
   let arguments = (ins);
   let results = (outs eir_AnyTerm:$capture);
 
-  let assemblyFormat = [{
-    `(` `)` attr-dict `:` type($capture)
-  }];
+  let verifier = ?;
+
+  let assemblyFormat = [{ attr-dict `:` type($capture) }];
 }
 
 def eir_TraceConstructOp : eir_Op<"trace_construct"> {
@@ -1562,9 +1543,9 @@ def eir_TraceConstructOp : eir_Op<"trace_construct"> {
   let arguments = (ins);
   let results = (outs eir_AnyTerm:$trace);
 
-  let assemblyFormat = [{
-    `(` `)` attr-dict `:` type($trace)
-  }];
+  let verifier = ?;
+
+  let assemblyFormat = [{ attr-dict `:` type($trace) }];
 }
 
 def eir_ConstructMapOp : eir_Op<"map.new"> {
@@ -1576,7 +1557,7 @@ def eir_ConstructMapOp : eir_Op<"map.new"> {
   let arguments = (ins Variadic<eir_AnyType>:$args);
   let results = (outs eir_BoxType:$out, eir_AnyType:$err);
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let builders = [
     OpBuilder<"Builder *builder, OperationState &result, ArrayRef<eir::MapEntry> entries",
@@ -1612,7 +1593,7 @@ def eir_MapInsertOp : eir_Op<"map.insert", []> {
   let arguments = (ins eir_MapType:$map, Variadic<eir_AnyType>:$args);
   let results = (outs eir_MapType:$newMap, eir_AnyType:$err);
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let builders = [
     OpBuilder<
@@ -1650,7 +1631,7 @@ def eir_MapUpdateOp : eir_Op<"map.update", []> {
   let arguments = (ins eir_MapType:$map, Variadic<eir_AnyType>:$args);
   let results = (outs eir_MapType:$newMap, eir_AnyType:$err);
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let builders = [
     OpBuilder<
@@ -1685,7 +1666,7 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
   let arguments = (ins eir_AnyType:$head, eir_AnyType:$tail, Variadic<eir_AnyType>:$size);
   let results = (outs eir_AnyType:$bin, I1:$status);
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -1708,7 +1689,7 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
     }]>
   ];
 
-  let verifier = [{ return success(); }];
+  let verifier = ?;
 }
 
 #endif // EIR_OPS

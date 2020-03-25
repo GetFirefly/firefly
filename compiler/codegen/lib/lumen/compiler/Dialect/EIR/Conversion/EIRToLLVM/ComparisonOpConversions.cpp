@@ -13,7 +13,7 @@ class ComparisonOpConversion : public EIROpConversion<Op> {
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
                                              benefit) {}
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     OperandAdaptor adaptor(operands);
@@ -35,12 +35,11 @@ class ComparisonOpConversion : public EIROpConversion<Op> {
     Operation *callOp = std_call(calleeSymbol, ArrayRef<Type>{int1ty}, args);
 
     rewriter.replaceOp(op, callOp->getResult(0));
-    return matchSuccess();
+    return success();
   }
 
  private:
   using EIROpConversion<Op>::getRewriteContext;
-  using EIROpConversion<Op>::matchSuccess;
 };
 
 struct CmpEqOpConversion

@@ -31,7 +31,7 @@ class MathOpConversion : public EIROpConversion<Op> {
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
                                              benefit) {}
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     OperandAdaptor adaptor(operands);
@@ -46,12 +46,12 @@ class MathOpConversion : public EIROpConversion<Op> {
     if (lhsTy.isa<FixnumType>() && rhsTy.isa<FixnumType>()) {
       auto newOp = specializeIntegerMathOp<Op, IntOp>(ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
-      return matchSuccess();
+      return success();
     }
     if (lhsTy.isa<FloatType>() && rhsTy.isa<FloatType>()) {
       auto newOp = specializeFloatMathOp<Op, FloatOp>(ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
-      return matchSuccess();
+      return success();
     }
 
     // Call builtin function
@@ -66,12 +66,11 @@ class MathOpConversion : public EIROpConversion<Op> {
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                               ArrayRef<Type>{termTy}, args);
-    return matchSuccess();
+    return success();
   }
 
  private:
   using EIROpConversion<Op>::getRewriteContext;
-  using EIROpConversion<Op>::matchSuccess;
 };
 
 struct AddOpConversion : public MathOpConversion<AddOp, AddOpOperandAdaptor,
@@ -97,7 +96,7 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
                                              benefit) {}
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     OperandAdaptor adaptor(operands);
@@ -112,7 +111,7 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
     if (lhsTy.isa<FixnumType>() && rhsTy.isa<FixnumType>()) {
       auto newOp = specializeIntegerMathOp<Op, IntOp>(ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
-      return matchSuccess();
+      return success();
     }
 
     // Call builtin function
@@ -126,12 +125,11 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
         FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                               ArrayRef<Type>{termTy}, args);
-    return matchSuccess();
+    return success();
   }
 
  private:
   using EIROpConversion<Op>::getRewriteContext;
-  using EIROpConversion<Op>::matchSuccess;
 };
 
 struct DivOpConversion
@@ -175,7 +173,7 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
                                              benefit) {}
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     OperandAdaptor adaptor(operands);
@@ -190,7 +188,7 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
     if (lhsTy.isa<FloatType>() && rhsTy.isa<FloatType>()) {
       auto newOp = specializeIntegerMathOp<Op, FloatOp>(ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
-      return matchSuccess();
+      return success();
     }
 
     // Call builtin function
@@ -205,12 +203,11 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
 
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                               ArrayRef<Type>{termTy}, args);
-    return matchSuccess();
+    return success();
   }
 
  private:
   using EIROpConversion<Op>::getRewriteContext;
-  using EIROpConversion<Op>::matchSuccess;
 };
 
 struct FDivOpConversion

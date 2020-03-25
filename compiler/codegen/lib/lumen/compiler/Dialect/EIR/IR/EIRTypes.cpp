@@ -155,7 +155,7 @@ TupleType TupleType::get(MLIRContext *context, ArrayRef<Type> elementTypes) {
 }
 
 LogicalResult TupleType::verifyConstructionInvariants(
-    Optional<Location> loc, MLIRContext *context, unsigned arity,
+    Location loc, unsigned arity,
     ArrayRef<Type> elementTypes) {
   if (arity < 1) {
     // If this is dynamically-shaped, then there is nothing to verify
@@ -201,7 +201,7 @@ BoxType BoxType::get(MLIRContext *context, OpaqueTermType boxedType) {
 }
 
 BoxType BoxType::getChecked(Type type, Location location) {
-  return Base::getChecked(location, type.getContext(), TypeKind::Box, type);
+  return Base::getChecked(location, TypeKind::Box, type);
 }
 
 OpaqueTermType BoxType::getBoxedType() const { return getImpl()->boxedType; }
@@ -217,7 +217,7 @@ RefType RefType::get(MLIRContext *context, OpaqueTermType innerType) {
 }
 
 RefType RefType::getChecked(Type type, Location location) {
-  return Base::getChecked(location, type.getContext(), TypeKind::Ref, type);
+  return Base::getChecked(location, TypeKind::Ref, type);
 }
 
 OpaqueTermType RefType::getInnerType() const { return getImpl()->innerType; }

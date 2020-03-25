@@ -6,7 +6,7 @@ namespace eir {
 struct CastOpConversion : public EIROpConversion<CastOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       CastOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     CastOpOperandAdaptor adaptor(operands);
@@ -21,7 +21,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
     // Remove redundant casts
     if (fromTy == toTy) {
       rewriter.replaceOp(op, in);
-      return matchSuccess();
+      return success();
     }
 
     // Get the lowered type of the input and result of this operation
@@ -39,7 +39,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             Value extended = llvm_zext(termTy, in);
             auto atomTy = ctx.rewriter.getType<AtomType>();
             rewriter.replaceOp(op, ctx.encodeImmediate(atomTy, extended));
-            return matchSuccess();
+            return success();
           }
         }
         if (ft.isAtom() && tt.isBoolean()) {
@@ -48,28 +48,28 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           Value decoded = ctx.decodeImmediate(in);
           Value truncated = llvm_trunc(i1Ty, decoded);
           rewriter.replaceOp(op, truncated);
-          return matchSuccess();
+          return success();
         }
         if (ft.isImmediate() && tt.isOpaque()) {
           rewriter.replaceOp(op, in);
-          return matchSuccess();
+          return success();
         }
         if (ft.isOpaque() && tt.isImmediate()) {
           rewriter.replaceOp(op, in);
-          return matchSuccess();
+          return success();
         }
         if (ft.isBox() && tt.isBox()) {
           auto tbt = ctx.typeConverter.convertType(tt.cast<BoxType>())
                          .cast<LLVMType>();
           Value cast = llvm_bitcast(tbt, in);
           rewriter.replaceOp(op, cast);
-          return matchSuccess();
+          return success();
         }
         llvm::outs() << "invalid opaque term cast: \n";
         llvm::outs() << "to: " << toTy << "\n";
         llvm::outs() << "from: " << fromTy << "\n";
         assert(false && "unexpected type cast");
-        return matchFailure();
+        return failure();
       }
       /*
       // ..from boolean type
@@ -79,14 +79,14 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             // Extend and encode as atom immediate
             Value extended = llvm_zext(termTy, in);
             rewriter.replaceOp(op, ctx.encodeImmediate(tt, extended));
-            return matchSuccess();
+            return success();
           }
           // ..to fixed-width integer type
           if (tt.isFixnum()) {
             // Extend and encode as fixnum
             Value extended = llvm_zext(termTy, in);
             rewriter.replaceOp(op, ctx.encodeImmediate(tt, extended));
-            return matchSuccess();
+            return success();
           }
           llvm::outs() << "invalid boolean cast: \nto: ";
           tt.dump();
@@ -94,7 +94,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           llvmFromTy.dump();
           llvm::outs() << "\n";
           assert(false && "unexpected type cast");
-          return matchFailure();
+          return failure();
       }
       // ..from pointer type
       if (llvmFromTy.isPointerTy()) {
@@ -106,11 +106,11 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
               if (boxedTy.isa<ConsType>()) {
                   Value boxed = ctx.encodeList(in);
                   rewriter.replaceOp(op, boxed);
-                  return matchSuccess();
+                  return success();
               } else {
                   Value boxed = ctx.encodeBox(in);
                   rewriter.replaceOp(op, boxed);
-                  return matchSuccess();
+                  return success();
               }
           }
           llvm::outs() << "invalid pointer cast: \nto: ";
@@ -119,7 +119,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           llvmFromTy.dump();
           llvm::outs() << "\n";
           assert(false && "unexpected type cast");
-          return matchFailure();
+          return failure();
       }
       // ..from integer type
       if (fromTy.isIntOrIndex()) {
@@ -127,7 +127,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           if (tt.isFixnum()) {
             Value extended = llvm_sext(termTy, in);
             rewriter.replaceOp(op, ctx.encodeImmediate(tt, extended));
-            return matchSuccess();
+            return success();
           }
           llvm::outs() << "invalid integer cast: \nto: ";
           tt.dump();
@@ -135,7 +135,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           fromTy.dump();
           llvm::outs() << "\n";
           assert(false && "unexpected type cast");
-          return matchFailure();
+          return failure();
       }
       // ..from float type
       if (fromTy.isF64() || llvmFromTy.isFloatTy()) {
@@ -145,7 +145,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
               if (!ctx.targetInfo.requiresPackedFloats()) {
                   Value floatTerm = llvm_bitcast(termTy, in);
                   rewriter.replaceOp(op, floatTerm);
-                  return matchSuccess();
+                  return success();
               }
               // Packed floats need to be allocated
               auto i32Ty = ctx.targetInfo.getI32Type();
@@ -162,7 +162,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
               llvm_store(in, fieldPtr);
               // Finally, replace the cast with the boxed value
               rewriter.replaceOp(op, {boxed});
-              return matchSuccess();
+              return success();
           }
           llvm::outs() << "invalid float cast: \nto: ";
           tt.dump();
@@ -170,7 +170,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           fromTy.dump();
           llvm::outs() << "\n";
           assert(false && "unexpected type cast");
-          return matchFailure();
+          return failure();
       }
   */
       llvm::outs() << "invalid float cast: \nto: ";
@@ -179,7 +179,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
       fromTy.dump();
       llvm::outs() << "\n";
       assert(false && "unexpected type cast");
-      return matchFailure();
+      return failure();
     }
 
     /*
@@ -195,7 +195,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                 Value decoded = ctx.decodeImmediate(in);
                 Value truncated = llvm_trunc(i1Ty, decoded);
                 rewriter.replaceOp(op, truncated);
-                return matchSuccess();
+                return success();
             }
             // ..from atom
             if (ft.isAtom()) {
@@ -204,7 +204,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                 Value one = llvm_constant(termTy, ctx.getIntegerAttr(1));
                 Value cond = llvm_icmp(LLVM::ICmpPredicate::eq, decoded, one);
                 rewriter.replaceOp(op, cond);
-                return matchSuccess();
+                return success();
             }
             llvm::outs() << "invalid primitive cast: \nto: ";
             llvmToTy.dump();
@@ -212,7 +212,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             ft.dump();
             llvm::outs() << "\n";
             assert(false && "unexpected type cast");
-            return matchFailure();
+            return failure();
         }
         // ..to pointer type
         if (llvmToTy.isPointerTy()) {
@@ -226,11 +226,11 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                 if (boxedTy.isa<ConsType>()) {
                     Value unboxed = ctx.decodeList(in);
                     rewriter.replaceOp(op, unboxed);
-                    return matchSuccess();
+                    return success();
                 } else {
                     Value unboxed = ctx.decodeBox(innerTy, in);
                     rewriter.replaceOp(op, unboxed);
-                    return matchSuccess();
+                    return success();
                 }
             }
             llvm::outs() << "invalid pointer cast: \nto: ";
@@ -239,7 +239,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             ft.dump();
             llvm::outs() << "\n";
             assert(false && "unexpected type cast");
-            return matchFailure();
+            return failure();
         }
         // ..to integer type
         if (toTy.isIntOrIndex()) {
@@ -247,7 +247,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             if (ft.isFixnum()) {
               Value decoded = ctx.decodeImmediate(in);
               rewriter.replaceOp(op, decoded);
-              return matchSuccess();
+              return success();
             }
             llvm::outs() << "invalid integer cast: \nto: ";
             toTy.dump();
@@ -255,7 +255,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             ft.dump();
             llvm::outs() << "\n";
             assert(false && "unexpected type cast");
-            return matchFailure();
+            return failure();
         }
         // ..to float type
         if (toTy.isF64() || llvmToTy.isFloatTy()) {
@@ -265,7 +265,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                 if (!ctx.targetInfo.requiresPackedFloats()) {
                     Value decoded = llvm_bitcast(llvmToTy, in);
                     rewriter.replaceOp(op, decoded);
-                    return matchSuccess();
+                    return success();
                 }
                 // For packed floats, we just need to load the value from the
     structure auto i32Ty = ctx.targetInfo.getI32Type(); auto floatTy =
@@ -276,7 +276,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
     ctx.getIntegerAttr(1)); ArrayRef<Value> indices{zero, one}; Value fieldPtr =
     llvm_gep(f64PtrTy, valPtr, indices); Value floatVal = llvm_load(fieldPtr);
                 rewriter.replaceOp(op, floatVal);
-                return matchSuccess();
+                return success();
             }
             llvm::outs() << "invalid float cast: \nto: ";
             toTy.dump();
@@ -284,7 +284,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             ft.dump();
             llvm::outs() << "\n";
             assert(false && "unexpected type cast");
-            return matchFailure();
+            return failure();
         }
         llvm::outs() << "invalid cast: \nto: ";
         toTy.dump();
@@ -292,7 +292,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
         ft.dump();
         llvm::outs() << "\n";
         assert(false && "unexpected type cast");
-        return matchFailure();
+        return failure();
     }
     */
 
@@ -303,14 +303,14 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
     llvm::outs() << "\n";
     // Unsupported cast
     assert(false && "unexpected type cast");
-    return matchFailure();
+    return failure();
   }
 };
 
 struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       GetElementPtrOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     GetElementPtrOpOperandAdaptor adaptor(operands);
@@ -332,7 +332,7 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
         pointeeCast = ctx.decodeBox(innerTy, base);
       } else {
         op.emitError("invalid pointee value: expected cons or tuple");
-        return matchFailure();
+        return failure();
       }
     }
 
@@ -357,14 +357,14 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
     */
 
     rewriter.replaceOp(op, gep);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct LoadOpConversion : public EIROpConversion<LoadOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       LoadOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     edsc::ScopedContext context(rewriter, op.getLoc());
@@ -374,7 +374,7 @@ struct LoadOpConversion : public EIROpConversion<LoadOp> {
     Value load = llvm_load(ptr);
 
     rewriter.replaceOp(op, load);
-    return matchSuccess();
+    return success();
   }
 };
 

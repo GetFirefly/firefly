@@ -6,7 +6,7 @@ namespace eir {
 struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       BinaryPushOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -62,7 +62,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             "invalid binary specifier type encountered during conversion");
     }
 
-    return matchFailure();
+    return failure();
   }
 };
 

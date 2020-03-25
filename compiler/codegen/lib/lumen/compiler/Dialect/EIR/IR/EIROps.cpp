@@ -108,18 +108,18 @@ struct SimplifyIndirectCallWithKnownCallee
     : public OpRewritePattern<CallIndirectOp> {
   using OpRewritePattern<CallIndirectOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(CallIndirectOp indirectCall,
-                                     PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(CallIndirectOp indirectCall,
+                                PatternRewriter &rewriter) const override {
     // Check that the callee is a constant callee.
     FlatSymbolRefAttr calledFn;
     if (!matchPattern(indirectCall.getCallee(), ::mlir::m_Constant(&calledFn)))
-      return matchFailure();
+      return failure();
 
     // Replace with a direct call.
     rewriter.replaceOpWithNewOp<CallOp>(indirectCall, calledFn,
                                         indirectCall.getResultTypes(),
                                         indirectCall.getArgOperands());
-    return matchSuccess();
+    return success();
   }
 };
 }  // end anonymous namespace.
@@ -133,163 +133,116 @@ void CallIndirectOp::getCanonicalizationPatterns(
 // eir.br
 //===----------------------------------------------------------------------===//
 
-static ParseResult parseBranchOp(OpAsmParser &parser, OperationState &result) {
-  Block *dest;
-  SmallVector<Value, 4> destOperands;
-  if (failed(parser.parseSuccessorAndUseList(dest, destOperands))) {
-    return failure();
+namespace {
+struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
+  using OpRewritePattern<BranchOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BranchOp op,
+                                PatternRewriter &rewriter) const override {
+    // Check that the successor block has a single predecessor.
+    Block *succ = op.getDest();
+    Block *opParent = op.getOperation()->getBlock();
+    if (succ == opParent || !has_single_element(succ->getPredecessors()))
+      return failure();
+
+    // Merge the successor into the current block and erase the branch.
+    rewriter.mergeBlocks(succ, opParent, op.getOperands());
+    rewriter.eraseOp(op);
+    return success();
   }
-  result.addSuccessor(dest, destOperands);
-  if (failed(parser.parseOptionalAttrDict(result.attributes))) {
-    return failure();
-  }
-  return success();
+};
 }
 
-static void print(OpAsmPrinter &p, BranchOp &op) {
-  p << op.getOperationName() << ' ';
-  p.printSuccessorAndUseList(op.getOperation(), 0);
-  p.printOptionalAttrDict(op.getAttrs());
+void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                           MLIRContext *context) {
+  results.insert<SimplifyBrToBlockWithSinglePred>(context);
 }
 
-static LogicalResult verify(BranchOp op) {
-  // TODO
-  return success();
+Optional<OperandRange> BranchOp::getSuccessorOperands(unsigned index) {
+  assert(index == 0 && "invalid successor index");
+  return getOperands();
 }
 
-Block *BranchOp::getDest() { return getOperation()->getSuccessor(0); }
-
-void BranchOp::setDest(Block *block) {
-  return getOperation()->setSuccessor(block, 0);
-}
-
-void BranchOp::eraseOperand(unsigned index) {
-  getOperation()->eraseSuccessorOperand(0, index);
-}
+bool BranchOp::canEraseSuccessorOperand() { return true; }
 
 //===----------------------------------------------------------------------===//
 // eir.cond_br
 //===----------------------------------------------------------------------===//
 
-static ParseResult parseCondBranchOp(OpAsmParser &parser,
-                                     OperationState &result) {
-  SmallVector<Value, 4> destOperands;
-  Block *dest;
-  OpAsmParser::OperandType condInfo;
+namespace {
+/// eir.cond_br true, ^bb1, ^bb2 -> br ^bb1
+/// eir.cond_br false, ^bb1, ^bb2 -> br ^bb2
+///
+struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
+  using OpRewritePattern<CondBranchOp>::OpRewritePattern;
 
-  // Parse the condition.
-  Type boolTy = parser.getBuilder().getType<BooleanType>();
-  if (failed(parser.parseOperand(condInfo)) || failed(parser.parseComma()) ||
-      failed(parser.resolveOperand(condInfo, boolTy, result.operands))) {
-    return parser.emitError(parser.getNameLoc(),
-                            "expected boolean condition type");
-  }
-
-  // Parse the true successor.
-  if (failed(parser.parseSuccessorAndUseList(dest, destOperands))) {
+  LogicalResult matchAndRewrite(CondBranchOp condbr,
+                                PatternRewriter &rewriter) const override {
+    if (matchPattern(condbr.getCondition(), m_NonZero())) {
+      // True branch taken.
+      rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
+                                            condbr.getTrueOperands());
+      return success();
+    } else if (matchPattern(condbr.getCondition(), m_Zero())) {
+      // False branch taken.
+      rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getFalseDest(),
+                                            condbr.getFalseOperands());
+      return success();
+    }
     return failure();
   }
-  result.addSuccessor(dest, destOperands);
+};
+} // end anonymous namespace.
 
-  // Parse the false successor.
-  destOperands.clear();
-  if (failed(parser.parseComma()) ||
-      failed(parser.parseSuccessorAndUseList(dest, destOperands))) {
-    return failure();
-  }
-  result.addSuccessor(dest, destOperands);
-
-  if (failed(parser.parseOptionalAttrDict(result.attributes))) {
-    return failure();
-  }
-
-  return success();
+void CondBranchOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<SimplifyConstCondBranchPred>(context);
 }
 
-static void print(OpAsmPrinter &p, CondBranchOp &op) {
-  p << op.getOperationName() << ' ';
-  p.printOperand(op.getCondition());
-  p << ", ";
-  p.printSuccessorAndUseList(op.getOperation(), CondBranchOp::trueIndex);
-  p << ", ";
-  p.printSuccessorAndUseList(op.getOperation(), CondBranchOp::falseIndex);
-  p.printOptionalAttrDict(op.getAttrs());
+Optional<OperandRange> CondBranchOp::getSuccessorOperands(unsigned index) {
+  assert(index < getNumSuccessors() && "invalid successor index");
+  return index == trueIndex ? getTrueOperands() : getFalseOperands();
 }
 
-static LogicalResult verify(CondBranchOp op) {
-  // TODO
-  return success();
-}
+bool CondBranchOp::canEraseSuccessorOperand() { return true; }
 
 //===----------------------------------------------------------------------===//
 // eir.return
 //===----------------------------------------------------------------------===//
 
-static ParseResult parseReturnOp(OpAsmParser &parser, OperationState &result) {
-  SmallVector<OpAsmParser::OperandType, 2> opInfo;
-  SmallVector<Type, 2> types;
-  llvm::SMLoc loc = parser.getCurrentLocation();
-  return failure(parser.parseOperandList(opInfo) ||
-                 (!opInfo.empty() && parser.parseColonTypeList(types)) ||
-                 parser.resolveOperands(opInfo, types, loc, result.operands));
-}
+static LogicalResult verify(ReturnOp op) {
+  auto function = cast<FuncOp>(op.getParentOp());
 
-static void print(OpAsmPrinter &p, ReturnOp &op) {
-  p << op.getOperationName();
-  if (op.getNumOperands() > 0) {
-    p << ' ';
-    p.printOperands(op.operand_begin(), op.operand_end());
-    p.printOptionalAttrDict(op.getAttrs());
-    p << " : ";
-    interleaveComma(op.getOperandTypes(), p);
-  }
-}
+  // The operand number and types must match the function signature.
+  const auto &results = function.getType().getResults();
+  if (op.getNumOperands() != results.size())
+    return op.emitOpError("has ")
+           << op.getNumOperands()
+           << " operands, but enclosing function returns " << results.size();
 
-//===----------------------------------------------------------------------===//
-// eir.yield.check
-//===----------------------------------------------------------------------===//
-static ParseResult parseYieldCheckOp(OpAsmParser &parser,
-                                     OperationState &result) {
-  SmallVector<Value, 4> destOperands;
-  Block *dest;
-  OpAsmParser::OperandType condInfo;
-
-  // Parse the true successor.
-  if (failed(parser.parseSuccessorAndUseList(dest, destOperands))) {
-    return failure();
-  }
-  result.addSuccessor(dest, destOperands);
-
-  // Parse the false successor.
-  destOperands.clear();
-  if (failed(parser.parseComma()) ||
-      failed(parser.parseSuccessorAndUseList(dest, destOperands))) {
-    return failure();
-  }
-  result.addSuccessor(dest, destOperands);
-
-  if (failed(parser.parseOptionalAttrDict(result.attributes))) {
-    return failure();
-  }
+  for (unsigned i = 0, e = results.size(); i != e; ++i)
+    if (op.getOperand(i).getType() != results[i])
+      return op.emitError()
+             << "type of return operand " << i << " ("
+             << op.getOperand(i).getType()
+             << ") doesn't match function result type (" << results[i] << ")";
 
   return success();
 }
 
-static void print(OpAsmPrinter &p, YieldCheckOp &op) {
-  p << op.getOperationName() << ' ';
-  p.printSuccessorAndUseList(op.getOperation(), CondBranchOp::trueIndex);
-  p << ", ";
-  p.printSuccessorAndUseList(op.getOperation(), CondBranchOp::falseIndex);
-  p.printOptionalAttrDict(op.getAttrs());
+//===----------------------------------------------------------------------===//
+// eir.yield_check
+//===----------------------------------------------------------------------===//
+
+Optional<OperandRange> YieldCheckOp::getSuccessorOperands(unsigned index) {
+  assert(index == 0 && "invalid successor index");
+  return getOperands();
 }
 
-static LogicalResult verify(YieldCheckOp op) {
-  // TODO
-  return success();
-}
+bool YieldCheckOp::canEraseSuccessorOperand() { return true; }
 
 //===----------------------------------------------------------------------===//
-// IsTypeOp
+// eir.is_type
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(IsTypeOp op) {
@@ -306,7 +259,7 @@ static LogicalResult verify(IsTypeOp op) {
 }
 
 //===----------------------------------------------------------------------===//
-// CastOp
+// eir.cast
 //===----------------------------------------------------------------------===//
 
 static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
@@ -352,7 +305,7 @@ static LogicalResult verify(CastOp op) {
 }
 
 //===----------------------------------------------------------------------===//
-// MatchOp
+// eir.match
 //===----------------------------------------------------------------------===//
 
 void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
@@ -646,48 +599,6 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
 }
 
 //===----------------------------------------------------------------------===//
-// TraceCaptureOp
-//===----------------------------------------------------------------------===//
-
-ParseResult parseTraceCaptureOp(OpAsmParser &parser, OperationState &result) {
-  if (parser.parseOptionalAttrDict(result.attributes)) return failure();
-  return success();
-}
-
-static void print(OpAsmPrinter &p, TraceCaptureOp op) {
-  p << op.getOperationName();
-  p.printOptionalAttrDict(op.getOperation()->getAttrs());
-}
-
-static LogicalResult verify(TraceCaptureOp) {
-  // TODO
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// TraceConstructOp
-//===----------------------------------------------------------------------===//
-
-ParseResult parseTraceConstructOp(OpAsmParser &parser, OperationState &result) {
-  if (parser.parseOptionalAttrDict(result.attributes)) return failure();
-
-  auto &builder = parser.getBuilder();
-  std::vector<Type> resultType = {TermType::get(builder.getContext())};
-  result.addTypes(resultType);
-  return success();
-}
-
-static void print(OpAsmPrinter &p, TraceConstructOp op) {
-  p << op.getOperationName();
-  p.printOptionalAttrDict(op.getOperation()->getAttrs());
-}
-
-static LogicalResult verify(TraceConstructOp) {
-  // TODO
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
 // Constant*Op
 //===----------------------------------------------------------------------===//
 
@@ -718,6 +629,24 @@ static LogicalResult verifyConstantOp(ConstantOp &) {
   // TODO
   return success();
 }
+
+template <typename Op>
+OpFoldResult foldConstantOp(Op *op, ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant has no operands");
+  return op->getValue();
+}
+
+OpFoldResult ConstantFloatOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantIntOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantBigIntOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantAtomOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantBinaryOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantNilOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantTupleOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantConsOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantListOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantMapOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
 
 //===----------------------------------------------------------------------===//
 // MallocOp
@@ -799,13 +728,13 @@ namespace {
 struct SimplifyDeadMalloc : public OpRewritePattern<MallocOp> {
   using OpRewritePattern<MallocOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(MallocOp alloc,
-                                     PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(MallocOp alloc,
+                                PatternRewriter &rewriter) const override {
     if (alloc.use_empty()) {
       rewriter.eraseOp(alloc);
-      return matchSuccess();
+      return success();
     }
-    return matchFailure();
+    return failure();
   }
 };
 }  // end anonymous namespace.

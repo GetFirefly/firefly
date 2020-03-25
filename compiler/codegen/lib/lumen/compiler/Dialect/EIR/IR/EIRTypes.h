@@ -266,7 +266,7 @@ class TupleType : public Type::TypeBase<TupleType, OpaqueTermType,
 
   // Verifies construction invariants and issues errors/warnings.
   static LogicalResult verifyConstructionInvariants(
-      Optional<Location> loc, MLIRContext *context, unsigned arity,
+      Location loc, unsigned arity,
       ArrayRef<Type> elementTypes);
 
   // Returns the size of the shaped type
@@ -297,12 +297,9 @@ class BoxType
   static BoxType getChecked(Type boxedType, mlir::Location location);
 
   /// Verifies construction of a type with the given object.
-  static LogicalResult verifyConstructionInvariants(
-      llvm::Optional<Location> loc, MLIRContext *context, Type boxedType) {
+  static LogicalResult verifyConstructionInvariants(Location loc, Type boxedType) {
     if (!OpaqueTermType::classof(boxedType)) {
-      if (loc) {
-        emitError(*loc) << "invalid target type for a box: " << boxedType;
-      }
+      emitError(loc) << "invalid target type for a box: " << boxedType;
       return failure();
     }
     return success();

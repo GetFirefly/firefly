@@ -15,6 +15,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/TargetRegistry.h"
 
 using ::llvm::Optional;

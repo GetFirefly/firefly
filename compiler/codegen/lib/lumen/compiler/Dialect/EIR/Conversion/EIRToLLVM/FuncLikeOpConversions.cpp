@@ -18,10 +18,11 @@ const unsigned CLOSURE_ENV_INDEX = 5;
 struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       eir::FuncOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     edsc::ScopedContext scope(rewriter, op.getLoc());
+    auto ctx = getRewriteContext(op, rewriter);
 
     SmallVector<NamedAttribute, 2> attrs;
     for (auto fa : op.getAttrs()) {
@@ -55,7 +56,10 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
       Block *dontYield = doYield->splitBlock(&doYield->front());
       // Insert yield check in original entry block
       rewriter.setInsertionPointToEnd(entry);
-      rewriter.create<YieldCheckOp>(op.getLoc(), doYield, ValueRange{},
+
+      const uint32_t MAX_REDUCTIONS = 20; // TODO: Move this up in the compiler
+      Value maxReductions = rewriter.create<mlir::ConstantOp>(op.getLoc(), rewriter.getI32IntegerAttr(MAX_REDUCTIONS));
+      rewriter.create<YieldCheckOp>(op.getLoc(), maxReductions, doYield, ValueRange{},
                                     dontYield, ValueRange{});
       // Then insert the actual yield point in the yield block
       rewriter.setInsertionPointToEnd(doYield);
@@ -66,14 +70,14 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
       rewriter.restoreInsertionPoint(ip);
     }
 
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ClosureOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     ClosureOpOperandAdaptor adaptor(operands);
@@ -206,14 +210,14 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     auto boxed = ctx.encodeBox(valRef);
 
     rewriter.replaceOp(op, boxed);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct UnpackEnvOpConversion : public EIROpConversion<UnpackEnvOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       UnpackEnvOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     UnpackEnvOpOperandAdaptor adaptor(operands);
@@ -234,7 +238,7 @@ struct UnpackEnvOpConversion : public EIROpConversion<UnpackEnvOp> {
     Value unpacked = llvm_load(ptr);
 
     rewriter.replaceOp(op, unpacked);
-    return matchSuccess();
+    return success();
   }
 };
 

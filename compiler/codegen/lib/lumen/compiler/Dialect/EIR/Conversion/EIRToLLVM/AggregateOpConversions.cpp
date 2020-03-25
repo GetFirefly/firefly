@@ -6,7 +6,7 @@ namespace eir {
 struct ConsOpConversion : public EIROpConversion<ConsOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       ConsOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -35,14 +35,14 @@ struct ConsOpConversion : public EIROpConversion<ConsOp> {
 
     auto boxed = ctx.encodeList(cellPtr);
     rewriter.replaceOp(op, boxed);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct TupleOpConversion : public EIROpConversion<TupleOp> {
   using EIROpConversion::EIROpConversion;
 
-  PatternMatchResult matchAndRewrite(
+  LogicalResult matchAndRewrite(
       TupleOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
@@ -78,7 +78,7 @@ struct TupleOpConversion : public EIROpConversion<TupleOp> {
     // Box the allocated tuple
     auto boxed = ctx.encodeBox(ptr);
     rewriter.replaceOp(op, boxed);
-    return matchSuccess();
+    return success();
   }
 };
 

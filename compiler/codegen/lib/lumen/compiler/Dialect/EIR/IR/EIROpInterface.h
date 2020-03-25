@@ -1,7 +1,7 @@
 #ifndef EIR_IR_OPINTERFACE_H
 #define EIR_IR_OPINTERFACE_H
 
-#include "mlir/Analysis/CallInterfaces.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/IR/OpImplementation.h"
 
 using ::llvm::ArrayRef;

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 28dca764726a9272c898d939205c5bc0459b17923e9974567605bd0c194ffc1b # shrinks to (0, Pid(1), Box(0x114840118, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::tuple::Tuple>(Tuple(Box(0x1148400e8, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::binary::sub::SubBinary>(SubBinary { header: Header<liblumen_alloc::erts::term::binary::sub::SubBinary>(0b110110000000000000000000000000000000000000000000101), byte_offset: 3, bit_offset: 1, full_byte_len: 0, partial_byte_bit_len: 5, writable: false, is_binary: false, is_aligned: false, original: Box(0x1148400d0, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::binary::heap::HeapBin>(HeapBin { header: Header<liblumen_alloc::erts::term::binary::heap::HeapBin>(0b110101000000000000000000000000000000000000000000010), flags: BinaryFlags { raw: 100001, encoding: raw, size: 4, is_literal: false }, data: [0, 0, 0, 102] } at 0x1148400d0))) } at 0x1148400e8)))) at 0x114840118))))

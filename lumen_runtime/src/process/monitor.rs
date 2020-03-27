@@ -7,9 +7,10 @@ use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{self, Message};
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment};
+
 use liblumen_core::alloc::Layout;
 
-use crate::otp::erlang::node_0;
+use crate::distribution::nodes::node;
 use crate::registry::pid_to_process;
 
 pub fn is_down(message: &Message, reference: &Reference) -> bool {
@@ -123,7 +124,7 @@ fn identifier<A: TermAlloc>(process: &Process, monitor: &Monitor, heap: &mut A) 
         Monitor::Pid { .. } => process.pid_term(),
         Monitor::Name { monitored_name, .. } => {
             let monitored_name_term = monitored_name.encode().unwrap();
-            let node_name = node_0::native();
+            let node_name = node::term();
 
             heap.tuple_from_slice(&[monitored_name_term, node_name])
                 .unwrap()

@@ -9,7 +9,7 @@ use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use lumen_runtime::otp::timer;
+use liblumen_otp::timer;
 
 pub fn place_frame_with_arguments(
     process: &Process,

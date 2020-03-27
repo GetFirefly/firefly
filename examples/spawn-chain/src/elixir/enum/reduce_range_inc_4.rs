@@ -12,7 +12,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use lumen_runtime::otp::erlang::add_2;
+use liblumen_otp::erlang::add_2;
 
 /// ```elixir
 /// defp reduce_range_inc(first, first, acc, fun) do

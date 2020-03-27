@@ -7,8 +7,7 @@ use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unit {
     Hertz(usize),
     Second,
@@ -110,21 +109,20 @@ impl TryFrom<Term> for Unit {
 mod tests {
     use super::*;
 
-    use crate::scheduler::with_process;
+    use crate::test;
 
     #[test]
     fn zero_errors_hertz_must_be_positive() {
-        with_process(|process| {
-            let term: Term = process.integer(0).unwrap();
+        let arc_process = test::process::default();
+        let term: Term = arc_process.integer(0).unwrap();
 
-            let result: Result<Unit, _> = term.try_into();
+        let result: Result<Unit, _> = term.try_into();
 
-            assert!(result.is_err());
+        assert!(result.is_err());
 
-            let formatted = format!("{:?}", result.unwrap_err());
+        let formatted = format!("{:?}", result.unwrap_err());
 
-            assert!(formatted.contains("hertz must be positive"));
-            assert!(formatted.contains("supported units are :second, :seconds, :millisecond, :milli_seconds, :microsecond, :micro_seconds, :nanosecond, :nano_seconds, :native, :perf_counter, or hertz (positive integer)"));
-        });
+        assert!(formatted.contains("hertz must be positive"));
+        assert!(formatted.contains("supported units are :second, :seconds, :millisecond, :milli_seconds, :microsecond, :micro_seconds, :nanosecond, :nano_seconds, :native, :perf_counter, or hertz (positive integer)"));
     }
 }

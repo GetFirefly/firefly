@@ -22,7 +22,7 @@ pub struct VMState {
 
 impl VMState {
     pub fn new() -> Self {
-        lumen_runtime::otp::erlang::apply_3::set_code(crate::code::apply);
+        liblumen_otp::erlang::apply_3::set_code(crate::code::apply);
 
         let mut modules = ModuleRegistry::new();
         modules.register_native_module(crate::native::make_erlang());

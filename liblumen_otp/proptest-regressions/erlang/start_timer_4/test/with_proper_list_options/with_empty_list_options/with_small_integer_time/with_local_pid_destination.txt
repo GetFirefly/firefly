@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b3ce78b2b3d772d8c41c6baf3d9979e9bc7215e9362e9cc81ad8c8729e43b134 # shrinks to (Pid(247441), 0, Box(0x11c0ee8e8, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::integer::big::BigInteger>(BigInteger { header: Header<liblumen_alloc::erts::term::integer::big::BigInteger>(0b100000000000000000000000000000000000000000000000100), value: -70368744177667 (101111111111111111111111111111111111111111111101) } at 0x11c0ee8e8))))
+cc b4895d31d8ee512a214ff11109ab07c42eecf4f900c0aae84f53ef393e012a62 # shrinks to (Pid(247011), 0, Box(0x117c8a4d8, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::integer::big::BigInteger>(BigInteger { header: Header<liblumen_alloc::erts::term::integer::big::BigInteger>(0b100000000000000000000000000000000000000000000000100), value: -70368744177667 (101111111111111111111111111111111111111111111101) } at 0x117c8a4d8))))

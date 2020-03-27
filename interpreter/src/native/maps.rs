@@ -1,6 +1,6 @@
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::otp::maps;
+use liblumen_otp::maps;
 
 use crate::module::NativeModule;
 

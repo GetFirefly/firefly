@@ -17,8 +17,9 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use lumen_runtime::otp::erlang;
 use lumen_runtime::process::spawn::options::Options;
+
+use liblumen_otp::erlang;
 
 use crate::window::add_event_listener;
 

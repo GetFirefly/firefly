@@ -6,7 +6,7 @@ use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::{Boxed, Closure, Encoded, Term};
 
-use lumen_runtime::otp::erlang;
+use liblumen_otp::erlang;
 
 use crate::elixir::chain::counter_2::label_2;
 

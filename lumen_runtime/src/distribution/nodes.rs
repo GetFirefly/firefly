@@ -47,8 +47,6 @@ pub fn try_id_to_arc_node(id: &usize) -> Result<Arc<Node>, NodeNotFound> {
     }
 }
 
-// TODO make non-test-only once distribution connection is implemented
-#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn insert(arc_node: Arc<Node>) {
     let id = arc_node.id();
     let name = arc_node.name();

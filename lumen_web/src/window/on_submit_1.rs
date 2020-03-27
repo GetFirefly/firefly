@@ -11,7 +11,7 @@ use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use lumen_runtime::otp::erlang;
+use liblumen_otp::erlang;
 
 /// The global `onsubmit` event listener for Lumen.Web forms.
 ///

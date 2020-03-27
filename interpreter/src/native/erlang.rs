@@ -1,6 +1,6 @@
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::otp::erlang;
+use liblumen_otp::erlang;
 
 use crate::module::NativeModule;
 

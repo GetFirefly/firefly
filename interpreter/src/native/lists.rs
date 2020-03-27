@@ -1,5 +1,6 @@
 use liblumen_alloc::erts::term::prelude::Atom;
-use lumen_runtime::otp::lists;
+
+use liblumen_otp::lists;
 
 use crate::module::NativeModule;
 

@@ -7,7 +7,7 @@
 #![feature(backtrace)]
 #![feature(bind_by_move_pattern_guards)]
 #![feature(exact_size_is_empty)]
-// For `lumen_runtime::otp::erlang::term_to_binary`
+// For `lumen_otp::erlang::term_to_binary`
 #![feature(float_to_from_bytes)]
 #![feature(fn_traits)]
 // For `lumen_runtime::reference::count
@@ -36,40 +36,35 @@ extern crate lazy_static;
 
 extern crate chrono;
 
-#[macro_use]
-mod macros;
-
-mod binary;
+pub mod binary;
 pub mod binary_to_string;
 // `pub` or `examples/spawn-chain`
 pub mod code;
 #[cfg(not(any(test, target_arch = "wasm32")))]
 mod config;
-mod context;
-mod distribution;
+pub mod context;
+pub mod distribution;
 pub mod future;
 mod logging;
-mod number;
-pub mod otp;
+pub mod number;
 pub mod process;
-mod proplist;
+pub mod proplist;
 // `pub` or `examples/spawn-chain`
 pub mod registry;
 mod run;
 // `pub` for `examples/spawn-chain`
 pub mod scheduler;
-mod send;
-mod stacktrace;
+pub mod send;
+pub mod stacktrace;
 // `pub` for `examples/spawn-chain`
 pub mod system;
 // `pub` for `examples/spawn-chain`
 mod term;
-// `pub` to allow `time::monotonic::set_source(callback)`
-#[cfg(test)]
-mod test;
 pub mod time;
-// Public so that external code can all `timer::expire` to expire timers
-mod timer;
+pub mod timer;
+
+#[cfg(test)]
+pub mod test;
 
 /// The main entry point for the runtime
 ///

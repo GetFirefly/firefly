@@ -21,9 +21,9 @@ console_error_panic_hook = { version = "0.1.1", optional = true }
 
 js-sys = "0.3.25"
 liblumen_alloc = { path = "../../liblumen_alloc" }
-liblumen_otp = { path = "../../liblumen_otp" }
+liblumen_otp = { path = "../../native_implemented_functions/otp" }
 lumen_runtime = { path = "../../lumen_runtime" }
-lumen_web = { path = "../../liblumen_web" }
+liblumen_web = { path = "../../native_implemented_functions/web" }
 num-bigint = "0.2"
 wasm-bindgen = "0.2"
 

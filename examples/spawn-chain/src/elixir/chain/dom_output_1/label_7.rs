@@ -50,7 +50,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let text = arc_process.stack_pop().unwrap();
 
     label_8::place_frame_with_arguments(arc_process, Placement::Replace, document, tr).unwrap();
-    lumen_web::document::create_text_node_2::place_frame_with_arguments(
+    liblumen_web::document::create_text_node_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         document,

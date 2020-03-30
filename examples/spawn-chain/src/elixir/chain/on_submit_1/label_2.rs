@@ -46,7 +46,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     // ```
     label_3::place_frame(arc_process, Placement::Replace);
 
-    lumen_web::html_input_element::value_1::place_frame_with_arguments(
+    liblumen_web::html_input_element::value_1::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         n_input,

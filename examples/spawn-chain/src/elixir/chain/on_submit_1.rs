@@ -51,7 +51,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     // ```
     label_1::place_frame(arc_process, Placement::Replace);
 
-    lumen_web::event::target_1::place_frame_with_arguments(arc_process, Placement::Push, event)
+    liblumen_web::event::target_1::place_frame_with_arguments(arc_process, Placement::Push, event)
         .unwrap();
 
     Process::call_code(arc_process)

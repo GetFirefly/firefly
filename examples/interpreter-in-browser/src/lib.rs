@@ -38,24 +38,24 @@ pub fn start() {
     // Dereference lazy_static to force initialization
     &*VM;
 
-    lumen_web::start();
+    liblumen_web::start();
 
     VM.modules
         .write()
         .unwrap()
-        .register_native_module(module::make_lumen_web_window());
+        .register_native_module(module::make_liblumen_web_window());
     VM.modules
         .write()
         .unwrap()
-        .register_native_module(module::make_lumen_web_document());
+        .register_native_module(module::make_liblumen_web_document());
     VM.modules
         .write()
         .unwrap()
-        .register_native_module(module::make_lumen_web_element());
+        .register_native_module(module::make_liblumen_web_element());
     VM.modules
         .write()
         .unwrap()
-        .register_native_module(module::make_lumen_web_node());
+        .register_native_module(module::make_liblumen_web_node());
 
     system::io::puts("initialized");
 }

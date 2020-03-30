@@ -57,7 +57,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     label_10::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text_td)
         .unwrap();
-    lumen_web::node::append_child_2::place_frame_with_arguments(
+    liblumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         text_td,

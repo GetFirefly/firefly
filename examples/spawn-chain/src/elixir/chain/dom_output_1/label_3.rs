@@ -64,7 +64,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let pid_text_binary = arc_process
         .binary_from_str(&format!("{}", arc_process.pid_term()))
         .unwrap();
-    lumen_web::document::create_text_node_2::place_frame_with_arguments(
+    liblumen_web::document::create_text_node_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         document,

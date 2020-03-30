@@ -44,7 +44,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     label_12::place_frame_with_arguments(arc_process, Placement::Replace, tr).unwrap();
 
     let id = arc_process.binary_from_str("output").unwrap();
-    lumen_web::document::get_element_by_id_2::place_frame_with_arguments(
+    liblumen_web::document::get_element_by_id_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         document,

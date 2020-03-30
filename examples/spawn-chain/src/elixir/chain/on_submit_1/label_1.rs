@@ -52,7 +52,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     label_2::place_frame(arc_process, Placement::Replace);
 
     let name = arc_process.binary_from_str("n").unwrap();
-    lumen_web::html_form_element::element_2::place_frame_with_arguments(
+    liblumen_web::html_form_element::element_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         event_target,

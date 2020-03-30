@@ -48,7 +48,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(text_td.is_boxed_resource_reference());
 
     label_11::place_frame_with_arguments(arc_process, Placement::Replace, document, tr).unwrap();
-    lumen_web::node::append_child_2::place_frame_with_arguments(
+    liblumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         tr,

@@ -60,7 +60,7 @@ jobs:
       - name: Enable Safari Driver
         run: sudo safaridriver --enable
       - name: Lumen Web Test
-        run: wasm-pack test --headless --chrome --firefox --safari liblumen_web
+        run: wasm-pack test --headless --chrome --firefox --safari native_implemented_functions/web
       - name: Spawn Chain Build
         run: wasm-pack build examples/spawn-chain
       - name: Spawn Chain Test

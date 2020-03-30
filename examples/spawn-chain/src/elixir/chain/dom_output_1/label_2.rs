@@ -61,7 +61,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     label_3::place_frame_with_arguments(arc_process, Placement::Replace, document, text).unwrap();
 
     let tag = arc_process.binary_from_str("tr").unwrap();
-    lumen_web::document::create_element_2::place_frame_with_arguments(
+    liblumen_web::document::create_element_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         document,

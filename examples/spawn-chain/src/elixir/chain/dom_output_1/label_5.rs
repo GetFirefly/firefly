@@ -72,7 +72,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         text,
     )
     .unwrap();
-    lumen_web::node::append_child_2::place_frame_with_arguments(
+    liblumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         pid_td,

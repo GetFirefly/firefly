@@ -61,8 +61,12 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(text.is_binary());
 
     label_2::place_frame_with_arguments(arc_process, Placement::Replace, text).unwrap();
-    lumen_web::window::document_1::place_frame_with_arguments(arc_process, Placement::Push, window)
-        .unwrap();
+    liblumen_web::window::document_1::place_frame_with_arguments(
+        arc_process,
+        Placement::Push,
+        window,
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

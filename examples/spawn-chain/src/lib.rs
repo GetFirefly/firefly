@@ -10,7 +10,7 @@ use liblumen_alloc::erts::process::code::stack::frame::Placement;
 
 use lumen_runtime::process::spawn::options::Options;
 
-use lumen_web::wait;
+use liblumen_web::wait;
 
 use wasm_bindgen::prelude::*;
 
@@ -27,7 +27,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 pub fn start() {
     set_panic_hook();
     export_code();
-    lumen_web::start();
+    liblumen_web::start();
 }
 
 #[wasm_bindgen]

@@ -45,7 +45,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let tbody = ok_tbody_tuple[1];
     assert!(tbody.is_boxed_resource_reference());
 
-    lumen_web::node::append_child_2::place_frame_with_arguments(
+    liblumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,
         Placement::Replace,
         tbody,

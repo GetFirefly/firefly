@@ -717,9 +717,9 @@ dependencies = [
  "libeir_syntax_erl 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_util_parse 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "liblumen_alloc 0.1.0",
+ "liblumen_web 0.1.0",
  "lumen_interpreter 0.1.0",
  "lumen_runtime 0.1.0",
- "lumen_web 0.1.0",
  "num-bigint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "time-test 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1216,6 +1216,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "liblumen_web"
+version = "0.1.0"
+dependencies = [
+ "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
+ "js-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
+ "liblumen_alloc 0.1.0",
+ "liblumen_core 0.1.0",
+ "liblumen_otp 0.1.0",
+ "lumen_runtime 0.1.0",
+ "native_implemented_function 0.1.0",
+ "wasm-bindgen 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasm-bindgen-futures 0.3.27 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasm-bindgen-test 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)",
+ "web-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "llvm-sys"
 version = "90.0.0"
 source = "git+https://github.com/lumen/llvm-sys.rs?branch=llvm-9.0#29fe44e314b9b458eb9ce530dd55aeb2fa59ae13"
@@ -1368,24 +1386,6 @@ dependencies = [
  "wasm-bindgen-test 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)",
  "web-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "xorshift 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "lumen_web"
-version = "0.1.0"
-dependencies = [
- "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
- "js-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
- "liblumen_alloc 0.1.0",
- "liblumen_core 0.1.0",
- "liblumen_otp 0.1.0",
- "lumen_runtime 0.1.0",
- "native_implemented_function 0.1.0",
- "wasm-bindgen 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasm-bindgen-futures 0.3.27 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasm-bindgen-test 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)",
- "web-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2207,8 +2207,8 @@ dependencies = [
  "js-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_alloc 0.1.0",
  "liblumen_otp 0.1.0",
+ "liblumen_web 0.1.0",
  "lumen_runtime 0.1.0",
- "lumen_web 0.1.0",
  "num-bigint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "time-test 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",

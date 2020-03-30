@@ -80,7 +80,7 @@ task:
   firefox_version_script: firefox --version
   gecko_driver_version_script: geckodriver --version
   liblumen_web_test_script: |
-    wasm-pack test --headless --chrome --firefox liblumen_web
+    wasm-pack test --headless --chrome --firefox native_implemented_functions/web
   examples_spawn_chain_build_script: |
     wasm-pack build examples/spawn-chain
   examples_spawn_chain_test_script: |

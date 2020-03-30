@@ -1,6 +1,8 @@
 # Lumen - A new compiler and runtime for BEAM languages
 
-[![Build Status](https://api.cirrus-ci.com/github/lumen/lumen.svg)](https://cirrus-ci.com/github/lumen/lumen)
+[![Cirrus Build Status](https://api.cirrus-ci.com/github/lumen/lumen.svg)](https://cirrus-ci.com/github/lumen/lumen)<br/>
+[![GitHub Actions macOS x86_64 Build Status](https://github.com/lumen/lumen/workflows/macOS%20x86_64/badge.svg)](https://github.com/lumen/lumen/actions?query=workflow%3A%22macOS+x86_64%22)<br/>
+[![GitHub Actions macOS wasm32 Build Status](https://github.com/lumen/lumen/workflows/macOS%20wasm32/badge.svg)](https://github.com/lumen/lumen/actions?query=workflow%3A%22macOS+wasm32%22)
 
 * [Contributing](#contributing)
   * [Tools](#contrib-tools)

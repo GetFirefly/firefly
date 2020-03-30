@@ -4,6 +4,7 @@ pub mod read;
 pub mod start;
 
 use core::cmp::Ordering::{self, *};
+use core::fmt::{self, Debug};
 use core::ops::{Index, IndexMut, RangeBounds};
 
 use alloc::sync::{Arc, Weak};
@@ -58,7 +59,6 @@ pub fn start(
 
 /// Times out the timers for the thread that have timed out since the last time `timeout` was
 /// called.
-#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn timeout() {
     Scheduler::current().hierarchy.write().timeout();
 }
@@ -70,7 +70,6 @@ pub enum Destination {
     Process(Weak<Process>),
 }
 
-#[cfg_attr(test, derive(Debug))]
 pub struct Hierarchy {
     at_once: Slot,
     soon: Wheel,
@@ -295,6 +294,16 @@ impl Hierarchy {
     }
 }
 
+impl Debug for Hierarchy {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Timers\n")?;
+        write!(f, "At Once:\n{:?}\n", self.at_once)?;
+        write!(f, "Soon:\n{:?}", self.soon)?;
+        write!(f, "Later:\n{:?}", self.later)?;
+        write!(f, "Long Term:\n{:?}\n", self.long_term)
+    }
+}
+
 impl Default for Hierarchy {
     fn default() -> Hierarchy {
         let monotonic_time_milliseconds = monotonic::time_in_milliseconds();
@@ -351,7 +360,6 @@ pub enum Timeout {
     TimeoutTuple,
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
 struct Timer {
     // Can't be a `Boxed` `LocalReference` `Term` because those are boxed and the original Process
     // could GC the unboxed `LocalReference` `Term`.
@@ -393,6 +401,29 @@ impl Timer {
     }
 }
 
+impl Debug for Timer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "  {} ms ", self.monotonic_time_milliseconds)?;
+
+        let message::HeapFragment { term, .. } = *self.message_heap.lock();
+        write!(f, "{} -> ", term)?;
+
+        match &self.destination {
+            Destination::Process(weak_process) => match weak_process.upgrade() {
+                Some(arc_process) => write!(f, "{}", arc_process)?,
+                None => write!(f, "Dead Process")?,
+            },
+            Destination::Name(name) => write!(f, "{}", name)?,
+        };
+
+        if self.monotonic_time_milliseconds <= monotonic::time_in_milliseconds() {
+            write!(f, " (expired)")?;
+        }
+
+        Ok(())
+    }
+}
+
 impl Eq for Timer {}
 
 impl PartialEq<Timer> for Timer {
@@ -429,7 +460,6 @@ enum Position {
 
 /// A slot in the Hierarchy (for `at_once` and `long_term`) or a slot in a `Wheel` (for `soon` and
 /// `later`).
-#[cfg_attr(test, derive(Debug))]
 #[derive(Clone, Default)]
 struct Slot(Vec<Arc<Timer>>);
 
@@ -493,9 +523,22 @@ impl Slot {
     }
 }
 
+impl Debug for Slot {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.0.is_empty() {
+            write!(f, "  No timers\n")?;
+        } else {
+            for arc_timer in &self.0 {
+                write!(f, "  {:?}\n", arc_timer)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 type SlotIndex = u16;
 
-#[cfg_attr(test, derive(Debug))]
 struct Wheel {
     milliseconds_per_slot: Milliseconds,
     total_milliseconds: Milliseconds,
@@ -506,11 +549,7 @@ struct Wheel {
 
 impl Wheel {
     // same as values used in BEAM
-    #[cfg(not(test))]
     const LENGTH: SlotIndex = 1 << 14;
-    // super short so that later and long term tests don't take forever
-    #[cfg(test)]
-    const LENGTH: SlotIndex = 1 << 2;
 
     fn new(
         milliseconds_per_slot: Milliseconds,
@@ -579,6 +618,46 @@ impl Wheel {
     }
 }
 
+impl Debug for Wheel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(
+            f,
+            "  milliseconds per slot: {:?}",
+            self.milliseconds_per_slot
+        )?;
+        writeln!(f, "  slots: {:?}", self.slots.len())?;
+        writeln!(f, "  ____________")?;
+        writeln!(f, "  total milliseconds: {:?}", self.total_milliseconds)?;
+        writeln!(f, "")?;
+        writeln!(f, "  slot index: {}", self.slot_index)?;
+
+        write!(
+            f,
+            "  slot time: {} ms",
+            self.slot_monotonic_time_milliseconds
+        )?;
+
+        if self.slot_monotonic_time_milliseconds <= monotonic::time_in_milliseconds() {
+            writeln!(f, " (expired)")?;
+        }
+
+        let mut has_timers = false;
+
+        for slot in &self.slots {
+            for arc_timer in &slot.0 {
+                has_timers = true;
+                writeln!(f, "{:?}", arc_timer)?;
+            }
+        }
+
+        if !has_timers {
+            writeln!(f, "  No timers")?;
+        }
+
+        Ok(())
+    }
+}
+
 impl Index<u16> for Wheel {
     type Output = Slot;
 
@@ -598,21 +677,18 @@ enum WheelName {
     Later,
 }
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn at_once_milliseconds() -> Milliseconds {
     0
 }
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn soon_milliseconds() -> Milliseconds {
-    let milliseconds: Milliseconds = 1;
+    let milliseconds: Milliseconds = 2;
 
     assert!(milliseconds < Hierarchy::SOON_TOTAL_MILLISECONDS);
 
     milliseconds
 }
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn later_milliseconds() -> Milliseconds {
     let milliseconds = Hierarchy::SOON_TOTAL_MILLISECONDS + 1;
 
@@ -622,7 +698,6 @@ pub fn later_milliseconds() -> Milliseconds {
     milliseconds
 }
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn long_term_milliseconds() -> Milliseconds {
     let milliseconds = Hierarchy::SOON_TOTAL_MILLISECONDS + Hierarchy::LATER_TOTAL_MILLISECONDS + 1;
 

@@ -10,7 +10,6 @@ use crate::run::Run;
 pub struct Immediate(VecDeque<Arc<Process>>);
 
 impl Immediate {
-    #[cfg(test)]
     pub fn contains(&self, value: &Arc<Process>) -> bool {
         self.0.contains(value)
     }

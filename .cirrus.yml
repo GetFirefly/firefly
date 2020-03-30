@@ -15,8 +15,10 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
     cargo test -p liblumen_alloc
   lumen_runtime_test_script: |
     cargo test -p lumen_runtime
-  liblumen_eir_interpreter_test_script: |
-    cargo test -p liblumen_eir_interpreter
+  liblumen_otp_test_script: |
+    cargo test -p liblumen_otp
+  lumen_interpreter_test_script: |
+    cargo test -p lumen_interpreter
   examples_spawn_chain_test_script: |
     cargo test -p spawn-chain
 
@@ -95,50 +97,6 @@ task:
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
-  name: Windows x86_64 libraries
-  windows_container:
-    image: cirrusci/windowsservercore:cmake
-    os_version: 2019
-    memory: 12
-  env:
-    CIRRUS_SHELL: powershell
-    CARGO_HOME: $USERPROFILE\.cargo
-    PATH: $PATH;$CARGO_HOME\bin
-  install_rustup_script: "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -URI https://win.rustup.rs -OutFile rustup-init.exe; ./rustup-init.exe -y --default-toolchain nightly-2020-03-10-x86_64-pc-windows-msvc"
-  build_script: cargo build
-  # `*_test_script`s in order of crate dependency graph
-  liblumen_arena_test_script: |
-    cargo test -p liblumen_arena
-    if ($LastExitCode -ne 0) {
-       throw "cargo test exited $$LastExitCode"
-    }
-  liblumen_core_test_script: |
-    cargo test -p liblumen_core
-    if ($LastExitCode -ne 0) {
-      throw "cargo test exited $$LastExitCode"
-    }
-  liblumen_alloc_test_script: |
-    cargo test -p liblumen_alloc
-    if ($LastExitCode -ne 0) {
-       throw "cargo test exited $$LastExitCode"
-    }
-  lumen_runtime_test_script: |
-    cargo test -p lumen_runtime
-    if ($LastExitCode -ne 0) {
-      throw "cargo test exited $$LastExitCode"
-    }
-  liblumen_eir_interpreter_test_script: |
-    cargo test -p liblumen_eir_interpreter
-    if ($LastExitCode -ne 0) {
-      throw "cargo test exited $$LastExitCode"
-    }
-  examples_spawn_chain_test_script: |
-    cargo test -p spawn-chain
-    if ($LastExitCode -ne 0) {
-      throw "cargo test exited $$LastExitCode"
-    }
-
-task:
   name: Linux wasm32
   container:
     image: kronicdeth/lumen-development@sha256:a91994aa0332b7f0d94c7342cc4edde50295f73ad2b7b9db3c7da8524f340b12
@@ -167,7 +125,7 @@ task:
     npm run build
     popd
     popd
-  examples_chain_chain_package_artifacts:
+  examples_spawn_chain_chain_artifacts:
     path: "examples/spawn-chain/www/dist/*"
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 

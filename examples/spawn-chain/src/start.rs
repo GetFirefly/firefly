@@ -1,4 +1,6 @@
 pub fn export_code() {
+    liblumen_otp::erlang::apply_3::export();
+
     crate::elixir::chain::console_1::export();
     crate::elixir::chain::counter_2::export();
     crate::elixir::chain::create_processes_2::export();

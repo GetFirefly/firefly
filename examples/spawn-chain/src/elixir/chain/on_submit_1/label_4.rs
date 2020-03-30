@@ -6,7 +6,7 @@ use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::Encoded;
 
-use lumen_runtime::otp::erlang;
+use liblumen_otp::erlang;
 
 /// ```elixir
 /// # label: 4

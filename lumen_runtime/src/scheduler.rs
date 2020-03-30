@@ -12,9 +12,7 @@ use liblumen_core::locks::{Mutex, RwLock};
 
 use liblumen_alloc::erts::exception::{Result, SystemException};
 use liblumen_alloc::erts::process::code::Code;
-#[cfg(test)]
-use liblumen_alloc::erts::process::Priority;
-use liblumen_alloc::erts::process::{Process, Status};
+use liblumen_alloc::erts::process::{Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -183,12 +181,10 @@ impl Scheduler {
         self.run_queues.read().len()
     }
 
-    #[cfg(test)]
     pub fn run_queue_len(&self, priority: Priority) -> usize {
         self.run_queues.read().run_queue_len(priority)
     }
 
-    #[cfg(test)]
     pub fn is_run_queued(&self, value: &Arc<Process>) -> bool {
         self.run_queues.read().contains(value)
     }
@@ -389,20 +385,4 @@ thread_local! {
 lazy_static! {
     static ref SCHEDULER_BY_ID: Mutex<HashMap<ID, Weak<Scheduler>>> =
         Mutex::new(Default::default());
-}
-
-#[cfg(test)]
-pub fn with_process<F>(f: F)
-where
-    F: FnOnce(&Process) -> (),
-{
-    f(&process::test(&process::test_init()))
-}
-
-#[cfg(test)]
-pub fn with_process_arc<F>(f: F)
-where
-    F: FnOnce(Arc<Process>) -> (),
-{
-    f(process::test(&process::test_init()))
 }

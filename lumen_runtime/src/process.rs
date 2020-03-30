@@ -18,15 +18,9 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
 use crate::code;
-#[cfg(test)]
-use crate::process::spawn::options::Options;
 use crate::registry::*;
 use crate::scheduler::Scheduler;
-#[cfg(test)]
-use crate::scheduler::Spawned;
 use crate::system;
-#[cfg(test)]
-use crate::test;
 
 fn is_expected_exception(exception: &RuntimeException) -> bool {
     use exception::Class;
@@ -256,38 +250,4 @@ impl SchedulerDependentAlloc for Process {
 
         self.reference_from_scheduler(scheduler_id, number)
     }
-}
-
-#[cfg(test)]
-pub fn test_init() -> Arc<Process> {
-    // During test allow multiple unregistered init processes because in tests, the `Scheduler`s
-    // keep getting `Drop`ed as threads end.
-
-    Scheduler::current()
-        .spawn_init(
-            // init process being the parent process needs space for the arguments when spawning
-            // child processes.  These will not be GC'd, so it can be a lot of space if proptest
-            // needs to generate a lot of processes.
-            16_000,
-        )
-        .unwrap()
-}
-
-#[cfg(test)]
-pub fn test(parent_process: &Process) -> Arc<Process> {
-    let mut options: Options = Default::default();
-    options.min_heap_size = Some(16_000);
-    let module = test::r#loop::module();
-    let function = test::r#loop::function();
-    let arguments = &[];
-    let code = test::r#loop::code;
-
-    let Spawned {
-        arc_process: child_arc_process,
-        connection,
-    } = Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap();
-    assert!(!connection.linked);
-    assert!(connection.monitor_reference.is_none());
-
-    child_arc_process
 }

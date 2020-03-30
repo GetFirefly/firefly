@@ -5,7 +5,7 @@ use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::otp::erlang;
+use liblumen_otp::erlang;
 
 pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, Alloc> {
     process.anonymous_closure_with_env_from_slice(

@@ -1,9 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc 5d6825860d63070b092c0f8cdd704f82872f7ad11a1c1d9d8b84b30076e3d25d # shrinks to (Term::str_to_atom("", DoNotCare).unwrap(), 0.into_process(&process))
-cc fb51b7c9e5b8de8b2110ad5d339550abaa1fd137c36941907b9bdc479dfb2776 # shrinks to (Term::str_to_atom("", DoNotCare).unwrap(), Term::local_reference(ID(4), 0, &process))
-cc b0ace60e3ccbd5d31d775ea4aa384c74686f2bb412419c5567f1d105861a33fd # shrinks to (Term::slice_to_tuple(&[Term::str_to_atom("", DoNotCare).unwrap()], &process), Term::str_to_atom("", DoNotCare).unwrap(), BigInt::parse_bytes(b"576460752303423488", 10).unwrap().into_process(&process))

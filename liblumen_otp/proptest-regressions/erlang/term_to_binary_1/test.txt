@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 96480e9908c2b920859f7571c824ebbfb3fb63eb43d358618e0e726929aca93e # shrinks to (Pid(261928), Box(0x1174c77f8, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::tuple::Tuple>(Tuple(Box(0x1174c77a8, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::closure::Closure>(Closure { header: Header<liblumen_alloc::erts::term::closure::Closure>(0b101100000000000000000000000000000000000000000000000), module: :"", definition: Anonymous { index: 0, unique: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], old_unique: 0 }, arity: 0, code: Some(0x10e40e450), env_len: 0, env: [] } at 0x1174c77a8)))) at 0x1174c77f8))))

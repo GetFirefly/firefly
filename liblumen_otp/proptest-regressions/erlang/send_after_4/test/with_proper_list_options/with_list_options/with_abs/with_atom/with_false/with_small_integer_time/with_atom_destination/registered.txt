@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1fb19e570dccab41dcce1d949bf540a365beef5f549727922da87f37fadfd534 # shrinks to (Pid(2456) (:"registered1366"), 0, Box(0x1595443d8, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::integer::big::BigInteger>(BigInteger { header: Header<liblumen_alloc::erts::term::integer::big::BigInteger>(0b100000000000000000000000000000000000000000000000100), value: -70368744177667 (101111111111111111111111111111111111111111111101) } at 0x1595443d8))))
+cc 003750a0a518779645c00a4e1aec75367ff56e09a8f3763f21102a0937d8bbb6 # shrinks to (Pid(2129), 0, Box(0x1510bd448, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::integer::big::BigInteger>(BigInteger { header: Header<liblumen_alloc::erts::term::integer::big::BigInteger>(0b100000000000000000000000000000000000000000000000100), value: -70368744177667 (101111111111111111111111111111111111111111111101) } at 0x1510bd448))))
+cc 9e7ccdf6d4736f01148c69d9fa6cb1c12da9461aecd75d7fa7ab38b5e6a79010 # shrinks to (Pid(3046), 0, Box(0x11c95da20, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::integer::big::BigInteger>(BigInteger { header: Header<liblumen_alloc::erts::term::integer::big::BigInteger>(0b100000000000000000000000000000000000000000000000100), value: -70368744177667 (101111111111111111111111111111111111111111111101) } at 0x11c95da20))))
+cc 3c10a7e1b1d6daed648853b56f11a1ab7f4894d51e0febab6a347a7b51d01046 # shrinks to (Pid(4339) (:"registered2118"), 0, Box(0x1167c7880, literal=false, value=Term(Boxed<liblumen_alloc::erts::term::integer::big::BigInteger>(BigInteger { header: Header<liblumen_alloc::erts::term::integer::big::BigInteger>(0b100000000000000000000000000000000000000000000000100), value: -70368744177667 (101111111111111111111111111111111111111111111101) } at 0x1167c7880))))

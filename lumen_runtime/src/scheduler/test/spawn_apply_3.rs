@@ -2,15 +2,18 @@ use super::*;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::process;
 use crate::scheduler::Spawned;
 
 #[test]
 fn different_processes_have_different_pids() {
     let erlang = Atom::try_from_str("erlang").unwrap();
+    let apply = Atom::try_from_str("apply").unwrap();
+
+    crate::code::export::insert(erlang.clone(), apply, 3, erlang_apply_3_code);
+
     let exit = Atom::try_from_str("exit").unwrap();
     let normal = Atom::str_to_term("normal");
-    let parent_arc_process = process::test_init();
+    let parent_arc_process = test::process::init();
 
     let first_process_arguments = parent_arc_process.list_from_slice(&[normal]).unwrap();
     let Spawned {
@@ -39,4 +42,8 @@ fn different_processes_have_different_pids() {
     .unwrap();
 
     assert_ne!(first_arc_process.pid_term(), second_arc_process.pid_term());
+}
+
+fn erlang_apply_3_code(_arc_process: &Arc<Process>) -> code::Result {
+    unimplemented!()
 }

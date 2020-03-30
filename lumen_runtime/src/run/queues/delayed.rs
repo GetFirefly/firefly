@@ -13,7 +13,6 @@ use crate::run::Run;
 pub struct Delayed(VecDeque<DelayedProcess>);
 
 impl Delayed {
-    #[cfg(test)]
     pub fn contains(&self, value: &Arc<Process>) -> bool {
         self.0
             .iter()

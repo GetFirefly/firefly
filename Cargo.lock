@@ -711,11 +711,11 @@ dependencies = [
  "console_error_panic_hook 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "js-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
- "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_intern 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_ir 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_passes 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_syntax_erl 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
+ "libeir_util_parse 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "liblumen_alloc 0.1.0",
  "lumen_interpreter 0.1.0",
  "lumen_runtime 0.1.0",
@@ -1155,6 +1155,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "liblumen_otp"
+version = "0.1.0"
+dependencies = [
+ "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hashbrown 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "liblumen_alloc 0.1.0",
+ "liblumen_core 0.1.0",
+ "lumen_runtime 0.1.0",
+ "lumen_runtime_macros 0.1.0",
+ "num-bigint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-traits 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proptest 0.9.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "radix_fmt 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "liblumen_session"
 version = "0.1.0"
 dependencies = [
@@ -1267,6 +1285,7 @@ dependencies = [
  "libeir_syntax_erl 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "libeir_util_parse 0.1.0 (git+https://github.com/eirproject/eir.git?branch=lumen)",
  "liblumen_alloc 0.1.0",
+ "liblumen_otp 0.1.0",
  "lumen_runtime 0.1.0",
 ]
 
@@ -1370,6 +1389,7 @@ dependencies = [
  "js-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_alloc 0.1.0",
  "liblumen_core 0.1.0",
+ "liblumen_otp 0.1.0",
  "lumen_runtime 0.1.0",
  "lumen_runtime_macros 0.1.0",
  "wasm-bindgen 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2186,6 +2206,7 @@ dependencies = [
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "js-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_alloc 0.1.0",
+ "liblumen_otp 0.1.0",
  "lumen_runtime 0.1.0",
  "lumen_web 0.1.0",
  "num-bigint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",

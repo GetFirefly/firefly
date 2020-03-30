@@ -61,6 +61,8 @@ fn simple_function() {
     let arc_scheduler = Scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
+    liblumen_otp::erlang::apply_3::export();
+
     let module = Atom::try_from_str("simple_function_test").unwrap();
     let function = Atom::try_from_str("run").unwrap();
 
@@ -84,6 +86,8 @@ fn fib() {
 
     let arc_scheduler = Scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("fib").unwrap();
     let function = Atom::try_from_str("fib").unwrap();
@@ -115,6 +119,8 @@ fn exception_test() {
     let arc_scheduler = Scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
+    liblumen_otp::erlang::apply_3::export();
+
     let module = Atom::try_from_str("exception_test").unwrap();
     let function = Atom::try_from_str("a").unwrap();
 
@@ -143,6 +149,8 @@ fn fib_gc() {
 
     let arc_scheduler = Scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("fib2").unwrap();
     let function = Atom::try_from_str("fib").unwrap();
@@ -173,6 +181,8 @@ fn ping_pong() {
 
     let arc_scheduler = Scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("ping_pong").unwrap();
     let function = Atom::try_from_str("run").unwrap();
@@ -213,11 +223,14 @@ run() ->
 }
 
 #[test]
+#[ignore]
 fn ping_pong_count() {
     &*VM;
 
     let arc_scheduler = Scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("ping_pong_count").unwrap();
     let function = Atom::try_from_str("run").unwrap();
@@ -251,11 +264,14 @@ run(N) -> this_proc(N, 0).
 }
 
 #[test]
+#[ignore]
 fn ping_pong_count_large() {
     &*VM;
 
     let arc_scheduler = Scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("ping_pong_count_large").unwrap();
     let function = Atom::try_from_str("run").unwrap();

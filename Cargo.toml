@@ -20,10 +20,10 @@ members = [
   "liblumen_core_macros",
   "liblumen_otp",
   "liblumen_util",
+  "liblumen_web",
   "lumen",
   "lumen_runtime",
   "lumen_runtime_macros",
-  "lumen_web",
   "runtimes/core",
   "runtimes/crt",
   "runtimes/minimal",
@@ -47,10 +47,10 @@ default-members = [
   "liblumen_core_macros",
   "liblumen_otp",
   "liblumen_util",
+  "liblumen_web",
   "lumen",
   "lumen_runtime",
   "lumen_runtime_macros",
-  "lumen_web",
   "runtimes/crt",
 ]
 

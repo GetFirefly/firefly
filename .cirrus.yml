@@ -79,8 +79,8 @@ task:
     fingerprint_script: cat Cargo.lock
   firefox_version_script: firefox --version
   gecko_driver_version_script: geckodriver --version
-  lumen_web_test_script: |
-    wasm-pack test --headless --chrome --firefox lumen_web
+  liblumen_web_test_script: |
+    wasm-pack test --headless --chrome --firefox liblumen_web
   examples_spawn_chain_build_script: |
     wasm-pack build examples/spawn-chain
   examples_spawn_chain_test_script: |

@@ -11,7 +11,7 @@ use liblumen_alloc::error;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(error/2)]
 pub fn native(reason: Term, arguments: Term) -> exception::Result<Term> {

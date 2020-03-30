@@ -11,7 +11,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 /// Returns a list of integers corresponding to the bytes of `bitstring`. If the number of bits in
 /// `bitstring` is not divisible by `8`, the last element of the list is a `bitstring` containing

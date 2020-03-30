@@ -7,7 +7,7 @@ mod test;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(is_list/1)]
 pub fn native(term: Term) -> Term {

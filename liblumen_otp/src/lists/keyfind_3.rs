@@ -11,7 +11,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::context::term_try_into_one_based_index;
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(keyfind/3)]
 pub fn native(key: Term, index: Term, tuple_list: Term) -> exception::Result<Term> {

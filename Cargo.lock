@@ -1164,7 +1164,7 @@ dependencies = [
  "liblumen_alloc 0.1.0",
  "liblumen_core 0.1.0",
  "lumen_runtime 0.1.0",
- "lumen_runtime_macros 0.1.0",
+ "native_implemented_function 0.1.0",
  "num-bigint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "proptest 0.9.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1354,7 +1354,7 @@ dependencies = [
  "liblumen_arena 0.1.0",
  "liblumen_core 0.1.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "lumen_runtime_macros 0.1.0",
+ "native_implemented_function 0.1.0",
  "num-bigint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_enum 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1371,16 +1371,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lumen_runtime_macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "syn 1.0.11 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "lumen_web"
 version = "0.1.0"
 dependencies = [
@@ -1391,7 +1381,7 @@ dependencies = [
  "liblumen_core 0.1.0",
  "liblumen_otp 0.1.0",
  "lumen_runtime 0.1.0",
- "lumen_runtime_macros 0.1.0",
+ "native_implemented_function 0.1.0",
  "wasm-bindgen 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen-futures 0.3.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen-test 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1425,6 +1415,16 @@ dependencies = [
 name = "memory_units"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "native_implemented_function"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 1.0.11 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "new_debug_unreachable"

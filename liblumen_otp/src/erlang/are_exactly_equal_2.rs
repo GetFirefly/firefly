@@ -7,7 +7,7 @@ mod test;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 /// `=:=/2` infix operator.  Unlike `==`, does not convert between floats and integers.
 #[native_implemented_function(=:=/2)]

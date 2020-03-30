@@ -35,7 +35,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 use liblumen_alloc::Arity;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(function_exported/3)]
 pub fn native(module: Term, function: Term, arity: Term) -> exception::Result<Term> {

@@ -23,7 +23,7 @@ members = [
   "liblumen_web",
   "lumen",
   "lumen_runtime",
-  "lumen_runtime_macros",
+  "native_implemented_functions/macro",
   "runtimes/core",
   "runtimes/crt",
   "runtimes/minimal",
@@ -50,7 +50,7 @@ default-members = [
   "liblumen_web",
   "lumen",
   "lumen_runtime",
-  "lumen_runtime_macros",
+  "native_implemented_functions/macro",
   "runtimes/crt",
 ]
 

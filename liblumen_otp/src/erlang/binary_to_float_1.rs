@@ -9,7 +9,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 use crate::erlang::string_to_float::string_to_float;
 use lumen_runtime::binary_to_string::binary_to_string;

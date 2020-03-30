@@ -1,5 +1,5 @@
 [package]
-name = "lumen_runtime_macros"
+name = "native_implemented_function"
 version = "0.1.0"
 authors = ["Luke Imhoff <Kronic.Deth@gmail.com>"]
 edition = "2018"

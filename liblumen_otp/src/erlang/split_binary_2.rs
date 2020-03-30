@@ -14,7 +14,7 @@ use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(split_binary/2)]
 pub fn native(process: &Process, binary: Term, position: Term) -> exception::Result<Term> {

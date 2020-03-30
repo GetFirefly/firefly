@@ -14,7 +14,7 @@ use liblumen_alloc::erts::exception::{self, AllocResult};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 use crate::erlang::node_0;
 use lumen_runtime::context::*;

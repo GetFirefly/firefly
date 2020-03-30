@@ -106,7 +106,7 @@ macro_rules! number_to_integer {
         use liblumen_alloc::erts::process::Process;
         use liblumen_alloc::erts::term::prelude::*;
 
-        use lumen_runtime_macros::native_implemented_function;
+        use native_implemented_function::native_implemented_function;
 
         use crate::erlang::number_to_integer::{f64_to_integer, NumberToInteger};
 

@@ -10,7 +10,7 @@ use anyhow::*;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(member/2)]
 pub fn native(element: Term, list: Term) -> exception::Result<Term> {

@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::document::document_from_term;
 use crate::option_to_ok_tuple_or_error;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(body/1)]
 pub fn native(process: &Process, document: Term) -> exception::Result<Term> {

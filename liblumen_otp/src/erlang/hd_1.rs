@@ -8,7 +8,7 @@ mod test;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(hd/1)]
 pub fn native(list: Term) -> exception::Result<Term> {

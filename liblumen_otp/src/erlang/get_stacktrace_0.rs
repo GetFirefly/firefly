@@ -13,7 +13,7 @@ mod test;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::Term;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(get_stacktrace/0)]
 pub fn native(process: &Process) -> Term {

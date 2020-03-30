@@ -11,7 +11,7 @@ use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(map_get/2)]
 pub fn native(process: &Process, key: Term, map: Term) -> exception::Result<Term> {

@@ -15,7 +15,7 @@ use lumen_runtime::binary_to_string::binary_to_string;
 use crate::document::document_from_term;
 use crate::ok_tuple;
 
-use lumen_runtime_macros::native_implemented_function;
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(create_element/2)]
 pub fn native(process: &Process, document: Term, tag: Term) -> exception::Result<Term> {

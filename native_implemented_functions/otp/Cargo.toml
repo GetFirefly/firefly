@@ -8,10 +8,10 @@ description = "The standard library for lumen.  The modules that are included wi
 [dependencies]
 anyhow = "1.0"
 lazy_static = "1.2"
-liblumen_alloc = { path = "../liblumen_alloc" }
-liblumen_core = { path = "../liblumen_core" }
-lumen_runtime = { path = "../lumen_runtime" }
-native_implemented_function = { path = "../native_implemented_functions/macro" }
+liblumen_alloc = { path = "../../liblumen_alloc" }
+liblumen_core = { path = "../../liblumen_core" }
+lumen_runtime = { path = "../../lumen_runtime" }
+native_implemented_function = { path = "../macro" }
 num-bigint = "0.2"
 num-traits = "0.2"
 radix_fmt = "1.0.0"

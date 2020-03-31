@@ -23,7 +23,7 @@ chrono = "0.4"
 
 
 liblumen_core = { path = "../../liblumen_core" }
-liblumen_alloc = { path = "../../liblumen_alloc" }
+liblumen_alloc = { path = "../../memory/liblumen_alloc" }
 
 [dependencies.hashbrown]
 version = "0.7"

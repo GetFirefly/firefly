@@ -25,7 +25,7 @@ libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "l
 libeir_util_parse = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 
 # workspace crates
-liblumen_alloc = { path = "../liblumen_alloc" }
+liblumen_alloc = { path = "../memory/liblumen_alloc" }
 liblumen_otp = { path = "../native_implemented_functions/otp" }
 lumen_rt_full = { path = "../runtimes/full" }
 

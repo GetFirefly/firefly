@@ -10,18 +10,18 @@
 // For `lumen_otp::erlang::term_to_binary`
 #![feature(float_to_from_bytes)]
 #![feature(fn_traits)]
-// For `lumen_runtime::reference::count
+// For `crate::reference::count
 #![feature(integer_atomics)]
-// For `lumen_runtime::binary::heap::<Iter as Iterator>.size_hint`
+// For `crate::binary::heap::<Iter as Iterator>.size_hint`
 #![feature(ptr_offset_from)]
 // For allocation multiple contiguous terms in `Term::alloc_count`.
 #![feature(try_reserve)]
 #![feature(type_ascription)]
-// for `lumen_runtime::term::Term`
+// for `crate::term::Term`
 #![feature(untagged_unions)]
-// for `lumen_runtime::distribution::nodes::insert`
+// for `crate::distribution::nodes::insert`
 #![feature(option_unwrap_none)]
-// for `lumen_runtime::list::Cons::subtract`.
+// for `crate::list::Cons::subtract`.
 #![feature(vec_remove_item)]
 // `crate::registry::<Registered as PartialEq>::eq`
 #![feature(weak_ptr_eq)]
@@ -69,8 +69,8 @@ pub mod test;
 /// The main entry point for the runtime
 ///
 /// NOTE: This is currently conditionally compiled, since `lumen_web` depends on
-/// `lumen_runtime`, and we only can define `#[entry]` once in a dependency tree.
-/// We will need to split up `lumen_runtime` into smaller components eventually,
+/// `lumen_rt_full`, and we only can define `#[entry]` once in a dependency tree.
+/// We will need to split up `lumen_rt_full` into smaller components eventually,
 /// but for now it is sufficient to just conditionally compile the entry point here
 #[cfg(not(any(test, target_arch = "wasm32")))]
 #[liblumen_core::entry]

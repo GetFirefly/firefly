@@ -199,13 +199,13 @@ use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::context::*;
-use lumen_runtime::process::SchedulerDependentAlloc;
-use lumen_runtime::registry::pid_to_self_or_process;
-use lumen_runtime::time::monotonic;
-use lumen_runtime::time::Milliseconds;
-use lumen_runtime::timer::start::ReferenceFrame;
-use lumen_runtime::timer::{self, Timeout};
+use lumen_rt_full::context::*;
+use lumen_rt_full::process::SchedulerDependentAlloc;
+use lumen_rt_full::registry::pid_to_self_or_process;
+use lumen_rt_full::time::monotonic;
+use lumen_rt_full::time::Milliseconds;
+use lumen_rt_full::timer::start::ReferenceFrame;
+use lumen_rt_full::timer::{self, Timeout};
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 

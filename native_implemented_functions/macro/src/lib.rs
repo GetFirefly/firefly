@@ -301,19 +301,19 @@ impl Signatures {
     }
 
     pub fn export(&self) -> proc_macro2::TokenStream {
-        match crate_name("lumen_runtime") {
+        match crate_name("lumen_rt_full") {
             // in other crates
             Ok(name) => {
                 let ident = Ident::new(&name, Span::call_site());
 
                 quote! {
                     pub fn export() {
-                        use #ident as lumen_runtime;
-                        lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+                        use #ident as lumen_rt_full;
+                        lumen_rt_full::code::export::insert(super::module(), function(), ARITY, code);
                     }
                 }
             }
-            // in `lumen_runtime`
+            // in `lumen_rt_full`
             Err(_) => {
                 quote! {
                     pub fn export() {

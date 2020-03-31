@@ -1,6 +1,6 @@
 use super::*;
 
-use lumen_runtime::scheduler::Scheduler;
+use lumen_rt_full::scheduler::Scheduler;
 
 #[test]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {

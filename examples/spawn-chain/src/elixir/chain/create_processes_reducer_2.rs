@@ -46,7 +46,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     // In `lumen` compiled code the compile would optimize this to a direct call of
     // `Scheduler::spawn(arc_process, module, function, arguments, counter_0_code)`, but we want
-    // to demonstrate the the `lumen_runtime::code::set_apply_fn` system works here.
+    // to demonstrate the the `lumen_rt_full::code::set_apply_fn` system works here.
 
     let module = Atom::str_to_term("Elixir.Chain");
     let function = Atom::str_to_term("counter");

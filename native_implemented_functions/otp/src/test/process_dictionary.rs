@@ -2,7 +2,7 @@ use super::*;
 
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 
-use lumen_runtime::scheduler::Spawned;
+use lumen_rt_full::scheduler::Spawned;
 
 pub fn fill_heap(process: &Process) {
     {

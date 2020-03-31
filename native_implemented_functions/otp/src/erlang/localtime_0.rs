@@ -4,7 +4,7 @@ mod test;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use lumen_runtime::time::datetime;
+use lumen_rt_full::time::datetime;
 
 use native_implemented_function::native_implemented_function;
 

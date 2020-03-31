@@ -11,8 +11,8 @@ use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::registry;
-use lumen_runtime::scheduler::Scheduler;
+use lumen_rt_full::registry;
+use lumen_rt_full::scheduler::Scheduler;
 
 use crate::erlang::monitor_2::native;
 use crate::erlang::{exit_1, node_0};

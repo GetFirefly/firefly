@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::registry;
+use lumen_rt_full::registry;
 
 #[native_implemented_function(registered/0)]
 pub fn native(process: &Process) -> exception::Result<Term> {

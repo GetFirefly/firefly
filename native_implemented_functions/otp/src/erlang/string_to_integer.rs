@@ -8,7 +8,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::erlang::base::Base;
-use lumen_runtime::context;
+use lumen_rt_full::context;
 
 pub fn base_string_to_integer(
     process: &Process,

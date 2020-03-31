@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::context::*;
+use lumen_rt_full::context::*;
 
 macro_rules! maybe_aligned_maybe_binary_to_atom {
     ($binary:ident, $maybe_aligned_maybe_binary:ident) => {

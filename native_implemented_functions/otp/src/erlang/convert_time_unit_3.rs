@@ -16,7 +16,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::time;
+use lumen_rt_full::time;
 
 #[native_implemented_function(convert_time_unit/3)]
 pub fn native(

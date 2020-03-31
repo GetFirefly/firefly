@@ -6,7 +6,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::context::{r#type, term_is_not_type};
+use lumen_rt_full::context::{r#type, term_is_not_type};
 
 pub fn element_not_a_binary_context(iolist_or_binary: Term, element: Term) -> String {
     format!(

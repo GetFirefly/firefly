@@ -196,16 +196,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'lumen_runtime'",
+            "name": "Debug unit tests in library 'lumen_rt_full'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=lumen_runtime"
+                    "--package=lumen_rt_full"
                 ],
                 "filter": {
-                    "name": "lumen_runtime",
+                    "name": "lumen_rt_full",
                     "kind": "lib"
                 }
             },
@@ -221,7 +221,7 @@
                     "test",
                     "--no-run",
                     "--test=lib",
-                    "--package=lumen_runtime"
+                    "--package=lumen_rt_full"
                 ],
                 "filter": {
                     "name": "lib",

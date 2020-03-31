@@ -14,7 +14,7 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
   liblumen_alloc_test_script: |
     cargo test -p liblumen_alloc
   lumen_runtime_test_script: |
-    cargo test -p lumen_runtime
+    cargo test -p lumen_rt_full
   liblumen_otp_test_script: |
     cargo test -p liblumen_otp
   lumen_interpreter_test_script: |

@@ -4,7 +4,7 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::scheduler::Spawned;
+use lumen_rt_full::scheduler::Spawned;
 
 use crate::test;
 

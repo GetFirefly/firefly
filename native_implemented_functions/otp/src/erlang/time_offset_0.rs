@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::time::{monotonic, system, Unit::Native};
+use lumen_rt_full::time::{monotonic, system, Unit::Native};
 
 #[native_implemented_function(time_offset/0)]
 pub fn native(process: &Process) -> exception::Result<Term> {

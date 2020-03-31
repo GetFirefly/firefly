@@ -6,19 +6,23 @@ edition = "2018"
 publish = false
 description = "Lumen bindings for Web APIs"
 
-[features]
-default = ["time_web_sys"]
-time_web_sys = ["lumen_rt_full/time_web_sys"]
+[lib]
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 anyhow = "1.0.11"
 js-sys = "0.3.25"
 liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
-liblumen_otp = { path = "../otp" }
-lumen_rt_core = { path = "../../runtimes/core" }
-lumen_rt_full = { path = "../../runtimes/full" }
 native_implemented_function = { path = "../macro" }
+
+[dependencies.liblumen_otp]
+path = "../otp"
+features = ["runtime_full"]
+
+[dependencies.lumen_rt_full]
+path = "../../runtimes/full"
+features = ["time_web_sys"]
 
 [dependencies.wasm-bindgen]
 version = "0.2.48"

@@ -6,6 +6,7 @@ mod module;
 pub use module::NativeModule;
 pub mod call_result;
 mod native;
+pub mod runtime;
 mod vm;
 
 #[cfg(test)]

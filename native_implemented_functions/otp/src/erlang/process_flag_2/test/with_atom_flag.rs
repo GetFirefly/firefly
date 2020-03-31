@@ -2,12 +2,6 @@ mod with_trap_exit_flag;
 
 use super::*;
 
-use std::convert::TryInto;
-
-use proptest::strategy::BoxedStrategy;
-
-use liblumen_alloc::erts::term::prelude::{Atom, Term};
-
 #[test]
 fn without_supported_flag_errors_badarg() {
     run!(

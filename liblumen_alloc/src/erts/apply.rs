@@ -49,7 +49,9 @@ pub unsafe fn apply(symbol: &ModuleFunctionArity, args: &[Term]) -> Result<Term,
 
 #[inline]
 pub fn find_symbol(mfa: &ModuleFunctionArity) -> Option<DynamicCallee> {
-    let symbols = unsafe { SYMBOLS.get_unchecked() };
+    let symbols = SYMBOLS
+        .get()
+        .expect("InitializeLumenDispatchTable not called");
     if let Some(f) = symbols.get_function(mfa) {
         Some(unsafe { mem::transmute::<*const c_void, DynamicCallee>(f) })
     } else {
@@ -75,10 +77,6 @@ pub unsafe extern "C" fn InitializeLumenDispatchTable(
     table: *const FunctionSymbol,
     len: usize,
 ) -> bool {
-    let len = len as usize;
-    if len == 0 {
-        return true;
-    }
     if table.is_null() {
         return false;
     }

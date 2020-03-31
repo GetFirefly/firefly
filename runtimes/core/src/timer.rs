@@ -1,7 +1,3 @@
-#![allow(unused)]
-mod options;
-pub use self::options::*;
-
 use core::cmp::Ordering::{self, *};
 use core::fmt::{self, Debug};
 use core::ops::{Index, IndexMut, RangeBounds};
@@ -22,6 +18,48 @@ use liblumen_alloc::erts::Process;
 use crate::registry;
 use crate::scheduler::{self, Scheduled, Scheduler};
 use crate::time::{monotonic, Milliseconds};
+
+pub fn cancel(timer_reference: &Reference) -> Option<Milliseconds> {
+    timer_reference.scheduler().and_then(|scheduler| {
+        scheduler
+            .hierarchy()
+            .write()
+            .cancel(timer_reference.number())
+    })
+}
+
+pub fn read(timer_reference: &Reference) -> Option<Milliseconds> {
+    timer_reference
+        .scheduler()
+        .and_then(|scheduler| scheduler.hierarchy().read().read(timer_reference.number()))
+}
+
+pub fn start(
+    monotonic_time_milliseconds: Milliseconds,
+    destination: Destination,
+    timeout: Timeout,
+    process_message: Term,
+    process: &Process,
+) -> AllocResult<Term> {
+    let arc_scheduler = scheduler::current();
+
+    let result = arc_scheduler.hierarchy().write().start(
+        monotonic_time_milliseconds,
+        destination,
+        timeout,
+        process_message,
+        process,
+        arc_scheduler.clone(),
+    );
+
+    result
+}
+
+/// Times out the timers for the thread that have timed out since the last time `timeout` was
+/// called.
+pub fn timeout() {
+    scheduler::current().hierarchy().write().timeout();
+}
 
 #[derive(Debug)]
 pub struct Message {
@@ -108,10 +146,11 @@ impl Hierarchy {
         timeout: Timeout,
         process_message: Term,
         process: &Process,
-        reference_number: u64,
-        scheduler_id: scheduler::ID,
+        arc_scheduler: Arc<dyn Scheduler>,
     ) -> AllocResult<Term> {
-        let process_reference = process.reference_from_scheduler(scheduler_id, reference_number)?;
+        let reference_number = arc_scheduler.next_reference_number();
+        let process_reference =
+            process.reference_from_scheduler(arc_scheduler.id(), reference_number)?;
         let (heap_fragment_message, heap_fragment) = match timeout {
             Timeout::Message => process_message.clone_to_fragment()?,
             Timeout::TimeoutTuple => {

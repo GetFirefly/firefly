@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod test;
 
+use crate::runtime::time::datetime;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use lumen_rt_core::time::datetime;
 
 use native_implemented_function::native_implemented_function;
 

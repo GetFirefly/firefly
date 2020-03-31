@@ -10,7 +10,7 @@ use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::time::monotonic;
+use crate::runtime::time::monotonic;
 
 use crate::erlang;
 use crate::erlang::start_timer_4::native;

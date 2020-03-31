@@ -8,7 +8,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::scheduler;
 
 pub use options::*;
 
@@ -49,7 +49,7 @@ pub fn unique_integer(process: &Process, options: Options) -> exception::Result<
         let scheduler_id = process.scheduler_id().unwrap();
         let scheduler_id_u128: u128 = scheduler_id.into();
 
-        let arc_scheduler = Scheduler::from_id(&scheduler_id).unwrap();
+        let arc_scheduler = scheduler::from_id(&scheduler_id).unwrap();
         let scheduler_unique_integer = arc_scheduler.next_unique_integer() as u128;
 
         let u: u128 = (scheduler_id_u128 << 64) | scheduler_unique_integer;

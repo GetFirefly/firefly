@@ -4,7 +4,8 @@ use colored::*;
 use log::SetLoggerError;
 use log::{Level, Log, Metadata, Record};
 
-use crate::system;
+use crate::time::system;
+use crate::time::Unit::Second;
 
 pub struct Logger {
     level: Level,
@@ -29,7 +30,7 @@ impl Logger {
         };
         println!(
             "{} {:<5} [{}] {}",
-            system::time::system_time().as_secs(),
+            system::time(Second),
             level,
             record.module_path().unwrap_or_default(),
             record.args(),
@@ -39,7 +40,7 @@ impl Logger {
     fn log_plain(record: &Record) {
         println!(
             "{} {:<5} [{}] {}",
-            system::time::system_time().as_secs(),
+            system::time(Second),
             record.level(),
             record.module_path().unwrap_or_default(),
             record.args(),
@@ -55,12 +56,12 @@ impl Logger {
     fn log_plain(record: &Record) {
         let msg = format!(
             "{} {:<5} [{}] {}",
-            system::time::system_time().as_secs(),
+            system::time(Second),
             record.level(),
             record.module_path().unwrap_or_default(),
             record.args()
         );
-        system::io::console_log(&msg);
+        crate::sys::io::puts(&msg);
     }
 }
 

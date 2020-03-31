@@ -1,0 +1,35 @@
+name: Linux x86_64 Runtime Full
+
+on: push
+
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    container: kronicdeth/lumen-development@sha256:a91994aa0332b7f0d94c7342cc4edde50295f73ad2b7b9db3c7da8524f340b12
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-runtime-full-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-runtime-full-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-runtime-full-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: Test lumen_rt_full
+        run: cargo test --package lumen_rt_full
+      - name: Test liblumen_otp with runtime_full
+        working-directory: native_implemented_functions/otp
+        run: cargo test --features runtime_full
+      - name: Test interpreter
+        run: cargo test --package lumen_interpreter
+      - name: Test spawn-chain example
+        run: cargo test --package spawn-chain

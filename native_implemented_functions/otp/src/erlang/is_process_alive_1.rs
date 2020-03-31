@@ -9,7 +9,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::registry::pid_to_process;
+use crate::runtime::registry::pid_to_process;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(is_process_alive/1)]

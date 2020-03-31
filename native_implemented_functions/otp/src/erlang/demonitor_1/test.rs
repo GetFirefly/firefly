@@ -5,13 +5,10 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::process::SchedulerDependentAlloc;
-use lumen_rt_full::scheduler::Scheduler;
-
 use crate::erlang::demonitor_1::native;
 use crate::erlang::{exit_1, monitor_2};
-use crate::test;
-use crate::test::{has_message, monitor_count, monitored_count, strategy, with_process_arc};
+use crate::runtime::scheduler::{self, SchedulerDependentAlloc};
+use crate::test::{self, has_message, monitor_count, monitored_count, strategy, with_process_arc};
 
 #[test]
 fn without_reference_errors_badarg() {

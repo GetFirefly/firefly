@@ -19,8 +19,8 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{exception, Node};
 
-use lumen_rt_full::process::spawn::options::Options;
-use lumen_rt_full::scheduler::{Scheduler, Spawned};
+use crate::runtime::process::spawn::options::Options;
+use crate::runtime::scheduler::{self, Spawned};
 
 use crate::test::r#loop;
 use crate::test::strategy::term::binary;
@@ -189,7 +189,7 @@ pub fn process(parent_process: &Process, options: Options) -> Spawned {
     let arguments = &[];
     let code = r#loop::code;
 
-    Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()
+    scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()
 }
 
 pub fn prop_assert_exits<
@@ -222,7 +222,7 @@ pub fn prop_assert_exits<
         ref status => Err(proptest::test_runner::TestCaseError::fail(format!(
             "Child process did not exit.  Status is {:?}. Scheduler is {:?}",
             status,
-            Scheduler::current()
+            scheduler::current()
         ))),
     }
 }

@@ -1,6 +1,6 @@
 use super::*;
 
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::scheduler;
 
 #[test]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
@@ -87,7 +87,7 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
             "Did not receive message in process ({}) at time ({}).  Timers remaining: {:?}",
             process,
             monotonic::time_in_milliseconds(),
-            Scheduler::current().hierarchy
+            scheduler::current().hierarchy()
         );
 
         let read_timer_message = read_timer_message(timer_reference, false.into(), process);

@@ -9,7 +9,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::time::Milliseconds;
+use crate::runtime::time::Milliseconds;
 
 use crate::test::total_byte_len;
 
@@ -42,11 +42,11 @@ pub fn byte_vec() -> BoxedStrategy<Vec<u8>> {
 
 pub fn milliseconds() -> BoxedStrategy<Milliseconds> {
     prop_oneof![
-        Just(lumen_rt_core::timer::at_once_milliseconds()),
-        Just(lumen_rt_core::timer::soon_milliseconds()) /* TODO make timer::timeout() faster when there are lots of empty slots to skip,
-                                                        Just(lumen_rt_core::timer::later_milliseconds()),
-                                                        Just(lumen_rt_core::timer::long_term_milliseconds())
-                                                        */
+        Just(crate::runtime::timer::at_once_milliseconds()),
+        Just(crate::runtime::timer::soon_milliseconds()) /* TODO make timer::timeout() faster when there are lots of empty slots to skip,
+                                                         Just(crate::runtime::timer::later_milliseconds()),
+                                                         Just(crate::runtime::timer::long_term_milliseconds())
+                                                         */
     ]
     .boxed()
 }

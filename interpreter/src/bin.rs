@@ -13,11 +13,10 @@ use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 use libeir_util_parse::{ArcCodemap, Errors};
 
 use lumen_interpreter::call_result::call_run_erlang;
+use lumen_interpreter::runtime::scheduler;
 use lumen_interpreter::VM;
 
 use liblumen_alloc::erts::term::prelude::Atom;
-
-use lumen_rt_full::scheduler::Scheduler;
 
 fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, ArcCodemap)
 where
@@ -65,7 +64,7 @@ fn main() {
 
     &*VM;
 
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     let module = Atom::try_from_str(&ident.module.as_str()).unwrap();

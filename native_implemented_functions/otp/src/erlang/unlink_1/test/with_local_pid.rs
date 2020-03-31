@@ -3,7 +3,7 @@ use super::*;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::{Atom, Pid};
 
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::scheduler;
 
 use crate::{erlang, test};
 
@@ -76,7 +76,7 @@ fn when_a_linked_then_unlinked_process_exits_the_process_does_not_exit() {
             Ok(true.into())
         );
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -88,7 +88,7 @@ fn when_a_linked_then_unlinked_process_exits_the_process_does_not_exit() {
         )
         .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting())
@@ -107,7 +107,7 @@ fn when_the_process_exits_the_linked_and_then_unlinked_process_exits_too() {
             Ok(true.into())
         );
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!arc_process.is_exiting());
@@ -119,7 +119,7 @@ fn when_the_process_exits_the_linked_and_then_unlinked_process_exits_too() {
         )
         .unwrap();
 
-        assert!(Scheduler::current().run_through(&arc_process));
+        assert!(scheduler::run_through(&arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(arc_process.is_exiting())

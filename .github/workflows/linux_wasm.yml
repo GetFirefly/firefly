@@ -1,0 +1,42 @@
+name: Linux wasm32
+
+on: push
+
+jobs:
+  wasm:
+    runs-on: ubuntu-latest
+    container:
+      image: kronicdeth/lumen-development@sha256:a91994aa0332b7f0d94c7342cc4edde50295f73ad2b7b9db3c7da8524f340b12
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-wasm-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-wasm-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-wasm-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      # $HOME is owned by user id 1001.  `container` `options` `--user 1001` doesn't work because dependencies can't be
+      # installed, so make root own the directory instead, so that Firefox doesn't complain that root is using a profile
+      # for a different user.
+      - name: Own Home
+        run: chown -R $(whoami) $HOME
+      - name: Lumen Web Test
+        run: wasm-pack test --headless --chrome --firefox native_implemented_functions/web
+      - name: Spawn Chain Build
+        run: wasm-pack build examples/spawn-chain
+      - name: Spawn Chain Test
+        run: wasm-pack test --headless --chrome --firefox examples/spawn-chain
+      - name: Interpreter In Browser Build
+        run: wasm-pack build examples/interpreter-in-browser
+      - name: Interpreter In Browser Test
+        run: wasm-pack test --headless --chrome --firefox examples/spawn-chain

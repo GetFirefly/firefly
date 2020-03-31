@@ -4,7 +4,7 @@ use std::convert::TryInto;
 
 use proptest::strategy::{Just, Strategy};
 
-use lumen_rt_full::scheduler::Spawned;
+use crate::runtime::scheduler::Spawned;
 
 use crate::test;
 

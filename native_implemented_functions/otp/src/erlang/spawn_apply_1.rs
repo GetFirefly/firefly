@@ -7,8 +7,8 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::apply_2;
-use lumen_rt_full::process::spawn::options::Options;
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::process::spawn::options::Options;
+use crate::runtime::scheduler;
 
 pub(in crate::erlang) fn native(
     process: &Process,
@@ -22,7 +22,7 @@ pub(in crate::erlang) fn native(
 
     // The :badarity error is raised in the child process and not in the parent process, so the
     // child process must be running the equivalent of `apply(functon, [])`.
-    Scheduler::spawn_code(
+    scheduler::spawn_code(
         process,
         options,
         apply_2::module(),

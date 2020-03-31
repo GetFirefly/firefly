@@ -3,7 +3,7 @@ name: wasm32-unknown-unknown (macOS)
 on: push
 
 jobs:
-  examples_spawn_chain:
+  wasm:
     runs-on: macos-latest
 
     steps:
@@ -32,17 +32,17 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-wasm-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
       - name: Cache cargo index
         uses: actions/cache@v1
         with:
           path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-wasm-cargo-index-${{ hashFiles('**/Cargo.lock') }}
       - name: Cache cargo build
         uses: actions/cache@v1
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-wasm-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       - name: Install Chrome Driver
         run: |
           wget https://chromedriver.storage.googleapis.com/83.0.4103.39/chromedriver_mac64.zip
@@ -66,4 +66,8 @@ jobs:
       - name: Spawn Chain Build
         run: wasm-pack build examples/spawn-chain
       - name: Spawn Chain Test
+        run: wasm-pack test --headless --chrome --firefox --safari examples/spawn-chain
+      - name: Interpreter In Browser Build
+        run: wasm-pack build examples/interpreter-in-browser
+      - name: Interpreter In Browser Test
         run: wasm-pack test --headless --chrome --firefox --safari examples/spawn-chain

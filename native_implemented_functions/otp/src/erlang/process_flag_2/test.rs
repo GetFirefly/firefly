@@ -1,12 +1,18 @@
 mod with_atom_flag;
 
+use std::convert::TryInto;
+
 use proptest::prop_assert_eq;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
+use liblumen_alloc::erts::term::prelude::*;
+
+use crate::erlang;
 use crate::erlang::process_flag_2::native;
-use crate::test::strategy;
-use crate::test::with_process;
+use crate::runtime::scheduler;
+use crate::test::{self, has_message, has_no_message, strategy, with_process};
 
 #[test]
 fn without_atom_flag_errors_badarg() {

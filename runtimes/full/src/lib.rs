@@ -31,33 +31,25 @@
 
 extern crate alloc;
 extern crate cfg_if;
-#[macro_use]
-extern crate lazy_static;
 
 extern crate chrono;
 
-pub mod binary;
-pub mod binary_to_string;
-// `pub` or `examples/spawn-chain`
-pub mod code;
+pub use lumen_rt_core::{
+    binary_to_string, code, context, distribution, future, proplist, registry, send, stacktrace,
+    time, timer,
+};
+
 #[cfg(not(any(test, target_arch = "wasm32")))]
 mod config;
-pub mod distribution;
-pub mod future;
 mod logging;
-pub mod number;
 pub mod process;
 // `pub` for `examples/spawn-chain`
 pub mod scheduler;
-pub mod send;
-pub mod stacktrace;
 // `pub` for `examples/spawn-chain`
-pub mod system;
+pub mod sys;
 // `pub` for `examples/spawn-chain`
 mod term;
-pub mod timer;
 
-#[cfg(test)]
 pub mod test;
 
 /// The main entry point for the runtime
@@ -78,8 +70,7 @@ fn main() -> impl ::std::process::Termination + 'static {
 fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()> {
     use self::config::Config;
     use self::logging::Logger;
-    use self::scheduler::Scheduler;
-    use self::system::break_handler::{self, Signal};
+    use self::sys::break_handler::{self, Signal};
     use bus::Bus;
     use log::Level;
     use std::thread;
@@ -103,7 +94,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     // Start logger
     Logger::init(Level::Info).expect("Unexpected failure initializing logger");
 
-    let scheduler = Scheduler::current();
+    let scheduler = scheduler::current();
     loop {
         // Run the scheduler for a cycle
         let scheduled = scheduler.run_once();

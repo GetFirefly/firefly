@@ -22,12 +22,17 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::time::{monotonic, Milliseconds};
+use crate::runtime::time::{monotonic, Milliseconds};
 
-use lumen_rt_full::process::SchedulerDependentAlloc;
-use lumen_rt_full::timer;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
+use crate::runtime::timer;
 
 use crate::erlang;
+
+#[cfg(feature = "runtime_minimal")]
+#[export_name = "CURRENT_REDUCTION_COUNT"]
+#[thread_local]
+pub static mut CURRENT_REDUCTION_COUNT: u32 = 0;
 
 pub fn assert_exits<F: Fn(Option<Term>)>(
     process: &Process,

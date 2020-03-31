@@ -8,7 +8,7 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::process::SchedulerDependentAlloc;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
 
 use crate::erlang::cancel_timer_2::native;
 use crate::test::{

@@ -1,13 +1,5 @@
 use super::*;
 
-use liblumen_alloc::error;
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::prelude::{Atom, Pid};
-
-use lumen_rt_full::scheduler::Scheduler;
-
-use crate::{erlang, test};
-
 #[test]
 fn with_self_returns_true_but_does_not_create_link() {
     with_process(|process| {
@@ -78,7 +70,7 @@ fn when_a_linked_process_exits_normal_the_process_does_not_exit() {
             Ok(true.into())
         );
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -90,7 +82,7 @@ fn when_a_linked_process_exits_normal_the_process_does_not_exit() {
         )
         .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting())
@@ -107,7 +99,7 @@ fn when_a_linked_process_exits_shutdown_the_process_does_not_exit() {
             Ok(true.into())
         );
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -119,7 +111,7 @@ fn when_a_linked_process_exits_shutdown_the_process_does_not_exit() {
         )
         .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting())
@@ -136,7 +128,7 @@ fn when_a_linked_process_exits_with_shutdown_tuple_the_process_does_not_exit() {
             Ok(true.into())
         );
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -149,7 +141,7 @@ fn when_a_linked_process_exits_with_shutdown_tuple_the_process_does_not_exit() {
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting())
@@ -166,7 +158,7 @@ fn when_a_linked_process_exits_unexpected_the_process_does_not_exit() {
             Ok(true.into())
         );
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -178,7 +170,7 @@ fn when_a_linked_process_exits_unexpected_the_process_does_not_exit() {
         )
         .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(process.is_exiting())
@@ -195,7 +187,7 @@ fn when_the_process_exits_unexpected_linked_processes_exit_too() {
             Ok(true.into())
         );
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!arc_process.is_exiting());
@@ -207,7 +199,7 @@ fn when_the_process_exits_unexpected_linked_processes_exit_too() {
         )
         .unwrap();
 
-        assert!(Scheduler::current().run_through(&arc_process));
+        assert!(scheduler::run_through(&arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(arc_process.is_exiting())

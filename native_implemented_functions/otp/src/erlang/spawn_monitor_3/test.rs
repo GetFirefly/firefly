@@ -12,8 +12,8 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 use liblumen_alloc::{atom, atom_from, exit};
 
-use lumen_rt_core::registry::pid_to_process;
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::registry::pid_to_process;
+use crate::runtime::scheduler;
 
 use crate::erlang::apply_3;
 use crate::erlang::spawn_monitor_3::native;

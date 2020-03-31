@@ -7,7 +7,7 @@ use lumen_rt_core::registry;
 use lumen_rt_full::process;
 use lumen_rt_full::process::spawn::options::Options;
 use lumen_rt_full::process::spawn::Spawned;
-use lumen_rt_full::scheduler::Scheduler;
+use lumen_rt_full::scheduler;
 
 use crate::start::export_code;
 
@@ -99,7 +99,7 @@ fn with_65536() {
 fn inspect_code(arc_process: &Arc<Process>) -> code::Result {
     let time_value = arc_process.stack_peek(1).unwrap();
 
-    lumen_rt_full::system::io::puts(&format!("{}", time_value));
+    lumen_rt_full::sys::io::puts(&format!("{}", time_value));
     arc_process.remove_last_frame(1);
 
     Process::call_code(arc_process)
@@ -123,11 +123,11 @@ fn run_through(n: usize) {
     super::place_frame_with_arguments(&process, Placement::Push, process.integer(n).unwrap())
         .unwrap();
 
-    let arc_scheduler = Scheduler::current();
-    let arc_process = arc_scheduler.clone().schedule(process);
+    let arc_scheduler = scheduler::current();
+    let arc_process = arc_scheduler.schedule(process);
     registry::put_pid_to_process(&arc_process);
 
-    while arc_scheduler.run_through(&arc_process) {}
+    while scheduler::run_through(&arc_process) {}
 }
 
 static START: Once = Once::new();
@@ -137,6 +137,8 @@ fn start() {
 }
 
 fn start_once() {
+    scheduler::set_unregistered_once();
+
     START.call_once(|| {
         start();
     })

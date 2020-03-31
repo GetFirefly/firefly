@@ -2,7 +2,7 @@ mod with_atom_name;
 
 use super::*;
 
-use lumen_rt_full::process::SchedulerDependentAlloc;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
 
 #[test]
 fn without_atom_name_errors_badarg() {

@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 use crate::erlang::read_timer;
-use lumen_rt_full::timer;
+use crate::timer;
 
 #[native_implemented_function(read_timer/2)]
 pub fn native(process: &Process, timer_reference: Term, options: Term) -> exception::Result<Term> {

@@ -7,7 +7,7 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
     apply_3::export();
 
     let parent_arc_process = test::process::init();
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
@@ -41,8 +41,8 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
 
     let arc_process = pid_to_process(&child_pid_pid).unwrap();
 
-    assert!(arc_scheduler.run_through(&arc_process));
-    assert!(!arc_scheduler.run_through(&arc_process));
+    assert!(scheduler::run_through(&arc_process));
+    assert!(!scheduler::run_through(&arc_process));
 
     assert_eq!(
         arc_process.current_module_function_arity(),

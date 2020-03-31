@@ -13,9 +13,9 @@ use liblumen_alloc::erts::term::closure::{Creator, Definition};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
-use lumen_rt_core::distribution::nodes::node::{self, arc_node};
+use crate::runtime::distribution::nodes::node::{self, arc_node};
 
-use lumen_rt_full::distribution::external_term_format::{version, Tag};
+use crate::runtime::distribution::external_term_format::{version, Tag};
 
 use options::*;
 

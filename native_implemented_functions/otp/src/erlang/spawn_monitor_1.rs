@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 use crate::erlang::spawn_apply_1;
-use lumen_rt_full::process::spawn::options::Options;
+use crate::runtime::process::spawn::options::Options;
 
 #[native_implemented_function(spawn_monitor/1)]
 pub fn native(process: &Process, function: Term) -> exception::Result<Term> {

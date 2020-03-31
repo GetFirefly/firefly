@@ -9,11 +9,9 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::time::monotonic;
-
-use lumen_rt_full::process::SchedulerDependentAlloc;
-
 use crate::erlang::read_timer_2::native;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
+use crate::runtime::time::monotonic;
 use crate::test::{
     external_arc_node, freeze_at_timeout, freeze_timeout, has_message, receive_message, strategy,
     timeout_message, timer_message, with_process, with_timer_in_same_thread,

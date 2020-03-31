@@ -3,7 +3,7 @@ use super::*;
 use proptest::arbitrary::any;
 
 use crate::erlang::binary_to_integer_1;
-use lumen_rt_full::binary_to_string::binary_to_string;
+use crate::runtime::binary_to_string::binary_to_string;
 
 #[test]
 fn with_integer_returns_binary() {

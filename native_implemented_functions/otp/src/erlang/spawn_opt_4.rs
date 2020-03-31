@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 use crate::erlang::spawn_apply_3;
-use lumen_rt_full::process::spawn::options::Options;
+use crate::runtime::process::spawn::options::Options;
 
 #[native_implemented_function(spawn_opt/4)]
 pub fn native(

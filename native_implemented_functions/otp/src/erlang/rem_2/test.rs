@@ -9,9 +9,9 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::rem_2::native;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
 use crate::test::with_process;
 use crate::test::{external_arc_node, strategy};
-use lumen_rt_full::process::SchedulerDependentAlloc;
 
 #[test]
 fn without_integer_dividend_errors_badarith() {

@@ -26,9 +26,15 @@ libeir_util_parse = { git = "https://github.com/eirproject/eir.git", branch = "l
 
 # workspace crates
 liblumen_alloc = { path = "../liblumen_alloc" }
-liblumen_otp = { path = "../native_implemented_functions/otp" }
-lumen_rt_full = { path = "../runtimes/full" }
 
 [dependencies.hashbrown]
 version = "0.7"
 features = ["nightly"]
+
+[dependencies.liblumen_otp]
+path = "../native_implemented_functions/otp"
+features = ["runtime_full"]
+
+[dependencies.lumen_rt_full]
+path = "../runtimes/full"
+features = ["time_web_sys"]

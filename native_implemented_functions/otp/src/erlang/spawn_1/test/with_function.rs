@@ -5,7 +5,7 @@ use super::*;
 use proptest::prop_assert;
 use proptest::strategy::Strategy;
 
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::scheduler;
 
 #[test]
 fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
@@ -35,12 +35,9 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
             prop_assert!(child_pid_term.is_pid());
 
             let child_pid: Pid = child_pid_term.try_into().unwrap();
-
             let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-            let scheduler = Scheduler::current();
-
-            prop_assert!(scheduler.run_through(&child_arc_process));
+            prop_assert!(scheduler::run_through(&child_arc_process));
 
             let args = Term::NIL;
             let source_substring = format!(

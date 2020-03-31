@@ -46,10 +46,8 @@ fn without_environment_runs_function_in_child_process() {
 
             let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-            let scheduler = Scheduler::current();
-
-            prop_assert!(scheduler.run_through(&child_arc_process));
-            prop_assert!(scheduler.run_through(&child_arc_process));
+            prop_assert!(scheduler::run_through(&child_arc_process));
+            prop_assert!(scheduler::run_through(&child_arc_process));
 
             match *child_arc_process.status.read() {
                 Status::Exiting(ref exception) => {
@@ -122,12 +120,9 @@ fn with_environment_runs_function_in_child_process() {
             prop_assert!(child_pid_term.is_pid());
 
             let child_pid: Pid = child_pid_term.try_into().unwrap();
-
             let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-            let scheduler = Scheduler::current();
-
-            prop_assert!(scheduler.run_through(&child_arc_process));
+            prop_assert!(scheduler::run_through(&child_arc_process));
 
             match *child_arc_process.status.read() {
                 Status::Exiting(ref exception) => {

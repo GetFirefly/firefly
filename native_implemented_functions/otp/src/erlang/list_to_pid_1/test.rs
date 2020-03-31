@@ -5,7 +5,7 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
-use lumen_rt_full::distribution::nodes;
+use crate::runtime::distribution::nodes;
 
 use crate::erlang::list_to_pid_1::native;
 use crate::test::strategy;

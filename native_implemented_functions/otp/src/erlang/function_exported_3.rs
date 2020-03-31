@@ -21,7 +21,7 @@
 //! let arity = 0;
 //! let code = liblumen_otp::erlang::self_0::code;
 //!
-//! lumen_rt_full::code::export::insert(module, function, arity, code);
+//! liblumen_otp::runtime::code::export::insert(module, function, arity, code);
 //! ```
 
 #[cfg(test)]
@@ -44,7 +44,8 @@ pub fn native(module: Term, function: Term, arity: Term) -> exception::Result<Te
     let arity_arity: Arity = arity.try_into().context("arity must be in 0-255")?;
 
     let exported =
-        lumen_rt_full::code::export::contains_key(&module_atom, &function_atom, arity_arity).into();
+        crate::runtime::code::export::contains_key(&module_atom, &function_atom, arity_arity)
+            .into();
 
     Ok(exported)
 }

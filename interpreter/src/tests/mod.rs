@@ -12,7 +12,7 @@ use libeir_util_parse::{ArcCodemap, Errors};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::scheduler;
 
 fn parse<T>(input: &str, config: ParseConfig) -> (T, ArcCodemap)
 where
@@ -58,7 +58,7 @@ pub fn compile(input: &str) -> Module {
 fn simple_function() {
     &*VM;
 
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     liblumen_otp::erlang::apply_3::export();
@@ -84,7 +84,7 @@ run() -> yay.
 fn fib() {
     &*VM;
 
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     liblumen_otp::erlang::apply_3::export();
@@ -116,7 +116,7 @@ fib(X) -> fib(X - 1) + fib(X - 2).
 fn exception_test() {
     &*VM;
 
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     liblumen_otp::erlang::apply_3::export();
@@ -147,7 +147,7 @@ a() -> 1 + a.
 fn fib_gc() {
     &*VM;
 
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     liblumen_otp::erlang::apply_3::export();
@@ -179,7 +179,7 @@ fib(X) -> fib(X - 1) + fib(X - 2).
 fn ping_pong() {
     &*VM;
 
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     liblumen_otp::erlang::apply_3::export();
@@ -227,7 +227,7 @@ run() ->
 fn ping_pong_count() {
     &*VM;
 
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     liblumen_otp::erlang::apply_3::export();
@@ -268,7 +268,7 @@ run(N) -> this_proc(N, 0).
 fn ping_pong_count_large() {
     &*VM;
 
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     liblumen_otp::erlang::apply_3::export();

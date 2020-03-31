@@ -17,9 +17,9 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 use crate::erlang::node_0;
-use lumen_rt_core::context::*;
-use lumen_rt_core::registry;
-use lumen_rt_full::process::{self, SchedulerDependentAlloc};
+use crate::runtime::context::*;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
+use crate::runtime::{process, registry};
 
 const TYPE_CONTEXT: &str = "supported types are :port, :process, or :time_offset";
 

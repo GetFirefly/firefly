@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_full::send::{self, send, Sent};
+use crate::runtime::send::{self, send, Sent};
 
 // `send(destination, message, [nosuspend])` is used in `gen.erl`, which is used by `gen_server.erl`
 // See https://github.com/erlang/otp/blob/8f6d45ddc8b2b12376c252a30b267a822cad171a/lib/stdlib/src/gen.erl#L167

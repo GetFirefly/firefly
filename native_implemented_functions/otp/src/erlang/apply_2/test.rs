@@ -11,7 +11,7 @@ use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use lumen_rt_full::future::Ready;
+use crate::runtime::future::Ready;
 
 use crate::erlang::apply_2::place_frame_with_arguments;
 use crate::test::strategy;
@@ -37,7 +37,7 @@ fn without_function_errors_badarg() {
 }
 
 fn run_until_ready(function: Term, arguments: Term) -> Ready {
-    lumen_rt_full::future::run_until_ready(
+    crate::runtime::future::run_until_ready(
         Default::default(),
         |child_process| {
             let child_function = function.clone_to_process(child_process);

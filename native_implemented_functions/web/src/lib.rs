@@ -11,6 +11,8 @@ pub mod wait;
 pub mod web_socket;
 pub mod window;
 
+mod runtime;
+
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -28,17 +30,16 @@ use liblumen_alloc::erts::term::prelude::Term;
 #[cfg(not(test))]
 use liblumen_core::entry;
 
-use lumen_rt_core::time::monotonic::time_in_milliseconds;
-use lumen_rt_core::time::Milliseconds;
-
-use lumen_rt_full::scheduler::Scheduler;
-
+use crate::runtime::scheduler;
+use crate::runtime::time::monotonic::time_in_milliseconds;
+use crate::runtime::time::Milliseconds;
 use crate::window::add_event_listener;
 
 /// Starts the scheduler loop.  It yield and reschedule itself using
 /// [requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame).
 #[cfg_attr(not(test), entry)]
 pub fn start() {
+    scheduler::set_unregistered_once();
     add_event_listeners();
     request_animation_frames();
 }
@@ -129,7 +130,7 @@ fn request_animation_frames() {
 }
 
 fn run_for_milliseconds(duration: Milliseconds) {
-    let scheduler = Scheduler::current();
+    let scheduler = scheduler::current();
     let timeout = time_in_milliseconds() + duration;
 
     while (time_in_milliseconds() < timeout) && scheduler.run_once() {}

@@ -13,10 +13,9 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::exit;
 
-use lumen_rt_core::registry::pid_to_process;
-use lumen_rt_full::scheduler::Scheduler;
-
 use crate::erlang::spawn_link_1::native;
+use crate::runtime::registry::pid_to_process;
+use crate::runtime::scheduler;
 use crate::test;
 use crate::test::prop_assert_exits_badarity;
 use crate::test::strategy;

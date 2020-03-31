@@ -53,7 +53,7 @@ pub fn with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
                 let option_code = option_debuggable_code.map(|debuggable_code| debuggable_code.0);
 
                 if let Some(code) = option_code {
-                    lumen_rt_full::code::anonymous::insert(
+                    crate::runtime::code::anonymous::insert(
                         module, index, old_unique, unique, arity, code,
                     );
                 }

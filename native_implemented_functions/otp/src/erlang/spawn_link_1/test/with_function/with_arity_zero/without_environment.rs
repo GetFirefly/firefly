@@ -40,7 +40,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
 
                 let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-                let scheduler = Scheduler::current();
+                let scheduler = scheduler::current();
 
                 prop_assert!(scheduler.run_once());
                 prop_assert!(scheduler.run_once());
@@ -115,13 +115,10 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
                 prop_assert!(child_pid_term.is_pid());
 
                 let child_pid: Pid = child_pid_term.try_into().unwrap();
-
                 let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-                let scheduler = Scheduler::current();
-
-                prop_assert!(scheduler.run_through(&child_arc_process));
-                prop_assert!(scheduler.run_through(&child_arc_process));
+                prop_assert!(scheduler::run_through(&child_arc_process));
+                prop_assert!(scheduler::run_through(&child_arc_process));
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {

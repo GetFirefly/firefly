@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 use crate::erlang::string_to_float::string_to_float;
-use lumen_rt_full::binary_to_string::binary_to_string;
+use crate::runtime::binary_to_string::binary_to_string;
 
 #[native_implemented_function(binary_to_float/1)]
 pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {

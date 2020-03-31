@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_rt_full::binary_to_string::binary_to_string;
-use lumen_rt_full::system;
+use lumen_rt_full::sys;
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -37,7 +37,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     match binary_to_string(elixir_string) {
         Ok(string) => {
             // NOT A DEBUGGING LOG
-            system::io::puts(&string);
+            sys::io::puts(&string);
 
             let ok = Atom::str_to_term("ok");
             arc_process.return_from_call(STACK_USED, ok)?;

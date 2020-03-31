@@ -11,14 +11,12 @@ use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::registry;
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::{registry, scheduler};
 
 use crate::erlang::monitor_2::native;
 use crate::erlang::{exit_1, node_0};
-use crate::test;
 use crate::test::{
-    has_message, monitor_count, monitored_count, registered_name, strategy, with_process_arc,
+    self, has_message, monitor_count, monitored_count, registered_name, strategy, with_process_arc,
 };
 
 #[test]

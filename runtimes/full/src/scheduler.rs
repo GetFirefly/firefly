@@ -1,44 +1,44 @@
 #[cfg(test)]
 pub mod test;
 
-use core::fmt::{self, Debug};
-use core::sync::atomic::{AtomicU64, Ordering};
+use std::any::Any;
+use std::fmt::{self, Debug};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
-use alloc::sync::{Arc, Weak};
+use liblumen_core::locks::RwLock;
 
-use hashbrown::HashMap;
-
-use liblumen_core::locks::{Mutex, RwLock};
-
-use liblumen_alloc::erts::exception::{Result, SystemException};
-use liblumen_alloc::erts::process::code::Code;
+use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::{Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 
+use lumen_rt_core::process::{log_exit, propagate_exit};
 use lumen_rt_core::registry::put_pid_to_process;
-use lumen_rt_core::scheduler::{run_queue, Run};
+pub use lumen_rt_core::scheduler::{
+    current, from_id, run_through, spawn_apply_3, spawn_code, SchedulerDependentAlloc, Spawned,
+};
+use lumen_rt_core::scheduler::{
+    run_queue, set_unregistered, unregister, Run, Scheduler as SchedulerTrait,
+};
 use lumen_rt_core::timer::Hierarchy;
 
 use crate::process;
-use crate::process::spawn;
-use crate::process::spawn::options::{Connection, Options};
 
-pub trait Scheduled {
-    fn scheduler(&self) -> Option<Arc<Scheduler>>;
+fn unregistered() -> Arc<dyn lumen_rt_core::scheduler::Scheduler> {
+    Arc::new(Scheduler {
+        id: id::next(),
+        hierarchy: Default::default(),
+        reference_count: AtomicU64::new(0),
+        run_queues: Default::default(),
+        unique_integer: AtomicU64::new(0),
+    })
 }
 
-impl Scheduled for Process {
-    fn scheduler(&self) -> Option<Arc<Scheduler>> {
-        self.scheduler_id()
-            .and_then(|scheduler_id| Scheduler::from_id(&scheduler_id))
-    }
-}
-
-impl Scheduled for Reference {
-    fn scheduler(&self) -> Option<Arc<Scheduler>> {
-        Scheduler::from_id(&self.scheduler_id())
-    }
+pub fn set_unregistered_once() {
+    use std::sync::Once;
+    static SET_UNREGISTERED: Once = Once::new();
+    SET_UNREGISTERED.call_once(|| set_unregistered(Box::new(unregistered)))
 }
 
 pub struct Scheduler {
@@ -53,49 +53,6 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    pub fn current() -> Arc<Scheduler> {
-        SCHEDULER.with(|thread_local_scheduler| thread_local_scheduler.clone())
-    }
-
-    pub fn from_id(id: &ID) -> Option<Arc<Scheduler>> {
-        Self::current_from_id(id).or_else(|| {
-            SCHEDULER_BY_ID
-                .lock()
-                .get(id)
-                .and_then(|arc_scheduler| arc_scheduler.upgrade())
-        })
-    }
-
-    fn current_from_id(id: &ID) -> Option<Arc<Scheduler>> {
-        SCHEDULER.with(|thread_local_scheduler| {
-            if &thread_local_scheduler.id == id {
-                Some(thread_local_scheduler.clone())
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn next_reference_number(&self) -> ReferenceNumber {
-        self.reference_count.fetch_add(1, Ordering::SeqCst)
-    }
-
-    pub fn next_unique_integer(&self) -> u64 {
-        self.unique_integer.fetch_add(1, Ordering::SeqCst)
-    }
-
-    // TODO: Request application master termination for controlled shutdown
-    // This request will always come from the thread which spawned the application
-    // master, i.e. the "main" scheduler thread
-    //
-    // Returns `Ok(())` if shutdown was successful, `Err(anyhow::Error)` if something
-    // went wrong during shutdown, and it was not able to complete normally
-    pub fn shutdown(&self) -> anyhow::Result<()> {
-        // For now just Ok(()), but this needs to be addressed when proper
-        // system startup/shutdown is in place
-        Ok(())
-    }
-
     /// > 1. Update reduction counters
     /// > 2. Check timers
     /// > 3. If needed check balance
@@ -112,20 +69,56 @@ impl Scheduler {
         }
     }
 
-    /// > 1. Update reduction counters
-    /// > 2. Check timers
-    /// > 3. If needed check balance
-    /// > 4. If needed migrated processes and ports
-    /// > 5. Do auxiliary scheduler work
-    /// > 6. If needed check I/O and update time
-    /// > 7. While needed pick a port task to execute
-    /// > 8. Pick a process to execute
-    /// > -- [The Scheduler Loop](https://blog.stenmans.org/theBeamBook/#_the_scheduler_loop)
-    ///
-    /// Returns `true` if a process was run.  Returns `false` if no process could be run and the
-    /// scheduler should sleep or work steal.
-    #[must_use]
-    pub fn run_once(&self) -> bool {
+    pub fn is_run_queued(&self, value: &Arc<Process>) -> bool {
+        self.run_queues.read().contains(value)
+    }
+}
+
+impl Debug for Scheduler {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Scheduler")
+            .field("id", &self.id)
+            // The hiearchy slots take a lot of space, so don't print them by default
+            .field("reference_count", &self.reference_count)
+            .field("run_queues", &self.run_queues)
+            .finish()
+    }
+}
+
+impl Drop for Scheduler {
+    fn drop(&mut self) {
+        unregister(&self.id);
+    }
+}
+
+impl PartialEq for Scheduler {
+    fn eq(&self, other: &Scheduler) -> bool {
+        self.id == other.id
+    }
+}
+
+impl SchedulerTrait for Scheduler {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn id(&self) -> ID {
+        self.id
+    }
+
+    fn hierarchy(&self) -> &RwLock<Hierarchy> {
+        &self.hierarchy
+    }
+
+    fn next_reference_number(&self) -> ReferenceNumber {
+        self.reference_count.fetch_add(1, Ordering::SeqCst)
+    }
+
+    fn next_unique_integer(&self) -> u64 {
+        self.unique_integer.fetch_add(1, Ordering::SeqCst)
+    }
+
+    fn run_once(&self) -> bool {
         self.hierarchy.write().timeout();
 
         loop {
@@ -161,8 +154,8 @@ impl Scheduler {
                     match self.run_queues.write().requeue(arc_process) {
                         Some(exiting_arc_process) => match *exiting_arc_process.status.read() {
                             Status::Exiting(ref exception) => {
-                                process::log_exit(&exiting_arc_process, exception);
-                                process::propagate_exit(&exiting_arc_process, exception);
+                                log_exit(&exiting_arc_process, exception);
+                                propagate_exit(&exiting_arc_process, exception);
                             }
                             _ => unreachable!(),
                         },
@@ -178,39 +171,15 @@ impl Scheduler {
         }
     }
 
-    pub fn run_queues_len(&self) -> usize {
-        self.run_queues.read().len()
-    }
-
-    pub fn run_queue_len(&self, priority: Priority) -> usize {
+    fn run_queue_len(&self, priority: Priority) -> usize {
         self.run_queues.read().run_queue_len(priority)
     }
 
-    pub fn is_run_queued(&self, value: &Arc<Process>) -> bool {
-        self.run_queues.read().contains(value)
+    fn run_queues_len(&self) -> usize {
+        self.run_queues.read().len()
     }
 
-    /// Returns `true` if `arc_process` was run; otherwise, `false`.
-    #[must_use]
-    pub fn run_through(&self, arc_process: &Arc<Process>) -> bool {
-        let ordering = Ordering::SeqCst;
-        let reductions_before = arc_process.total_reductions.load(ordering);
-
-        // The same as `run`, but stops when the process is run once
-        loop {
-            if self.run_once() {
-                if reductions_before < arc_process.total_reductions.load(Ordering::SeqCst) {
-                    break true;
-                } else {
-                    continue;
-                }
-            } else {
-                break false;
-            }
-        }
-    }
-
-    pub fn schedule(self: Arc<Scheduler>, process: Process) -> Arc<Process> {
+    fn schedule(&self, process: Process) -> Arc<Process> {
         let mut writable_run_queues = self.run_queues.write();
 
         process.schedule_with(self.id);
@@ -222,65 +191,19 @@ impl Scheduler {
         arc_process
     }
 
-    /// Spawns a process with arguments for `apply(module, function, arguments)` on its stack.
-    ///
-    /// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
-    /// MFA unique to a given application.
-    pub fn spawn_apply_3(
-        parent_process: &Process,
-        options: Options,
-        module: Atom,
-        function: Atom,
-        arguments: Term,
-    ) -> Result<Spawned> {
-        let spawn::Spawned {
-            process,
-            connection,
-        } = process::spawn::apply_3(parent_process, options, module, function, arguments)?;
-        let arc_scheduler = parent_process.scheduler().unwrap();
-        let arc_process = arc_scheduler.schedule(process);
-
-        put_pid_to_process(&arc_process);
-
-        Ok(Spawned {
-            arc_process,
-            connection,
-        })
+    // TODO: Request application master termination for controlled shutdown
+    // This request will always come from the thread which spawned the application
+    // master, i.e. the "main" scheduler thread
+    //
+    // Returns `Ok(())` if shutdown was successful, `Err(anyhow::Error)` if something
+    // went wrong during shutdown, and it was not able to complete normally
+    fn shutdown(&self) -> anyhow::Result<()> {
+        // For now just Ok(()), but this needs to be addressed when proper
+        // system startup/shutdown is in place
+        Ok(())
     }
 
-    /// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
-    /// of passing through `apply/3`.
-    pub fn spawn_code(
-        parent_process: &Process,
-        options: Options,
-        module: Atom,
-        function: Atom,
-        arguments: &[Term],
-        code: Code,
-    ) -> Result<Spawned> {
-        let spawn::Spawned {
-            process,
-            connection,
-        } = process::spawn::code(
-            Some(parent_process),
-            options,
-            module,
-            function,
-            arguments,
-            code,
-        )?;
-        let arc_scheduler = parent_process.scheduler().unwrap();
-        let arc_process = arc_scheduler.schedule(process);
-
-        put_pid_to_process(&arc_process);
-
-        Ok(Spawned {
-            arc_process,
-            connection,
-        })
-    }
-
-    pub fn spawn_init(self: Arc<Scheduler>, minimum_heap_size: usize) -> Result<Arc<Process>> {
+    fn spawn_init(&self, minimum_heap_size: usize) -> Result<Arc<Process>, SystemException> {
         let process = process::init(minimum_heap_size)?;
         let arc_process = Arc::new(process);
         let scheduler_arc_process = Arc::clone(&arc_process);
@@ -297,93 +220,7 @@ impl Scheduler {
         Ok(arc_process)
     }
 
-    pub fn stop_waiting(&self, process: &Process) {
+    fn stop_waiting(&self, process: &Process) {
         self.run_queues.write().stop_waiting(process);
     }
-
-    // Private
-
-    fn new() -> Scheduler {
-        Scheduler {
-            id: id::next(),
-            hierarchy: Default::default(),
-            reference_count: AtomicU64::new(0),
-            run_queues: Default::default(),
-            unique_integer: AtomicU64::new(0),
-        }
-    }
-
-    fn registered() -> Arc<Scheduler> {
-        let mut locked_scheduler_by_id = SCHEDULER_BY_ID.lock();
-        let arc_scheduler = Arc::new(Scheduler::new());
-
-        if let Some(_) =
-            locked_scheduler_by_id.insert(arc_scheduler.id.clone(), Arc::downgrade(&arc_scheduler))
-        {
-            #[cfg(debug_assertions)]
-            panic!(
-                "Scheduler already registered with ID ({:?}",
-                arc_scheduler.id
-            );
-            #[cfg(not(debug_assertions))]
-            panic!("Scheduler already registered");
-        }
-
-        arc_scheduler
-    }
-}
-
-impl Debug for Scheduler {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Scheduler")
-            .field("id", &self.id)
-            // The hiearchy slots take a lot of space, so don't print them by default
-            .field("reference_count", &self.reference_count)
-            .field("run_queues", &self.run_queues)
-            .finish()
-    }
-}
-
-impl Drop for Scheduler {
-    fn drop(&mut self) {
-        let mut locked_scheduler_by_id = SCHEDULER_BY_ID.lock();
-
-        locked_scheduler_by_id
-            .remove(&self.id)
-            .expect("Scheduler not registered");
-    }
-}
-
-impl PartialEq for Scheduler {
-    fn eq(&self, other: &Scheduler) -> bool {
-        self.id == other.id
-    }
-}
-
-pub struct Spawned {
-    pub arc_process: Arc<Process>,
-    #[must_use]
-    pub connection: Connection,
-}
-
-impl Spawned {
-    pub fn to_term(&self, process: &Process) -> Result<Term> {
-        let pid_term = self.arc_process.pid_term();
-
-        match self.connection.monitor_reference {
-            Some(monitor_reference) => process
-                .tuple_from_slice(&[pid_term, monitor_reference])
-                .map_err(|alloc| alloc.into()),
-            None => Ok(pid_term),
-        }
-    }
-}
-
-thread_local! {
-  static SCHEDULER: Arc<Scheduler> = Scheduler::registered();
-}
-
-lazy_static! {
-    static ref SCHEDULER_BY_ID: Mutex<HashMap<ID, Weak<Scheduler>>> =
-        Mutex::new(Default::default());
 }

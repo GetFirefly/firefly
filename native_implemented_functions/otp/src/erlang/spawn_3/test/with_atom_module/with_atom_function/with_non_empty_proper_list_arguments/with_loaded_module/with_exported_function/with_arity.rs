@@ -6,7 +6,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     exit_1::export();
 
     let parent_arc_process = test::process::init();
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
@@ -39,8 +39,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
 
     let child_arc_process = pid_to_process(&child_pid_pid).unwrap();
 
-    assert!(arc_scheduler.run_through(&child_arc_process));
-    assert!(!arc_scheduler.run_through(&child_arc_process));
+    assert!(scheduler::run_through(&child_arc_process));
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
@@ -61,7 +60,7 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
     exit_1::export();
 
     let parent_arc_process = test::process::init();
-    let arc_scheduler = Scheduler::current();
+    let arc_scheduler = scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
@@ -95,8 +94,7 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
 
     let child_arc_process = pid_to_process(&child_pid_pid).unwrap();
 
-    assert!(arc_scheduler.run_through(&child_arc_process));
-    assert!(!arc_scheduler.run_through(&child_arc_process));
+    assert!(scheduler::run_through(&child_arc_process));
 
     assert_eq!(
         child_arc_process.current_module_function_arity(),

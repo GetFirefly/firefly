@@ -11,7 +11,7 @@ use proptest::{prop_assert_eq, prop_oneof};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::time::Unit::{self, *};
+use crate::runtime::time::Unit::{self, *};
 
 use crate::erlang::convert_time_unit_3::native;
 use crate::test::strategy;

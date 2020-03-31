@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_core::registry::pid_to_process;
+use crate::runtime::registry::pid_to_process;
 
 #[native_implemented_function(unlink/1)]
 fn native(process: &Process, pid_or_port: Term) -> exception::Result<Term> {

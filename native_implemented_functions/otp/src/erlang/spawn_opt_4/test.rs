@@ -12,8 +12,8 @@ use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{atom, atom_from, exit, ModuleFunctionArity, Process};
 
-use lumen_rt_core::registry::pid_to_process;
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::registry::pid_to_process;
+use crate::runtime::scheduler;
 
 use crate::erlang;
 use crate::erlang::apply_3;

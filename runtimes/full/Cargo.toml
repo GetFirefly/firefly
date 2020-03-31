@@ -5,6 +5,9 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kroni
 publish = false
 edition = "2018"
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [dependencies]
 bus = "2.0"
 cfg-if = "0.1.7"
@@ -39,10 +42,8 @@ rand = "0.6"
 xorshift = "0.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2.48"
 rand = { version = "0.6", features = ["wasm-bindgen"] }
 xorshift = "0.1"
-js-sys = "0.3.25"
 
 # for debugging
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]

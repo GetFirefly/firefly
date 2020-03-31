@@ -14,7 +14,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use lumen_rt_core::time;
+use crate::runtime::time;
 
 use native_implemented_function::native_implemented_function;
 

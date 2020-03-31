@@ -3,7 +3,7 @@ use std::sync::Arc;
 use liblumen_alloc::Process;
 
 use crate::process::spawn::options::Options;
-use crate::scheduler::{Scheduler, Spawned};
+use crate::scheduler::{self, Spawned};
 
 use super::r#loop;
 
@@ -12,10 +12,12 @@ pub fn default() -> Arc<Process> {
 }
 
 pub fn init() -> Arc<Process> {
+    super::once_crate();
+
     // During test allow multiple unregistered init processes because in tests, the `Scheduler`s
     // keep getting `Drop`ed as threads end.
 
-    Scheduler::current()
+    scheduler::current()
         .spawn_init(
             // init process being the parent process needs space for the arguments when spawning
             // child processes.  These will not be GC'd, so it can be a lot of space if proptest
@@ -36,7 +38,7 @@ pub fn child(parent_process: &Process) -> Arc<Process> {
     let Spawned {
         arc_process: child_arc_process,
         connection,
-    } = Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap();
+    } = scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap();
     assert!(!connection.linked);
     assert!(connection.monitor_reference.is_none());
 

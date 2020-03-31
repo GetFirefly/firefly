@@ -3,7 +3,7 @@ mod with_monitor;
 use super::*;
 
 use crate::erlang::monitor_2;
-use lumen_rt_full::process::SchedulerDependentAlloc;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
 
 #[test]
 fn without_monitor_returns_true() {

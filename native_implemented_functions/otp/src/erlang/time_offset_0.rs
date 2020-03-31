@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::time::{monotonic, system, Unit::Native};
+use crate::runtime::time::{monotonic, system, Unit::Native};
 
 use native_implemented_function::native_implemented_function;
 

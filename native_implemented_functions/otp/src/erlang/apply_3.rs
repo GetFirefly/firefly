@@ -16,7 +16,7 @@ use liblumen_alloc::{Arity, ModuleFunctionArity};
 const ARITY: Arity = 3;
 
 pub fn export() {
-    lumen_rt_full::code::export::insert(super::module(), function(), ARITY, get_code());
+    crate::runtime::code::export::insert(super::module(), function(), ARITY, get_code());
 }
 
 /// Returns the `Code` that should be used in `otp::erlang::spawn_3` to look up and call a known
@@ -69,7 +69,7 @@ pub fn place_frame_with_arguments(
 // Private
 
 /// `module`, `function`, and arity of `argument_list` must have code registered with
-/// `lumen_rt_full::code::export::insert` or returns `undef` exception.
+/// `crate::runtime::code::export::insert` or returns `undef` exception.
 pub fn code(arc_process: &Arc<Process>) -> code::Result {
     let module = arc_process.stack_peek(1).unwrap();
     let function = arc_process.stack_peek(2).unwrap();
@@ -93,11 +93,11 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
     let function_atom: Atom = function.try_into().unwrap();
     let arity: Arity = argument_vec.len().try_into().unwrap();
 
-    match lumen_rt_full::code::export::get(&module_atom, &function_atom, arity) {
+    match crate::runtime::code::export::get(&module_atom, &function_atom, arity) {
         Some(code) => {
             arc_process.stack_popn(3);
 
-            lumen_rt_full::code::export::place_frame_with_arguments(
+            crate::runtime::code::export::place_frame_with_arguments(
                 &arc_process,
                 Placement::Replace,
                 module_atom,

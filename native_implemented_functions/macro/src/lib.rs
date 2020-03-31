@@ -4,11 +4,9 @@
 #![feature(proc_macro_def_site)]
 extern crate proc_macro;
 
-use proc_macro2::{Ident, Span};
+use proc_macro2::Ident;
 
 use proc_macro::TokenStream;
-
-use proc_macro_crate::crate_name;
 
 use quote::{quote, ToTokens};
 
@@ -301,25 +299,9 @@ impl Signatures {
     }
 
     pub fn export(&self) -> proc_macro2::TokenStream {
-        match crate_name("lumen_rt_full") {
-            // in other crates
-            Ok(name) => {
-                let ident = Ident::new(&name, Span::call_site());
-
-                quote! {
-                    pub fn export() {
-                        use #ident as lumen_rt_full;
-                        lumen_rt_full::code::export::insert(super::module(), function(), ARITY, code);
-                    }
-                }
-            }
-            // in `lumen_rt_full`
-            Err(_) => {
-                quote! {
-                    pub fn export() {
-                        crate::code::export::insert(super::module(), function(), ARITY, code);
-                    }
-                }
+        quote! {
+            pub fn export() {
+                crate::runtime::code::export::insert(super::module(), function(), ARITY, code);
             }
         }
     }

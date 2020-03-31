@@ -64,7 +64,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                 prop_assert!(monitor_reference.is_reference());
 
-                let scheduler = Scheduler::current();
+                let scheduler = scheduler::current();
 
                 prop_assert!(scheduler.run_once());
                 prop_assert!(scheduler.run_once());
@@ -196,7 +196,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
 
                 prop_assert!(monitor_reference.is_reference());
 
-                let scheduler = Scheduler::current();
+                let scheduler = scheduler::current();
 
                 prop_assert!(scheduler.run_once());
                 prop_assert!(scheduler.run_once());

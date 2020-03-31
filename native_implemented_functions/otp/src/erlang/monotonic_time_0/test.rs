@@ -1,7 +1,7 @@
 use crate::erlang::monotonic_time_0::native;
 use crate::test::with_process;
 
-use lumen_rt_core::time::monotonic;
+use crate::runtime::time::monotonic;
 
 #[test]
 fn increases_after_2_native_time_units() {

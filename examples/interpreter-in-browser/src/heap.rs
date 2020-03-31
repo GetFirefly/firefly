@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::{Atom, Encode, Term};
 use lumen_rt_core::registry::pid_to_process;
 
 use lumen_rt_full::process::spawn::options::Options;
-use lumen_rt_full::scheduler::{Scheduler, Spawned};
+use lumen_rt_full::scheduler::{self, Spawned};
 
 #[wasm_bindgen]
 pub struct Pid(term::prelude::Pid);
@@ -85,7 +85,7 @@ impl JsHeap {
         let Spawned {
             arc_process: run_arc_process,
             ..
-        } = Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
+        } = scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
 
         Pid(run_arc_process.pid())
     }

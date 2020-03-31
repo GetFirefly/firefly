@@ -13,9 +13,9 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{atom, exit};
 
-use lumen_rt_core::registry::pid_to_process;
+use crate::runtime::registry::pid_to_process;
 
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::scheduler;
 
 use crate::erlang::spawn_monitor_1::native;
 use crate::test;

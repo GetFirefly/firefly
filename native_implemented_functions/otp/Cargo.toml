@@ -5,13 +5,16 @@ authors = ["Luke Imhoff <Kronic.Deth@gmail.com>"]
 edition = "2018"
 description = "The standard library for lumen.  The modules that are included with Erlang: `erlang` and `map`."
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [dependencies]
 anyhow = "1.0"
 lazy_static = "1.2"
 liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
-lumen_rt_core = { path = "../../runtimes/core" }
-lumen_rt_full = { path = "../../runtimes/full" }
+lumen_rt_full = { path = "../../runtimes/full", optional = true }
+lumen_rt_minimal = { path = "../../runtimes/minimal", optional = true }
 native_implemented_function = { path = "../macro" }
 num-bigint = "0.2"
 num-traits = "0.2"
@@ -27,3 +30,7 @@ proptest = "0.9.3"
 
 [target.'cfg(windows)'.dependencies]
 proptest = "0.9.3"
+
+[features]
+runtime_full = ["lumen_rt_full"]
+runtime_minimal = ["lumen_rt_minimal"]

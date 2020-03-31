@@ -33,10 +33,13 @@ mod hello_world {
         );
 
         let hello_world_output = Command::new("./hello_world").output().unwrap();
+        let hello_world_stdout = String::from_utf8_lossy(&hello_world_output.stdout);
+        let hello_world_stderr = String::from_utf8_lossy(&hello_world_output.stderr);
 
         assert_eq!(
-            String::from_utf8_lossy(&hello_world_output.stdout),
-            "\"Hello, world!\"\n"
+            hello_world_stdout, "\"Hello, world!\"\n",
+            "\nstdout = {}\nstderr = {}",
+            hello_world_stdout, hello_world_stderr
         );
     }
 

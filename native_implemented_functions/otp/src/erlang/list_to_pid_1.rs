@@ -13,9 +13,9 @@ use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::distribution::nodes::node;
+use crate::runtime::distribution::nodes::node;
 
-use lumen_rt_full::distribution::nodes;
+use crate::runtime::distribution::nodes;
 
 use native_implemented_function::native_implemented_function;
 

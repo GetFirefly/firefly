@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_core::context::*;
+use crate::runtime::context::*;
 
 /// `not/1` prefix operator.
 #[native_implemented_function(not/1)]

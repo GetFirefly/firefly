@@ -47,7 +47,7 @@ fn does_not_flush_existing_message() {
         exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&monitored_arc_process));
+        assert!(scheduler::run_through(&monitored_arc_process));
 
         assert!(monitored_arc_process.is_exiting());
         assert!(!monitoring_arc_process.is_exiting());
@@ -102,7 +102,7 @@ fn prevents_future_messages() {
         exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&monitored_arc_process));
+        assert!(scheduler::run_through(&monitored_arc_process));
 
         assert!(monitored_arc_process.is_exiting());
         assert!(!monitoring_arc_process.is_exiting());

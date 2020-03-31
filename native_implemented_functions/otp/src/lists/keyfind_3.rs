@@ -10,7 +10,7 @@ use anyhow::*;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::context::term_try_into_one_based_index;
+use crate::runtime::context::term_try_into_one_based_index;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(keyfind/3)]

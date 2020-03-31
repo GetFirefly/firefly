@@ -9,11 +9,12 @@ use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::result_from_exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{exit, ModuleFunctionArity};
 
 use crate::scheduler::Scheduler;
-use crate::test;
+use crate::scheduler::Spawned;
+use crate::{scheduler, test};
 
 #[test]
 fn scheduler_does_not_requeue_exiting_process() {
@@ -26,28 +27,34 @@ fn scheduler_does_not_requeue_exiting_process() {
     )
     .unwrap();
 
-    let scheduler = Scheduler::current();
+    let arc_dyn_scheduler = scheduler::current();
+    let scheduler = arc_dyn_scheduler
+        .as_any()
+        .downcast_ref::<Scheduler>()
+        .unwrap();
 
     assert!(scheduler.is_run_queued(&arc_process));
-
-    assert!(scheduler.run_through(&arc_process));
-
+    assert!(scheduler::run_through(&arc_process));
     assert!(!scheduler.is_run_queued(&arc_process));
 }
 
 #[test]
 fn scheduler_does_run_exiting_process() {
     let arc_process = test::process::default();
-    let scheduler = Scheduler::current();
+    let arc_dyn_scheduler = scheduler::current();
+    let scheduler = arc_dyn_scheduler
+        .as_any()
+        .downcast_ref::<Scheduler>()
+        .unwrap();
 
     assert!(scheduler.is_run_queued(&arc_process));
-    assert!(scheduler.run_through(&arc_process));
+    assert!(scheduler::run_through(&arc_process));
     assert!(scheduler.is_run_queued(&arc_process));
 
     arc_process.exit_normal(anyhow!("Test").into());
 
     assert!(scheduler.is_run_queued(&arc_process));
-    assert!(!scheduler.run_through(&arc_process));
+    assert!(!scheduler::run_through(&arc_process));
     assert!(!scheduler.is_run_queued(&arc_process));
 }
 

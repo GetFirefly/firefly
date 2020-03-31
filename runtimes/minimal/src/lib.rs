@@ -16,15 +16,21 @@ mod builtins;
 mod config;
 pub mod env;
 mod logging;
-mod process;
-mod scheduler;
-mod sys;
+pub mod scheduler;
+pub mod sys;
+pub mod test;
+
+use liblumen_alloc::erts::process::alloc::default_heap_size;
+
+pub use lumen_rt_core::{
+    binary_to_string, code, context, distribution, future, process, proplist, registry, send,
+    stacktrace, time, timer,
+};
 
 use bus::Bus;
 use log::Level;
 
 use self::config::Config;
-use self::scheduler::Scheduler;
 use self::sys::break_handler::{self, Signal};
 
 #[liblumen_core::entry]
@@ -55,8 +61,9 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     let level_filter = Level::Info.to_level_filter();
     logging::init(level_filter).expect("Unexpected failure initializing logger");
 
-    let scheduler = Scheduler::current();
-    scheduler.init().unwrap();
+    scheduler::set_unregistered_once();
+    let scheduler = scheduler::current();
+    scheduler.spawn_init(default_heap_size()).unwrap();
     loop {
         // Run the scheduler for a cycle
         let scheduled = scheduler.run_once();

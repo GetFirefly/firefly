@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_full::process::SchedulerDependentAlloc;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
 
 #[native_implemented_function(make_ref/0)]
 pub fn native(process: &Process) -> exception::Result<Term> {

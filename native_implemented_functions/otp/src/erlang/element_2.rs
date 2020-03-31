@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_core::context::*;
+use crate::runtime::context::*;
 
 /// `element/2`
 #[native_implemented_function(element/2)]

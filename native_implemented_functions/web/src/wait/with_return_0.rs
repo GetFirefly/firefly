@@ -16,12 +16,11 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::registry;
-
-use lumen_rt_full::process;
-use lumen_rt_full::process::spawn::options::Options;
-use lumen_rt_full::process::spawn::Spawned;
-use lumen_rt_full::scheduler::Scheduler;
+use crate::runtime::process;
+use crate::runtime::process::spawn::options::Options;
+use crate::runtime::process::spawn::Spawned;
+use crate::runtime::registry;
+use crate::runtime::scheduler;
 
 /// Spawns process with this as the first frame, so that the next frame added in `call` can fulfill
 /// the promise.
@@ -33,7 +32,7 @@ where
 
     place_frame_with_arguments(&process)?;
 
-    let arc_process = Scheduler::current().schedule(process);
+    let arc_process = scheduler::current().schedule(process);
     registry::put_pid_to_process(&arc_process);
 
     Ok(promise)

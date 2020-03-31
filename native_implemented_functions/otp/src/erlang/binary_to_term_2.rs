@@ -16,8 +16,8 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_full::binary::to_term::Options;
-use lumen_rt_full::distribution::external_term_format::{term, version};
+use crate::binary::to_term::Options;
+use crate::runtime::distribution::external_term_format::{term, version};
 
 macro_rules! maybe_aligned_maybe_binary_try_into_term {
     ($process:expr, $options:expr, $binary:expr, $ident:expr) => {

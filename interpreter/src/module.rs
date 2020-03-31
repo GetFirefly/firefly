@@ -9,7 +9,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 macro_rules! trace {
-    ($($t:tt)*) => (lumen_rt_full::system::io::puts(&format_args!($($t)*).to_string()))
+    ($($t:tt)*) => (crate::runtime::sys::io::puts(&format_args!($($t)*).to_string()))
 }
 //macro_rules! trace {
 //    ($($t:tt)*) => ()

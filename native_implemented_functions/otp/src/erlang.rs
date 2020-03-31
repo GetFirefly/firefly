@@ -199,13 +199,15 @@ use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::context::*;
-use lumen_rt_core::time::{monotonic, Milliseconds};
+use crate::runtime::context::*;
+use crate::runtime::time::{monotonic, Milliseconds};
 
-use lumen_rt_core::registry::pid_to_self_or_process;
-use lumen_rt_full::process::SchedulerDependentAlloc;
-use lumen_rt_full::timer::start::ReferenceFrame;
-use lumen_rt_full::timer::{self, Timeout};
+use crate::runtime;
+use crate::runtime::registry::pid_to_self_or_process;
+use crate::runtime::scheduler::SchedulerDependentAlloc;
+use crate::runtime::timer::{Destination, Timeout};
+use crate::timer;
+use crate::timer::start::ReferenceFrame;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
@@ -227,7 +229,7 @@ fn cancel_timer(
                 timer_reference
             )
         })?;
-    let canceled = timer::cancel(&boxed_timer_reference);
+    let canceled = runtime::timer::cancel(&boxed_timer_reference);
 
     let term = if options.info {
         let canceled_term = match canceled {
@@ -307,7 +309,7 @@ fn read_timer(
         )
     })?;
 
-    let read = timer::read(&local_reference);
+    let read = runtime::timer::read(&local_reference);
 
     let read_term = match read {
         Some(milliseconds_remaining) => process.integer(milliseconds_remaining)?,
@@ -349,9 +351,9 @@ fn start_timer(
 
         match destination.decode()? {
             // Registered names are looked up at time of send
-            TypedTerm::Atom(destination_atom) => timer::start(
+            TypedTerm::Atom(destination_atom) => runtime::timer::start(
                 absolute_milliseconds,
-                timer::Destination::Name(destination_atom),
+                Destination::Name(destination_atom),
                 timeout,
                 message,
                 &arc_process,
@@ -361,9 +363,9 @@ fn start_timer(
             // LocalReference.
             TypedTerm::Pid(destination_pid) => {
                 match pid_to_self_or_process(destination_pid, &arc_process) {
-                    Some(pid_arc_process) => timer::start(
+                    Some(pid_arc_process) => runtime::timer::start(
                         absolute_milliseconds,
-                        timer::Destination::Process(Arc::downgrade(&pid_arc_process)),
+                        Destination::Process(Arc::downgrade(&pid_arc_process)),
                         timeout,
                         message,
                         &arc_process,

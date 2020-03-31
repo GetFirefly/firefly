@@ -1,13 +1,5 @@
 use super::*;
 
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::prelude::{Atom, Term};
-
-use lumen_rt_full::scheduler::Scheduler;
-
-use crate::erlang;
-use crate::test::{self, has_message, has_no_message};
-
 #[test]
 fn without_boolean_value_errors_badarg() {
     run!(
@@ -67,7 +59,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_norma
 
         assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -77,7 +69,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_norma
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -94,7 +86,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_shutd
 
         assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -104,7 +96,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_shutd
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -121,7 +113,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_with_
 
         assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -135,7 +127,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_with_
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -152,7 +144,7 @@ fn with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linke
 
         assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -162,7 +154,7 @@ fn with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linke
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -184,7 +176,7 @@ fn with_true_value_then_false_value_exits_when_linked_process_exits() {
 
         assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
@@ -196,7 +188,7 @@ fn with_true_value_then_false_value_exits_when_linked_process_exits() {
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&other_arc_process));
+        assert!(scheduler::run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
         assert!(process.is_exiting());

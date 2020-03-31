@@ -1,0 +1,31 @@
+name: Linux x86_64 Runtime Minimal
+
+on: push
+
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    container: kronicdeth/lumen-development@sha256:a91994aa0332b7f0d94c7342cc4edde50295f73ad2b7b9db3c7da8524f340b12
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-runtime-minimal-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-runtime-minimal-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-runtime-minimal-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: Test lumen_rt_minimal
+        run: cargo test --package lumen_rt_minimal
+      - name: Test liblumen_otp with runtime_minimal
+        working-directory: native_implemented_functions/otp
+        run: cargo test --features runtime_minimal

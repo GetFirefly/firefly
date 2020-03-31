@@ -4,7 +4,7 @@ use anyhow::*;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::proplist::TryPropListFromTermError;
+use crate::runtime::proplist::TryPropListFromTermError;
 
 pub struct Options {
     pub flush: bool,

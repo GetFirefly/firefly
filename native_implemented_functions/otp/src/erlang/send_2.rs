@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_full::send::{send, Sent};
+use crate::runtime::send::{send, Sent};
 
 #[native_implemented_function(send/2)]
 pub fn native(process: &Process, destination: Term, message: Term) -> exception::Result<Term> {

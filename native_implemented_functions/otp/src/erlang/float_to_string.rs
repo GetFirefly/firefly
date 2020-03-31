@@ -8,7 +8,7 @@ use anyhow::Context;
 use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::proplist::TryPropListFromTermError;
+use crate::runtime::proplist::TryPropListFromTermError;
 
 use decimal_digits::DecimalDigits;
 use scientific_digits::ScientificDigits;

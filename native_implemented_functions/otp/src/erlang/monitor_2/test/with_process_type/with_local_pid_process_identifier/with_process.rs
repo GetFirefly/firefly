@@ -96,7 +96,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
         exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
             .unwrap();
 
-        assert!(Scheduler::current().run_through(&monitored_arc_process));
+        assert!(scheduler::run_through(&monitored_arc_process));
 
         assert!(monitored_arc_process.is_exiting());
         assert!(!monitoring_arc_process.is_exiting());

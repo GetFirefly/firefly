@@ -6,7 +6,7 @@ publish = false
 edition = "2018"
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 anyhow = "1.0"

@@ -25,7 +25,7 @@ use crate::vm::VMState;
 mod r#match;
 
 macro_rules! trace {
-    ($($t:tt)*) => (lumen_rt_full::system::io::puts(&format_args!($($t)*).to_string()))
+    ($($t:tt)*) => (crate::runtime::sys::io::puts(&format_args!($($t)*).to_string()))
 }
 
 const VALUE_LIST_MARKER: &str = "eir_value_list_marker_df8gy43h";
@@ -105,7 +105,7 @@ where
                 // Terms are in root set
                 unsafe { terms.add(&mut rootset) };
 
-                lumen_rt_full::system::io::puts(
+                crate::runtime::sys::io::puts(
                     "=================================================== GC",
                 );
                 match heap.garbage_collect(proc, 0, rootset) {
@@ -119,7 +119,7 @@ where
                         // Terms are in root set
                         unsafe { terms.add(&mut rootset) };
 
-                        lumen_rt_full::system::io::puts(
+                        crate::runtime::sys::io::puts(
                             "=================================================== FULL GC",
                         );
                         match heap.garbage_collect(proc, 0, rootset) {
@@ -130,7 +130,7 @@ where
                 }
             }
             Err(fatal_err) => {
-                lumen_rt_full::system::io::puts(&format!("FATAL_ERROR!\n\n{:?}", fatal_err));
+                crate::runtime::sys::io::puts(&format!("FATAL_ERROR!\n\n{:?}", fatal_err));
                 abort();
             }
         }

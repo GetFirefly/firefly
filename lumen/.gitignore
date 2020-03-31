@@ -1,2 +1,2 @@
-/target
-**/*.rs.bk
+/cli
+/hello_world

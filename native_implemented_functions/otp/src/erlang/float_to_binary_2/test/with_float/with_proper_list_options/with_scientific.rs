@@ -8,7 +8,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::float_to_binary_1;
-use lumen_rt_full::binary_to_string::binary_to_string;
+use crate::runtime::binary_to_string::binary_to_string;
 
 #[test]
 fn with_20_digits_is_the_same_as_float_to_binary_1() {

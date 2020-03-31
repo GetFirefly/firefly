@@ -7,7 +7,7 @@ mod heap;
 mod module;
 mod start;
 
-use lumen_rt_full::system;
+use lumen_rt_full::sys;
 
 use lumen_interpreter::VM;
 
@@ -57,7 +57,7 @@ pub fn start() {
         .unwrap()
         .register_native_module(module::make_liblumen_web_node());
 
-    system::io::puts("initialized");
+    sys::io::puts("initialized");
 }
 
 fn parse<T>(input: &str, config: ParseConfig) -> (T, ArcCodemap)
@@ -101,6 +101,6 @@ pub fn compile_erlang_module(text: &str) {
         function_definition.function().graph_validate_global();
     }
 
-    system::io::puts(&format!("Compiled and registered {}", eir_mod.name()));
+    sys::io::puts(&format!("Compiled and registered {}", eir_mod.name()));
     VM.modules.write().unwrap().register_erlang_module(eir_mod);
 }

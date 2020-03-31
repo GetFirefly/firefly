@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_full::stacktrace;
+use crate::runtime::stacktrace;
 
 #[native_implemented_function(raise/3)]
 pub fn native(class: Term, reason: Term, stacktrace: Term) -> exception::Result<Term> {

@@ -7,7 +7,7 @@ use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::{Atom, Encoded, Pid};
 
-use lumen_rt_core::registry;
+use crate::runtime::registry;
 
 use crate::erlang;
 use crate::erlang::register_2::native;

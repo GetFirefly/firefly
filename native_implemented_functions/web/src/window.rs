@@ -15,7 +15,7 @@ use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::process::spawn::options::Options;
+use lumen_rt_full::process::spawn::options::Options;
 
 use crate::wait;
 

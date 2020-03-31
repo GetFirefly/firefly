@@ -22,9 +22,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::process::SchedulerDependentAlloc;
-use lumen_runtime::time::{monotonic, Milliseconds};
-use lumen_runtime::timer;
+use lumen_rt_full::process::SchedulerDependentAlloc;
+use lumen_rt_full::time::{monotonic, Milliseconds};
+use lumen_rt_full::timer;
 
 use crate::erlang;
 

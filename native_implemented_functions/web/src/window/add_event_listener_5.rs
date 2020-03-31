@@ -17,7 +17,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::process::spawn::options::Options;
+use lumen_rt_full::process::spawn::options::Options;
 
 use liblumen_otp::erlang;
 

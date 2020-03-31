@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 use crate::erlang::start_timer;
-use lumen_runtime::timer::Timeout;
+use lumen_rt_full::timer::Timeout;
 
 #[native_implemented_function(send_after/3)]
 pub fn native(

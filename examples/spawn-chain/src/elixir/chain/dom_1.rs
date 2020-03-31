@@ -8,7 +8,7 @@ use liblumen_alloc::erts::{Arity, ModuleFunctionArity};
 use crate::elixir::chain::{dom_output_1, run_2};
 
 pub fn export() {
-    lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+    lumen_rt_full::code::export::insert(super::module(), function(), ARITY, code);
 }
 
 /// ```elixir

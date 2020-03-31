@@ -7,8 +7,8 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::apply_2;
-use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::Scheduler;
+use lumen_rt_full::process::spawn::options::Options;
+use lumen_rt_full::scheduler::Scheduler;
 
 pub(in crate::erlang) fn native(
     process: &Process,

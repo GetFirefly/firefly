@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::erlang::orelse_2::native;
 use crate::test::{external_arc_node, strategy};
 use crate::test::{with_process, with_process_arc};
-use lumen_runtime::process::SchedulerDependentAlloc;
+use lumen_rt_full::process::SchedulerDependentAlloc;
 
 #[test]
 fn without_boolean_left_errors_badarg() {

@@ -8,9 +8,9 @@ use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::{Scheduler, Spawned};
-use lumen_runtime::system;
+use lumen_rt_full::process::spawn::options::Options;
+use lumen_rt_full::scheduler::{Scheduler, Spawned};
+use lumen_rt_full::system;
 
 use super::module::ModuleRegistry;
 

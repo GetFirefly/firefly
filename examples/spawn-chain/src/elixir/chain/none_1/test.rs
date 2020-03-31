@@ -2,10 +2,10 @@ use super::*;
 
 use std::sync::Once;
 
-use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::process::spawn::Spawned;
-use lumen_runtime::scheduler::Scheduler;
-use lumen_runtime::{process, registry};
+use lumen_rt_full::process::spawn::options::Options;
+use lumen_rt_full::process::spawn::Spawned;
+use lumen_rt_full::scheduler::Scheduler;
+use lumen_rt_full::{process, registry};
 
 use crate::start::export_code;
 
@@ -97,7 +97,7 @@ fn with_65536() {
 fn inspect_code(arc_process: &Arc<Process>) -> code::Result {
     let time_value = arc_process.stack_peek(1).unwrap();
 
-    lumen_runtime::system::io::puts(&format!("{}", time_value));
+    lumen_rt_full::system::io::puts(&format!("{}", time_value));
     arc_process.remove_last_frame(1);
 
     Process::call_code(arc_process)

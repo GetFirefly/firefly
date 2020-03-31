@@ -6,7 +6,7 @@ use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::context;
+use lumen_rt_full::context;
 
 pub fn string_to_float(
     process: &Process,

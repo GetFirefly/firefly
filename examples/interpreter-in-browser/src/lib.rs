@@ -7,7 +7,7 @@ mod heap;
 mod module;
 mod start;
 
-use lumen_runtime::system;
+use lumen_rt_full::system;
 
 use lumen_interpreter::VM;
 

@@ -9,8 +9,8 @@ use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::process::SchedulerDependentAlloc;
-use lumen_runtime::scheduler::Scheduler;
+use lumen_rt_full::process::SchedulerDependentAlloc;
+use lumen_rt_full::scheduler::Scheduler;
 
 use crate::erlang::demonitor_2::native;
 use crate::erlang::{exit_1, monitor_2};

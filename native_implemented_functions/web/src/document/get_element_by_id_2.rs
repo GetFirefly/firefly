@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::binary_to_string::binary_to_string;
+use lumen_rt_full::binary_to_string::binary_to_string;
 
 use crate::document::document_from_term;
 use crate::option_to_ok_tuple_or_error;

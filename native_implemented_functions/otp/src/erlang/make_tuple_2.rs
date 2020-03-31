@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::context::*;
+use lumen_rt_full::context::*;
 
 #[native_implemented_function(make_tuple/2)]
 pub fn native(process: &Process, arity: Term, initial_value: Term) -> exception::Result<Term> {

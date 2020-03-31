@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::distribution::nodes;
+use lumen_rt_full::distribution::nodes;
 
 #[native_implemented_function(list_to_pid/1)]
 pub fn native(process: &Process, string: Term) -> exception::Result<Term> {

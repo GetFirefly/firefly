@@ -1,5 +1,5 @@
 [package]
-name = "lumen_runtime"
+name = "lumen_rt_full"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
 publish = false
@@ -17,23 +17,16 @@ anyhow = "1.0"
 thiserror = "1.0"
 lazy_static = "1.2"
 libc = "0.2"
-liblumen_arena = { path = "../liblumen_arena" }
-liblumen_alloc = { path = "../liblumen_alloc" }
-liblumen_core = { path = "../liblumen_core" }
+liblumen_alloc = { path = "../../liblumen_alloc" }
+liblumen_core = { path = "../../liblumen_core" }
 log = "0.4"
-native_implemented_function = { path = "../native_implemented_functions/macro" }
 num-bigint = "0.2"
 num-traits = "0.2"
 num_enum = "0.4.2"
-radix_fmt = "1.0.0"
 chrono = "0.4"
 
 [dependencies.hashbrown]
 version = "0.7"
-features = ["nightly"]
-
-[dependencies.intrusive-collections]
-version = "0.8"
 features = ["nightly"]
 
 [dependencies.parking_lot_core]

@@ -43,7 +43,7 @@ use liblumen_alloc::Arity;
 use crate::elixir;
 
 pub fn export() {
-    lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+    lumen_rt_full::code::export::insert(super::module(), function(), ARITY, code);
 }
 
 // Private

@@ -6,7 +6,7 @@ macro_rules! number_infix_operator {
         use liblumen_alloc::erts::exception::*;
         use liblumen_alloc::erts::term::prelude::*;
 
-        use lumen_runtime::number::Operands::*;
+        use lumen_rt_full::number::Operands::*;
 
         let operands = match ($left.decode()?, $right.decode()?) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {

@@ -17,7 +17,7 @@ use lumen_interpreter::VM;
 
 use liblumen_alloc::erts::term::prelude::Atom;
 
-use lumen_runtime::scheduler::Scheduler;
+use lumen_rt_full::scheduler::Scheduler;
 
 fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, ArcCodemap)
 where

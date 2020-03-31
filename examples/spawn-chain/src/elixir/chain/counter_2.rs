@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Arity;
 
 pub fn export() {
-    lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+    lumen_rt_full::code::export::insert(super::module(), function(), ARITY, code);
 }
 
 // Private

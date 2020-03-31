@@ -19,8 +19,8 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{exception, Node};
 
-use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::{Scheduler, Spawned};
+use lumen_rt_full::process::spawn::options::Options;
+use lumen_rt_full::scheduler::{Scheduler, Spawned};
 
 use crate::test::r#loop;
 use crate::test::strategy::term::binary;

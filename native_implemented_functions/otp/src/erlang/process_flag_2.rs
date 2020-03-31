@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::context::*;
+use lumen_rt_full::context::*;
 
 #[native_implemented_function(process_flag/2)]
 pub fn native(process: &Process, flag: Term, value: Term) -> exception::Result<Term> {

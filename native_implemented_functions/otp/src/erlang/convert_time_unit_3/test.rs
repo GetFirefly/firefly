@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::erlang::convert_time_unit_3::native;
 use crate::test::strategy;
 use crate::test::with_process;
-use lumen_runtime::time::Unit::{self, *};
+use lumen_rt_full::time::Unit::{self, *};
 
 #[test]
 fn without_integer_time_returns_badarg() {

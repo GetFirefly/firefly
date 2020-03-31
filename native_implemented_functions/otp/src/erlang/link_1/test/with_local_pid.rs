@@ -4,7 +4,7 @@ use liblumen_alloc::error;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::{Atom, Pid};
 
-use lumen_runtime::scheduler::Scheduler;
+use lumen_rt_full::scheduler::Scheduler;
 
 use crate::{erlang, test};
 

@@ -20,12 +20,12 @@ members = [
   "liblumen_core_macros",
   "liblumen_util",
   "lumen",
-  "lumen_runtime",
   "native_implemented_functions/macro",
   "native_implemented_functions/otp",
   "native_implemented_functions/web",
   "runtimes/core",
   "runtimes/crt",
+  "runtimes/full",
   "runtimes/minimal",
 ]
 
@@ -47,11 +47,11 @@ default-members = [
   "liblumen_core_macros",
   "liblumen_util",
   "lumen",
-  "lumen_runtime",
   "native_implemented_functions/macro",
   "native_implemented_functions/otp",
   "native_implemented_functions/web",
   "runtimes/crt",
+  "runtimes/full",
 ]
 
 [profile.release]

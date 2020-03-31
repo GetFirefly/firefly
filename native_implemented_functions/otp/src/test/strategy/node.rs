@@ -8,7 +8,7 @@ use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::Node;
 
-use lumen_runtime::distribution::nodes;
+use lumen_rt_full::distribution::nodes;
 
 pub fn external() -> BoxedStrategy<Arc<Node>> {
     (id::external(), atom::external(), any::<u32>())

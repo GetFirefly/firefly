@@ -6,7 +6,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_runtime::registry;
+use lumen_rt_full::registry;
 
 use crate::erlang;
 use crate::erlang::unregister_1::native;

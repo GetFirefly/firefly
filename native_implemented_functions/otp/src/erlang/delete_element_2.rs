@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::context::*;
+use lumen_rt_full::context::*;
 
 /// `delete_element/2`
 #[native_implemented_function(delete_element/2)]

@@ -8,7 +8,7 @@ mod start;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 
-use lumen_runtime::process::spawn::options::Options;
+use lumen_rt_full::process::spawn::options::Options;
 
 use liblumen_web::wait;
 

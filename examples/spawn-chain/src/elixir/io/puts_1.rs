@@ -9,8 +9,8 @@ use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use lumen_runtime::binary_to_string::binary_to_string;
-use lumen_runtime::system;
+use lumen_rt_full::binary_to_string::binary_to_string;
+use lumen_rt_full::system;
 
 pub fn place_frame_with_arguments(
     process: &Process,

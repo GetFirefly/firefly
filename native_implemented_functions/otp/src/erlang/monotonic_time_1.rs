@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_runtime::time::{monotonic, Unit};
+use lumen_rt_full::time::{monotonic, Unit};
 
 #[native_implemented_function(monotonic_time/1)]
 pub fn native(process: &Process, unit: Term) -> exception::Result<Term> {

@@ -5,10 +5,11 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
+use lumen_rt_core::time::{system, Unit::Microsecond};
 
 use lumen_rt_full::system::time::ErlangTimestamp;
-use lumen_rt_full::time::{system, Unit::Microsecond};
+
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(timestamp/0)]
 pub fn native(process: &Process) -> exception::Result<Term> {

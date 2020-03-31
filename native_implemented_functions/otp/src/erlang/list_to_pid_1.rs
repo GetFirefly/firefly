@@ -13,9 +13,11 @@ use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
+use lumen_rt_core::distribution::nodes::node;
 
 use lumen_rt_full::distribution::nodes;
+
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(list_to_pid/1)]
 pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
@@ -50,7 +52,7 @@ pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
     let suffix_tail = skip_char(serial_tail_cons, '>').context("last character must be '>'")?;
 
     if suffix_tail.is_nil() {
-        if node_id == nodes::node::id() {
+        if node_id == node::id() {
             Pid::make_term(number, serial).with_context(|| format!("string ({})", string))
         } else {
             let arc_node = nodes::try_id_to_arc_node(&node_id)?;

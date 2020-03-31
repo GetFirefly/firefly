@@ -1,5 +1,9 @@
+// Layout helpers
+#![feature(alloc_layout_extra)]
+
 pub mod builtins;
 pub mod context;
+pub mod distribution;
 pub mod process;
 pub mod proplist;
 pub mod registry;

@@ -7,8 +7,10 @@ use liblumen_alloc::erts::fragment::HeapFragment;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term;
 use liblumen_alloc::erts::term::prelude::{Atom, Encode, Term};
+
+use lumen_rt_core::registry::pid_to_process;
+
 use lumen_rt_full::process::spawn::options::Options;
-use lumen_rt_full::registry::pid_to_process;
 use lumen_rt_full::scheduler::{Scheduler, Spawned};
 
 #[wasm_bindgen]

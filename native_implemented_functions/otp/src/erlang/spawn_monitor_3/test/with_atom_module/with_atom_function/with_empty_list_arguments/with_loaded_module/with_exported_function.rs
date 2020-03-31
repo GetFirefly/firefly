@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
     apply_3::export();
+
     let parent_arc_process = test::process::init();
     let arc_scheduler = Scheduler::current();
 
@@ -50,9 +51,6 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
     assert!(!parent_arc_process.is_exiting());
     assert!(arc_scheduler.run_through(&child_arc_process));
 
-    assert_eq!(child_arc_process.code_stack_len(), 0);
-    assert_eq!(child_arc_process.current_module_function_arity(), None);
-
     let reason = atom!("normal");
 
     match *child_arc_process.status.read() {
@@ -83,6 +81,7 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
 #[test]
 fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
     apply_3::export();
+
     let parent_arc_process = test::process::init();
     let arc_scheduler = Scheduler::current();
 
@@ -125,7 +124,6 @@ fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
 
     assert!(arc_scheduler.run_through(&child_arc_process));
 
-    assert_eq!(child_arc_process.code_stack_len(), 1);
     assert_eq!(
         child_arc_process.current_module_function_arity(),
         Some(apply_3::module_function_arity())

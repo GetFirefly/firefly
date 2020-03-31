@@ -1147,7 +1147,8 @@ impl Process {
         self.stack_popn(stack_used);
         let mut locked_code_stack = self.code_stack.lock();
 
-        assert_eq!(locked_code_stack.len(), 1);
+        // the last frame is at the 2nd spot because the true last frame is `lumen:out_of_code/1`.
+        assert_eq!(locked_code_stack.len(), 2);
 
         // unwrap to ensure there is a frame to replace
         locked_code_stack.pop().unwrap();

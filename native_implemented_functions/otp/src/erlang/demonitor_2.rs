@@ -13,11 +13,12 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
+use lumen_rt_core::process::monitor::is_down;
+use lumen_rt_core::registry::pid_to_process;
+
 use native_implemented_function::native_implemented_function;
 
 use crate::erlang::demonitor_2::options::Options;
-use lumen_rt_full::process::monitor::is_down;
-use lumen_rt_full::registry::pid_to_process;
 
 #[native_implemented_function(demonitor/2)]
 pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {

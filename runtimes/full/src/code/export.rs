@@ -23,6 +23,34 @@ pub fn contains_key(module: &Atom, function: &Atom, arity: Arity) -> bool {
         .unwrap_or(false)
 }
 
+pub fn display() -> String {
+    let mut string = String::new();
+    string.push_str("Exported code:\n");
+    let code_by_arity_by_function_by_module = RW_LOCK_CODE_BY_ARITY_BY_FUNCTION_BY_MODULE.read();
+
+    let mut modules: Vec<&Atom> = code_by_arity_by_function_by_module.keys().collect();
+    modules.sort();
+
+    for module in modules {
+        string.push_str(&format!("  {}:\n", module));
+
+        let code_by_arity_by_function = code_by_arity_by_function_by_module.get(module).unwrap();
+        let mut functions: Vec<&Atom> = code_by_arity_by_function.keys().collect();
+        functions.sort();
+
+        for function in functions {
+            let code_by_arity = code_by_arity_by_function.get(function).unwrap();
+            let arities: Vec<&Arity> = code_by_arity.keys().collect();
+
+            for arity in arities {
+                string.push_str(&format!("    {}/{}\n", function, arity));
+            }
+        }
+    }
+
+    string
+}
+
 pub fn get(module: &Atom, function: &Atom, arity: Arity) -> Option<Code> {
     RW_LOCK_CODE_BY_ARITY_BY_FUNCTION_BY_MODULE
         .read()

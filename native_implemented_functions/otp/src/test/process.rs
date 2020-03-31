@@ -26,6 +26,8 @@ pub fn init() -> Arc<Process> {
 }
 
 pub fn child(parent_process: &Process) -> Arc<Process> {
+    crate::erlang::exit_1::export();
+
     let mut options: Options = Default::default();
     options.min_heap_size = Some(16_000);
     let module = r#loop::module();

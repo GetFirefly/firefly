@@ -5,6 +5,7 @@ mod with_exported_function;
 #[test]
 fn without_exported_function_when_run_exits_undef_and_parent_exits() {
     apply_3::export();
+
     let parent_arc_process = test::process::init();
     let arc_scheduler = Scheduler::current();
 
@@ -43,7 +44,6 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
     assert!(arc_scheduler.run_through(&arc_process));
     assert!(!arc_scheduler.run_through(&arc_process));
 
-    assert_eq!(arc_process.code_stack_len(), 1);
     assert_eq!(
         arc_process.current_module_function_arity(),
         Some(apply_3::module_function_arity())

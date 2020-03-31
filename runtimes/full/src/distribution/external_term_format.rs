@@ -44,7 +44,7 @@ use liblumen_alloc::erts::term::prelude::{Pid as LocalPid, *};
 use liblumen_alloc::erts::{Node, Process};
 use liblumen_alloc::CloneToProcess;
 
-use super::nodes::node;
+use lumen_rt_core::distribution::nodes::node;
 
 pub fn try_split_at(bytes: &[u8], mid: usize) -> InternalResult<(&[u8], &[u8])> {
     let available = bytes.len();

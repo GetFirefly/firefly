@@ -4,7 +4,7 @@ use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
-use crate::distribution::nodes::node;
+use lumen_rt_core::distribution::nodes::node;
 
 use super::{arc_node, u16, u32, u64};
 use crate::distribution::external_term_format::try_split_at;

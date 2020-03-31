@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
 
-use lumen_rt_full::registry;
+use lumen_rt_core::registry;
 
 #[native_implemented_function(register/2)]
 pub fn native(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> exception::Result<Term> {

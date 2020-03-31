@@ -1,4 +1,5 @@
 mod message_queue_data;
+mod out_of_code;
 
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
@@ -7,13 +8,15 @@ use anyhow::*;
 
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::priority::Priority;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 
+use lumen_rt_core::proplist::TryPropListFromTermError;
+
 use crate::process;
-use crate::proplist::TryPropListFromTermError;
 
 use message_queue_data::*;
 
@@ -99,6 +102,7 @@ impl Options {
             heap,
             heap_size,
         );
+        out_of_code::place_frame_with_arguments(&process, Placement::Push)?;
 
         Ok(process)
     }

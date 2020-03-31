@@ -16,12 +16,13 @@ use liblumen_alloc::erts::process::{Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 
+use lumen_rt_core::registry::put_pid_to_process;
+use lumen_rt_core::scheduler::{run_queue, Run};
+use lumen_rt_core::timer::Hierarchy;
+
 use crate::process;
 use crate::process::spawn;
 use crate::process::spawn::options::{Connection, Options};
-use crate::registry::put_pid_to_process;
-use crate::run::{self, Run};
-use crate::timer::Hierarchy;
 
 pub trait Scheduled {
     fn scheduler(&self) -> Option<Arc<Scheduler>>;
@@ -45,7 +46,7 @@ pub struct Scheduler {
     pub hierarchy: RwLock<Hierarchy>,
     // References are always 64-bits even on 32-bit platforms
     reference_count: AtomicU64,
-    run_queues: RwLock<run::queues::Queues>,
+    run_queues: RwLock<run_queue::Queues>,
     // Non-monotonic unique integers are scoped to the scheduler ID and then use this per-scheduler
     // `u64`.
     unique_integer: AtomicU64,

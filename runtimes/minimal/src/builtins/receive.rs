@@ -4,8 +4,8 @@ use liblumen_alloc::erts::message::MessageType;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::timeout::{ReceiveTimeout, Timeout};
 
-use crate::process::current_process;
-use crate::time::monotonic;
+use lumen_rt_core::process::current_process;
+use lumen_rt_core::time::monotonic;
 
 extern "C" {
     #[link_name = "__lumen_builtin_yield"]

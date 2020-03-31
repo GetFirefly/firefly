@@ -1,5 +1,4 @@
 #![allow(unused)]
-mod run_queue;
 
 use std::alloc::Layout;
 use std::fmt::{self, Debug};
@@ -29,6 +28,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_rt_core as rt_core;
 use lumen_rt_core::process::CURRENT_PROCESS;
+use lumen_rt_core::scheduler::{run_queue, Run};
 use lumen_rt_core::timer::Hierarchy;
 
 const MAX_REDUCTION_COUNT: u32 = 20;
@@ -65,7 +65,7 @@ pub extern "C" fn builtin_spawn(to: Term, msg: Term) -> Term {
 
 #[export_name = "__lumen_builtin_yield"]
 pub unsafe extern "C" fn process_yield() -> bool {
-    let s = <Scheduler as rt_core::Scheduler>::current();
+    let s = Scheduler::current();
     // NOTE: We always set root=false here because the root
     // process never invokes this function
     s.process_yield(/* root= */ false)
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn process_return_continuation() {
 
 #[inline(never)]
 fn process_return() {
-    let s = <Scheduler as rt_core::Scheduler>::current();
+    let s = Scheduler::current();
     do_process_return(&s);
 }
 
@@ -103,7 +103,7 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
     let kind_result: Result<TermKind, _> = kind.try_into();
     match kind_result {
         Ok(TermKind::Closure) => {
-            let s = <Scheduler as rt_core::Scheduler>::current();
+            let s = Scheduler::current();
             let cl = ClosureLayout::for_env_len(arity);
             let result = s.current.alloc_nofrag_layout(cl.layout().clone());
             if let Ok(nn) = result {
@@ -111,7 +111,7 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
             }
         }
         Ok(TermKind::Tuple) => {
-            let s = <Scheduler as rt_core::Scheduler>::current();
+            let s = Scheduler::current();
             let layout = Tuple::layout_for_len(arity);
             let result = s.current.alloc_nofrag_layout(layout);
             if let Ok(nn) = result {
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
             }
         }
         Ok(TermKind::Cons) => {
-            let s = <Scheduler as rt_core::Scheduler>::current();
+            let s = Scheduler::current();
             let layout = Layout::new::<Cons>();
             let result = s.current.alloc_nofrag_layout(layout);
             if let Ok(nn) = result {
@@ -173,11 +173,6 @@ pub struct Scheduler {
 // ever accessed by the scheduler when scheduling
 unsafe impl Sync for Scheduler {}
 impl rt_core::Scheduler for Scheduler {
-    #[inline]
-    fn current() -> Arc<Self> {
-        SCHEDULER.with(|s| s.clone())
-    }
-
     fn id(&self) -> id::ID {
         self.id
     }
@@ -192,6 +187,11 @@ impl rt_core::Scheduler for Scheduler {
     }
 }
 impl Scheduler {
+    #[inline]
+    pub fn current() -> Arc<Self> {
+        SCHEDULER.with(|s| s.clone())
+    }
+
     /// Creates a new scheduler with the default configuration
     fn new() -> anyhow::Result<Scheduler> {
         let id = id::next();
@@ -356,18 +356,6 @@ impl PartialEq for Scheduler {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
-}
-
-/// What to run
-pub enum Run {
-    /// Run the process now
-    Now(Arc<Process>),
-    /// There was a process in the queue, but it needs to be delayed because it is `Priority::Low`
-    /// and hadn't been delayed enough yet.  Ask the `RunQueue` again for another process.
-    /// -- https://github.com/erlang/otp/blob/fe2b1323a3866ed0a9712e9d12e1f8f84793ec47/erts/emulator/beam/erl_process.c#L9601-L9606
-    Delayed,
-    /// There are no processes in the run queue, do other work
-    None,
 }
 
 impl Scheduler {

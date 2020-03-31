@@ -149,8 +149,8 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                 let scheduler = Scheduler::current();
 
-                prop_assert!(scheduler.run_once());
-                prop_assert!(scheduler.run_once());
+                prop_assert!(scheduler.run_through(&child_arc_process));
+                prop_assert!(scheduler.run_through(&child_arc_process));
 
                 let reason = Atom::str_to_term("normal");
 

@@ -1,3 +1,5 @@
+pub mod monitor;
+
 use liblumen_alloc::erts::process::Process;
 use std::cell::RefCell;
 use std::sync::Arc;

@@ -28,9 +28,10 @@ use liblumen_alloc::erts::term::prelude::Term;
 #[cfg(not(test))]
 use liblumen_core::entry;
 
+use lumen_rt_core::time::monotonic::time_in_milliseconds;
+use lumen_rt_core::time::Milliseconds;
+
 use lumen_rt_full::scheduler::Scheduler;
-use lumen_rt_full::time::monotonic::time_in_milliseconds;
-use lumen_rt_full::time::Milliseconds;
 
 use crate::window::add_event_listener;
 

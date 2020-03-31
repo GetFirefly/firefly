@@ -7,9 +7,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
+use lumen_rt_core::time::{monotonic, system, Unit};
 
-use lumen_rt_full::time::{monotonic, system, Unit};
+use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(time_offset/1)]
 pub fn native(process: &Process, unit: Term) -> exception::Result<Term> {

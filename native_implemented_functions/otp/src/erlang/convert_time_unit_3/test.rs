@@ -11,10 +11,11 @@ use proptest::{prop_assert_eq, prop_oneof};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
+use lumen_rt_core::time::Unit::{self, *};
+
 use crate::erlang::convert_time_unit_3::native;
 use crate::test::strategy;
 use crate::test::with_process;
-use lumen_rt_full::time::Unit::{self, *};
 
 #[test]
 fn without_integer_time_returns_badarg() {

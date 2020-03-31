@@ -2,12 +2,12 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::thread::ThreadId;
 
-use liblumen_codegen::codegen::CompiledModule;
-use liblumen_codegen::llvm;
-use liblumen_codegen::mlir;
+use liblumen_codegen::meta::CompiledModule;
 use liblumen_core::symbols::FunctionSymbol;
 use liblumen_incremental::ParserDatabase;
 use liblumen_incremental::{InternedInput, QueryResult};
+use liblumen_llvm as llvm;
+use liblumen_mlir as mlir;
 
 use crate::compiler::intern::InternedString;
 use crate::compiler::queries;
@@ -49,7 +49,7 @@ pub trait CodegenDatabase: CodegenDatabaseBase {
     fn llvm_context(&self, thread_id: ThreadId) -> Arc<llvm::Context>;
 
     #[salsa::invoke(queries::get_target_machine)]
-    fn get_target_machine(&self, thread_id: ThreadId) -> Arc<llvm::TargetMachine>;
+    fn get_target_machine(&self, thread_id: ThreadId) -> Arc<llvm::target::TargetMachine>;
 
     #[salsa::invoke(queries::get_llvm_module)]
     fn get_llvm_module(

@@ -6,9 +6,11 @@ use anyhow::anyhow;
 
 use log::debug;
 
-use liblumen_codegen::mlir::{self, Dialect, GeneratedModule};
-use liblumen_codegen::{self as codegen, codegen::CompiledModule, llvm};
+use liblumen_codegen::meta::CompiledModule;
+use liblumen_codegen::{self as codegen, GeneratedModule};
 use liblumen_incremental::{InternedInput, QueryResult};
+use liblumen_llvm as llvm;
+use liblumen_mlir as mlir;
 use liblumen_session::{Input, InputType, OutputType};
 
 use crate::compiler::query_groups::*;
@@ -23,13 +25,17 @@ macro_rules! to_query_result {
 }
 
 /// Create context for MLIR
-pub(super) fn mlir_context<C>(_db: &C, thread_id: ThreadId) -> Arc<mlir::Context>
+pub(super) fn mlir_context<C>(db: &C, thread_id: ThreadId) -> Arc<mlir::Context>
 where
     C: CodegenDatabase,
 {
-    use codegen::mlir::Context;
+    use mlir::Context;
+
     debug!("constructing new mlir context for thread {:?}", thread_id);
-    Arc::new(Context::new(thread_id))
+
+    let options = db.options();
+    let target_machine = db.get_target_machine(thread_id);
+    Arc::new(Context::new(thread_id, &options, &target_machine))
 }
 
 /// Parse MLIR source file
@@ -85,7 +91,7 @@ where
             .map(|fm| fm.clone())
             .expect("expected input to have corresponding entry in code map")
     };
-    match mlir::builder::build(&module, filemap, &context, &options, target_machine.deref()) {
+    match codegen::builder::build(&module, filemap, &context, &options, target_machine.deref()) {
         Ok(GeneratedModule {
             module: mlir_module,
             atoms,
@@ -154,16 +160,11 @@ where
     let module = db.get_eir_dialect_module(thread_id, input)?;
 
     // Lower to LLVM dialect
-    let (opt, _size) = codegen::ffi::util::to_llvm_opt_settings(options.opt_level);
     debug!(
-        "lowering mlir to llvm dialect for {:?} on {:?} with opt-level={}",
-        input, thread_id, opt
+        "lowering mlir to llvm dialect for {:?} on {:?}",
+        input, thread_id
     );
-    let target_machine = db.get_target_machine(thread_id);
-    to_query_result!(
-        db,
-        module.lower(&context, Dialect::LLVM, opt, &target_machine)
-    );
+    to_query_result!(db, module.lower(&context));
 
     // Emit LLVM dialect
     db.maybe_emit_file_with_opts(&options, input, module.deref())?;
@@ -176,19 +177,19 @@ pub(super) fn llvm_context<C>(_db: &C, thread_id: ThreadId) -> Arc<llvm::Context
 where
     C: CodegenDatabase,
 {
-    use codegen::llvm::Context;
+    use llvm::Context;
     debug!("constructing new llvm context for thread {:?}", thread_id);
     Arc::new(Context::new())
 }
 
-pub(super) fn get_target_machine<C>(db: &C, thread_id: ThreadId) -> Arc<llvm::TargetMachine>
+pub(super) fn get_target_machine<C>(db: &C, thread_id: ThreadId) -> Arc<llvm::target::TargetMachine>
 where
     C: CodegenDatabase,
 {
     let options = db.options();
     let diagnostics = db.diagnostics();
     debug!("constructing new target machine for thread {:?}", thread_id);
-    Arc::new(codegen::target::create_target_machine(
+    Arc::new(llvm::target::create_target_machine(
         &options,
         diagnostics,
         false,
@@ -204,21 +205,13 @@ where
     C: CodegenDatabase,
 {
     let options = db.options();
+    let context = db.mlir_context(thread_id);
     let mlir_module = db.get_llvm_dialect_module(thread_id, input)?;
 
     // Convert to LLVM IR
-    let (opt, size) = codegen::ffi::util::to_llvm_opt_settings(options.opt_level);
-    debug!(
-        "generating llvm for {:?} on {:?} with opt-level={} and size-level={}",
-        input, thread_id, opt, size
-    );
-    let target_machine = db.get_target_machine(thread_id);
-    debug!("using target machine {:?}", &target_machine);
+    debug!("generating llvm for {:?} on {:?}", input, thread_id,);
     let source_name = get_input_source_name(db, input);
-    let module = to_query_result!(
-        db,
-        mlir_module.lower_to_llvm_ir(source_name, opt, size, &target_machine)
-    );
+    let module = to_query_result!(db, mlir_module.lower_to_llvm_ir(&context, source_name));
 
     // Emit LLVM IR
     db.maybe_emit_file_with_opts(&options, input, &module)?;

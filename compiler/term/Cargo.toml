@@ -5,9 +5,10 @@ authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 edition = "2018"
 
 build = "build.rs"
+links = "lumen_term_core"
 
 [lib]
-crate-type = ["rlib", "cdylib", "staticlib"]
+crate-type = ["rlib", "staticlib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,5 +16,4 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 
 
 [build-dependencies]
-cmake = "0.1"
 which = "2.0.1"

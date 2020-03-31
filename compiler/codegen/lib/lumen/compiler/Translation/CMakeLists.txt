@@ -5,10 +5,8 @@ lumen_cc_library(
     "ModuleBuilder.h"
     "ModuleBuilderSupport.h"
   SRCS
-    "LLVMIR.cpp"
+    "MLIR.cpp"
     "ModuleBuilder.cpp"
-    "ModuleReader.cpp"
-    "ModuleWriter.cpp"
   DEPS
     lumen::compiler::Dialect::EIR::IR
     lumen::compiler::Dialect::EIR::Transforms

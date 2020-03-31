@@ -1,8 +1,8 @@
 #ifndef EIR_ATTRIBUTES_H
 #define EIR_ATTRIBUTES_H
 
-#include "llvm/ADT/APInt.h"
 #include "mlir/IR/Attributes.h"
+#include "llvm/ADT/APInt.h"
 
 namespace llvm {
 class APInt;

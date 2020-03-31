@@ -1,14 +1,15 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/MLIRContext.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/SHA1.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "mlir/IR/Dialect.h"
-#include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/MLIRContext.h"
 
 using ::llvm::hash_combine;
 using ::mlir::AttributeStorage;

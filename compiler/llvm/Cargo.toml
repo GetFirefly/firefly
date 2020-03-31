@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 edition = "2018"
 
+build = "build.rs"
+links = "lumen_llvm_core"
+
 [lib]
 crate-type = ["rlib", "staticlib"]
 
@@ -11,8 +14,17 @@ crate-type = ["rlib", "staticlib"]
 
 [dependencies]
 libc = "0.2"
+anyhow = "1.0"
+liblumen_session = { path = "../session" }
+liblumen_target = { path = "../target" }
+liblumen_util = { path = "../../liblumen_util" }
 
 [dependencies.llvm-sys]
 git = "https://github.com/lumen/llvm-sys.rs"
 branch = "llvm-9.0"
 features = ["no-llvm-linking", "disable-alltargets-init"]
+
+[build-dependencies]
+cc = "1.0"
+which = "2.0.1"
+walkdir = "2.3"

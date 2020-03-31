@@ -15,11 +15,9 @@ use log::debug;
 
 use libeir_diagnostics::{CodeMap, Emitter};
 
+use liblumen_codegen as codegen;
 use liblumen_codegen::linker::{self, LinkerInfo};
-use liblumen_codegen::{
-    self as codegen,
-    codegen::{CodegenResults, ProjectInfo},
-};
+use liblumen_codegen::meta::{CodegenResults, ProjectInfo};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_util::time::HumanDuration;
 
@@ -139,20 +137,14 @@ pub fn handle_command<'a>(
     let atoms = db.take_atoms();
     let symbols = db.take_symbols();
     let output_dir = db.output_dir();
-    let atom_module = codegen::atoms::compile_atom_table(
+    codegen::generators::run(
+        &mut codegen_results,
         context.deref(),
         target_machine.deref(),
+        output_dir.as_path(),
         atoms,
-        output_dir.as_path(),
-    )?;
-    let symbol_module = codegen::symbol_table::compile_symbol_table(
-        context.deref(),
-        target_machine.deref(),
         symbols,
-        output_dir.as_path(),
     )?;
-    codegen_results.modules.push(atom_module);
-    codegen_results.modules.push(symbol_module);
 
     // Link all compiled objects
     let diagnostics = db.diagnostics();

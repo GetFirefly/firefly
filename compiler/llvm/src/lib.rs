@@ -1,76 +1,95 @@
 #![feature(extern_types)]
+#![feature(const_cstr_unchecked)]
 
+pub mod archives;
+pub mod builder;
+pub mod config;
+pub mod context;
 pub mod diagnostics;
+pub mod enums;
+pub mod module;
 pub mod passes;
-pub mod string;
+pub mod target;
+pub mod utils;
 
-pub type Value = llvm_sys::LLVMValue;
+pub use self::context::{Context, ContextRef};
+pub use self::module::{Module, ModuleRef};
 
-use std::fmt;
+use std::sync::Once;
 
+use anyhow::anyhow;
+
+use liblumen_session::Options;
+
+pub type Block = *mut llvm_sys::LLVMBasicBlock;
+pub type Type = *mut llvm_sys::LLVMType;
+pub type Value = *mut llvm_sys::LLVMValue;
+
+pub type Result<T> = std::result::Result<T, anyhow::Error>;
+
+static INIT: Once = Once::new();
+
+extern "C" {
+    pub fn LLVMLumenVersionMajor() -> u32;
+    pub fn LLVMLumenVersionMinor() -> u32;
+}
+
+/// Returns the current version of LLVM
+///
+/// NOTE: Can be called without initializing LLVM
+pub fn version() -> String {
+    unsafe { format!("{}.{}", LLVMLumenVersionMajor(), LLVMLumenVersionMinor()) }
+}
+
+/// Performs one-time initialization of LLVM
+///
+/// This should be called at program startup
+pub fn init(options: &Options) -> anyhow::Result<()> {
+    let mut is_multithreaded = true;
+    unsafe {
+        // Before we touch LLVM, make sure that multithreading is enabled.
+        INIT.call_once(|| {
+            if llvm_sys::core::LLVMIsMultithreaded() == 1 {
+                // Initialize diagnostics handlers
+                diagnostics::init();
+                // Initialize all passes
+                passes::init();
+                // Initialize all targets
+                target::init();
+                // Configure LLVM
+                config::init(options);
+            } else {
+                is_multithreaded = false;
+            }
+        });
+    }
+    if is_multithreaded {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected LLVM to be compiled with multithreading enabled!"
+        ))
+    }
+}
+
+/// Ensures a panic is raised if LLVM has not been initialized in this function
+pub(crate) fn require_inited() {
+    INIT.call_once(|| panic!("LLVM is not initialized"));
+}
+
+/// A result type for use with LLVM APIs
 #[derive(Copy, Clone, PartialEq)]
 #[repr(C)]
 #[allow(dead_code)] // Variants constructed by C++.
-pub enum LLVMLumenResult {
+pub enum LLVMResult {
     Success,
     Failure,
 }
-impl LLVMLumenResult {
-    pub fn into_result(self) -> Result<(), ()> {
+impl LLVMResult {
+    pub fn into_result(self) -> std::result::Result<(), ()> {
         match self {
             Self::Success => Ok(()),
             Self::Failure => Err(()),
-        }
-    }
-}
-
-/// LLVMLumenFileType
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub enum FileType {
-    #[allow(dead_code)]
-    Other,
-    AssemblyFile,
-    ObjectFile,
-}
-
-/// LLVMCodeGenOptLevel
-#[derive(Debug, Copy, Clone, PartialEq)]
-#[repr(C)]
-pub enum CodeGenOptLevel {
-    Other,
-    None,
-    Less,
-    Default,
-    Aggressive,
-}
-impl fmt::Display for CodeGenOptLevel {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Other => f.write_str("other"),
-            Self::None => f.write_str("none"),
-            Self::Less => f.write_str("less"),
-            Self::Default => f.write_str("default"),
-            Self::Aggressive => f.write_str("aggressive"),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-#[repr(C)]
-pub enum CodeGenOptSize {
-    Other,
-    None,
-    Default,
-    Aggressive,
-}
-impl fmt::Display for CodeGenOptSize {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Other => f.write_str("other"),
-            Self::None => f.write_str("none"),
-            Self::Default => f.write_str("default"),
-            Self::Aggressive => f.write_str("aggressive"),
         }
     }
 }

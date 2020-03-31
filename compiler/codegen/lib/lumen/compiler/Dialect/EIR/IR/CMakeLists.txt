@@ -1,5 +1,3 @@
-# add_subdirectory(test)
-
 lumen_tablegen_library(
   NAME
     EIREnumsGen
@@ -40,8 +38,6 @@ lumen_tablegen_library(
     -gen-op-interface-decls EIROpInterface.h.inc
     -gen-op-interface-defs EIROpInterface.cpp.inc
 )
-
-
 
 lumen_cc_library(
   NAME

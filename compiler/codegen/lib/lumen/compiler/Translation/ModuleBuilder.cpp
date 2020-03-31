@@ -1,4 +1,11 @@
 #include "lumen/compiler/Translation/ModuleBuilder.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
+
+#include "mlir/Analysis/Verifier.h"
+#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
+#include "mlir/EDSC/Intrinsics.h"
+#include "mlir/IR/StandardTypes.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -11,18 +18,10 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
-#include "mlir/Analysis/Verifier.h"
-#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
-#include "mlir/EDSC/Intrinsics.h"
-#include "mlir/IR/Attributes.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/StandardTypes.h"
 
 using ::llvm::Optional;
 using ::llvm::StringSwitch;
+using ::llvm::TargetMachine;
 using ::mlir::edsc::intrinsics::OperationBuilder;
 using ::mlir::edsc::intrinsics::ValueBuilder;
 using eir_cast = ValueBuilder<::lumen::eir::CastOp>;
@@ -36,37 +35,9 @@ using eir_atom = ValueBuilder<::lumen::eir::ConstantAtomOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Builder, MLIRBuilderRef);
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(mlir::Block, MLIRBlockRef);
-DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::TargetMachine, LLVMTargetMachineRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::FuncOp, MLIRFunctionOpRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::ModuleBuilder,
                                    MLIRModuleBuilderRef);
-
-inline Attribute unwrap(const void *P) {
-  return Attribute::getFromOpaquePointer(P);
-}
-
-inline MLIRAttributeRef wrap(const Attribute &attr) {
-  auto ptr = attr.getAsOpaquePointer();
-  return reinterpret_cast<MLIRAttributeRef>(const_cast<void *>(ptr));
-}
-
-inline Value unwrap(MLIRValueRef v) { return Value::getFromOpaquePointer(v); }
-
-inline MLIRValueRef wrap(const Value &val) {
-  auto ptr = val.getAsOpaquePointer();
-  return reinterpret_cast<MLIRValueRef>(const_cast<void *>(ptr));
-}
-
-inline Location unwrap(MLIRLocationRef l) {
-  return Location::getFromOpaquePointer(l);
-}
-
-inline MLIRLocationRef wrap(const Location &loc) {
-  auto ptr = loc.getAsOpaquePointer();
-  return reinterpret_cast<MLIRLocationRef>(const_cast<void *>(ptr));
-}
 
 namespace lumen {
 namespace eir {

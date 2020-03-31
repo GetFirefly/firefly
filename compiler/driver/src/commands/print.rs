@@ -6,6 +6,7 @@ use clap::ArgMatches;
 use libeir_diagnostics::Emitter;
 
 use liblumen_codegen as codegen;
+use liblumen_llvm as llvm;
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_target::{self as target, Target};
 
@@ -29,7 +30,7 @@ pub fn handle_command<'a>(
                 println!("commit-hash: {}", crate::LUMEN_COMMIT_HASH);
                 println!("commit-date: {}", crate::LUMEN_COMMIT_DATE);
                 println!("host:        {}", target::host_triple());
-                println!("llvm:        {}", codegen::llvm_version());
+                println!("llvm:        {}", llvm::version());
             } else {
                 println!("{}", crate::LUMEN_RELEASE);
             }
@@ -48,17 +49,17 @@ pub fn handle_command<'a>(
                 Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
             let diagnostics = default_diagnostics_handler(&options, emitter);
             codegen::init(&options);
-            codegen::print_target_features(&options, &diagnostics);
+            llvm::target::print_target_features(&options, &diagnostics);
         }
         ("target-cpus", subcommand_matches) => {
             let options =
                 Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
             let diagnostics = default_diagnostics_handler(&options, emitter);
             codegen::init(&options);
-            codegen::print_target_cpus(&options, &diagnostics);
+            llvm::target::print_target_cpus(&options, &diagnostics);
         }
         ("passes", _subcommand_matches) => {
-            codegen::print_passes();
+            llvm::passes::print();
         }
         (subcommand, _) => unimplemented!("print subcommand '{}' is not implemented", subcommand),
     }

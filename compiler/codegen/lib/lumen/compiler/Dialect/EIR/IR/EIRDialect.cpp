@@ -1,14 +1,15 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
-
-#include "llvm/Support/Format.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/InliningUtils.h"
+
+#include "llvm/Support/Format.h"
 
 using namespace lumen::eir;
 

@@ -1,3 +1,5 @@
+pub(super) mod builder;
+
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -5,6 +7,8 @@ use anyhow::anyhow;
 use log::debug;
 
 use liblumen_session::Options;
+
+pub use self::builder::LlvmArchiveBuilder;
 
 pub fn find_library(
     name: &str,

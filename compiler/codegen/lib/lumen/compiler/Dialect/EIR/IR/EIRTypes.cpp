@@ -1,16 +1,17 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/SMLoc.h"
-#include "llvm/Support/raw_ostream.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
+
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Parser.h"
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/SMLoc.h"
+#include "llvm/Support/raw_ostream.h"
 
 using ::llvm::SmallVector;
 

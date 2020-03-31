@@ -1,13 +1,7 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
-
-#include <iterator>
-#include <vector>
-
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/SMLoc.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
@@ -21,6 +15,13 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/STLExtras.h"
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/SMLoc.h"
+
+#include <iterator>
+#include <vector>
 
 using namespace lumen;
 using namespace lumen::eir;

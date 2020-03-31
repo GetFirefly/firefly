@@ -17,6 +17,7 @@ cranelift-entity = "0.56.0"
 fxhash = "0.2"
 
 liblumen_llvm = { path = "../llvm" }
+liblumen_mlir = { path = "../mlir" }
 liblumen_session = { path = "../session" }
 liblumen_target = { path = "../target" }
 liblumen_term = { path = "../term" }
@@ -34,12 +35,9 @@ libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "l
 libeir_util_datastructures = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 
 # llvm crates
-[dependencies.llvm-sys]
-git = "https://github.com/lumen/llvm-sys.rs"
-branch = "llvm-9.0"
-features = ["no-llvm-linking"]
-
 [build-dependencies]
 cmake = "0.1"
 which = "2.0.1"
+liblumen_term = { path = "../term" }
 liblumen_llvm = { path = "../llvm" }
+liblumen_mlir = { path = "../mlir" }

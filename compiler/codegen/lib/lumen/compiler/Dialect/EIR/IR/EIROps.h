@@ -1,16 +1,11 @@
 #ifndef EIR_OPS_H_
 #define EIR_OPS_H_
 
-#include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTraits.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
 #include "lumen/compiler/Translation/ModuleBuilderSupport.h"
+
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dialect.h"
@@ -21,6 +16,13 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffects.h"
+
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 
 using namespace mlir;
 using ::llvm::APFloat;

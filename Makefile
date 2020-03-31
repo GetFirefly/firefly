@@ -47,6 +47,14 @@ liblumen_llvm:
 	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_llvm 
 
+liblumen_mlir:
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_mlir
+
+liblumen_codegen:
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_codegen
+
 build-static: ## Build a statically linked Lumen compiler
 	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
 		bin/build-lumen --debug --static --use-libcxx

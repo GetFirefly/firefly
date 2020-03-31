@@ -1,13 +1,14 @@
 #include "lumen/compiler/Dialect/EIR/Transforms/Passes.h"
-
-#include <memory>
-
-#include "llvm/Target/TargetMachine.h"
 #include "lumen/compiler/Dialect/EIR/Conversion/EIRToLLVM/ConvertEIRToLLVM.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
+
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/Passes.h"
+
+#include "llvm/Target/TargetMachine.h"
+
+#include <memory>
 
 namespace lumen {
 namespace eir {

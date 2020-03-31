@@ -1049,11 +1049,11 @@ dependencies = [
  "liblumen_compiler_macros 0.1.0",
  "liblumen_core 0.1.0",
  "liblumen_llvm 0.1.0",
+ "liblumen_mlir 0.1.0",
  "liblumen_session 0.1.0",
  "liblumen_target 0.1.0",
  "liblumen_term 0.1.0",
  "liblumen_util 0.1.0",
- "llvm-sys 90.0.0 (git+https://github.com/lumen/llvm-sys.rs?branch=llvm-9.0)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1075,6 +1075,8 @@ dependencies = [
  "liblumen_codegen 0.1.0",
  "liblumen_core 0.1.0",
  "liblumen_incremental 0.1.0",
+ "liblumen_llvm 0.1.0",
+ "liblumen_mlir 0.1.0",
  "liblumen_session 0.1.0",
  "liblumen_target 0.1.0",
  "liblumen_util 0.1.0",
@@ -1083,7 +1085,7 @@ dependencies = [
  "salsa 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "salsa-macros 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "walkdir 2.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "walkdir 2.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "which 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1144,15 +1146,37 @@ dependencies = [
  "salsa 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "salsa-macros 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "walkdir 2.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "walkdir 2.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "liblumen_llvm"
 version = "0.1.0"
 dependencies = [
+ "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cc 1.0.47 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
+ "liblumen_session 0.1.0",
+ "liblumen_target 0.1.0",
+ "liblumen_util 0.1.0",
  "llvm-sys 90.0.0 (git+https://github.com/lumen/llvm-sys.rs?branch=llvm-9.0)",
+ "walkdir 2.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "which 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "liblumen_mlir"
+version = "0.1.0"
+dependencies = [
+ "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cc 1.0.47 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
+ "liblumen_compiler_macros 0.1.0",
+ "liblumen_llvm 0.1.0",
+ "liblumen_session 0.1.0",
+ "liblumen_target 0.1.0",
+ "liblumen_util 0.1.0",
+ "walkdir 2.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1202,7 +1226,6 @@ dependencies = [
 name = "liblumen_term"
 version = "0.1.0"
 dependencies = [
- "cmake 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
  "which 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1282,9 +1305,7 @@ dependencies = [
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_compiler 0.1.0",
  "liblumen_crt 0.1.0",
- "liblumen_llvm 0.1.0",
  "liblumen_session 0.1.0",
- "liblumen_term 0.1.0",
  "liblumen_util 0.1.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lumen_rt_minimal 0.1.0",
@@ -2507,7 +2528,7 @@ dependencies = [
 
 [[package]]
 name = "walkdir"
-version = "2.2.9"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "same-file 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2957,7 +2978,7 @@ dependencies = [
 "checksum vec_map 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "05c78687fb1a80548ae3250346c3db86a80a7cdd77bda190189f2d0a0987c81a"
 "checksum version_check 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "914b1a6776c4c929a602fafd8bc742e06365d4bcbe48c30f9cca5824f70dc9dd"
 "checksum wait-timeout 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9f200f5b12eb75f8c1ed65abd4b2db8a6e1b138a20de009dacee265a2498f3f6"
-"checksum walkdir 2.2.9 (registry+https://github.com/rust-lang/crates.io-index)" = "9658c94fa8b940eab2250bd5a457f9c48b748420d71293b165c8cdbe2f55f71e"
+"checksum walkdir 2.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "777182bc735b6424e1a57516d35ed72cb8019d85c8c9bf536dccb3445c1a2f7d"
 "checksum wasi 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b89c3ce4ce14bdc6fb6beaf9ec7928ca331de5df7e5ea278375642a2f478570d"
 "checksum wasm-bindgen 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)" = "c4568ae1b4e07ca907b1a4de41174eaa3e5be4066c024475586b7842725f69a9"
 "checksum wasm-bindgen-backend 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)" = "5a00cfdce37367770062065fd3abb9278cbae86a0d918cacd0978a7acd51b481"

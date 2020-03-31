@@ -1,4 +1,7 @@
 #include "lumen/compiler/Target/TargetInfo.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -6,8 +9,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Target/TargetMachine.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 using ::llvm::APInt;
 using ::llvm::ArrayRef;
@@ -20,19 +21,6 @@ using ::lumen::Encoding;
 using ::lumen::MaskInfo;
 
 using namespace lumen::eir;
-
-extern "C" bool lumen_is_type(Encoding *encoding, uint32_t type,
-                              uint64_t value);
-extern "C" uint64_t lumen_encode_immediate(Encoding *encoding, uint32_t type,
-                                           uint64_t value);
-extern "C" uint64_t lumen_encode_header(Encoding *encoding, uint32_t type,
-                                        uint64_t arity);
-extern "C" uint64_t lumen_list_tag(Encoding *encoding);
-extern "C" uint64_t lumen_list_mask(Encoding *encoding);
-extern "C" uint64_t lumen_box_tag(Encoding *encoding);
-extern "C" uint64_t lumen_literal_tag(Encoding *encoding);
-extern "C" MaskInfo lumen_immediate_mask(Encoding *encoding);
-extern "C" MaskInfo lumen_header_mask(Encoding *encoding);
 
 namespace lumen {
 

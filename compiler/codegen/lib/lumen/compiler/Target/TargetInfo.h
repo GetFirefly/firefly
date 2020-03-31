@@ -1,9 +1,12 @@
 #ifndef LUMEN_TARGET_TARGETINFO_H
 #define LUMEN_TARGET_TARGETINFO_H
 
+#include "lumen/term/Encoding.h"
+
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Triple.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 using ::mlir::LLVM::LLVMType;
 
@@ -18,18 +21,6 @@ enum class TargetDialect {
   TargetEIR,
   TargetStandard,
   TargetLLVM,
-};
-
-extern "C" struct Encoding {
-  uint32_t pointerWidth;
-  bool supportsNanboxing;
-};
-
-extern "C" struct MaskInfo {
-  int32_t shift;
-  uint64_t mask;
-
-  bool requiresShift() const { return shift != 0; }
 };
 
 struct TargetInfoImpl {

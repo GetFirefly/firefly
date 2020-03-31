@@ -25,6 +25,8 @@ liblumen_incremental = { path = "../incremental" }
 liblumen_codegen = { path = "../codegen" }
 liblumen_util = { path = "../../liblumen_util" }
 liblumen_core = { path = "../../liblumen_core" }
+liblumen_llvm = { path = "../llvm" }
+liblumen_mlir = { path = "../mlir" }
 
 libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }

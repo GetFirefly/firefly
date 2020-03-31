@@ -1,7 +1,10 @@
 use std::ffi::CStr;
 
-use super::string::{self, RustString};
-use super::Value;
+use liblumen_session::DiagnosticsHandler;
+use liblumen_util::error::FatalError;
+
+use crate::utils::strings::{self, RustString};
+use crate::Value;
 
 extern "C" {
     pub type SMDiagnostic;
@@ -9,25 +12,6 @@ extern "C" {
 
 pub type DiagnosticInfo = llvm_sys::LLVMDiagnosticInfo;
 pub type LLVMDiagnosticHandler = unsafe extern "C" fn(&DiagnosticInfo, *mut libc::c_void);
-
-extern "C" {
-    #[allow(improper_ctypes)]
-    pub fn LLVMLumenUnpackOptimizationDiagnostic(
-        DI: &DiagnosticInfo,
-        pass_name_out: &RustString,
-        function_out: &mut Option<&Value>,
-        loc_line_out: &mut libc::c_uint,
-        loc_column_out: &mut libc::c_uint,
-        loc_filename_out: &RustString,
-        message_out: &RustString,
-    );
-
-    #[allow(improper_ctypes)]
-    pub fn LLVMLumenWriteDiagnosticInfoToString(DI: &DiagnosticInfo, s: &RustString);
-    pub fn LLVMLumenGetDiagInfoKind(DI: &DiagnosticInfo) -> DiagnosticKind;
-    #[allow(improper_ctypes)]
-    pub fn LLVMLumenWriteSMDiagnosticToString(d: &SMDiagnostic, s: &RustString);
-}
 
 /// LLVMLumenDiagnosticKind
 #[derive(Copy, Clone)]
@@ -91,9 +75,9 @@ impl<'a> OptimizationDiagnostic<'a> {
 
         let mut message = None;
         let mut filename = None;
-        let pass_name = string::build_string(|pass_name| {
-            message = string::build_string(|message| {
-                filename = string::build_string(|filename| {
+        let pass_name = strings::build_string(|pass_name| {
+            message = strings::build_string(|message| {
+                filename = strings::build_string(|filename| {
                     LLVMLumenUnpackOptimizationDiagnostic(
                         di,
                         pass_name,
@@ -133,9 +117,17 @@ pub enum Diagnostic<'a> {
     Unknown(&'a DiagnosticInfo),
 }
 
-extern "C" {
-    /// Returns a string describing the last error caused by an LLVM call
-    pub fn LLVMLumenGetLastError() -> *const libc::c_char;
+pub fn init() {
+    unsafe {
+        LLVMLumenInstallFatalErrorHandler();
+    }
+}
+
+pub fn fatal_error(handler: &DiagnosticsHandler, msg: &str) -> FatalError {
+    match last_error() {
+        Some(err) => handler.fatal_str(&format!("{}: {}", msg, err)),
+        None => handler.fatal_str(&msg),
+    }
 }
 
 pub fn last_error() -> Option<String> {
@@ -150,4 +142,26 @@ pub fn last_error() -> Option<String> {
             Some(err)
         }
     }
+}
+
+extern "C" {
+    pub fn LLVMLumenInstallFatalErrorHandler();
+    /// Returns a string describing the last error caused by an LLVM call
+    pub fn LLVMLumenGetLastError() -> *const libc::c_char;
+    #[allow(improper_ctypes)]
+    pub fn LLVMLumenUnpackOptimizationDiagnostic(
+        DI: &DiagnosticInfo,
+        pass_name_out: &RustString,
+        function_out: &mut Option<&Value>,
+        loc_line_out: &mut libc::c_uint,
+        loc_column_out: &mut libc::c_uint,
+        loc_filename_out: &RustString,
+        message_out: &RustString,
+    );
+
+    #[allow(improper_ctypes)]
+    pub fn LLVMLumenWriteDiagnosticInfoToString(DI: &DiagnosticInfo, s: &RustString);
+    pub fn LLVMLumenGetDiagInfoKind(DI: &DiagnosticInfo) -> DiagnosticKind;
+    #[allow(improper_ctypes)]
+    pub fn LLVMLumenWriteSMDiagnosticToString(d: &SMDiagnostic, s: &RustString);
 }

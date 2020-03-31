@@ -62,7 +62,7 @@ include(lumen_glob_lit_tests)
 include(lumen_lit_test)
 include(lumen_alwayslink)
 
-string(JOIN " " CMAKE_CXX_FLAGS ${LUMEN_DEFAULT_COPTS})
+string(JOIN " " CMAKE_CXX_FLAGS ${LUMEN_DEFAULT_COPTS} ${CMAKE_CXX_FLAGS})
 
 set(DEFAULT_CMAKE_BUILD_TYPE "Release")
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)

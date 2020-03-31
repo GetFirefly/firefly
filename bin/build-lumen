@@ -11,8 +11,7 @@ RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//' | sed -
 RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
 TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
 TOOLCHAIN_LIB_PATH="$(cd "$TOOLCHAIN_BIN_PATH"/../lib && pwd -P)"
-BUILD_DEPS=(liblumen_llvm liblumen_term lumen_rt_core lumen_rt_minimal)
-RUNTIME_LIBS=(liblumen_core liblumen_crt liblumen_alloc lumen_rt_core lumen_rt_minimal)
+RUNTIME_LIBS=(liblumen_core liblumen_term liblumen_alloc liblumen_crt lumen_rt_core lumen_rt_minimal)
 
 export LLVM_SYS_90_PREFIX
 LLVM_SYS_90_PREFIX="${LLVM_SYS_90_PREFIX}"
@@ -125,6 +124,11 @@ if ! type -p jq >/dev/null; then
     exit 2
 fi
 
+if ! type -p cmake >/dev/null; then
+    echo "Expected cmake to be on your PATH"
+    exit 2
+fi
+
 if ! host_toolchain="$(echo "$RUST_TOOLCHAIN" | sed -e 's/nightly-\([0-9]\{4,4\}-[0-9]\{2,2\}-[0-9]\{2,2\}-\)\{0,1\}//')"; then
     echo "Unable to determine default host toolchain!"
     exit 2
@@ -186,6 +190,42 @@ fi
 
 cd "$ROOT_DIR"
 
+printf "Checking for lumen-tblgen.."
+if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/tools/lumen-tblgen" ]; then
+    printf 'not found!\n\n'
+    mkdir -p "${OUTPUT_DIR}/build/lumen_tblgen"
+    pushd "${OUTPUT_DIR}/build/lumen_tblgen"
+    _gen="make"
+    _generator=""
+    if type -p ninja >/dev/null; then
+        _gen="ninja"
+        _generator="-GNinja"
+    fi
+    cmake ${_generator} \
+        -DLUMEN_BUILD_COMPILER=ON \
+        -DLUMEN_BUILD_TESTS=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DLLVM_PREFIX="$LLVM_SYS_90_PREFIX" \
+        --target lumen_tblgen \
+        --build "${ROOT_DIR}/compiler/codegen/lib" && \
+    "$_gen" lumen-tblgen
+
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to build lumen-tblgen!"
+    fi
+
+    if [ ! -f "tools/lumen-tblgen" ]; then
+        echo "Expected lumen-tblgen binary, but one was not produced!"
+        exit 1
+    fi
+
+    popd
+else
+    printf 'ok!\033[1K\r'
+fi
+
+export PATH="${OUTPUT_DIR}/build/lumen_tblgen/tools:$PATH"
+
 echo "Building Lumen"
 echo "  host:                $host_target"
 echo "  target:              $build_target"
@@ -207,19 +247,18 @@ if [ -n "$build_package" ]; then
 fi
 
 # Build deps
-for lib in "${BUILD_DEPS[@]}"; do
+#for lib in "${BUILD_DEPS[@]}"; do
     # shellcheck disable=SC2086
-    if ! cargo rustc ${extra_cargo_flags} -p ${lib} -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
-        exit 1
-    fi
-done
+#    if ! cargo rustc ${extra_cargo_flags} -p ${lib} -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
+#        exit 1
+#    fi
+#done
 
 # Build Lumen and gather artifact metadata
 # shellcheck disable=SC2086
 build_json=""
 if ! build_json="$(cargo rustc --message-format=json ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags})"; then
-    # Build a second time for human output
-    cargo rustc ${extra_cargo_flags} -p lumen -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}
+    echo "$build_json" | jq -r 'select(.reason == "compiler-message") | { message: .message.rendered, level: .message.level } | select(.level == "error") | .message'
     exit 1
 fi
 dep_info=""

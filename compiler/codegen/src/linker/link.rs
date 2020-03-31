@@ -21,10 +21,10 @@ use liblumen_target::{LinkerFlavor, PanicStrategy, RelroLevel};
 use liblumen_util::fs::{fix_windows_verbatim_for_gcc, NativeLibraryKind};
 use liblumen_util::time::time;
 
-use crate::codegen::CodegenResults;
 use crate::linker::command::Command;
 use crate::linker::rpath::{self, RPathConfig};
 use crate::linker::Linker;
+use crate::meta::CodegenResults;
 
 /// Performs the linkage portion of the compilation phase. This will generate all
 /// of the requested outputs for this compilation session.
@@ -1080,9 +1080,8 @@ pub fn add_local_native_libraries(
 
 #[allow(dead_code)]
 fn link_rlib(cmd: &mut dyn Linker, options: &Options, tmpdir: &Path, rlib_path: &Path) {
-    use super::archive::ArchiveBuilder;
-    use crate::llvm::archive::LlvmArchiveBuilder;
-    use crate::llvm::archive::{METADATA_FILENAME, RLIB_BYTECODE_EXTENSION};
+    use super::archive::builder::{METADATA_FILENAME, RLIB_BYTECODE_EXTENSION};
+    use super::archive::{ArchiveBuilder, LlvmArchiveBuilder};
 
     let dst = tmpdir.join(rlib_path.file_name().unwrap());
     let mut archive = LlvmArchiveBuilder::new(options, &dst, Some(rlib_path));

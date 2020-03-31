@@ -22,7 +22,5 @@ liblumen_compiler = { path = "../compiler/driver" }
 liblumen_session = { path = "../compiler/session" }
 
 [build-dependencies]
-liblumen_llvm = { path = "../compiler/llvm" }
-liblumen_term = { path = "../compiler/term" }
 liblumen_crt = { path = "../runtimes/crt" }
 lumen_rt_minimal = { path = "../runtimes/minimal" }

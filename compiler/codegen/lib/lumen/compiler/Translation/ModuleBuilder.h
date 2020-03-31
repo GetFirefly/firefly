@@ -1,45 +1,12 @@
 #ifndef LUMEN_MODULEBUILDER_H
 #define LUMEN_MODULEBUILDER_H
 
-#include "llvm-c/Core.h"
-#include "llvm-c/Types.h"
-#include "llvm/ADT/StringMap.h"
-#include "llvm/Support/CBindingWrapping.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "lumen/compiler/Support/LLVM.h"
-#include "lumen/compiler/Support/MLIR.h"
+#include "lumen/mlir/MLIR.h"
+#include "lumen/mlir/IR.h"
+#include "lumen/llvm/Target.h"
 #include "lumen/compiler/Translation/ModuleBuilderSupport.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
 
-namespace mlir {
-class Builder;
-class Location;
-class Attribute;
-class Type;
-class FuncOp;
-}  // namespace mlir
-
-namespace llvm {
-class TargetMachine;
-}  // namespace llvm
-
-namespace lumen {
-namespace eir {
-class FuncOp;
-}  // namespace eir
-}  // namespace lumen
-
-using ::mlir::Attribute;
-using ::mlir::Block;
-using ::mlir::Builder;
-using ::mlir::Location;
-using ::mlir::MLIRContext;
-using ::mlir::Region;
-using ::mlir::Type;
-using ::mlir::Value;
-using ::mlir::ValueRange;
+#include "mlir/Support/LLVM.h"
 
 using ::llvm::APFloat;
 using ::llvm::APInt;
@@ -47,117 +14,18 @@ using ::llvm::ArrayRef;
 using ::llvm::SmallVector;
 using ::llvm::SmallVectorImpl;
 using ::llvm::StringRef;
-using ::llvm::TargetMachine;
 
-typedef struct MLIROpaqueBuilder *MLIRBuilderRef;
-typedef struct MLIROpaqueLocation *MLIRLocationRef;
-typedef struct MLIROpaqueFuncOp *MLIRFunctionOpRef;
-typedef struct MLIROpaqueBlock *MLIRBlockRef;
-typedef struct MLIROpaqueAttribute *MLIRAttributeRef;
-typedef struct LLVMOpaqueTargetMachine *LLVMTargetMachineRef;
 typedef struct OpaqueModuleBuilder *MLIRModuleBuilderRef;
 
 namespace lumen {
 namespace eir {
 
-/// A source location in EIR
-struct Span {
-  // The starting byte index of a span
-  uint32_t start;
-  // The end byte index of a span
-  uint32_t end;
-};
-
-struct FunctionDeclResult {
-  MLIRFunctionOpRef function;
-  MLIRBlockRef entryBlock;
-};
-
-namespace EirTypeTag {
-enum TypeTag {
-#define EIR_TERM_KIND(Name, Val) Name = Val,
-#define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
-#include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
-};
-}  // namespace EirTypeTag
-
-struct EirTypeAny {
-  EirTypeTag::TypeTag tag;
-};
-struct EirTypeTuple {
-  EirTypeTag::TypeTag tag;
-  unsigned arity;
-};
-
-union EirType {
-  EirTypeAny any;
-  EirTypeTuple tuple;
-};
-
-struct Arg {
-  EirType ty;
-  Span span;
-  bool isImplicit;
-};
-
-enum class MapActionType : uint32_t { Unknown = 0, Insert, Update };
-
-struct MapAction {
-  MapActionType action;
-  MLIRValueRef key;
-  MLIRValueRef value;
-};
-
-struct MapUpdate {
-  MLIRLocationRef loc;
-  MLIRValueRef map;
-  MLIRBlockRef ok;
-  MLIRBlockRef err;
-  MapAction *actionsv;
-  size_t actionsc;
-};
-
-struct KeyValuePair {
-  MLIRAttributeRef key;
-  MLIRAttributeRef value;
-};
-
-struct MLIRBinaryPayload {
-  MLIRValueRef size;
-  BinarySpecifier spec;
-};
-
-union MLIRMatchPatternPayload {
-  unsigned i;
-  MLIRValueRef v;
-  EirType t;
-  MLIRBinaryPayload b;
-};
-
-struct MLIRMatchPattern {
-  MatchPatternType tag;
-  MLIRMatchPatternPayload payload;
-};
-
-struct MLIRMatchBranch {
-  MLIRLocationRef loc;
-  MLIRBlockRef dest;
-  MLIRValueRef *destArgv;
-  unsigned destArgc;
-  MLIRMatchPattern pattern;
-};
-
-struct Match {
-  MLIRLocationRef loc;
-  MLIRValueRef selector;
-  MLIRMatchBranch *branches;
-  unsigned numBranches;
-};
+class FuncOp;
 
 class ModuleBuilder {
  public:
   ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
-                const TargetMachine *tm);
+                const llvm::TargetMachine *tm);
   ~ModuleBuilder();
 
   void dump();
@@ -277,7 +145,7 @@ class ModuleBuilder {
   Location getFusedLocation(ArrayRef<Location> locs);
 
  private:
-  const TargetMachine *targetMachine;
+  const llvm::TargetMachine *targetMachine;
 
   /// The module we're building, essentially equivalent to the EIR module
   mlir::ModuleOp theModule;
@@ -285,9 +153,6 @@ class ModuleBuilder {
   /// The builder is used for generating IR inside of functions in the module,
   /// it is very similar to the LLVM builder
   mlir::OpBuilder builder;
-
-  /// A mapping for the functions that have been code generated to MLIR.
-  llvm::StringMap<mlir::FunctionType> calledSymbols;
 
   Location loc(Span span);
 };

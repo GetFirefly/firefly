@@ -1,30 +1,123 @@
 #ifndef LUMEN_MODULEBUILDER_SUPPORT_H
 #define LUMEN_MODULEBUILDER_SUPPORT_H
 
-#include <stdint.h>
+#include "lumen/mlir/IR.h"
 
 #include "llvm/Support/Casting.h"
-#include "mlir/IR/Block.h"
-#include "mlir/IR/Types.h"
-#include "mlir/IR/Value.h"
 
-using ::mlir::Block;
-using ::mlir::Type;
-using ::mlir::Value;
-
-typedef struct MLIROpaqueValue *MLIRValueRef;
-typedef struct MLIROpaqueLocation *MLIRLocationRef;
-typedef struct MLIROpaqueAttribute *MLIRAttributeRef;
+#include <stdint.h>
 
 namespace lumen {
 namespace eir {
 
+//===----------------------------------------------------------------------===//
+// Location Metadata
+//===----------------------------------------------------------------------===//
+
+/// A source span
+struct Span {
+  // The starting byte index of a span
+  uint32_t start;
+  // The end byte index of a span
+  uint32_t end;
+};
+
+/// A source location
 struct SourceLocation {
   const char *filename;
   uint32_t line;
   uint32_t column;
 };
 
+//===----------------------------------------------------------------------===//
+// Types
+//===----------------------------------------------------------------------===//
+
+/// An enum which maps term kinds used in encoding to values
+/// passed to the builder from Rust.
+///
+/// This is NOT the same thing as the type kind in the EIR dialect,
+/// but can be mapped to a type kind
+namespace EirTypeTag {
+enum TypeTag {
+#define EIR_TERM_KIND(Name, Val) Name = Val,
+#define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
+#include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
+};
+}  // namespace EirTypeTag
+
+// Representation of the Type enum defined in Rust
+
+struct EirTypeAny {
+  EirTypeTag::TypeTag tag;
+};
+struct EirTypeTuple {
+  EirTypeTag::TypeTag tag;
+  unsigned arity;
+};
+
+union EirType {
+  EirTypeAny any;
+  EirTypeTuple tuple;
+};
+
+//===----------------------------------------------------------------------===//
+// Functions/Blocks
+//===----------------------------------------------------------------------===//
+
+/// The result of declaring a new function
+///
+/// Contains the function value, as well as the entry block
+struct FunctionDeclResult {
+  MLIRFunctionOpRef function;
+  MLIRBlockRef entryBlock;
+};
+
+// Used to represent function/block arguments
+struct Arg {
+  EirType ty;
+  Span span;
+  bool isImplicit;
+};
+
+//===----------------------------------------------------------------------===//
+// Maps and MapUpdate/MapAction
+//===----------------------------------------------------------------------===//
+
+enum class MapActionType : uint32_t { Unknown = 0, Insert, Update };
+
+struct MapAction {
+  MapActionType action;
+  MLIRValueRef key;
+  MLIRValueRef value;
+};
+
+struct MapUpdate {
+  MLIRLocationRef loc;
+  MLIRValueRef map;
+  MLIRBlockRef ok;
+  MLIRBlockRef err;
+  MapAction *actionsv;
+  size_t actionsc;
+};
+
+// Used to represent map key/value pairs used in map construction
+struct MapEntry {
+  MLIRValueRef key;
+  MLIRValueRef value;
+};
+
+// Used to represent map key/value pairs used in constant maps
+struct KeyValuePair {
+  MLIRAttributeRef key;
+  MLIRAttributeRef value;
+};
+
+//===----------------------------------------------------------------------===//
+// Closures
+//===----------------------------------------------------------------------===//
+
+// Represents a captured closure
 struct Closure {
   MLIRLocationRef loc;
   MLIRAttributeRef module;
@@ -40,11 +133,6 @@ struct Closure {
 //===----------------------------------------------------------------------===//
 // Binary Support Types
 //===----------------------------------------------------------------------===//
-
-struct MapEntry {
-  MLIRValueRef key;
-  MLIRValueRef value;
-};
 
 namespace Endianness {
 enum Type : uint32_t {
@@ -213,6 +301,40 @@ class BinaryPattern : public MatchPattern {
  private:
   llvm::Optional<Value> size;
   BinarySpecifier spec;
+};
+
+struct MLIRBinaryPayload {
+  MLIRValueRef size;
+  BinarySpecifier spec;
+};
+
+union MLIRMatchPatternPayload {
+  unsigned i;
+  MLIRValueRef v;
+  EirType t;
+  MLIRBinaryPayload b;
+};
+
+struct MLIRMatchPattern {
+  MatchPatternType tag;
+  MLIRMatchPatternPayload payload;
+};
+
+// Represents a single match arm
+struct MLIRMatchBranch {
+  MLIRLocationRef loc;
+  MLIRBlockRef dest;
+  MLIRValueRef *destArgv;
+  unsigned destArgc;
+  MLIRMatchPattern pattern;
+};
+
+// Represents a match operation
+struct Match {
+  MLIRLocationRef loc;
+  MLIRValueRef selector;
+  MLIRMatchBranch *branches;
+  unsigned numBranches;
 };
 
 }  // namespace eir

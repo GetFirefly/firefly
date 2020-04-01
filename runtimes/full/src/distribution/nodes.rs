@@ -1,5 +1,3 @@
-pub mod node;
-
 use std::backtrace::Backtrace;
 use std::sync::Arc;
 
@@ -12,6 +10,8 @@ use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::{ArcError, Exception, InternalException, RuntimeException};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
+
+use lumen_rt_core::distribution::nodes::node;
 
 pub fn atom_to_arc_node(atom: &Atom) -> Option<Arc<Node>> {
     RW_LOCK_ARC_NODE_BY_NAME

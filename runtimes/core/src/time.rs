@@ -61,8 +61,7 @@ pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unit {
     Hertz(usize),
     Second,

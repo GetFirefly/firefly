@@ -41,6 +41,7 @@ fn without_environment_runs_function_in_child_process() {
             let scheduler = Scheduler::current();
 
             prop_assert!(scheduler.run_through(&child_arc_process));
+            prop_assert!(scheduler.run_through(&child_arc_process));
 
             match *child_arc_process.status.read() {
                 Status::Exiting(ref exception) => {

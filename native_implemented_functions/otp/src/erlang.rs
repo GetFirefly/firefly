@@ -199,11 +199,11 @@ use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::context::*;
+use lumen_rt_core::context::*;
+use lumen_rt_core::time::{monotonic, Milliseconds};
+
+use lumen_rt_core::registry::pid_to_self_or_process;
 use lumen_rt_full::process::SchedulerDependentAlloc;
-use lumen_rt_full::registry::pid_to_self_or_process;
-use lumen_rt_full::time::monotonic;
-use lumen_rt_full::time::Milliseconds;
 use lumen_rt_full::timer::start::ReferenceFrame;
 use lumen_rt_full::timer::{self, Timeout};
 

@@ -9,8 +9,9 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
+use lumen_rt_core::time::monotonic;
+
 use lumen_rt_full::process::SchedulerDependentAlloc;
-use lumen_rt_full::time::monotonic;
 
 use crate::erlang::read_timer_2::native;
 use crate::test::{

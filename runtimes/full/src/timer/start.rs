@@ -4,8 +4,8 @@ use anyhow::*;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::context::*;
-use crate::proplist::*;
+use lumen_rt_core::context::*;
+use lumen_rt_core::proplist::*;
 
 pub struct Options {
     pub reference_frame: ReferenceFrame,

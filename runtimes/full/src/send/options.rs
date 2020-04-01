@@ -4,7 +4,7 @@ use anyhow::*;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::proplist::TryPropListFromTermError;
+use lumen_rt_core::proplist::TryPropListFromTermError;
 
 pub struct Options {
     // Send only suspends for some sends to ports and for remote (`ExternalPid` or

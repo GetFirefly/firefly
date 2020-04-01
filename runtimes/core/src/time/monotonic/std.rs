@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::time::Instant;
 
+use lazy_static::lazy_static;
+
 use super::Milliseconds;
 
 pub fn freeze_time_in_milliseconds() -> Milliseconds {

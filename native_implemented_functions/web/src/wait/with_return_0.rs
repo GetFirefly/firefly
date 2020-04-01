@@ -16,10 +16,12 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
+use lumen_rt_core::registry;
+
+use lumen_rt_full::process;
 use lumen_rt_full::process::spawn::options::Options;
 use lumen_rt_full::process::spawn::Spawned;
 use lumen_rt_full::scheduler::Scheduler;
-use lumen_rt_full::{process, registry};
 
 /// Spawns process with this as the first frame, so that the next frame added in `call` can fulfill
 /// the promise.

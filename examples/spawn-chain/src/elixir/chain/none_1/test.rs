@@ -2,10 +2,12 @@ use super::*;
 
 use std::sync::Once;
 
+use lumen_rt_core::registry;
+
+use lumen_rt_full::process;
 use lumen_rt_full::process::spawn::options::Options;
 use lumen_rt_full::process::spawn::Spawned;
 use lumen_rt_full::scheduler::Scheduler;
-use lumen_rt_full::{process, registry};
 
 use crate::start::export_code;
 

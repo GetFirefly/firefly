@@ -9,8 +9,8 @@ compile_error!("lumen_rt_minimal is only supported on unix targets!");
 
 #[macro_use]
 mod macros;
+mod builtins;
 mod config;
-mod distribution;
 pub mod env;
 mod logging;
 mod process;
@@ -19,8 +19,6 @@ mod sys;
 
 use bus::Bus;
 use log::Level;
-
-use lumen_rt_core as rt_core;
 
 use self::config::Config;
 use self::scheduler::Scheduler;
@@ -54,7 +52,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     let level_filter = Level::Info.to_level_filter();
     logging::init(level_filter).expect("Unexpected failure initializing logger");
 
-    let scheduler = <Scheduler as rt_core::Scheduler>::current();
+    let scheduler = Scheduler::current();
     scheduler.init().unwrap();
     loop {
         // Run the scheduler for a cycle

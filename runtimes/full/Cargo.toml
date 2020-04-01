@@ -19,6 +19,7 @@ lazy_static = "1.2"
 libc = "0.2"
 liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
+lumen_rt_core = { path = "../core" }
 log = "0.4"
 num-bigint = "0.2"
 num-traits = "0.2"
@@ -27,11 +28,6 @@ chrono = "0.4"
 
 [dependencies.hashbrown]
 version = "0.7"
-features = ["nightly"]
-
-[dependencies.parking_lot_core]
-git = "https://github.com/KronicDeth/parking_lot.git"
-branch = "wasm32-time_web_sys"
 features = ["nightly"]
 
 [target.'cfg(unix)'.dependencies]
@@ -61,4 +57,4 @@ wasm-bindgen = "0.2.48"
 wasm-bindgen-test = "0.2.48"
 
 [features]
-time_web_sys = ["parking_lot_core/time_web_sys"]
+time_web_sys = ["lumen_rt_core/time_web_sys"]

@@ -21,7 +21,6 @@ num_enum = "0.4.2"
 radix_fmt = "1.0.0"
 chrono = "0.4"
 
-
 liblumen_core = { path = "../../liblumen_core" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
 
@@ -34,5 +33,16 @@ version = "0.8"
 features = ["nightly"]
 
 [dependencies.parking_lot_core]
-version = "0.7"
+git = "https://github.com/KronicDeth/parking_lot.git"
+branch = "wasm32-time_web_sys"
 features = ["nightly"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3.25"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3.20"
+features = ['console']
+
+[features]
+time_web_sys = ["parking_lot_core/time_web_sys"]

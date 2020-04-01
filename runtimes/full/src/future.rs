@@ -8,13 +8,14 @@ use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
+use lumen_rt_core::registry;
+use lumen_rt_core::time::monotonic::time_in_milliseconds;
+use lumen_rt_core::time::Milliseconds;
+
 use crate::process;
 use crate::process::spawn;
 use crate::process::spawn::options::{Connection, Options};
-use crate::registry;
 use crate::scheduler::Scheduler;
-use crate::time::monotonic::time_in_milliseconds;
-use crate::time::Milliseconds;
 
 pub fn run_until_ready<PlaceFrameWithArguments>(
     options: Options,

@@ -1,21 +1,13 @@
-use core::borrow::Borrow;
-use core::fmt::{self, Debug};
-use core::hash::Hash;
-
+use std::borrow::Borrow;
+use std::collections::vec_deque::VecDeque;
 use std::collections::HashSet;
+use std::fmt::{self, Debug};
+use std::hash::Hash;
 use std::sync::Arc;
-
-use anyhow::*;
 
 use liblumen_alloc::erts::process::{Priority, Process, Status};
 
-use crate::run::queues::delayed::Delayed;
-use crate::run::queues::immediate::Immediate;
-use crate::run::queues::Next::*;
-use crate::run::Run;
-
-mod delayed;
-mod immediate;
+use crate::scheduler::Run;
 
 #[derive(Debug, Default)]
 pub struct Queues {
@@ -24,7 +16,6 @@ pub struct Queues {
     high: Immediate,
     max: Immediate,
 }
-
 impl Queues {
     pub fn contains(&self, value: &Arc<Process>) -> bool {
         self.waiting.contains(value)
@@ -72,20 +63,15 @@ impl Queues {
 
         // has to be separate so that `arc_process` can be moved
         match next {
-            Wait => {
+            Next::Wait => {
                 self.waiting.insert(arc_process);
                 None
             }
-            PushBack => {
-                if arc_process.code_stack_len() == 0 {
-                    arc_process.exit_normal(anyhow!("Out of code").into());
-                    Some(arc_process)
-                } else {
-                    self.enqueue(arc_process);
-                    None
-                }
+            Next::PushBack => {
+                self.enqueue(arc_process);
+                None
             }
-            Exit => Some(arc_process),
+            Next::Exit => Some(arc_process),
         }
     }
 
@@ -113,9 +99,9 @@ enum Next {
 impl Next {
     fn from_status(status: &Status) -> Next {
         match status {
-            Status::Runnable => PushBack,
-            Status::Waiting => Wait,
-            Status::Exiting(_) => Exit,
+            Status::Runnable => Next::PushBack,
+            Status::Waiting => Next::Wait,
+            Status::Exiting(_) => Next::Exit,
             Status::Running => {
                 unreachable!("Process.stop_running() should have been called before this")
             }
@@ -162,5 +148,96 @@ impl Debug for Waiting {
         }
 
         Ok(())
+    }
+}
+
+/// A run queue where the `Arc<Process>` is run immediately when it is encountered
+#[derive(Debug, Default)]
+pub struct Immediate(VecDeque<Arc<Process>>);
+
+impl Immediate {
+    pub fn contains(&self, value: &Arc<Process>) -> bool {
+        self.0.contains(value)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn dequeue(&mut self) -> Run {
+        match self.0.pop_front() {
+            Some(arc_process) => Run::Now(arc_process),
+            None => Run::None,
+        }
+    }
+
+    pub fn enqueue(&mut self, process: Arc<Process>) {
+        self.0.push_back(process);
+    }
+}
+
+/// A run queue where the `Arc<Process` is run only when its delay is `0`.  This allows
+/// the `Priority::Normal` and `Priority::Low` to be in same `Delayed` run queue, but for the
+/// `Priority::Normal` to be run more often.
+#[derive(Debug, Default)]
+pub struct Delayed(VecDeque<DelayedProcess>);
+
+impl Delayed {
+    pub fn contains(&self, value: &Arc<Process>) -> bool {
+        self.0
+            .iter()
+            .any(|delayed_process| &delayed_process.arc_process == value)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn dequeue(&mut self) -> Run {
+        match self.0.pop_front() {
+            Some(mut delayed_process) => {
+                if delayed_process.delay == 0 {
+                    Run::Now(delayed_process.arc_process)
+                } else {
+                    delayed_process.delay -= 1;
+                    self.0.push_back(delayed_process);
+
+                    Run::Delayed
+                }
+            }
+            None => Run::None,
+        }
+    }
+
+    pub fn enqueue(&mut self, arc_process: Arc<Process>) {
+        let delayed_process = DelayedProcess::new(arc_process);
+        self.0.push_back(delayed_process);
+    }
+}
+
+type Delay = u8;
+
+#[derive(Debug)]
+struct DelayedProcess {
+    delay: Delay,
+    arc_process: Arc<Process>,
+}
+
+impl DelayedProcess {
+    fn new(arc_process: Arc<Process>) -> DelayedProcess {
+        DelayedProcess {
+            delay: Self::priority_to_delay(arc_process.priority),
+            arc_process,
+        }
+    }
+
+    fn priority_to_delay(priority: Priority) -> Delay {
+        // BEAM can use pre-decrement (`--p->schedule_count`), but we can't in Rust, so use `delay`
+        // instead of `schedule_count` and decrement only if `Priority::Low`.
+        match priority {
+            Priority::Low => 7,
+            Priority::Normal => 0,
+            _ => unreachable!(),
+        }
     }
 }

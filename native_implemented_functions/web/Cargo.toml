@@ -19,6 +19,7 @@ js-sys = "0.3.25"
 liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
 liblumen_otp = { path = "../otp" }
+lumen_rt_core = { path = "../../runtimes/core" }
 lumen_rt_full = { path = "../../runtimes/full" }
 native_implemented_function = { path = "../macro" }
 

@@ -1,13 +1,8 @@
-pub mod monitor;
 pub mod spawn;
 
 use alloc::sync::Arc;
 
 use std::convert::TryInto;
-
-use hashbrown::HashMap;
-
-use liblumen_core::locks::RwLockWriteGuard;
 
 use liblumen_alloc::erts::exception::{self, AllocResult, ArcError, RuntimeException};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
@@ -17,8 +12,10 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
+use lumen_rt_core::process::monitor;
+use lumen_rt_core::registry::*;
+
 use crate::code;
-use crate::registry::*;
 use crate::scheduler::Scheduler;
 use crate::system;
 
@@ -193,24 +190,6 @@ fn exit_in_heap_fragment(process: &Process, reason: Term, source: ArcError) {
 
     process.attach_fragment(unsafe { heap_fragment.as_mut() });
     process.exit(heap_fragment_data, source);
-}
-
-pub fn register_in(
-    arc_process: Arc<Process>,
-    mut writable_registry: RwLockWriteGuard<HashMap<Atom, Registered>>,
-    name: Atom,
-) -> bool {
-    let mut writable_registered_name = arc_process.registered_name.write();
-
-    match *writable_registered_name {
-        None => {
-            writable_registry.insert(name, Registered::Process(Arc::downgrade(&arc_process)));
-            *writable_registered_name = Some(name);
-
-            true
-        }
-        Some(_) => false,
-    }
 }
 
 pub fn init(minimum_heap_size: usize) -> AllocResult<Process> {

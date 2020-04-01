@@ -12,10 +12,10 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 use liblumen_alloc::{atom, atom_from, exit};
 
-use lumen_rt_full::registry::pid_to_process;
+use lumen_rt_core::registry::pid_to_process;
 use lumen_rt_full::scheduler::Scheduler;
 
-use crate::erlang::{self, apply_3, spawn_3};
+use crate::erlang::{self, apply_3, exit_1, spawn_3};
 use crate::test::{self, assert_exits_badarith, assert_exits_undef, strategy};
 
 #[test]

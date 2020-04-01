@@ -8,8 +8,9 @@ use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::term::prelude::*;
 use liblumen_alloc::Process;
 
-use crate::distribution::nodes::node;
-use crate::registry::{self, pid_to_process};
+use lumen_rt_core::distribution::nodes::node;
+use lumen_rt_core::registry::{self, pid_to_process};
+
 use crate::scheduler::Scheduler;
 
 pub use options::*;

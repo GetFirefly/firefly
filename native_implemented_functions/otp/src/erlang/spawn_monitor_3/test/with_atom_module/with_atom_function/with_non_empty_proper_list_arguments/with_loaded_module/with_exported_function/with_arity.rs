@@ -8,6 +8,7 @@ use crate::test::{assert_exits_badarith, has_message};
 #[test]
 fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent() {
     apply_3::export();
+
     let parent_arc_process = test::process::init();
     let arc_scheduler = Scheduler::current();
 
@@ -56,9 +57,6 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
     assert!(arc_scheduler.run_through(&child_arc_process));
     assert!(!arc_scheduler.run_through(&child_arc_process));
 
-    assert_eq!(child_arc_process.code_stack_len(), 0);
-    assert_eq!(child_arc_process.current_module_function_arity(), None);
-
     let reason = atom!("normal");
 
     match *child_arc_process.status.read() {
@@ -89,6 +87,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 #[test]
 fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
     apply_3::export();
+
     let parent_arc_process = test::process::init();
     let arc_scheduler = Scheduler::current();
 
@@ -138,7 +137,6 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
     assert!(arc_scheduler.run_through(&child_arc_process));
     assert!(!arc_scheduler.run_through(&child_arc_process));
 
-    assert_eq!(child_arc_process.code_stack_len(), 1);
     assert_eq!(
         child_arc_process.current_module_function_arity(),
         Some(Arc::new(ModuleFunctionArity {

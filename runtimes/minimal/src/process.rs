@@ -1,5 +1,3 @@
-pub mod monitor;
-
 use std::convert::TryInto;
 use std::sync::Arc;
 
@@ -13,10 +11,12 @@ use liblumen_alloc::erts::process::{Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
-use crate::scheduler::Scheduler;
-use crate::sys;
+use lumen_rt_core::process::monitor;
 use lumen_rt_core::registry::*;
 use lumen_rt_core::Scheduler as SchedulerTrait;
+
+use crate::scheduler::Scheduler;
+use crate::sys;
 
 fn is_expected_exception(exception: &RuntimeException) -> bool {
     use exception::Class;

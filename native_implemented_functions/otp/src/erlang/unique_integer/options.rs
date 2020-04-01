@@ -4,7 +4,7 @@ use anyhow::*;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::proplist::*;
+use lumen_rt_core::proplist::*;
 
 pub struct Options {
     pub positive: bool,

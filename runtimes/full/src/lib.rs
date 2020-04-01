@@ -42,16 +42,11 @@ pub mod binary_to_string;
 pub mod code;
 #[cfg(not(any(test, target_arch = "wasm32")))]
 mod config;
-pub mod context;
 pub mod distribution;
 pub mod future;
 mod logging;
 pub mod number;
 pub mod process;
-pub mod proplist;
-// `pub` or `examples/spawn-chain`
-pub mod registry;
-mod run;
 // `pub` for `examples/spawn-chain`
 pub mod scheduler;
 pub mod send;
@@ -60,7 +55,6 @@ pub mod stacktrace;
 pub mod system;
 // `pub` for `examples/spawn-chain`
 mod term;
-pub mod time;
 pub mod timer;
 
 #[cfg(test)]

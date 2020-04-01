@@ -1,16 +1,29 @@
+pub mod run_queue;
+
 use std::sync::Arc;
 
-use liblumen_alloc::erts::scheduler::id;
-use liblumen_alloc::erts::term::prelude::ReferenceNumber;
 use liblumen_core::locks::RwLock;
+
+use liblumen_alloc::erts::process::Process;
+pub use liblumen_alloc::erts::scheduler::id::ID;
+use liblumen_alloc::erts::term::prelude::ReferenceNumber;
 
 use crate::timer::Hierarchy;
 
-pub trait Scheduler {
-    fn id(&self) -> id::ID;
+/// What to run
+pub enum Run {
+    /// Run the process now
+    Now(Arc<Process>),
+    /// There was a process in the queue, but it needs to be delayed because it is `Priority::Low`
+    /// and hadn't been delayed enough yet.  Ask the `RunQueue` again for another process.
+    /// -- https://github.com/erlang/otp/blob/fe2b1323a3866ed0a9712e9d12e1f8f84793ec47/erts/emulator/beam/erl_process.c#L9601-L9606
+    Delayed,
+    /// There are no processes in the run queue, do other work
+    None,
+}
 
-    /// Gets the current thread's scheduler
-    fn current() -> Arc<Self>;
+pub trait Scheduler {
+    fn id(&self) -> ID;
 
     /// Gets the current thread's timer wheel
     fn hierarchy(&self) -> &RwLock<Hierarchy>;

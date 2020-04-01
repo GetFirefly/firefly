@@ -1,9 +1,15 @@
 use std::sync::Arc;
 
+use lazy_static::lazy_static;
+
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
 pub const DEAD_ATOM_NAME: &str = "nonode@nohost";
+
+lazy_static! {
+    pub(super) static ref ARC_NODE: Arc<Node> = Arc::new(Node::new(ID, dead_atom(), CREATION));
+}
 
 pub fn dead_atom() -> Atom {
     Atom::try_from_str(DEAD_ATOM_NAME).unwrap()
@@ -23,10 +29,6 @@ pub fn id() -> usize {
 
 pub fn term() -> Term {
     atom().encode().unwrap()
-}
-
-lazy_static! {
-    pub(super) static ref ARC_NODE: Arc<Node> = Arc::new(Node::new(ID, dead_atom(), CREATION));
 }
 
 const CREATION: u32 = 0;

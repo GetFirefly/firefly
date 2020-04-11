@@ -90,7 +90,6 @@ fn main() {
         "MLIRTargetLLVMIRModuleTranslation",
         "MLIRTransformUtils",
         "MLIRTransforms",
-        "MLIRTranslateClParser",
         "MLIRTranslation",
     ]);
 

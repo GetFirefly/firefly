@@ -62,7 +62,6 @@ function(set_alwayslink_mlir_libs)
     MLIRTargetLLVMIRModuleTranslation
     MLIRTransformUtils
     MLIRTransforms
-    MLIRTranslateClParser
     MLIRTranslation
   )
 

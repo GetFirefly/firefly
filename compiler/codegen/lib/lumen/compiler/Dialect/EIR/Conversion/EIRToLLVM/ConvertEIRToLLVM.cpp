@@ -16,17 +16,17 @@ namespace lumen {
 namespace eir {
 
 // A pass converting the EIR dialect into the Standard dialect.
-class ConvertEIRToLLVMPass : public mlir::ModulePass<ConvertEIRToLLVMPass> {
+class ConvertEIRToLLVMPass : public mlir::PassWrapper<ConvertEIRToLLVMPass, OperationPass<ModuleOp>> {
  public:
   ConvertEIRToLLVMPass(TargetMachine *targetMachine_)
       : targetMachine(targetMachine_),
-        mlir::ModulePass<ConvertEIRToLLVMPass>() {}
+        mlir::PassWrapper<ConvertEIRToLLVMPass, OperationPass<ModuleOp>>() {}
 
   ConvertEIRToLLVMPass(const ConvertEIRToLLVMPass &other)
       : targetMachine(other.targetMachine),
-        mlir::ModulePass<ConvertEIRToLLVMPass>() {}
+        mlir::PassWrapper<ConvertEIRToLLVMPass, OperationPass<ModuleOp>>() {}
 
-  void runOnModule() override {
+  void runOnOperation() final {
     // Create the type converter for lowering types to Standard/LLVM IR types
     auto &context = getContext();
     LLVMTypeConverter converter(&context);
@@ -39,7 +39,6 @@ class ConvertEIRToLLVMPass : public mlir::ModulePass<ConvertEIRToLLVMPass> {
     // Populate conversion patterns
     OwningRewritePatternList patterns;
     mlir::populateStdToLLVMConversionPatterns(converter, patterns,
-                                              /*useAlloca=*/true,
                                               /*emitCWrappers=*/false);
     populateAggregateOpConversionPatterns(patterns, &context, converter,
                                           targetInfo);
@@ -72,7 +71,7 @@ class ConvertEIRToLLVMPass : public mlir::ModulePass<ConvertEIRToLLVMPass> {
     });
     conversionTarget.addLegalOp<ModuleOp, ModuleTerminatorOp>();
 
-    mlir::ModuleOp moduleOp = getModule();
+    mlir::ModuleOp moduleOp = getOperation();
     if (failed(applyFullConversion(moduleOp, conversionTarget, patterns,
                                    &converter))) {
       moduleOp.emitError() << "conversion to LLVM IR dialect failed";
@@ -84,7 +83,7 @@ class ConvertEIRToLLVMPass : public mlir::ModulePass<ConvertEIRToLLVMPass> {
   TargetMachine *targetMachine;
 };
 
-std::unique_ptr<mlir::OpPassBase<mlir::ModuleOp>> createConvertEIRToLLVMPass(
+std::unique_ptr<mlir::Pass> createConvertEIRToLLVMPass(
     TargetMachine *targetMachine) {
   return std::make_unique<ConvertEIRToLLVMPass>(targetMachine);
 }

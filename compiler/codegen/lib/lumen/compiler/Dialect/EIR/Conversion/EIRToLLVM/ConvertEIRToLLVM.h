@@ -11,7 +11,7 @@ class TargetMachine;
 
 namespace lumen {
 namespace eir {
-std::unique_ptr<mlir::OpPassBase<mlir::ModuleOp>> createConvertEIRToLLVMPass(
+std::unique_ptr<mlir::Pass> createConvertEIRToLLVMPass(
     llvm::TargetMachine *targetMachine);
 }  // namespace eir
 }  // namespace lumen

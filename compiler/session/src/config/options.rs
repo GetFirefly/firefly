@@ -338,6 +338,16 @@ impl Options {
         })
     }
 
+    pub fn lto(&self) -> Lto {
+        match self.codegen_opts.lto {
+            LtoCli::No => Lto::No,
+            LtoCli::Yes => Lto::Fat,
+            LtoCli::Thin => Lto::Thin,
+            LtoCli::Fat => Lto::Fat,
+            LtoCli::Unspecified => Lto::No,
+        }
+    }
+
     pub fn output_dir(&self) -> PathBuf {
         self.output_dir
             .as_ref()

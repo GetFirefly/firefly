@@ -3,13 +3,17 @@ mod command;
 pub(crate) mod link;
 mod rpath;
 
+use std::fs::{self, File};
+use std::io::{self, BufWriter, Write};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-use log::warn;
+use fxhash::FxHashMap;
+
+use log::{debug, warn};
 
 use liblumen_session::{
-    DebugInfo, DiagnosticsHandler, LinkerPluginLto, OptLevel, Options, ProjectType,
+    DebugInfo, DiagnosticsHandler, LinkerPluginLto, OptLevel, Lto, Options, ProjectType,
 };
 use liblumen_target::{LinkerFlavor, LldFlavor};
 
@@ -44,12 +48,12 @@ impl LibSource {
 /// need out of the shared crate context before we get rid of it.
 #[derive(Debug)]
 pub struct LinkerInfo {
-    exports: Vec<String>,
+    exports: FxHashMap<ProjectType, Vec<String>>,
 }
 
 impl LinkerInfo {
     pub fn new() -> LinkerInfo {
-        Self { exports: vec![] }
+        Self { exports: Default::default() }
     }
 
     pub fn to_linker<'a>(
@@ -60,6 +64,20 @@ impl LinkerInfo {
         flavor: LinkerFlavor,
     ) -> Box<dyn Linker + 'a> {
         match flavor {
+            LinkerFlavor::Lld(LldFlavor::Link) | LinkerFlavor::Msvc => {
+                Box::new(MsvcLinker { 
+                    cmd, 
+                    options, 
+                    diagnostics,
+                    info: self,
+                }) as Box<dyn Linker>
+            }
+            LinkerFlavor::Em => Box::new(EmLinker {
+                cmd,
+                options,
+                diagnostics,
+                info: self
+            }) as Box<dyn Linker>,
             LinkerFlavor::Gcc => Box::new(GccLinker {
                 cmd,
                 options,
@@ -81,13 +99,10 @@ impl LinkerInfo {
             }) as Box<dyn Linker>,
 
             LinkerFlavor::Lld(LldFlavor::Wasm) => {
-                Box::new(WasmLd::new(cmd, options, self)) as Box<dyn Linker>
+                Box::new(WasmLd::new(cmd, options, diagnostics, self)) as Box<dyn Linker>
             }
 
-            LinkerFlavor::Lld(LldFlavor::Link)
-            | LinkerFlavor::Msvc
-            | LinkerFlavor::Em
-            | LinkerFlavor::PtxLinker => unimplemented!("unsupported linker flavor"),
+            LinkerFlavor::PtxLinker => Box::new(PtxLinker { cmd, options, diagnostics }) as Box<dyn Linker>,
         }
     }
 }
@@ -119,6 +134,7 @@ pub trait Linker {
     fn no_relro(&mut self);
     fn optimize(&mut self);
     fn pgo_gen(&mut self);
+    fn control_flow_guard(&mut self);
     fn debuginfo(&mut self);
     fn no_default_libraries(&mut self);
     fn build_dylib(&mut self, out_filename: &Path);
@@ -198,17 +214,12 @@ impl<'a> GccLinker<'a> {
     }
 
     fn push_linker_plugin_lto_args(&mut self, plugin_path: Option<&OsStr>) {
-        // TODO: Figure out why this isn't a problem for Rust;
-        // ld64 doesn't support the -plugin or -plugin-opt flags as far
-        // as I can tell
-        if self.options.target.options.is_like_osx {
-            return;
-        }
-
         if let Some(plugin_path) = plugin_path {
             let mut arg = OsString::from("-plugin=");
             arg.push(plugin_path);
             self.linker_arg(&arg);
+        } else {
+            return;
         }
 
         let opt_level = match self.options.opt_level {
@@ -401,6 +412,10 @@ impl<'a> Linker for GccLinker<'a> {
         self.cmd.arg("__llvm_profile_runtime");
     }
 
+    fn control_flow_guard(&mut self) {
+        self.diagnostics.warn("Windows Control Flow Guard is not supported by this linker.");
+    }
+
     fn debuginfo(&mut self) {
         if let DebugInfo::None = self.options.debug_info {
             // If we are building without debuginfo enabled and we were called with
@@ -463,13 +478,81 @@ impl<'a> Linker for GccLinker<'a> {
         }
     }
 
+    fn export_symbols(&mut self, tmpdir: &Path, project_type: ProjectType) {
+        if project_type == ProjectType::Executable
+            && self.options.target.options.override_export_symbols.is_none()
+        {
+            return;
+        }
+
+        // We manually create a list of exported symbols to ensure we don't expose any more.
+        // The object files have far more public symbols than we actually want to export,
+        // so we hide them all here.
+
+        if !self.options.target.options.limit_rdylib_exports {
+            return;
+        }
+
+        let mut arg = OsString::new();
+        let path = tmpdir.join("list");
+
+        debug!("EXPORTED SYMBOLS:");
+
+        if self.options.target.options.is_like_osx {
+            // Write a plain, newline-separated list of symbols
+            let res: io::Result<()> = try {
+                let mut f = BufWriter::new(File::create(&path)?);
+                for sym in self.info.exports[&project_type].iter() {
+                    debug!("  _{}", sym);
+                    writeln!(f, "_{}", sym)?;
+                }
+            };
+            if let Err(e) = res {
+                self.diagnostics.fatal_str(&format!("failed to write lib.def file: {}", e)).raise();
+            }
+        } else {
+            // Write an LD version script
+            let res: io::Result<()> = try {
+                let mut f = BufWriter::new(File::create(&path)?);
+                writeln!(f, "{{")?;
+                if !self.info.exports[&project_type].is_empty() {
+                    writeln!(f, "  global:")?;
+                    for sym in self.info.exports[&project_type].iter() {
+                        debug!("    {};", sym);
+                        writeln!(f, "    {};", sym)?;
+                    }
+                }
+                writeln!(f, "\n  local:\n    *;\n}};")?;
+            };
+            if let Err(e) = res {
+                self.diagnostics.fatal_str(&format!("failed to write version script: {}", e)).raise();
+            }
+        }
+
+        if self.options.target.options.is_like_osx {
+            if !self.is_ld {
+                arg.push("-Wl,")
+            }
+            arg.push("-exported_symbols_list,");
+        } else if self.options.target.options.is_like_solaris {
+            if !self.is_ld {
+                arg.push("-Wl,")
+            }
+            arg.push("-M,");
+        } else {
+            if !self.is_ld {
+                arg.push("-Wl,")
+            }
+            arg.push("--version-script=");
+        }
+
+        arg.push(&path);
+        self.cmd.arg(arg);
+    }
+
     fn subsystem(&mut self, subsystem: &str) {
         self.linker_arg("--subsystem");
         self.linker_arg(&subsystem);
-    }
-
-    fn export_symbols(&mut self, _tmpdir: &Path, _project_type: ProjectType) {
-        unimplemented!();
     }
 
     fn finalize(&mut self) -> Command {
@@ -505,14 +588,427 @@ impl<'a> Linker for GccLinker<'a> {
     }
 }
 
+pub struct MsvcLinker<'a> {
+    cmd: Command,
+    options: &'a Options,
+    diagnostics: &'a DiagnosticsHandler,
+    info: &'a LinkerInfo,
+}
+
+impl<'a> Linker for MsvcLinker<'a> {
+    fn link_rlib(&mut self, lib: &Path) {
+        self.cmd.arg(lib);
+    }
+    fn add_object(&mut self, path: &Path) {
+        self.cmd.arg(path);
+    }
+    fn args(&mut self, args: &[String]) {
+        self.cmd.args(args);
+    }
+
+    fn build_dylib(&mut self, out_filename: &Path) {
+        self.cmd.arg("/DLL");
+        let mut arg: OsString = "/IMPLIB:".into();
+        arg.push(out_filename.with_extension("dll.lib"));
+        self.cmd.arg(arg);
+    }
+
+    fn build_static_executable(&mut self) {
+        // noop
+    }
+
+    fn gc_sections(&mut self, _keep_metadata: bool) {
+        // MSVC's ICF (Identical COMDAT Folding) link optimization is
+        // slow for Rust and thus we disable it by default when not in
+        // optimization build.
+        if self.options.opt_level != OptLevel::No {
+            self.cmd.arg("/OPT:REF,ICF");
+        } else {
+            // It is necessary to specify NOICF here, because /OPT:REF
+            // implies ICF by default.
+            self.cmd.arg("/OPT:REF,NOICF");
+        }
+    }
+
+    fn link_dylib(&mut self, lib: &str) {
+        self.cmd.arg(&format!("{}.lib", lib));
+    }
+
+    fn link_rust_dylib(&mut self, lib: &str, path: &Path) {
+        // When producing a dll, the MSVC linker may not actually emit a
+        // `foo.lib` file if the dll doesn't actually export any symbols, so we
+        // check to see if the file is there and just omit linking to it if it's
+        // not present.
+        let name = format!("{}.dll.lib", lib);
+        if fs::metadata(&path.join(&name)).is_ok() {
+            self.cmd.arg(name);
+        }
+    }
+
+    fn link_staticlib(&mut self, lib: &str) {
+        self.cmd.arg(&format!("{}.lib", lib));
+    }
+
+    fn position_independent_executable(&mut self) {
+        // noop
+    }
+
+    fn no_position_independent_executable(&mut self) {
+        // noop
+    }
+
+    fn full_relro(&mut self) {
+        // noop
+    }
+
+    fn partial_relro(&mut self) {
+        // noop
+    }
+
+    fn no_relro(&mut self) {
+        // noop
+    }
+
+    fn no_default_libraries(&mut self) {
+        // Currently we don't pass the /NODEFAULTLIB flag to the linker on MSVC
+        // as there's been trouble in the past of linking the C++ standard
+        // library required by LLVM. This likely needs to happen one day, but
+        // in general Windows is also a more controlled environment than
+        // Unix, so it's not necessarily as critical that this be implemented.
+        //
+        // Note that there are also some licensing worries about statically
+        // linking some libraries which require a specific agreement, so it may
+        // not ever be possible for us to pass this flag.
+    }
+
+    fn include_path(&mut self, path: &Path) {
+        let mut arg = OsString::from("/LIBPATH:");
+        arg.push(path);
+        self.cmd.arg(&arg);
+    }
+
+    fn output_filename(&mut self, path: &Path) {
+        let mut arg = OsString::from("/OUT:");
+        arg.push(path);
+        self.cmd.arg(&arg);
+    }
+
+    fn framework_path(&mut self, _path: &Path) {
+        panic!("frameworks are not supported on windows")
+    }
+    fn link_framework(&mut self, _framework: &str) {
+        panic!("frameworks are not supported on windows")
+    }
+
+    fn link_whole_staticlib(&mut self, lib: &str, _search_path: &[PathBuf]) {
+        // not supported?
+        self.link_staticlib(lib);
+    }
+    fn link_whole_rlib(&mut self, path: &Path) {
+        // not supported?
+        self.link_rlib(path);
+    }
+    fn optimize(&mut self) {
+        // Needs more investigation of `/OPT` arguments
+    }
+
+    fn pgo_gen(&mut self) {
+        // Nothing needed here.
+    }
+
+    fn control_flow_guard(&mut self) {
+        self.cmd.arg("/guard:cf");
+    }
+
+    fn debuginfo(&mut self) {
+        // This will cause the Microsoft linker to generate a PDB file
+        // from the CodeView line tables in the object files.
+        self.cmd.arg("/DEBUG");
+
+        // This will cause the Microsoft linker to embed .natvis info into the PDB file
+        let natvis_dir_path = self.options.sysroot.join("lib\\rustlib\\etc");
+        if let Ok(natvis_dir) = fs::read_dir(&natvis_dir_path) {
+            for entry in natvis_dir {
+                match entry {
+                    Ok(entry) => {
+                        let path = entry.path();
+                        if path.extension() == Some("natvis".as_ref()) {
+                            let mut arg = OsString::from("/NATVIS:");
+                            arg.push(path);
+                            self.cmd.arg(arg);
+                        }
+                    }
+                    Err(err) => {
+                        self.diagnostics.warn(&format!("error enumerating natvis directory: {}", err));
+                    }
+                }
+            }
+        }
+    }
+
+    // Currently the compiler doesn't use `dllexport` (an LLVM attribute) to
+    // export symbols from a dynamic library. When building a dynamic library,
+    // however, we're going to want some symbols exported, so this function
+    // generates a DEF file which lists all the symbols.
+    //
+    // The linker will read this `*.def` file and export all the symbols from
+    // the dynamic library. Note that this is not as simple as just exporting
+    // all the symbols in the current crate (as specified by `codegen.reachable`)
+    // but rather we also need to possibly export the symbols of upstream
+    // crates. Upstream rlibs may be linked statically to this dynamic library,
+    // in which case they may continue to transitively be used and hence need
+    // their symbols exported.
+    fn export_symbols(&mut self, tmpdir: &Path, project_type: ProjectType) {
+        // Symbol visibility takes care of this typically
+        if project_type == ProjectType::Executable {
+            return;
+        }
+
+        let path = tmpdir.join("lib.def");
+        let res: io::Result<()> = try {
+            let mut f = BufWriter::new(File::create(&path)?);
+
+            // Start off with the standard module name header and then go
+            // straight to exports.
+            writeln!(f, "LIBRARY")?;
+            writeln!(f, "EXPORTS")?;
+            for symbol in self.info.exports[&project_type].iter() {
+                debug!("  _{}", symbol);
+                writeln!(f, "  {}", symbol)?;
+            }
+        };
+        if let Err(e) = res {
+            self.diagnostics.fatal_str(&format!("failed to write lib.def file: {}", e)).raise();
+        }
+        let mut arg = OsString::from("/DEF:");
+        arg.push(path);
+        self.cmd.arg(&arg);
+    }
+
+    fn subsystem(&mut self, subsystem: &str) {
+        // Note that previous passes of the compiler validated this subsystem,
+        // so we just blindly pass it to the linker.
+        self.cmd.arg(&format!("/SUBSYSTEM:{}", subsystem));
+
+        // Windows has two subsystems we're interested in right now, the console
+        // and windows subsystems. These both implicitly have different entry
+        // points (starting symbols). The console entry point starts with
+        // `mainCRTStartup` and the windows entry point starts with
+        // `WinMainCRTStartup`. These entry points, defined in system libraries,
+        // will then later probe for either `main` or `WinMain`, respectively to
+        // start the application.
+        //
+        // In Rust we just always generate a `main` function so we want control
+        // to always start there, so we force the entry point on the windows
+        // subsystem to be `mainCRTStartup` to get everything booted up
+        // correctly.
+        //
+        // For more information see RFC #1665
+        if subsystem == "windows" {
+            self.cmd.arg("/ENTRY:mainCRTStartup");
+        }
+    }
+
+    fn finalize(&mut self) -> Command {
+        ::std::mem::replace(&mut self.cmd, Command::new(""))
+    }
+
+    // MSVC doesn't need group indicators
+    fn group_start(&mut self) {}
+    fn group_end(&mut self) {}
+
+    fn linker_plugin_lto(&mut self) {
+        // Do nothing
+    }
+}
+
+pub struct EmLinker<'a> {
+    cmd: Command,
+    options: &'a Options,
+    diagnostics: &'a DiagnosticsHandler,
+    info: &'a LinkerInfo,
+}
+
+impl<'a> Linker for EmLinker<'a> {
+    fn include_path(&mut self, path: &Path) {
+        self.cmd.arg("-L").arg(path);
+    }
+
+    fn link_staticlib(&mut self, lib: &str) {
+        self.cmd.arg("-l").arg(lib);
+    }
+
+    fn output_filename(&mut self, path: &Path) {
+        self.cmd.arg("-o").arg(path);
+    }
+
+    fn add_object(&mut self, path: &Path) {
+        self.cmd.arg(path);
+    }
+
+    fn link_dylib(&mut self, lib: &str) {
+        // Emscripten always links statically
+        self.link_staticlib(lib);
+    }
+
+    fn link_whole_staticlib(&mut self, lib: &str, _search_path: &[PathBuf]) {
+        // not supported?
+        self.link_staticlib(lib);
+    }
+
+    fn link_whole_rlib(&mut self, lib: &Path) {
+        // not supported?
+        self.link_rlib(lib);
+    }
+
+    fn link_rust_dylib(&mut self, lib: &str, _path: &Path) {
+        self.link_dylib(lib);
+    }
+
+    fn link_rlib(&mut self, lib: &Path) {
+        self.add_object(lib);
+    }
+
+    fn position_independent_executable(&mut self) {
+        // noop
+    }
+
+    fn no_position_independent_executable(&mut self) {
+        // noop
+    }
+
+    fn full_relro(&mut self) {
+        // noop
+    }
+
+    fn partial_relro(&mut self) {
+        // noop
+    }
+
+    fn no_relro(&mut self) {
+        // noop
+    }
+
+    fn args(&mut self, args: &[String]) {
+        self.cmd.args(args);
+    }
+
+    fn framework_path(&mut self, _path: &Path) {
+        panic!("frameworks are not supported on Emscripten")
+    }
+
+    fn link_framework(&mut self, _framework: &str) {
+        panic!("frameworks are not supported on Emscripten")
+    }
+
+    fn gc_sections(&mut self, _keep_metadata: bool) {
+        // noop
+    }
+
+    fn optimize(&mut self) {
+        // Emscripten performs own optimizations
+        self.cmd.arg(match self.options.opt_level {
+            OptLevel::No => "-O0",
+            OptLevel::Less => "-O1",
+            OptLevel::Default => "-O2",
+            OptLevel::Aggressive => "-O3",
+            OptLevel::Size => "-Os",
+            OptLevel::SizeMin => "-Oz",
+        });
+        // Unusable until https://github.com/rust-lang/rust/issues/38454 is resolved
+        self.cmd.args(&["--memory-init-file", "0"]);
+    }
+
+    fn pgo_gen(&mut self) {
+        // noop, but maybe we need something like the gnu linker?
+    }
+
+    fn control_flow_guard(&mut self) {
+        self.diagnostics.warn("Windows Control Flow Guard is not supported by this linker.");
+    }
+
+    fn debuginfo(&mut self) {
+        // Preserve names or generate source maps depending on debug info
+        self.cmd.arg(match self.options.debug_info {
+            DebugInfo::None => "-g0",
+            DebugInfo::Limited => "-g3",
+            DebugInfo::Full => "-g4",
+        });
+    }
+
+    fn no_default_libraries(&mut self) {
+        self.cmd.args(&["-s", "DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=[]"]);
+    }
+
+    fn build_dylib(&mut self, _out_filename: &Path) {
+        panic!("building dynamic library is unsupported on Emscripten")
+    }
+
+    fn build_static_executable(&mut self) {
+        // noop
+    }
+
+    fn export_symbols(&mut self, _tmpdir: &Path, project_type: ProjectType) {
+        let symbols = &self.info.exports[&project_type];
+
+        debug!("EXPORTED SYMBOLS:");
+
+        self.cmd.arg("-s");
+
+        let mut arg = OsString::from("EXPORTED_FUNCTIONS=");
+        let mut encoded = String::new();
+
+        {
+            let end = symbols.len();
+            encoded.push('[');
+            encoded.push('\n');
+
+            for (i, sym) in symbols.iter().enumerate() {
+                let is_last = i + 1 == end;
+                encoded.push('"');
+                encoded.push('_');
+                encoded += sym;
+                encoded.push('"');
+                if !is_last {
+                    encoded.push(',');
+                }
+                encoded.push('\n');
+            }
+
+            encoded.push(']');
+        }
+        debug!("{}", encoded);
+        arg.push(encoded);
+
+        self.cmd.arg(arg);
+    }
+
+    fn subsystem(&mut self, _subsystem: &str) {
+        // noop
+    }
+
+    fn finalize(&mut self) -> Command {
+        ::std::mem::replace(&mut self.cmd, Command::new(""))
+    }
+
+    // Appears not necessary on Emscripten
+    fn group_start(&mut self) {}
+    fn group_end(&mut self) {}
+
+    fn linker_plugin_lto(&mut self) {
+        // Do nothing
+    }
+}
+
 pub struct WasmLd<'a> {
     cmd: Command,
     options: &'a Options,
+    diagnostics: &'a DiagnosticsHandler,
     info: &'a LinkerInfo,
 }
 
 impl<'a> WasmLd<'a> {
-    fn new(mut cmd: Command, options: &'a Options, info: &'a LinkerInfo) -> WasmLd<'a> {
+    fn new(mut cmd: Command, options: &'a Options, diagnostics: &'a DiagnosticsHandler, info: &'a LinkerInfo) -> WasmLd<'a> {
         // If the atomics feature is enabled for wasm then we need a whole bunch
         // of flags:
         //
@@ -554,7 +1050,7 @@ impl<'a> WasmLd<'a> {
             cmd.arg("--export=__tls_align");
             cmd.arg("--export=__tls_base");
         }
-        WasmLd { cmd, options, info }
+        WasmLd { cmd, options, diagnostics, info }
     }
 }
 
@@ -652,14 +1148,18 @@ impl<'a> Linker for WasmLd<'a> {
 
     fn debuginfo(&mut self) {}
 
+    fn control_flow_guard(&mut self) {
+        self.diagnostics.warn("Windows Control Flow Guard is not supported by this linker.");
+    }
+
     fn no_default_libraries(&mut self) {}
 
     fn build_dylib(&mut self, _out_filename: &Path) {
         self.cmd.arg("--no-entry");
     }
 
-    fn export_symbols(&mut self, _tmpdir: &Path, _project_type: ProjectType) {
-        for sym in self.info.exports.iter() {
+    fn export_symbols(&mut self, _tmpdir: &Path, project_type: ProjectType) {
+        for sym in self.info.exports[&project_type].iter() {
             self.cmd.arg("--export").arg(&sym);
         }
 
@@ -686,4 +1186,120 @@ impl<'a> Linker for WasmLd<'a> {
     fn linker_plugin_lto(&mut self) {
         // Do nothing for now
     }
+}
+
+/// Much simplified and explicit CLI for the NVPTX linker. The linker operates
+/// with bitcode and uses LLVM backend to generate a PTX assembly.
+pub struct PtxLinker<'a> {
+    cmd: Command,
+    options: &'a Options,
+    diagnostics: &'a DiagnosticsHandler,
+}
+
+impl<'a> Linker for PtxLinker<'a> {
+    fn link_rlib(&mut self, path: &Path) {
+        self.cmd.arg("--rlib").arg(path);
+    }
+
+    fn link_whole_rlib(&mut self, path: &Path) {
+        self.cmd.arg("--rlib").arg(path);
+    }
+
+    fn include_path(&mut self, path: &Path) {
+        self.cmd.arg("-L").arg(path);
+    }
+
+    fn debuginfo(&mut self) {
+        self.cmd.arg("--debug");
+    }
+
+    fn add_object(&mut self, path: &Path) {
+        self.cmd.arg("--bitcode").arg(path);
+    }
+
+    fn args(&mut self, args: &[String]) {
+        self.cmd.args(args);
+    }
+
+    fn optimize(&mut self) {
+        match self.options.lto() {
+            Lto::Thin | Lto::Fat | Lto::ThinLocal => {
+                self.cmd.arg("-Olto");
+            }
+
+            Lto::No => {}
+        };
+    }
+
+    fn output_filename(&mut self, path: &Path) {
+        self.cmd.arg("-o").arg(path);
+    }
+
+    fn finalize(&mut self) -> Command {
+        // Provide the linker with fallback to internal `target-cpu`.
+        self.cmd.arg("--fallback-arch").arg(match self.options.codegen_opts.target_cpu {
+            Some(ref s) => s,
+            None => &self.options.target.options.cpu,
+        });
+
+        ::std::mem::replace(&mut self.cmd, Command::new(""))
+    }
+
+    fn link_dylib(&mut self, _lib: &str) {
+        panic!("external dylibs not supported")
+    }
+
+    fn link_rust_dylib(&mut self, _lib: &str, _path: &Path) {
+        panic!("external dylibs not supported")
+    }
+
+    fn link_staticlib(&mut self, _lib: &str) {
+        panic!("staticlibs not supported")
+    }
+
+    fn link_whole_staticlib(&mut self, _lib: &str, _search_path: &[PathBuf]) {
+        panic!("staticlibs not supported")
+    }
+
+    fn framework_path(&mut self, _path: &Path) {
+        panic!("frameworks not supported")
+    }
+
+    fn link_framework(&mut self, _framework: &str) {
+        panic!("frameworks not supported")
+    }
+
+    fn position_independent_executable(&mut self) {}
+
+    fn full_relro(&mut self) {}
+
+    fn partial_relro(&mut self) {}
+
+    fn no_relro(&mut self) {}
+
+    fn build_static_executable(&mut self) {}
+
+    fn gc_sections(&mut self, _keep_metadata: bool) {}
+
+    fn pgo_gen(&mut self) {}
+
+    fn no_default_libraries(&mut self) {}
+
+    fn control_flow_guard(&mut self) {
+        self.diagnostics.warn("Windows Control Flow Guard is not supported by this linker.");
+    }
+
+    fn build_dylib(&mut self, _out_filename: &Path) {}
+
+    fn export_symbols(&mut self, _tmpdir: &Path, _project_type: ProjectType) {}
+
+    fn subsystem(&mut self, _subsystem: &str) {}
+
+    fn no_position_independent_executable(&mut self) {}
+
+    fn group_start(&mut self) {}
+
+    fn group_end(&mut self) {}
+
+    fn linker_plugin_lto(&mut self) {}
 }

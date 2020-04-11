@@ -18,6 +18,7 @@ pub fn parser<'a, 'b>() -> App<'a, 'b> {
         .setting(AppSettings::UnifiedHelpMessage)
         .setting(AppSettings::GlobalVersion)
         .setting(AppSettings::VersionlessSubcommands)
+        .setting(AppSettings::ArgRequiredElseHelp)
         .arg(
             CodegenOptions::option_group_arg()
                 .global(true)

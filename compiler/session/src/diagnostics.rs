@@ -5,7 +5,7 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
-use libeir_diagnostics::emitter::{cyan, green_bold, white, yellow, yellow_bold};
+use libeir_diagnostics::emitter::{cyan, green_bold, red_bold, white, yellow, yellow_bold};
 use libeir_diagnostics::{ByteSpan, CodeMap, ColorSpec, Diagnostic, Emitter, Severity};
 use liblumen_util::error::{FatalError, Verbosity};
 
@@ -132,7 +132,12 @@ impl DiagnosticsHandler {
     }
 
     pub fn success<M: Display>(&self, prefix: &str, message: M) {
-        self.write_success(green_bold(), prefix, message);
+        self.write_prefixed(green_bold(), prefix, message);
+    }
+
+    pub fn failed<M: Display>(&self, prefix: &str, message: M) {
+        self.err_count.fetch_add(1, Ordering::Relaxed);
+        self.write_prefixed(red_bold(), prefix, message);
     }
 
     pub fn info<M: Display>(&self, message: M) {
@@ -160,7 +165,7 @@ impl DiagnosticsHandler {
             .unwrap();
     }
 
-    fn write_success<M: Display>(&self, color: ColorSpec, prefix: &str, message: M) {
+    fn write_prefixed<M: Display>(&self, color: ColorSpec, prefix: &str, message: M) {
         self.emitter
             .emit(Some(color), &format!("{:>12} ", prefix))
             .unwrap();

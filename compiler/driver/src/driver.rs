@@ -2,6 +2,8 @@ use std::env::ArgsOs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use anyhow::anyhow;
+
 use libeir_diagnostics::Emitter;
 
 use liblumen_session::{CodegenOptions, DebuggingOptions};
@@ -43,6 +45,6 @@ pub fn run_compiler_with_emitter(
             cwd,
             emitter,
         ),
-        (subcommand, _) => unimplemented!("subcommand '{}' is not implemented", subcommand),
+        (subcommand, _) => Err(anyhow!(format!("Unrecognized subcommand '{}'", subcommand))),
     }
 }

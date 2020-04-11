@@ -2,6 +2,7 @@ pub mod argparser;
 mod commands;
 mod compiler;
 mod driver;
+pub(crate) mod task;
 
 pub use self::driver::{run_compiler, run_compiler_with_emitter};
 

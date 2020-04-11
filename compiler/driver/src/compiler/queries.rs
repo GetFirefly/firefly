@@ -238,9 +238,10 @@ where
 
     let options = db.options();
     let input_info = db.lookup_intern_input(input);
+    let source_name = input_info.source_name();
     let diagnostics = db.diagnostics();
 
-    diagnostics.success("Compiling", input_info.source_name());
+    diagnostics.success("Compiling", &source_name);
     debug!(
         "compiling {:?} ({:?}) on thread {:?}",
         input, &input_info, thread_id
@@ -282,6 +283,7 @@ where
     ));
 
     debug!("compilation finished for {:?}", input);
+    diagnostics.success("Compiled", &source_name);
     Ok(compiled)
 }
 

@@ -1,6 +1,7 @@
 use std::ops::Deref;
+use std::panic;
 use std::path::PathBuf;
-use std::sync::{mpsc::channel, Arc, RwLock};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Instant;
 
@@ -8,21 +9,19 @@ use anyhow::anyhow;
 
 use clap::ArgMatches;
 
-use executors::crossbeam_channel_pool::ThreadPool;
-use executors::Executor;
-
 use log::debug;
 
 use libeir_diagnostics::{CodeMap, Emitter};
 
 use liblumen_codegen as codegen;
 use liblumen_codegen::linker::{self, LinkerInfo};
-use liblumen_codegen::meta::{CodegenResults, ProjectInfo};
+use liblumen_codegen::meta::{CodegenResults, CompiledModule, ProjectInfo};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_util::time::HumanDuration;
 
 use crate::commands::*;
 use crate::compiler::{prelude::*, *};
+use crate::task;
 
 pub fn handle_command<'a>(
     c_opts: CodegenOptions,
@@ -60,24 +59,24 @@ pub fn handle_command<'a>(
     }
 
     let start = Instant::now();
-    let pool = ThreadPool::new(num_cpus::get());
-    let (tx, rx) = channel();
-    for input in inputs.iter().cloned() {
-        debug!("spawning worker for {:?}", input);
-        let tx = tx.clone();
-        let snapshot = db.snapshot();
-        pool.execute(move || {
-            let thread_id = std::thread::current().id();
-            debug!("starting to compile on thread {:?}", thread_id);
-            let compilation_result = snapshot.compile(input);
-            debug!(
-                "compilation finished on thread {:?} {:?}",
-                thread_id, &compilation_result
-            );
-            tx.send(compilation_result)
-                .expect("worker failed: unable to send compiled module back to main thread");
-        });
-    }
+    let mut tasks = inputs
+        .iter()
+        .cloned()
+        .map(|input| {
+            debug!("spawning worker for {:?}", input);
+            let snapshot = db.snapshot();
+            task::spawn(async move {
+                use liblumen_incremental::InternerDatabase;
+                let result = snapshot.compile(input);
+                if result.is_err() {
+                    let diagnostics = snapshot.diagnostics();
+                    let input_info = snapshot.lookup_intern_input(input);
+                    diagnostics.failed("Failed", input_info.source_name());
+                }
+                result
+            })
+        })
+        .collect::<Vec<_>>();
 
     let options = db.options();
     let mut codegen_results = CodegenResults {
@@ -90,41 +89,15 @@ pub fn handle_command<'a>(
 
     debug!("awaiting results from workers ({} units)", num_inputs);
 
-    let mut received = 0;
-    {
-        let diagnostics = db.diagnostics();
-        loop {
-            match rx.recv() {
-                Ok(compile_result) => {
-                    debug!(
-                        "received compilation result from worker: {:?}",
-                        &compile_result
-                    );
-                    if let Ok(compiled_module) = compile_result {
-                        diagnostics.success("Compiled", &compiled_module.name());
-                        codegen_results.modules.push(compiled_module);
-                    } else {
-                        debug!("received compilation result from worker: compilation failed");
-                    }
-                    received += 1;
-                }
-                Err(_) => {
-                    debug!("received compilation result from worker: terminated");
-                    received += 1;
-                }
-            }
-            if received == num_inputs {
-                debug!("all compilation units are finished, terminating thread pool");
-                if let Err(ref reason) = pool.shutdown() {
-                    diagnostics.fatal_str(reason).raise();
-                }
-                break;
-            }
+    let diagnostics = db.diagnostics();
+    for task in tasks.drain(..) {
+        if let Ok(compiled) = task::join(task).unwrap() {
+            codegen_results.modules.push(compiled);
         }
-
-        // Do not proceed to linking if there were compilation errors
-        diagnostics.abort_if_errors();
     }
+
+    // Do not proceed to linking if there were compilation errors
+    diagnostics.abort_if_errors();
 
     // Generate LLVM module containing atom table data
     //

@@ -11,15 +11,17 @@ const ENV_LLVM_PREFIX: &'static str = "LLVM_SYS_90_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
 
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
+    let cwd = env::current_dir().unwrap();
+
+    println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
+    println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
+
+    rerun_if_changed_anything_in_dir(&cwd.join("c_src"));
 
     let outdir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let llvm_prefix_env = env::var(ENV_LLVM_PREFIX).expect(ENV_LLVM_PREFIX);
     let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
-
-    println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
-    println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
 
     let mut cfg = cc::Build::new();
     cfg.warnings(false);
@@ -35,9 +37,6 @@ fn main() {
         cfg.debug(false);
     }
 
-    rerun_if_changed_anything_in_dir(Path::new("c_src"));
-
-    let cwd = env::current_dir().unwrap();
     let include_dir = outdir.join("include");
     let include_mlir_dir = include_dir.join("lumen/mlir");
     fs::create_dir_all(include_mlir_dir.as_path()).unwrap();

@@ -16,8 +16,6 @@ fn main() {
     //     cargo:rustc-env=foo=bar
     // Can then be fetched with `env!("foo")`
 
-    println!("cargo:rerun-if-changed=build.rs");
-
     // LLVM
     let outdir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let cwd = env::current_dir().unwrap();
@@ -40,6 +38,8 @@ fn main() {
     let ir_path = dialect_eir_path.join("IR");
     let tablegen_input_path = ir_path.join("EIRBase.td");
 
+    println!("cargo:rerun-if-changed={}", tablegen_input_path.display());
+
     let term_encoding_rs_dest = outdir.join("term_encoding.rs");
     let flags = vec![
         "-gen-rust-eir-encoding-defs".to_owned(),
@@ -49,8 +49,6 @@ fn main() {
         format!("-o={}", term_encoding_rs_dest.to_str().unwrap()),
         tablegen_input_path.to_str().unwrap().to_owned(),
     ];
-
-    println!("cargo:rerun-if-changed={}", tablegen_input_path.display());
 
     let include_dir = outdir.join("include");
     fs::create_dir_all(include_dir.join("lumen/term")).unwrap();

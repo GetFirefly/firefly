@@ -79,7 +79,7 @@ pub fn options() -> TargetOptions {
         dynamic_linking: true,
         only_cdylib: true,
 
-        // This means we'll just embed a `start` function in the wasm module
+        // This means we'll just embed a `#[start]` function in the wasm module
         executables: true,
 
         // relatively self-explanatory!
@@ -132,9 +132,9 @@ pub fn options() -> TargetOptions {
 
         // When the atomics feature is activated then these two keys matter,
         // otherwise they're basically ignored by the standard library. In this
-        // mode, however, thread locals are supported (i.e. `has_elf_tls`) and we
-        // need to get it to work by specifying `local-exec` as that's all that's
-        // implemented in LLVM today for wasm.
+        // mode, however, the `#[thread_local]` attribute works (i.e. 
+        // `has_elf_tls`) and we need to get it to work by specifying 
+        // `local-exec` as that's all that's implemented in LLVM today for wasm.
         has_elf_tls: true,
         tls_model: "local-exec".to_string(),
 

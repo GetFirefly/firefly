@@ -1,8 +1,8 @@
+use super::apple_sdk_base::{opts, AppleOS, Arch};
 use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness};
-use super::apple_ios_base::{opts, Arch};
 
 pub fn target() -> TargetResult {
-    let base = opts(Arch::Arm64)?;
+    let base = opts(Arch::Arm64, AppleOS::iOS)?;
     Ok(Target {
         llvm_target: "arm64-apple-ios".to_string(),
         target_endian: Endianness::Little,

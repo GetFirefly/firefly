@@ -5,9 +5,6 @@ pub fn target() -> TargetResult {
     base.max_atomic_width = Some(64);
     base.has_elf_tls = true;
 
-    // FIXME: this shouldn't be panic=abort, it should be panic=unwind
-    base.panic_strategy = PanicStrategy::Abort;
-
     Ok(Target {
         llvm_target: "aarch64-pc-windows-msvc".to_string(),
         target_endian: Endianness::Little,

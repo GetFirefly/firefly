@@ -1,14 +1,16 @@
 use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness};
-use super::apple_ios_base::{opts, Arch};
+use super::apple_sdk_base::{opts, AppleOS, Arch};
 
 pub fn target() -> TargetResult {
-    let base = opts(Arch::I386)?;
+    let base = opts(Arch::I386, AppleOS::iOS)?;
     Ok(Target {
         llvm_target: "i386-apple-ios".to_string(),
         target_endian: Endianness::Little,
         target_pointer_width: 32,
         target_c_int_width: "32".to_string(),
-        data_layout: "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128".to_string(),
+        data_layout: "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-\
+            f64:32:64-f80:128-n8:16:32-S128"
+            .to_string(),
         arch: "x86".to_string(),
         target_os: "ios".to_string(),
         target_env: String::new(),

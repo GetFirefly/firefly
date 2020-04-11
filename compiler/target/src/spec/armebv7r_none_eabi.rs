@@ -18,7 +18,7 @@ pub fn target() -> TargetResult {
 
         options: TargetOptions {
             executables: true,
-            linker: Some("rust-lld".to_owned()),
+            linker: Some("lumen-lld".to_owned()),
             relocation_model: "static".to_string(),
             panic_strategy: PanicStrategy::Abort,
             max_atomic_width: Some(32),

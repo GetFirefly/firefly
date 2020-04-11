@@ -6,11 +6,11 @@
 //
 // For example, `-C target-cpu=cortex-a53`.
 
-use super::{LldFlavor, LinkerFlavor, Target, TargetOptions, PanicStrategy};
+use super::{LldFlavor, LinkerFlavor, Target, TargetOptions, PanicStrategy, Endianness};
 
 pub fn target() -> Result<Target, String> {
     let opts = TargetOptions {
-        linker: Some("rust-lld".to_owned()),
+        linker: Some("lumen-lld".to_owned()),
         features: "+strict-align,-neon,-fp-armv8".to_string(),
         executables: true,
         relocation_model: "static".to_string(),

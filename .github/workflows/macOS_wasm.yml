@@ -59,6 +59,8 @@ jobs:
           geckodriver --version
       - name: Enable Safari Driver
         run: sudo safaridriver --enable
+      - name: Build TableGen
+        run: make lumen-tblgen
       - name: Lumen Web Test
         run: wasm-pack test --headless --chrome --firefox --safari native_implemented_functions/web
       - name: Spawn Chain Build

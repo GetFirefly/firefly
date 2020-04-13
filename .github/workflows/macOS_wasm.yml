@@ -1,4 +1,4 @@
-name: macOS wasm32
+name: wasm32-unknown-unknown (macOS)
 
 on: push
 

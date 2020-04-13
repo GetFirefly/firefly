@@ -235,13 +235,13 @@ else
     printf 'ok!\033[1K\r'
 fi
 
-if [ "$only_tblgen" = "true" ]; then
-    exit 0
-fi
-
 export PATH="${OUTPUT_DIR}/build/lumen_tblgen/tools:$PATH"
 if [ "$is_ci" = "true" ]; then
     echo "::add-path::${OUTPUT_DIR}/build/lumen_tblgen/tools"
+fi
+
+if [ "$only_tblgen" = "true" ]; then
+    exit 0
 fi
 
 echo "Building Lumen"

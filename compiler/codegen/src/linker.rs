@@ -3,9 +3,9 @@ mod command;
 pub(crate) mod link;
 mod rpath;
 
+use std::ffi::{OsStr, OsString};
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
-use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use fxhash::FxHashMap;
@@ -13,7 +13,7 @@ use fxhash::FxHashMap;
 use log::{debug, warn};
 
 use liblumen_session::{
-    DebugInfo, DiagnosticsHandler, LinkerPluginLto, OptLevel, Lto, Options, ProjectType,
+    DebugInfo, DiagnosticsHandler, LinkerPluginLto, Lto, OptLevel, Options, ProjectType,
 };
 use liblumen_target::{LinkerFlavor, LldFlavor};
 
@@ -53,7 +53,9 @@ pub struct LinkerInfo {
 
 impl LinkerInfo {
     pub fn new() -> LinkerInfo {
-        Self { exports: Default::default() }
+        Self {
+            exports: Default::default(),
+        }
     }
 
     pub fn to_linker<'a>(
@@ -64,19 +66,18 @@ impl LinkerInfo {
         flavor: LinkerFlavor,
     ) -> Box<dyn Linker + 'a> {
         match flavor {
-            LinkerFlavor::Lld(LldFlavor::Link) | LinkerFlavor::Msvc => {
-                Box::new(MsvcLinker { 
-                    cmd, 
-                    options, 
-                    diagnostics,
-                    info: self,
-                }) as Box<dyn Linker>
-            }
+            LinkerFlavor::Lld(LldFlavor::Link) | LinkerFlavor::Msvc => Box::new(MsvcLinker {
+                cmd,
+                options,
+                diagnostics,
+                info: self,
+            })
+                as Box<dyn Linker>,
             LinkerFlavor::Em => Box::new(EmLinker {
                 cmd,
                 options,
                 diagnostics,
-                info: self
+                info: self,
             }) as Box<dyn Linker>,
             LinkerFlavor::Gcc => Box::new(GccLinker {
                 cmd,
@@ -102,7 +103,11 @@ impl LinkerInfo {
                 Box::new(WasmLd::new(cmd, options, diagnostics, self)) as Box<dyn Linker>
             }
 
-            LinkerFlavor::PtxLinker => Box::new(PtxLinker { cmd, options, diagnostics }) as Box<dyn Linker>,
+            LinkerFlavor::PtxLinker => Box::new(PtxLinker {
+                cmd,
+                options,
+                diagnostics,
+            }) as Box<dyn Linker>,
         }
     }
 }
@@ -413,7 +418,8 @@ impl<'a> Linker for GccLinker<'a> {
     }
 
     fn control_flow_guard(&mut self) {
-        self.diagnostics.warn("Windows Control Flow Guard is not supported by this linker.");
+        self.diagnostics
+            .warn("Windows Control Flow Guard is not supported by this linker.");
     }
 
     fn debuginfo(&mut self) {
@@ -480,7 +486,12 @@ impl<'a> Linker for GccLinker<'a> {
 
     fn export_symbols(&mut self, tmpdir: &Path, project_type: ProjectType) {
         if project_type == ProjectType::Executable
-            && self.options.target.options.override_export_symbols.is_none()
+            && self
+                .options
+                .target
+                .options
+                .override_export_symbols
+                .is_none()
         {
             return;
         }
@@ -508,7 +519,9 @@ impl<'a> Linker for GccLinker<'a> {
                 }
             };
             if let Err(e) = res {
-                self.diagnostics.fatal_str(&format!("failed to write lib.def file: {}", e)).raise();
+                self.diagnostics
+                    .fatal_str(&format!("failed to write lib.def file: {}", e))
+                    .raise();
             }
         } else {
             // Write an LD version script
@@ -525,7 +538,9 @@ impl<'a> Linker for GccLinker<'a> {
                 writeln!(f, "\n  local:\n    *;\n}};")?;
             };
             if let Err(e) = res {
-                self.diagnostics.fatal_str(&format!("failed to write version script: {}", e)).raise();
+                self.diagnostics
+                    .fatal_str(&format!("failed to write version script: {}", e))
+                    .raise();
             }
         }
 
@@ -739,7 +754,8 @@ impl<'a> Linker for MsvcLinker<'a> {
                         }
                     }
                     Err(err) => {
-                        self.diagnostics.warn(&format!("error enumerating natvis directory: {}", err));
+                        self.diagnostics
+                            .warn(&format!("error enumerating natvis directory: {}", err));
                     }
                 }
             }
@@ -778,7 +794,9 @@ impl<'a> Linker for MsvcLinker<'a> {
             }
         };
         if let Err(e) = res {
-            self.diagnostics.fatal_str(&format!("failed to write lib.def file: {}", e)).raise();
+            self.diagnostics
+                .fatal_str(&format!("failed to write lib.def file: {}", e))
+                .raise();
         }
         let mut arg = OsString::from("/DEF:");
         arg.push(path);
@@ -924,7 +942,8 @@ impl<'a> Linker for EmLinker<'a> {
     }
 
     fn control_flow_guard(&mut self) {
-        self.diagnostics.warn("Windows Control Flow Guard is not supported by this linker.");
+        self.diagnostics
+            .warn("Windows Control Flow Guard is not supported by this linker.");
     }
 
     fn debuginfo(&mut self) {
@@ -937,7 +956,8 @@ impl<'a> Linker for EmLinker<'a> {
     }
 
     fn no_default_libraries(&mut self) {
-        self.cmd.args(&["-s", "DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=[]"]);
+        self.cmd
+            .args(&["-s", "DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=[]"]);
     }
 
     fn build_dylib(&mut self, _out_filename: &Path) {
@@ -1008,7 +1028,12 @@ pub struct WasmLd<'a> {
 }
 
 impl<'a> WasmLd<'a> {
-    fn new(mut cmd: Command, options: &'a Options, diagnostics: &'a DiagnosticsHandler, info: &'a LinkerInfo) -> WasmLd<'a> {
+    fn new(
+        mut cmd: Command,
+        options: &'a Options,
+        diagnostics: &'a DiagnosticsHandler,
+        info: &'a LinkerInfo,
+    ) -> WasmLd<'a> {
         // If the atomics feature is enabled for wasm then we need a whole bunch
         // of flags:
         //
@@ -1050,7 +1075,12 @@ impl<'a> WasmLd<'a> {
             cmd.arg("--export=__tls_align");
             cmd.arg("--export=__tls_base");
         }
-        WasmLd { cmd, options, diagnostics, info }
+        WasmLd {
+            cmd,
+            options,
+            diagnostics,
+            info,
+        }
     }
 }
 
@@ -1149,7 +1179,8 @@ impl<'a> Linker for WasmLd<'a> {
     fn debuginfo(&mut self) {}
 
     fn control_flow_guard(&mut self) {
-        self.diagnostics.warn("Windows Control Flow Guard is not supported by this linker.");
+        self.diagnostics
+            .warn("Windows Control Flow Guard is not supported by this linker.");
     }
 
     fn no_default_libraries(&mut self) {}
@@ -1237,10 +1268,12 @@ impl<'a> Linker for PtxLinker<'a> {
 
     fn finalize(&mut self) -> Command {
         // Provide the linker with fallback to internal `target-cpu`.
-        self.cmd.arg("--fallback-arch").arg(match self.options.codegen_opts.target_cpu {
-            Some(ref s) => s,
-            None => &self.options.target.options.cpu,
-        });
+        self.cmd
+            .arg("--fallback-arch")
+            .arg(match self.options.codegen_opts.target_cpu {
+                Some(ref s) => s,
+                None => &self.options.target.options.cpu,
+            });
 
         ::std::mem::replace(&mut self.cmd, Command::new(""))
     }
@@ -1286,7 +1319,8 @@ impl<'a> Linker for PtxLinker<'a> {
     fn no_default_libraries(&mut self) {}
 
     fn control_flow_guard(&mut self) {
-        self.diagnostics.warn("Windows Control Flow Guard is not supported by this linker.");
+        self.diagnostics
+            .warn("Windows Control Flow Guard is not supported by this linker.");
     }
 
     fn build_dylib(&mut self, _out_filename: &Path) {}

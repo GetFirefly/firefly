@@ -57,10 +57,11 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
       // Insert yield check in original entry block
       rewriter.setInsertionPointToEnd(entry);
 
-      const uint32_t MAX_REDUCTIONS = 20; // TODO: Move this up in the compiler
-      Value maxReductions = rewriter.create<mlir::ConstantOp>(op.getLoc(), rewriter.getI32IntegerAttr(MAX_REDUCTIONS));
-      rewriter.create<YieldCheckOp>(op.getLoc(), maxReductions, doYield, ValueRange{},
-                                    dontYield, ValueRange{});
+      const uint32_t MAX_REDUCTIONS = 20;  // TODO: Move this up in the compiler
+      Value maxReductions = rewriter.create<mlir::ConstantOp>(
+          op.getLoc(), rewriter.getI32IntegerAttr(MAX_REDUCTIONS));
+      rewriter.create<YieldCheckOp>(op.getLoc(), maxReductions, doYield,
+                                    ValueRange{}, dontYield, ValueRange{});
       // Then insert the actual yield point in the yield block
       rewriter.setInsertionPointToEnd(doYield);
       rewriter.create<YieldOp>(op.getLoc());

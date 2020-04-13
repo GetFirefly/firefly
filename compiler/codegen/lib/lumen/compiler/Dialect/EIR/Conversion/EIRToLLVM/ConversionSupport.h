@@ -1,11 +1,11 @@
 #ifndef LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 #define LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 
+#include "llvm/Target/TargetMachine.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
 #include "lumen/compiler/Target/TargetInfo.h"
-
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -20,17 +20,15 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-#include "llvm/Target/TargetMachine.h"
-
 using ::llvm::TargetMachine;
 using ::mlir::ConversionPatternRewriter;
 using ::mlir::LLVMTypeConverter;
 using ::mlir::LogicalResult;
+using ::mlir::success;
 using ::mlir::edsc::intrinsics::OperationBuilder;
 using ::mlir::edsc::intrinsics::ValueBuilder;
 using ::mlir::LLVM::LLVMDialect;
 using ::mlir::LLVM::LLVMType;
-using ::mlir::success;
 
 namespace LLVM = ::mlir::LLVM;
 

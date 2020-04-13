@@ -21,8 +21,8 @@ struct CondBranchOpConversion : public EIROpConversion<eir::CondBranchOp> {
   LogicalResult matchAndRewrite(
       eir::CondBranchOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(op, operands, op.getSuccessors(),
-                                          op.getAttrs());
+    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
+        op, operands, op.getSuccessors(), op.getAttrs());
     return success();
   }
 };
@@ -201,8 +201,8 @@ struct YieldCheckOpConversion : public EIROpConversion<YieldCheckOp> {
 
     auto i32Ty = ctx.getI32Type();
     auto reductionCountGlobal = ctx.getOrInsertGlobal(
-        "CURRENT_REDUCTION_COUNT", i32Ty, nullptr,
-        LLVM::Linkage::External, LLVM::ThreadLocalMode::LocalExec);
+        "CURRENT_REDUCTION_COUNT", i32Ty, nullptr, LLVM::Linkage::External,
+        LLVM::ThreadLocalMode::LocalExec);
 
     // Load the current reduction count
     Value reductionCount = llvm_load(reductionCountGlobal);
@@ -211,8 +211,8 @@ struct YieldCheckOpConversion : public EIROpConversion<YieldCheckOp> {
     Value shouldYield =
         llvm_icmp(LLVM::ICmpPredicate::uge, reductionCount, maxReductions);
 
-    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(op, shouldYield, op.getSuccessors(),
-                                          op.getAttrs());
+    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
+        op, shouldYield, op.getSuccessors(), op.getAttrs());
     return success();
   }
 };

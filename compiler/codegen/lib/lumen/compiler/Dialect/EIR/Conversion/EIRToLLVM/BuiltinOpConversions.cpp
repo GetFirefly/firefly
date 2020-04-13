@@ -16,8 +16,8 @@ struct IncrementReductionsOpConversion
     auto i32Ty = ctx.getI32Type();
 
     auto reductionCount = ctx.getOrInsertGlobal(
-        "CURRENT_REDUCTION_COUNT", i32Ty, nullptr,
-        LLVM::Linkage::External, LLVM::ThreadLocalMode::LocalExec);
+        "CURRENT_REDUCTION_COUNT", i32Ty, nullptr, LLVM::Linkage::External,
+        LLVM::ThreadLocalMode::LocalExec);
 
     auto incBy = op.increment().getLimitedValue();
     Value increment = llvm_constant(i32Ty, ctx.getI32Attr(incBy));

@@ -1,11 +1,10 @@
 #ifndef LUMEN_MODULEBUILDER_SUPPORT_H
 #define LUMEN_MODULEBUILDER_SUPPORT_H
 
-#include "lumen/mlir/IR.h"
+#include <stdint.h>
 
 #include "llvm/Support/Casting.h"
-
-#include <stdint.h>
+#include "lumen/mlir/IR.h"
 
 namespace lumen {
 namespace eir {

@@ -2,7 +2,6 @@
 #define LUMEN_COMPILER_DIALECT_EIR_TRANSFORMS_PASSES_H_
 
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
-
 #include "mlir/IR/Module.h"
 #include "mlir/Pass/Pass.h"
 

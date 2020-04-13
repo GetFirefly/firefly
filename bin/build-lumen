@@ -19,7 +19,9 @@ if [ -z "$LLVM_SYS_90_PREFIX" ]; then
     LLVM_SYS_90_PREFIX="$(cd "${XDG_DATA_HOME}/llvm/lumen" && pwd -P)"
 fi
 
+is_ci="false"
 is_darwin="false"
+only_tblgen="false"
 build_static="false"
 build_dynamic="false"
 build_use_libcxx="false"
@@ -34,6 +36,7 @@ extra_cargo_flags=""
 function usage() {
     echo "usage: $(basename "$0") [--static] [OPTIONS..]"
     echo ""
+    echo " --only-tblgen        Build lumen-tblgen only"
     echo " --verbose            Build with extra verbose logging"
     echo " --debug              Build debug binary"
     echo " --release            Build release binary"
@@ -72,6 +75,10 @@ while [ $# -gt 0 ]; do
         -debug | --debug )
             extra_rustc_flags="-C opt-level=0"
             OUTPUT_DIR="${ROOT_DIR}/target/debug"
+            ;;
+
+        -only-tblgen | --only-tblgen )
+            only_tblgen="true"
             ;;
 
         -release | --release )
@@ -118,6 +125,10 @@ while [ $# -gt 0 ]; do
         shift
     fi
 done
+
+if [ -n "$GITHUB_WORKFLOW" ]; then
+    is_ci="true"
+fi
 
 if ! type -p jq >/dev/null; then
     echo "Expected jq to be on your PATH"
@@ -225,6 +236,13 @@ else
 fi
 
 export PATH="${OUTPUT_DIR}/build/lumen_tblgen/tools:$PATH"
+if [ "$is_ci" = "true" ]; then
+    echo "::add-path::${OUTPUT_DIR}/build/lumen_tblgen/tools"
+fi
+
+if [ "$only_tblgen" = "true" ]; then
+    exit 0
+fi
 
 echo "Building Lumen"
 echo "  host:                $host_target"

@@ -1,12 +1,10 @@
 #ifndef LUMEN_TARGET_TARGETINFO_H
 #define LUMEN_TARGET_TARGETINFO_H
 
-#include "lumen/term/Encoding.h"
-
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Triple.h"
+#include "lumen/term/Encoding.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 using ::mlir::LLVM::LLVMType;
 

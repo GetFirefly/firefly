@@ -27,6 +27,10 @@ build: ## Build the Lumen compiler
 	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx
 
+lumen-tblgen:
+	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		bin/build-lumen --only-tblgen
+
 lumen_rt_core:
 	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_core

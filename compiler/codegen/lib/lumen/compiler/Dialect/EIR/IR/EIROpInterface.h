@@ -1,8 +1,8 @@
 #ifndef EIR_IR_OPINTERFACE_H
 #define EIR_IR_OPINTERFACE_H
 
-#include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 
 using ::llvm::ArrayRef;
 using ::llvm::StringRef;

@@ -1,17 +1,16 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
-
-#include "mlir/IR/Diagnostics.h"
-#include "mlir/IR/Dialect.h"
-#include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
-#include "mlir/Parser.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRDialect.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/StandardTypes.h"
+#include "mlir/Parser.h"
 
 using ::llvm::SmallVector;
 
@@ -156,8 +155,7 @@ TupleType TupleType::get(MLIRContext *context, ArrayRef<Type> elementTypes) {
 }
 
 LogicalResult TupleType::verifyConstructionInvariants(
-    Location loc, unsigned arity,
-    ArrayRef<Type> elementTypes) {
+    Location loc, unsigned arity, ArrayRef<Type> elementTypes) {
   if (arity < 1) {
     // If this is dynamically-shaped, then there is nothing to verify
     return success();

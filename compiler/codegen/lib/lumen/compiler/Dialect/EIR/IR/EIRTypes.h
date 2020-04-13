@@ -1,8 +1,13 @@
 #ifndef EIR_TYPES_H
 #define EIR_TYPES_H
 
-#include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
+#include <vector>
 
+#include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/raw_ostream.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIREnums.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/StandardTypes.h"
@@ -10,13 +15,6 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
-
-#include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/raw_ostream.h"
-
-#include <vector>
 
 using ::llvm::ArrayRef;
 using ::llvm::Optional;
@@ -268,8 +266,7 @@ class TupleType : public Type::TypeBase<TupleType, OpaqueTermType,
 
   // Verifies construction invariants and issues errors/warnings.
   static LogicalResult verifyConstructionInvariants(
-      Location loc, unsigned arity,
-      ArrayRef<Type> elementTypes);
+      Location loc, unsigned arity, ArrayRef<Type> elementTypes);
 
   // Returns the size of the shaped type
   int64_t getArity() const;
@@ -299,7 +296,8 @@ class BoxType
   static BoxType getChecked(Type boxedType, mlir::Location location);
 
   /// Verifies construction of a type with the given object.
-  static LogicalResult verifyConstructionInvariants(Location loc, Type boxedType) {
+  static LogicalResult verifyConstructionInvariants(Location loc,
+                                                    Type boxedType) {
     if (!OpaqueTermType::classof(boxedType)) {
       emitError(loc) << "invalid target type for a box: " << boxedType;
       return failure();

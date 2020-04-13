@@ -16,7 +16,8 @@ namespace lumen {
 namespace eir {
 
 // A pass converting the EIR dialect into the Standard dialect.
-class ConvertEIRToLLVMPass : public mlir::PassWrapper<ConvertEIRToLLVMPass, OperationPass<ModuleOp>> {
+class ConvertEIRToLLVMPass
+    : public mlir::PassWrapper<ConvertEIRToLLVMPass, OperationPass<ModuleOp>> {
  public:
   ConvertEIRToLLVMPass(TargetMachine *targetMachine_)
       : targetMachine(targetMachine_),

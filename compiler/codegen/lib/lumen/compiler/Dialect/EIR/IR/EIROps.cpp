@@ -1,7 +1,13 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
+
+#include <iterator>
+#include <vector>
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/SMLoc.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRAttributes.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
@@ -15,13 +21,6 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/STLExtras.h"
-
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/SMLoc.h"
-
-#include <iterator>
-#include <vector>
 
 using namespace lumen;
 using namespace lumen::eir;
@@ -152,7 +151,7 @@ struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
     return success();
   }
 };
-}
+}  // namespace
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
@@ -193,7 +192,7 @@ struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
     return failure();
   }
 };
-} // end anonymous namespace.
+}  // end anonymous namespace.
 
 void CondBranchOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
@@ -637,17 +636,39 @@ OpFoldResult foldConstantOp(Op *op, ArrayRef<Attribute> operands) {
   return op->getValue();
 }
 
-OpFoldResult ConstantFloatOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantIntOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantBigIntOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantAtomOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantBinaryOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantNilOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantTupleOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantConsOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantListOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
-OpFoldResult ConstantMapOp::fold(ArrayRef<Attribute> operands) { return foldConstantOp(this, operands); }
+OpFoldResult ConstantFloatOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantIntOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantBigIntOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantAtomOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantBinaryOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantNilOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantTupleOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantConsOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantListOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
+OpFoldResult ConstantMapOp::fold(ArrayRef<Attribute> operands) {
+  return foldConstantOp(this, operands);
+}
 
 //===----------------------------------------------------------------------===//
 // MallocOp

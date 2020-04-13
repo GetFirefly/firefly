@@ -1,7 +1,4 @@
 #include "lumen/compiler/Target/TargetInfo.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -9,6 +6,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Target/TargetMachine.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 using ::llvm::APInt;
 using ::llvm::ArrayRef;

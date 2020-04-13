@@ -5,7 +5,11 @@ pub fn opts() -> TargetOptions {
     let mut pre_link_args = LinkArgs::new();
     pre_link_args.insert(
         LinkerFlavor::Lld(LldFlavor::Ld),
-        vec!["--build-id".to_string(), "--hash-style=gnu".to_string(), "--Bstatic".to_string()],
+        vec![
+            "--build-id".to_string(),
+            "--hash-style=gnu".to_string(),
+            "--Bstatic".to_string(),
+        ],
     );
 
     TargetOptions {

@@ -1,11 +1,4 @@
 #include "lumen/compiler/Translation/ModuleBuilder.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
-
-#include "mlir/Analysis/Verifier.h"
-#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
-#include "mlir/EDSC/Intrinsics.h"
-#include "mlir/IR/StandardTypes.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -18,6 +11,12 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+#include "mlir/Analysis/Verifier.h"
+#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
+#include "mlir/EDSC/Intrinsics.h"
+#include "mlir/IR/StandardTypes.h"
 
 using ::llvm::Optional;
 using ::llvm::StringSwitch;

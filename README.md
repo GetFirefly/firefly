@@ -72,7 +72,7 @@ the usual default for this XDG variable.
 
     mkdir -p $XDG_DATA_HOME/llvm/lumen
     cd $XDG_DATA_HOME/llvm/lumen
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-04-16/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
     tar -xz --strip-components 1 -f clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
     rm clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
     cd -
@@ -81,7 +81,7 @@ the usual default for this XDG variable.
 
     mkdir -p $XDG_DATA_HOME/llvm
     cd $XDG_DATA_HOME/llvm/lumen
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-04-16/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     tar -xzf clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     rm clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
     mv clang+llvm-10.0.0-x86_64-apple-darwin19.3.0 lumen

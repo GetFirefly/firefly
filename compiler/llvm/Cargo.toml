@@ -19,11 +19,6 @@ liblumen_session = { path = "../session" }
 liblumen_target = { path = "../target" }
 liblumen_util = { path = "../../liblumen_util" }
 
-[dependencies.llvm-sys]
-git = "https://github.com/lumen/llvm-sys.rs"
-branch = "llvm-9.0"
-features = ["no-llvm-linking", "disable-alltargets-init"]
-
 [build-dependencies]
 cc = "1.0"
 which = "2.0.1"

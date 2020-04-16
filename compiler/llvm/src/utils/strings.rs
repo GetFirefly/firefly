@@ -49,7 +49,7 @@ impl LLVMString {
     }
 
     pub fn create(string: &str) -> LLVMString {
-        use llvm_sys::core::LLVMCreateMessage;
+        use crate::sys::core::LLVMCreateMessage;
 
         debug_assert_eq!(string.as_bytes()[string.as_bytes().len() - 1], 0);
         let ptr = unsafe { LLVMCreateMessage(string.as_ptr() as *const _) };
@@ -85,7 +85,7 @@ impl PartialEq for LLVMString {
 impl std::error::Error for LLVMString {}
 impl Drop for LLVMString {
     fn drop(&mut self) {
-        use llvm_sys::core::LLVMDisposeMessage;
+        use crate::sys::core::LLVMDisposeMessage;
         unsafe {
             LLVMDisposeMessage(self.0 as *mut _);
         }

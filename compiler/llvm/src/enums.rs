@@ -1,6 +1,6 @@
 use std::fmt;
 
-use llvm_sys::{LLVMLinkage, LLVMThreadLocalMode};
+use crate::sys::{LLVMLinkage, LLVMThreadLocalMode};
 
 #[derive(Copy, Clone)]
 #[repr(C)]

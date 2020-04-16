@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-const ENV_LLVM_PREFIX: &'static str = "LLVM_SYS_90_PREFIX";
+const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 
 fn main() {
     // Emit custom cfg types:

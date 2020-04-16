@@ -5,75 +5,83 @@
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
 XDG_DATA_HOME ?= $(HOME)/.local/share
-LLVM_SYS_90_PREFIX ?= `cd $(XDG_DATA_HOME)/llvm/lumen && pwd`
+LLVM_PREFIX ?= `cd $(XDG_DATA_HOME)/llvm/lumen && pwd`
 CWD ?= `pwd`
 
 help:
 	@echo "$(NAME):$(VERSION)"
 	@echo ""
-	@echo "LLVM Prefix: $(LLVM_SYS_90_PREFIX)"
-	@echo "^ If not set, export LLVM_SYS_90_PREFIX=/path/to/llvm/install"
+	@echo "LLVM Prefix: $(LLVM_PREFIX)"
+	@echo "^ If not set, export LLVM_PREFIX=/path/to/llvm/install"
 	@echo
 	@perl -nle'print $& if m{^[a-zA-Z_-]+:.*?## .*$$}' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 test: ## Run tests
-	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo test
+	LLVM_PREFIX=$(LLVM_PREFIX) cargo test
 
 install: ## Install the Lumen compiler
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --release --static --use-libcxx --install $(INSTALL_PREFIX)
 
 build: ## Build the Lumen compiler
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx
 
 lumen-tblgen:
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --only-tblgen
 
+libunwind:
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package unwind
+
+libpanic:
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package panic
+
 lumen_rt_core:
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_core
 
 lumen_rt_minimal:
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_minimal
 
 liblumen_crt:
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_crt 
 
 liblumen_term:
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_term 
 
 liblumen_llvm:
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_llvm 
 
 liblumen_mlir:
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_mlir
 
 liblumen_codegen:
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_codegen
 
 build-static: ## Build a statically linked Lumen compiler
-	@LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --static --use-libcxx
 
 clean-codegen:
-	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo clean -p liblumen_codegen
+	LLVM_PREFIX=$(LLVM_PREFIX) cargo clean -p liblumen_codegen
 
 check: ## Check the Lumen compiler
-	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo check -p lumen
+	LLVM_PREFIX=$(LLVM_PREFIX) cargo check -p lumen
 
 unused-deps: ## Report feature usage in the workspace
-	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo udeps
+	LLVM_PREFIX=$(LLVM_PREFIX) cargo udeps
 
 clippy: ## Lint all
-	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo clippy
+	LLVM_PREFIX=$(LLVM_PREFIX) cargo clippy
 
 format: format-rust format-cpp ## Format all
 

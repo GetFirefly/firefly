@@ -6,9 +6,6 @@ publish = false
 edition = "2018"
 build = "build.rs"
 
-[lib]
-crate-type = ["staticlib", "rlib"]
-
 [dependencies]
 rustversion = "1.0"
 cfg-if = "0.1"

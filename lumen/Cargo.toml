@@ -22,5 +22,7 @@ liblumen_compiler = { path = "../compiler/driver" }
 liblumen_session = { path = "../compiler/session" }
 
 [build-dependencies]
+unwind = { path = "../compiler/unwind" }
+panic = { path = "../compiler/panic" }
 liblumen_crt = { path = "../runtimes/crt" }
 lumen_rt_minimal = { path = "../runtimes/minimal" }

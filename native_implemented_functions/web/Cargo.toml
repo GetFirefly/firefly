@@ -6,9 +6,6 @@ edition = "2018"
 publish = false
 description = "Lumen bindings for Web APIs"
 
-[lib]
-crate-type = ["staticlib", "rlib"]
-
 [features]
 default = ["time_web_sys"]
 time_web_sys = ["lumen_rt_full/time_web_sys"]

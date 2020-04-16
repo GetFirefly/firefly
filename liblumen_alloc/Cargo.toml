@@ -23,6 +23,7 @@ num-traits = "0.2"
 num-bigint = "0.2"
 heapless = { git = "https://github.com/japaric/heapless" }
 static_assertions = "1.0.0"
+backtrace = "0.3.35"
 liblumen_core = { path = "../liblumen_core" }
 liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }

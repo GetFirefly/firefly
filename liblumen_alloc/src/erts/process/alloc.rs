@@ -42,15 +42,21 @@ pub struct Stack {
 }
 impl Stack {
     fn new(base: *mut u8, pages: usize) -> Self {
-        use liblumen_core::alloc::utils::align_down_to;
+        use liblumen_core::alloc::utils::align_up_to;
         use liblumen_core::sys::sysconf;
 
         let page_size = sysconf::pagesize();
         let size = (pages + 1) * page_size;
-        // Find the top of the stack
-        let end = unsafe { base.offset((pages * page_size) as isize) };
-        let with_red_zone = unsafe { end.offset(-128) };
-        let top = align_down_to(with_red_zone, STACK_ALIGNMENT);
+
+        // The bottom is where the guard page begins (remember: stack grows downwards)
+        let bottom = unsafe { base.offset(page_size as isize) };
+        // We add some reserved space, called red zone, at the bottom of the stack.
+        // The starting address of the red zone is also the "end" of the usable stack
+        let with_red_zone = unsafe { bottom.offset(128) };
+        let end = align_up_to(with_red_zone, STACK_ALIGNMENT);
+        // The start, or top, of the stack is given by offsetting our base by the size
+        // of the entire mapped region
+        let top = unsafe { base.offset(size as isize) };
 
         Self {
             base,
@@ -63,6 +69,12 @@ impl Stack {
     #[inline]
     pub fn limit(&self) -> *mut u8 {
         self.end
+    }
+
+    #[inline]
+    pub fn is_guard_page<T>(&self, addr: *mut T) -> bool {
+        use liblumen_core::util::pointer::in_area_inclusive;
+        in_area_inclusive(addr, self.base, self.end)
     }
 }
 impl Default for Stack {

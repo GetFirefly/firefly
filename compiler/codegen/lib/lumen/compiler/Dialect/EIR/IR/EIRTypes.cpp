@@ -97,6 +97,23 @@ struct RefTypeStorage : public mlir::TypeStorage {
   OpaqueTermType innerType;
 };
 
+struct PtrTypeStorage : public mlir::TypeStorage {
+  PtrTypeStorage(Type innerType, unsigned subclassData = 0)
+      : TypeStorage(subclassData), innerType(innerType) {}
+
+  /// The hash key used for uniquing.
+  using KeyTy = Type;
+  bool operator==(const KeyTy &key) const { return key == innerType; }
+
+  static PtrTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                   const KeyTy &key) {
+    // Initialize the memory using placement new.
+    return new (allocator.allocate<PtrTypeStorage>()) PtrTypeStorage(key);
+  }
+
+  Type innerType;
+};
+
 }  // namespace detail
 }  // namespace eir
 }  // namespace lumen
@@ -220,6 +237,18 @@ RefType RefType::getChecked(Type type, Location location) {
 }
 
 OpaqueTermType RefType::getInnerType() const { return getImpl()->innerType; }
+
+// Ptr<T>
+
+PtrType PtrType::get(Type innerType) {
+  return Base::get(innerType.getContext(), TypeKind::Ptr, innerType);
+}
+
+PtrType PtrType::get(MLIRContext *context) {
+  return Base::get(context, TypeKind::Ptr, mlir::IntegerType::get(8, context));
+}
+
+Type PtrType::getInnerType() const { return getImpl()->innerType; }
 
 }  // namespace eir
 }  // namespace lumen
@@ -504,6 +533,12 @@ void EirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
     case TypeKind::Ref: {
       auto type = ty.cast<RefType>();
       os << "ref<";
+      p.printType(type.getInnerType());
+      os << '>';
+    } break;
+    case TypeKind::Ptr: {
+      auto type = ty.cast<PtrType>();
+      os << "ptr<";
       p.printType(type.getInnerType());
       os << '>';
     } break;

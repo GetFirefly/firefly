@@ -24,7 +24,9 @@ libc = "0.2"
 liblumen_core = { path = "../../liblumen_core" }
 liblumen_term = { path = "../../compiler/term" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
+liblumen_crt = { path = "../crt" }
 lumen_rt_core = { path = "../core" }
+panic = { path = "../../compiler/panic" }
 
 [dependencies.hashbrown]
 version = "0.7"

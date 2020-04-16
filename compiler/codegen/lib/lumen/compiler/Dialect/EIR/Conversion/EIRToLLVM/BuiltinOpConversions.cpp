@@ -172,7 +172,7 @@ struct TraceCaptureOpConversion : public EIROpConversion<TraceCaptureOp> {
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_trace_capture");
-    auto callee = ctx.getOrInsertFunction(symbolName, termTy);
+    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
 
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
@@ -192,7 +192,7 @@ struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_trace_construct");
-    auto callee = ctx.getOrInsertFunction(symbolName, termTy);
+    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
 
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());

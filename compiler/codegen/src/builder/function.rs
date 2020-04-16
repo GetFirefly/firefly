@@ -804,13 +804,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         reads
                     );
                     let error_kind = self.build_value(reads[1])?;
-                    let error_class = self.build_value(reads[2])?;
-                    let error_reason = self.build_value(reads[3])?;
+                    let error_reason = self.build_value(reads[2])?;
+                    let error_trace = self.build_value(reads[3])?;
                     OpKind::Throw(Throw {
                         loc,
                         kind: error_kind,
-                        class: error_class,
                         reason: error_reason,
+                        trace: error_trace,
                     })
                 } else {
                     debug_in!(self, "control flow type: branch");
@@ -837,8 +837,16 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 let ir_ok = reads[1];
                 let ir_err = reads[2];
                 let mut args = Vec::with_capacity(num_reads - 3);
+                // Tail calls occur when both return and escape continuations are the same
+                // as the calling function, indicating that we would be returning over this
+                // frame and back to this function's caller
                 let is_tail = self.func.is_return_ir(ir_ok) && self.func.is_throw_ir(ir_err);
                 debug_in!(self, "is tail call = {}", is_tail);
+                // We lower calls as invokes when a block in this function is given as the
+                // escape continuation, since we need to set up the given block as a catchpad
+                // for the exception that may occur
+                let is_invoke = !self.func.is_throw_ir(ir_err);
+                debug_in!(self, "is invoke = {}", is_invoke);
                 for read in reads.iter().skip(3).copied() {
                     let value = self.build_value(read)?;
                     args.push(value);
@@ -851,10 +859,9 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     if let Some(ok_ir_block) = self.eir.value_block(ir_ok) {
                         debug_in!(self, "ok continues to {:?}", ok_ir_block);
                         let ok_block = self.get_block(ok_ir_block);
-                        let ok_args = self.build_target_block_args(ok_block, &reads[3..]);
                         CallSuccess::Branch(Branch {
                             block: ok_block,
-                            args: ok_args,
+                            args: Default::default(),
                         })
                     } else {
                         panic!(
@@ -865,13 +872,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     }
                 };
                 debug_in!(self, "on success = {:?}", ok);
-                let err = if self.func.is_throw_ir(ir_err) {
-                    CallError::Throw
+                let err = if !is_invoke {
+                    CallError::Throws
                 } else {
                     if let Some(err_ir_block) = self.eir.value_block(ir_err) {
-                        debug_in!(self, "exception continues to {:?}", err_ir_block);
+                        debug_in!(self, "exception catchpad is {:?}", err_ir_block);
                         let err_block = self.get_block(err_ir_block);
-                        CallError::Branch(Branch {
+                        CallError::Catch(Branch {
                             block: err_block,
                             args: Default::default(),
                         })

@@ -62,7 +62,7 @@ extern "C" MLIRPassManagerRef MLIRCreatePassManager(MLIRContextRef context,
 
   // Add optimizations if enabled
   if (enableOpt) {
-    OpPassManager &optPM = pm->nest<::mlir::FuncOp>();
+    OpPassManager &optPM = pm->nest<::mlir::LLVM::LLVMFuncOp>();
     optPM.addPass(mlir::createLoopFusionPass());
     optPM.addPass(mlir::createMemRefDataFlowOptPass());
     optPM.addPass(mlir::createCanonicalizerPass());

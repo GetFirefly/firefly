@@ -20,6 +20,11 @@ Optional<Type> convertType(Type type, LLVMTypeConverter &converter,
   MLIRContext *context = type.getContext();
   auto termTy = targetInfo.getUsizeType();
 
+  if (auto ptrTy = type.dyn_cast_or_null<PtrType>()) {
+    auto innerTy = converter.convertType(ptrTy.getInnerType()).cast<LLVMType>();
+    return innerTy.getPointerTo();
+  }
+
   if (auto refTy = type.dyn_cast_or_null<RefType>()) {
     auto innerTy = converter.convertType(refTy.getInnerType()).cast<LLVMType>();
     return innerTy.getPointerTo();
@@ -66,7 +71,7 @@ Optional<Type> convertType(Type type, LLVMTypeConverter &converter,
 
 Operation *OpConversionContext::getOrInsertFunction(
     ModuleOp mod, StringRef symbol, LLVMType resultTy,
-    ArrayRef<LLVMType> argTypes) const {
+    ArrayRef<LLVMType> argTypes, ArrayRef<NamedAttribute> attrs) const {
   Operation *funcOp = SymbolTable::lookupNearestSymbolFrom(mod, symbol);
   if (funcOp) return funcOp;
 
@@ -81,7 +86,11 @@ Operation *OpConversionContext::getOrInsertFunction(
 
   PatternRewriter::InsertionGuard insertGuard(rewriter);
   rewriter.setInsertionPointToStart(mod.getBody());
-  return rewriter.create<LLVM::LLVMFuncOp>(mod.getLoc(), symbol, fnTy);
+  auto op = rewriter.create<LLVM::LLVMFuncOp>(mod.getLoc(), symbol, fnTy);
+  for (auto attr : attrs) {
+    op.setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
+  }
+  return op;
 }
 
 LLVM::GlobalOp OpConversionContext::getOrInsertGlobalString(

@@ -12,6 +12,20 @@ template <typename Op>
 static Value lowerElementValue(RewritePatternContext<Op> &ctx,
                                Attribute elementAttr);
 
+struct NullOpConversion : public EIROpConversion<NullOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      NullOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+
+    auto ty = ctx.typeConverter.convertType(op.getType()).cast<LLVMType>();
+    rewriter.replaceOpWithNewOp<LLVM::NullOp>(op, ty);
+    return success();
+  }
+};
+
 struct ConstantAtomOpConversion : public EIROpConversion<ConstantAtomOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -564,7 +578,8 @@ void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
                   ConstantFloatOpConversion, ConstantIntOpConversion,
                   ConstantListOpConversion, /*ConstantMapOpConversion,*/
                   ConstantNilOpConversion, ConstantNoneOpConversion,
-                  ConstantTupleOpConversion>(context, converter, targetInfo);
+                  ConstantTupleOpConversion, NullOpConversion>(
+      context, converter, targetInfo);
 }
 
 }  // namespace eir

@@ -7,6 +7,9 @@
 #[cfg(not(unix))]
 compile_error!("lumen_rt_minimal is only supported on unix targets!");
 
+extern crate liblumen_crt;
+extern crate panic;
+
 #[macro_use]
 mod macros;
 mod builtins;

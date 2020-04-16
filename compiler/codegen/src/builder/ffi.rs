@@ -365,6 +365,14 @@ extern "C" {
         value: ValueRef,
     ) -> ValueRef;
 
+    pub fn MLIRBuildThrow(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        kind: ValueRef,
+        class: ValueRef,
+        reason: ValueRef,
+    );
+
     pub fn MLIRBuildStaticCall(
         builder: ModuleBuilderRef,
         loc: LocationRef,

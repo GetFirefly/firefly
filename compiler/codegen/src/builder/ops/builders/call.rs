@@ -33,7 +33,7 @@ impl CallBuilder {
 
         let mut err_args = Vec::new();
         let err_block = match op.err {
-            CallError::Branch(Branch { block, args }) => {
+            CallError::Catch(Branch { block, args }) => {
                 for arg in args.iter().copied() {
                     err_args.push(builder.value_ref(arg));
                 }

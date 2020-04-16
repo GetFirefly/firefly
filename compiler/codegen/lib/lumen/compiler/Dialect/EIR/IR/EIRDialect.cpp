@@ -35,7 +35,7 @@ EirDialect::EirDialect(mlir::MLIRContext *ctx)
            ::lumen::eir::IntegerType, AtomType, ::lumen::eir::BooleanType,
            FixnumType, BigIntType, ::lumen::eir::FloatType, NilType, ConsType,
            TupleType, MapType, ClosureType, BinaryType, HeapBinType,
-           ProcBinType, BoxType, RefType>();
+           ProcBinType, BoxType, RefType, PtrType>();
 
   addAttributes<AtomAttr, BinaryAttr, SeqAttr>();
 }

@@ -56,6 +56,7 @@ struct TargetInfoImpl {
   LLVMType consTy;
   LLVMType opaqueFnTy;
   LLVMType uniqueTy, defTy;
+  LLVMType exceptionTy;
 
   llvm::APInt nil;
   llvm::APInt none;
@@ -94,6 +95,8 @@ class TargetInfo {
 
   mlir::LLVM::LLVMType getClosureUniqueType() { return impl->uniqueTy; }
   mlir::LLVM::LLVMType getClosureDefinitionType() { return impl->defTy; }
+
+  mlir::LLVM::LLVMType getExceptionType() { return impl->exceptionTy; }
 
   llvm::APInt encodeImmediate(uint32_t type, uint64_t value);
   llvm::APInt encodeHeader(uint32_t type, uint64_t arity);

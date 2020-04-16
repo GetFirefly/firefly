@@ -10,3 +10,4 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 liblumen_core = { path = "../../liblumen_core" }
+panic = { path = "../../compiler/panic" }

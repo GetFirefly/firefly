@@ -37,6 +37,9 @@ pub fn generate(
     // Ensure true/false are always present
     atoms.insert(Symbol::intern("false"));
     atoms.insert(Symbol::intern("true"));
+    atoms.insert(Symbol::intern("error"));
+    atoms.insert(Symbol::intern("exit"));
+    atoms.insert(Symbol::intern("throw"));
 
     fn insert_atom<'ctx>(builder: &ModuleBuilder<'ctx>, atom: Symbol) -> Result<llvm::Value> {
         // We remap true/false to 1/0 respectively

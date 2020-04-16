@@ -36,6 +36,7 @@ struct OpaqueTermTypeStorage;
 struct TupleTypeStorage;
 struct BoxTypeStorage;
 struct RefTypeStorage;
+struct PtrTypeStorage;
 }  // namespace detail
 
 namespace TypeKind {
@@ -45,7 +46,8 @@ enum Kind {
 #include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
-  Ref = mlir::Type::LAST_EIR_TYPE,
+  Ref = mlir::Type::FIRST_EIR_TYPE + 19,
+  Ptr = mlir::Type::LAST_EIR_TYPE,
 };
 }  // namespace TypeKind
 
@@ -143,7 +145,7 @@ class OpaqueTermType : public Type {
 #include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
-    return true;
+    return false;
   }
 
  private:
@@ -327,6 +329,21 @@ class RefType : public Type::TypeBase<RefType, Type, detail::RefTypeStorage> {
   OpaqueTermType getInnerType() const;
 
   static bool kindof(unsigned kind) { return kind == TypeKind::Ref; }
+};
+
+/// A raw pointer
+class PtrType : public Type::TypeBase<PtrType, Type, detail::PtrTypeStorage> {
+ public:
+  using Base::Base;
+
+  /// Gets or creates a PtrType with the provided target object type.
+  static PtrType get(Type innerType);
+  /// Gets or creates a PtrType with a default type of i8
+  static PtrType get(MLIRContext *context);
+
+  Type getInnerType() const;
+
+  static bool kindof(unsigned kind) { return kind == TypeKind::Ptr; }
 };
 
 template <typename A, typename B>

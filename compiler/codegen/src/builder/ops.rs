@@ -232,8 +232,8 @@ pub enum CallSuccess {
 
 #[derive(Debug, Clone)]
 pub enum CallError {
-    Throw,
-    Branch(Branch),
+    Throws,
+    Catch(Branch),
 }
 
 #[derive(Debug, Clone)]
@@ -317,6 +317,6 @@ pub struct MapPut {
 pub struct Throw {
     pub loc: LocationRef,
     pub kind: Value,
-    pub class: Value,
     pub reason: Value,
+    pub trace: Value,
 }

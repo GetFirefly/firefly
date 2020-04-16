@@ -102,7 +102,7 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
             .source()
             .context(format!("propagating exit from {}", process));
 
-        for linked_pid in process.linked_pid_set.lock().iter() {
+        for linked_pid in process.linked_pid_set.iter() {
             if let Some(linked_pid_arc_process) = pid_to_process(linked_pid) {
                 if linked_pid_arc_process.traps_exit() {
                     match linked_pid_arc_process.try_acquire_heap() {

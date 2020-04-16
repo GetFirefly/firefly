@@ -62,6 +62,9 @@ default-members = [
 opt-level = 2
 lto = false
 
+[patch.crates-io]
+dashmap = { git = "https://github.com/lumen/dashmap" }
+
 #[patch."https://github.com/eirproject/eir"]
 #libeir_diagnostics = { path = "../eir/libeir_diagnostics" }
 #libeir_frontend = { path = "../eir/libeir_frontend" }

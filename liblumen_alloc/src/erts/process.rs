@@ -21,6 +21,7 @@ use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
 use ::alloc::sync::Arc;
 
 use anyhow::*;
+use dashmap::{DashMap, DashSet};
 use hashbrown::{HashMap, HashSet};
 use intrusive_collections::{LinkedList, UnsafeRef};
 
@@ -105,7 +106,7 @@ pub struct Process {
     off_heap: SpinLock<LinkedList<HeapFragmentAdapter>>,
     off_heap_size: AtomicUsize,
     /// Process dictionary
-    dictionary: Mutex<HashMap<Term, Term>>,
+    dictionary: DashMap<Term, Term>,
     /// The `pid` of the process that `spawn`ed this process.
     parent_pid: Option<Pid>,
     /// The `pid` of the process that does I/O on this process's behalf.
@@ -121,12 +122,12 @@ pub struct Process {
     pub registered_name: RwLock<Option<Atom>>,
     /// Pids of processes that are linked to this process and need to be exited when this process
     /// exits
-    pub linked_pid_set: Mutex<HashSet<Pid>>,
+    pub linked_pid_set: DashSet<Pid>,
     /// Maps monitor references to the PID of the process that is monitoring through that
     /// reference.
-    pub monitor_by_reference: Mutex<HashMap<Reference, Monitor>>,
+    pub monitor_by_reference: DashMap<Reference, Monitor>,
     /// Maps monitor references to the PID of the process being monitored by this process.
-    pub monitored_pid_by_reference: Mutex<HashMap<Reference, Pid>>,
+    pub monitored_pid_by_reference: DashMap<Reference, Pid>,
     pub mailbox: Mutex<RefCell<Mailbox>>,
     pub registers: CalleeSavedRegisters,
     pub stack: alloc::Stack,
@@ -408,11 +409,8 @@ impl Process {
     pub fn link(&self, other: &Process) {
         // link in order so that locks are always taken in the same order to prevent deadlocks
         if self.pid < other.pid {
-            let mut self_pid_set = self.linked_pid_set.lock();
-            let mut other_pid_set = other.linked_pid_set.lock();
-
-            self_pid_set.insert(other.pid);
-            other_pid_set.insert(self.pid);
+            self.linked_pid_set.insert(other.pid);
+            other.linked_pid_set.insert(self.pid);
         } else {
             other.link(self)
         }
@@ -421,11 +419,8 @@ impl Process {
     pub fn unlink(&self, other: &Process) {
         // unlink in order so that locks are always taken in the same order to prevent deadlocks
         if self.pid < other.pid {
-            let mut self_pid_set = self.linked_pid_set.lock();
-            let mut other_pid_set = other.linked_pid_set.lock();
-
-            self_pid_set.remove(&other.pid);
-            other_pid_set.remove(&self.pid);
+            self.linked_pid_set.remove(&other.pid);
+            other.linked_pid_set.remove(&self.pid);
         } else {
             other.unlink(self)
         }
@@ -435,23 +430,23 @@ impl Process {
 
     pub fn monitor(&self, reference: Reference, monitored_pid: Pid) {
         self.monitored_pid_by_reference
-            .lock()
             .insert(reference, monitored_pid);
     }
 
     pub fn demonitor(&self, reference: &Reference) -> Option<Pid> {
-        self.monitored_pid_by_reference.lock().remove(reference)
+        self.monitored_pid_by_reference
+            .remove(reference)
+            .map(|(_ref, pid)| pid)
     }
 
     pub fn monitored(&self, reference: Reference, monitor: Monitor) {
-        self.monitor_by_reference.lock().insert(reference, monitor);
+        self.monitor_by_reference.insert(reference, monitor);
     }
 
     pub fn demonitored(&self, reference: &Reference) -> Option<Pid> {
         self.monitor_by_reference
-            .lock()
             .remove(reference)
-            .map(|monitor| *monitor.monitoring_pid())
+            .map(|(_ref, monitor)| *monitor.monitoring_pid())
     }
 
     // Group Leader Pid
@@ -762,7 +757,7 @@ impl Process {
             value.clone_to_heap(&mut heap)?
         };
 
-        match self.dictionary.lock().insert(heap_key, heap_value) {
+        match self.dictionary.insert(heap_key, heap_value) {
             None => Ok(atom!("undefined")),
             Some(old_value) => Ok(old_value),
         }
@@ -772,7 +767,7 @@ impl Process {
     pub fn get_value_from_key(&self, key: Term) -> Term {
         assert!(key.is_valid(), "invalid key term for process dictionary");
 
-        match self.dictionary.lock().get(&key) {
+        match self.dictionary.get(&key) {
             None => atom!("undefined"),
             // We can simply copy the term value here, since we know it
             // is either an immediate, or already located on the process
@@ -784,17 +779,21 @@ impl Process {
     /// Returns all key/value pairs from process dictionary
     pub fn get_entries(&self) -> AllocResult<Term> {
         let mut heap = self.heap.lock();
-        let dictionary = self.dictionary.lock();
 
-        let len = dictionary.len();
+        let len = self.dictionary.len();
         let entry_need = Tuple::layout_for_len(2);
         let entry_need_in_words = erts::to_word_size(entry_need.size());
         let need_in_words = Cons::need_in_words_from_len(len) + len * entry_need_in_words;
 
         if need_in_words <= heap.heap_available() {
-            let entry_vec: Vec<Term> = dictionary
+            let entry_vec: Vec<Term> = self
+                .dictionary
                 .iter()
-                .map(|(key, value)| heap.tuple_from_slice(&[*key, *value]).unwrap().into())
+                .map(|entry| {
+                    let key = entry.key();
+                    let value = entry.value();
+                    heap.tuple_from_slice(&[*key, *value]).unwrap().into()
+                })
                 .collect();
 
             Ok(heap
@@ -809,13 +808,12 @@ impl Process {
     /// Returns list of all keys from the process dictionary.
     pub fn get_keys(&self) -> AllocResult<Term> {
         let mut heap = self.heap.lock();
-        let dictionary = self.dictionary.lock();
 
-        let len = dictionary.len();
+        let len = self.dictionary.len();
         let need_in_words = Cons::need_in_words_from_len(len);
 
         if need_in_words <= heap.heap_available() {
-            let entry_vec: Vec<Term> = dictionary.keys().copied().collect();
+            let entry_vec: Vec<Term> = self.dictionary.iter().map(|entry| *entry.key()).collect();
 
             Ok(heap
                 .list_from_slice(&entry_vec)
@@ -829,11 +827,13 @@ impl Process {
     /// Returns list of all keys from the process dictionary that have `value`.
     pub fn get_keys_from_value(&self, value: Term) -> AllocResult<Term> {
         let mut heap = self.heap.lock();
-        let dictionary = self.dictionary.lock();
 
-        let key_vec: Vec<Term> = dictionary
+        let key_vec: Vec<Term> = self
+            .dictionary
             .iter()
-            .filter_map(|(entry_key, entry_value)| {
+            .filter_map(|entry| {
+                let entry_key = entry.key();
+                let entry_value = entry.value();
                 if entry_value == &value {
                     Some(*entry_key)
                 } else {
@@ -848,18 +848,23 @@ impl Process {
     /// Removes all key/value pairs from process dictionary and returns list of the entries.
     pub fn erase_entries(&self) -> AllocResult<Term> {
         let mut heap = self.heap.lock();
-        let mut dictionary = self.dictionary.lock();
 
-        let len = dictionary.len();
+        let len = self.dictionary.len();
         let entry_need = Tuple::layout_for_len(2);
         let entry_need_in_words = erts::to_word_size(entry_need.size());
         let need_in_words = Cons::need_in_words_from_len(len) + len * entry_need_in_words;
 
         if need_in_words <= heap.heap_available() {
-            let entry_vec: Vec<Term> = dictionary
-                .drain()
-                .map(|(key, value)| heap.tuple_from_slice(&[key, value]).unwrap().into())
+            let entry_vec: Vec<Term> = self
+                .dictionary
+                .iter()
+                .map(|entry| {
+                    let key = entry.key();
+                    let value = entry.value();
+                    heap.tuple_from_slice(&[*key, *value]).unwrap().into()
+                })
                 .collect();
+            self.dictionary.clear();
 
             Ok(heap
                 .list_from_slice(&entry_vec)
@@ -875,9 +880,9 @@ impl Process {
     pub fn erase_value_from_key(&self, key: Term) -> Term {
         assert!(key.is_valid(), "invalid key term for process dictionary");
 
-        match self.dictionary.lock().remove(&key) {
+        match self.dictionary.remove(&key) {
             None => atom!("undefined"),
-            Some(old_value) => old_value,
+            Some((_old_key, old_value)) => old_value,
         }
     }
 
@@ -931,9 +936,9 @@ impl Process {
     /// This includes all process dictionary entries.
     #[inline]
     pub fn base_root_set(&self, rootset: &mut RootSet) {
-        for (k, v) in self.dictionary.lock().iter() {
-            rootset.push(k as *const _ as *mut _);
-            rootset.push(v as *const _ as *mut _);
+        for entry in self.dictionary.iter() {
+            rootset.push(entry.key() as *const _ as *mut _);
+            rootset.push(entry.value() as *const _ as *mut _);
         }
     }
 

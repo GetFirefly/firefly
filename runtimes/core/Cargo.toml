@@ -24,6 +24,10 @@ chrono = "0.4"
 liblumen_core = { path = "../../liblumen_core" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
 
+[dependencies.dashmap]
+version = "3.11"
+features = ["no_std"]
+
 [dependencies.hashbrown]
 version = "0.7"
 features = ["nightly"]

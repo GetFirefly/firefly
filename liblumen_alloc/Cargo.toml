@@ -28,7 +28,9 @@ liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
 liblumen_term = { path = "../compiler/term" }
 
-backtrace = "0.3.35"
+[dependencies.dashmap]
+version = "3.11"
+features = ["no_std"]
 
 [dependencies.hashbrown]
 version = "0.7"

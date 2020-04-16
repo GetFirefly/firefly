@@ -24,7 +24,14 @@ use liblumen_util::time::time;
 use crate::linker::command::Command;
 use crate::linker::rpath::{self, RPathConfig};
 use crate::linker::Linker;
-use crate::meta::CodegenResults;
+use crate::meta::{CodegenResults, LibSource};
+
+use super::archive::{ArchiveBuilder, LlvmArchiveBuilder};
+
+enum RlibFlavor {
+    Normal,
+    StaticlibBase,
+}
 
 /// Performs the linkage portion of the compilation phase. This will generate all
 /// of the requested outputs for this compilation session.
@@ -35,11 +42,11 @@ pub fn link_binary(
 ) -> anyhow::Result<()> {
     let project_type = options.project_type;
     if invalid_output_for_target(options) {
-        panic!(
+        return Err(anyhow!(
             "invalid output type `{:?}` for target os `{}`",
             project_type,
             options.target.triple()
-        );
+        ));
     }
 
     for obj in codegen_results.modules.iter().filter_map(|m| m.object()) {
@@ -71,7 +78,14 @@ pub fn link_binary(
 
     match project_type {
         ProjectType::Staticlib => {
-            unimplemented!("static libraries are not yet supported!");
+            link_staticlib(
+                options,
+                diagnostics,
+                project_type,
+                codegen_results,
+                output_file.as_path(),
+                tmpdir.path(),
+            )?;
         }
         _ => {
             link_natively(
@@ -92,6 +106,57 @@ pub fn link_binary(
             diagnostics.error(e);
         }
     }
+
+    Ok(())
+}
+
+fn link_staticlib(
+    options: &Options,
+    _diagnostics: &DiagnosticsHandler,
+    project_type: ProjectType,
+    codegen_results: &CodegenResults,
+    output_file: &Path,
+    tmpdir: &Path,
+) -> anyhow::Result<()> {
+    info!("preparing {:?} to {:?}", project_type, output_file);
+
+    let mut ab = create_rlib(
+        options,
+        codegen_results,
+        RlibFlavor::StaticlibBase,
+        output_file,
+        tmpdir,
+    );
+    let all_native_libs = codegen_results
+        .project_info
+        .native_libraries
+        .iter()
+        .cloned();
+
+    for (i, (name, source)) in codegen_results
+        .project_info
+        .used_deps_static
+        .iter()
+        .enumerate()
+    {
+        match source {
+            LibSource::Some(path) => {
+                ab.add_rlib(
+                    path,
+                    name.as_str(),
+                    /* lto= */ false,
+                    /* skip_objects= */ false,
+                )
+                .unwrap();
+            }
+            LibSource::None => {
+                return Err(anyhow!("could not find rlib for: `{}`", name));
+            }
+        }
+    }
+
+    ab.update_symbols();
+    ab.build();
 
     Ok(())
 }
@@ -1014,7 +1079,7 @@ pub fn add_local_native_libraries(
     cmd: &mut dyn Linker,
     options: &Options,
     codegen_results: &CodegenResults,
-    _tmpdir: &Path,
+    tmpdir: &Path,
 ) -> anyhow::Result<()> {
     let filesearch = options.target_filesearch(PathKind::All);
     for search_path in filesearch.search_paths() {
@@ -1030,10 +1095,21 @@ pub fn add_local_native_libraries(
 
     let search_path = archive_search_paths(options);
 
-    // Add libcore/libstd
-    //let rlib_dir = filesearch.get_lib_path();
-    //link_rlib(cmd, options, tmpdir, &rlib_dir.join("libcore.rlib"));
-    //link_rlib(cmd, options, tmpdir, &rlib_dir.join("libstd.rlib"));
+    // Add runtime libs we depend on
+    let no_std = options.codegen_opts.no_std.unwrap_or(false);
+    let libstd_libs = match options.target.arch.as_str() {
+        "x86_64" if !no_std => vec!["libpanic_unwind.rlib", "lumen_rt_minimal"],
+        "wasm32" if !no_std => vec!["libpanic_abort.rlib", "lumen_web"],
+        _ => vec!["libpanic_unwind.rlib"],
+    };
+    let rlib_dir = filesearch.get_lib_path();
+    for lib in libstd_libs {
+        if lib.ends_with(".rlib") {
+            link_rlib(cmd, options, tmpdir, &rlib_dir.join(lib));
+        } else {
+            cmd.link_whole_staticlib(lib, &search_path);
+        }
+    }
 
     for lib in codegen_results.project_info.native_libraries.iter() {
         let name = match lib.name {
@@ -1078,11 +1154,110 @@ pub fn add_local_native_libraries(
     Ok(())
 }
 
-#[allow(dead_code)]
+fn create_rlib<'a>(
+    options: &'a Options,
+    codegen_results: &CodegenResults,
+    flavor: RlibFlavor,
+    output_file: &Path,
+    tmpdir: &Path,
+) -> LlvmArchiveBuilder<'a> {
+    info!("preparing rlib to {}", output_file.display());
+    let mut ab = LlvmArchiveBuilder::new(options, output_file, None);
+
+    for obj in codegen_results.modules.iter().filter_map(|m| m.object()) {
+        ab.add_file(obj);
+    }
+
+    // Note that in this loop we are ignoring the value of `lib.cfg`. That is,
+    // we may not be configured to actually include a static library if we're
+    // adding it here. That's because later when we consume this rlib we'll
+    // decide whether we actually needed the static library or not.
+    //
+    // To do this "correctly" we'd need to keep track of which libraries added
+    // which object files to the archive. We don't do that here, however. The
+    // #[link(cfg(..))] feature is unstable, though, and only intended to get
+    // liblibc working. In that sense the check below just indicates that if
+    // there are any libraries we want to omit object files for at link time we
+    // just exclude all custom object files.
+    //
+    // Eventually if we want to stabilize or flesh out the #[link(cfg(..))]
+    // feature then we'll need to figure out how to record what objects were
+    // loaded from the libraries found here and then encode that into the
+    // metadata of the rlib we're generating somehow.
+    for lib in codegen_results.project_info.used_libraries.iter() {
+        match lib.kind {
+            NativeLibraryKind::NativeStatic => {}
+            NativeLibraryKind::NativeStaticNobundle
+            | NativeLibraryKind::NativeFramework
+            | NativeLibraryKind::NativeRawDylib
+            | NativeLibraryKind::NativeUnknown => continue,
+        }
+        if let Some(ref name) = lib.name {
+            ab.add_native_library(name.as_str());
+        }
+    }
+
+    // After adding all files to the archive, we need to update the
+    // symbol table of the archive.
+    ab.update_symbols();
+
+    // Note that it is important that we add all of our non-object "magical
+    // files" *after* all of the object files in the archive. The reason for
+    // this is as follows:
+    //
+    // * When performing LTO, this archive will be modified to remove objects from above. The reason
+    //   for this is described below.
+    //
+    // * When the system linker looks at an archive, it will attempt to determine the architecture
+    //   of the archive in order to see whether its linkable.
+    //
+    //   The algorithm for this detection is: iterate over the files in the
+    //   archive. Skip magical SYMDEF names. Interpret the first file as an
+    //   object file. Read architecture from the object file.
+    //
+    // * As one can probably see, if "metadata" and "foo.bc" were placed before all of the objects,
+    //   then the architecture of this archive would not be correctly inferred once 'foo.o' is
+    //   removed.
+    //
+    // Basically, all this means is that this code should not move above the
+    // code above.
+    match flavor {
+        RlibFlavor::Normal => {
+            // In the future we may emit metadata like Rust does
+            // ab.add_file(&emit_metadata(options, &codegen_results.metadata, tmpdir));
+
+            // For LTO purposes, the bytecode of this library is also inserted
+            // into the archive.
+            for bytecode in codegen_results
+                .modules
+                .iter()
+                .filter_map(|m| m.bytecode_compressed())
+            {
+                ab.add_file(bytecode);
+            }
+
+            // After adding all files to the archive, we need to update the
+            // symbol table of the archive. This currently dies on macOS (see
+            // #11162), and isn't necessary there anyway
+            if !options.target.options.is_like_osx {
+                ab.update_symbols();
+            }
+        }
+
+        RlibFlavor::StaticlibBase => { /* nothing to do here for now */ }
+    }
+
+    ab
+}
+
 fn link_rlib(cmd: &mut dyn Linker, options: &Options, tmpdir: &Path, rlib_path: &Path) {
     use super::archive::builder::{METADATA_FILENAME, RLIB_BYTECODE_EXTENSION};
-    use super::archive::{ArchiveBuilder, LlvmArchiveBuilder};
 
+    debug_assert!(
+        rlib_path.exists(),
+        "rlib path not found {}",
+        rlib_path.display()
+    );
     let dst = tmpdir.join(rlib_path.file_name().unwrap());
     let mut archive = LlvmArchiveBuilder::new(options, &dst, Some(rlib_path));
     archive.update_symbols();

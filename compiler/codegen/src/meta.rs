@@ -122,6 +122,92 @@ impl ProjectInfo {
                 wasm_import_module: None,
             });
         }
+
+        // Add platform-specific libraries that must be linked to
+        let mut platform_libs = vec![];
+        let triple = &options.target.llvm_target;
+        let target_os = &options.target.target_os;
+        if triple.contains("linux") {
+            if triple.contains("android") {
+                platform_libs = vec![
+                    ("dl", NativeLibraryKind::NativeUnknown),
+                    ("log", NativeLibraryKind::NativeUnknown),
+                    ("gcc", NativeLibraryKind::NativeUnknown),
+                ];
+            } else if !triple.contains("musl") {
+                platform_libs = vec![
+                    ("dl", NativeLibraryKind::NativeUnknown),
+                    ("rt", NativeLibraryKind::NativeUnknown),
+                    ("pthread", NativeLibraryKind::NativeUnknown),
+                ];
+            }
+        } else if target_os == "freebsd" {
+            platform_libs = vec![
+                ("execinfo", NativeLibraryKind::NativeUnknown),
+                ("pthread", NativeLibraryKind::NativeUnknown),
+            ];
+        } else if target_os == "netbsd" {
+            platform_libs = vec![
+                ("pthread", NativeLibraryKind::NativeUnknown),
+                ("rt", NativeLibraryKind::NativeUnknown),
+            ];
+        } else if target_os == "dragonfly" || target_os == "openbsd" {
+            platform_libs = vec![("pthread", NativeLibraryKind::NativeUnknown)];
+        } else if target_os == "solaris" {
+            platform_libs = vec![
+                ("socket", NativeLibraryKind::NativeUnknown),
+                ("posix4", NativeLibraryKind::NativeUnknown),
+                ("pthread", NativeLibraryKind::NativeUnknown),
+                ("resolv", NativeLibraryKind::NativeUnknown),
+            ];
+        } else if target_os == "macos" {
+            // res_init and friends require -lresolv on macOS/iOS.
+            // See #41582 and http://blog.achernya.com/2013/03/os-x-has-silly-libsystem.html
+            platform_libs = vec![
+                ("System", NativeLibraryKind::NativeUnknown),
+                ("resolv", NativeLibraryKind::NativeUnknown),
+            ];
+        } else if target_os == "ios" {
+            platform_libs = vec![
+                ("System", NativeLibraryKind::NativeUnknown),
+                ("objc", NativeLibraryKind::NativeUnknown),
+                ("Security", NativeLibraryKind::NativeFramework),
+                ("Foundation", NativeLibraryKind::NativeFramework),
+                ("resolv", NativeLibraryKind::NativeUnknown),
+            ];
+        } else if triple.contains("uwp") {
+            // For BCryptGenRandom
+            platform_libs = vec![
+                ("ws2_32", NativeLibraryKind::NativeUnknown),
+                ("bcrypt", NativeLibraryKind::NativeUnknown),
+            ];
+        } else if target_os == "windows" {
+            platform_libs = vec![
+                ("advapi32", NativeLibraryKind::NativeUnknown),
+                ("ws2_32", NativeLibraryKind::NativeUnknown),
+                ("userenv", NativeLibraryKind::NativeUnknown),
+            ];
+        } else if target_os == "fuchsia" {
+            platform_libs = vec![
+                ("zircon", NativeLibraryKind::NativeUnknown),
+                ("fdio", NativeLibraryKind::NativeUnknown),
+            ];
+        } else if triple.contains("cloudabi") {
+            platform_libs = vec![
+                ("unwind", NativeLibraryKind::NativeUnknown),
+                ("c", NativeLibraryKind::NativeUnknown),
+                ("compiler_rt", NativeLibraryKind::NativeUnknown),
+            ];
+        }
+
+        for (name, kind) in platform_libs.drain(..) {
+            info.native_libraries.push(NativeLibrary {
+                kind,
+                name: Some(name.to_owned()),
+                wasm_import_module: None,
+            });
+        }
+
         info
     }
 }

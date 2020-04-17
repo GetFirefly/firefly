@@ -129,7 +129,6 @@ class OpaqueTermType : public Type {
 
   static bool isTypeKind(Type type, TypeKind::Kind kind) {
     if (!OpaqueTermType::classof(type)) {
-      assert(false && "isTypeKind");
       return false;
     }
     return type.cast<OpaqueTermType>().getImplKind() == kind;

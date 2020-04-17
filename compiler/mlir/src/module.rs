@@ -9,7 +9,7 @@ use anyhow::anyhow;
 
 use liblumen_llvm as llvm;
 use liblumen_llvm::enums::{CodeGenOptLevel, CodeGenOptSize};
-use liblumen_llvm::target::{TargetMachine, TargetMachineRef};
+use liblumen_llvm::target::TargetMachineRef;
 use liblumen_llvm::utils::{LLVMString, MemoryBufferRef};
 use liblumen_session::{Emit, OutputType};
 use liblumen_util as util;

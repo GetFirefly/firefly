@@ -157,15 +157,13 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         let init_block =
             func.new_block_with_params(Some(data.entry), entry_ref, entry_params.as_slice());
         // Initialize ret/esc continuations
-        let ret = func.set_return_continuation(ret, init_block);
-        let esc = func.set_escape_continuation(esc, init_block);
+        func.set_return_continuation(ret, init_block);
+        func.set_escape_continuation(esc, init_block);
 
         Ok(ScopedFunctionBuilder {
             filemap: self.builder.filemap().clone(),
             filename: self.builder.filename().as_ptr(),
             func,
-            name,
-            loc,
             eir,
             mlir,
             analysis,
@@ -173,9 +171,6 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             builder: self.builder.as_ref(),
             options,
             pos: Position::at(init_block),
-            ret,
-            esc,
-            is_closure,
         })
     }
 }
@@ -189,8 +184,6 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     filename: *const libc::c_char,
     filemap: Arc<FileMap>,
     func: Function,
-    name: FunctionIdent,
-    loc: Span,
     eir: &'f ir::Function,
     mlir: FunctionOpRef,
     analysis: &'f LowerData,
@@ -198,9 +191,6 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     builder: ModuleBuilderRef,
     options: &'o Options,
     pos: Position,
-    ret: Value,
-    esc: Value,
-    is_closure: bool,
 }
 
 // Miscellaneous helper functions
@@ -1396,29 +1386,12 @@ impl Position {
         self.block
     }
 
-    // Reset the position to None
-    fn reset(&mut self) -> Option<Block> {
-        self.block.take()
-    }
-
-    // This is used to set a position that the underlying builder is already in,
-    // careless use of this will result in the position of the builder here and
-    // in MLIR falling out of sync
-    unsafe fn set(&mut self, block: Block) -> Option<Block> {
-        self.block.replace(block)
-    }
-
     // Position the builder at the end of the provided block
     fn position_at_end(&mut self, builder: ModuleBuilderRef, block: Block, block_ref: BlockRef) {
         unsafe {
             MLIRBlockPositionAtEnd(builder, block_ref);
         }
         self.block = Some(block);
-    }
-
-    // When true, the builder is not positioned in a block
-    fn is_default(&self) -> bool {
-        self.block.is_none()
     }
 }
 

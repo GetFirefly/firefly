@@ -22,7 +22,7 @@ use ::alloc::sync::Arc;
 
 use anyhow::*;
 use dashmap::{DashMap, DashSet};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use intrusive_collections::{LinkedList, UnsafeRef};
 
 use liblumen_core::alloc::Layout;

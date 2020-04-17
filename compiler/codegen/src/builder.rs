@@ -64,7 +64,6 @@ pub struct ModuleBuilder<'m> {
     module: &'m ir::Module,
     atoms: RefCell<HashSet<Symbol>>,
     symbols: RefCell<HashSet<FunctionSymbol>>,
-    target_machine: TargetMachineRef,
     filemap: Arc<FileMap>,
     source_filename: CString,
 }
@@ -112,7 +111,6 @@ impl<'m> ModuleBuilder<'m> {
             module,
             atoms: RefCell::new(atoms),
             symbols: RefCell::new(HashSet::new()),
-            target_machine,
             filemap,
             source_filename,
         }

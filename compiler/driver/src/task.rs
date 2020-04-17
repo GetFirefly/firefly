@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::panic::{resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::thread;
 
@@ -47,7 +47,6 @@ struct Scheduler {
 }
 
 struct ThreadState {
-    id: usize,
     tx: Arc<channel::Sender<Message>>,
 }
 
@@ -68,10 +67,7 @@ impl Scheduler {
                 }
             });
 
-            threads.push(ThreadState {
-                id,
-                tx: Arc::new(tx),
-            });
+            threads.push(ThreadState { tx: Arc::new(tx) });
         }
 
         Self {
@@ -114,7 +110,7 @@ impl Scheduler {
 impl Drop for Scheduler {
     fn drop(&mut self) {
         for thread in self.threads.iter() {
-            thread.tx.send(Message::Close);
+            thread.tx.send(Message::Close).unwrap();
         }
     }
 }

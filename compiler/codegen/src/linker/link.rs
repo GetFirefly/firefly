@@ -127,18 +127,8 @@ fn link_staticlib(
         output_file,
         tmpdir,
     );
-    let all_native_libs = codegen_results
-        .project_info
-        .native_libraries
-        .iter()
-        .cloned();
 
-    for (i, (name, source)) in codegen_results
-        .project_info
-        .used_deps_static
-        .iter()
-        .enumerate()
-    {
+    for (name, source) in codegen_results.project_info.used_deps_static.iter() {
         match source {
             LibSource::Some(path) => {
                 ab.add_rlib(
@@ -1159,7 +1149,7 @@ fn create_rlib<'a>(
     codegen_results: &CodegenResults,
     flavor: RlibFlavor,
     output_file: &Path,
-    tmpdir: &Path,
+    _tmpdir: &Path,
 ) -> LlvmArchiveBuilder<'a> {
     info!("preparing rlib to {}", output_file.display());
     let mut ab = LlvmArchiveBuilder::new(options, output_file, None);

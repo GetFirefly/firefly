@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::ffi::CString;
 use std::fmt;
 use std::ptr;
@@ -157,12 +159,6 @@ impl Function {
     #[inline]
     pub fn name(&self) -> &ir::FunctionIdent {
         &self.name
-    }
-
-    /// Returns a reference to the current functions' signature
-    #[inline]
-    pub fn signature(&self) -> &Signature {
-        &self.signature
     }
 
     /// Returns true if the given value is this functions' return continuation

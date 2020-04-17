@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 // These `thumbv*` targets cover the ARM Cortex-M family of processors which are widely used in
 // microcontrollers. Namely, all these processors:
 //

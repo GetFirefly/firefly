@@ -1,5 +1,4 @@
 use std::ops::Deref;
-use std::panic;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -15,7 +14,7 @@ use libeir_diagnostics::{CodeMap, Emitter};
 
 use liblumen_codegen as codegen;
 use liblumen_codegen::linker::{self, LinkerInfo};
-use liblumen_codegen::meta::{CodegenResults, CompiledModule, ProjectInfo};
+use liblumen_codegen::meta::{CodegenResults, ProjectInfo};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_util::time::HumanDuration;
 
@@ -38,7 +37,7 @@ pub fn handle_command<'a>(
     let diagnostics = create_diagnostics_handler(&options, codemap.clone(), emitter);
 
     // Initialize codegen backend
-    codegen::init(&options);
+    codegen::init(&options)?;
 
     // Build query database
     let mut db = CompilerDatabase::new(codemap, diagnostics);

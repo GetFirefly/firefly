@@ -1,7 +1,7 @@
 # Lumen - A new compiler and runtime for BEAM languages
 
-[![x86_64-apple-darwin](https://github.com/lumen/lumen/workflows/macOS_x86_64.yml/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-apple-darwin%22)<br/>
-[![wasm32-unknown-unknown (macOS)](https://github.com/lumen/lumen/workflows/macOS_wasm32.yml/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22wasm32-unknown-unknown%22)
+[![x86_64-apple-darwin](https://github.com/lumen/lumen/workflows/x86_64-apple-darwin/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22x86_64-apple-darwin%22)<br/>
+[![wasm32-unknown-unknown (macOS)](https://github.com/lumen/lumen/workflows/wasm32-unknown-unknown/badge.svg?branch=develop)](https://github.com/lumen/lumen/actions?query=workflow%3A%22wasm32-unknown-unknown%22)
 
 * [Contributing](#contributing)
   * [Tools](#contrib-tools)

@@ -1,4 +1,4 @@
-name: x86_64-apple-darwin
+name: x86_64-apple-darwin (macOS)
 
 on: push
 

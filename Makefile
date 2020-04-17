@@ -47,6 +47,10 @@ lumen_rt_minimal:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_minimal
 
+lumen_rt_full:
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_full
+
 liblumen_crt:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_crt 

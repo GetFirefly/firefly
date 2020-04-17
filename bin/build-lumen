@@ -208,9 +208,11 @@ if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/tools/lumen-tblgen" ]; then
     pushd "${OUTPUT_DIR}/build/lumen_tblgen"
     _gen="make"
     _generator=""
+    _target="tools_lumen_tblgen"
     if type -p ninja >/dev/null; then
         _gen="ninja"
         _generator="-GNinja"
+        _target="lumen-tblgen"
     fi
     cmake ${_generator} \
         -DLUMEN_BUILD_COMPILER=ON \
@@ -219,7 +221,7 @@ if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/tools/lumen-tblgen" ]; then
         -DLLVM_PREFIX="$LLVM_PREFIX" \
         --target lumen_tblgen \
         --build "${ROOT_DIR}/compiler/codegen/lib" && \
-    "$_gen" lumen-tblgen
+    "$_gen" "$_target"
 
     if [[ $? -ne 0 ]]; then
         echo "Failed to build lumen-tblgen!"

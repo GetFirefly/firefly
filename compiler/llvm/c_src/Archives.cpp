@@ -37,6 +37,7 @@ enum class LLVMLumenArchiveKind {
   Other,
   GNU,
   BSD,
+  DARWIN,
   COFF,
 };
 
@@ -46,6 +47,8 @@ static Archive::Kind fromRust(LLVMLumenArchiveKind Kind) {
       return Archive::K_GNU;
     case LLVMLumenArchiveKind::BSD:
       return Archive::K_BSD;
+    case LLVMLumenArchiveKind::DARWIN:
+      return Archive::K_DARWIN;
     case LLVMLumenArchiveKind::COFF:
       return Archive::K_COFF;
     default:

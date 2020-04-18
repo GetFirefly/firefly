@@ -48,14 +48,14 @@ pub fn handle_command<'a>(
             let options =
                 Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
             let diagnostics = default_diagnostics_handler(&options, emitter);
-            codegen::init(&options);
+            codegen::init(&options)?;
             llvm::target::print_target_features(&options, &diagnostics);
         }
         ("target-cpus", subcommand_matches) => {
             let options =
                 Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
             let diagnostics = default_diagnostics_handler(&options, emitter);
-            codegen::init(&options);
+            codegen::init(&options)?;
             llvm::target::print_target_cpus(&options, &diagnostics);
         }
         ("passes", _subcommand_matches) => {

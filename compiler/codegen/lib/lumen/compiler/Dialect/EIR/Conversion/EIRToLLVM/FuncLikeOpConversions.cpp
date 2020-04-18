@@ -30,6 +30,7 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
           fa.first.is(::mlir::impl::getTypeAttrName())) {
         continue;
       }
+      attrs.push_back(fa);
     }
     SmallVector<NamedAttributeList, 4> argAttrs;
     for (unsigned i = 0, e = op.getNumArguments(); i < e; ++i) {

@@ -33,6 +33,7 @@ using ::mlir::LLVM::LLVMType;
 namespace LLVM = ::mlir::LLVM;
 
 using std_call = OperationBuilder<::mlir::CallOp>;
+using llvm_null = ValueBuilder<LLVM::NullOp>;
 using llvm_add = ValueBuilder<LLVM::AddOp>;
 using llvm_and = ValueBuilder<LLVM::AndOp>;
 using llvm_or = ValueBuilder<LLVM::OrOp>;
@@ -62,8 +63,11 @@ using llvm_undef = ValueBuilder<LLVM::UndefOp>;
 using llvm_urem = ValueBuilder<LLVM::URemOp>;
 using llvm_alloca = ValueBuilder<LLVM::AllocaOp>;
 using llvm_return = OperationBuilder<LLVM::ReturnOp>;
+using llvm_landingpad = ValueBuilder<LLVM::LandingpadOp>;
 using eir_cast = ValueBuilder<::lumen::eir::CastOp>;
+using eir_gep = ValueBuilder<::lumen::eir::GetElementPtrOp>;
 using eir_malloc = ValueBuilder<::lumen::eir::MallocOp>;
+using eir_tuple = ValueBuilder<::lumen::eir::TupleOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 using eir_constant_float = ValueBuilder<::lumen::eir::ConstantFloatOp>;
@@ -181,8 +185,8 @@ class OpConversionContext : public ConversionContext {
   }
 
   Operation *getOrInsertFunction(ModuleOp mod, StringRef symbol,
-                                 LLVMType resultTy,
-                                 ArrayRef<LLVMType> argTypes = {}) const;
+                                 LLVMType resultTy, ArrayRef<LLVMType> argTypes,
+                                 ArrayRef<NamedAttribute> attrs = {}) const;
 
   Value getOrInsertGlobal(ModuleOp mod, StringRef name, LLVMType valueType,
                           Attribute value = Attribute(),
@@ -320,10 +324,11 @@ class RewritePatternContext : public OpConversionContext {
   inline const ModuleOp &getModule() const { return parentModule; }
 
   Operation *getOrInsertFunction(StringRef symbol, LLVMType resultTy,
-                                 ArrayRef<LLVMType> argTypes = {}) const {
+                                 ArrayRef<LLVMType> argTypes,
+                                 ArrayRef<NamedAttribute> attrs = {}) const {
     ModuleOp mod = getModule();
     return OpConversionContext::getOrInsertFunction(mod, symbol, resultTy,
-                                                    argTypes);
+                                                    argTypes, attrs);
   }
   Value getOrInsertGlobal(StringRef name, LLVMType valueType, Attribute value,
                           LLVM::Linkage linkage, LLVM::ThreadLocalMode tlsMode,

@@ -135,11 +135,11 @@ pub fn has_process_message(process: &Process, data: Term) -> bool {
 }
 
 pub fn monitor_count(process: &Process) -> usize {
-    process.monitor_by_reference.lock().len()
+    process.monitor_by_reference.len()
 }
 
 pub fn monitored_count(process: &Process) -> usize {
-    process.monitored_pid_by_reference.lock().len()
+    process.monitored_pid_by_reference.len()
 }
 
 pub fn number_to_integer_with_float(

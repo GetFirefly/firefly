@@ -10,7 +10,7 @@ extern "C" {
     pub type SMDiagnostic;
 }
 
-pub type DiagnosticInfo = llvm_sys::LLVMDiagnosticInfo;
+pub type DiagnosticInfo = crate::sys::LLVMDiagnosticInfo;
 pub type LLVMDiagnosticHandler = unsafe extern "C" fn(&DiagnosticInfo, *mut libc::c_void);
 
 /// LLVMLumenDiagnosticKind

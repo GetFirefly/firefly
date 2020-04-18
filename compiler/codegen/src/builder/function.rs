@@ -157,15 +157,13 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         let init_block =
             func.new_block_with_params(Some(data.entry), entry_ref, entry_params.as_slice());
         // Initialize ret/esc continuations
-        let ret = func.set_return_continuation(ret, init_block);
-        let esc = func.set_escape_continuation(esc, init_block);
+        func.set_return_continuation(ret, init_block);
+        func.set_escape_continuation(esc, init_block);
 
         Ok(ScopedFunctionBuilder {
             filemap: self.builder.filemap().clone(),
             filename: self.builder.filename().as_ptr(),
             func,
-            name,
-            loc,
             eir,
             mlir,
             analysis,
@@ -173,9 +171,6 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             builder: self.builder.as_ref(),
             options,
             pos: Position::at(init_block),
-            ret,
-            esc,
-            is_closure,
         })
     }
 }
@@ -189,8 +184,6 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     filename: *const libc::c_char,
     filemap: Arc<FileMap>,
     func: Function,
-    name: FunctionIdent,
-    loc: Span,
     eir: &'f ir::Function,
     mlir: FunctionOpRef,
     analysis: &'f LowerData,
@@ -198,9 +191,6 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     builder: ModuleBuilderRef,
     options: &'o Options,
     pos: Position,
-    ret: Value,
-    esc: Value,
-    is_closure: bool,
 }
 
 // Miscellaneous helper functions
@@ -804,13 +794,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         reads
                     );
                     let error_kind = self.build_value(reads[1])?;
-                    let error_class = self.build_value(reads[2])?;
-                    let error_reason = self.build_value(reads[3])?;
+                    let error_reason = self.build_value(reads[2])?;
+                    let error_trace = self.build_value(reads[3])?;
                     OpKind::Throw(Throw {
                         loc,
                         kind: error_kind,
-                        class: error_class,
                         reason: error_reason,
+                        trace: error_trace,
                     })
                 } else {
                     debug_in!(self, "control flow type: branch");
@@ -837,8 +827,16 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 let ir_ok = reads[1];
                 let ir_err = reads[2];
                 let mut args = Vec::with_capacity(num_reads - 3);
+                // Tail calls occur when both return and escape continuations are the same
+                // as the calling function, indicating that we would be returning over this
+                // frame and back to this function's caller
                 let is_tail = self.func.is_return_ir(ir_ok) && self.func.is_throw_ir(ir_err);
                 debug_in!(self, "is tail call = {}", is_tail);
+                // We lower calls as invokes when a block in this function is given as the
+                // escape continuation, since we need to set up the given block as a catchpad
+                // for the exception that may occur
+                let is_invoke = !self.func.is_throw_ir(ir_err);
+                debug_in!(self, "is invoke = {}", is_invoke);
                 for read in reads.iter().skip(3).copied() {
                     let value = self.build_value(read)?;
                     args.push(value);
@@ -851,10 +849,9 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     if let Some(ok_ir_block) = self.eir.value_block(ir_ok) {
                         debug_in!(self, "ok continues to {:?}", ok_ir_block);
                         let ok_block = self.get_block(ok_ir_block);
-                        let ok_args = self.build_target_block_args(ok_block, &reads[3..]);
                         CallSuccess::Branch(Branch {
                             block: ok_block,
-                            args: ok_args,
+                            args: Default::default(),
                         })
                     } else {
                         panic!(
@@ -865,13 +862,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     }
                 };
                 debug_in!(self, "on success = {:?}", ok);
-                let err = if self.func.is_throw_ir(ir_err) {
-                    CallError::Throw
+                let err = if !is_invoke {
+                    CallError::Throws
                 } else {
                     if let Some(err_ir_block) = self.eir.value_block(ir_err) {
-                        debug_in!(self, "exception continues to {:?}", err_ir_block);
+                        debug_in!(self, "exception catchpad is {:?}", err_ir_block);
                         let err_block = self.get_block(err_ir_block);
-                        CallError::Branch(Branch {
+                        CallError::Catch(Branch {
                             block: err_block,
                             args: Default::default(),
                         })
@@ -1389,29 +1386,12 @@ impl Position {
         self.block
     }
 
-    // Reset the position to None
-    fn reset(&mut self) -> Option<Block> {
-        self.block.take()
-    }
-
-    // This is used to set a position that the underlying builder is already in,
-    // careless use of this will result in the position of the builder here and
-    // in MLIR falling out of sync
-    unsafe fn set(&mut self, block: Block) -> Option<Block> {
-        self.block.replace(block)
-    }
-
     // Position the builder at the end of the provided block
     fn position_at_end(&mut self, builder: ModuleBuilderRef, block: Block, block_ref: BlockRef) {
         unsafe {
             MLIRBlockPositionAtEnd(builder, block_ref);
         }
         self.block = Some(block);
-    }
-
-    // When true, the builder is not positioned in a block
-    fn is_default(&self) -> bool {
-        self.block.is_none()
     }
 }
 

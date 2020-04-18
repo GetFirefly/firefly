@@ -149,16 +149,17 @@ def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin", "ProcBinType">;
 def eir_BoxType : eir_TermTypeBase<eir_TK_Box, "box">;
 
 def eir_RefType : Type<CPred<"$_self.isa<eir::RefType>()">, "pointer type">;
+def eir_PtrType : Type<CPred<"$_self.isa<eir::PtrType>()">, "raw pointer type">;
 def eir_AnyTerm : Type<CPred<"$_self.isa<::lumen::eir::TermType>()">, "dynamic term type">,
                    BuildableType<"$_builder.getType<::lumen::eir::TermType>()">;
 def eir_AnyType : Type<CPred<"$_self.isa<::lumen::eir::OpaqueTermType>()">, "any term type">,
-                   BuildableType<"$_builder.getType<::lumen::eir::AnyType>()">;
+                   BuildableType<"$_builder.getType<::lumen::eir::TermType>()">;
 def eir_BoolLike : AnyTypeOf<[I1, eir_BoolType], "boolean-like type">;
 def eir_FixnumLike : AnyTypeOf<[I32, I64, eir_FixnumType], "fixed-width integer type">;
 def eir_FloatLike : AnyTypeOf<[F64, eir_FixnumType], "float-like type">;
 def eir_ListLike : AnyTypeOf<[eir_NilType, eir_ConsType, eir_ListType], "list-like type">;
 def eir_BinaryLike : AnyTypeOf<[eir_BinaryType, eir_HeapBinType, eir_ProcBinType], "binary-like type">;
-def eir_PointerLike : AnyTypeOf<[eir_BoxType, eir_RefType], "pointer-like type">;
+def eir_PointerLike : AnyTypeOf<[eir_BoxType, eir_RefType, eir_PtrType], "pointer-like type">;
 
 //===----------------------------------------------------------------------===//
 // Traits

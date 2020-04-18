@@ -10,15 +10,15 @@ use crate::target::TargetMachineRef;
 use crate::utils::{LLVMString, MemoryBuffer};
 use crate::Result;
 
-pub type ContextImpl = llvm_sys::LLVMContext;
-pub type ContextRef = llvm_sys::prelude::LLVMContextRef;
+pub type ContextImpl = crate::sys::LLVMContext;
+pub type ContextRef = crate::sys::prelude::LLVMContextRef;
 
 pub struct Context {
     context: ContextRef,
 }
 impl Context {
     pub fn new() -> Self {
-        let context = unsafe { llvm_sys::core::LLVMContextCreate() };
+        let context = unsafe { crate::sys::core::LLVMContextCreate() };
         Self { context }
     }
 }
@@ -47,7 +47,7 @@ impl Context {
         mut buffer: MemoryBuffer<'_>,
         tm: TargetMachineRef,
     ) -> Result<Module> {
-        use llvm_sys::ir_reader::LLVMParseIRInContext;
+        use crate::sys::ir_reader::LLVMParseIRInContext;
 
         let mut module: *mut ModuleImpl = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
@@ -78,7 +78,7 @@ unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 //impl Drop for Context {
 //    fn drop(&mut self) {
-//        unsafe { llvm_sys::core::LLVMContextDispose(self.context); }
+//        unsafe { crate::sys::core::LLVMContextDispose(self.context); }
 //    }
 //}
 impl fmt::Debug for Context {

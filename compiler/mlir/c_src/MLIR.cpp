@@ -4,7 +4,13 @@
 #include "mlir/Pass/PassManager.h"
 
 extern "C"
-MLIRContextRef MLIRCreateContext() { return wrap(new mlir::MLIRContext()); }
+MLIRContextRef MLIRCreateContext() {
+  auto *ctx = new mlir::MLIRContext();
+  ctx->printOpOnDiagnostic(true);
+  ctx->printStackTraceOnDiagnostic(true);
+  
+  return wrap(ctx);
+}
 
 extern "C"
 void MLIRLumenInit() {

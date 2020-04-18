@@ -6,7 +6,8 @@ use std::ptr;
 
 use anyhow::anyhow;
 
-use llvm_sys::target_machine::LLVMCodeGenFileType;
+use crate::sys as llvm_sys;
+use crate::sys::target_machine::LLVMCodeGenFileType;
 
 use liblumen_session::{Emit, OutputType};
 use liblumen_util as util;

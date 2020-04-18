@@ -270,6 +270,7 @@ extern "C" {
         target_machine: llvm::target::TargetMachineRef,
     ) -> ModuleBuilderRef;
 
+    #[allow(unused)]
     pub fn MLIRDumpModule(builder: ModuleBuilderRef);
 
     pub fn MLIRFinalizeModuleBuilder(builder: ModuleBuilderRef) -> ModuleRef;
@@ -317,6 +318,7 @@ extern "C" {
     // Blocks
     //---------------
 
+    #[allow(unused)]
     pub fn MLIRGetCurrentBlockArgument(builder: ModuleBuilderRef, id: libc::c_uint) -> ValueRef;
 
     pub fn MLIRGetBlockArgument(block: BlockRef, id: libc::c_uint) -> ValueRef;
@@ -364,6 +366,14 @@ extern "C" {
         loc: LocationRef,
         value: ValueRef,
     ) -> ValueRef;
+
+    pub fn MLIRBuildThrow(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        kind: ValueRef,
+        class: ValueRef,
+        reason: ValueRef,
+    );
 
     pub fn MLIRBuildStaticCall(
         builder: ModuleBuilderRef,

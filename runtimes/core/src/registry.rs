@@ -1,11 +1,8 @@
 /// Maps registered names (`Atom`) to `LocalPid` or `Port`
 use std::sync::{Arc, Weak};
 
-use hashbrown::HashMap;
+use dashmap::DashMap;
 use lazy_static::lazy_static;
-
-use liblumen_core::locks::RwLock;
-use liblumen_core::locks::RwLockWriteGuard;
 
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term::prelude::*;
@@ -13,17 +10,15 @@ use liblumen_alloc::exception;
 use liblumen_alloc::Process;
 
 lazy_static! {
-    static ref RW_LOCK_REGISTERED_BY_NAME: RwLock<HashMap<Atom, Registered>> = Default::default();
+    static ref REGISTERED_BY_NAME: DashMap<Atom, Registered> = Default::default();
     // Strong references are owned by the scheduler run queues
-    static ref RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID: RwLock<HashMap<Pid, Weak<Process>>> = Default::default();
+    static ref WEAK_PROCESS_CONTROL_BLOCK_BY_PID: DashMap<Pid, Weak<Process>> = Default::default();
 }
 
 pub fn atom_to_process(name: &Atom) -> Option<Arc<Process>> {
-    let readable_registry = RW_LOCK_REGISTERED_BY_NAME.read();
-
-    readable_registry
+    REGISTERED_BY_NAME
         .get(name)
-        .and_then(|registered| match registered {
+        .and_then(|registered| match registered.value() {
             Registered::Process(weak_process) => weak_process.upgrade(),
         })
 }
@@ -32,8 +27,8 @@ pub fn names(process: &Process) -> exception::Result<Term> {
     let mut acc = Term::NIL;
     let mut heap = process.acquire_heap();
 
-    for name in RW_LOCK_REGISTERED_BY_NAME.read().keys() {
-        let name_term: Term = name.encode()?;
+    for entry in REGISTERED_BY_NAME.iter() {
+        let name_term: Term = entry.key().encode()?;
 
         let ptr = heap.cons(name_term, acc)?.as_ptr();
         acc = ptr.into();
@@ -43,8 +38,7 @@ pub fn names(process: &Process) -> exception::Result<Term> {
 }
 
 pub fn pid_to_process(pid: &Pid) -> Option<Arc<Process>> {
-    RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID
-        .read()
+    WEAK_PROCESS_CONTROL_BLOCK_BY_PID
         .get(pid)
         .and_then(|weak_process| weak_process.clone().upgrade())
 }
@@ -58,49 +52,36 @@ pub fn pid_to_self_or_process(pid: Pid, process_arc: &Arc<Process>) -> Option<Ar
 }
 
 pub fn put_atom_to_process(name: Atom, arc_process: Arc<Process>) -> bool {
-    let writable_registry = RW_LOCK_REGISTERED_BY_NAME.write();
-
-    if !writable_registry.contains_key(&name) {
-        if register_in(arc_process, writable_registry, name) {
-            true
-        } else {
-            false
-        }
+    if !REGISTERED_BY_NAME.contains_key(&name) {
+        register_in(arc_process, name)
     } else {
         false
     }
 }
 
-pub fn register_in(
-    arc_process: Arc<Process>,
-    mut writable_registry: RwLockWriteGuard<HashMap<Atom, Registered>>,
-    name: Atom,
-) -> bool {
+pub fn register_in(arc_process: Arc<Process>, name: Atom) -> bool {
     let mut writable_registered_name = arc_process.registered_name.write();
 
-    match *writable_registered_name {
-        None => {
-            writable_registry.insert(name, Registered::Process(Arc::downgrade(&arc_process)));
-            *writable_registered_name = Some(name);
-
-            true
-        }
-        Some(_) => false,
+    if let None = *writable_registered_name {
+        REGISTERED_BY_NAME.insert(name, Registered::Process(Arc::downgrade(&arc_process)));
+        *writable_registered_name = Some(name);
+        true
+    } else {
+        false
     }
 }
 
 pub fn put_pid_to_process(arc_process: &Arc<Process>) {
-    if let Some(_) = RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID
-        .write()
-        .insert(arc_process.pid(), Arc::downgrade(&arc_process))
+    if let Some(_) =
+        WEAK_PROCESS_CONTROL_BLOCK_BY_PID.insert(arc_process.pid(), Arc::downgrade(&arc_process))
     {
         panic!("Process already registered with pid");
     }
 }
 
 pub fn unregister(name: &Atom) -> bool {
-    match RW_LOCK_REGISTERED_BY_NAME.write().remove(name) {
-        Some(Registered::Process(weak_process)) => match weak_process.upgrade() {
+    match REGISTERED_BY_NAME.remove(name) {
+        Some((_, Registered::Process(weak_process))) => match weak_process.upgrade() {
             Some(arc_process) => {
                 let mut writable_registerd_name = arc_process.registered_name.write();
                 *writable_registerd_name = None;

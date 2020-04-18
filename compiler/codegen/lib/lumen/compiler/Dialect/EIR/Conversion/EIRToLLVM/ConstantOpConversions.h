@@ -5,6 +5,7 @@
 
 namespace lumen {
 namespace eir {
+class NullOpConversion;
 class ConstantAtomOpConversion;
 class ConstantBigIntOpConversion;
 class ConstantBinaryOpConversion;

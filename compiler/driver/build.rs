@@ -4,8 +4,6 @@ use std::process::{Command, Stdio};
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-env-changed=LUMEN_COMMIT_HASH");
-    println!("cargo:rerun-if-env-changed=LUMEN_COMMIT_DATE");
 
     let (hash, hash_date) = git_version();
     println!("cargo:rustc-env=LUMEN_COMMIT_HASH={}", hash);

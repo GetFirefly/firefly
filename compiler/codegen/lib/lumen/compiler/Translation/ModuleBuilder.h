@@ -70,9 +70,7 @@ class ModuleBuilder {
                           bool isTail, Block *ok, ArrayRef<Value> okArgs,
                           Block *err, ArrayRef<Value> errArgs);
 
-  void build_call_landing_pad(Location loc, Value result, Block *ok,
-                              ArrayRef<Value> okArgs, Block *err,
-                              ArrayRef<Value> errArgs);
+  Block *build_landing_pad(Location loc, Value catchType, Block *err);
 
   //===----------------------------------------------------------------------===//
   // Operations
@@ -139,6 +137,9 @@ class ModuleBuilder {
   mlir::OpBuilder &getBuilder() { return builder; }
 
   mlir::MLIRContext *getContext() { return builder.getContext(); }
+
+  FuncOp getOrDeclareFunction(StringRef symbol, Type resultTy, bool isVarArg,
+                              ArrayRef<Type> argTypes = {});
 
   Location getLocation(SourceLocation sloc);
   Location getFusedLocation(ArrayRef<Location> locs);

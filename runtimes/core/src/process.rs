@@ -11,3 +11,7 @@ thread_local! {
 pub fn current_process() -> Arc<Process> {
     CURRENT_PROCESS.with(|cp| cp.borrow().clone().expect("no process currently scheduled"))
 }
+
+pub fn maybe_current_process() -> Option<Arc<Process>> {
+    CURRENT_PROCESS.with(|cp| cp.borrow().clone())
+}

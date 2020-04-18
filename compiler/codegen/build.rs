@@ -1,12 +1,14 @@
 extern crate cmake;
+extern crate walkdir;
 extern crate which;
 
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use walkdir::{DirEntry, WalkDir};
 
-const ENV_LLVM_PREFIX: &'static str = "LLVM_SYS_90_PREFIX";
+const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
 
 fn main() {
@@ -44,8 +46,6 @@ fn main() {
              It is highly recommended that you install Ninja.",
         );
     }
-
-    println!("cargo:rerun-if-changed=use_ninja={}", use_ninja);
 
     let mut config = &mut cmake::Config::new("lib");
     if use_ninja {
@@ -169,40 +169,37 @@ pub fn output(cmd: &mut Command) -> String {
     String::from_utf8(output.stdout).unwrap()
 }
 
-pub fn rerun_if_changed_anything_in_dir(dir: &Path) {
-    let mut stack = dir
-        .read_dir()
-        .unwrap()
-        .map(|e| e.unwrap())
-        .filter(|e| !ignore_changes(Path::new(&*e.file_name())))
-        .collect::<Vec<_>>();
-    while let Some(entry) = stack.pop() {
-        let path = entry.path();
-        if entry.file_type().unwrap().is_dir() {
-            stack.extend(path.read_dir().unwrap().map(|e| e.unwrap()));
-        } else {
+fn rerun_if_changed_anything_in_dir(dir: &Path) {
+    let walker = WalkDir::new(dir).into_iter();
+    for entry in walker.filter_entry(|e| !ignore_changes(e)) {
+        let entry = entry.unwrap();
+        if !entry.file_type().is_dir() {
+            let path = entry.path();
             println!("cargo:rerun-if-changed={}", path.display());
         }
     }
 }
 
-fn ignore_changes(name: &Path) -> bool {
-    return name
-        .file_name()
-        .map(|f| {
-            let name = f.to_string_lossy();
-            if name.starts_with(".") {
-                return true;
-            }
-            if name == "CMakeLists.txt" {
-                return false;
-            }
-            if name.ends_with(".cpp") || name.ends_with(".h") || name.ends_with(".td") {
-                return false;
-            }
-            true
-        })
-        .unwrap_or(false);
+fn ignore_changes(entry: &DirEntry) -> bool {
+    let ty = entry.file_type();
+    let name = entry.file_name().to_string_lossy();
+    // Ignore hidden files and directories
+    if name.starts_with(".") {
+        return true;
+    }
+    // Recurse into subdirectories
+    if ty.is_dir() {
+        return false;
+    }
+    // CMake build changes, or any C++/TableGen changes should not be ignored
+    if name == "CMakeLists.txt" {
+        return false;
+    }
+    if name.ends_with(".cpp") || name.ends_with(".h") || name.ends_with(".td") {
+        return false;
+    }
+    // Ignore everything else
+    true
 }
 
 #[cfg(target_os = "macos")]

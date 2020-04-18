@@ -5,9 +5,6 @@ authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 publish = false
 edition = "2018"
 
-[lib]
-crate-type = ["staticlib", "rlib"]
-
 [dependencies]
 anyhow = "1.0"
 thiserror = "1.0"
@@ -23,6 +20,10 @@ chrono = "0.4"
 
 liblumen_core = { path = "../../liblumen_core" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
+
+[dependencies.dashmap]
+version = "3.11"
+features = ["no_std"]
 
 [dependencies.hashbrown]
 version = "0.7"

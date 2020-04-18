@@ -5,7 +5,8 @@ use std::ptr;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use llvm_sys::target_machine::LLVMCodeGenFileType;
+use crate::sys as llvm_sys;
+use crate::sys::target_machine::LLVMCodeGenFileType;
 
 use liblumen_session::{DiagnosticsHandler, OptLevel, Options, ProjectType};
 use liblumen_target::{CodeModel, RelocMode, ThreadLocalMode};

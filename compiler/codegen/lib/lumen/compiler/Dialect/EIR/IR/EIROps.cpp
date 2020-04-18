@@ -777,6 +777,32 @@ int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {
   assert(false && "unimplemented boxed type in calculateAllocSize");
 }
 
+bool InvokeClosureOp::canEraseSuccessorOperand() { return true; }
+
+Optional<OperandRange> InvokeClosureOp::getSuccessorOperands(unsigned index) {
+  switch (index) {
+    case 0:
+      return llvm::None;
+    case 1:
+      return getErrOperands();
+    default:
+      assert(false && "invalid successor index");
+  }
+}
+
+bool InvokeOp::canEraseSuccessorOperand() { return true; }
+
+Optional<OperandRange> InvokeOp::getSuccessorOperands(unsigned index) {
+  switch (index) {
+    case 0:
+      return llvm::None;
+    case 1:
+      return getErrOperands();
+    default:
+      assert(false && "invalid successor index");
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // TableGen Output
 //===----------------------------------------------------------------------===//

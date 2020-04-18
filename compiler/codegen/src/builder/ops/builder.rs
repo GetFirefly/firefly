@@ -11,15 +11,6 @@ use super::OpKind;
 pub struct OpBuilder;
 
 impl OpBuilder {
-    #[inline]
-    pub fn build<'f, 'o>(
-        builder: &mut ScopedFunctionBuilder<'f, 'o>,
-        ir_value: Option<ir::Value>,
-        kind: OpKind,
-    ) -> Result<Option<Value>> {
-        Self::do_build(builder, ir_value, kind)
-    }
-
     pub fn build_void_result<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         kind: OpKind,

@@ -23,11 +23,11 @@ jobs:
         run: |
           mkdir -p ~/.local/share/llvm
           pushd ~/.local/share/llvm
-          wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-04-12/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+          wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-04-16/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
           tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
           mv clang+llvm-10.0.0-x86_64-apple-darwin19.3.0 lumen
           popd
-          echo "::set-env name=LLVM_SYS_90_PREFIX::$HOME/.local/share/llvm/lumen"
+          echo "::set-env name=LLVM_PREFIX::$HOME/.local/share/llvm/lumen"
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:

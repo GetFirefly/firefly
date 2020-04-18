@@ -1,6 +1,7 @@
 use std::ffi::{CStr, CString};
 
-use llvm_sys::prelude::LLVMBuilderRef;
+use crate::sys as llvm_sys;
+use crate::sys::prelude::LLVMBuilderRef;
 
 use crate::context::Context;
 use crate::enums::*;

@@ -598,6 +598,85 @@ class eir_CallBaseOp<string mnemonic, list<OpTrait> traits = []> :
   }];
 }
 
+class eir_InvokeBaseOp<string mnemonic, list<OpTrait> traits = []> :
+    eir_Op<mnemonic, !listconcat(traits,
+      [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
+       Terminator])> {
+  let successors = (successor AnySuccessor:$okDest, AnySuccessor:$errDest);
+
+  string extraExtraClassDeclaration = "";
+
+  let extraClassDeclaration = [{
+    /// These are the indices into the dests list.
+    enum { okIndex = 0, errIndex = 1 };
+
+    /// Return the destination if the condition is true.
+    Block *getOkDest() {
+      return getSuccessor(okIndex);
+    }
+
+    /// Return the destination if the condition is false.
+    Block *getErrDest() {
+      return getSuccessor(errIndex);
+    }
+
+    /// Accessors for operands to the 'true' destination.
+    Value getOkOperand(unsigned idx) {
+      assert(idx < getNumOkOperands());
+      return getOperand(getOkDestOperandIndex() + idx);
+    }
+
+    void setOkOperand(unsigned idx, Value value) {
+      assert(idx < getNumOkOperands());
+      setOperand(getOkDestOperandIndex() + idx, value);
+    }
+
+    OperandRange getOkOperands() { return okDestOperands(); }
+
+    unsigned getNumOkOperands()  { return getOkOperands().size(); }
+
+    /// Erase the operand at 'index' from the true operand list.
+    void eraseOkOperand(unsigned index)  {
+      eraseSuccessorOperand(okIndex, index);
+    }
+
+    /// Accessors for operands to the 'false' destination.
+    Value getErrOperand(unsigned idx) {
+      assert(idx < getNumErrOperands());
+      return getOperand(getErrDestOperandIndex() + idx);
+    }
+    void setErrOperand(unsigned idx, Value value) {
+      assert(idx < getNumErrOperands());
+      setOperand(getErrDestOperandIndex() + idx, value);
+    }
+
+    OperandRange getErrOperands() { return errDestOperands(); }
+
+    unsigned getNumErrOperands() { return getErrOperands().size(); }
+
+    /// Erase the operand at 'index' from the false operand list.
+    void eraseErrOperand(unsigned index) {
+      eraseSuccessorOperand(errIndex, index);
+    }
+
+  private:
+    /// Get the index of the first call argument operand.
+    unsigned getArgOperandIndex() { return 0; }
+
+    /// Get the index of the first true destination operand.
+    unsigned getOkDestOperandIndex() {
+      return getArgOperandIndex() + getNumArgOperands();
+    }
+
+    /// Get the index of the first false destination operand.
+    unsigned getErrDestOperandIndex() {
+      return getOkDestOperandIndex() + getNumOkOperands();
+    }
+
+  public:
+  }] # extraExtraClassDeclaration;
+}
+
 def eir_CallOp : eir_CallBaseOp<"call"> {
   let summary = [{call operation}];
   let description = [{
@@ -694,6 +773,108 @@ def CallIndirectOp : eir_Op<"call_indirect", [CallOpInterface]> {
   }];
 }
 
+def eir_InvokeOp : eir_InvokeBaseOp<"invoke", [CallOpInterface]> {
+  let summary = "call operation for targets that may raise exceptions";
+  let description = [{
+    Calls a function with the given arguments, uses the provided ok/err blocks
+    to handle the flow of control upon return of the callee, based on whether
+    an exception was raised or not.
+  }];
+
+  let arguments = (ins
+    eir_FuncRefAttr:$callee,
+    Variadic<eir_AnyType>:$operands,
+    Variadic<eir_AnyType>:$okDestOperands,
+    Variadic<eir_AnyType>:$errDestOperands
+  );
+  let results = (outs
+    Variadic<eir_AnyType>:$results
+  );
+
+  let assemblyFormat = [{
+    $callee (`(` $operands^ `:` type($operands) `)`)? `to`
+      $okDest (`(` $okDestOperands^ `:` type($okDestOperands) `)`)? `unwind`
+      $errDest (`(` $errDestOperands^ `:` type($errDestOperands) `)`)?
+      attr-dict `:` type(results)
+  }];
+
+  let builders = [
+    OpBuilder<[{
+      Builder *builder, OperationState &result, eir::FuncOp callee,
+      ValueRange operands,
+      Block *okDest, ValueRange okDestOperands,
+      Block *errDest, ValueRange errDestOperands
+    }], [{
+      build(builder, result, callee.getCallableResults(), builder->getSymbolRefAttr(callee),
+            operands, okDestOperands, errDestOperands, okDest, errDest);
+    }]>,
+    OpBuilder<[{
+      Builder *builder, OperationState &result, FlatSymbolRefAttr callee,
+      ArrayRef<Type> resultTypes, ValueRange operands,
+      Block *okDest, ValueRange okDestOperands,
+      Block *errDest, ValueRange errDestOperands
+    }], [{
+      build(builder, result, resultTypes, callee,
+            operands, okDestOperands, errDestOperands, okDest, errDest);
+    }]>,
+    OpBuilder<[{
+      Builder *builder, OperationState &result, StringRef callee,
+      ArrayRef<Type> resultTypes, ValueRange operands,
+      Block *okDest, ValueRange okOperands,
+      Block *errDest, ValueRange errOperands
+    }], [{
+      build(builder, result, resultTypes, builder->getSymbolRefAttr(callee),
+            operands, okOperands, errOperands, okDest, errDest);
+    }]>,
+  ];
+
+  let verifier = [{ /*TODO*/return success(); }];
+
+  //let hasCanonicalizer = 1;
+  let extraExtraClassDeclaration = [{
+    StringRef getCallee() { return callee(); }
+
+    /// Get the argument operands to the called function.
+    OperandRange getArgOperands() { return operands(); }
+
+    unsigned getNumArgOperands() { return getArgOperands().size(); }
+
+    /// Return the callee of this operation.
+    CallInterfaceCallable getCallableForCallee() {
+      return getAttrOfType<FlatSymbolRefAttr>("callee");
+    }
+  }];
+}
+
+def eir_LandingPadOp : eir_Op<"landing_pad", []> {
+  let summary = "generates a landing pad for an invoke operation";
+  let description = [{
+    An invoke operation specifies the block where control is transferred when an
+    exception occurs. This operation is used to handle the initial transfer of
+    control.
+
+    It must be the first operation in its containing block, and is also a terminator.
+    Behavior-wise, it acts like a branch operation, which will branch to user code once
+    the exception has landed.
+  }];
+
+  let arguments = (ins AnyType:$catchType);
+  let results = (outs eir_AnyType:$kind, eir_AnyType:$reason, eir_AnyType:$trace);
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+
+  let verifier = ?;
+
+  //let hasCanonicalizer = 1;
+  let builders = [OpBuilder<
+    "Builder *builder, OperationState &result, Value catchType", [{
+      Type termTy = builder->getType<TermType>();
+      build(builder, result, ArrayRef<Type>{termTy, termTy, termTy}, catchType);
+  }]>];
+}
+
 def ApplyOp : eir_Op<"apply", []> {
   let summary = "dynamic call operation";
   let description = [{
@@ -772,6 +953,60 @@ def CallClosureOp : eir_Op<"call_closure", []> {
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def eir_InvokeClosureOp : eir_InvokeBaseOp<"invoke_closure", []> {
+  let summary = "call operation for closures that may raise exceptions";
+  let description = [{
+    Calls a closure with the given arguments, uses the provided ok/err blocks
+    to handle the flow of control upon return of the callee, based on whether
+    an exception was raised or not.
+  }];
+
+  let arguments = (ins
+    eir_BoxType:$callee,
+    Variadic<eir_AnyType>:$operands,
+    Variadic<eir_AnyType>:$okDestOperands,
+    Variadic<eir_AnyType>:$errDestOperands
+  );
+  let results = (outs eir_AnyType:$result);
+
+  let assemblyFormat = [{
+    $callee `:` type($callee) (`(` $operands^ `:` type($operands) `)`)? `to`
+      $okDest (`(` $okDestOperands^ `:` type($okDestOperands) `)`)? `unwind`
+      $errDest (`(` $errDestOperands^ `:` type($errDestOperands) `)`)?
+      attr-dict `:` type(results)
+  }];
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<[{
+      Builder *builder, OperationState &result, Value callee,
+      ValueRange operands,
+      Block *okDest, ValueRange okDestOperands,
+      Block *errDest, ValueRange errDestOperands
+    }], [{
+      result.operands.push_back(callee);
+      result.addOperands(operands);
+      result.addOperands(okDestOperands);
+      result.addOperands(errDestOperands);
+      FunctionType fnTy = callee.getType().cast<FunctionType>();
+      auto closureTy = builder->getType<ClosureType>();
+      result.addTypes(fnTy.getResults());
+      result.addSuccessors({okDest, errDest});
+    }]>,
+  ];
+
+  let verifier = [{ /*TODO*/return success(); }];
+
+  //let hasCanonicalizer = 1;
+
+  let extraExtraClassDeclaration = [{
+    /// Get the argument operands to the called function.
+    OperandRange getArgOperands() { return operands(); }
+
+    unsigned getNumArgOperands() { return getArgOperands().size(); }
   }];
 }
 
@@ -933,12 +1168,16 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
     the current function, returning control up the stack by unwinding.
   }];
   let results = (outs);
-  let arguments = (ins eir_AnyType:$reason);
+  let arguments = (ins
+    eir_AnyType:$kind,
+    eir_AnyType:$reason,
+    eir_AnyType:$trace
+  );
 
   let verifier = ?;
 
   let assemblyFormat = [{
-    `(` $reason `:` type($reason) `)` attr-dict
+    `(` $kind `,` $reason `,` $trace `)` attr-dict `:` `(` type($kind) `,` type($reason) `,` type($trace) `)`
   }];
 }
 
@@ -1192,6 +1431,19 @@ def eir_PrintOp : eir_Op<"print"> {
 //===----------------------------------------------------------------------===//
 // Constants
 //===----------------------------------------------------------------------===//
+
+def eir_NullOp : eir_Op<"null", [NoSideEffect]> {
+  let summary = "Constructs a constant null value";
+
+  let arguments = (ins);
+  let results = (outs AnyType);
+
+  let assemblyFormat = [{
+    attr-dict `:` type(results)
+  }];
+
+  let verifier = ?;
+}
 
 class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic, [ConstantLike, NoSideEffect]> {
 

@@ -2,22 +2,22 @@ use proptest::prop_assert_eq;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::binary_to_existing_atom_2::native;
+use crate::erlang::binary_to_existing_atom_2::result;
 use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    crate::test::without_binary_with_encoding_is_not_binary(file!(), native);
+    crate::test::without_binary_with_encoding_is_not_binary(file!(), result);
 }
 
 #[test]
 fn with_binary_without_atom_encoding_errors_badarg() {
-    crate::test::with_binary_without_atom_encoding_errors_badarg(file!(), native);
+    crate::test::with_binary_without_atom_encoding_errors_badarg(file!(), result);
 }
 
 #[test]
 fn with_binary_with_atom_without_name_encoding_errors_badarg() {
-    crate::test::with_binary_with_atom_without_name_encoding_errors_badarg(file!(), native);
+    crate::test::with_binary_with_atom_without_name_encoding_errors_badarg(file!(), result);
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn with_utf8_binary_with_valid_encoding_without_existing_atom_errors_badarg() {
         },
         |(binary, encoding)| {
             prop_assert_badarg!(
-                native(binary, encoding),
+                result(binary, encoding),
                 "tried to convert to an atom that doesn't exist"
             );
 
@@ -66,7 +66,7 @@ fn with_utf8_binary_with_valid_encoding_with_existing_atom_returns_atom() {
             let s = std::str::from_utf8(&byte_vec).unwrap();
             let existing_atom = Atom::str_to_term(s);
 
-            prop_assert_eq!(native(binary, encoding), Ok(existing_atom));
+            prop_assert_eq!(result(binary, encoding), Ok(existing_atom));
 
             Ok(())
         },

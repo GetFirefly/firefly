@@ -7,18 +7,18 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::{Encoded, TypedTerm};
 
-use crate::erlang::bor_2::native;
+use crate::erlang::bor_2::result;
 use crate::test::with_process;
 use crate::test::{count_ones, strategy};
 
 #[test]
 fn without_integer_left_errors_badarith() {
-    crate::test::without_integer_left_errors_badarith(file!(), native);
+    crate::test::without_integer_left_errors_badarith(file!(), result);
 }
 
 #[test]
 fn with_integer_left_without_integer_right_errors_badarith() {
-    crate::test::with_integer_left_without_integer_right_errors_badarith(file!(), native);
+    crate::test::with_integer_left_without_integer_right_errors_badarith(file!(), result);
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn with_same_integer_returns_same_integer() {
             )
         },
         |(arc_process, operand)| {
-            prop_assert_eq!(native(&arc_process, operand, operand), Ok(operand));
+            prop_assert_eq!(result(&arc_process, operand, operand), Ok(operand));
 
             Ok(())
         },

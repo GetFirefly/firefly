@@ -13,7 +13,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(!has_message(process, timeout_message));
 
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
 
@@ -37,7 +37,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         // again before timeout
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
 
@@ -66,7 +66,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         // again after timeout
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(receive_message(process), Some(false_read_timer_message));
@@ -93,14 +93,14 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
         let read_timer_message = read_timer_message(timer_reference, false.into(), process);
 
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(receive_message(process), Some(read_timer_message));
 
         // again
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(receive_message(process), Some(read_timer_message));

@@ -27,7 +27,7 @@ fn with_less_than_byte_len_returns_binary_prefix_and_suffix_binary() {
             let suffix = arc_process.binary_from_bytes(suffix_bytes).unwrap();
 
             prop_assert_eq!(
-                native(&arc_process, binary, position),
+                result(&arc_process, binary, position),
                 Ok(arc_process.tuple_from_slice(&[prefix, suffix]).unwrap())
             );
 
@@ -45,7 +45,7 @@ fn with_byte_len_returns_subbinary_and_empty_suffix() {
             let position = arc_process.integer(byte_vec.len()).unwrap();
 
             prop_assert_eq!(
-                native(&arc_process, binary, position),
+                result(&arc_process, binary, position),
                 Ok(arc_process
                     .tuple_from_slice(&[binary, arc_process.binary_from_bytes(&[]).unwrap()],)
                     .unwrap())
@@ -74,7 +74,7 @@ fn with_greater_than_byte_len_errors_badarg() {
             let position = arc_process.integer(index).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, binary, position),
+                result(&arc_process, binary, position),
                 format!(
                     "index ({}) exceeds full byte length ({})",
                     index,

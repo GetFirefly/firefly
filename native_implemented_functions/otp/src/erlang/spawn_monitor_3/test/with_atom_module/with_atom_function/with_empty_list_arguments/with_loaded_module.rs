@@ -8,8 +8,6 @@ use crate::test::has_message;
 
 #[test]
 fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_parent() {
-    apply_3::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
@@ -22,7 +20,7 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
 
     let arguments = Term::NIL;
 
-    let result = native(&parent_arc_process, module, function, arguments);
+    let result = result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 

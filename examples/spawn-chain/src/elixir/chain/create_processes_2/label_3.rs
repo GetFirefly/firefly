@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 /// ```elixir
@@ -23,7 +23,7 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let ok = arc_process.stack_peek(1).unwrap();
@@ -33,7 +33,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     arc_process.return_from_call(2, final_answer).unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame(process: &Process) -> Frame {

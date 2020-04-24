@@ -7,7 +7,7 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang;
-use crate::erlang::send_after_3::native;
+use crate::erlang::send_after_3::result;
 use crate::test;
 use crate::test::strategy::milliseconds;
 use crate::test::{freeze_at_timeout, freeze_timeout, has_message, registered_name, strategy};
@@ -29,7 +29,7 @@ fn without_non_negative_integer_time_errors_badarg() {
             let destination = arc_process.pid_term();
 
             prop_assert_badarg!(
-                native(arc_process.clone(), time, destination, message),
+                result(arc_process.clone(), time, destination, message),
                 format!("time ({}) is not a non-negative integer", time)
             );
 

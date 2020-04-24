@@ -14,7 +14,7 @@ use libeir_ir::{
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception::{Exception, RuntimeException, SystemException};
-use liblumen_alloc::erts::process::code;
+use liblumen_alloc::erts::process::frames;
 use liblumen_alloc::erts::process::gc::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
 use liblumen_alloc::erts::term::prelude::*;
@@ -152,7 +152,7 @@ fn call_closure_inner(
     closure_term: Term,
     closure_typed_term: TypedTerm,
     args: &mut [Term],
-) -> code::Result {
+) -> frames::Result {
     match closure_typed_term {
         TypedTerm::Closure(closure) => {
             let is_closure = closure.env_len() > 0;
@@ -258,7 +258,7 @@ impl CallExecutor {
         module: Atom,
         function: Atom,
         arity: usize,
-    ) -> code::Result {
+    ) -> frames::Result {
         panic!("Undef: {} {} {}", module, function, arity);
         //let exit_atom = Atom::str_to_term("EXIT");
         //let undef_atom = Atom::str_to_term("undef");

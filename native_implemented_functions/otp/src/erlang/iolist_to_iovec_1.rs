@@ -15,8 +15,8 @@ use crate::erlang::iolist_or_binary;
 
 /// Returns a binary that is made from the integers and binaries given in iolist
 #[native_implemented_function(iolist_to_iovec/1)]
-pub fn native(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
-    iolist_or_binary::native(process, iolist_or_binary, iolist_or_binary_to_iovec)
+pub fn result(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
+    iolist_or_binary::result(process, iolist_or_binary, iolist_or_binary_to_iovec)
 }
 
 pub fn iolist_or_binary_to_iovec(

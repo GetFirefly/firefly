@@ -18,7 +18,7 @@ use crate::runtime::send::{self, send, Sent};
 // `send(destination, message, [nosuspend])` is used in `gen.erl`, which is used by `gen_server.erl`
 // See https://github.com/erlang/otp/blob/8f6d45ddc8b2b12376c252a30b267a822cad171a/lib/stdlib/src/gen.erl#L167
 #[native_implemented_function(send/3)]
-pub fn native(
+pub fn result(
     process: &Process,
     destination: Term,
     message: Term,

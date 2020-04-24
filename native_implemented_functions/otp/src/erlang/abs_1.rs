@@ -18,7 +18,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(abs/1)]
-pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
+fn result(process: &Process, number: Term) -> exception::Result<Term> {
     match number.decode()? {
         TypedTerm::SmallInteger(small_integer) => {
             let i: isize = small_integer.into();

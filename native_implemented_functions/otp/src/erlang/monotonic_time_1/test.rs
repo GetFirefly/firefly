@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::time::{monotonic, Milliseconds};
 
-use crate::erlang::monotonic_time_1::native;
+use crate::erlang::monotonic_time_1::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -27,7 +27,7 @@ fn without_atom_or_integer_errors_badarg() {
             )
         },
         |(arc_process, unit)| {
-            prop_assert_badarg!(native(&arc_process, unit), SUPPORTED_UNITS);
+            prop_assert_badarg!(result(&arc_process, unit), SUPPORTED_UNITS);
 
             Ok(())
         },

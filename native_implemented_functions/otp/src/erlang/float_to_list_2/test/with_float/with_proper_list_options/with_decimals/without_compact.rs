@@ -6,77 +6,77 @@ fn trailing_zeros_are_not_truncated() {
         let float = arc_process.float(12345.6789).unwrap();
 
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 0)),
+            result(&arc_process, float, options(&arc_process, 0)),
             Ok(arc_process.charlist_from_str("12346").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 1)),
+            result(&arc_process, float, options(&arc_process, 1)),
             Ok(arc_process.charlist_from_str("12345.7").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 2)),
+            result(&arc_process, float, options(&arc_process, 2)),
             Ok(arc_process.charlist_from_str("12345.68").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 3)),
+            result(&arc_process, float, options(&arc_process, 3)),
             Ok(arc_process.charlist_from_str("12345.679").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 4)),
+            result(&arc_process, float, options(&arc_process, 4)),
             Ok(arc_process.charlist_from_str("12345.6789").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 5)),
+            result(&arc_process, float, options(&arc_process, 5)),
             Ok(arc_process.charlist_from_str("12345.67890").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 6)),
+            result(&arc_process, float, options(&arc_process, 6)),
             Ok(arc_process.charlist_from_str("12345.678900").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 7)),
+            result(&arc_process, float, options(&arc_process, 7)),
             Ok(arc_process.charlist_from_str("12345.6789000").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 8)),
+            result(&arc_process, float, options(&arc_process, 8)),
             Ok(arc_process.charlist_from_str("12345.67890000").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 9)),
+            result(&arc_process, float, options(&arc_process, 9)),
             Ok(arc_process.charlist_from_str("12345.678900000").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 10)),
+            result(&arc_process, float, options(&arc_process, 10)),
             Ok(arc_process.charlist_from_str("12345.6789000000").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 11)),
+            result(&arc_process, float, options(&arc_process, 11)),
             Ok(arc_process.charlist_from_str("12345.67890000000").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 12)),
+            result(&arc_process, float, options(&arc_process, 12)),
             Ok(arc_process.charlist_from_str("12345.678900000001").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 13)),
+            result(&arc_process, float, options(&arc_process, 13)),
             Ok(arc_process
                 .charlist_from_str("12345.6789000000008")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 14)),
+            result(&arc_process, float, options(&arc_process, 14)),
             Ok(arc_process
                 .charlist_from_str("12345.67890000000079")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 15)),
+            result(&arc_process, float, options(&arc_process, 15)),
             Ok(arc_process
                 .charlist_from_str("12345.678900000000795")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 16)),
+            result(&arc_process, float, options(&arc_process, 16)),
             Ok(arc_process
                 .charlist_from_str("12345.6789000000007945")
                 .unwrap())

@@ -2,16 +2,11 @@ use super::*;
 
 #[test]
 fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
-    apply_3::export();
-    exit_1::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
-
-    erlang::number_or_badarith_1::export();
 
     let module_atom = erlang::module();
     let module: Term = module_atom.encode().unwrap();
@@ -22,7 +17,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let number = parent_arc_process.integer(0).unwrap();
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_3::result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -42,7 +37,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     assert!(scheduler::run_through(&child_arc_process));
 
     match *child_arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
+        Status::RuntimeException(ref runtime_exception) => {
             assert_eq!(
                 runtime_exception,
                 &exit!(atom!("normal"), anyhow!("Test").into())
@@ -56,16 +51,11 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
 
 #[test]
 fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
-    apply_3::export();
-    exit_1::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
-
-    erlang::number_or_badarith_1::export();
 
     let module_atom = erlang::module();
     let module: Term = module_atom.encode().unwrap();
@@ -77,7 +67,7 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
     let number = atom!("zero");
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_3::result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -98,11 +88,11 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
 
     assert_eq!(
         child_arc_process.current_module_function_arity(),
-        Some(Arc::new(ModuleFunctionArity {
+        Some(ModuleFunctionArity {
             module: atom_from!(module),
             function: atom_from!(function),
             arity: 1
-        }))
+        })
     );
     assert_exits_badarith(
         &child_arc_process,

@@ -14,7 +14,7 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::demonitor_2::demonitor;
 
 #[native_implemented_function(demonitor/1)]
-pub fn native(process: &Process, reference: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, reference: Term) -> exception::Result<Term> {
     let reference_reference = term_try_into_local_reference!(reference)?;
 
     demonitor(process, &reference_reference, Default::default())

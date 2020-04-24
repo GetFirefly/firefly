@@ -3,8 +3,8 @@ use std::sync::Arc;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::*;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::code::{self, result_from_exception};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::frames::{self, exception_to_native_return};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -35,7 +35,7 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let new_first = arc_process.stack_peek(1).unwrap();
@@ -68,11 +68,11 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                     vec![first, acc],
                 )?;
 
-                Process::call_code(arc_process)
+                Process::call_native_or_yield(arc_process)
             } else {
                 let argument_list = arc_process.list_from_slice(&[first, acc]).unwrap();
 
-                result_from_exception(
+                exception_to_native_return(
                     arc_process,
                     STACK_USED,
                     badarity(
@@ -84,7 +84,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                 )
             }
         }
-        _ => result_from_exception(
+        _ => exception_to_native_return(
             arc_process,
             STACK_USED,
             badfun(arc_process, reducer, anyhow!("reducer").into()),

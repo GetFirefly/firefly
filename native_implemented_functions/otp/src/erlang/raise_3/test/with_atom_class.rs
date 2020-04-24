@@ -26,7 +26,7 @@ fn without_class_errors_badarg() {
         },
         |(class, reason, stacktrace)| {
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 "supported exception classes are error, exit, or throw"
             );
 
@@ -47,7 +47,7 @@ fn with_class_without_list_stacktrace_errors_badarg() {
         },
         |(class, reason, stacktrace)| {
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 format!("stacktrace ({}) is not a stacktrace", stacktrace)
             );
 
@@ -104,7 +104,7 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
                 .unwrap();
 
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 format!("stacktrace ({}) is not a stacktrace", stacktrace)
             );
 
@@ -134,7 +134,7 @@ fn with_class_with_stacktrace_with_atom_module_without_atom_function_errors_bada
                 .unwrap();
 
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 format!("stacktrace ({}) is not a stacktrace", stacktrace)
             );
 
@@ -165,7 +165,7 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
                 .unwrap();
 
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 format!("stacktrace ({}) is not a stacktrace", stacktrace)
             );
 
@@ -202,7 +202,7 @@ fn with_class_with_stacktrace_with_mfa_with_file_without_charlist_errors_badarg(
                 .unwrap();
 
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 format!("stacktrace ({}) is not a stacktrace", stacktrace)
             );
 
@@ -239,7 +239,7 @@ fn with_class_with_stacktrace_with_mfa_with_non_positive_line_with_errors_badarg
                 .unwrap();
 
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 format!("stacktrace ({}) is not a stacktrace", stacktrace)
             );
 
@@ -281,7 +281,7 @@ fn with_class_with_stacktrace_with_mfa_with_invalid_location_errors_badarg() {
                 .unwrap();
 
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 format!("stacktrace ({}) is not a stacktrace", stacktrace)
             );
 
@@ -508,7 +508,7 @@ fn prop_assert_raises(
     reason: Term,
     stacktrace: Term,
 ) -> Result<(), TestCaseError> {
-    if let Err(Exception::Runtime(ref runtime_exception)) = native(class, reason, stacktrace) {
+    if let Err(Exception::Runtime(ref runtime_exception)) = result(class, reason, stacktrace) {
         prop_assert_eq!(runtime_exception.class(), Some(class_variant));
         prop_assert_eq!(runtime_exception.reason(), Some(reason));
         prop_assert_eq!(runtime_exception.stacktrace(), Some(stacktrace));

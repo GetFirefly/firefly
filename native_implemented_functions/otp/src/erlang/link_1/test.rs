@@ -5,14 +5,13 @@ use anyhow::*;
 use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::error;
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::link_1::native;
+use crate::erlang::link_1::result;
 use crate::runtime::scheduler;
-use crate::test::{strategy, with_process, with_process_arc};
-use crate::{erlang, test};
+use crate::test;
+use crate::test::{exit_when_run, strategy, with_process, with_process_arc};
 
 #[test]
 fn without_pid_or_port_errors_badarg() {
@@ -28,7 +27,7 @@ fn without_pid_or_port_errors_badarg() {
         },
         |(arc_process, pid_or_port)| {
             prop_assert_badarg!(
-                native(&arc_process, pid_or_port),
+                result(&arc_process, pid_or_port),
                 format!("pid_or_port ({}) is neither a pid nor a port", pid_or_port)
             );
 

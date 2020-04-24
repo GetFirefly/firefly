@@ -16,7 +16,7 @@ fn returns_reference() {
         let monitored_monitor_count_before = monitor_count(&monitored_arc_process);
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
-        let monitor_reference_result = native(&monitoring_arc_process, r#type(), registered_name);
+        let monitor_reference_result = result(&monitoring_arc_process, r#type(), registered_name);
 
         assert!(monitor_reference_result.is_ok());
 
@@ -55,9 +55,9 @@ fn returns_different_reference_each_time() {
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
         let first_monitor_reference =
-            native(&monitoring_arc_process, r#type(), registered_name).unwrap();
+            result(&monitoring_arc_process, r#type(), registered_name).unwrap();
         let second_monitor_reference =
-            native(&monitoring_arc_process, r#type(), registered_name).unwrap();
+            result(&monitoring_arc_process, r#type(), registered_name).unwrap();
 
         assert_ne!(first_monitor_reference, second_monitor_reference);
 
@@ -89,7 +89,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
         ));
 
         let first_monitor_reference =
-            native(&monitoring_arc_process, r#type(), first_registered_name).unwrap();
+            result(&monitoring_arc_process, r#type(), first_registered_name).unwrap();
 
         let second_registered_name = registered_name();
         let second_registered_name_atom: Atom = second_registered_name.try_into().unwrap();
@@ -101,13 +101,12 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
         ));
 
         let second_monitor_reference =
-            native(&monitoring_arc_process, r#type(), second_registered_name).unwrap();
+            result(&monitoring_arc_process, r#type(), second_registered_name).unwrap();
 
         assert!(!monitored_arc_process.is_exiting());
 
         let reason = Atom::str_to_term("normal");
-        exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&monitored_arc_process, reason);
 
         assert!(scheduler::run_through(&monitored_arc_process));
 
@@ -124,7 +123,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
                     first_monitor_reference,
                     r#type(),
                     monitoring_arc_process
-                        .tuple_from_slice(&[first_registered_name, node_0::native()])
+                        .tuple_from_slice(&[first_registered_name, node_0::result()])
                         .unwrap(),
                     reason
                 ])
@@ -138,7 +137,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
                     second_monitor_reference,
                     r#type(),
                     monitoring_arc_process
-                        .tuple_from_slice(&[second_registered_name, node_0::native()])
+                        .tuple_from_slice(&[second_registered_name, node_0::result()])
                         .unwrap(),
                     reason
                 ])

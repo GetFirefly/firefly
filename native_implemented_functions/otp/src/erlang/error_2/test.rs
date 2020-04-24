@@ -3,7 +3,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::exception::{Exception, RuntimeException};
 
-use crate::erlang::error_2::native;
+use crate::erlang::error_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -17,7 +17,7 @@ fn errors_with_reason_and_arguments() {
         },
         |(reason, arguments)| {
             if let Err(Exception::Runtime(RuntimeException::Error(ref error))) =
-                native(reason, arguments)
+                result(reason, arguments)
             {
                 prop_assert_eq!(error.reason(), reason);
                 prop_assert_eq!(error.arguments(), Some(arguments));

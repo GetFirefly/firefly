@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{Arity, ModuleFunctionArity};
 
@@ -24,7 +24,7 @@ pub fn place_frame_with_arguments(
     process: &Process,
     placement: Placement,
     n: Term,
-) -> code::Result {
+) -> frames::Result {
     assert!(n.is_integer());
     process.stack_push(n)?;
     process.place_frame(frame(), placement);
@@ -36,7 +36,7 @@ pub fn place_frame_with_arguments(
 
 const ARITY: Arity = 1;
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let n = arc_process.stack_pop().unwrap();
@@ -46,7 +46,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     run_2::place_frame_with_arguments(arc_process, Placement::Replace, n, console_output_closure)
         .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame() -> Frame {

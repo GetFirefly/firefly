@@ -5,7 +5,7 @@ fn without_exiting_returns_true() {
     with_process_arc(|arc_process| {
         assert!(!arc_process.is_exiting());
         assert_eq!(
-            native(&arc_process, arc_process.pid_term()),
+            result(&arc_process, arc_process.pid_term()),
             Ok(true.into())
         );
     });
@@ -18,7 +18,7 @@ fn with_exiting_returns_false() {
 
         assert!(arc_process.is_exiting());
         assert_eq!(
-            native(&arc_process, arc_process.pid_term()),
+            result(&arc_process, arc_process.pid_term()),
             Ok(false.into())
         );
     });

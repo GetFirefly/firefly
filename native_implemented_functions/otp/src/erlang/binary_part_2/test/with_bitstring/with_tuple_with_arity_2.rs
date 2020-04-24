@@ -13,7 +13,7 @@ fn without_integer_start_without_integer_length_errors_badarg() {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
             prop_assert_is_not_non_negative_integer!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 start
             );
 
@@ -32,7 +32,7 @@ fn without_integer_start_with_integer_length_errors_badarg() {
     )| {
         let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-        prop_assert_is_not_non_negative_integer!(native(&arc_process, binary, start_length), start);
+        prop_assert_is_not_non_negative_integer!(result(&arc_process, binary, start_length), start);
 
         Ok(())
     },);
@@ -45,7 +45,7 @@ fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
         |(arc_process, binary, start, length)| {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-            prop_assert_is_not_integer!(native(&arc_process, binary, start_length), length);
+            prop_assert_is_not_integer!(result(&arc_process, binary, start_length), length);
 
             Ok(())
         },
@@ -62,7 +62,7 @@ fn with_negative_start_with_valid_length_errors_badarg() {
     )| {
         let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-        prop_assert_is_not_non_negative_integer!(native(&arc_process, binary, start_length), start);
+        prop_assert_is_not_non_negative_integer!(result(&arc_process, binary, start_length), start);
 
         Ok(())
     },);
@@ -76,7 +76,7 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 format!("start ({}) exceeds available_byte_count", start)
             );
 
@@ -93,7 +93,7 @@ fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 format!("end ({}) is less than or equal to 0", end)
             );
 
@@ -138,7 +138,7 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 format!("end ({}) exceeds available_byte_count", end)
             );
 
@@ -160,7 +160,7 @@ fn returns_subbinary(
 ) -> TestCaseResult {
     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-    let result = native(&arc_process, binary, start_length);
+    let result = result(&arc_process, binary, start_length);
 
     prop_assert!(result.is_ok());
 

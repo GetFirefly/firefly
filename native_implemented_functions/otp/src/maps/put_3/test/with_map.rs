@@ -16,7 +16,7 @@ fn without_key_puts_new_value() {
             let empty_map = arc_process.map_from_slice(&[]).unwrap();
             let updated_map = arc_process.map_from_slice(&[(key, value)]).unwrap();
             prop_assert_eq!(
-                native(&arc_process, key, value, empty_map),
+                result(&arc_process, key, value, empty_map),
                 Ok(updated_map.into())
             );
 
@@ -39,7 +39,7 @@ fn with_key_puts_replacement_value() {
                     let value2 = atom!("value2");
                     let updated_map = arc_process.map_from_slice(&[(key, value2)]).unwrap();
                     prop_assert_eq!(
-                        native(&arc_process, key, value2, map),
+                        result(&arc_process, key, value2, map),
                         Ok(updated_map.into())
                     );
 

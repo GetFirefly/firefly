@@ -19,7 +19,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::context::*;
 
 #[native_implemented_function(make_tuple/3)]
-pub fn native(
+pub fn result(
     process: &Process,
     arity: Term,
     default_value: Term,

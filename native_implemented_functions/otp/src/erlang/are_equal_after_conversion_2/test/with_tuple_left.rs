@@ -13,7 +13,7 @@ fn without_tuple_right_returns_false() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -25,7 +25,7 @@ fn with_same_tuple_right_returns_true() {
     run!(
         |arc_process| strategy::term::tuple(arc_process.clone()),
         |operand| {
-            prop_assert_eq!(native(operand, operand), true.into());
+            prop_assert_eq!(result(operand, operand), true.into());
 
             Ok(())
         },
@@ -53,7 +53,7 @@ fn with_same_value_tuple_right_returns_true() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right.into()), true.into());
+            prop_assert_eq!(result(left.into(), right.into()), true.into());
 
             Ok(())
         },
@@ -71,7 +71,7 @@ fn with_different_tuple_right_returns_false() {
                 .prop_filter("Tuples must be different", |(left, right)| left != right)
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },

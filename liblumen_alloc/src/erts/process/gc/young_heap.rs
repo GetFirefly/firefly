@@ -228,7 +228,7 @@ impl YoungHeap {
                     );
                 }
             } else {
-                unreachable!();
+                unreachable!("{:?} should not be in a stack slot", term);
             }
         }
         last

@@ -30,7 +30,7 @@ fn without_value_returns_empty_list() {
             |(arc_process, value, entry_key, entry_value)| {
                 arc_process.put(entry_key, entry_value).unwrap();
 
-                prop_assert_eq!(native(&arc_process, value), Ok(Term::NIL));
+                prop_assert_eq!(result(&arc_process, value), Ok(Term::NIL));
 
                 Ok(())
             },
@@ -104,7 +104,7 @@ fn with_value_returns_keys_with_value_in_list() {
                 arc_process.put(key_with_other_value, other_value).unwrap();
                 arc_process.put(second_key_with_value, value).unwrap();
 
-                let list = native(&arc_process, value).unwrap();
+                let list = result(&arc_process, value).unwrap();
 
                 assert!(list.is_list());
 
@@ -152,7 +152,7 @@ fn doc_test() {
     let lamb = Atom::str_to_term("lamb");
     arc_process.put(lamb, value).unwrap();
 
-    let list = native(&arc_process, value).unwrap();
+    let list = result(&arc_process, value).unwrap();
 
     assert!(list.is_list());
 

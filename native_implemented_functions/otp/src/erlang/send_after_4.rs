@@ -19,7 +19,7 @@ use crate::runtime::timer::Timeout;
 use crate::timer;
 
 #[native_implemented_function(send_after/4)]
-pub fn native(
+pub fn result(
     arc_process: Arc<Process>,
     time: Term,
     destination: Term,

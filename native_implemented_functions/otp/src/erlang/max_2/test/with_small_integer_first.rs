@@ -61,7 +61,7 @@ fn without_number_second_returns_second() {
             )
         },
         |(first, second)| {
-            prop_assert_eq!(native(first, second), second);
+            prop_assert_eq!(result(first, second), second);
 
             Ok(())
         },

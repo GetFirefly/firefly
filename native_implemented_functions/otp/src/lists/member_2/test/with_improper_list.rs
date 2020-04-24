@@ -10,7 +10,7 @@ fn without_found_errors_badarg() {
         let list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
         assert_badarg!(
-            native(element, list),
+            result(element, list),
             format!("list ({}) is improper", list)
         );
     });
@@ -24,6 +24,6 @@ fn with_found_returns_true() {
         let tail = Atom::str_to_term("tail");
         let list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
-        assert_eq!(native(element, list), Ok(true.into()));
+        assert_eq!(result(element, list), Ok(true.into()));
     });
 }

@@ -12,16 +12,12 @@ use lazy_static::lazy_static;
 use liblumen_core::locks::{Mutex, RwLock};
 
 use liblumen_alloc::erts::exception::{self, AllocResult, SystemException};
-use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 pub use liblumen_alloc::erts::scheduler::id::ID;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Priority;
 
-use crate::process;
-use crate::process::spawn;
 use crate::process::spawn::options::Connection;
-use crate::registry::put_pid_to_process;
 use crate::timer::Hierarchy;
 
 pub fn current() -> Arc<dyn Scheduler> {
@@ -87,73 +83,24 @@ pub fn unregister(id: &ID) {
         .expect("Scheduler not registered");
 }
 
-/// Spawns a process with arguments for `apply(module, function, arguments)` on its stack.
-///
-/// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
-/// MFA unique to a given application.
-pub fn spawn_apply_3(
-    parent_process: &Process,
-    options: process::spawn::Options,
-    module: Atom,
-    function: Atom,
-    arguments: Term,
-) -> exception::Result<Spawned> {
-    let spawn::Spawned {
-        process,
-        connection,
-    } = process::spawn::apply_3(parent_process, options, module, function, arguments)?;
-    let arc_process = parent_process.scheduler().unwrap().schedule(process);
-
-    put_pid_to_process(&arc_process);
-
-    Ok(Spawned {
-        arc_process,
-        connection,
-    })
-}
-
-/// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
-/// of passing through `apply/3`.
-pub fn spawn_code(
-    parent_process: &Process,
-    options: spawn::Options,
-    module: Atom,
-    function: Atom,
-    arguments: &[Term],
-    code: Code,
-) -> exception::Result<Spawned> {
-    let spawn::Spawned {
-        process,
-        connection,
-    } = process::spawn::code(
-        Some(parent_process),
-        options,
-        module,
-        function,
-        arguments,
-        code,
-    )?;
-    let arc_process = parent_process.scheduler().unwrap().schedule(process);
-
-    put_pid_to_process(&arc_process);
-
-    Ok(Spawned {
-        arc_process,
-        connection,
-    })
-}
-
 /// Returns `true` if `arc_process` was run; otherwise, `false`.
 #[must_use]
-pub fn run_through(arc_process: &Arc<Process>) -> bool {
-    let scheduler = arc_process.scheduler().unwrap();
+pub fn run_through(process: &Process) -> bool {
+    assert!(
+        !process.is_exiting(),
+        "Process ({}) is exiting ({:?}) and so can't be run through",
+        process,
+        process.status.read()
+    );
+
+    let scheduler = process.scheduler().unwrap();
     let ordering = Ordering::SeqCst;
-    let reductions_before = arc_process.total_reductions.load(ordering);
+    let reductions_before = process.total_reductions.load(ordering);
 
     // The same as `run`, but stops when the process is run once
     loop {
         if scheduler.run_once() {
-            if reductions_before < arc_process.total_reductions.load(Ordering::SeqCst) {
+            if reductions_before < process.total_reductions.load(Ordering::SeqCst) {
                 break true;
             } else {
                 continue;

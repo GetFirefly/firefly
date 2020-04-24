@@ -14,6 +14,6 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::cancel_timer;
 
 #[native_implemented_function(cancel_timer/1)]
-pub fn native(process: &Process, timer_reference: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, timer_reference: Term) -> exception::Result<Term> {
     cancel_timer(timer_reference, Default::default(), process).map_err(From::from)
 }

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -28,7 +28,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     let enumerable = arc_process.stack_peek(1).unwrap();
     let initial = arc_process.stack_peek(2).unwrap();
     let reducer = arc_process.stack_peek(3).unwrap();
@@ -73,7 +73,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                             .unwrap();
                         }
 
-                        Process::call_code(arc_process)
+                        Process::call_native_or_yield(arc_process)
                     } else {
                         arc_process.reduce();
                         arc_process.stack_popn(STACK_USED);

@@ -2,7 +2,6 @@ mod with_empty_list_options;
 mod with_link_in_options_list;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use anyhow::*;
 
@@ -17,7 +16,7 @@ use crate::runtime::scheduler;
 
 use crate::erlang;
 use crate::erlang::apply_3;
-use crate::erlang::spawn_opt_4::native;
+use crate::erlang::spawn_opt_4::result;
 use crate::test;
 use crate::test::{assert_exits_badarith, assert_exits_undef, strategy};
 
@@ -35,7 +34,7 @@ fn without_proper_list_options_errors_badarg() {
         },
         |(arc_process, module, function, arguments, options)| {
             prop_assert_badarg!(
-                native(&arc_process, module, function, arguments, options),
+                result(&arc_process, module, function, arguments, options),
                 SUPPORTED_OPTIONS
             );
 

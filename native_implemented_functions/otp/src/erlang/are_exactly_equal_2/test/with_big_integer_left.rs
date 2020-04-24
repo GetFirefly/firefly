@@ -13,7 +13,7 @@ fn without_big_integer_returns_false() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -25,7 +25,7 @@ fn with_same_big_integer_returns_true() {
     run!(
         |arc_process| strategy::term::integer::big(arc_process.clone()),
         |operand| {
-            prop_assert_eq!(native(operand, operand), true.into());
+            prop_assert_eq!(result(operand, operand), true.into());
 
             Ok(())
         },
@@ -45,7 +45,7 @@ fn with_different_big_integer_right_returns_false() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },

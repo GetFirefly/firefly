@@ -21,7 +21,7 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::is_greater_than_2::native;
+use crate::erlang::is_greater_than_2::result;
 use crate::test::{external_arc_node, strategy};
 use crate::test::{with_process, with_process_arc};
 
@@ -30,7 +30,7 @@ fn with_same_left_and_right_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |operand| {
-                prop_assert_eq!(native(operand, operand), false.into());
+                prop_assert_eq!(result(operand, operand), false.into());
 
                 Ok(())
             })
@@ -47,6 +47,6 @@ where
         let left = left(&process);
         let right = right(left, &process);
 
-        assert_eq!(native(left, right), expected.into());
+        assert_eq!(result(left, right), expected.into());
     });
 }

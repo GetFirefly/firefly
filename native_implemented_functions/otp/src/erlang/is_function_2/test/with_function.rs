@@ -12,7 +12,7 @@ fn without_non_negative_arity_errors_badarg() {
             )
         },
         |(function, arity)| {
-            prop_assert_is_not_arity!(native(function, arity), arity);
+            prop_assert_is_not_arity!(result(function, arity), arity);
 
             Ok(())
         },

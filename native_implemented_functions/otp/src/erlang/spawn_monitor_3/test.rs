@@ -1,7 +1,6 @@
 mod with_atom_module;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use anyhow::*;
 
@@ -16,7 +15,7 @@ use crate::runtime::registry::pid_to_process;
 use crate::runtime::scheduler;
 
 use crate::erlang::apply_3;
-use crate::erlang::spawn_monitor_3::native;
+use crate::erlang::spawn_monitor_3::result;
 use crate::test::{assert_exits_undef, has_message, strategy};
 use crate::{erlang, test};
 
@@ -32,7 +31,7 @@ fn without_atom_module_errors_badarg() {
             )
         },
         |(arc_process, module, function, arguments)| {
-            prop_assert_is_not_atom!(native(&arc_process, module, function, arguments), module);
+            prop_assert_is_not_atom!(result(&arc_process, module, function, arguments), module);
 
             Ok(())
         },

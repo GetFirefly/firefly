@@ -46,7 +46,7 @@ fn without_number_returns_first() {
             )
         },
         |(first, second)| {
-            prop_assert_eq!(native(first, second), first);
+            prop_assert_eq!(result(first, second), first);
 
             Ok(())
         },

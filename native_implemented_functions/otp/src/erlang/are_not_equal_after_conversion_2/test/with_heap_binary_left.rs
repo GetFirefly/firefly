@@ -13,7 +13,7 @@ fn without_binary_right_returns_true() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), true.into());
+            prop_assert_eq!(result(left, right), true.into());
 
             Ok(())
         },
@@ -25,7 +25,7 @@ fn with_same_heap_binary_right_returns_false() {
     run!(
         |arc_process| strategy::term::binary::heap(arc_process.clone()),
         |operand| {
-            prop_assert_eq!(native(operand, operand), false.into());
+            prop_assert_eq!(result(operand, operand), false.into());
 
             Ok(())
         },
@@ -44,7 +44,7 @@ fn with_same_value_heap_binary_right_returns_false() {
             })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right.into()), false.into());
+            prop_assert_eq!(result(left.into(), right.into()), false.into());
 
             Ok(())
         },
@@ -64,7 +64,7 @@ fn with_different_heap_binary_right_returns_true() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), true.into());
+            prop_assert_eq!(result(left, right), true.into());
 
             Ok(())
         },
@@ -90,7 +90,7 @@ fn with_subbinary_right_with_same_bytes_returns_false() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right.into()), false.into());
+            prop_assert_eq!(result(left.into(), right.into()), false.into());
 
             Ok(())
         },
@@ -118,7 +118,7 @@ fn with_subbinary_right_with_different_bytes_returns_true() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right.into()), true.into());
+            prop_assert_eq!(result(left.into(), right.into()), true.into());
 
             Ok(())
         },

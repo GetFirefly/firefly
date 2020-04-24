@@ -6,5 +6,5 @@ mod with_registered_name;
 fn without_registered_name_errors_badarg() {
     let name = registered_name();
 
-    assert_badarg!(native(name), format!("name ({}) was not registered", name));
+    assert_badarg!(result(name), format!("name ({}) was not registered", name));
 }

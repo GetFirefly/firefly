@@ -19,7 +19,7 @@ use crate::runtime::context::*;
 
 /// `delete_element/2`
 #[native_implemented_function(delete_element/2)]
-pub fn native(process: &Process, index: Term, tuple: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, index: Term, tuple: Term) -> exception::Result<Term> {
     let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let initial_len = initial_inner_tuple.len();
 

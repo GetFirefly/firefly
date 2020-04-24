@@ -17,7 +17,7 @@ fn errors_badarg() {
                 let options = options(&arc_process);
 
                 prop_assert_badarg!(
-                    native(arc_process.clone(), time, destination, message, options),
+                    result(arc_process.clone(), time, destination, message, options),
                     "supported option is {:abs, bool}"
                 );
 

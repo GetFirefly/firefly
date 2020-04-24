@@ -4,10 +4,10 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
+use crate::runtime;
 use crate::runtime::process::spawn::options::Options;
-use crate::runtime::scheduler;
 
-pub(in crate::erlang) fn native(
+pub(in crate::erlang) fn result(
     process: &Process,
     options: Options,
     module: Term,
@@ -19,8 +19,8 @@ pub(in crate::erlang) fn native(
 
     let args = arguments.decode()?;
     if args.is_proper_list() {
-        scheduler::spawn_apply_3(process, options, module_atom, function_atom, arguments)
-            .and_then(|spawned| spawned.to_term(process))
+        runtime::process::spawn::apply_3(process, options, module_atom, function_atom, arguments)
+            .and_then(|spawned| spawned.schedule_with_parent(process).to_term(process))
             .map_err(|e| e.into())
     } else {
         Err(TypeError)

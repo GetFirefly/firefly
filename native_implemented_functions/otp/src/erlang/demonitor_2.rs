@@ -21,7 +21,7 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::demonitor_2::options::Options;
 
 #[native_implemented_function(demonitor/2)]
-pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {
     let reference_reference = term_try_into_local_reference!(reference)?;
     let options_options: Options = options.try_into()?;
 

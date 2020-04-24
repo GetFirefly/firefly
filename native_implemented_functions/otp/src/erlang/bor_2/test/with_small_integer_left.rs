@@ -9,7 +9,7 @@ fn with_small_integer_right_returns_small_integer() {
         let right = process.integer(0b1010).unwrap();
 
         assert_eq!(
-            native(&process, left, right),
+            result(&process, left, right),
             Ok(process.integer(0b1110).unwrap())
         );
     })
@@ -26,7 +26,7 @@ fn with_integer_right_returns_bitwise_or() {
             )
         },
         |(arc_process, left, right)| {
-            let result = native(&arc_process, left, right);
+            let result = result(&arc_process, left, right);
 
             prop_assert!(result.is_ok());
 

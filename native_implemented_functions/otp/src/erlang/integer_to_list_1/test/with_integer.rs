@@ -12,7 +12,7 @@ fn with_integer_returns_list() {
         |(arc_process, integer_isize)| {
             let integer = arc_process.integer(integer_isize).unwrap();
 
-            let result = native(&arc_process, integer);
+            let result = result(&arc_process, integer);
 
             prop_assert!(result.is_ok());
 
@@ -39,13 +39,13 @@ fn is_dual_of_list_to_integer_1() {
             )
         },
         |(arc_process, integer)| {
-            let result_list = native(&arc_process, integer);
+            let result_list = result(&arc_process, integer);
 
             prop_assert!(result_list.is_ok());
 
             let list = result_list.unwrap();
 
-            prop_assert_eq!(list_to_integer_1::native(&arc_process, list), Ok(integer));
+            prop_assert_eq!(list_to_integer_1::result(&arc_process, list), Ok(integer));
 
             Ok(())
         },

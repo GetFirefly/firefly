@@ -6,7 +6,7 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::system_time_1::native;
+use crate::erlang::system_time_1::result;
 use crate::test::{strategy, with_process};
 
 #[test]
@@ -22,7 +22,7 @@ fn without_atom_or_integer_errors_badarg() {
             )
         },
         |(arc_process, unit)| {
-            prop_assert_badarg!(native(&arc_process, unit,), "supported units are :second, :seconds, :millisecond, :milli_seconds, :microsecond, :micro_seconds, :nanosecond, :nano_seconds, :native, :perf_counter, or hertz (positive integer)");
+            prop_assert_badarg!(result(&arc_process, unit,), "supported units are :second, :seconds, :millisecond, :milli_seconds, :microsecond, :micro_seconds, :nanosecond, :nano_seconds, :native, :perf_counter, or hertz (positive integer)");
 
             Ok(())
         },

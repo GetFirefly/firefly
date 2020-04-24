@@ -14,6 +14,6 @@ use liblumen_alloc::exit;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(exit/1)]
-fn native(reason: Term) -> exception::Result<Term> {
+fn result(reason: Term) -> exception::Result<Term> {
     Err(exit!(reason, anyhow!("explicit exit from Erlang").into()).into())
 }

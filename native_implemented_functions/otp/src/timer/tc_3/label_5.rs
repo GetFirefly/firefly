@@ -1,9 +1,7 @@
-use std::sync::Arc;
-
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::{FrameWithArguments, Native};
 use liblumen_alloc::erts::term::prelude::*;
+
+use crate::runtime::process::current_process;
 
 /// ```elixir
 /// # label 5
@@ -13,34 +11,23 @@ use liblumen_alloc::erts::term::prelude::*;
 /// # returns: {time, value}
 /// {time, value}
 /// ```
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    value: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(value)?;
-    process.place_frame(frame(process), placement);
-
-    Ok(())
+pub fn frame_with_arguments(value: Term) -> FrameWithArguments {
+    super::label_frame_with_arguments(NATIVE, true, &[value])
 }
 
 // Private
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+const NATIVE: Native = Native::Two(native);
+
+extern "C" fn native(time: Term, value: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let time = arc_process.stack_peek(1).unwrap();
     assert!(time.is_integer());
-    let value = arc_process.stack_peek(2).unwrap();
 
-    let time_value = arc_process.tuple_from_slice(&[time, value])?;
-    arc_process.return_from_call(2, time_value)?;
+    let exception_result = arc_process
+        .tuple_from_slice(&[time, value])
+        .map_err(From::from);
 
-    Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
+    arc_process.return_status(exception_result)
 }

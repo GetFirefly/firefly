@@ -10,7 +10,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang;
-use crate::erlang::send_3::native;
+use crate::erlang::send_3::result;
 use crate::test;
 use crate::test::{has_heap_message, has_process_message, registered_name, strategy};
 
@@ -26,7 +26,7 @@ fn without_list_options_errors_badarg() {
         },
         |(arc_process, message, options)| {
             prop_assert_badarg!(
-                native(&arc_process, arc_process.pid_term(), message, options),
+                result(&arc_process, arc_process.pid_term(), message, options),
                 "improper list"
             );
 

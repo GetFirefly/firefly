@@ -4,7 +4,7 @@ use proptest::strategy::{Just, Strategy};
 
 use radix_fmt::radix;
 
-use crate::erlang::binary_to_integer_2::native;
+use crate::erlang::binary_to_integer_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -19,7 +19,7 @@ fn without_binary_errors_badarg() {
         },
         |(arc_process, binary, base)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, base),
+                result(&arc_process, binary, base),
                 format!("binary ({}) must be a binary", binary)
             );
 
@@ -40,7 +40,7 @@ fn with_utf8_binary_without_base_errors_badarg() {
         },
         |(arc_process, binary, base)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, base),
+                result(&arc_process, binary, base),
                 format!("base must be an integer in 2-36")
             );
 
@@ -78,7 +78,7 @@ fn with_binary_with_integer_in_base_returns_integers() {
         },
         |(arc_process, integer, binary, base)| {
             prop_assert_eq!(
-                native(&arc_process, binary, base),
+                result(&arc_process, binary, base),
                 Ok(arc_process.integer(integer).unwrap())
             );
 
@@ -111,7 +111,7 @@ fn with_binary_without_integer_in_base_errors_badarg() {
         },
         |(arc_process, binary, base)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, base),
+                result(&arc_process, binary, base),
                 format!("binary ({}) is not in base ({})", binary, base)
             );
 

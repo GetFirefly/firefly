@@ -5,7 +5,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::make_tuple_2::native;
+use crate::erlang::make_tuple_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -19,7 +19,7 @@ fn without_arity_errors_badarg() {
             )
         },
         |(arc_process, arity, initial_value)| {
-            prop_assert_is_not_arity!(native(&arc_process, arity, initial_value), arity);
+            prop_assert_is_not_arity!(result(&arc_process, arity, initial_value), arity);
 
             Ok(())
         },
@@ -39,7 +39,7 @@ fn with_arity_returns_tuple_with_arity_copies_of_initial_value() {
         |(arc_process, arity_usize, initial_value)| {
             let arity = arc_process.integer(arity_usize).unwrap();
 
-            let result = native(&arc_process, arity, initial_value);
+            let result = result(&arc_process, arity, initial_value);
 
             prop_assert!(result.is_ok());
 

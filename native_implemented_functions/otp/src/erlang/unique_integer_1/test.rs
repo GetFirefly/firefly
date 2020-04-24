@@ -3,7 +3,7 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::unique_integer_1::native;
+use crate::erlang::unique_integer_1::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -45,7 +45,7 @@ fn without_proper_list_of_options_errors_badargs() {
             )
         },
         |(arc_process, options)| {
-            prop_assert_badarg!(native(&arc_process, options), "improper list");
+            prop_assert_badarg!(result(&arc_process, options), "improper list");
 
             Ok(())
         },
@@ -57,7 +57,7 @@ fn without_options_returns_non_monotonic_negative_and_positive_integer() {
     const OPTIONS: Term = Term::NIL;
 
     with_process(|process| {
-        let result_first_unique_integer = native(process, OPTIONS);
+        let result_first_unique_integer = result(process, OPTIONS);
 
         assert!(result_first_unique_integer.is_ok());
 
@@ -67,7 +67,7 @@ fn without_options_returns_non_monotonic_negative_and_positive_integer() {
         assert!(first_unique_integer.is_integer());
         assert!(first_unique_integer <= zero);
 
-        let result_second_unique_integer = native(process, OPTIONS);
+        let result_second_unique_integer = result(process, OPTIONS);
 
         assert!(result_second_unique_integer.is_ok());
 
@@ -85,7 +85,7 @@ fn with_monotonic_returns_monotonic_negative_and_positiver_integer() {
     with_process(|process| {
         let options = process.list_from_slice(&[atom!("monotonic")]).unwrap();
 
-        let result_first_unique_integer = native(process, options);
+        let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
@@ -95,7 +95,7 @@ fn with_monotonic_returns_monotonic_negative_and_positiver_integer() {
         assert!(first_unique_integer.is_integer());
         assert!(first_unique_integer <= zero);
 
-        let result_second_unique_integer = native(process, options);
+        let result_second_unique_integer = result(process, options);
 
         assert!(result_second_unique_integer.is_ok());
 
@@ -115,7 +115,7 @@ fn with_monotonic_and_positive_returns_monotonic_positiver_integer() {
             .list_from_slice(&[atom!("monotonic"), atom!("positive")])
             .unwrap();
 
-        let result_first_unique_integer = native(process, options);
+        let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
@@ -125,7 +125,7 @@ fn with_monotonic_and_positive_returns_monotonic_positiver_integer() {
         assert!(first_unique_integer.is_integer());
         assert!(zero <= first_unique_integer);
 
-        let result_second_unique_integer = native(process, options);
+        let result_second_unique_integer = result(process, options);
 
         assert!(result_second_unique_integer.is_ok());
 
@@ -143,7 +143,7 @@ fn with_positive_returns_non_monotonic_and_positive_integer() {
     with_process(|process| {
         let options = process.list_from_slice(&[atom!("positive")]).unwrap();
 
-        let result_first_unique_integer = native(process, options);
+        let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
@@ -153,7 +153,7 @@ fn with_positive_returns_non_monotonic_and_positive_integer() {
         assert!(first_unique_integer.is_integer());
         assert!(zero <= first_unique_integer);
 
-        let result_second_unique_integer = native(process, options);
+        let result_second_unique_integer = result(process, options);
 
         assert!(result_second_unique_integer.is_ok());
 

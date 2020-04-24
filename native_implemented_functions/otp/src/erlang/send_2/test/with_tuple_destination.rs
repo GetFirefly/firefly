@@ -9,7 +9,7 @@ fn without_arity_2_errors_badarg() {
         let message = Atom::str_to_term("message");
 
         assert_badarg!(
-            native(process, destination, message),
+            result(process, destination, message),
             format!("destination ({}) is a tuple, but not 2-arity", destination)
         )
     })

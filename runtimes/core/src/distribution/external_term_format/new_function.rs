@@ -1,11 +1,13 @@
 use std::convert::TryInto;
+use std::ffi::c_void;
+use std::mem;
 
+use liblumen_alloc::erts::apply::find_symbol;
 use liblumen_alloc::erts::exception::InternalResult;
-use liblumen_alloc::erts::term::closure::OldUnique;
+use liblumen_alloc::erts::term::closure::{Definition, OldUnique};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
-
-use crate::code;
+use liblumen_alloc::ModuleFunctionArity;
 
 use super::{atom, decode_vec_term, isize, u32, u8, Pid};
 use crate::distribution::external_term_format::try_split_at;
@@ -39,7 +41,20 @@ pub fn decode<'a>(
         total_byte_len as usize
     );
 
-    let option_code = code::anonymous::get(&module, &index, &old_unique, &uniq, &arity);
+    let definition = Definition::Anonymous {
+        index: index as usize,
+        unique: uniq,
+        old_unique,
+    };
+
+    let module_function_arity = ModuleFunctionArity {
+        module,
+        function: definition.function_name(),
+        arity,
+    };
+
+    let option_native = find_symbol(&module_function_arity)
+        .map(|dynamic_callee| unsafe { mem::transmute::<_, *const c_void>(dynamic_callee) });
 
     let closure = process.anonymous_closure_with_env_from_slice(
         module,
@@ -47,7 +62,7 @@ pub fn decode<'a>(
         old_unique,
         uniq,
         arity,
-        option_code,
+        option_native,
         creator.into(),
         &env_vec,
     )?;

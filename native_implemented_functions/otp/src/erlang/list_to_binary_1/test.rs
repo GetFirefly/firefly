@@ -11,7 +11,7 @@ use proptest::{prop_assert, prop_assert_eq, prop_oneof};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::list_to_binary_1::native;
+use crate::erlang::list_to_binary_1::result;
 use crate::test::strategy;
 use crate::test::{with_process, with_process_arc};
 
@@ -26,7 +26,7 @@ fn without_list_errors_badarg() {
         },
         |(arc_process, iolist)| {
             prop_assert_badarg!(
-                native(&arc_process, iolist),
+                result(&arc_process, iolist),
                 format!("iolist ({}) is not a list", iolist)
             );
 
@@ -39,7 +39,7 @@ fn without_list_errors_badarg() {
 fn with_empty_list_returns_empty_binary() {
     with_process(|process| {
         assert_eq!(
-            native(process, Term::NIL),
+            result(process, Term::NIL),
             Ok(process.binary_from_bytes(&[]).unwrap())
         );
     });
@@ -79,7 +79,7 @@ fn otp_doctest_returns_binary() {
             .unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process
                 .binary_from_bytes(&[1, 2, 3, 1, 2, 3, 4, 5, 4, 6],)
                 .unwrap())
@@ -92,7 +92,7 @@ fn with_recursive_lists_of_binaries_and_bytes_ending_in_binary_or_empty_list_ret
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&top(arc_process.clone()), |list| {
-                let result = native(&arc_process, list);
+                let result = result(&arc_process, list);
 
                 prop_assert!(result.is_ok());
 
@@ -112,7 +112,7 @@ fn with_procbin_in_list_returns_binary() {
         let list = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
-            native(process, list),
+            result(process, list),
             Ok(process.binary_from_bytes(&bytes).unwrap())
         )
     });

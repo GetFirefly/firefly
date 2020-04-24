@@ -14,7 +14,7 @@ fn without_group_leader_alive_returns_badarg() {
         },
         |(arc_process, group_leader, pid)| {
             prop_assert_badarg!(
-                native(&arc_process, group_leader, pid),
+                result(&arc_process, group_leader, pid),
                 format!("group_leader ({}) is not alive", group_leader)
             );
 

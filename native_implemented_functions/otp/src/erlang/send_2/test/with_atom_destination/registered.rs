@@ -10,7 +10,7 @@ fn with_same_process_address_process_message_to_mailbox_and_returns_message() {
             let destination = registered_name();
 
             prop_assert_eq!(
-                erlang::register_2::native(
+                erlang::register_2::result(
                     arc_process.clone(),
                     destination,
                     arc_process.pid_term()
@@ -18,7 +18,7 @@ fn with_same_process_address_process_message_to_mailbox_and_returns_message() {
                 Ok(true.into())
             );
 
-            prop_assert_eq!(native(&arc_process, destination, message), Ok(message));
+            prop_assert_eq!(result(&arc_process, destination, message), Ok(message));
 
             prop_assert!(has_process_message(&arc_process, message));
 

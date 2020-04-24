@@ -96,13 +96,13 @@ fn with_65536() {
     run_through(65536)
 }
 
-fn inspect_code(arc_process: &Arc<Process>) -> code::Result {
+fn inspect_code(arc_process: &Arc<Process>) -> frames::Result {
     let time_value = arc_process.stack_peek(1).unwrap();
 
     lumen_rt_full::sys::io::puts(&format!("{}", time_value));
     arc_process.remove_last_frame(1);
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn run_through(n: usize) {

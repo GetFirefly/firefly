@@ -7,7 +7,7 @@ use std::time::Duration;
 fn with_invalid_unit_errors_badarg() {
     with_process(|process| {
         assert_badarg!(
-            native(process, atom!("invalid")),
+            result(process, atom!("invalid")),
             "atom (invalid) is not supported"
         );
     });
@@ -18,11 +18,11 @@ fn with_second_increases_after_2_seconds() {
     with_process(|process| {
         let unit = Atom::str_to_term("second");
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         thread::sleep(Duration::from_secs(2));
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -33,11 +33,11 @@ fn with_millisecond_increases_after_2_milliseconds() {
     with_process(|process| {
         let unit = Atom::str_to_term("millisecond");
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         thread::sleep(Duration::from_millis(2));
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -48,11 +48,11 @@ fn with_microsecond_increases_after_2_milliseconds() {
     with_process(|process| {
         let unit = Atom::str_to_term("microsecond");
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         thread::sleep(Duration::from_millis(2));
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -63,11 +63,11 @@ fn with_nanosecond_increases_after_2_milliseconds() {
     with_process(|process| {
         let unit = Atom::str_to_term("nanosecond");
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         thread::sleep(Duration::from_millis(2));
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -78,11 +78,11 @@ fn with_native_increases_after_2_native_time_units() {
     with_process(|process| {
         let unit = Atom::str_to_term("native");
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         thread::sleep(Duration::from_millis(2));
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -93,11 +93,11 @@ fn with_perf_counter_increases_after_2_perf_counter_ticks() {
     with_process(|process| {
         let unit = Atom::str_to_term("perf_counter");
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         thread::sleep(Duration::from_millis(2));
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });

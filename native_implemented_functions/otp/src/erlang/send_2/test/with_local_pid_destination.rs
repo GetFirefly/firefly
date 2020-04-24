@@ -13,7 +13,7 @@ fn without_process_returns_message() {
             )
         },
         |(arc_process, destination, message)| {
-            prop_assert_eq!(native(&arc_process, destination, message), Ok(message));
+            prop_assert_eq!(result(&arc_process, destination, message), Ok(message));
 
             Ok(())
         },
@@ -32,7 +32,7 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_message() {
         |(arc_process, message)| {
             let destination = arc_process.pid_term();
 
-            prop_assert_eq!(native(&arc_process, destination, message), Ok(message));
+            prop_assert_eq!(result(&arc_process, destination, message), Ok(message));
 
             prop_assert!(has_process_message(&arc_process, message));
 

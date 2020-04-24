@@ -2,15 +2,11 @@ use super::*;
 
 #[test]
 fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
-    apply_3::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
-
-    erlang::self_0::export();
 
     let module_atom = erlang::module();
     let module: Term = module_atom.encode().unwrap();
@@ -20,7 +16,7 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
 
     let arguments = Term::NIL;
 
-    let result = native(&parent_arc_process, module, function, arguments);
+    let result = result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -54,7 +50,7 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
     let reason = atom!("normal");
 
     match *child_arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
+        Status::RuntimeException(ref runtime_exception) => {
             assert_eq!(runtime_exception, &exit!(reason, anyhow!("Test").into()));
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
@@ -80,8 +76,6 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
 
 #[test]
 fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
-    apply_3::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
@@ -94,7 +88,7 @@ fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
     // `+` is arity 1, not 0
     let arguments = Term::NIL;
 
-    let result = native(&parent_arc_process, module, function, arguments);
+    let result = result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 

@@ -15,7 +15,7 @@ fn without_atom_name_errors_badarg() {
             let name = Atom::str_to_term("undefined");
 
             prop_assert_badarg!(
-                native(arc_process.clone(), name, pid_or_port),
+                result(arc_process.clone(), name, pid_or_port),
                 "undefined is not an allowed registered name"
             );
 
@@ -30,7 +30,7 @@ fn with_registered_name_errors_badarg() {
         let registered_name = Atom::str_to_term("registered_name");
 
         assert_eq!(
-            native(
+            result(
                 Arc::clone(&registered_process_arc),
                 registered_name,
                 registered_process_arc.pid().into()
@@ -41,7 +41,7 @@ fn with_registered_name_errors_badarg() {
         let unregistered_process_arc = test::process::child(&registered_process_arc);
 
         assert_badarg!(
-            native(
+            result(
                 unregistered_process_arc.clone(),
                 registered_name,
                 unregistered_process_arc.pid_term(),

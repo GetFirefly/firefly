@@ -19,7 +19,7 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::max_2::native;
+use crate::erlang::max_2::result;
 use crate::test::with_process;
 use crate::test::FirstSecond::*;
 use crate::test::{external_arc_node, strategy, FirstSecond};
@@ -35,7 +35,7 @@ fn max_is_first_if_first_is_greater_than_or_equal_to_second() {
                 .prop_filter("First must be >= second", |(first, second)| second <= first)
         },
         |(first, second)| {
-            prop_assert_eq!(native(first, second), first);
+            prop_assert_eq!(result(first, second), first);
 
             Ok(())
         },
@@ -55,7 +55,7 @@ fn max_is_second_if_first_is_less_than_second() {
                 })
                 .prop_filter("First must be <= second", |(first, second)| first < second),
             |(first, second)| {
-                prop_assert_eq!(native(first, second), second);
+                prop_assert_eq!(result(first, second), second);
 
                 Ok(())
             },
@@ -72,7 +72,7 @@ where
         let first = first(&process);
         let second = second(first, &process);
 
-        let max = native(first, second);
+        let max = result(first, second);
 
         let expected = match which {
             First => first,

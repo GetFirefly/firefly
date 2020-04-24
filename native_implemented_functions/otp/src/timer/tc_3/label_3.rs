@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::{FrameWithArguments, Native};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::subtract_2;
+use crate::runtime::process::current_process;
 use crate::timer::tc_3::label_4;
 
 /// ```elixir
@@ -18,40 +15,25 @@ use crate::timer::tc_3::label_4;
 /// time = :erlang.convert_time_unit(duration, :native, :microsecond)
 /// {time, value}
 /// ```
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    before: Term,
-    value: Term,
-) -> Result<(), Alloc> {
+pub fn frame_with_arguments(before: Term, value: Term) -> FrameWithArguments {
     assert!(before.is_integer());
-    process.stack_push(value)?;
-    process.stack_push(before)?;
-    process.place_frame(frame(process), placement);
-
-    Ok(())
+    super::label_frame_with_arguments(NATIVE, true, &[before, value])
 }
 
 // Private
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+const NATIVE: Native = Native::Three(native);
+
+extern "C" fn native(after: Term, before: Term, value: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let after = arc_process.stack_peek(1).unwrap();
     assert!(after.is_integer());
-    let before = arc_process.stack_peek(2).unwrap();
     assert!(before.is_integer());
-    let value = arc_process.stack_peek(3).unwrap();
 
-    arc_process.stack_popn(3);
+    arc_process.queue_frame_with_arguments(label_4::frame_with_arguments(value));
+    arc_process
+        .queue_frame_with_arguments(subtract_2::frame().with_arguments(false, &[after, before]));
 
-    label_4::place_frame_with_arguments(arc_process, Placement::Replace, value)?;
-    subtract_2::place_frame_with_arguments(arc_process, Placement::Push, after, before)?;
-    Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
+    Term::NONE
 }

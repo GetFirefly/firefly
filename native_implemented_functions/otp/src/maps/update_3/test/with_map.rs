@@ -13,7 +13,7 @@ fn without_key_errors_badkey() {
                     let empty_map = arc_process.map_from_slice(&[]).unwrap();
 
                     prop_assert_badkey!(
-                        native(&arc_process, key, value, empty_map),
+                        result(&arc_process, key, value, empty_map),
                         &arc_process,
                         key,
                         format!("key ({}) does not exist in map ({})", key, empty_map)
@@ -40,7 +40,7 @@ fn with_key_updates_replacement_value() {
                     let value2 = atom!("value2");
                     let updated_map = arc_process.map_from_slice(&[(key, value2)]).unwrap();
                     prop_assert_eq!(
-                        native(&arc_process, key, value2, map),
+                        result(&arc_process, key, value2, map),
                         Ok(updated_map.into())
                     );
 

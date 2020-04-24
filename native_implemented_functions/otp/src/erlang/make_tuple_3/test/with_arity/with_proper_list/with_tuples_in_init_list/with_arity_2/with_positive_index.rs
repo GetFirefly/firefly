@@ -29,7 +29,7 @@ fn with_positive_index_greater_than_length_errors_badarg() {
             let init_list = arc_process.list_from_slice(&[init]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, arity, default_value, init_list),
+                result(&arc_process, arity, default_value, init_list),
                 format!("position ({}) cannot be set", position)
             );
 
@@ -69,7 +69,7 @@ fn with_positive_index_less_than_or_equal_to_length_replaces_default_value_at_in
                         .unwrap()])
                     .unwrap();
 
-                let result = native(&arc_process, arity, default_value, init_list);
+                let result = result(&arc_process, arity, default_value, init_list);
 
                 prop_assert!(result.is_ok());
 
@@ -148,7 +148,7 @@ fn with_multiple_values_at_same_index_then_last_value_is_used() {
                     ])
                     .unwrap();
 
-                let result = native(&arc_process, arity, default_value, init_list);
+                let result = result(&arc_process, arity, default_value, init_list);
 
                 prop_assert!(result.is_ok());
 

@@ -14,7 +14,6 @@ mod with_subbinary_left;
 mod with_tuple_left;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
@@ -22,10 +21,9 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::process::alloc::TermAlloc;
-use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::are_equal_after_conversion_2::native;
+use crate::erlang::are_equal_after_conversion_2::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
@@ -43,7 +41,7 @@ fn without_numbers_are_not_equal_after_conversion_if_not_equal_before_conversion
                 )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },

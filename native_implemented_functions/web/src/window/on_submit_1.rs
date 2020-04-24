@@ -6,8 +6,8 @@ use wasm_bindgen::JsCast;
 use web_sys::{Event, HtmlFormElement};
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -24,7 +24,7 @@ pub fn place_frame_with_arguments(
     process: &Process,
     placement: Placement,
     event: Term,
-) -> code::Result {
+) -> frames::Result {
     process.stack_push(event)?;
     process.place_frame(frame(), placement);
 
@@ -33,7 +33,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let event = arc_process.stack_peek(1).unwrap();
@@ -91,7 +91,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         }
     }
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame() -> Frame {

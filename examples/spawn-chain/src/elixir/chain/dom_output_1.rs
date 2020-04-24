@@ -14,8 +14,8 @@ mod label_9;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::Placement;
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
@@ -49,7 +49,7 @@ const ARITY: u8 = 1;
 ///   Lumen::Web::Node.append_child(tbody, tr)
 /// end
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let text = arc_process.stack_pop().unwrap();
@@ -58,7 +58,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     liblumen_web::window::window_0::place_frame_with_arguments(arc_process, Placement::Push)
         .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn function() -> Atom {

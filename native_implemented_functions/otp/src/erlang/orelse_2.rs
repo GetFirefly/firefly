@@ -15,7 +15,7 @@ use native_implemented_function::native_implemented_function;
 /// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
 /// both operands, use `or_2`.
 #[native_implemented_function(orelse/2)]
-pub fn native(left_boolean: Term, right_term: Term) -> exception::Result<Term> {
+pub fn result(left_boolean: Term, right_term: Term) -> exception::Result<Term> {
     let left_bool: bool = term_try_into_bool!(left_boolean)?;
 
     if left_bool {

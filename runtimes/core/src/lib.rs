@@ -2,10 +2,10 @@
 #![feature(alloc_layout_extra)]
 #![feature(backtrace)]
 #![feature(option_unwrap_none)]
+#![feature(trait_alias)]
 
 pub mod binary_to_string;
 pub mod builtins;
-pub mod code;
 pub mod context;
 pub mod distribution;
 pub mod future;

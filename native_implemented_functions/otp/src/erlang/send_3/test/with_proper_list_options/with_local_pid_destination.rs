@@ -16,7 +16,7 @@ fn without_process_errors_badarg() {
             let destination = Pid::next_term();
 
             prop_assert_eq!(
-                native(&arc_process, destination, message, options),
+                result(&arc_process, destination, message, options),
                 Ok(Atom::str_to_term("ok"))
             );
 
@@ -39,7 +39,7 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_ok() {
             let destination = arc_process.pid_term();
 
             prop_assert_eq!(
-                native(&arc_process, destination, message, options),
+                result(&arc_process, destination, message, options),
                 Ok(Atom::str_to_term("ok"))
             );
 

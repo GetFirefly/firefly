@@ -5,7 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::list_to_tuple_1::native;
+use crate::erlang::list_to_tuple_1::result;
 use crate::test::strategy;
 use crate::test::{with_process, with_process_arc};
 
@@ -15,7 +15,7 @@ fn without_list_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
                 prop_assert_badarg!(
-                    native(&arc_process, list),
+                    result(&arc_process, list),
                     format!("list ({}) is not a list", list)
                 );
 
@@ -31,7 +31,7 @@ fn with_empty_list_returns_empty_tuple() {
         let list = Term::NIL;
 
         assert_eq!(
-            native(process, list),
+            result(process, list),
             Ok(process.tuple_from_slice(&[]).unwrap())
         );
     });
@@ -52,7 +52,7 @@ fn with_non_empty_proper_list_returns_tuple() {
                         (list, tuple)
                     }),
                 |(list, tuple)| {
-                    prop_assert_eq!(native(&arc_process, list), Ok(tuple));
+                    prop_assert_eq!(result(&arc_process, list), Ok(tuple));
 
                     Ok(())
                 },
@@ -72,7 +72,7 @@ fn with_improper_list_errors_badarg() {
         },
         |(arc_process, list)| {
             prop_assert_badarg!(
-                native(&arc_process, list),
+                result(&arc_process, list),
                 format!("list ({}) is improper", list)
             );
 
@@ -108,7 +108,7 @@ fn with_nested_list_returns_tuple_with_list_element() {
         };
 
         assert_eq!(
-            native(process, list),
+            result(process, list),
             Ok(process
                 .tuple_from_slice(&[first_element, second_element],)
                 .unwrap())

@@ -14,7 +14,7 @@ fn without_atom_function_errors_badarg() {
             )
         },
         |(arc_process, module, function, arguments)| {
-            prop_assert_is_not_atom!(native(&arc_process, module, function, arguments), function);
+            prop_assert_is_not_atom!(result(&arc_process, module, function, arguments), function);
 
             Ok(())
         },

@@ -4,7 +4,7 @@ use proptest::strategy::{Just, Strategy};
 
 use radix_fmt::radix;
 
-use crate::erlang::list_to_integer_2::native;
+use crate::erlang::list_to_integer_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -19,7 +19,7 @@ fn without_list_errors_badarg() {
         },
         |(arc_process, list, base)| {
             prop_assert_badarg!(
-                native(&arc_process, list, base),
+                result(&arc_process, list, base),
                 format!("list ({}) is not a list", list)
             );
 
@@ -42,7 +42,7 @@ fn with_list_without_base_errors_badarg() {
         },
         |(arc_process, list, base)| {
             prop_assert_badarg!(
-                native(&arc_process, list, base),
+                result(&arc_process, list, base),
                 "base must be an integer in 2-36"
             );
 
@@ -78,7 +78,7 @@ fn with_list_with_integer_in_base_returns_integers() {
         },
         |(arc_process, integer, list, base)| {
             prop_assert_eq!(
-                native(&arc_process, list, base),
+                result(&arc_process, list, base),
                 Ok(arc_process.integer(integer).unwrap())
             );
 
@@ -110,7 +110,7 @@ fn with_list_without_integer_in_base_errors_badarg() {
         },
         |(arc_process, string, list, base)| {
             prop_assert_badarg!(
-                native(&arc_process, list, base),
+                result(&arc_process, list, base),
                 format!("list ('{}') is not in base ({})", string, base)
             );
 

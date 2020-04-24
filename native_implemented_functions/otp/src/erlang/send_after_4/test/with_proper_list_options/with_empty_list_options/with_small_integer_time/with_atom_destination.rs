@@ -19,7 +19,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
                 let start_time_in_milliseconds = freeze_timeout();
 
-                let result = native(
+                let result = result(
                     arc_process.clone(),
                     time,
                     destination,

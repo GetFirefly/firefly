@@ -5,12 +5,12 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::bit_size_1::native;
+use crate::erlang::bit_size_1::result;
 use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    crate::test::without_bitstring_errors_badarg(file!(), native);
+    crate::test::without_bitstring_errors_badarg(file!(), result);
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn with_heap_binary_is_eight_times_byte_count() {
             )
         },
         |(arc_process, binary)| {
-            let result = native(&arc_process, binary);
+            let result = result(&arc_process, binary);
 
             prop_assert!(result.is_ok());
 
@@ -52,7 +52,7 @@ fn with_subbinary_is_eight_times_byte_count_plus_bit_count() {
             )
         },
         |(arc_process, binary)| {
-            let result = native(&arc_process, binary);
+            let result = result(&arc_process, binary);
 
             prop_assert!(result.is_ok());
 

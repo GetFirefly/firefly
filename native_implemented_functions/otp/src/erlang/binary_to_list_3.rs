@@ -21,7 +21,7 @@ use crate::binary;
 /// [crate::binary::bin_to_list] instead. All functions in module [crate::binary]
 /// consistently use zero-based indexing.
 #[native_implemented_function(binary_to_list/3)]
-pub fn native(process: &Process, binary: Term, start: Term, stop: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, binary: Term, start: Term, stop: Term) -> exception::Result<Term> {
     let one_based_start_usize: usize = try_into_one_based("start", start)?;
     let one_based_stop_usize: usize = try_into_one_based("stop", stop)?;
 

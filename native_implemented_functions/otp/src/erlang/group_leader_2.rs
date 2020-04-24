@@ -22,7 +22,7 @@ macro_rules! is_not_alive {
 }
 
 #[native_implemented_function(group_leader/2)]
-pub fn native(process: &Process, group_leader: Term, pid: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, group_leader: Term, pid: Term) -> exception::Result<Term> {
     let group_leader_pid: Pid = term_try_into_local_pid!(group_leader)?;
 
     if (group_leader_pid == process.pid()) || pid_to_process(&group_leader_pid).is_some() {

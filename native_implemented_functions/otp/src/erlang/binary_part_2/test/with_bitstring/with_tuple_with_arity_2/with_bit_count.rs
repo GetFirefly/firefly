@@ -50,7 +50,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
         |(arc_process, binary, start, length)| {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-            let result = native(&arc_process, binary.into(), start_length);
+            let result = result(&arc_process, binary.into(), start_length);
 
             prop_assert!(result.is_ok());
 
@@ -102,11 +102,11 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
             prop_assert_eq!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 Ok(expected_returned_binary)
             );
 
-            let returned = native(&arc_process, binary, start_length).unwrap();
+            let returned = result(&arc_process, binary, start_length).unwrap();
 
             let returned_subbinary_result: core::result::Result<Boxed<SubBinary>, _> =
                 returned.try_into();
@@ -136,11 +136,11 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
             let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
             prop_assert_eq!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 Ok(expected_returned_binary)
             );
 
-            let returned = native(&arc_process, binary, start_length).unwrap();
+            let returned = result(&arc_process, binary, start_length).unwrap();
 
             let returned_subbinary_result: core::result::Result<Boxed<SubBinary>, _> =
                 returned.try_into();

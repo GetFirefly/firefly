@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(member/2)]
-pub fn native(element: Term, list: Term) -> exception::Result<Term> {
+pub fn result(element: Term, list: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(false.into()),
         TypedTerm::List(cons) => {

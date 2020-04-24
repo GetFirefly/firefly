@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(hd/1)]
-pub fn native(list: Term) -> exception::Result<Term> {
+pub fn result(list: Term) -> exception::Result<Term> {
     let cons: Boxed<Cons> = term_try_into_non_empty_list!(list)?;
 
     Ok(cons.head)

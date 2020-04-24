@@ -6,8 +6,8 @@ fn with_self_pid_sets_group_leader() {
         let group_leader = process.pid_term();
         let pid = process.pid_term();
 
-        assert_eq!(native(process, group_leader, pid), Ok(true.into()));
-        assert_eq!(group_leader_0::native(process), group_leader);
+        assert_eq!(result(process, group_leader, pid), Ok(true.into()));
+        assert_eq!(group_leader_0::result(process), group_leader);
     });
 }
 
@@ -24,8 +24,8 @@ fn without_self_pid_sets_group_leader() {
         |(arc_process, group_leader, pid_arc_process)| {
             let pid = pid_arc_process.pid_term();
 
-            prop_assert_eq!(native(&arc_process, group_leader, pid), Ok(true.into()));
-            prop_assert_eq!(group_leader_0::native(&pid_arc_process), group_leader);
+            prop_assert_eq!(result(&arc_process, group_leader, pid), Ok(true.into()));
+            prop_assert_eq!(group_leader_0::result(&pid_arc_process), group_leader);
 
             Ok(())
         }

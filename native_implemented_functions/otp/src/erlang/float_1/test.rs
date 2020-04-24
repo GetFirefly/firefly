@@ -1,12 +1,12 @@
 use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 
-use crate::erlang::float_1::native;
+use crate::erlang::float_1::result;
 use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarg() {
-    crate::test::without_number_errors_badarg(file!(), native);
+    crate::test::without_number_errors_badarg(file!(), result);
 }
 
 #[test]
@@ -26,7 +26,7 @@ fn with_integer_returns_float_with_same_value() {
                 })
         },
         |(arc_process, number, float)| {
-            prop_assert_eq!(native(&arc_process, number), Ok(float));
+            prop_assert_eq!(result(&arc_process, number), Ok(float));
 
             Ok(())
         },
@@ -43,7 +43,7 @@ fn with_float_returns_same_float() {
             )
         },
         |(arc_process, number)| {
-            prop_assert_eq!(native(&arc_process, number), Ok(number));
+            prop_assert_eq!(result(&arc_process, number), Ok(number));
 
             Ok(())
         },

@@ -5,7 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
-use crate::erlang::list_to_atom_1::native;
+use crate::erlang::list_to_atom_1::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
@@ -14,7 +14,7 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_badarg!(native(list), format!("list ({}) is not a list", list));
+                prop_assert_badarg!(result(list), format!("list ({}) is not a list", list));
 
                 Ok(())
             })
@@ -24,7 +24,7 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_empty_list_returns_empty_atom() {
-    assert_eq!(native(Term::NIL), Ok(Atom::str_to_term("")));
+    assert_eq!(result(Term::NIL), Ok(Atom::str_to_term("")));
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn with_improper_list_errors_badarg() {
                     .cons(arc_process.integer('c').unwrap(), tail)
                     .unwrap();
 
-                prop_assert_badarg!(native(list), format!("list ({}) is improper", list));
+                prop_assert_badarg!(result(list), format!("list ({}) is improper", list));
 
                 Ok(())
             })
@@ -61,7 +61,7 @@ fn with_non_empty_proper_list_returns_atom() {
         |(list, string)| {
             let atom = Atom::str_to_term(&string);
 
-            prop_assert_eq!(native(list), Ok(atom));
+            prop_assert_eq!(result(list), Ok(atom));
 
             Ok(())
         },

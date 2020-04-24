@@ -24,7 +24,7 @@ fn without_byte_binary_or_list_element_errors_badarg() {
         },
         |(arc_process, iolist, element)| {
             prop_assert_badarg!(
-                native(&arc_process, iolist),
+                result(&arc_process, iolist),
                 format!(
                     "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
                     iolist, element
@@ -42,7 +42,7 @@ fn with_empty_list_element_returns_empty_binary() {
         let iolist = process.cons(Term::NIL, Term::NIL).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process.binary_from_bytes(&[]).unwrap())
         );
     })
@@ -61,7 +61,7 @@ fn with_subbinary_with_bit_count_errors_badarg() {
             let iolist = arc_process.list_from_slice(&[element]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, iolist),
+                result(&arc_process, iolist),
                 format!(
                     "iolist ({}) element ({}) is not a byte, binary, or nested iolist",
                     iolist, element

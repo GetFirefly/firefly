@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(get_keys/1)]
-pub fn native(process: &Process, value: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, value: Term) -> exception::Result<Term> {
     process
         .get_keys_from_value(value)
         .map_err(|alloc| alloc.into())

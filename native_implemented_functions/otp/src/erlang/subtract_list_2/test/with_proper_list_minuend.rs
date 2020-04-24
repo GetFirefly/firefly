@@ -12,7 +12,7 @@ fn without_proper_list_subtrahend_errors_badarg() {
         },
         |(arc_process, minuend, subtrahend)| {
             prop_assert_badarg!(
-                native(&arc_process, minuend, subtrahend),
+                result(&arc_process, minuend, subtrahend),
                 format!("subtrahend ({}) is not a proper list", subtrahend)
             );
 
@@ -38,7 +38,7 @@ fn with_subtrahend_list_returns_minuend_with_first_copy_of_each_element_in_subtr
             let subtrahend = arc_process.list_from_slice(&[element1]).unwrap();
 
             prop_assert_eq!(
-                native(&arc_process, minuend, subtrahend),
+                result(&arc_process, minuend, subtrahend),
                 Ok(arc_process.list_from_slice(&[element2, element1]).unwrap())
             );
 

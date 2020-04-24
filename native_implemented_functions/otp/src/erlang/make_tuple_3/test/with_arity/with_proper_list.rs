@@ -18,7 +18,7 @@ fn without_tuple_in_init_list_errors_badarg() {
             let init_list = arc_process.list_from_slice(&[element]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, arity, default_value, init_list),
+                result(&arc_process, arity, default_value, init_list),
                 format!(
                     "init list ({}) element ({}) is not {{position :: pos_integer(), term()}}",
                     init_list, element

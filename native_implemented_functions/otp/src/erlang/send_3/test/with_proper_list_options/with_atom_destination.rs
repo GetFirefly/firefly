@@ -16,7 +16,7 @@ fn unregistered_errors_badarg() {
             let destination = registered_name();
 
             prop_assert_badarg!(
-                native(&arc_process, destination, message, options),
+                result(&arc_process, destination, message, options),
                 format!("name ({}) not registered", destination)
             );
 

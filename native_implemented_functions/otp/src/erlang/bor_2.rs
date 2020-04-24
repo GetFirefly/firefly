@@ -13,7 +13,7 @@ use native_implemented_function::native_implemented_function;
 
 /// `bor/2` infix operator.
 #[native_implemented_function(bor/2)]
-pub fn native(
+pub fn result(
     process: &Process,
     left_integer: Term,
     right_integer: Term,

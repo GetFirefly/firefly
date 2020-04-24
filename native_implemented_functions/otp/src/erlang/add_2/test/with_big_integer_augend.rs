@@ -17,7 +17,7 @@ fn with_zero_small_integer_returns_same_big_integer() {
         |(arc_process, augend)| {
             let addend = 0.into();
 
-            prop_assert_eq!(native(&arc_process, augend, addend), Ok(augend));
+            prop_assert_eq!(result(&arc_process, augend, addend), Ok(augend));
 
             Ok(())
         },
@@ -43,7 +43,7 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
     with(|augend, process| {
         let addend = process.float(3.0).unwrap();
 
-        let result = native(&process, augend, addend);
+        let result = result(&process, augend, addend);
 
         assert!(result.is_ok());
 
@@ -66,7 +66,7 @@ fn with_float_addend_with_underflow_returns_min_float() {
             let addend = arc_process.float(std::f64::MIN).unwrap();
 
             prop_assert_eq!(
-                native(&arc_process, augend, addend),
+                result(&arc_process, augend, addend),
                 Ok(arc_process.float(std::f64::MIN).unwrap())
             );
 
@@ -88,7 +88,7 @@ fn with_float_addend_with_overflow_returns_max_float() {
             let addend = arc_process.float(std::f64::MAX).unwrap();
 
             prop_assert_eq!(
-                native(&arc_process, augend, addend),
+                result(&arc_process, augend, addend),
                 Ok(arc_process.float(std::f64::MAX).unwrap())
             );
 
@@ -111,7 +111,7 @@ where
             )
         },
         |(arc_process, augend, addend)| {
-            let result = native(&arc_process, augend, addend);
+            let result = result(&arc_process, augend, addend);
 
             prop_assert!(result.is_ok());
 

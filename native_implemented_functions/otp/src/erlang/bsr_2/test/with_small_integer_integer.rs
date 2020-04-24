@@ -10,7 +10,7 @@ fn with_negative_with_overflow_shifts_left_and_returns_big_integer() {
         let shift = process.integer(-64).unwrap();
 
         assert_eq!(
-            native(&process, integer, shift),
+            result(&process, integer, shift),
             Ok(process
                 .integer(
                     <BigInt as Num>::from_str_radix(
@@ -30,7 +30,7 @@ fn with_negative_without_overflow_shifts_left_and_returns_small_integer() {
         let shift = process.integer(-1).unwrap();
 
         assert_eq!(
-            native(&process, integer, shift),
+            result(&process, integer, shift),
             Ok(process.integer(0b100).unwrap())
         );
     });
@@ -41,7 +41,7 @@ fn with_positive_without_underflow_returns_small_integer() {
     with(|integer, process| {
         let shift = process.integer(1).unwrap();
 
-        let result = native(&process, integer, shift);
+        let result = result(&process, integer, shift);
 
         assert!(result.is_ok());
 
@@ -58,7 +58,7 @@ fn with_positive_with_underflow_returns_zero() {
         let shift = process.integer(3).unwrap();
 
         assert_eq!(
-            native(&process, integer, shift),
+            result(&process, integer, shift),
             Ok(process.integer(0).unwrap())
         );
     });

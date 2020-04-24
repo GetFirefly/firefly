@@ -21,7 +21,7 @@ fn with_small_integer_returns_small_integer() {
                 })
         },
         |(arc_process, integer, list)| {
-            let result = native(&arc_process, list);
+            let result = result(&arc_process, list);
 
             prop_assert!(result.is_ok());
 
@@ -58,7 +58,7 @@ fn with_big_integer_returns_big_integer() {
                 })
         },
         |(arc_process, integer, list)| {
-            let result = native(&arc_process, list);
+            let result = result(&arc_process, list);
 
             prop_assert!(result.is_ok());
 
@@ -79,7 +79,7 @@ fn with_non_decimal_errors_badarg() {
         let list = arc_process.charlist_from_str(&string).unwrap();
 
         assert_badarg!(
-            native(&arc_process, list),
+            result(&arc_process, list),
             format!("list ('{}') is not base 10", string)
         );
     });

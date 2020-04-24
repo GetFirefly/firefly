@@ -16,7 +16,7 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::iolist_or_binary;
 
 #[native_implemented_function(list_to_binary/1)]
-pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, iolist: Term) -> exception::Result<Term> {
     match iolist.decode()? {
         TypedTerm::Nil | TypedTerm::List(_) => {
             iolist_or_binary::to_binary(process, "iolist", iolist)

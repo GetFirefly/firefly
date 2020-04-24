@@ -5,7 +5,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::iolist_to_iovec_1::native;
+use crate::erlang::iolist_to_iovec_1::result;
 use crate::test::strategy::term::is_iolist_or_binary;
 use crate::test::with_process;
 
@@ -14,7 +14,7 @@ fn with_iolist_or_binary_returns_iovec() {
     run!(
         |arc_process| { (Just(arc_process.clone()), is_iolist_or_binary(arc_process)) },
         |(arc_process, iolist_or_binary)| {
-            let result = native(&arc_process, iolist_or_binary);
+            let result = result(&arc_process, iolist_or_binary);
 
             prop_assert!(
                 result.is_ok(),
@@ -47,7 +47,7 @@ fn is_idempotent() {
     run!(
         |arc_process| { (Just(arc_process.clone()), is_iolist_or_binary(arc_process)) },
         |(arc_process, iolist_or_binary)| {
-            let first_result = native(&arc_process, iolist_or_binary);
+            let first_result = result(&arc_process, iolist_or_binary);
 
             prop_assert!(
                 first_result.is_ok(),
@@ -57,7 +57,7 @@ fn is_idempotent() {
 
             let first = first_result.unwrap();
 
-            prop_assert_eq!(native(&arc_process, first), Ok(first));
+            prop_assert_eq!(result(&arc_process, first), Ok(first));
 
             Ok(())
         }
@@ -70,7 +70,7 @@ fn with_binary_returns_binary_in_list() {
         let bin = process.binary_from_bytes(&[1, 2, 3]).unwrap();
 
         assert_eq!(
-            native(process, bin),
+            result(process, bin),
             Ok(process
                 .list_from_slice(&[process.binary_from_bytes(&[1, 2, 3]).unwrap()])
                 .unwrap())
@@ -88,7 +88,7 @@ fn with_procbin_in_list_returns_list() {
         let iolist = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process
                 .list_from_slice(&[process.binary_from_bytes(&bytes).unwrap()])
                 .unwrap())
@@ -112,7 +112,7 @@ fn with_subbinary_in_list_returns_list() {
             .unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process
                 .list_from_slice(&[process.binary_from_bytes(&[2, 3, 4]).unwrap()])
                 .unwrap())
@@ -134,7 +134,7 @@ fn with_subbinary_returns_list() {
             .unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process
                 .list_from_slice(&[process.binary_from_bytes(&[2, 3, 4]).unwrap()])
                 .unwrap())
@@ -151,7 +151,7 @@ fn with_improper_list_smallint_tail_errors_badarg() {
             .unwrap();
 
         assert_badarg!(
-            native(process, iolist_or_binary),
+            result(process, iolist_or_binary),
             format!(
                 "iolist_or_binary ({}) tail ({}) cannot be a byte",
                 iolist_or_binary, tail
@@ -168,7 +168,7 @@ fn with_atom_in_iolist_errors_badarg() {
         let iolist_or_binary = process.list_from_slice(&[element]).unwrap();
 
         assert_badarg!(
-            native(process, iolist_or_binary),
+            result(process, iolist_or_binary),
             format!(
                 "iolist_or_binary ({}) element ({}) is not a byte, binary, or nested iolist",
                 iolist_or_binary, element

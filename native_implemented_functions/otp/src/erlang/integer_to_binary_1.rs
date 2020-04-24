@@ -14,7 +14,7 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::integer_to_string::decimal_integer_to_string;
 
 #[native_implemented_function(integer_to_binary/1)]
-pub fn native(process: &Process, integer: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, integer: Term) -> exception::Result<Term> {
     let string = decimal_integer_to_string(integer)?;
     let binary = process.binary_from_str(&string)?;
 

@@ -12,7 +12,7 @@ fn with_number_atom_reference_function_port_or_local_pid_returns_second() {
             )
         },
         |(first, second)| {
-            prop_assert_eq!(native(first, second), second);
+            prop_assert_eq!(result(first, second), second);
 
             Ok(())
         },
@@ -58,7 +58,7 @@ fn with_tuple_map_list_or_bitstring_returns_first() {
             )
         },
         |(first, second)| {
-            prop_assert_eq!(native(first, second), first);
+            prop_assert_eq!(result(first, second), first);
 
             Ok(())
         },

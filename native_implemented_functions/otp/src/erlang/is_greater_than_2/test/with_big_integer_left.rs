@@ -62,7 +62,7 @@ fn without_number_returns_false() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },

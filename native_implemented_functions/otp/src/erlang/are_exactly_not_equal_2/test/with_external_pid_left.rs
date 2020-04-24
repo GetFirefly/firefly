@@ -12,7 +12,7 @@ fn without_external_pid_left_returns_true() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), true.into());
+            prop_assert_eq!(result(left, right), true.into());
 
             Ok(())
         },
@@ -24,7 +24,7 @@ fn with_same_external_pid_right_returns_false() {
     run!(
         |arc_process| strategy::term::pid::external(arc_process.clone()),
         |operand| {
-            prop_assert_eq!(native(operand, operand), false.into());
+            prop_assert_eq!(result(operand, operand), false.into());
 
             Ok(())
         },
@@ -51,7 +51,7 @@ fn with_same_value_external_pid_right_returns_false() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right.into()), false.into());
+            prop_assert_eq!(result(left.into(), right.into()), false.into());
 
             Ok(())
         },
@@ -71,7 +71,7 @@ fn with_different_external_pid_right_returns_true() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), true.into());
+            prop_assert_eq!(result(left, right), true.into());
 
             Ok(())
         },

@@ -1,8 +1,8 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::frames;
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::{Boxed, Closure, Encoded, Term};
 
@@ -15,7 +15,7 @@ pub fn place_frame_with_arguments(
     placement: Placement,
     next_pid: Term,
     output: Term,
-) -> code::Result {
+) -> frames::Result {
     assert!(next_pid.is_pid());
     assert!(output.is_boxed_function());
     process.stack_push(output)?;
@@ -38,7 +38,7 @@ pub fn place_frame_with_arguments(
 ///     output.("sent #{sent} to #{next_pid}")
 /// end
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     // Because there is a guardless match in the receive block, the first message will always be
@@ -79,7 +79,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             erlang::add_2::place_frame_with_arguments(arc_process, Placement::Push, n, one)
                 .unwrap();
 
-            Process::call_code(arc_process)
+            Process::call_native_or_yield(arc_process)
         }
         None => {
             Arc::clone(arc_process).wait();

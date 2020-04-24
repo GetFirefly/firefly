@@ -111,7 +111,7 @@ macro_rules! number_to_integer {
         use crate::erlang::number_to_integer::{f64_to_integer, NumberToInteger};
 
         #[native_implemented_function($f/1)]
-        pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
+        pub fn result(process: &Process, number: Term) -> exception::Result<Term> {
             match number.into() {
                 NumberToInteger::Integer(integer) => Ok(integer),
                 NumberToInteger::F64(f) => {

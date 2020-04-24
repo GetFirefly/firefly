@@ -15,7 +15,7 @@ fn in_same_thread_without_timeout_returns_milliseconds_remaining_and_does_not_se
 
         assert!(!has_message(process, timeout_message));
 
-        let first_result = native(process, timer_reference, options(process));
+        let first_result = result(process, timer_reference, options(process));
 
         assert!(first_result.is_ok());
 
@@ -27,7 +27,7 @@ fn in_same_thread_without_timeout_returns_milliseconds_remaining_and_does_not_se
 
         // again before timeout
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(false.into())
         );
 
@@ -37,7 +37,7 @@ fn in_same_thread_without_timeout_returns_milliseconds_remaining_and_does_not_se
 
         // again after timeout
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(false.into())
         );
     })

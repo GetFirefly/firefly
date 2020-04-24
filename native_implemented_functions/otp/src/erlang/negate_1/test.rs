@@ -1,7 +1,7 @@
 use proptest::strategy::{Just, Strategy};
 use proptest::{prop_assert_eq, prop_oneof};
 
-use crate::erlang::negate_1::native;
+use crate::erlang::negate_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -15,7 +15,7 @@ fn without_number_errors_badarith() {
         },
         |(arc_process, number)| {
             prop_assert_badarith!(
-                native(&arc_process, number),
+                result(&arc_process, number),
                 format!("number ({}) is neither an integer nor a float", number)
             );
 
@@ -39,7 +39,7 @@ fn with_integer_returns_integer_of_opposite_sign() {
         |(arc_process, number, i)| {
             let negated = arc_process.integer(-i).unwrap();
 
-            prop_assert_eq!(native(&arc_process, number), Ok(negated));
+            prop_assert_eq!(result(&arc_process, number), Ok(negated));
 
             Ok(())
         },
@@ -61,7 +61,7 @@ fn with_float_returns_float_of_opposite_sign() {
         |(arc_process, number, f)| {
             let negated = arc_process.float(-f).unwrap();
 
-            prop_assert_eq!(native(&arc_process, number), Ok(negated));
+            prop_assert_eq!(result(&arc_process, number), Ok(negated));
 
             Ok(())
         },

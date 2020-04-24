@@ -5,7 +5,7 @@ fn returns_empty_list_of_values() {
     with_process_arc(|arc_process| {
         let empty_map = arc_process.map_from_slice(&[]).unwrap();
 
-        assert_eq!(native(&arc_process, empty_map), Ok(Term::NIL));
+        assert_eq!(result(&arc_process, empty_map), Ok(Term::NIL));
     });
 }
 
@@ -23,7 +23,7 @@ fn returns_list_of_values() {
                     )
                 }),
                 |(values, map)| {
-                    prop_assert_eq!(native(&arc_process, map), Ok(values));
+                    prop_assert_eq!(result(&arc_process, map), Ok(values));
 
                     Ok(())
                 },

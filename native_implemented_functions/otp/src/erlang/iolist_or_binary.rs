@@ -24,7 +24,7 @@ pub fn element_type_context(iolist_or_binary: Term, element: Term) -> String {
     )
 }
 
-pub fn native(
+pub fn result(
     process: &Process,
     iolist_or_binary: Term,
     try_into: fn(&Process, Term) -> exception::Result<Term>,

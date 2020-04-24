@@ -13,7 +13,7 @@ fn exits_with_reason() {
         |arc_process| strategy::term(arc_process.clone()),
         |reason| {
             prop_assert_eq!(
-                exit_1::native(reason),
+                exit_1::result(reason),
                 Err(exit!(reason, anyhow!("explicit exit from Erlang").into()).into())
             );
 

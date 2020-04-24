@@ -19,7 +19,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::context::*;
 
 #[native_implemented_function(setelement/3)]
-pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
     let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let length = initial_inner_tuple.len();
     let index_zero_based: OneBasedIndex = index

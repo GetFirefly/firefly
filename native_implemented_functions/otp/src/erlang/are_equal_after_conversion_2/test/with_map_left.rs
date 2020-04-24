@@ -13,7 +13,7 @@ fn without_map_right_returns_false() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -25,7 +25,7 @@ fn with_same_map_right_returns_true() {
     run!(
         |arc_process| strategy::term::map(arc_process.clone()),
         |operand| {
-            prop_assert_eq!(native(operand, operand), true.into());
+            prop_assert_eq!(result(operand, operand), true.into());
 
             Ok(())
         },
@@ -54,7 +54,7 @@ fn with_same_value_map_right_returns_true() {
             })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right.into()), true.into());
+            prop_assert_eq!(result(left.into(), right.into()), true.into());
 
             Ok(())
         },
@@ -72,7 +72,7 @@ fn with_different_map_right_returns_false() {
                 .prop_filter("Maps must be different", |(left, right)| left != right)
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },

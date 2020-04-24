@@ -19,7 +19,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             let start_time_in_milliseconds = freeze_timeout();
 
             let result =
-                erlang::start_timer_3::native(arc_process.clone(), time, destination, message);
+                erlang::start_timer_3::result(arc_process.clone(), time, destination, message);
 
             prop_assert!(
                 result.is_ok(),

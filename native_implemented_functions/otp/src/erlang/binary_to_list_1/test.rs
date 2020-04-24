@@ -3,7 +3,7 @@ use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::erlang::binary_to_list_1::native;
+use crate::erlang::binary_to_list_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -16,7 +16,7 @@ fn without_binary_errors_badarg() {
             )
         },
         |(arc_process, binary)| {
-            prop_assert_badarg!(native(&arc_process, binary), format!("binary ({})", binary));
+            prop_assert_badarg!(result(&arc_process, binary), format!("binary ({})", binary));
 
             Ok(())
         },
@@ -69,7 +69,7 @@ fn with_binary_returns_list_of_bytes() {
                 len => unimplemented!("len = {:?}", len),
             };
 
-            prop_assert_eq!(native(&arc_process, binary), Ok(list));
+            prop_assert_eq!(result(&arc_process, binary), Ok(list));
 
             Ok(())
         },

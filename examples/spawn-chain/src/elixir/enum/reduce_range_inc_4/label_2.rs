@@ -1,8 +1,8 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::{Boxed, Closure, Encoded, Term};
 
 use crate::elixir::r#enum::reduce_range_inc_4;
@@ -20,7 +20,7 @@ pub fn place_frame_with_arguments(
     new_first: Term,
     last: Term,
     reducer: Term,
-) -> code::Result {
+) -> frames::Result {
     assert!(new_first.is_integer());
     assert!(last.is_integer());
 
@@ -34,7 +34,7 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     // new_acc is on top of stack because it is the return from `reducer` call
@@ -53,7 +53,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     )
     .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame(process: &Process) -> Frame {

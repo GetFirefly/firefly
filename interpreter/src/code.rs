@@ -6,8 +6,8 @@ use cranelift_entity::EntityRef;
 use libeir_ir::{Block, FunctionIndex};
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::code::stack::frame::Frame;
+use liblumen_alloc::erts::process::frames;
+use liblumen_alloc::erts::process::frames::stack::frame::Frame;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
@@ -19,10 +19,10 @@ fn module() -> Atom {
     Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap()
 }
 
-pub fn return_clean(arc_process: &Arc<Process>) -> code::Result {
+pub fn return_clean(arc_process: &Arc<Process>) -> frames::Result {
     let argument_list = arc_process.stack_pop().unwrap();
     arc_process.return_from_call(0, argument_list)?;
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 pub fn return_clean_closure(process: &Process) -> exception::Result<Term> {
@@ -34,7 +34,7 @@ pub fn return_clean_closure(process: &Process) -> exception::Result<Term> {
         .map_err(|error| error.into())
 }
 
-pub fn return_ok(arc_process: &Arc<Process>) -> code::Result {
+pub fn return_ok(arc_process: &Arc<Process>) -> frames::Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
@@ -63,7 +63,7 @@ pub fn return_ok_closure(process: &Process) -> exception::Result<Term> {
         .map_err(|error| error.into())
 }
 
-pub fn return_throw(arc_process: &Arc<Process>) -> code::Result {
+pub fn return_throw(arc_process: &Arc<Process>) -> frames::Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
@@ -89,7 +89,7 @@ pub fn return_throw(arc_process: &Arc<Process>) -> code::Result {
         stacktrace,
         anyhow!("explicit raise from Erlang").into(),
     );
-    code::result_from_exception(arc_process, 0, exception.into())
+    frames::exception_to_native_return(arc_process, 0, exception.into())
 }
 
 pub fn return_throw_closure(process: &Process) -> exception::Result<Term> {
@@ -104,7 +104,7 @@ pub fn return_throw_closure(process: &Process) -> exception::Result<Term> {
 /// Expects the following on stack:
 /// * arity integer
 /// * argument list
-pub fn interpreter_mfa_code(arc_process: &Arc<Process>) -> code::Result {
+pub fn interpreter_mfa_code(arc_process: &Arc<Process>) -> frames::Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mfa = arc_process.current_module_function_arity().unwrap();
@@ -141,7 +141,7 @@ pub fn interpreter_mfa_code(arc_process: &Arc<Process>) -> code::Result {
 /// * argument list
 /// * block id integer
 /// * environment list
-pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> code::Result {
+pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> frames::Result {
     let argument_list = arc_process.stack_pop().unwrap();
     let closure_term = arc_process.stack_pop().unwrap();
 
@@ -197,7 +197,7 @@ pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> code::Result {
     Ok(())
 }
 
-pub fn apply(arc_process: &Arc<Process>) -> code::Result {
+pub fn apply(arc_process: &Arc<Process>) -> frames::Result {
     let module_term = arc_process.stack_pop().unwrap();
     let function_term = arc_process.stack_pop().unwrap();
     let argument_list = arc_process.stack_pop().unwrap();
@@ -223,5 +223,5 @@ pub fn apply(arc_process: &Arc<Process>) -> code::Result {
     arc_process.stack_push(argument_list)?;
     arc_process.replace_frame(frame);
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }

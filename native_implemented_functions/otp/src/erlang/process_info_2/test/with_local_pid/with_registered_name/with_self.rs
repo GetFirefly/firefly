@@ -4,7 +4,7 @@ use super::*;
 fn without_registered_returns_empty_list() {
     with_process_arc(|unregistered_process_arc| {
         assert_eq!(
-            native(
+            result(
                 &unregistered_process_arc,
                 unregistered_process_arc.pid_term(),
                 item()
@@ -26,7 +26,7 @@ fn with_registered_returns_empty_list() {
         ));
 
         assert_eq!(
-            native(
+            result(
                 &registered_process_arc,
                 registered_process_arc.pid_term(),
                 item()

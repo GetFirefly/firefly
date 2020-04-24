@@ -16,11 +16,11 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang;
 
 #[native_implemented_function(binary_part/2)]
-pub fn native(process: &Process, binary: Term, start_length: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, binary: Term, start_length: Term) -> exception::Result<Term> {
     let start_length_tuple = term_try_into_tuple!(start_length)?;
 
     if start_length_tuple.len() == 2 {
-        erlang::binary_part_3::native(
+        erlang::binary_part_3::result(
             process,
             binary,
             start_length_tuple[0],

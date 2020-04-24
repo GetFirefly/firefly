@@ -8,7 +8,7 @@ fn with_small_integer_subtrahend_with_underflow_returns_big_integer() {
 
         assert!(subtrahend.is_smallint());
 
-        let result = native(&process, minuend, subtrahend);
+        let result = result(&process, minuend, subtrahend);
 
         assert!(result.is_ok());
 
@@ -25,7 +25,7 @@ fn with_small_integer_subtrahend_with_overflow_returns_big_integer() {
 
         assert!(subtrahend.is_smallint());
 
-        let result = native(&process, minuend, subtrahend);
+        let result = result(&process, minuend, subtrahend);
 
         assert!(result.is_ok());
 
@@ -41,7 +41,7 @@ fn with_float_subtrahend_with_underflow_returns_min_float() {
         let subtrahend = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
-            native(&process, minuend, subtrahend),
+            result(&process, minuend, subtrahend),
             Ok(process.float(std::f64::MIN).unwrap())
         );
     })
@@ -53,7 +53,7 @@ fn with_float_subtrahend_with_overflow_returns_max_float() {
         let subtrahend = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
-            native(&process, minuend, subtrahend),
+            result(&process, minuend, subtrahend),
             Ok(process.float(std::f64::MAX).unwrap())
         );
     })

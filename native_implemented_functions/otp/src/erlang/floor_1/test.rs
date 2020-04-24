@@ -9,18 +9,18 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::{Encoded, Float};
 
-use crate::erlang::floor_1::native;
+use crate::erlang::floor_1::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
 #[test]
 fn without_number_errors_badarg() {
-    crate::test::without_number_errors_badarg(file!(), native);
+    crate::test::without_number_errors_badarg(file!(), result);
 }
 
 #[test]
 fn with_integer_returns_integer() {
-    crate::test::with_integer_returns_integer(file!(), native);
+    crate::test::with_integer_returns_integer(file!(), result);
 }
 
 #[test]
@@ -28,7 +28,7 @@ fn with_float_rounds_down_to_previous_integer() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::float(arc_process.clone()), |number| {
-                let result = native(&arc_process, number);
+                let result = result(&arc_process, number);
 
                 prop_assert!(result.is_ok());
 

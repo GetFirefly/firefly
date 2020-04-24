@@ -212,7 +212,11 @@ use crate::timer::start::ReferenceFrame;
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
-    Atom::try_from_str("erlang").unwrap()
+    Atom::from_str("erlang")
+}
+
+pub fn module_id() -> usize {
+    module().id()
 }
 
 // Private

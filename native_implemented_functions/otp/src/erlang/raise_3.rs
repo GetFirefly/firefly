@@ -17,7 +17,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::stacktrace;
 
 #[native_implemented_function(raise/3)]
-pub fn native(class: Term, reason: Term, stacktrace: Term) -> exception::Result<Term> {
+pub fn result(class: Term, reason: Term, stacktrace: Term) -> exception::Result<Term> {
     let class_class: exception::Class = class.try_into()?;
 
     if stacktrace::is(stacktrace) {

@@ -11,7 +11,7 @@ use native_implemented_function::native_implemented_function;
 
 /// `=:=/2` infix operator.  Unlike `==`, does not convert between floats and integers.
 #[native_implemented_function(=:=/2)]
-pub fn native(left: Term, right: Term) -> Term {
+pub fn result(left: Term, right: Term) -> Term {
     let left = left.decode().unwrap();
     let right = right.decode().unwrap();
     left.exact_eq(&right).into()

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use libeir_ir::{Function, FunctionIndex, LiveValues, Module};
 
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::process::code::Result;
+use liblumen_alloc::erts::process::frames::Result;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 

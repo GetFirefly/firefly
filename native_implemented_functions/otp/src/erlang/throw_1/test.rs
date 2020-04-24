@@ -1,4 +1,4 @@
-use crate::erlang::throw_1::native;
+use crate::erlang::throw_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -6,7 +6,7 @@ fn throws_reason() {
     run!(
         |arc_process| strategy::term(arc_process.clone()),
         |reason| {
-            let actual = native(reason);
+            let actual = result(reason);
 
             if let Err(liblumen_alloc::erts::exception::Exception::Runtime(
                 liblumen_alloc::erts::exception::RuntimeException::Throw(ref throw),

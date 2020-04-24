@@ -4,8 +4,6 @@ mod with_exported_function;
 
 #[test]
 fn without_exported_function_when_run_exits_undef_and_parent_exits() {
-    apply_3::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
@@ -18,7 +16,7 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
 
     let arguments = Term::NIL;
 
-    let result = native(
+    let result = result(
         &parent_arc_process,
         module,
         function,
@@ -42,7 +40,6 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
     let arc_process = pid_to_process(&child_pid_pid).unwrap();
 
     assert!(scheduler::run_through(&arc_process));
-    assert!(!scheduler::run_through(&arc_process));
 
     assert_eq!(
         arc_process.current_module_function_arity(),

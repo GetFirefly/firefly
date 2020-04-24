@@ -16,7 +16,7 @@ use native_implemented_function::native_implemented_function;
 
 /// `bnot/1` prefix operator.
 #[native_implemented_function(bnot/1)]
-pub fn native(process: &Process, integer: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, integer: Term) -> exception::Result<Term> {
     match integer.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
             let integer_isize: isize = small_integer.into();

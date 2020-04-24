@@ -9,7 +9,7 @@ fn without_stacktrace_returns_empty_list() {
     with_process(|process| {
         process.exception(exit!(atom!("reason"), anyhow!("Test").into()));
 
-        assert_eq!(native(process), Term::NIL);
+        assert_eq!(result(process), Term::NIL);
     });
 }
 
@@ -38,6 +38,6 @@ fn with_stacktrace_returns_stacktrace() {
 
         process.exception(exit!(atom!("reason"), stacktrace, anyhow!("Test").into()));
 
-        assert_eq!(native(process), stacktrace);
+        assert_eq!(result(process), stacktrace);
     })
 }

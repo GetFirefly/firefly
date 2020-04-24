@@ -13,7 +13,7 @@ fn with_invalid_option() {
                 let options = arc_process.cons(option, Term::NIL).unwrap();
 
                 prop_assert_badarg!(
-                    native(&arc_process, timer_reference, options),
+                    result(&arc_process, timer_reference, options),
                     format!("supported options are {{:async, bool}} or {{:info, bool}}")
                 );
 
@@ -49,13 +49,13 @@ fn with_timer_in_same_thread_without_timeout_returns_ok_and_does_not_send_timeou
         assert!(!has_message(process, timeout_message));
 
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
 
         // again before timeout
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
 
@@ -65,7 +65,7 @@ fn with_timer_in_same_thread_without_timeout_returns_ok_and_does_not_send_timeou
 
         // again after timeout
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
     })
@@ -83,13 +83,13 @@ fn with_timer_in_same_thread_with_timeout_returns_ok_after_timeout_message_was_s
         assert_has_message!(process, timeout_message);
 
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
 
         // again
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
     })
@@ -100,7 +100,7 @@ fn with_info_false_without_timer_returns_ok(options: fn(&Process) -> Term) {
         let timer_reference = process.next_reference().unwrap();
 
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
     });
@@ -120,7 +120,7 @@ fn without_info_without_local_reference_errors_badarg(
         },
         |(arc_process, timer_reference)| {
             prop_assert_badarg!(
-                native(&arc_process, timer_reference, options(&arc_process)),
+                result(&arc_process, timer_reference, options(&arc_process)),
                 format!(
                     "timer_reference ({}) is not a local reference",
                     timer_reference
@@ -137,7 +137,7 @@ fn returns_false(options: fn(&Process) -> Term) {
         let timer_reference = process.next_reference().unwrap();
 
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(false.into())
         );
     });

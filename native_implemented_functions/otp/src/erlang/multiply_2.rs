@@ -13,6 +13,6 @@ use native_implemented_function::native_implemented_function;
 
 /// `*/2` infix operator
 #[native_implemented_function(*/2)]
-pub fn native(process: &Process, multiplier: Term, multiplicand: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, multiplier: Term, multiplicand: Term) -> exception::Result<Term> {
     number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)
 }

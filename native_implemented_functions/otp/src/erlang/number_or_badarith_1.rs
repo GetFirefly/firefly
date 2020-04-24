@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(+/1)]
-pub fn native(number: Term) -> exception::Result<Term> {
+pub fn result(number: Term) -> exception::Result<Term> {
     if number.is_number() {
         Ok(number)
     } else {

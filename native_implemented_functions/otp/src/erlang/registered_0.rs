@@ -10,6 +10,6 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::registry;
 
 #[native_implemented_function(registered/0)]
-pub fn native(process: &Process) -> exception::Result<Term> {
+pub fn result(process: &Process) -> exception::Result<Term> {
     registry::names(process)
 }

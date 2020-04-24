@@ -1,7 +1,7 @@
 use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 
-use crate::erlang::tuple_to_list_1::native;
+use crate::erlang::tuple_to_list_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -14,7 +14,7 @@ fn without_tuple_errors_badarg() {
             )
         },
         |(arc_process, tuple)| {
-            prop_assert_is_not_tuple!(native(&arc_process, tuple), tuple);
+            prop_assert_is_not_tuple!(result(&arc_process, tuple), tuple);
 
             Ok(())
         },
@@ -34,7 +34,7 @@ fn with_tuple_returns_list() {
             let tuple = arc_process.tuple_from_slice(&element_vec).unwrap();
             let list = arc_process.list_from_slice(&element_vec).unwrap();
 
-            prop_assert_eq!(native(&arc_process, tuple), Ok(list));
+            prop_assert_eq!(result(&arc_process, tuple), Ok(list));
 
             Ok(())
         },

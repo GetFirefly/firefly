@@ -5,7 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::lists::reverse_2::native;
+use crate::lists::reverse_2::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
@@ -20,7 +20,7 @@ fn without_proper_list_errors_badarg() {
                 ),
                 |(list, tail)| {
                     prop_assert_badarg!(
-                        native(&arc_process, list, tail),
+                        result(&arc_process, list, tail),
                         format!("list ({}) is not a proper list", list)
                     );
 

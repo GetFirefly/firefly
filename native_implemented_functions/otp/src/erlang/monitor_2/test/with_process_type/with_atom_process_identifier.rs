@@ -7,7 +7,7 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
     with_process_arc(|monitoring_arc_process| {
         let registered_name = registered_name();
 
-        let monitor_reference_result = native(&monitoring_arc_process, r#type(), registered_name);
+        let monitor_reference_result = result(&monitoring_arc_process, r#type(), registered_name);
 
         assert!(monitor_reference_result.is_ok());
 
@@ -26,7 +26,7 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
                     monitor_reference,
                     r#type(),
                     monitoring_arc_process
-                        .tuple_from_slice(&[registered_name, node_0::native()])
+                        .tuple_from_slice(&[registered_name, node_0::result()])
                         .unwrap(),
                     reason
                 ])

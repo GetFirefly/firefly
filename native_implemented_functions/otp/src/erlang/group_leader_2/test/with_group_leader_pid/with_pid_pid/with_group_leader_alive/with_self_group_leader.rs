@@ -14,7 +14,7 @@ fn without_pid_alive_returns_badarg() {
         },
         |(arc_process, group_leader, pid)| {
             prop_assert_badarg!(
-                native(&arc_process, group_leader, pid),
+                result(&arc_process, group_leader, pid),
                 format!("pid ({}) is not alive", pid)
             );
 

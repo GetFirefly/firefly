@@ -5,7 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::erlang::length_1::native;
+use crate::erlang::length_1::result;
 use crate::test::strategy;
 use crate::test::{with_process, with_process_arc};
 
@@ -15,7 +15,7 @@ fn without_list_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
                 prop_assert_badarg!(
-                    native(&arc_process, list),
+                    result(&arc_process, list),
                     format!("list ({}) is not a list", list)
                 );
 
@@ -31,7 +31,7 @@ fn with_empty_list_is_zero() {
         let list = Term::NIL;
         let zero_term = process.integer(0).unwrap();
 
-        assert_eq!(native(process, list), Ok(zero_term));
+        assert_eq!(result(process, list), Ok(zero_term));
     });
 }
 
@@ -46,7 +46,7 @@ fn with_improper_list_errors_badarg() {
         },
         |(arc_process, list)| {
             prop_assert_badarg!(
-                native(&arc_process, list),
+                result(&arc_process, list),
                 format!("list ({}) is improper", list)
             );
 
@@ -75,7 +75,7 @@ fn with_non_empty_proper_list_is_number_of_elements() {
         },
         |(arc_process, list, element_count)| {
             prop_assert_eq!(
-                native(&arc_process, list),
+                result(&arc_process, list),
                 Ok(arc_process.integer(element_count).unwrap())
             );
 

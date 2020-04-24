@@ -14,6 +14,6 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::binary_to_term_2;
 
 #[native_implemented_function(binary_to_term/1)]
-pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {
-    binary_to_term_2::native(process, binary, Term::NIL)
+pub fn result(process: &Process, binary: Term) -> exception::Result<Term> {
+    binary_to_term_2::result(process, binary, Term::NIL)
 }

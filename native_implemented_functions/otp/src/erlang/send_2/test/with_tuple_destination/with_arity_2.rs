@@ -16,11 +16,11 @@ fn without_atom_name_errors_badarg() {
         },
         |(arc_process, name, message)| {
             let destination = arc_process
-                .tuple_from_slice(&[name, erlang::node_0::native()])
+                .tuple_from_slice(&[name, erlang::node_0::result()])
                 .unwrap();
 
             prop_assert_badarg!(
-                        native(&arc_process, destination, message),
+                        result(&arc_process, destination, message),
                         format!("registered_name ({}) in {{registered_name, node}} ({}) destination is not an atom", name, destination)
                     );
 
@@ -99,12 +99,12 @@ where
 {
     with_process(|process| {
         let destination = process
-            .tuple_from_slice(&[name(process), erlang::node_0::native()])
+            .tuple_from_slice(&[name(process), erlang::node_0::result()])
             .unwrap();
         let message = Atom::str_to_term("message");
 
         assert_badarg!(
-            native(process, destination, message),
+            result(process, destination, message),
             "destination is not an atom"
         );
     })

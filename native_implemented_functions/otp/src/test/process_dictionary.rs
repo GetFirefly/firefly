@@ -13,7 +13,7 @@ pub fn fill_heap(process: &Process) {
 }
 
 pub fn without_heap_available_does_not_modify_dictionary(
-    native: fn(&Process) -> exception::Result<Term>,
+    result: fn(&Process) -> exception::Result<Term>,
 ) {
     let init_arc_process = process::init();
     let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
@@ -26,7 +26,7 @@ pub fn without_heap_available_does_not_modify_dictionary(
 
     assert_eq!(arc_process.get_value_from_key(key), value);
 
-    assert_eq!(native(&arc_process), Err(liblumen_alloc::alloc!().into()));
+    assert_eq!(result(&arc_process), Err(liblumen_alloc::alloc!().into()));
 
     assert_eq!(arc_process.get_value_from_key(key), value);
 }

@@ -4,7 +4,7 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::erlang::binary_to_list_3::native;
+use crate::erlang::binary_to_list_3::result;
 use crate::test::strategy;
 use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
@@ -22,7 +22,7 @@ fn without_binary_errors_badarg() {
             let stop = arc_process.integer(1).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, binary, start, stop),
+                result(&arc_process, binary, start, stop),
                 format!("binary ({}) must be a binary", binary)
             );
 
@@ -45,7 +45,7 @@ fn with_binary_without_integer_start_errors_badarg() {
             let stop = arc_process.integer(1).unwrap();
 
             prop_assert_badarg!(
-                        native(&arc_process, binary, start, stop),
+                        result(&arc_process, binary, start, stop),
                         format!("start ({}) must be a one-based integer index between 1 and the byte size of the binary", start)
                     );
 
@@ -67,7 +67,7 @@ fn with_binary_with_positive_integer_start_without_integer_stop_errors_badarg() 
         },
         |(arc_process, binary, start, stop)| {
             prop_assert_badarg!(
-                        native(&arc_process, binary, start, stop),
+                        result(&arc_process, binary, start, stop),
                         format!("stop ({}) must be a one-based integer index between 1 and the byte size of the binary", stop)
                     );
 
@@ -158,7 +158,7 @@ fn with_binary_with_start_less_than_or_equal_to_stop_returns_list_of_bytes() {
             };
 
             prop_assert_eq!(
-                native(&arc_process, binary, start_term, stop_term),
+                result(&arc_process, binary, start_term, stop_term),
                 Ok(list)
             );
 
@@ -206,7 +206,7 @@ fn with_binary_with_start_greater_than_stop_errors_badarg() {
             };
 
             prop_assert_badarg!(
-                native(&arc_process, binary, start_term, stop_term),
+                result(&arc_process, binary, start_term, stop_term),
                 format!(
                     "start ({}) must be less than or equal to stop ({})",
                     start, stop

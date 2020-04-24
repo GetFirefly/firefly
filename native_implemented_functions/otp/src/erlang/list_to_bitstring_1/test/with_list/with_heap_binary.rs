@@ -19,7 +19,7 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
         },
         |(arc_process, bitstring_list, element)| {
             prop_assert_badarg!(
-                native(&arc_process, bitstring_list),
+                result(&arc_process, bitstring_list),
                 element_context(bitstring_list, element)
             );
 
@@ -35,7 +35,7 @@ fn with_empty_list_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process.binary_from_bytes(&[0, 1]).unwrap())
         );
     })
@@ -57,7 +57,7 @@ fn with_proper_list_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process.binary_from_bytes(&[0, 1, 2]).unwrap())
         );
     });
@@ -71,7 +71,7 @@ fn with_heap_binary_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process.binary_from_bytes(&[0, 1, 2, 3]).unwrap())
         );
     })
@@ -90,7 +90,7 @@ fn with_subbinary_with_bit_count_0_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process.binary_from_bytes(&[0, 1, 255]).unwrap())
         );
     });
@@ -103,7 +103,7 @@ fn with_subbinary_with_bit_count_1_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(0, 1, 0b1010_1010, 0b1 :: 1, &process))
         );
     });
@@ -116,7 +116,7 @@ fn with_subbinary_with_bit_count_2_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(0, 1, 0b0101_0101, 0b01 :: 2, &process))
         );
     });
@@ -129,7 +129,7 @@ fn with_subbinary_with_bit_count_3_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(0, 1, 0b1010_1010, 0b101 :: 3, &process))
         );
     });
@@ -142,7 +142,7 @@ fn with_subbinary_with_bit_count_4_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(0, 1, 0b0101_0101, 0b0101 :: 4, &process))
         );
     });
@@ -155,7 +155,7 @@ fn with_subbinary_with_bit_count_5_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(0, 1, 0b1010_1010, 0b1010_1 :: 5, &process))
         );
     });
@@ -168,7 +168,7 @@ fn with_subbinary_with_bit_count_6_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(0, 1, 0b0101_0101, 0b0101_0100 :: 6, &process))
         );
     });
@@ -181,7 +181,7 @@ fn with_subbinary_with_bit_count_7_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(0, 1, 0b1010_1010, 0b1010_101 :: 7, &process))
         );
     });
@@ -196,7 +196,7 @@ where
         let bitstring_list = process.cons(head, tail).unwrap();
 
         assert_badarg!(
-            native(process, bitstring_list),
+            result(process, bitstring_list),
             format!(
                 "bitstring_list ({}) tail ({}) cannot be a byte",
                 bitstring_list, tail

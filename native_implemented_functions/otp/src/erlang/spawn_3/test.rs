@@ -1,7 +1,6 @@
 mod with_atom_module;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use anyhow::*;
 
@@ -12,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 use liblumen_alloc::{atom, atom_from, exit};
 
-use crate::erlang::{self, apply_3, exit_1, spawn_3};
+use crate::erlang::{self, apply_3, spawn_3};
 use crate::runtime::registry::pid_to_process;
 use crate::runtime::scheduler;
 use crate::test::{self, assert_exits_badarith, assert_exits_undef, strategy};
@@ -30,7 +29,7 @@ fn without_atom_module_errors_badarg() {
         },
         |(arc_process, module, function, arguments)| {
             prop_assert_is_not_atom!(
-                spawn_3::native(&arc_process, module, function, arguments),
+                spawn_3::result(&arc_process, module, function, arguments),
                 module
             );
 

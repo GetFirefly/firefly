@@ -7,7 +7,7 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::subtract_2::native;
+use crate::erlang::subtract_2::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -23,7 +23,7 @@ fn without_number_minuend_errors_badarith() {
         },
         |(arc_process, minuend, subtrahend)| {
             prop_assert_badarith!(
-                native(&arc_process, minuend, subtrahend),
+                result(&arc_process, minuend, subtrahend),
                 format!(
                     "minuend ({}) and subtrahend ({}) aren't both numbers",
                     minuend, subtrahend
@@ -47,7 +47,7 @@ fn with_number_minuend_without_number_subtrahend_errors_badarith() {
         },
         |(arc_process, minuend, subtrahend)| {
             prop_assert_badarith!(
-                native(&arc_process, minuend, subtrahend),
+                result(&arc_process, minuend, subtrahend),
                 format!(
                     "minuend ({}) and subtrahend ({}) aren't both numbers",
                     minuend, subtrahend
@@ -70,7 +70,7 @@ fn with_integer_minuend_with_integer_subtrahend_returns_integer() {
             )
         },
         |(arc_process, minuend, subtrahend)| {
-            let result = native(&arc_process, minuend, subtrahend);
+            let result = result(&arc_process, minuend, subtrahend);
 
             prop_assert!(result.is_ok());
 
@@ -94,7 +94,7 @@ fn with_integer_minuend_with_float_subtrahend_returns_float() {
             )
         },
         |(arc_process, minuend, subtrahend)| {
-            let result = native(&arc_process, minuend, subtrahend);
+            let result = result(&arc_process, minuend, subtrahend);
 
             prop_assert!(result.is_ok());
 

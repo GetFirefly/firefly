@@ -5,7 +5,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::list_to_integer_1::native;
+use crate::erlang::list_to_integer_1::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
@@ -20,7 +20,7 @@ fn without_list_errors_badarg() {
         },
         |(arc_process, list)| {
             prop_assert_badarg!(
-                native(&arc_process, list),
+                result(&arc_process, list),
                 format!("list ({}) is not a list", list)
             );
 

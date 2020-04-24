@@ -3,7 +3,7 @@ use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::is_record_3::native;
+use crate::erlang::is_record_3::result;
 use crate::test::strategy;
 
 #[test]
@@ -17,7 +17,7 @@ fn without_tuple_returns_false() {
             )
         },
         |(tuple, record_tag, size)| {
-            prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
+            prop_assert_eq!(result(tuple, record_tag, size), Ok(false.into()));
 
             Ok(())
         },
@@ -35,7 +35,7 @@ fn with_tuple_without_atom_errors_badarg() {
             )
         },
         |(tuple, record_tag, size)| {
-            prop_assert_is_not_atom!(native(tuple, record_tag, size), "record tag", record_tag);
+            prop_assert_is_not_atom!(result(tuple, record_tag, size), "record tag", record_tag);
 
             Ok(())
         },
@@ -69,7 +69,7 @@ fn with_empty_tuple_with_atom_without_non_negative_size_errors_badarg() {
             let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
             prop_assert_badarg!(
-                native(tuple, record_tag, size),
+                result(tuple, record_tag, size),
                 format!("size ({}) must be a positive integer", size)
             );
 
@@ -91,7 +91,7 @@ fn with_empty_tuple_with_atom_with_non_negative_size_returns_false() {
         |(arc_process, record_tag, size)| {
             let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
-            prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
+            prop_assert_eq!(result(tuple, record_tag, size), Ok(false.into()));
 
             Ok(())
         },
@@ -139,7 +139,7 @@ fn with_non_empty_tuple_without_record_tag_with_size_returns_false() {
                 )
         },
         |(tuple, record_tag, size)| {
-            prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
+            prop_assert_eq!(result(tuple, record_tag, size), Ok(false.into()));
 
             Ok(())
         },
@@ -173,7 +173,7 @@ fn with_non_empty_tuple_with_record_tag_without_size_returns_false() {
                 })
         },
         |(tuple, record_tag, size)| {
-            prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
+            prop_assert_eq!(result(tuple, record_tag, size), Ok(false.into()));
 
             Ok(())
         },
@@ -204,7 +204,7 @@ fn with_non_empty_tuple_with_record_tag_with_size_returns_true() {
                 })
         },
         |(tuple, record_tag, size)| {
-            prop_assert_eq!(native(tuple, record_tag, size), Ok(true.into()));
+            prop_assert_eq!(result(tuple, record_tag, size), Ok(true.into()));
 
             Ok(())
         },

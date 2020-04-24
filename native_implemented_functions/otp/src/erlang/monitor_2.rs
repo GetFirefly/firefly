@@ -24,7 +24,7 @@ use crate::runtime::{process, registry};
 const TYPE_CONTEXT: &str = "supported types are :port, :process, or :time_offset";
 
 #[native_implemented_function(monitor/2)]
-pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, r#type: Term, item: Term) -> exception::Result<Term> {
     let type_atom: Atom = r#type.try_into().context(TYPE_CONTEXT)?;
 
     match type_atom.name() {
@@ -101,7 +101,7 @@ fn monitor_process_registered_name(
             Ok(reference)
         }
         None => {
-            let identifier = process.tuple_from_slice(&[process_identifier, node_0::native()])?;
+            let identifier = process.tuple_from_slice(&[process_identifier, node_0::result()])?;
 
             monitor_process_identifier_noproc(process, identifier)
         }
@@ -122,7 +122,7 @@ fn monitor_process_tuple(
 
         let node = tuple[1];
 
-        if node == node_0::native() {
+        if node == node_0::result() {
             monitor_process_registered_name(process, registered_name, registered_name_atom)
         } else {
             let _: Atom = term_try_into_atom!(node)?;
@@ -130,7 +130,7 @@ fn monitor_process_tuple(
             unimplemented!(
                 "node ({:?}) is not the local node ({:?})",
                 node,
-                node_0::native()
+                node_0::result()
             );
         }
     } else {

@@ -4,7 +4,7 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
-use crate::erlang::binary_to_term_1::native;
+use crate::erlang::binary_to_term_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -18,7 +18,7 @@ fn without_binary_errors_badarg() {
         },
         |(arc_process, binary)| {
             prop_assert_badarg!(
-                native(&arc_process, binary),
+                result(&arc_process, binary),
                 format!("binary ({}) is not a binary", binary)
             );
 
@@ -181,7 +181,7 @@ where
             )
         },
         |(arc_process, binary)| {
-            prop_assert_eq!(native(&arc_process, binary), Ok(term(&arc_process)));
+            prop_assert_eq!(result(&arc_process, binary), Ok(term(&arc_process)));
 
             Ok(())
         },

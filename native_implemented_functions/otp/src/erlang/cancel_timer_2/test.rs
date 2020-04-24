@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::scheduler::SchedulerDependentAlloc;
 
-use crate::erlang::cancel_timer_2::native;
+use crate::erlang::cancel_timer_2::result;
 use crate::test::{
     cancel_timer_message, freeze_at_timeout, freeze_timeout, has_message, receive_message, run,
     strategy, timeout_message, with_process, with_process_arc, with_timer_in_same_thread,
@@ -29,7 +29,7 @@ fn without_reference_timer_reference_errors_badarg() {
             let options = Term::NIL;
 
             prop_assert_badarg!(
-                native(&arc_process, timer_reference, options),
+                result(&arc_process, timer_reference, options),
                 format!(
                     "timer_reference ({}) is not a local reference",
                     timer_reference
@@ -53,7 +53,7 @@ fn with_reference_timer_reference_without_list_options_errors_badarg() {
         },
         |(arc_process, timer_reference, options)| {
             prop_assert_badarg!(
-                native(&arc_process, timer_reference, options),
+                result(&arc_process, timer_reference, options),
                 "improper list"
             );
 

@@ -2,7 +2,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use crate::erlang::map_get_2::native;
+use crate::erlang::map_get_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -17,7 +17,7 @@ fn without_map_errors_badmap() {
         },
         |(arc_process, map, key)| {
             prop_assert_badmap!(
-                native(&arc_process, key, map),
+                result(&arc_process, key, map),
                 &arc_process,
                 map,
                 format!("map ({}) is not a map", map)
@@ -61,7 +61,7 @@ fn with_map_without_key_errors_badkey() {
                 }),
             |(arc_process, map, key)| {
                 prop_assert_badkey!(
-                    native(&arc_process, key, map),
+                    result(&arc_process, key, map),
                     &arc_process,
                     key,
                     format!("key ({}) does not exist in map ({})", key, map)
@@ -92,7 +92,7 @@ fn with_map_with_key_returns_value() {
                 })
         },
         |(arc_process, map, key, value)| {
-            prop_assert_eq!(native(&arc_process, key, map), Ok(value));
+            prop_assert_eq!(result(&arc_process, key, map), Ok(value));
 
             Ok(())
         },

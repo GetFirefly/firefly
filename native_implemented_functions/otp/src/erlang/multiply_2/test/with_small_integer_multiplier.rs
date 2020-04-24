@@ -12,7 +12,7 @@ fn without_number_multiplicand_errors_badarith() {
         },
         |(arc_process, multiplier, multiplicand)| {
             prop_assert_badarith!(
-                native(&arc_process, multiplier, multiplicand),
+                result(&arc_process, multiplier, multiplicand),
                 format!(
                     "multiplier ({}) and multiplicand ({}) aren't both numbers",
                     multiplier, multiplicand
@@ -30,7 +30,7 @@ fn with_small_integer_multiplicand_without_underflow_or_overflow_returns_small_i
         let multiplicand = process.integer(3).unwrap();
 
         assert_eq!(
-            native(process, multiplier, multiplicand),
+            result(process, multiplier, multiplicand),
             Ok(process.integer(6).unwrap())
         );
     })
@@ -43,7 +43,7 @@ fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
 
         assert!(multiplicand.is_smallint());
 
-        let result = native(process, multiplier, multiplicand);
+        let result = result(process, multiplier, multiplicand);
 
         assert!(result.is_ok());
 
@@ -60,7 +60,7 @@ fn with_small_integer_multiplicand_with_overflow_returns_big_integer() {
 
         assert!(multiplicand.is_smallint());
 
-        let result = native(process, multiplier, multiplicand);
+        let result = result(process, multiplier, multiplicand);
 
         assert!(result.is_ok());
 
@@ -81,7 +81,7 @@ fn with_big_integer_multiplicand_returns_big_integer() {
             )
         },
         |(arc_process, multiplier, multiplicand)| {
-            let result = native(&arc_process, multiplier, multiplicand);
+            let result = result(&arc_process, multiplier, multiplicand);
 
             prop_assert!(result.is_ok());
 
@@ -100,7 +100,7 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
         let multiplicand = process.float(3.0).unwrap();
 
         assert_eq!(
-            native(process, multiplier, multiplicand),
+            result(process, multiplier, multiplicand),
             Ok(process.float(6.0).unwrap())
         );
     })
@@ -112,7 +112,7 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
         let multiplicand = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
-            native(process, multiplier, multiplicand),
+            result(process, multiplier, multiplicand),
             Ok(process.float(std::f64::MIN).unwrap())
         );
     })
@@ -124,7 +124,7 @@ fn with_float_multiplicand_with_overflow_returns_max_float() {
         let multiplicand = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
-            native(process, multiplier, multiplicand),
+            result(process, multiplier, multiplicand),
             Ok(process.float(std::f64::MAX).unwrap())
         );
     })

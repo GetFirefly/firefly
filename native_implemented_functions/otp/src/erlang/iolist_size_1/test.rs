@@ -6,7 +6,7 @@ use proptest::{prop_assert, prop_oneof};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::iolist_size_1::native;
+use crate::erlang::iolist_size_1::result;
 use crate::test::strategy::term::*;
 use crate::test::strategy::*;
 use crate::test::with_process;
@@ -22,7 +22,7 @@ fn without_list_or_bitstring_errors_badarg() {
         },
         |(arc_process, iolist_or_binary)| {
             prop_assert_is_not_type!(
-                native(&arc_process, iolist_or_binary),
+                result(&arc_process, iolist_or_binary),
                 iolist_or_binary,
                 "an iolist (a maybe improper list with byte, binary, or iolist elements and binary or empty list tail) or binary"
             );
@@ -37,7 +37,7 @@ fn with_iolist_or_binary_returns_non_negative_integer() {
     run!(
         |arc_process| { (Just(arc_process.clone()), is_iolist_or_binary(arc_process)) },
         |(arc_process, iolist_or_binary)| {
-            let result = native(&arc_process, iolist_or_binary);
+            let result = result(&arc_process, iolist_or_binary);
 
             prop_assert!(result.is_ok(), "{:?}", result);
 
@@ -63,7 +63,7 @@ fn otp_doctest() {
             )
             .unwrap();
 
-        assert_eq!(native(process, iolist), Ok(process.integer(4).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(4).unwrap()))
     });
 }
 
@@ -100,7 +100,7 @@ fn with_iolist_returns_size() {
             )
             .unwrap();
 
-        assert_eq!(native(process, iolist), Ok(process.integer(10).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(10).unwrap()))
     });
 }
 
@@ -109,7 +109,7 @@ fn with_binary_returns_size() {
     with_process(|process| {
         let bin = process.binary_from_bytes(&[1, 2, 3]).unwrap();
 
-        assert_eq!(native(process, bin), Ok(process.integer(3).unwrap()))
+        assert_eq!(result(process, bin), Ok(process.integer(3).unwrap()))
     });
 }
 
@@ -128,7 +128,7 @@ fn with_subbinary_in_list_returns_size() {
                 .unwrap()])
             .unwrap();
 
-        assert_eq!(native(process, iolist), Ok(process.integer(3).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(3).unwrap()))
     });
 }
 
@@ -145,7 +145,7 @@ fn with_subbinary_returns_size() {
             )
             .unwrap();
 
-        assert_eq!(native(process, iolist), Ok(process.integer(3).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(3).unwrap()))
     });
 }
 
@@ -158,7 +158,7 @@ fn with_procbin_returns_size() {
         assert!(procbin.is_boxed_procbin());
         let iolist = process.list_from_slice(&[procbin]).unwrap();
 
-        assert_eq!(native(process, iolist), Ok(process.integer(65).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(65).unwrap()))
     });
 }
 
@@ -171,7 +171,7 @@ fn with_improper_list_smallint_tail_errors_badarg() {
             .unwrap();
 
         assert_badarg!(
-            native(process, iolist),
+            result(process, iolist),
             format!(
                 "iolist_or_binary ({}) tail ({}) cannot be a byte",
                 iolist, tail

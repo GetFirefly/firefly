@@ -5,7 +5,7 @@ use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::setelement_3::native;
+use crate::erlang::setelement_3::result;
 use crate::test::strategy;
 
 #[test]
@@ -20,7 +20,7 @@ fn without_tuple_errors_badarg() {
             )
         },
         |(arc_process, tuple, index, element)| {
-            prop_assert_is_not_tuple!(native(&arc_process, index, tuple, element), tuple);
+            prop_assert_is_not_tuple!(result(&arc_process, index, tuple, element), tuple);
 
             Ok(())
         },
@@ -41,7 +41,7 @@ fn with_tuple_without_valid_index_errors_badarg() {
             let boxed_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, index, tuple, element),
+                result(&arc_process, index, tuple, element),
                 format!(
                     "index ({}) is not a 1-based integer between 1-{}",
                     index,
@@ -68,7 +68,7 @@ fn with_tuple_with_valid_index_returns_tuple_with_index_replaced() {
             element_vec[element_vec_index] = element;
             let new_tuple = arc_process.tuple_from_slice(&element_vec).unwrap();
 
-            prop_assert_eq!(native(&arc_process, index, tuple, element), Ok(new_tuple));
+            prop_assert_eq!(result(&arc_process, index, tuple, element), Ok(new_tuple));
 
             Ok(())
         },

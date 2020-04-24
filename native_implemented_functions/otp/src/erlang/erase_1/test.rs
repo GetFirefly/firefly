@@ -3,7 +3,7 @@ use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::Atom;
 
-use crate::erlang::erase_1::native;
+use crate::erlang::erase_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -16,7 +16,7 @@ fn without_key_returns_undefined() {
             )
         },
         |(arc_process, key)| {
-            prop_assert_eq!(native(&arc_process, key), Atom::str_to_term("undefined"));
+            prop_assert_eq!(result(&arc_process, key), Atom::str_to_term("undefined"));
 
             Ok(())
         },
@@ -38,7 +38,7 @@ fn with_key_returns_value_and_removes_key_from_dictionary() {
 
             prop_assert_eq!(arc_process.get_value_from_key(key), value);
 
-            prop_assert_eq!(native(&arc_process, key), value);
+            prop_assert_eq!(result(&arc_process, key), value);
 
             prop_assert_eq!(
                 arc_process.get_value_from_key(key),

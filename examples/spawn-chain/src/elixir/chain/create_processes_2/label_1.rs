@@ -2,8 +2,8 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_otp::erlang;
@@ -45,7 +45,7 @@ pub fn place_frame_with_arguments(
 ///     final_answer
 /// end
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     // placed on top of stack by return from `elixir::r#enum::reduce_0_code`
     let last = arc_process.stack_pop().unwrap();
     assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
@@ -77,7 +77,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     erlang::send_2::place_frame_with_arguments(arc_process, Placement::Push, last, message)
         .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame(process: &Process) -> Frame {

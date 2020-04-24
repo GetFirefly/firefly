@@ -15,7 +15,7 @@ fn without_list_right_returns_improper_list_with_right_as_tail() {
             )
         },
         |(arc_process, left, right)| {
-            let result = native(&arc_process, left, right);
+            let result = result(&arc_process, left, right);
 
             prop_assert!(result.is_ok());
 
@@ -75,7 +75,7 @@ fn with_improper_list_right_returns_improper_list_with_right_as_tail() {
             )
         },
         |(arc_process, left, right)| {
-            let result = native(&arc_process, left, right);
+            let result = result(&arc_process, left, right);
 
             prop_assert!(result.is_ok());
 
@@ -119,7 +119,7 @@ fn with_list_right_returns_proper_list_with_right_as_tail() {
             )
         },
         |(arc_process, left, right)| {
-            let result = native(&arc_process, left, right);
+            let result = result(&arc_process, left, right);
 
             prop_assert!(result.is_ok());
 

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::Placement;
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_otp::erlang;
@@ -32,7 +32,7 @@ pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, All
 ///   spawn(Chain, :counter, [send_to, output])
 /// end
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     // from environment
@@ -60,5 +60,5 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     )
     .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }

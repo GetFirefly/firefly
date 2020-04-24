@@ -6,7 +6,7 @@ fn without_registered_returns_empty_list() {
         let unregistred_arc_process = test::process::child(&parent_process_arc);
 
         assert_eq!(
-            native(
+            result(
                 &parent_process_arc,
                 unregistred_arc_process.pid_term(),
                 item()
@@ -29,7 +29,7 @@ fn with_registered_returns_empty_list() {
         ));
 
         assert_eq!(
-            native(
+            result(
                 &parent_process_arc,
                 registered_process_arc.pid_term(),
                 item()

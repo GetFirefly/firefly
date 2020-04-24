@@ -11,7 +11,7 @@ fn without_integer_start_without_integer_length_errors_badarg() {
         strategy::without_integer_start_without_integer_length,
         |(arc_process, binary, start, length)| {
             prop_assert_is_not_non_negative_integer!(
-                native(&arc_process, binary, start, length),
+                result(&arc_process, binary, start, length),
                 start
             );
 
@@ -29,7 +29,7 @@ fn without_integer_start_with_integer_length_errors_badarg() {
         length,
     )| {
         prop_assert_is_not_non_negative_integer!(
-            native(&arc_process, binary, start, length),
+            result(&arc_process, binary, start, length),
             start
         );
 
@@ -42,7 +42,7 @@ fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
     run!(
         strategy::with_non_negative_integer_start_without_integer_length,
         |(arc_process, binary, start, length)| {
-            prop_assert_is_not_integer!(native(&arc_process, binary, start, length), length);
+            prop_assert_is_not_integer!(result(&arc_process, binary, start, length), length);
 
             Ok(())
         },
@@ -58,7 +58,7 @@ fn with_negative_start_with_valid_length_errors_badarg() {
         length,
     )| {
         prop_assert_is_not_non_negative_integer!(
-            native(&arc_process, binary, start, length),
+            result(&arc_process, binary, start, length),
             start
         );
 
@@ -72,7 +72,7 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
         strategy::with_start_greater_than_size_with_non_negative_length,
         |(arc_process, binary, start, length)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, start, length),
+                result(&arc_process, binary, start, length),
                 format!("start ({}) exceeds available_byte_count", start)
             );
 
@@ -87,7 +87,7 @@ fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
         strategy::with_start_less_than_size_with_negative_length_past_start,
         |(arc_process, binary, start, length, end)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, start, length),
+                result(&arc_process, binary, start, length),
                 format!("end ({}) is less than or equal to 0", end)
             );
 
@@ -129,7 +129,7 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
         },
         |(arc_process, binary, start, length, end)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, start, length),
+                result(&arc_process, binary, start, length),
                 format!("end ({}) exceeds available_byte_count", end)
             );
 
@@ -149,7 +149,7 @@ fn with_positive_start_and_negative_length_returns_subbinary() {
 fn returns_subbinary(
     (arc_process, binary, start, length): (Arc<Process>, Term, Term, Term),
 ) -> TestCaseResult {
-    let result = native(&arc_process, binary, start, length);
+    let result = result(&arc_process, binary, start, length);
 
     prop_assert!(result.is_ok());
 

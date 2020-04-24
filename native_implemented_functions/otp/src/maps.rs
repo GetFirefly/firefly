@@ -14,5 +14,9 @@ pub mod values_1;
 use liblumen_alloc::erts::term::prelude::Atom;
 
 fn module() -> Atom {
-    Atom::try_from_str("maps").unwrap()
+    Atom::from_str("maps")
+}
+
+fn module_id() -> usize {
+    module().id()
 }

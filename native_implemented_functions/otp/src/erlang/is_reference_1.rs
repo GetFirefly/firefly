@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(is_reference/1)]
-pub fn native(term: Term) -> Term {
+pub fn result(term: Term) -> Term {
     match term.decode().unwrap() {
         TypedTerm::Reference(_) => true,
         TypedTerm::ExternalReference(_) => true,

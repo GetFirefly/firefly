@@ -19,7 +19,7 @@ fn with_different_process_errors_badarg() {
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(
-                native(arc_process.clone(), time, destination, message, options),
+                result(arc_process.clone(), time, destination, message, options),
                 "abs value",
                 abs_value
             );
@@ -46,7 +46,7 @@ fn with_same_process_errors_badarg() {
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(
-                native(arc_process.clone(), time, destination, message, options),
+                result(arc_process.clone(), time, destination, message, options),
                 "abs value",
                 abs_value
             );
@@ -73,7 +73,7 @@ fn without_process_errors_badarg() {
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(
-                native(arc_process.clone(), time, destination, message, options),
+                result(arc_process.clone(), time, destination, message, options),
                 "abs value",
                 abs_value
             );

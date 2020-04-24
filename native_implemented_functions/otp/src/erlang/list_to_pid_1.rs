@@ -20,7 +20,7 @@ use crate::runtime::distribution::nodes;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(list_to_pid/1)]
-pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, string: Term) -> exception::Result<Term> {
     let cons = term_try_into_non_empty_list!(string)?;
 
     let prefix_tail = skip_char(cons, '<').context("first character must be '<'")?;

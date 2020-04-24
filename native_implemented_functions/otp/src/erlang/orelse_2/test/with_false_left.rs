@@ -87,6 +87,6 @@ where
         let left = false.into();
         let right = right(&process);
 
-        assert_eq!(native(left, right), Ok(right));
+        assert_eq!(result(left, right), Ok(right));
     });
 }

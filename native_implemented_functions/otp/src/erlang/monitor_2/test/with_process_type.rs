@@ -12,7 +12,7 @@ fn without_process_identifier_errors_badarg() {
                 &is_not_process_identifier(arc_process.clone()),
                 |process_identifier| {
                     prop_assert_badarg!(
-                        native(&arc_process, r#type(), process_identifier),
+                        result(&arc_process, r#type(), process_identifier),
                         "process identifier must be `pid | registered_name() | {registered_name(), node()}`"
                     );
 

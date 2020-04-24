@@ -28,7 +28,7 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
                 })
         },
         |(arc_process, bitstring_list, element)| {
-            prop_assert_badarg!(native(&arc_process, bitstring_list), format!("bitstring_list ([{}]) element ({}) is not a byte, bitstring, or nested bitstring_list", element, element));
+            prop_assert_badarg!(result(&arc_process, bitstring_list), format!("bitstring_list ([{}]) element ({}) is not a byte, bitstring, or nested bitstring_list", element, element));
 
             Ok(())
         },
@@ -41,7 +41,7 @@ fn with_empty_list_returns_empty_binary() {
         let iolist = process.cons(Term::NIL, Term::NIL).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process.binary_from_bytes(&[]).unwrap())
         );
     })

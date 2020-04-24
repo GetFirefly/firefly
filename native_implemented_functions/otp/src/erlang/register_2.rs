@@ -18,7 +18,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::registry;
 
 #[native_implemented_function(register/2)]
-pub fn native(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> exception::Result<Term> {
+pub fn result(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> exception::Result<Term> {
     let atom = term_try_into_atom!(name)?;
 
     match atom.name() {

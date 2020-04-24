@@ -8,15 +8,14 @@ fn returns_true() {
 #[test]
 fn flushes_existing_message_and_returns_true() {
     with_process_arc(|monitoring_arc_process| {
-        let monitored_arc_process = test::process::child(&monitoring_arc_process);
+        let monitored_arc_process = process::child(&monitoring_arc_process);
         let monitored_pid_term = monitored_arc_process.pid_term();
 
         let monitor_reference =
-            monitor_2::native(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
+            monitor_2::result(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
 
         let reason = Atom::str_to_term("normal");
-        exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&monitored_arc_process, reason);
 
         assert!(scheduler::run_through(&monitored_arc_process));
 
@@ -33,7 +32,7 @@ fn flushes_existing_message_and_returns_true() {
         );
 
         assert_eq!(
-            native(
+            result(
                 &monitoring_arc_process,
                 monitor_reference,
                 options(&monitoring_arc_process)

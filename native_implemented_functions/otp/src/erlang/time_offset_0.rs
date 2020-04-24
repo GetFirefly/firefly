@@ -10,7 +10,7 @@ use crate::runtime::time::{monotonic, system, Unit::Native};
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(time_offset/0)]
-pub fn native(process: &Process) -> exception::Result<Term> {
+pub fn result(process: &Process) -> exception::Result<Term> {
     let system_time = system::time(Native);
     let monotonic_time = monotonic::time(Native);
 

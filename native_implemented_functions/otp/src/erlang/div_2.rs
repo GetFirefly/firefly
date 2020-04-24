@@ -13,6 +13,6 @@ use native_implemented_function::native_implemented_function;
 
 /// `div/2` infix operator.  Integer division.
 #[native_implemented_function(div/2)]
-pub fn native(process: &Process, dividend: Term, divisor: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, dividend: Term, divisor: Term) -> exception::Result<Term> {
     integer_infix_operator!(dividend, divisor, process, /)
 }

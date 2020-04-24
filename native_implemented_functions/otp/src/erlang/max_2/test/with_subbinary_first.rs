@@ -23,7 +23,7 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_second_returns
                 )
         },
         |(first, second)| {
-            prop_assert_eq!(native(first, second), first);
+            prop_assert_eq!(result(first, second), first);
 
             Ok(())
         },

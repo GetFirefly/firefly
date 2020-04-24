@@ -1,13 +1,18 @@
-pub mod r#loop;
+pub mod anonymous_0;
+pub mod anonymous_1;
+mod init;
+pub mod loop_0;
 pub mod process;
 pub mod process_dictionary;
+pub mod return_from_fn_0;
+pub mod return_from_fn_1;
 
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest,
 // so disable property-based tests and associated helpers completely for wasm32
 //
 // See https://github.com/rust-lang/cargo/issues/4866
 #[cfg(all(not(target_arch = "wasm32"), test))]
-pub mod proptest;
+mod proptest;
 #[cfg(all(not(target_arch = "wasm32"), test))]
 pub mod strategy;
 
@@ -22,12 +27,10 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
+use crate::erlang::{self, exit_1};
+use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
 use crate::runtime::time::{monotonic, Milliseconds};
-
-use crate::runtime::scheduler::SchedulerDependentAlloc;
 use crate::runtime::timer;
-
-use crate::erlang;
 
 #[cfg(feature = "runtime_minimal")]
 #[export_name = "CURRENT_REDUCTION_COUNT"]
@@ -41,7 +44,7 @@ pub fn assert_exits<F: Fn(Option<Term>)>(
     source_substring: &str,
 ) {
     match *process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
+        Status::RuntimeException(ref runtime_exception) => {
             assert_eq!(runtime_exception.reason(), Some(expected_reason));
             assert_stacktrace(runtime_exception.stacktrace());
 
@@ -94,6 +97,12 @@ pub fn badarity_reason(process: &Process, function: Term, args: Term) -> Term {
     process.tuple_from_slice(&[tag, fun_args]).unwrap()
 }
 
+pub fn exit_when_run(process: &Process, reason: Term) {
+    process.queue_frame_with_arguments(exit_1::frame().with_arguments(false, &[reason]));
+    process.stack_queued_frames_with_arguments();
+    process.scheduler().unwrap().stop_waiting(process);
+}
+
 pub fn freeze_timeout() -> Milliseconds {
     let frozen = monotonic::freeze_time_in_milliseconds();
     timer::timeout();
@@ -104,6 +113,14 @@ pub fn freeze_timeout() -> Milliseconds {
 pub fn freeze_at_timeout(frozen: Milliseconds) {
     monotonic::freeze_at_time_in_milliseconds(frozen);
     timer::timeout();
+}
+
+pub fn module() -> Atom {
+    Atom::from_str("test")
+}
+
+pub fn module_id() -> usize {
+    module().id()
 }
 
 pub fn with_big_int(f: fn(&Process, Term) -> ()) {
@@ -134,7 +151,7 @@ pub fn with_options_with_timer_in_same_thread_with_timeout_returns_false_after_t
     N,
     O,
 >(
-    native: N,
+    result: N,
     options: O,
 ) where
     N: Fn(&Process, Term, Term) -> exception::Result<Term>,
@@ -149,22 +166,22 @@ pub fn with_options_with_timer_in_same_thread_with_timeout_returns_false_after_t
         assert_has_message!(process, timeout_message);
 
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(false.into())
         );
         // again
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(false.into())
         );
     })
 }
 
 pub fn with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     with_options_with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(
-        |process, timer_reference, _| native(process, timer_reference),
+        |process, timer_reference, _| result(process, timer_reference),
         |_| Term::NIL,
     )
 }
@@ -177,7 +194,7 @@ where
     let milliseconds: u64 = 100;
 
     let message = Atom::str_to_term("message");
-    let timer_reference = erlang::start_timer_3::native(
+    let timer_reference = erlang::start_timer_3::result(
         same_thread_process_arc.clone(),
         same_thread_process_arc.integer(milliseconds).unwrap(),
         same_thread_process_arc.pid().into(),
@@ -193,10 +210,10 @@ where
     );
 }
 
-pub fn without_timer_returns_false(native: fn(&Process, Term) -> exception::Result<Term>) {
+pub fn without_timer_returns_false(result: fn(&Process, Term) -> exception::Result<Term>) {
     with_process(|process| {
         let timer_reference = process.next_reference().unwrap();
 
-        assert_eq!(native(process, timer_reference), Ok(false.into()));
+        assert_eq!(result(process, timer_reference), Ok(false.into()));
     });
 }

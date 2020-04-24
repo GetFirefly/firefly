@@ -1,8 +1,8 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::{Pid, Term};
 
 use crate::elixir;
@@ -11,7 +11,7 @@ pub fn place_frame_with_arguments(
     process: &Process,
     placement: Placement,
     text: Term,
-) -> code::Result {
+) -> frames::Result {
     process.stack_push(text)?;
     process.place_frame(frame(process), placement);
 
@@ -28,7 +28,7 @@ pub fn place_frame_with_arguments(
 /// # returns: :ok
 /// IO.puts("#{self()} #{text}")
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let self_pid: Pid = arc_process.stack_pop().unwrap().try_into().unwrap();
@@ -42,7 +42,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     elixir::io::puts_1::place_frame_with_arguments(arc_process, Placement::Replace, full_text)
         .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame(process: &Process) -> Frame {

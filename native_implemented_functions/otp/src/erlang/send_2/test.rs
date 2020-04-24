@@ -10,7 +10,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang;
-use crate::erlang::send_2::native;
+use crate::erlang::send_2::result;
 use crate::test;
 use crate::test::{
     external_arc_node, has_heap_message, has_process_message, registered_name, strategy,
@@ -29,7 +29,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
         },
         |(arc_process, destination, message)| {
             prop_assert_badarg!(
-                native(&arc_process, destination, message),
+                result(&arc_process, destination, message),
                 format!(
                 "destination ({}) is not registered_name (atom), {{registered_name, node}}, or pid",
                 destination

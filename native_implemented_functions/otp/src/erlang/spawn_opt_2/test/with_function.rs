@@ -20,7 +20,7 @@ fn without_proper_list_options_errors_badarg() {
                 .improper_list_from_slice(&[atom!("link")], tail)
                 .unwrap();
 
-            prop_assert_badarg!(native(&arc_process, function, options), "improper list");
+            prop_assert_badarg!(result(&arc_process, function, options), "improper list");
 
             Ok(())
         },

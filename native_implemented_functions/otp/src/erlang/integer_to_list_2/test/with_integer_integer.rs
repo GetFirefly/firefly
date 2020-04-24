@@ -6,7 +6,7 @@ use proptest::strategy::{Just, Strategy};
 
 #[test]
 fn without_base_base_errors_badarg() {
-    crate::test::with_integer_integer_without_base_base_errors_badarg(file!(), native);
+    crate::test::with_integer_integer_without_base_base_errors_badarg(file!(), result);
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn with_base_base_returns_list() {
             let integer = arc_process.integer(integer_isize).unwrap();
             let base = arc_process.integer(base_u8).unwrap();
 
-            let result = native(&arc_process, integer, base);
+            let result = result(&arc_process, integer, base);
 
             prop_assert!(result.is_ok());
 
@@ -58,7 +58,7 @@ fn with_negative_integer_returns_list_in_base_with_negative_sign_in_front_of_non
 
             let positive_isize = -1 * negative_isize;
             let positive_integer = arc_process.integer(positive_isize).unwrap();
-            let positive_list = native(&arc_process, positive_integer, base).unwrap();
+            let positive_list = result(&arc_process, positive_integer, base).unwrap();
             let positive_string: String = list_to_string(positive_list).unwrap();
             let expected_negative_string = format!("-{}", positive_string);
             let expected_negative_list = arc_process
@@ -67,7 +67,7 @@ fn with_negative_integer_returns_list_in_base_with_negative_sign_in_front_of_non
 
             let negative_integer = arc_process.integer(negative_isize).unwrap();
 
-            let result = native(&arc_process, negative_integer, base);
+            let result = result(&arc_process, negative_integer, base);
 
             prop_assert!(result.is_ok());
 

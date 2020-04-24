@@ -6,7 +6,7 @@ fn without_process() {
         let pid_or_port = Pid::next_term();
 
         assert_badarg!(
-            native(process_arc, registered_name(), pid_or_port),
+            result(process_arc, registered_name(), pid_or_port),
             format!("{} is not a pid of an alive process", pid_or_port)
         );
     });
@@ -20,7 +20,7 @@ fn with_same_process() {
         let pid_or_port = process_arc.pid();
 
         assert_eq!(
-            native(process_arc.clone(), name, pid_or_port.into()),
+            result(process_arc.clone(), name, pid_or_port.into()),
             Ok(true.into())
         );
         assert_eq!(*process_arc.registered_name.read(), Some(name_atom));
@@ -40,7 +40,7 @@ fn with_different_process() {
         let pid_or_port = another_process_arc.pid();
 
         assert_eq!(
-            erlang::register_2::native(process_arc, name, pid_or_port.into()),
+            erlang::register_2::result(process_arc, name, pid_or_port.into()),
             Ok(true.into())
         );
 

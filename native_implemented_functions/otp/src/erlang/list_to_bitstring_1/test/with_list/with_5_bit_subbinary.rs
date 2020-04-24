@@ -19,7 +19,7 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
         },
         |(arc_process, bitstring_list, element)| {
             prop_assert_badarg!(
-                native(&arc_process, bitstring_list),
+                result(&arc_process, bitstring_list),
                 element_context(bitstring_list, element)
             );
 
@@ -45,7 +45,7 @@ fn with_empty_list_returns_bitstring() {
                 })
         },
         |(arc_process, list, bitstring)| {
-            prop_assert_eq!(native(&arc_process, list), Ok(bitstring));
+            prop_assert_eq!(result(&arc_process, list), Ok(bitstring));
 
             Ok(())
         },
@@ -58,7 +58,7 @@ fn with_empty_list_returns_binary() {
         let tail = Term::NIL;
         let iolist = process.cons(head, tail).unwrap();
 
-        assert_eq!(native(process, iolist), Ok(head));
+        assert_eq!(result(process, iolist), Ok(head));
     })
 }
 
@@ -78,7 +78,7 @@ fn with_proper_list_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process
                 .subbinary_from_original(
                     process.binary_from_bytes(&[1, 175, 30 << (8 - 5)]).unwrap(),
@@ -100,7 +100,7 @@ fn with_heap_binary_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(1, 175, 247, 29 :: 5, &process))
         );
     })
@@ -117,7 +117,7 @@ fn with_subbinary_with_bit_count_0_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(1, 168, 2 :: 5, &process))
         );
     });
@@ -130,7 +130,7 @@ fn with_subbinary_with_bit_count_1_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(1, 168, 5 :: 6, &process))
         );
     });
@@ -143,7 +143,7 @@ fn with_subbinary_with_bit_count_2_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(1, 168, 11 :: 7, &process))
         );
     });
@@ -156,7 +156,7 @@ fn with_subbinary_with_bit_count_3_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(process.binary_from_bytes(&[1, 168, 21]).unwrap())
         );
     });
@@ -169,7 +169,7 @@ fn with_subbinary_with_bit_count_4_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(1, 168, 18, 1 :: 1, &process))
         );
     });
@@ -182,7 +182,7 @@ fn with_subbinary_with_bit_count_5_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!(1, 168, 21, 1 :: 2, &process))
         );
     });
@@ -195,7 +195,7 @@ fn with_subbinary_with_bit_count_6_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!( 1, 168, 18, 5 :: 3, &process))
         );
     });
@@ -208,7 +208,7 @@ fn with_subbinary_with_bit_count_7_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            native(process, iolist),
+            result(process, iolist),
             Ok(bitstring!( 1, 168, 21, 5 :: 4, &process)),
         )
     });
@@ -223,7 +223,7 @@ where
         let bitstring_list = process.cons(head, tail).unwrap();
 
         assert_badarg!(
-            native(process, bitstring_list),
+            result(process, bitstring_list),
             format!(
                 "bitstring_list ({}) tail ({}) cannot be a byte",
                 bitstring_list, tail

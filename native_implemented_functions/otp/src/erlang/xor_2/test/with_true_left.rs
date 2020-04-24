@@ -5,7 +5,7 @@ fn without_boolean_right_errors_badarg() {
     run!(
         |arc_process| strategy::term::is_not_boolean(arc_process.clone()),
         |right_boolean| {
-            prop_assert_is_not_boolean!(native(true.into(), right_boolean), right_boolean);
+            prop_assert_is_not_boolean!(result(true.into(), right_boolean), right_boolean);
 
             Ok(())
         },
@@ -14,10 +14,10 @@ fn without_boolean_right_errors_badarg() {
 
 #[test]
 fn with_false_right_returns_true() {
-    assert_eq!(native(true.into(), false.into()), Ok(true.into()));
+    assert_eq!(result(true.into(), false.into()), Ok(true.into()));
 }
 
 #[test]
 fn with_true_right_returns_false() {
-    assert_eq!(native(true.into(), true.into()), Ok(false.into()));
+    assert_eq!(result(true.into(), true.into()), Ok(false.into()));
 }

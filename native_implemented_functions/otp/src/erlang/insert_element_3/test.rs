@@ -7,7 +7,7 @@ use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::erts::term::prelude::{Boxed, Tuple};
 
-use crate::erlang::insert_element_3::native;
+use crate::erlang::insert_element_3::result;
 use crate::test::strategy;
 
 #[test]
@@ -22,7 +22,7 @@ fn without_tuple_errors_badarg() {
             )
         },
         |(arc_process, tuple, index, element)| {
-            prop_assert_is_not_tuple!(native(&arc_process, index, tuple, element), tuple);
+            prop_assert_is_not_tuple!(result(&arc_process, index, tuple, element), tuple);
 
             Ok(())
         },
@@ -58,7 +58,7 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
             let boxed_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, index, tuple, element),
+                result(&arc_process, index, tuple, element),
                 format!(
                     "index ({}) is not a 1-based integer between 1-{}",
                     index,
@@ -99,7 +99,7 @@ fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tup
             element_vec.insert(element_vec_index, element);
 
             prop_assert_eq!(
-                native(&arc_process, index, tuple, element),
+                result(&arc_process, index, tuple, element),
                 Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
             );
 

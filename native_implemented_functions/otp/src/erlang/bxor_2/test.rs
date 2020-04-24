@@ -8,18 +8,18 @@ use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::Encoded;
 
-use crate::erlang::bxor_2::native;
+use crate::erlang::bxor_2::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
 #[test]
 fn without_integer_left_errors_badarith() {
-    crate::test::without_integer_left_errors_badarith(file!(), native);
+    crate::test::without_integer_left_errors_badarith(file!(), result);
 }
 
 #[test]
 fn without_integer_left_without_integer_right_errors_badarith() {
-    crate::test::with_integer_left_without_integer_right_errors_badarith(file!(), native);
+    crate::test::with_integer_left_without_integer_right_errors_badarith(file!(), result);
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn with_same_integer_returns_zero() {
         },
         |(arc_process, operand)| {
             prop_assert_eq!(
-                native(&arc_process, operand, operand),
+                result(&arc_process, operand, operand),
                 Ok(arc_process.integer(0).unwrap())
             );
 

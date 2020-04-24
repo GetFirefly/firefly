@@ -15,7 +15,7 @@ use crate::erlang::string_to_float::string_to_float;
 use crate::runtime::binary_to_string::binary_to_string;
 
 #[native_implemented_function(binary_to_float/1)]
-pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, binary: Term) -> exception::Result<Term> {
     let string = binary_to_string(binary)?;
 
     string_to_float(process, "binary", &string, '"').map_err(From::from)

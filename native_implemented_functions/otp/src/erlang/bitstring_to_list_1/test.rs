@@ -6,13 +6,13 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::bitstring_to_list_1::native;
+use crate::erlang::bitstring_to_list_1::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    crate::test::without_bitstring_errors_badarg(file!(), native);
+    crate::test::without_bitstring_errors_badarg(file!(), result);
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn with_heap_binary_returns_list_of_integer() {
 
                 let bitstring = arc_process.binary_from_bytes(&byte_vec).unwrap();
 
-                prop_assert_eq!(native(&arc_process, bitstring), Ok(list));
+                prop_assert_eq!(result(&arc_process, bitstring), Ok(list));
 
                 Ok(())
             })
@@ -115,7 +115,7 @@ fn with_subbinary_without_bit_count_returns_list_of_integer() {
                         len => unimplemented!("len = {:?}", len),
                     };
 
-                    prop_assert_eq!(native(&arc_process, bitstring), Ok(list));
+                    prop_assert_eq!(result(&arc_process, bitstring), Ok(list));
 
                     Ok(())
                 },
@@ -192,7 +192,7 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
                 len => unimplemented!("len = {:?}", len),
             };
 
-            prop_assert_eq!(native(&arc_process, bitstring), Ok(list));
+            prop_assert_eq!(result(&arc_process, bitstring), Ok(list));
 
             Ok(())
         },

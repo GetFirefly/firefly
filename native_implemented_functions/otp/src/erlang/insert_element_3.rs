@@ -19,7 +19,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::context::*;
 
 #[native_implemented_function(insert_element/3)]
-pub fn native(
+pub fn result(
     process: &Process,
     index: Term,
     tuple: Term,

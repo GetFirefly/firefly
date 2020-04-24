@@ -2,13 +2,14 @@ mod with_reference;
 
 use proptest::strategy::Just;
 
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::demonitor_1::native;
-use crate::erlang::{exit_1, monitor_2};
+use crate::erlang::demonitor_1::result;
+use crate::erlang::monitor_2;
 use crate::runtime::scheduler::{self, SchedulerDependentAlloc};
-use crate::test::{self, has_message, monitor_count, monitored_count, strategy, with_process_arc};
+use crate::test::{
+    self, exit_when_run, has_message, monitor_count, monitored_count, strategy, with_process_arc,
+};
 
 #[test]
 fn without_reference_errors_badarg() {
@@ -20,7 +21,7 @@ fn without_reference_errors_badarg() {
             )
         },
         |(arc_process, reference)| {
-            prop_assert_is_not_local_reference!(native(&arc_process, reference), reference);
+            prop_assert_is_not_local_reference!(result(&arc_process, reference), reference);
 
             Ok(())
         },

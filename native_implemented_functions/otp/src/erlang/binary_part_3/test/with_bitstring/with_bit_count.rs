@@ -97,11 +97,11 @@ fn returns_subbinary_without_bit_count(
         .unwrap();
 
     prop_assert_eq!(
-        native(&arc_process, binary, start, length),
+        result(&arc_process, binary, start, length),
         Ok(expected_returned_binary)
     );
 
-    let returned = native(&arc_process, binary, start, length).unwrap();
+    let returned = result(&arc_process, binary, start, length).unwrap();
 
     let returned_subbinary_result: core::result::Result<Boxed<SubBinary>, _> = returned.try_into();
 

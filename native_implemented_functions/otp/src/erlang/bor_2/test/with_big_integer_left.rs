@@ -11,7 +11,7 @@ fn with_integer_right_returns_bitwise_and() {
             )
         },
         |(arc_process, left, right)| {
-            let result = native(&arc_process, left, right);
+            let result = result(&arc_process, left, right);
 
             prop_assert!(result.is_ok());
 

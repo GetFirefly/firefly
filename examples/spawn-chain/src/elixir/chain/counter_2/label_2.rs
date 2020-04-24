@@ -1,8 +1,8 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::{Boxed, Closure, Encoded, Term};
 
 use liblumen_otp::erlang;
@@ -14,7 +14,7 @@ pub fn place_frame_with_arguments(
     placement: Placement,
     next_pid: Term,
     output: Term,
-) -> code::Result {
+) -> frames::Result {
     process.stack_push(output)?;
     process.stack_push(next_pid)?;
     process.place_frame(frame(process), placement);
@@ -33,7 +33,7 @@ pub fn place_frame_with_arguments(
 /// sent = send(next_pid, sum)
 /// output.("sent #{sent} to #{next_pid}")
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let sum = arc_process.stack_pop().unwrap();
@@ -63,7 +63,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     erlang::send_2::place_frame_with_arguments(arc_process, Placement::Push, next_pid, sum)
         .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame(process: &Process) -> Frame {

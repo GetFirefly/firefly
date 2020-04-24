@@ -21,15 +21,15 @@ fn with_20_digits_is_the_same_as_float_to_list_1() {
         let zero = arc_process.float(0.0).unwrap();
 
         assert_eq!(
-            native(&arc_process, zero, options).unwrap(),
-            float_to_list_1::native(&arc_process, zero).unwrap()
+            result(&arc_process, zero, options).unwrap(),
+            float_to_list_1::result(&arc_process, zero).unwrap()
         );
 
         let one_tenth = arc_process.float(0.1).unwrap();
 
         assert_eq!(
-            native(&arc_process, one_tenth, options).unwrap(),
-            float_to_list_1::native(&arc_process, one_tenth).unwrap()
+            result(&arc_process, one_tenth, options).unwrap(),
+            float_to_list_1::result(&arc_process, one_tenth).unwrap()
         );
     });
 }
@@ -40,107 +40,107 @@ fn returns_list_with_coefficient_e_exponent() {
         let float = arc_process.float(1234567890.0987654321).unwrap();
 
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 0)),
+            result(&arc_process, float, options(&arc_process, 0)),
             Ok(arc_process.charlist_from_str("1e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 1)),
+            result(&arc_process, float, options(&arc_process, 1)),
             Ok(arc_process.charlist_from_str("1.2e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 2)),
+            result(&arc_process, float, options(&arc_process, 2)),
             Ok(arc_process.charlist_from_str("1.23e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 3)),
+            result(&arc_process, float, options(&arc_process, 3)),
             Ok(arc_process.charlist_from_str("1.235e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 4)),
+            result(&arc_process, float, options(&arc_process, 4)),
             Ok(arc_process.charlist_from_str("1.2346e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 5)),
+            result(&arc_process, float, options(&arc_process, 5)),
             Ok(arc_process.charlist_from_str("1.23457e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 6)),
+            result(&arc_process, float, options(&arc_process, 6)),
             Ok(arc_process.charlist_from_str("1.234568e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 7)),
+            result(&arc_process, float, options(&arc_process, 7)),
             Ok(arc_process.charlist_from_str("1.2345679e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 8)),
+            result(&arc_process, float, options(&arc_process, 8)),
             Ok(arc_process.charlist_from_str("1.23456789e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 9)),
+            result(&arc_process, float, options(&arc_process, 9)),
             Ok(arc_process.charlist_from_str("1.234567890e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 10)),
+            result(&arc_process, float, options(&arc_process, 10)),
             Ok(arc_process.charlist_from_str("1.2345678901e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 11)),
+            result(&arc_process, float, options(&arc_process, 11)),
             Ok(arc_process.charlist_from_str("1.23456789010e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 12)),
+            result(&arc_process, float, options(&arc_process, 12)),
             Ok(arc_process.charlist_from_str("1.234567890099e+09").unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 13)),
+            result(&arc_process, float, options(&arc_process, 13)),
             Ok(arc_process
                 .charlist_from_str("1.2345678900988e+09")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 14)),
+            result(&arc_process, float, options(&arc_process, 14)),
             Ok(arc_process
                 .charlist_from_str("1.23456789009877e+09")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 15)),
+            result(&arc_process, float, options(&arc_process, 15)),
             Ok(arc_process
                 .charlist_from_str("1.234567890098765e+09")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 16)),
+            result(&arc_process, float, options(&arc_process, 16)),
             Ok(arc_process
                 .charlist_from_str("1.2345678900987654e+09")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 17)),
+            result(&arc_process, float, options(&arc_process, 17)),
             Ok(arc_process
                 .charlist_from_str("1.23456789009876537e+09")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 18)),
+            result(&arc_process, float, options(&arc_process, 18)),
             Ok(arc_process
                 .charlist_from_str("1.234567890098765373e+09")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 19)),
+            result(&arc_process, float, options(&arc_process, 19)),
             Ok(arc_process
                 .charlist_from_str("1.2345678900987653732e+09")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 20)),
+            result(&arc_process, float, options(&arc_process, 20)),
             Ok(arc_process
                 .charlist_from_str("1.23456789009876537323e+09")
                 .unwrap())
         );
         assert_eq!(
-            native(&arc_process, float, options(&arc_process, 21)),
+            result(&arc_process, float, options(&arc_process, 21)),
             Ok(arc_process
                 .charlist_from_str("1.234567890098765373230e+09")
                 .unwrap())
@@ -163,7 +163,7 @@ fn always_includes_e() {
             )
         },
         |(arc_process, float, options)| {
-            let result = native(&arc_process, float, options);
+            let result = result(&arc_process, float, options);
 
             prop_assert!(result.is_ok());
 
@@ -192,7 +192,7 @@ fn always_includes_sign_of_exponent() {
             )
         },
         |(arc_process, float, options)| {
-            let result = native(&arc_process, float, options);
+            let result = result(&arc_process, float, options);
 
             prop_assert!(result.is_ok());
 
@@ -226,7 +226,7 @@ fn exponent_is_at_least_2_digits() {
             )
         },
         |(arc_process, float, options)| {
-            let result = native(&arc_process, float, options);
+            let result = result(&arc_process, float, options);
 
             prop_assert!(result.is_ok());
 

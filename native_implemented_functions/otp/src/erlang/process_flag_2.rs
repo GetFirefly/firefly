@@ -16,7 +16,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::context::*;
 
 #[native_implemented_function(process_flag/2)]
-pub fn native(process: &Process, flag: Term, value: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, flag: Term, value: Term) -> exception::Result<Term> {
     let flag_atom = term_try_into_atom!(flag)?;
 
     match flag_atom.name() {

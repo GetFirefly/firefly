@@ -9,13 +9,13 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::band_2::native;
+use crate::erlang::band_2::result;
 use crate::test::with_process;
 use crate::test::{count_ones, run, strategy};
 
 #[test]
 fn without_integer_right_errors_badarith() {
-    crate::test::with_integer_left_without_integer_right_errors_badarith(file!(), native);
+    crate::test::with_integer_left_without_integer_right_errors_badarith(file!(), result);
 }
 
 #[test]
@@ -28,7 +28,7 @@ fn with_same_integer_returns_same_integer() {
             )
         },
         |(arc_process, operand)| {
-            prop_assert_eq!(native(&arc_process, operand, operand), Ok(operand));
+            prop_assert_eq!(result(&arc_process, operand, operand), Ok(operand));
 
             Ok(())
         },
@@ -50,7 +50,7 @@ where
             )
         },
         |(arc_process, left, right)| {
-            let result = native(&arc_process, left, right);
+            let result = result(&arc_process, left, right);
 
             prop_assert!(result.is_ok());
 

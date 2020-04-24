@@ -16,7 +16,7 @@ fn errors_badarg() {
                 let destination = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2::native(
+                    erlang::register_2::result(
                         arc_process.clone(),
                         destination,
                         arc_process.pid_term()
@@ -27,7 +27,7 @@ fn errors_badarg() {
                 let options = options(&arc_process);
 
                 prop_assert_badarg!(
-                    native(arc_process.clone(), time, destination, message, options),
+                    result(arc_process.clone(), time, destination, message, options),
                     "supported option is {:abs, bool}"
                 );
 

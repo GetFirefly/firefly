@@ -5,7 +5,7 @@ use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::delete_element_2::native;
+use crate::erlang::delete_element_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -19,7 +19,7 @@ fn without_tuple_errors_badarg() {
             )
         },
         |(arc_process, tuple, index)| {
-            prop_assert_is_not_tuple!(native(&arc_process, index, tuple), tuple);
+            prop_assert_is_not_tuple!(result(&arc_process, index, tuple), tuple);
 
             Ok(())
         },
@@ -39,7 +39,7 @@ fn with_tuple_without_integer_between_1_and_the_length_inclusive_errors_badarg()
             let tuple_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, index, tuple),
+                result(&arc_process, index, tuple),
                 format!(
                     "index ({}) is not a 1-based integer between 1-{}",
                     index,
@@ -65,7 +65,7 @@ fn with_tuple_with_integer_between_1_and_the_length_inclusive_returns_tuple_with
             element_vec.remove(element_vec_index);
 
             prop_assert_eq!(
-                native(&arc_process, index, tuple),
+                result(&arc_process, index, tuple),
                 Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
             );
 

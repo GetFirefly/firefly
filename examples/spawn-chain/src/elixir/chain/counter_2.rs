@@ -5,8 +5,8 @@ mod label_3;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
+use liblumen_alloc::erts::process::frames;
+use liblumen_alloc::erts::process::frames::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Arity;
@@ -31,7 +31,7 @@ const ARITY: Arity = 2;
 ///   end
 /// end
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let next_pid = arc_process.stack_pop().unwrap();
@@ -64,7 +64,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         .place_frame_with_arguments(arc_process, Placement::Push, vec![output_data])
         .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn function() -> Atom {

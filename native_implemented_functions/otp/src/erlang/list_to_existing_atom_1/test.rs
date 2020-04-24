@@ -4,7 +4,7 @@ use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::list_to_existing_atom_1::native;
+use crate::erlang::list_to_existing_atom_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -12,7 +12,7 @@ fn without_list_errors_badarg() {
     run!(
         |arc_process| strategy::term::is_not_list(arc_process.clone()),
         |list| {
-            prop_assert_badarg!(native(list), format!("list ({}) is not a list", list));
+            prop_assert_badarg!(result(list), format!("list ({}) is not a list", list));
 
             Ok(())
         },
@@ -26,7 +26,7 @@ fn with_empty_list() {
     // as `""` can only be entered into the global atom table, can't test with non-existing atom
     let existing_atom = Atom::str_to_term("");
 
-    assert_eq!(native(list), Ok(existing_atom));
+    assert_eq!(result(list), Ok(existing_atom));
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn with_improper_list_errors_badarg() {
                 })
         },
         |list| {
-            prop_assert_badarg!(native(list), format!("list ({}) is improper", list));
+            prop_assert_badarg!(result(list), format!("list ({}) is improper", list));
 
             Ok(())
         },
@@ -67,7 +67,7 @@ fn with_list_without_existing_atom_errors_badarg() {
         },
         |list| {
             prop_assert_badarg!(
-                native(list),
+                result(list),
                 "tried to convert to an atom that doesn't exist"
             );
 
@@ -95,7 +95,7 @@ fn with_list_with_existing_atom_returns_atom() {
             })
         },
         |(list, atom)| {
-            prop_assert_eq!(native(list), Ok(atom));
+            prop_assert_eq!(result(list), Ok(atom));
 
             Ok(())
         },

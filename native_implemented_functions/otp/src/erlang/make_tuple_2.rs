@@ -14,7 +14,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::context::*;
 
 #[native_implemented_function(make_tuple/2)]
-pub fn native(process: &Process, arity: Term, initial_value: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, arity: Term, initial_value: Term) -> exception::Result<Term> {
     // arity by definition is only 0-225, so `u8`, but ...
     let arity_u8: u8 = term_try_into_arity(arity)?;
     // ... everything else uses `usize`, so cast it back up

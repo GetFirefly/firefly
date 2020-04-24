@@ -9,7 +9,7 @@ fn with_small_integer_right_returns_small_integer() {
         let right = process.integer(0b1010).unwrap();
 
         assert_eq!(
-            native(&process, left, right),
+            result(&process, left, right),
             Ok(process.integer(0b1000).unwrap())
         );
     })

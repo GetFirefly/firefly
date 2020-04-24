@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(is_tuple/1)]
-pub fn native(term: Term) -> Term {
+pub fn result(term: Term) -> Term {
     match term.decode() {
         Ok(TypedTerm::Tuple(_)) => true.into(),
         _ => false.into(),

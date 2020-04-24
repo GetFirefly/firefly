@@ -17,7 +17,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
             let destination = registered_name();
 
             prop_assert_eq!(
-                erlang::register_2::native(
+                erlang::register_2::result(
                     arc_process.clone(),
                     destination,
                     destination_arc_process.pid_term(),
@@ -27,7 +27,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
 
             let options = options(&arc_process);
 
-            let result = native(arc_process.clone(), time, destination, message, options);
+            let result = result(arc_process.clone(), time, destination, message, options);
 
             prop_assert!(
                 result.is_ok(),
@@ -73,7 +73,7 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
                 let destination = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2::native(
+                    erlang::register_2::result(
                         arc_process.clone(),
                         destination,
                         arc_process.pid_term(),
@@ -83,7 +83,7 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
 
                 let options = options(&arc_process);
 
-                let result = native(arc_process.clone(), time, destination, message, options);
+                let result = result(arc_process.clone(), time, destination, message, options);
 
                 prop_assert!(
                     result.is_ok(),

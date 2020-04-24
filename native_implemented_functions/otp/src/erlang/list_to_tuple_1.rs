@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(list_to_tuple/1)]
-pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, list: Term) -> exception::Result<Term> {
     match list.decode().unwrap() {
         TypedTerm::Nil => process.tuple_from_slices(&[]).map_err(|error| error.into()),
         TypedTerm::List(cons) => {

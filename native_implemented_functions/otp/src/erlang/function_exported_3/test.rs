@@ -1,6 +1,6 @@
 use liblumen_alloc::atom;
 
-use crate::erlang::function_exported_3::native;
+use crate::erlang::function_exported_3::result;
 
 #[test]
 fn without_exported_function_returns_false() {
@@ -8,7 +8,7 @@ fn without_exported_function_returns_false() {
     let function = atom!("unexported_function");
     let arity = 0.into();
 
-    assert_eq!(native(module, function, arity), Ok(false.into()));
+    assert_eq!(result(module, function, arity), Ok(false.into()));
 }
 
 #[test]
@@ -17,7 +17,5 @@ fn with_exported_function_return_true() {
     let function = atom!("self");
     let arity = 0.into();
 
-    crate::erlang::self_0::export();
-
-    assert_eq!(native(module, function, arity), Ok(true.into()));
+    assert_eq!(result(module, function, arity), Ok(true.into()));
 }

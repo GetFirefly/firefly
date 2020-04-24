@@ -9,7 +9,7 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::fixnum;
 
-use crate::erlang::make_tuple_3::native;
+use crate::erlang::make_tuple_3::result;
 use crate::test::strategy;
 
 #[test]
@@ -25,7 +25,7 @@ fn without_arity_errors_badarg() {
         |(arc_process, arity, default_value)| {
             let init_list = Term::NIL;
 
-            prop_assert_is_not_arity!(native(&arc_process, arity, default_value, init_list), arity);
+            prop_assert_is_not_arity!(result(&arc_process, arity, default_value, init_list), arity);
 
             Ok(())
         },

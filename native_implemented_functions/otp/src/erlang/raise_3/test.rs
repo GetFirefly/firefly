@@ -6,7 +6,7 @@ use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::raise_3::native;
+use crate::erlang::raise_3::result;
 use crate::test::strategy;
 
 #[test]
@@ -21,7 +21,7 @@ fn without_atom_class_errors_badarg() {
         },
         |(class, reason, stacktrace)| {
             prop_assert_badarg!(
-                native(class, reason, stacktrace),
+                result(class, reason, stacktrace),
                 format!("class ({}) is not an atom", class)
             );
 

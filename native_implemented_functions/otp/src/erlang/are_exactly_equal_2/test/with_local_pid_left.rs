@@ -13,7 +13,7 @@ fn without_local_pid_right_returns_false() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -24,7 +24,7 @@ fn without_local_pid_right_returns_false() {
 fn with_same_local_pid_returns_true() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(&strategy::term::pid::local(), |operand| {
-            prop_assert_eq!(native(operand, operand), true.into());
+            prop_assert_eq!(result(operand, operand), true.into());
 
             Ok(())
         })
@@ -44,7 +44,7 @@ fn with_same_value_local_pid_right_returns_true() {
                 },
             ),
             |(left, right)| {
-                prop_assert_eq!(native(left, right), true.into());
+                prop_assert_eq!(result(left, right), true.into());
 
                 Ok(())
             },
@@ -65,7 +65,7 @@ fn with_different_local_pid_right_returns_false() {
                 },
             ),
             |(left, right)| {
-                prop_assert_eq!(native(left, right), false.into());
+                prop_assert_eq!(result(left, right), false.into());
 
                 Ok(())
             },

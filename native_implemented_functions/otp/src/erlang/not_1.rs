@@ -14,7 +14,7 @@ use crate::runtime::context::*;
 
 /// `not/1` prefix operator.
 #[native_implemented_function(not/1)]
-pub fn native(boolean: Term) -> exception::Result<Term> {
+pub fn result(boolean: Term) -> exception::Result<Term> {
     let boolean_bool: bool = term_try_into_bool("boolean", boolean)?;
     let output = !boolean_bool;
 

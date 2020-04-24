@@ -23,7 +23,7 @@ fn with_small_integer_returns_small_integer() {
                 })
         },
         |(arc_process, integer, binary)| {
-            let result = native(&arc_process, binary);
+            let result = result(&arc_process, binary);
 
             prop_assert!(result.is_ok());
 
@@ -62,7 +62,7 @@ fn with_big_integer_returns_big_integer() {
                 })
         },
         |(arc_process, integer, binary)| {
-            let result = native(&arc_process, binary);
+            let result = result(&arc_process, binary);
 
             prop_assert!(result.is_ok());
 
@@ -90,7 +90,7 @@ fn with_non_decimal_errors_badarg() {
         },
         |(arc_process, binary)| {
             prop_assert_badarg!(
-                native(&arc_process, binary),
+                result(&arc_process, binary),
                 format!("binary ({}) is not base 10", binary)
             );
 

@@ -3,12 +3,12 @@ use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::erlang::abs_1::native;
+use crate::erlang::abs_1::result;
 use crate::test::strategy;
 
 #[test]
 fn without_number_errors_badarg() {
-    crate::test::without_number_errors_badarg(file!(), native);
+    crate::test::without_number_errors_badarg(file!(), result);
 }
 
 #[test]
@@ -21,7 +21,7 @@ fn with_number_returns_non_negative() {
             )
         },
         |(arc_process, number)| {
-            let result = native(&arc_process, number);
+            let result = result(&arc_process, number);
 
             prop_assert!(result.is_ok());
 

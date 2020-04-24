@@ -15,7 +15,7 @@ fn with_small_integer_divisor_returns_small_integer() {
         },
         |(arc_process, dividend, divisor)| {
             prop_assert_eq!(
-                native(
+                result(
                     &arc_process,
                     arc_process.integer(dividend).unwrap(),
                     arc_process.integer(divisor).unwrap(),
@@ -40,7 +40,7 @@ fn with_big_integer_divisor_returns_zero() {
         },
         |(arc_process, dividend, divisor)| {
             prop_assert_eq!(
-                native(&arc_process, dividend, divisor),
+                result(&arc_process, dividend, divisor),
                 Ok(arc_process.integer(0).unwrap())
             );
 

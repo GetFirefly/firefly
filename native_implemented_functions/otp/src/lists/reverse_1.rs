@@ -14,6 +14,6 @@ use native_implemented_function::native_implemented_function;
 use crate::lists::reverse_2;
 
 #[native_implemented_function(reverse/1)]
-fn native(process: &Process, list: Term) -> exception::Result<Term> {
-    reverse_2::native(process, list, Term::NIL)
+fn result(process: &Process, list: Term) -> exception::Result<Term> {
+    reverse_2::result(process, list, Term::NIL)
 }

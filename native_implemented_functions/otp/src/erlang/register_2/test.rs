@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::{Atom, Encoded, Pid};
 use crate::runtime::registry;
 
 use crate::erlang;
-use crate::erlang::register_2::native;
+use crate::erlang::register_2::result;
 use crate::test;
 use crate::test::{registered_name, strategy, with_process_arc};
 
@@ -25,7 +25,7 @@ fn without_atom_name_errors_badarg() {
             )
         },
         |(arc_process, name, pid_or_port)| {
-            prop_assert_is_not_atom!(native(arc_process.clone(), name, pid_or_port), name);
+            prop_assert_is_not_atom!(result(arc_process.clone(), name, pid_or_port), name);
 
             Ok(())
         },

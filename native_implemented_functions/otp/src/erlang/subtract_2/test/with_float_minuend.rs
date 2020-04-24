@@ -11,7 +11,7 @@ fn with_float_minuend_with_integer_subtrahend_returns_float() {
             )
         },
         |(arc_process, minuend, subtrahend)| {
-            let result = native(&arc_process, minuend, subtrahend);
+            let result = result(&arc_process, minuend, subtrahend);
 
             prop_assert!(result.is_ok());
 
@@ -35,7 +35,7 @@ fn with_float_minuend_with_float_subtrahend_returns_float() {
             )
         },
         |(arc_process, minuend, subtrahend)| {
-            let result = native(&arc_process, minuend, subtrahend);
+            let result = result(&arc_process, minuend, subtrahend);
 
             prop_assert!(result.is_ok());
 
@@ -54,7 +54,7 @@ fn with_float_subtrahend_with_underflow_returns_min_float() {
         let subtrahend = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
-            native(&process, minuend, subtrahend),
+            result(&process, minuend, subtrahend),
             Ok(process.float(std::f64::MIN).unwrap())
         );
     })
@@ -66,7 +66,7 @@ fn with_float_subtrahend_with_overflow_returns_max_float() {
         let subtrahend = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
-            native(&process, minuend, subtrahend),
+            result(&process, minuend, subtrahend),
             Ok(process.float(std::f64::MAX).unwrap())
         );
     })

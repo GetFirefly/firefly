@@ -9,7 +9,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::concatenate_2::native;
+use crate::erlang::concatenate_2::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
@@ -25,7 +25,7 @@ fn without_list_left_errors_badarg() {
         },
         |(arc_process, list, term)| {
             prop_assert_badarg!(
-                native(&arc_process, list, term),
+                result(&arc_process, list, term),
                 format!("list ({}) is not a list", list)
             );
 
@@ -46,7 +46,7 @@ fn with_improper_list_left_errors_badarg() {
         },
         |(arc_process, list, term)| {
             prop_assert_badarg!(
-                native(&arc_process, list, term),
+                result(&arc_process, list, term),
                 format!("list ({}) is improper", list)
             );
 

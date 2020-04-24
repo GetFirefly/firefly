@@ -7,7 +7,7 @@ use proptest::strategy::Just;
 
 use liblumen_alloc::erts::term::prelude::{Encoded, TypedTerm};
 
-use crate::erlang::bnot_1::native;
+use crate::erlang::bnot_1::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -22,7 +22,7 @@ fn without_integer_errors_badarith() {
         },
         |(arc_process, integer)| {
             prop_assert_badarith!(
-                native(&arc_process, integer),
+                result(&arc_process, integer),
                 format!("integer ({}) is not an integer", integer)
             );
 
@@ -41,7 +41,7 @@ fn with_small_integer_returns_small_integer() {
             )
         },
         |(arc_process, operand)| {
-            let result = native(&arc_process, operand);
+            let result = result(&arc_process, operand);
 
             prop_assert!(result.is_ok());
 
@@ -59,7 +59,7 @@ fn with_small_integer_inverts_bits() {
     with_process(|process| {
         let integer = process.integer(0b10).unwrap();
 
-        assert_eq!(native(&process, integer), Ok(process.integer(-3).unwrap()))
+        assert_eq!(result(&process, integer), Ok(process.integer(-3).unwrap()))
     });
 }
 
@@ -76,7 +76,7 @@ fn with_big_integer_inverts_bits() {
         assert!(integer.is_boxed_bigint());
 
         assert_eq!(
-            native(&process, integer),
+            result(&process, integer),
             Ok(process
                 .integer(<BigInt as Num>::from_str_radix("-12297829382473034411", 10,).unwrap())
                 .unwrap())
@@ -94,7 +94,7 @@ fn with_big_integer_returns_big_integer() {
             )
         },
         |(arc_process, operand)| {
-            let result = native(&arc_process, operand);
+            let result = result(&arc_process, operand);
 
             prop_assert!(result.is_ok());
 

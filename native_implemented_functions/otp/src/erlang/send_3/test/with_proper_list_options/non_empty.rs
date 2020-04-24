@@ -30,7 +30,7 @@ fn with_invalid_option_errors_badarg() {
             let options = arc_process.list_from_slice(&[option]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, destination, message, options),
+                result(&arc_process, destination, message, options),
                 "supported options are noconnect or nosuspend"
             );
 

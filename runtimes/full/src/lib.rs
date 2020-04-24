@@ -35,12 +35,12 @@ extern crate cfg_if;
 extern crate chrono;
 
 pub use lumen_rt_core::{
-    binary_to_string, code, context, distribution, future, proplist, registry, send, stacktrace,
-    time, timer,
+    binary_to_string, context, distribution, proplist, registry, send, stacktrace, time, timer,
 };
 
 #[cfg(not(any(test, target_arch = "wasm32")))]
 mod config;
+pub mod future;
 mod logging;
 pub mod process;
 // `pub` for `examples/spawn-chain`

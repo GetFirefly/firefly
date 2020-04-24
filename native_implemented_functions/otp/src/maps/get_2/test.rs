@@ -6,7 +6,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::atom;
 
-use crate::maps::get_2::native;
+use crate::maps::get_2::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
@@ -20,7 +20,7 @@ fn without_map_errors_badmap() {
                     strategy::term::is_not_map(arc_process.clone()),
                 ),
                 |(key, map)| {
-                    prop_assert_badmap!(native(&arc_process, key, map), &arc_process, map);
+                    prop_assert_badmap!(result(&arc_process, key, map), &arc_process, map);
 
                     Ok(())
                 },

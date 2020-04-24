@@ -76,7 +76,7 @@ impl VMState {
             let ran = scheduler::run_through(&run_arc_process);
 
             match *run_arc_process.status.read() {
-                Status::Exiting(ref exception) => match exception {
+                Status::RuntimeException(ref exception) => match exception {
                     RuntimeException::Exit(err) => {
                         let reason = err.reason();
                         if reason != atom!("normal") {

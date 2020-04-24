@@ -9,7 +9,7 @@ fn without_process_returns_undefined() {
         let pid = Pid::next_term();
 
         assert_eq!(
-            native(&arc_process, pid, item()),
+            result(&arc_process, pid, item()),
             Ok(Atom::str_to_term("undefined"))
         );
     });

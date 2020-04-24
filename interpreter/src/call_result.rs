@@ -8,7 +8,7 @@ use anyhow::*;
 
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::code;
+use liblumen_alloc::erts::process::frames;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::HeapFragment;
@@ -52,7 +52,7 @@ pub fn call_run_erlang(
         let ran = scheduler::run_through(&run_arc_process);
 
         match *run_arc_process.status.read() {
-            Status::Exiting(_) => {
+            Status::RuntimeException(_) => {
                 return recv.try_get().unwrap();
             }
             Status::Waiting => {
@@ -155,7 +155,7 @@ pub fn call_erlang(
     }
 }
 
-fn return_ok(arc_process: &Arc<Process>) -> code::Result {
+fn return_ok(arc_process: &Arc<Process>) -> frames::Result {
     let argument_list = arc_process.stack_pop().unwrap();
     let closure_term = arc_process.stack_pop().unwrap();
 
@@ -193,7 +193,7 @@ fn return_ok(arc_process: &Arc<Process>) -> code::Result {
     Ok(arc_process.return_from_call(0, argument_vec[0])?)
 }
 
-fn return_throw(arc_process: &Arc<Process>) -> code::Result {
+fn return_throw(arc_process: &Arc<Process>) -> frames::Result {
     let argument_list = arc_process.stack_pop().unwrap();
     let closure_term = arc_process.stack_pop().unwrap();
 
@@ -241,5 +241,5 @@ fn return_throw(arc_process: &Arc<Process>) -> code::Result {
         anyhow!("explicit throw from Erlang").into(),
     );
 
-    code::result_from_exception(arc_process, 0, exc.into())
+    frames::exception_to_native_return(arc_process, 0, exc.into())
 }

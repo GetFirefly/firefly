@@ -6,7 +6,7 @@
 mod elixir;
 mod start;
 
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
+use liblumen_alloc::erts::process::frames::stack::frame::Placement;
 
 use lumen_rt_full::process::spawn::options::Options;
 

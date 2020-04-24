@@ -14,7 +14,7 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::integer_to_string::base_integer_to_string;
 
 #[native_implemented_function(integer_to_binary/2)]
-pub fn native(process: &Process, integer: Term, base: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, integer: Term, base: Term) -> exception::Result<Term> {
     let string = base_integer_to_string(base, integer)?;
     let binary = process.binary_from_str(&string)?;
 

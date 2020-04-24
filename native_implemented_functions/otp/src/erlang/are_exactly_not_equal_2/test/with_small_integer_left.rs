@@ -13,7 +13,7 @@ fn without_small_integer_returns_true() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), true.into());
+            prop_assert_eq!(result(left, right), true.into());
 
             Ok(())
         },
@@ -25,7 +25,7 @@ fn with_same_small_integer_right_returns_false() {
     run!(
         |arc_process| strategy::term::integer::small(arc_process.clone()),
         |operand| {
-            prop_assert_eq!(native(operand, operand), false.into());
+            prop_assert_eq!(result(operand, operand), false.into());
 
             Ok(())
         },
@@ -43,7 +43,7 @@ fn with_same_value_small_integer_right_returns_false() {
             })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -61,7 +61,7 @@ fn with_different_small_integer_right_returns_true() {
             })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), true.into());
+            prop_assert_eq!(result(left, right), true.into());
 
             Ok(())
         },

@@ -16,7 +16,7 @@ fn without_proper_list_arguments_errors_badarg() {
         },
         |(arc_process, module, function, arguments)| {
             prop_assert_badarg!(
-                native(
+                result(
                     &arc_process,
                     module,
                     function,

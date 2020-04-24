@@ -18,7 +18,7 @@ fn with_different_process_errors_badarg() {
             let destination = registered_name();
 
             prop_assert_eq!(
-                erlang::register_2::native(
+                erlang::register_2::result(
                     arc_process.clone(),
                     destination,
                     destination_arc_process.pid_term(),
@@ -29,7 +29,7 @@ fn with_different_process_errors_badarg() {
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(
-                native(arc_process.clone(), time, destination, message, options),
+                result(arc_process.clone(), time, destination, message, options),
                 "abs value",
                 abs_value
             );
@@ -55,7 +55,7 @@ fn with_same_process_errors_badarg() {
                 let destination = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2::native(
+                    erlang::register_2::result(
                         arc_process.clone(),
                         destination,
                         arc_process.pid_term()
@@ -67,7 +67,7 @@ fn with_same_process_errors_badarg() {
                 let options = options(abs_value, &arc_process);
 
                 prop_assert_is_not_boolean!(
-                    native(arc_process.clone(), time, destination, message, options),
+                    result(arc_process.clone(), time, destination, message, options),
                     "abs value",
                     abs_value
                 );

@@ -5,9 +5,9 @@ use std::sync::Arc;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::{self, AllocResult};
-use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::code::result_from_exception;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::frames;
+use liblumen_alloc::erts::process::frames::exception_to_native_return;
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{exit, ModuleFunctionArity};
@@ -75,7 +75,7 @@ fn exit_1_place_frame_with_arguments(
     Ok(())
 }
 
-fn exit_1_code(arc_process: &Arc<Process>) -> code::Result {
+fn exit_1_code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let reason = arc_process.stack_peek(1).unwrap();
@@ -87,9 +87,9 @@ fn exit_1_code(arc_process: &Arc<Process>) -> code::Result {
                 .return_from_call(STACK_USED, return_value)
                 .unwrap();
 
-            Process::call_code(arc_process)
+            Process::call_native_or_yield(arc_process)
         }
-        Err(exception) => result_from_exception(arc_process, STACK_USED, exception),
+        Err(exception) => exception_to_native_return(arc_process, STACK_USED, exception),
     }
 }
 

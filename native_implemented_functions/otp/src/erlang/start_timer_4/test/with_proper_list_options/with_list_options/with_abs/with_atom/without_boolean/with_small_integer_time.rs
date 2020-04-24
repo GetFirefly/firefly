@@ -20,7 +20,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
             let options = options(abs_value, &arc_process);
 
             prop_assert_is_not_boolean!(
-                native(arc_process.clone(), time, destination, message, options),
+                result(arc_process.clone(), time, destination, message, options),
                 "abs value",
                 abs_value
             );

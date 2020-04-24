@@ -13,7 +13,7 @@ use web_sys::{
 use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::process;
@@ -26,7 +26,7 @@ use crate::runtime::scheduler;
 /// the promise.
 pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> exception::Result<Promise>
 where
-    F: Fn(&Process) -> code::Result,
+    F: Fn(&Process) -> frames::Result,
 {
     let (process, promise) = spawn_unscheduled(options)?;
 
@@ -59,7 +59,7 @@ fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
     }
 }
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     let return_term = arc_process.stack_peek(1).unwrap();
     let executor_term = arc_process.stack_peek(2).unwrap();
 
@@ -70,7 +70,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     arc_process.remove_last_frame(2);
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn function() -> Atom {

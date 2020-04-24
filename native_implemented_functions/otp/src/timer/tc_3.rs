@@ -4,32 +4,20 @@ mod label_3;
 mod label_4;
 mod label_5;
 
-use std::sync::Arc;
-
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::{Frame, Native};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
+use liblumen_alloc::{FrameWithArguments, ModuleFunctionArity};
 
 use crate::erlang::monotonic_time_0;
+use crate::runtime::process::current_process;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    module: Term,
-    function: Term,
-    arguments: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(arguments)?;
-    process.stack_push(function)?;
-    process.stack_push(module)?;
-    process.place_frame(frame(), placement);
-
-    Ok(())
+pub fn frame_with_arguments(module: Term, function: Term, arguments: Term) -> FrameWithArguments {
+    label_frame_with_arguments(NATIVE, false, &[module, function, arguments])
 }
 
 // Private
+
+const NATIVE: Native = Native::Three(native);
 
 /// ```elixir
 /// def tc(module, function, arguments) do
@@ -41,40 +29,37 @@ pub fn place_frame_with_arguments(
 ///   {time, value}
 /// end
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+extern "C" fn native(module: Term, function: Term, arguments: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let module = arc_process.stack_peek(1).unwrap();
-    let function = arc_process.stack_peek(2).unwrap();
-    let arguments = arc_process.stack_peek(3).unwrap();
+    arc_process
+        .queue_frame_with_arguments(label_1::frame_with_arguments(module, function, arguments));
+    arc_process.queue_frame_with_arguments(monotonic_time_0::frame().with_arguments(false, &[]));
 
-    arc_process.stack_popn(3);
-
-    label_1::place_frame_with_arguments(
-        arc_process,
-        Placement::Replace,
-        module,
-        function,
-        arguments,
-    )
-    .unwrap();
-    monotonic_time_0::place_frame_with_arguments(arc_process, Placement::Push).unwrap();
-
-    Process::call_code(arc_process)
+    Term::NONE
 }
 
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
+fn frame(native: Native) -> Frame {
+    Frame::new(module_function_arity(), native)
+}
+
+fn label_frame_with_arguments(
+    native: Native,
+    uses_returned: bool,
+    arguments: &[Term],
+) -> FrameWithArguments {
+    frame(native).with_arguments(uses_returned, arguments)
 }
 
 fn function() -> Atom {
     Atom::try_from_str("t3").unwrap()
 }
 
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
+fn module_function_arity() -> ModuleFunctionArity {
+    ModuleFunctionArity {
         module: super::module(),
         function: function(),
         arity: 3,
-    })
+    }
 }

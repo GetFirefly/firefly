@@ -11,7 +11,7 @@ use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::binary_part_2::native;
+use crate::erlang::binary_part_2::result;
 use crate::test::{strategy, total_byte_len};
 
 #[test]
@@ -34,7 +34,7 @@ fn without_bitstring_errors_badarg() {
             };
 
             prop_assert_badarg!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 format!(
                     "binary ({}) must be a binary or bitstring with at least 1 full byte",
                     binary

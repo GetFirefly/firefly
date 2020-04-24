@@ -4,8 +4,8 @@ use std::sync::Arc;
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::message::{self, Message};
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir::chain::create_processes_2::label_3;
@@ -33,7 +33,7 @@ pub fn place_frame_with_arguments(
 ///     final_answer
 /// end
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     // locked mailbox scope
     let received = {
         let mailbox_guard = arc_process.mailbox.lock();
@@ -117,7 +117,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     if received {
-        Process::call_code(arc_process)
+        Process::call_native_or_yield(arc_process)
     } else {
         arc_process.wait();
 

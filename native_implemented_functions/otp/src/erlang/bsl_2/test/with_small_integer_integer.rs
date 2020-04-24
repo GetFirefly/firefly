@@ -9,7 +9,7 @@ fn with_negative_without_underflow_shifts_right() {
         let shift = process.integer(-9).unwrap();
 
         assert_eq!(
-            native(&process, integer, shift),
+            result(&process, integer, shift),
             Ok(process.integer(0b101).unwrap())
         );
     });
@@ -22,7 +22,7 @@ fn with_negative_with_underflow_returns_zero() {
         let shift = process.integer(-12).unwrap();
 
         assert_eq!(
-            native(&process, integer, shift),
+            result(&process, integer, shift),
             Ok(process.integer(0b0).unwrap())
         );
     });
@@ -34,7 +34,7 @@ fn with_positive_without_overflow_returns_small_integer() {
         let integer = process.integer(0b1).unwrap();
         let shift = process.integer(1).unwrap();
 
-        let result = native(&process, integer, shift);
+        let result = result(&process, integer, shift);
 
         assert!(result.is_ok());
 
@@ -51,7 +51,7 @@ fn with_positive_with_overflow_returns_big_integer() {
         let integer = process.integer(0b1).unwrap();
         let shift = process.integer(64).unwrap();
 
-        let result = native(&process, integer, shift);
+        let result = result(&process, integer, shift);
 
         assert!(result.is_ok());
 

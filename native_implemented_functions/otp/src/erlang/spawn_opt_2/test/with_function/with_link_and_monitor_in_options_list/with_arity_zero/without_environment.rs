@@ -11,24 +11,27 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent_and_paren
                 .prop_map(|(module, function)| {
                     let arc_process = test::process::init();
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
-                        arc_process.exception(exit!(
-                            Atom::str_to_term("not_normal"),
-                            anyhow!("Test").into()
-                        ));
 
-                        Ok(())
-                    };
+                    fn result() -> exception::Result<Term> {
+                        Err(exit!(Atom::str_to_term("not_normal"), anyhow!("Test").into()).into())
+                    }
+
+                    extern "C" fn native() -> Term {
+                        let arc_process = current_process();
+                        arc_process.reduce();
+
+                        arc_process.return_status(result())
+                    }
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .export_closure(module, function, arity, Some(code))
+                            .export_closure(module, function, arity, Some(native as _))
                             .unwrap(),
                     )
                 }),
             |(parent_arc_process, function)| {
-                let result = native(&parent_arc_process, function, options(&parent_arc_process));
+                let result = result(&parent_arc_process, function, options(&parent_arc_process));
 
                 prop_assert!(result.is_ok());
 
@@ -69,7 +72,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent_and_paren
                 let reason = Atom::str_to_term("not_normal");
 
                 match *child_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
+                    Status::RuntimeException(ref exception) => {
                         prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
                     }
                     ref status => {
@@ -81,7 +84,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent_and_paren
                 }
 
                 match *parent_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
+                    Status::RuntimeException(ref exception) => {
                         prop_assert_eq!(
                             exception,
                             &exit!(Atom::str_to_term("not_normal"), anyhow!("Test").into())
@@ -127,21 +130,27 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
                 .prop_map(|(module, function)| {
                     let arc_process = test::process::init();
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
-                        arc_process.return_from_call(0, Atom::str_to_term("ok"))?;
 
-                        Ok(())
-                    };
+                    fn result() -> exception::Result<Term> {
+                        Ok(Atom::str_to_term("ok"))
+                    }
+
+                    extern "C" fn native() -> Term {
+                        let arc_process = current_process();
+                        arc_process.reduce();
+
+                        arc_process.return_status(result())
+                    }
 
                     (
                         arc_process.clone(),
                         arc_process
-                            .export_closure(module, function, arity, Some(code))
+                            .export_closure(module, function, arity, Some(native as _))
                             .unwrap(),
                     )
                 }),
             |(parent_arc_process, function)| {
-                let result = native(&parent_arc_process, function, options(&parent_arc_process));
+                let result = result(&parent_arc_process, function, options(&parent_arc_process));
 
                 prop_assert!(result.is_ok());
 
@@ -165,12 +174,11 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
                 prop_assert!(monitor_reference.is_reference());
 
                 prop_assert!(scheduler::run_through(&child_arc_process));
-                prop_assert!(scheduler::run_through(&child_arc_process));
 
                 let reason = Atom::str_to_term("normal");
 
                 match *child_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
+                    Status::RuntimeException(ref exception) => {
                         prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
                     }
                     ref status => {

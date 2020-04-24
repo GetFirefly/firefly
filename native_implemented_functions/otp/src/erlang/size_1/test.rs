@@ -3,7 +3,7 @@ use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::size_1::native;
+use crate::erlang::size_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -20,7 +20,7 @@ fn without_tuple_or_bitstring_errors_badarg() {
         },
         |(arc_process, binary_or_tuple)| {
             prop_assert_badarg!(
-                native(&arc_process, binary_or_tuple),
+                result(&arc_process, binary_or_tuple),
                 format!(
                     "binary_or_tuple ({}) is neither a binary nor a tuple",
                     binary_or_tuple
@@ -50,7 +50,7 @@ fn with_tuple_returns_arity() {
         },
         |(arc_process, size, term)| {
             prop_assert_eq!(
-                native(&arc_process, term),
+                result(&arc_process, term),
                 Ok(arc_process.integer(size).unwrap())
             );
 
@@ -76,7 +76,7 @@ fn with_bitstring_is_byte_len() {
             };
 
             prop_assert_eq!(
-                native(&arc_process, term),
+                result(&arc_process, term),
                 Ok(arc_process.integer(full_byte_len).unwrap())
             );
 

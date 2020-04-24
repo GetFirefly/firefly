@@ -1,7 +1,7 @@
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use crate::erlang::number_or_badarith_1::native;
+use crate::erlang::number_or_badarith_1::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
@@ -11,7 +11,7 @@ fn without_number_errors_badarith() {
         |arc_process| strategy::term::is_not_number(arc_process.clone()),
         |number| {
             prop_assert_badarith!(
-                native(number),
+                result(number),
                 format!("number ({}) is not an integer or a float", number)
             );
 
@@ -25,7 +25,7 @@ fn with_number_returns_number() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_number(arc_process.clone()), |number| {
-                prop_assert_eq!(native(number), Ok(number));
+                prop_assert_eq!(result(number), Ok(number));
 
                 Ok(())
             })

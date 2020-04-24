@@ -26,7 +26,7 @@ fn without_proper_list_init_list_errors_badarg() {
                 .unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, arity, default_value, init_list),
+                result(&arc_process, arity, default_value, init_list),
                 format!("init_list ({}) is improper", init_list)
             );
 
@@ -49,7 +49,7 @@ fn with_empty_list_init_list_returns_tuple_with_arity_copies_of_default_value() 
             let arity = arc_process.integer(arity_usize).unwrap();
             let init_list = Term::NIL;
 
-            let result = native(&arc_process, arity, default_value, init_list);
+            let result = result(&arc_process, arity, default_value, init_list);
 
             prop_assert!(result.is_ok());
 

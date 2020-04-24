@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::{FrameWithArguments, Native};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::apply_3;
+use crate::runtime::process::current_process;
 use crate::timer::tc_3::label_2;
 
 /// ```elixir
@@ -19,13 +17,7 @@ use crate::timer::tc_3::label_2;
 /// time = :erlang.convert_time_unit(duration, :native, :microsecond)
 /// {time, value}
 /// ```
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    module: Term,
-    function: Term,
-    arguments: Term,
-) -> code::Result {
+pub fn frame_with_arguments(module: Term, function: Term, arguments: Term) -> FrameWithArguments {
     assert!(module.is_atom());
     assert!(function.is_atom());
     assert!(
@@ -33,38 +25,26 @@ pub fn place_frame_with_arguments(
         "arguments ({:?}) are not a list",
         arguments
     );
-    process.stack_push(arguments)?;
-    process.stack_push(function)?;
-    process.stack_push(module)?;
-    process.place_frame(frame(process), placement);
 
-    Ok(())
+    super::label_frame_with_arguments(NATIVE, true, &[module, function, arguments])
 }
 
 // Private
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+const NATIVE: Native = Native::Four(native);
+
+extern "C" fn native(before: Term, module: Term, function: Term, arguments: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let before = arc_process.stack_peek(1).unwrap();
     assert!(before.is_integer());
-    let module = arc_process.stack_peek(2).unwrap();
     assert!(module.is_atom(), "module ({:?}) is not an atom", module);
-    let function = arc_process.stack_peek(3).unwrap();
     assert!(function.is_atom());
-    let arguments = arc_process.stack_peek(4).unwrap();
     assert!(arguments.is_list());
 
-    arc_process.stack_popn(4);
+    arc_process.queue_frame_with_arguments(label_2::frame_with_arguments(before));
+    arc_process
+        .queue_frame_with_arguments(apply_3::frame_with_arguments(module, function, arguments));
 
-    label_2::place_frame_with_arguments(arc_process, Placement::Replace, before)?;
-    apply_3::place_frame_with_arguments(arc_process, Placement::Push, module, function, arguments)?;
-
-    Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
+    Term::NONE
 }

@@ -16,7 +16,7 @@ use crate::runtime::time::{monotonic, Unit};
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(monotonic_time/1)]
-pub fn native(process: &Process, unit: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, unit: Term) -> exception::Result<Term> {
     let unit_unit: Unit = unit.try_into()?;
     let big_int = monotonic::time(unit_unit);
     let term = process.integer(big_int)?;

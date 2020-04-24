@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(binary_to_list/1)]
-pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, binary: Term) -> exception::Result<Term> {
     let bytes = process
         .bytes_from_binary(binary)
         .with_context(|| format!("binary ({})", binary))?;

@@ -16,7 +16,7 @@ fn without_atom_node_errors_badarg() {
                         .tuple_from_slice(&[registered_name, node])
                         .unwrap();
 
-                    prop_assert_is_not_atom!(native(&arc_process, r#type(), identifier), node);
+                    prop_assert_is_not_atom!(result(&arc_process, r#type(), identifier), node);
 
                     Ok(())
                 },

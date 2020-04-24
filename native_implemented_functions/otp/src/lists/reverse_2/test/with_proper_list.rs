@@ -9,7 +9,7 @@ fn with_empty_list_returns_tail() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |tail| {
-                prop_assert_eq!(native(&arc_process, Term::NIL, tail), Ok(tail));
+                prop_assert_eq!(result(&arc_process, Term::NIL, tail), Ok(tail));
 
                 Ok(())
             })
@@ -36,7 +36,7 @@ fn reverses_order_of_elements_of_list_and_concatenate_tail() {
                         .improper_list_from_slice(&reversed_vec, tail)
                         .unwrap();
 
-                    prop_assert_eq!(native(&arc_process, list, tail), Ok(reversed_with_tail));
+                    prop_assert_eq!(result(&arc_process, list, tail), Ok(reversed_with_tail));
 
                     Ok(())
                 },
@@ -51,9 +51,9 @@ fn reverse_reverse_with_empty_list_tail_returns_original_list() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::list::proper(arc_process.clone()), |list| {
                 let tail = Term::NIL;
-                let reversed_with_tail = native(&arc_process, list, tail).unwrap();
+                let reversed_with_tail = result(&arc_process, list, tail).unwrap();
 
-                prop_assert_eq!(native(&arc_process, reversed_with_tail, tail), Ok(list));
+                prop_assert_eq!(result(&arc_process, reversed_with_tail, tail), Ok(list));
 
                 Ok(())
             })

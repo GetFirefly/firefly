@@ -19,10 +19,11 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{exception, Node};
 
+use crate::runtime;
 use crate::runtime::process::spawn::options::Options;
 use crate::runtime::scheduler::{self, Spawned};
 
-use crate::test::r#loop;
+use crate::test::loop_0;
 use crate::test::strategy::term::binary;
 use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
 
@@ -144,7 +145,7 @@ pub fn monitored_count(process: &Process) -> usize {
 
 pub fn number_to_integer_with_float(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
     non_zero_assertion: fn(Term, f64, Term) -> TestCaseResult,
 ) {
     run(
@@ -156,7 +157,7 @@ pub fn number_to_integer_with_float(
             )
         },
         |(arc_process, number)| {
-            let result = native(&arc_process, number);
+            let result = result(&arc_process, number);
 
             prop_assert!(result.is_ok());
 
@@ -184,12 +185,21 @@ pub fn number_to_integer_with_float(
 }
 
 pub fn process(parent_process: &Process, options: Options) -> Spawned {
-    let module = r#loop::module();
-    let function = r#loop::function();
+    let module = loop_0::module();
+    let function = loop_0::function();
     let arguments = &[];
-    let code = r#loop::code;
+    let native = loop_0::NATIVE;
 
-    scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()
+    runtime::process::spawn::native(
+        Some(parent_process),
+        options,
+        module,
+        function,
+        arguments,
+        native,
+    )
+    .map(|spawned| spawned.schedule_with_parent(parent_process))
+    .unwrap()
 }
 
 pub fn prop_assert_exits<
@@ -202,7 +212,7 @@ pub fn prop_assert_exits<
     source_substring: S,
 ) -> proptest::test_runner::TestCaseResult {
     match *process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
+        Status::RuntimeException(ref runtime_exception) => {
             prop_assert_eq!(runtime_exception.reason(), Some(expected_reason));
             prop_assert_stacktrace(runtime_exception.stacktrace())?;
 
@@ -291,7 +301,7 @@ pub fn total_byte_len(term: Term) -> usize {
 
 pub fn with_binary_without_atom_encoding_errors_badarg(
     source_file: &'static str,
-    native: fn(Term, Term) -> exception::Result<Term>,
+    result: fn(Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -303,7 +313,7 @@ pub fn with_binary_without_atom_encoding_errors_badarg(
         },
         |(binary, encoding)| {
             prop_assert_badarg!(
-                native(binary, encoding),
+                result(binary, encoding),
                 format!("invalid encoding name value: `{}` is not an atom", encoding)
             );
 
@@ -314,7 +324,7 @@ pub fn with_binary_without_atom_encoding_errors_badarg(
 
 pub fn with_binary_with_atom_without_name_encoding_errors_badarg(
     source_file: &'static str,
-    native: fn(Term, Term) -> exception::Result<Term>,
+    result: fn(Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -328,7 +338,7 @@ pub fn with_binary_with_atom_without_name_encoding_errors_badarg(
             let encoding_atom: Atom = encoding.try_into().unwrap();
 
             prop_assert_badarg!(
-                        native(binary, encoding),
+                        result(binary, encoding),
                         format!("invalid atom encoding name: '{0}' is not one of the supported values (latin1, unicode, or utf8)", encoding_atom.name())
                     );
 
@@ -339,7 +349,7 @@ pub fn with_binary_with_atom_without_name_encoding_errors_badarg(
 
 pub fn with_integer_returns_integer(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -350,7 +360,7 @@ pub fn with_integer_returns_integer(
             )
         },
         |(arc_process, number)| {
-            prop_assert_eq!(native(&arc_process, number), Ok(number));
+            prop_assert_eq!(result(&arc_process, number), Ok(number));
 
             Ok(())
         },
@@ -359,7 +369,7 @@ pub fn with_integer_returns_integer(
 
 pub fn with_integer_left_without_integer_right_errors_badarith(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -372,7 +382,7 @@ pub fn with_integer_left_without_integer_right_errors_badarith(
         },
         |(arc_process, left, right)| {
             prop_assert_badarith!(
-                native(&arc_process, left, right),
+                result(&arc_process, left, right),
                 format!(
                     "left_integer ({}) and right_integer ({}) are not both integers",
                     left, right
@@ -518,7 +528,7 @@ pub fn with_zero_start_and_size_length_returns_binary(
 
 pub fn without_boolean_left_errors_badarg(
     source_file: &'static str,
-    native: fn(Term, Term) -> exception::Result<Term>,
+    result: fn(Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -529,7 +539,7 @@ pub fn without_boolean_left_errors_badarg(
             )
         },
         |(left_boolean, right_boolean)| {
-            prop_assert_is_not_boolean!(native(left_boolean, right_boolean), left_boolean);
+            prop_assert_is_not_boolean!(result(left_boolean, right_boolean), left_boolean);
 
             Ok(())
         },
@@ -538,7 +548,7 @@ pub fn without_boolean_left_errors_badarg(
 
 pub fn without_binary_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -550,7 +560,7 @@ pub fn without_binary_errors_badarg(
         },
         |(arc_process, binary)| {
             prop_assert_badarg!(
-                native(&arc_process, binary),
+                result(&arc_process, binary),
                 format!("binary ({}) must be a binary", binary)
             );
 
@@ -561,7 +571,7 @@ pub fn without_binary_errors_badarg(
 
 pub fn without_binary_with_encoding_is_not_binary(
     source_file: &'static str,
-    native: fn(Term, Term) -> exception::Result<Term>,
+    result: fn(Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -572,7 +582,7 @@ pub fn without_binary_with_encoding_is_not_binary(
             )
         },
         |(binary, encoding)| {
-            prop_assert_is_not_binary!(native(binary, encoding), binary);
+            prop_assert_is_not_binary!(result(binary, encoding), binary);
 
             Ok(())
         },
@@ -581,7 +591,7 @@ pub fn without_binary_with_encoding_is_not_binary(
 
 pub fn without_bitstring_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -593,7 +603,7 @@ pub fn without_bitstring_errors_badarg(
         },
         |(arc_process, bitstring)| {
             prop_assert_badarg!(
-                native(&arc_process, bitstring),
+                result(&arc_process, bitstring),
                 format!("bitstring ({}) is not a bitstring", bitstring)
             );
 
@@ -604,7 +614,7 @@ pub fn without_bitstring_errors_badarg(
 
 pub fn without_float_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -616,7 +626,7 @@ pub fn without_float_errors_badarg(
         },
         |(arc_process, float)| {
             prop_assert_badarg!(
-                native(&arc_process, float),
+                result(&arc_process, float),
                 format!("float ({}) is not a float", float)
             );
 
@@ -627,7 +637,7 @@ pub fn without_float_errors_badarg(
 
 pub fn without_float_with_empty_options_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -641,7 +651,7 @@ pub fn without_float_with_empty_options_errors_badarg(
             let options = Term::NIL;
 
             prop_assert_badarg!(
-                native(&arc_process, float, options),
+                result(&arc_process, float, options),
                 format!("float ({}) is not a float", float)
             );
 
@@ -652,7 +662,7 @@ pub fn without_float_with_empty_options_errors_badarg(
 
 pub fn without_function_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -664,7 +674,7 @@ pub fn without_function_errors_badarg(
         },
         |(arc_process, function)| {
             prop_assert_badarg!(
-                native(&arc_process, function),
+                result(&arc_process, function),
                 format!("function ({}) is not a function", function)
             );
 
@@ -675,7 +685,7 @@ pub fn without_function_errors_badarg(
 
 pub fn without_integer_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -687,7 +697,7 @@ pub fn without_integer_errors_badarg(
         },
         |(arc_process, integer)| {
             prop_assert_badarg!(
-                native(&arc_process, integer),
+                result(&arc_process, integer),
                 format!("integer ({}) is not an integer", integer)
             );
 
@@ -698,7 +708,7 @@ pub fn without_integer_errors_badarg(
 
 pub fn without_integer_integer_with_base_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -711,7 +721,7 @@ pub fn without_integer_integer_with_base_errors_badarg(
         },
         |(arc_process, integer, base)| {
             prop_assert_badarg!(
-                native(&arc_process, integer, base),
+                result(&arc_process, integer, base),
                 format!("integer ({}) is not an integer", integer)
             );
 
@@ -722,7 +732,7 @@ pub fn without_integer_integer_with_base_errors_badarg(
 
 pub fn with_integer_integer_without_base_base_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -735,7 +745,7 @@ pub fn with_integer_integer_without_base_base_errors_badarg(
         },
         |(arc_process, integer, base)| {
             prop_assert_badarg!(
-                native(&arc_process, integer, base),
+                result(&arc_process, integer, base),
                 "base must be an integer in 2-36"
             );
 
@@ -746,7 +756,7 @@ pub fn with_integer_integer_without_base_base_errors_badarg(
 
 pub fn without_integer_dividend_errors_badarith(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -759,7 +769,7 @@ pub fn without_integer_dividend_errors_badarith(
         },
         |(arc_process, dividend, divisor)| {
             prop_assert_badarith!(
-                native(&arc_process, dividend, divisor),
+                result(&arc_process, dividend, divisor),
                 format!(
                     "dividend ({}) and divisor ({}) are not both numbers",
                     dividend, divisor
@@ -773,7 +783,7 @@ pub fn without_integer_dividend_errors_badarith(
 
 pub fn with_integer_dividend_without_integer_divisor_errors_badarith(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -786,7 +796,7 @@ pub fn with_integer_dividend_without_integer_divisor_errors_badarith(
         },
         |(arc_process, dividend, divisor)| {
             prop_assert_badarith!(
-                native(&arc_process, dividend, divisor),
+                result(&arc_process, dividend, divisor),
                 format!(
                     "dividend ({}) and divisor ({}) are not both numbers",
                     dividend, divisor
@@ -800,7 +810,7 @@ pub fn with_integer_dividend_without_integer_divisor_errors_badarith(
 
 pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -813,7 +823,7 @@ pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
         },
         |(arc_process, dividend, divisor)| {
             prop_assert_badarith!(
-                native(&arc_process, dividend, divisor),
+                result(&arc_process, dividend, divisor),
                 format!("divisor ({}) cannot be zero", divisor)
             );
 
@@ -824,7 +834,7 @@ pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
 
 pub fn without_integer_left_errors_badarith(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -837,7 +847,7 @@ pub fn without_integer_left_errors_badarith(
         },
         |(arc_process, left, right)| {
             prop_assert_badarith!(
-                native(&arc_process, left, right),
+                result(&arc_process, left, right),
                 format!(
                     "left_integer ({}) and right_integer ({}) are not both integers",
                     left, right
@@ -851,7 +861,7 @@ pub fn without_integer_left_errors_badarith(
 
 pub fn without_number_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -862,7 +872,7 @@ pub fn without_number_errors_badarg(
             )
         },
         |(arc_process, number)| {
-            prop_assert_is_not_number!(native(&arc_process, number), number);
+            prop_assert_is_not_number!(result(&arc_process, number), number);
 
             Ok(())
         },
@@ -871,7 +881,7 @@ pub fn without_number_errors_badarg(
 
 pub fn without_timer_reference_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -883,7 +893,7 @@ pub fn without_timer_reference_errors_badarg(
         },
         |(arc_process, timer_reference)| {
             prop_assert_badarg!(
-                native(&arc_process, timer_reference,),
+                result(&arc_process, timer_reference,),
                 format!(
                     "timer_reference ({}) is not a local reference",
                     timer_reference

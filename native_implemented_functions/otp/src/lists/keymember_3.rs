@@ -15,7 +15,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::context::*;
 
 #[native_implemented_function(keymember/3)]
-pub fn native(key: Term, index: Term, tuple_list: Term) -> exception::Result<Term> {
+pub fn result(key: Term, index: Term, tuple_list: Term) -> exception::Result<Term> {
     let index = term_try_into_one_based_index(index)?;
 
     match tuple_list.decode()? {

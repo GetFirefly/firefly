@@ -13,7 +13,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(!has_message(process, timeout_message));
 
         let first_milliseconds_remaining =
-            native(process, timer_reference).expect("Timer could not be read");
+            result(process, timer_reference).expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
@@ -21,7 +21,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         // again before timeout
         let second_milliseconds_remaining =
-            native(process, timer_reference).expect("Timer could not be read");
+            result(process, timer_reference).expect("Timer could not be read");
 
         assert!(second_milliseconds_remaining.is_integer());
         assert!(second_milliseconds_remaining <= first_milliseconds_remaining);
@@ -31,11 +31,11 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert_has_message!(process, timeout_message);
 
         // again after timeout
-        assert_eq!(native(process, timer_reference), Ok(false.into()));
+        assert_eq!(result(process, timer_reference), Ok(false.into()));
     })
 }
 
 #[test]
 fn with_timeout_returns_false_after_timeout_message_was_sent() {
-    crate::test::with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(native);
+    crate::test::with_timer_in_same_thread_with_timeout_returns_false_after_timeout_message_was_sent(result);
 }

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -32,7 +32,7 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
-fn code(_arc_process: &Arc<Process>) -> code::Result {
+fn code(_arc_process: &Arc<Process>) -> frames::Result {
     unimplemented!()
 }
 

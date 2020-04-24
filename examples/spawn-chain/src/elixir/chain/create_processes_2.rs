@@ -34,8 +34,8 @@ mod label_3;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::code::{self, result_from_exception};
+use liblumen_alloc::erts::process::frames::stack::frame::Placement;
+use liblumen_alloc::erts::process::frames::{self, exception_to_native_return};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Arity;
@@ -50,7 +50,7 @@ pub fn export() {
 
 const ARITY: Arity = 2;
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     let n = arc_process.stack_peek(1).unwrap();
     let output = arc_process.stack_peek(2).unwrap();
 
@@ -98,9 +98,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             )
             .unwrap();
 
-            Process::call_code(arc_process)
+            Process::call_native_or_yield(arc_process)
         }
-        Err(exception) => result_from_exception(arc_process, STACK_USED, exception),
+        Err(exception) => exception_to_native_return(arc_process, STACK_USED, exception),
     }
 }
 

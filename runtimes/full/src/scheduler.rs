@@ -13,10 +13,10 @@ use liblumen_alloc::erts::process::{Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_core::process::{log_exit, propagate_exit};
+use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
 use lumen_rt_core::registry::put_pid_to_process;
 pub use lumen_rt_core::scheduler::{
-    current, from_id, run_through, spawn_apply_3, spawn_code, SchedulerDependentAlloc, Spawned,
+    current, from_id, run_through, Scheduled, SchedulerDependentAlloc, Spawned,
 };
 use lumen_rt_core::scheduler::{
     run_queue, set_unregistered, unregister, Run, Scheduler as SchedulerTrait,
@@ -24,6 +24,7 @@ use lumen_rt_core::scheduler::{
 use lumen_rt_core::timer::Hierarchy;
 
 use crate::process;
+use liblumen_alloc::Ran;
 
 fn unregistered() -> Arc<dyn lumen_rt_core::scheduler::Scheduler> {
     Arc::new(Scheduler {
@@ -128,23 +129,31 @@ impl SchedulerTrait for Scheduler {
 
             match run {
                 Run::Now(arc_process) => {
+                    CURRENT_PROCESS
+                        .with(|current_process| current_process.replace(Some(arc_process.clone())));
+
                     // Don't allow exiting processes to run again.
                     //
                     // Without this check, a process.exit() from outside the process during WAITING
                     // will return to the Frame that called `process.wait()`
                     if !arc_process.is_exiting() {
-                        match Process::run(&arc_process) {
-                            Ok(()) => (),
-                            Err(exception) => match exception {
-                                SystemException::Alloc(_) => {
-                                    match arc_process.garbage_collect(0, &mut []) {
-                                        Ok(_freed) => (),
-                                        Err(gc_err) => {
-                                            panic!("fatal garbage collection error: {:?}", gc_err)
+                        match arc_process.run() {
+                            Ran::Waiting | Ran::Reduced | Ran::RuntimeException => (),
+                            Ran::SystemException => match &*arc_process.status.read() {
+                                Status::SystemException(system_exception) => match system_exception
+                                {
+                                    SystemException::Alloc(_) => {
+                                        match arc_process.garbage_collect(0, &mut []) {
+                                            Ok(_freed) => (),
+                                            Err(gc_err) => panic!(
+                                                "fatal garbage collection error: {:?}",
+                                                gc_err
+                                            ),
                                         }
                                     }
-                                }
-                                err => panic!("system error: {}", err),
+                                    err => panic!("system error: {}", err),
+                                },
+                                _ => unreachable!(),
                             },
                         }
                     } else {
@@ -153,7 +162,7 @@ impl SchedulerTrait for Scheduler {
 
                     match self.run_queues.write().requeue(arc_process) {
                         Some(exiting_arc_process) => match *exiting_arc_process.status.read() {
-                            Status::Exiting(ref exception) => {
+                            Status::RuntimeException(ref exception) => {
                                 log_exit(&exiting_arc_process, exception);
                                 propagate_exit(&exiting_arc_process, exception);
                             }
@@ -161,6 +170,8 @@ impl SchedulerTrait for Scheduler {
                         },
                         None => (),
                     };
+
+                    CURRENT_PROCESS.with(|current_process| current_process.replace(None));
 
                     break true;
                 }
@@ -180,6 +191,7 @@ impl SchedulerTrait for Scheduler {
     }
 
     fn schedule(&self, process: Process) -> Arc<Process> {
+        assert_eq!(*process.status.read(), Status::Runnable);
         let mut writable_run_queues = self.run_queues.write();
 
         process.schedule_with(self.id);

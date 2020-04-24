@@ -17,7 +17,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::registry::pid_to_process;
 
 #[native_implemented_function(link/1)]
-fn native(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
+fn result(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
     match pid_or_port.decode()? {
         TypedTerm::Pid(pid) => {
             if pid == process.pid() {

@@ -1,14 +1,11 @@
 mod message_queue_data;
-mod out_of_code;
 
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
 
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::priority::Priority;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -87,21 +84,20 @@ impl Options {
         arity: u8,
     ) -> Result<Process, Alloc> {
         let priority = self.cascaded_priority(parent_process);
-        let module_function_arity = Arc::new(ModuleFunctionArity {
+        let module_function_arity = ModuleFunctionArity {
             module,
             function,
             arity,
-        });
+        };
         let (heap, heap_size) = self.sized_heap()?;
 
         let process = Process::new(
             priority,
             parent_process,
-            Arc::clone(&module_function_arity),
+            module_function_arity,
             heap,
             heap_size,
         );
-        out_of_code::place_frame_with_arguments(&process, Placement::Push)?;
 
         Ok(process)
     }

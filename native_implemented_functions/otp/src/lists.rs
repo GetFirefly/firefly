@@ -9,5 +9,9 @@ pub mod reverse_2;
 use liblumen_alloc::erts::term::prelude::Atom;
 
 fn module() -> Atom {
-    Atom::try_from_str("lists").unwrap()
+    Atom::from_str("lists")
+}
+
+fn module_id() -> usize {
+    module().id()
 }

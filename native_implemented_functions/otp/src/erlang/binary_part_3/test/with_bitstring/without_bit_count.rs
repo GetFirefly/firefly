@@ -21,9 +21,9 @@ fn with_zero_start_and_size_length_returns_binary() {
 fn returns_binary(
     (arc_process, binary, start, length): (Arc<Process>, Term, Term, Term),
 ) -> TestCaseResult {
-    prop_assert_eq!(native(&arc_process, binary, start, length), Ok(binary));
+    prop_assert_eq!(result(&arc_process, binary, start, length), Ok(binary));
 
-    let returned_binary = native(&arc_process, binary, start, length).unwrap();
+    let returned_binary = result(&arc_process, binary, start, length).unwrap();
 
     prop_assert_eq!(
         returned_binary.is_boxed_subbinary(),

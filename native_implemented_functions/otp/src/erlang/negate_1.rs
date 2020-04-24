@@ -16,7 +16,7 @@ use native_implemented_function::native_implemented_function;
 
 /// `-/1` prefix operator.
 #[native_implemented_function(-/1)]
-pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, number: Term) -> exception::Result<Term> {
     match number.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
             let number_isize: isize = small_integer.into();

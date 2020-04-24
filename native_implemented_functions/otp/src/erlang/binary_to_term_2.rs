@@ -42,7 +42,7 @@ macro_rules! maybe_aligned_maybe_binary_try_into_term {
 }
 
 #[native_implemented_function(binary_to_term/2)]
-pub fn native(process: &Process, binary: Term, options: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, binary: Term, options: Term) -> exception::Result<Term> {
     let options: Options = options.try_into()?;
 
     match binary.decode()? {

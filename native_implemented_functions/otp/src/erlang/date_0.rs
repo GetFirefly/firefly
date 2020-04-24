@@ -9,7 +9,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(date/0)]
-pub fn native(process: &Process) -> exception::Result<Term> {
+pub fn result(process: &Process) -> exception::Result<Term> {
     let date: [usize; 3] = datetime::local_date();
 
     process

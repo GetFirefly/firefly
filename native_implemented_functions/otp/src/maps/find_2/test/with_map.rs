@@ -23,7 +23,7 @@ fn without_key_returns_error_atom() {
                 |(key, map)| {
                     let error = atom!("error");
 
-                    prop_assert_eq!(native(&arc_process, key, map), Ok(error.into()));
+                    prop_assert_eq!(result(&arc_process, key, map), Ok(error.into()));
 
                     Ok(())
                 },
@@ -47,7 +47,7 @@ fn with_key_returns_success_tuple() {
                     let value = atom!("value");
                     let success_tuple = arc_process.tuple_from_slice(&[ok, value]).unwrap();
 
-                    prop_assert_eq!(native(&arc_process, key, map), Ok(success_tuple.into()));
+                    prop_assert_eq!(result(&arc_process, key, map), Ok(success_tuple.into()));
 
                     Ok(())
                 },

@@ -11,6 +11,6 @@ use native_implemented_function::native_implemented_function;
 
 /// `/=/2` infix operator.  Unlike `=/=`, converts between floats and integers.
 #[native_implemented_function(/=/2)]
-pub fn native(left: Term, right: Term) -> Term {
+pub fn result(left: Term, right: Term) -> Term {
     left.ne(&right).into()
 }

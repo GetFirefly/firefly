@@ -17,7 +17,7 @@ use native_implemented_function::native_implemented_function;
 /// `bitstring` is not divisible by `8`, the last element of the list is a `bitstring` containing
 /// the remaining `1`-`7` bits.
 #[native_implemented_function(bitstring_to_list/1)]
-pub fn native(process: &Process, bitstring: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, bitstring: Term) -> exception::Result<Term> {
     match bitstring.decode()? {
         TypedTerm::HeapBinary(heap_binary) => {
             let byte_term_iter = heap_binary.as_bytes().iter().map(|byte| (*byte).into());

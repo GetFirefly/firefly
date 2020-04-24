@@ -8,6 +8,6 @@ use crate::runtime::distribution::nodes::node;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(node/0)]
-pub fn native() -> Term {
+pub fn result() -> Term {
     node::term()
 }

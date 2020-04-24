@@ -4,7 +4,7 @@ use proptest::strategy::BoxedStrategy;
 
 pub fn without_valid_option_errors_badarg(
     source_file: &'static str,
-    native: fn(&Process, Term, Term) -> exception::Result<Term>,
+    result: fn(&Process, Term, Term) -> exception::Result<Term>,
 ) {
     run(
         source_file,
@@ -23,7 +23,7 @@ pub fn without_valid_option_errors_badarg(
         },
         |(arc_process, float, options)| {
             prop_assert_badarg!(
-                native(&arc_process, float, options),
+                result(&arc_process, float, options),
                 "supported options are compact, {:decimal, 0..253}, or {:scientific, 0..249}"
             );
 

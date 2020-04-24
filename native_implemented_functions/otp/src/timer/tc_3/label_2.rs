@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::{FrameWithArguments, Native};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::monotonic_time_0;
+use crate::runtime::process::current_process;
 use crate::timer::tc_3::label_3;
 
 /// ```elixir
@@ -19,35 +16,24 @@ use crate::timer::tc_3::label_3;
 /// time = :erlang.convert_time_unit(duration, :native, :microsecond)
 /// {time, value}
 /// ```
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    before: Term,
-) -> Result<(), Alloc> {
+pub fn frame_with_arguments(before: Term) -> FrameWithArguments {
     assert!(before.is_integer());
-    process.stack_push(before)?;
-    process.place_frame(frame(process), placement);
 
-    Ok(())
+    super::label_frame_with_arguments(NATIVE, true, &[before])
 }
 
 // Private
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+const NATIVE: Native = Native::Two(native);
+
+extern "C" fn native(value: Term, before: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let value = arc_process.stack_pop().unwrap();
-    let before = arc_process.stack_pop().unwrap();
     assert!(before.is_integer());
 
-    label_3::place_frame_with_arguments(arc_process, Placement::Replace, before, value)?;
-    monotonic_time_0::place_frame_with_arguments(arc_process, Placement::Push)?;
+    arc_process.queue_frame_with_arguments(label_3::frame_with_arguments(before, value));
+    arc_process.queue_frame_with_arguments(monotonic_time_0::frame().with_arguments(false, &[]));
 
-    Process::call_code(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
+    Term::NONE
 }

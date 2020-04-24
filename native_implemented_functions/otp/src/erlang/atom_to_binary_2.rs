@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(atom_to_binary/2)]
-pub fn native(process: &Process, atom: Term, encoding: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, atom: Term, encoding: Term) -> exception::Result<Term> {
     let atom_atom = term_try_into_atom!(atom)?;
     let _: Encoding = encoding.try_into()?;
     let binary = process.binary_from_str(atom_atom.name())?;

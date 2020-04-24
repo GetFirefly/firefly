@@ -15,7 +15,7 @@ fn with_empty_tuple_list_returns_false() {
                 |(key, one_based_index)| {
                     let tuple_list = Term::NIL;
 
-                    prop_assert_eq!(native(key, one_based_index, tuple_list), Ok(false.into()));
+                    prop_assert_eq!(result(key, one_based_index, tuple_list), Ok(false.into()));
 
                     Ok(())
                 },

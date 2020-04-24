@@ -19,8 +19,8 @@ mod label_4;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::Placement;
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Arity;
 
@@ -32,7 +32,7 @@ pub fn export() {
 
 const ARITY: Arity = 1;
 
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let event = arc_process.stack_pop().unwrap();
@@ -54,7 +54,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     liblumen_web::event::target_1::place_frame_with_arguments(arc_process, Placement::Push, event)
         .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn function() -> Atom {

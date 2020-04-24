@@ -10,7 +10,7 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
             .tuple_from_slice(&[registered_name, node()])
             .unwrap();
 
-        let monitor_reference_result = native(&monitoring_arc_process, r#type(), identifier);
+        let monitor_reference_result = result(&monitoring_arc_process, r#type(), identifier);
 
         assert!(monitor_reference_result.is_ok());
 
@@ -31,5 +31,5 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
 }
 
 fn node() -> Term {
-    node_0::native()
+    node_0::result()
 }

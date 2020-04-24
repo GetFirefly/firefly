@@ -11,7 +11,7 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::add_2::native;
+use crate::erlang::add_2::result;
 use crate::test::{run, strategy, with_process};
 
 #[test]
@@ -26,7 +26,7 @@ fn without_number_augend_errors_badarith() {
         },
         |(arc_process, augend, addend)| {
             prop_assert_badarith!(
-                native(&arc_process, augend, addend),
+                result(&arc_process, augend, addend),
                 format!(
                     "augend ({}) and addend ({}) aren't both numbers",
                     augend, addend
@@ -54,7 +54,7 @@ where
         },
         |(arc_process, augend, addend)| {
             prop_assert_badarith!(
-                native(&arc_process, augend, addend),
+                result(&arc_process, augend, addend),
                 format!(
                     "augend ({}) and addend ({}) aren't both numbers",
                     augend, addend

@@ -12,7 +12,7 @@ use web_sys::Window;
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
+use liblumen_alloc::erts::process::frames::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;

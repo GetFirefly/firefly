@@ -4,8 +4,6 @@ mod with_loaded_module;
 
 #[test]
 fn without_loaded_module_when_run_exits_undef_and_sends_exit_message_to_parent() {
-    apply_3::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
@@ -19,7 +17,7 @@ fn without_loaded_module_when_run_exits_undef_and_sends_exit_message_to_parent()
 
     let arguments = Term::NIL;
 
-    let result = native(&parent_arc_process, module, function, arguments);
+    let result = result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 

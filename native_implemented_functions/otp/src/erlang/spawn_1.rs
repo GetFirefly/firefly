@@ -14,6 +14,6 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::spawn_apply_1;
 
 #[native_implemented_function(spawn/1)]
-pub fn native(process: &Process, function: Term) -> exception::Result<Term> {
-    spawn_apply_1::native(process, Default::default(), function)
+pub fn result(process: &Process, function: Term) -> exception::Result<Term> {
+    spawn_apply_1::result(process, Default::default(), function)
 }

@@ -14,8 +14,8 @@ use crate::erlang;
 
 /// Returns a binary that is made from the integers and binaries given in iolist
 #[native_implemented_function(iolist_to_binary/1)]
-pub fn native(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
-    erlang::list_to_binary_1::native(
+pub fn result(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
+    erlang::list_to_binary_1::result(
         process,
         if iolist_or_binary.is_binary() {
             process.list_from_slice(&[iolist_or_binary]).unwrap()

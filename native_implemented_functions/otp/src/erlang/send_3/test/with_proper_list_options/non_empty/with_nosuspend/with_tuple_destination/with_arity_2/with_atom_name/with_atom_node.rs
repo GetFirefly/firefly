@@ -8,7 +8,7 @@ fn with_different_node_returns_nosuspend() {
             let name = registered_name();
 
             prop_assert_eq!(
-                erlang::register_2::native(arc_process.clone(), name, arc_process.pid_term()),
+                erlang::register_2::result(arc_process.clone(), name, arc_process.pid_term()),
                 Ok(true.into())
             );
 
@@ -18,7 +18,7 @@ fn with_different_node_returns_nosuspend() {
             let options = options(&arc_process);
 
             prop_assert_eq!(
-                native(&arc_process, destination, message, options),
+                result(&arc_process, destination, message, options),
                 Ok(Atom::str_to_term("nosuspend"))
             );
 

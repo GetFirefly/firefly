@@ -16,7 +16,7 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::unique_integer::{unique_integer, Options};
 
 #[native_implemented_function(unique_integer/1)]
-pub fn native(process: &Process, options: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, options: Term) -> exception::Result<Term> {
     let options_options: Options = options.try_into()?;
 
     unique_integer(process, options_options)

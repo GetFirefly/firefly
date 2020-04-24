@@ -5,7 +5,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::{Boxed, Tuple};
 
-use crate::erlang::append_element_2::native;
+use crate::erlang::append_element_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -19,7 +19,7 @@ fn without_tuple_errors_badarg() {
             )
         },
         |(arc_process, tuple, element)| {
-            prop_assert_is_not_tuple!(native(&arc_process, tuple, element), tuple);
+            prop_assert_is_not_tuple!(result(&arc_process, tuple, element), tuple);
 
             Ok(())
         },
@@ -37,7 +37,7 @@ fn with_tuple_returns_tuple_with_new_element_at_end() {
             )
         },
         |(arc_process, tuple, element)| {
-            let result = native(&arc_process, tuple, element);
+            let result = result(&arc_process, tuple, element);
 
             prop_assert!(result.is_ok(), "{:?}", result);
 

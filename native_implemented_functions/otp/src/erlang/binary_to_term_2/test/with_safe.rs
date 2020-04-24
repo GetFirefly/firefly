@@ -48,7 +48,7 @@ fn tried_to_convert_to_an_atom_that_doesnt_exist(byte_vec: Vec<u8>) {
         },
         |(arc_process, binary)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, options(&arc_process)),
+                result(&arc_process, binary, options(&arc_process)),
                 "tried to convert to an atom that doesn't exist"
             );
 

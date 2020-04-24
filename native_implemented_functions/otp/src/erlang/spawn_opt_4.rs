@@ -17,7 +17,7 @@ use crate::erlang::spawn_apply_3;
 use crate::runtime::process::spawn::options::Options;
 
 #[native_implemented_function(spawn_opt/4)]
-pub fn native(
+pub fn result(
     process: &Process,
     module: Term,
     function: Term,
@@ -26,5 +26,5 @@ pub fn native(
 ) -> exception::Result<Term> {
     let options_options: Options = options.try_into()?;
 
-    spawn_apply_3::native(process, options_options, module, function, arguments)
+    spawn_apply_3::result(process, options_options, module, function, arguments)
 }

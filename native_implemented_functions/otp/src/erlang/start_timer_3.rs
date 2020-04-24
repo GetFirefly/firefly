@@ -17,7 +17,7 @@ use crate::erlang::start_timer;
 use crate::runtime::timer::Timeout;
 
 #[native_implemented_function(start_timer/3)]
-pub fn native(
+pub fn result(
     arc_process: Arc<Process>,
     time: Term,
     destination: Term,

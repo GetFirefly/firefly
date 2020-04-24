@@ -12,7 +12,7 @@ fn with_integer_returns_binary() {
         |(arc_process, integer_isize)| {
             let integer = arc_process.integer(integer_isize).unwrap();
 
-            let result = native(&arc_process, integer);
+            let result = result(&arc_process, integer);
 
             prop_assert!(result.is_ok());
 
@@ -39,14 +39,14 @@ fn dual_of_binary_to_integer_1() {
             )
         },
         |(arc_process, integer)| {
-            let result_binary = native(&arc_process, integer);
+            let result_binary = result(&arc_process, integer);
 
             prop_assert!(result_binary.is_ok());
 
             let binary = result_binary.unwrap();
 
             prop_assert_eq!(
-                binary_to_integer_1::native(&arc_process, binary),
+                binary_to_integer_1::result(&arc_process, binary),
                 Ok(integer)
             );
 

@@ -15,7 +15,7 @@ use native_implemented_function::native_implemented_function;
 
 /// `++/2`
 #[native_implemented_function(++/2)]
-pub fn native(process: &Process, list: Term, term: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, list: Term, term: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(term),
         TypedTerm::List(cons) => match cons

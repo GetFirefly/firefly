@@ -15,8 +15,8 @@ use crate::erlang::spawn_apply_1;
 use crate::runtime::process::spawn::options::Options;
 
 #[native_implemented_function(spawn_monitor/1)]
-pub fn native(process: &Process, function: Term) -> exception::Result<Term> {
-    spawn_apply_1::native(
+pub fn result(process: &Process, function: Term) -> exception::Result<Term> {
+    spawn_apply_1::result(
         process,
         Options {
             monitor: true,

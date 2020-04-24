@@ -21,7 +21,7 @@ fn without_key_returns_equivalent_map() {
                         )
                     }),
                 |(key, map)| {
-                    prop_assert_eq!(native(&arc_process, key, map), Ok(map.into()));
+                    prop_assert_eq!(result(&arc_process, key, map), Ok(map.into()));
 
                     Ok(())
                 },
@@ -43,7 +43,7 @@ fn with_key_returns_new_map() {
                 |(key, map)| {
                     let empty_map = arc_process.map_from_slice(&[]).unwrap();
 
-                    prop_assert_eq!(native(&arc_process, key, map), Ok(empty_map.into()));
+                    prop_assert_eq!(result(&arc_process, key, map), Ok(empty_map.into()));
 
                     Ok(())
                 },

@@ -18,7 +18,7 @@ fn without_atom_errors_badarg() {
             let destination = arc_process.pid_term();
 
             prop_assert_is_not_boolean!(
-                native(arc_process.clone(), time, destination, message, options),
+                result(arc_process.clone(), time, destination, message, options),
                 "abs value",
                 abs_value
             );

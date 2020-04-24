@@ -11,7 +11,7 @@ fn without_monitor_returns_true() {
         let reference = monitoring_arc_process.next_reference().unwrap();
 
         assert_eq!(
-            native(
+            result(
                 &monitoring_arc_process,
                 reference,
                 options(&monitoring_arc_process)

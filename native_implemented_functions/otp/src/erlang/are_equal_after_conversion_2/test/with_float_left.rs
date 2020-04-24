@@ -13,7 +13,7 @@ fn without_small_integer_or_big_integer_or_float_returns_false() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -25,7 +25,7 @@ fn with_same_float_returns_true() {
     run!(
         |arc_process| strategy::term::float(arc_process.clone()),
         |operand| {
-            prop_assert_eq!(native(operand, operand), true.into());
+            prop_assert_eq!(result(operand, operand), true.into());
 
             Ok(())
         },
@@ -43,7 +43,7 @@ fn with_same_value_float_right_returns_true() {
             })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right.into()), true.into());
+            prop_assert_eq!(result(left.into(), right.into()), true.into());
 
             Ok(())
         },
@@ -63,7 +63,7 @@ fn with_different_float_right_returns_false() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -85,7 +85,7 @@ fn with_same_value_small_integer_right_returns_true() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right), true.into());
+            prop_assert_eq!(result(left.into(), right), true.into());
 
             Ok(())
         },
@@ -107,7 +107,7 @@ fn with_different_value_small_integer_right_returns_false() {
                 })
         },
         |(left, right)| {
-            prop_assert_eq!(native(left.into(), right), false.into());
+            prop_assert_eq!(result(left.into(), right), false.into());
 
             Ok(())
         },
@@ -127,7 +127,7 @@ fn with_same_value_big_integer_right_returns_true() {
                     })
                 },
                 |(left, right)| {
-                    prop_assert_eq!(native(left.into(), right), true.into());
+                    prop_assert_eq!(result(left.into(), right), true.into());
 
                     Ok(())
                 },
@@ -150,7 +150,7 @@ fn with_different_value_big_integer_right_returns_false() {
                     })
                 },
                 |(left, right)| {
-                    prop_assert_eq!(native(left.into(), right), false.into());
+                    prop_assert_eq!(result(left.into(), right), false.into());
 
                     Ok(())
                 },

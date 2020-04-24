@@ -9,7 +9,7 @@ fn with_small_integer_divisor_with_underflow_returns_small_integer() {
 
         assert!(divisor.is_smallint());
 
-        let result = native(process, dividend, divisor);
+        let result = result(process, dividend, divisor);
 
         assert!(result.is_ok());
 
@@ -26,7 +26,7 @@ fn with_big_integer_divisor_with_underflow_returns_small_integer() {
 
         assert!(divisor.is_boxed_bigint());
 
-        let result = native(process, dividend, divisor);
+        let result = result(process, dividend, divisor);
 
         assert!(result.is_ok());
 
@@ -44,9 +44,9 @@ fn with_big_integer_divisor_without_underflow_returns_big_integer() {
 
         assert!(divisor.is_boxed_bigint());
 
-        let dividend = erlang::multiply_2::native(&process, divisor, divisor).unwrap();
+        let dividend = erlang::multiply_2::result(&process, divisor, divisor).unwrap();
 
-        let result = native(process, dividend, divisor);
+        let result = result(process, dividend, divisor);
 
         assert!(result.is_ok());
 

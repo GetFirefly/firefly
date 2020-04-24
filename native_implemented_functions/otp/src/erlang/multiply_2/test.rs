@@ -8,7 +8,7 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::multiply_2::native;
+use crate::erlang::multiply_2::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -24,7 +24,7 @@ fn without_number_multiplier_errors_badarith() {
         },
         |(arc_process, multiplier, multiplicand)| {
             prop_assert_badarith!(
-                native(&arc_process, multiplier, multiplicand),
+                result(&arc_process, multiplier, multiplicand),
                 format!(
                     "multiplier ({}) and multiplicand ({}) aren't both numbers",
                     multiplier, multiplicand

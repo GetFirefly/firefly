@@ -1,5 +1,7 @@
 // Do not fail the build when feature flags are stabilized on recent nightlies, just warn
 #![allow(stable_features)]
+// Support backtraces in errors
+#![feature(backtrace)]
 // Allow use of intrinsics, e.g. unlikely/copy_nonoverlapping/etc.
 #![feature(core_intrinsics)]
 // Allocator APIs
@@ -11,8 +13,7 @@
 #![feature(specialization)]
 // Support SliceIndex trait
 #![feature(slice_index_methods)]
-// Support backtraces in errors
-#![feature(backtrace)]
+#![feature(trait_alias)]
 #![feature(raw_vec_internals)]
 
 #[cfg_attr(not(test), macro_use)]

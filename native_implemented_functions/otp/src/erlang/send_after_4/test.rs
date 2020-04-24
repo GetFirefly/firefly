@@ -11,7 +11,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang;
-use crate::erlang::send_after_4::native;
+use crate::erlang::send_after_4::result;
 use crate::test;
 use crate::test::strategy::milliseconds;
 use crate::test::{freeze_at_timeout, freeze_timeout, has_message, registered_name, strategy};
@@ -44,7 +44,7 @@ fn without_proper_list_options_errors_badarg() {
             let destination = arc_process.pid_term();
 
             prop_assert_badarg!(
-                native(arc_process.clone(), time, destination, message, options,),
+                result(arc_process.clone(), time, destination, message, options,),
                 "improper list"
             );
 

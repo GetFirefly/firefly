@@ -20,7 +20,7 @@ fn without_proper_list_errors_badarg() {
                 .unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, list),
+                result(&arc_process, list),
                 format!("list ({}) is improper", list)
             );
 
@@ -42,7 +42,7 @@ fn without_tuple_list_errors_badarg() {
             let list = arc_process.list_from_slice(&[element]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, list),
+                result(&arc_process, list),
                 format!("element ({}) of list ({}) is not a tuple", element, list)
             );
 
@@ -65,7 +65,7 @@ fn with_two_element_tuple_list_returns_value() {
             let tuple = arc_process.tuple_from_slice(&[key, value]).unwrap();
             let list = arc_process.list_from_slice(&[tuple]).unwrap();
             let map = arc_process.map_from_slice(&[(key, value)]).unwrap();
-            prop_assert_eq!(native(&arc_process, list), Ok(map));
+            prop_assert_eq!(result(&arc_process, list), Ok(map));
 
             Ok(())
         },
@@ -88,7 +88,7 @@ fn with_duplicate_keys_preserves_last_value() {
             let tuple2 = arc_process.tuple_from_slice(&[key, value2]).unwrap();
             let list = arc_process.list_from_slice(&[tuple1, tuple2]).unwrap();
             let map = arc_process.map_from_slice(&[(key, value2)]).unwrap();
-            prop_assert_eq!(native(&arc_process, list), Ok(map));
+            prop_assert_eq!(result(&arc_process, list), Ok(map));
 
             Ok(())
         },

@@ -6,7 +6,7 @@ use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::erts::term::prelude::Atom;
 
-use crate::erlang::atom_to_binary_2::native;
+use crate::erlang::atom_to_binary_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -20,7 +20,7 @@ fn without_atom_errors_badarg() {
             )
         },
         |(arc_process, atom, encoding)| {
-            prop_assert_is_not_atom!(native(&arc_process, atom, encoding), atom);
+            prop_assert_is_not_atom!(result(&arc_process, atom, encoding), atom);
 
             Ok(())
         },
@@ -39,7 +39,7 @@ fn with_atom_without_atom_encoding_errors_badarg() {
         },
         |(arc_process, atom, encoding)| {
             prop_assert_badarg!(
-                native(&arc_process, atom, encoding),
+                result(&arc_process, atom, encoding),
                 format!("invalid encoding name value: `{}` is not an atom", encoding)
             );
 
@@ -61,7 +61,7 @@ fn with_atom_with_atom_without_name_encoding_errors_badarg() {
         |(arc_process, atom, encoding)| {
             let encoding_atom: Atom = encoding.try_into().unwrap();
 
-            prop_assert_badarg!(native(&arc_process, atom, encoding), format!("invalid atom encoding name: '{}' is not one of the supported values (latin1, unicode, or utf8)", encoding_atom.name()));
+            prop_assert_badarg!(result(&arc_process, atom, encoding), format!("invalid atom encoding name: '{}' is not one of the supported values (latin1, unicode, or utf8)", encoding_atom.name()));
 
             Ok(())
         },
@@ -83,7 +83,7 @@ fn with_atom_with_encoding_atom_returns_name_in_binary() {
         },
         |(arc_process, atom, encoding, string)| {
             prop_assert_eq!(
-                native(&arc_process, atom, encoding),
+                result(&arc_process, atom, encoding),
                 Ok(arc_process.binary_from_bytes(string.as_bytes()).unwrap())
             );
 

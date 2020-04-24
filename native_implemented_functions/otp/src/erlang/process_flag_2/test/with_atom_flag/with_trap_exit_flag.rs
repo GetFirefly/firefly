@@ -11,7 +11,7 @@ fn without_boolean_value_errors_badarg() {
         },
         |(arc_process, value)| {
             prop_assert_is_not_boolean!(
-                native(&arc_process, flag(), value),
+                result(&arc_process, flag(), value),
                 "trap_exit value",
                 value
             );
@@ -27,7 +27,7 @@ fn with_boolean_returns_original_value_false() {
         .run(&strategy::term::is_boolean(), |value| {
             let arc_process = test::process::default();
 
-            prop_assert_eq!(native(&arc_process, flag(), value), Ok(false.into()));
+            prop_assert_eq!(result(&arc_process, flag(), value), Ok(false.into()));
 
             Ok(())
         })
@@ -41,9 +41,9 @@ fn with_true_value_then_boolean_value_returns_old_value_true() {
             let arc_process = test::process::default();
 
             let old_value = true.into();
-            prop_assert_eq!(native(&arc_process, flag(), old_value), Ok(false.into()));
+            prop_assert_eq!(result(&arc_process, flag(), old_value), Ok(false.into()));
 
-            prop_assert_eq!(native(&arc_process, flag(), value), Ok(old_value));
+            prop_assert_eq!(result(&arc_process, flag(), value), Ok(old_value));
 
             Ok(())
         })
@@ -57,7 +57,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_norma
 
         process.link(&other_arc_process);
 
-        assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
+        assert_eq!(result(process, flag(), true.into()), Ok(false.into()));
 
         assert!(scheduler::run_through(&other_arc_process));
 
@@ -66,8 +66,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_norma
 
         let reason = Atom::str_to_term("normal");
 
-        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&other_arc_process, reason);
 
         assert!(scheduler::run_through(&other_arc_process));
 
@@ -84,7 +83,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_shutd
 
         process.link(&other_arc_process);
 
-        assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
+        assert_eq!(result(process, flag(), true.into()), Ok(false.into()));
 
         assert!(scheduler::run_through(&other_arc_process));
 
@@ -93,8 +92,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_shutd
 
         let reason = Atom::str_to_term("shutdown");
 
-        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&other_arc_process, reason);
 
         assert!(scheduler::run_through(&other_arc_process));
 
@@ -111,7 +109,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_with_
 
         process.link(&other_arc_process);
 
-        assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
+        assert_eq!(result(process, flag(), true.into()), Ok(false.into()));
 
         assert!(scheduler::run_through(&other_arc_process));
 
@@ -124,8 +122,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_with_
             .tuple_from_slice(&[tag, shutdown_reason])
             .unwrap();
 
-        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&other_arc_process, reason);
 
         assert!(scheduler::run_through(&other_arc_process));
 
@@ -142,7 +139,7 @@ fn with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linke
 
         process.link(&other_arc_process);
 
-        assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
+        assert_eq!(result(process, flag(), true.into()), Ok(false.into()));
 
         assert!(scheduler::run_through(&other_arc_process));
 
@@ -151,8 +148,7 @@ fn with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linke
 
         let reason = Atom::str_to_term("exit_reason");
 
-        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&other_arc_process, reason);
 
         assert!(scheduler::run_through(&other_arc_process));
 
@@ -174,19 +170,18 @@ fn with_true_value_then_false_value_exits_when_linked_process_exits() {
 
         process.link(&other_arc_process);
 
-        assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
+        assert_eq!(result(process, flag(), true.into()), Ok(false.into()));
 
         assert!(scheduler::run_through(&other_arc_process));
 
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
 
-        assert_eq!(native(process, flag(), false.into()), Ok(true.into()));
+        assert_eq!(result(process, flag(), false.into()), Ok(true.into()));
 
         let reason = Atom::str_to_term("exit_reason");
 
-        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&other_arc_process, reason);
 
         assert!(scheduler::run_through(&other_arc_process));
 

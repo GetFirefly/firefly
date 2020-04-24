@@ -15,7 +15,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::registry;
 
 #[native_implemented_function(unregister/1)]
-pub fn native(name: Term) -> exception::Result<Term> {
+pub fn result(name: Term) -> exception::Result<Term> {
     let atom = term_try_into_atom!(name)?;
 
     if registry::unregister(&atom) {

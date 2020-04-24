@@ -8,24 +8,24 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::rem_2::native;
+use crate::erlang::rem_2::result;
 use crate::runtime::scheduler::SchedulerDependentAlloc;
 use crate::test::with_process;
 use crate::test::{external_arc_node, strategy};
 
 #[test]
 fn without_integer_dividend_errors_badarith() {
-    crate::test::without_integer_dividend_errors_badarith(file!(), native);
+    crate::test::without_integer_dividend_errors_badarith(file!(), result);
 }
 
 #[test]
 fn with_integer_dividend_without_integer_divisor_errors_badarith() {
-    crate::test::with_integer_dividend_without_integer_divisor_errors_badarith(file!(), native);
+    crate::test::with_integer_dividend_without_integer_divisor_errors_badarith(file!(), result);
 }
 
 #[test]
 fn with_integer_dividend_with_zero_divisor_errors_badarith() {
-    crate::test::with_integer_dividend_with_zero_divisor_errors_badarith(file!(), native);
+    crate::test::with_integer_dividend_with_zero_divisor_errors_badarith(file!(), result);
 }
 
 #[test]
@@ -99,7 +99,7 @@ where
         let dividend = dividend(&process);
         let divisor = process.integer(0).unwrap();
 
-        native(&process, dividend, divisor)
+        result(&process, dividend, divisor)
     });
 }
 

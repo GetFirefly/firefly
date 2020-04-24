@@ -17,7 +17,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(split_binary/2)]
-pub fn native(process: &Process, binary: Term, position: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, binary: Term, position: Term) -> exception::Result<Term> {
     let index: usize = position
         .try_into()
         .with_context(|| format!("position ({}) must be in 0..byte_size(binary)", position))?;

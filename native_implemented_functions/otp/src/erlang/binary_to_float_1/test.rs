@@ -2,12 +2,12 @@ use proptest::arbitrary::any;
 use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 
-use crate::erlang::binary_to_float_1::native;
+use crate::erlang::binary_to_float_1::result;
 use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
-    crate::test::without_binary_errors_badarg(file!(), native);
+    crate::test::without_binary_errors_badarg(file!(), result);
 }
 
 #[test]
@@ -26,7 +26,7 @@ fn with_binary_with_integer_errors_badarg() {
         },
         |(arc_process, binary)| {
             prop_assert_badarg!(
-                native(&arc_process, binary),
+                result(&arc_process, binary),
                 format!("binary ({}) does not contain decimal point", binary)
             );
 
@@ -51,7 +51,7 @@ fn with_binary_with_f64_returns_floats() {
         },
         |(arc_process, f, binary)| {
             prop_assert_eq!(
-                native(&arc_process, binary),
+                result(&arc_process, binary),
                 Ok(arc_process.float(f).unwrap())
             );
 
@@ -68,7 +68,7 @@ fn with_binary_with_less_than_min_f64_errors_badarg() {
         },
         |(arc_process, binary)| {
             prop_assert_badarg!(
-                native(&arc_process, binary),
+                result(&arc_process, binary),
                 format!("Erlang does not support infinities")
             );
 
@@ -85,7 +85,7 @@ fn with_binary_with_greater_than_max_f64_errors_badarg() {
         },
         |(arc_process, binary)| {
             prop_assert_badarg!(
-                native(&arc_process, binary),
+                result(&arc_process, binary),
                 format!("Erlang does not support infinities")
             );
 

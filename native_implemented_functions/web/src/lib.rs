@@ -24,7 +24,7 @@ use web_sys::{DomException, Window};
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception::AllocResult;
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
+use liblumen_alloc::erts::process::frames::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 #[cfg(not(test))]

@@ -9,7 +9,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::term::prelude::Encoded;
 
 use crate::erlang;
-use crate::erlang::bsl_2::native;
+use crate::erlang::bsl_2::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -25,7 +25,7 @@ fn without_integer_integer_errors_badarith() {
         },
         |(arc_process, integer, shift)| {
             prop_assert_badarith!(
-                native(&arc_process, integer, shift),
+                result(&arc_process, integer, shift),
                 format!("integer ({}) is not an integer", integer)
             );
 
@@ -46,7 +46,7 @@ fn with_integer_integer_without_integer_shift_errors_badarith() {
         },
         |(arc_process, integer, shift)| {
             prop_assert_badarith!(
-                native(&arc_process, integer, shift),
+                result(&arc_process, integer, shift),
                 format!("shift ({}) is not an integer", shift)
             );
 
@@ -67,7 +67,7 @@ fn with_integer_integer_with_zero_shift_returns_same_integer() {
         |(arc_process, integer)| {
             let shift = arc_process.integer(0).unwrap();
 
-            prop_assert_eq!(native(&arc_process, integer, shift), Ok(integer));
+            prop_assert_eq!(result(&arc_process, integer, shift), Ok(integer));
 
             Ok(())
         },
@@ -88,12 +88,12 @@ fn with_integer_integer_with_integer_shift_is_the_same_as_bsr_with_negated_shift
             let negated_shift = -1 * shift;
 
             prop_assert_eq!(
-                native(
+                result(
                     &arc_process,
                     integer,
                     arc_process.integer(shift as isize).unwrap(),
                 ),
-                erlang::bsr_2::native(
+                erlang::bsr_2::result(
                     &arc_process,
                     integer,
                     arc_process.integer(negated_shift as isize).unwrap(),

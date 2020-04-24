@@ -1,3 +1,5 @@
+pub mod dynamic_call;
+
 use cfg_if::cfg_if;
 
 cfg_if! {

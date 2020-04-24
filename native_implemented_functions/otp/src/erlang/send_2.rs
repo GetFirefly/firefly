@@ -14,7 +14,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::send::{send, Sent};
 
 #[native_implemented_function(send/2)]
-pub fn native(process: &Process, destination: Term, message: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, destination: Term, message: Term) -> exception::Result<Term> {
     let sent = send(destination, message, Default::default(), process)?;
 
     match sent {

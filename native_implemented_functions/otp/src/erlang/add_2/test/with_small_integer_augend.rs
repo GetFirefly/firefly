@@ -10,7 +10,7 @@ fn with_small_integer_addend_without_underflow_or_overflow_returns_small_integer
     with(|augend, process| {
         let addend = process.integer(3).unwrap();
 
-        assert_eq!(native(&process, augend, addend), Ok(5.into()));
+        assert_eq!(result(&process, augend, addend), Ok(5.into()));
     })
 }
 
@@ -22,7 +22,7 @@ fn with_small_integer_addend_with_underflow_returns_big_integer() {
 
         assert!(addend.is_smallint());
 
-        let result = native(&process, augend, addend);
+        let result = result(&process, augend, addend);
 
         assert!(result.is_ok());
 
@@ -39,7 +39,7 @@ fn with_small_integer_addend_with_overflow_returns_big_integer() {
 
         assert!(addend.is_smallint());
 
-        let result = native(&process, augend, addend);
+        let result = result(&process, augend, addend);
 
         assert!(result.is_ok());
 
@@ -56,7 +56,7 @@ fn with_big_integer_addend_returns_big_integer() {
 
         assert!(addend.is_boxed_bigint());
 
-        let result = native(&process, augend, addend);
+        let result = result(&process, augend, addend);
 
         assert!(result.is_ok());
 
@@ -72,7 +72,7 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
         let addend = process.float(3.0).unwrap();
 
         assert_eq!(
-            native(&process, augend, addend),
+            result(&process, augend, addend),
             Ok(process.float(5.0).unwrap())
         );
     })
@@ -84,7 +84,7 @@ fn with_float_addend_with_underflow_returns_min_float() {
         let addend = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
-            native(&process, augend, addend),
+            result(&process, augend, addend),
             Ok(process.float(std::f64::MIN).unwrap())
         );
     })
@@ -96,7 +96,7 @@ fn with_float_addend_with_overflow_returns_max_float() {
         let addend = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
-            native(&process, augend, addend),
+            result(&process, augend, addend),
             Ok(process.float(std::f64::MAX).unwrap())
         );
     })

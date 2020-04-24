@@ -13,6 +13,6 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::is_record;
 
 #[native_implemented_function(is_record/3)]
-pub fn native(term: Term, record_tag: Term, size: Term) -> exception::Result<Term> {
+pub fn result(term: Term, record_tag: Term, size: Term) -> exception::Result<Term> {
     is_record(term, record_tag, Some(size))
 }

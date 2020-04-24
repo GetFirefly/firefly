@@ -17,7 +17,7 @@ fn without_proper_list_options_errors_badarg() {
         },
         |(arc_process, float, options)| {
             prop_assert_badarg!(
-                native(&arc_process, float, options),
+                result(&arc_process, float, options),
                 "supported options are compact, {:decimal, 0..253}, or {:scientific, 0..249}"
             );
 

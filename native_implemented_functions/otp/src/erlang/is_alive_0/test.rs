@@ -1,6 +1,6 @@
-use crate::erlang::is_alive_0::native;
+use crate::erlang::is_alive_0::result;
 
 #[test]
 fn returns_false() {
-    assert_eq!(native(), false.into())
+    assert_eq!(result(), false.into())
 }

@@ -18,7 +18,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
             let time = arc_process.integer(milliseconds).unwrap();
 
             prop_assert_badarg!(
-                native(
+                result(
                     arc_process.clone(),
                     time,
                     destination,

@@ -3,7 +3,7 @@ use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::erlang::map_size_1::native;
+use crate::erlang::map_size_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -17,7 +17,7 @@ fn without_map_errors_badmap() {
         },
         |(arc_process, map)| {
             prop_assert_badmap!(
-                native(&arc_process, map),
+                result(&arc_process, map),
                 &arc_process,
                 map,
                 format!("map ({}) is not a map", map)
@@ -51,7 +51,7 @@ fn with_map_returns_number_of_entries() {
                 })
         },
         |(arc_process, map, size)| {
-            prop_assert_eq!(native(&arc_process, map,), Ok(size));
+            prop_assert_eq!(result(&arc_process, map,), Ok(size));
 
             Ok(())
         },

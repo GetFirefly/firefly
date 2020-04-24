@@ -11,6 +11,6 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(erase/1)]
-pub fn native(process: &Process, key: Term) -> Term {
+pub fn result(process: &Process, key: Term) -> Term {
     process.erase_value_from_key(key)
 }

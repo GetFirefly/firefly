@@ -13,7 +13,7 @@ fn without_supported_flag_errors_badarg() {
             )
         },
         |(arc_process, flag, value)| {
-            prop_assert_badarg!(native(&arc_process, flag, value), "supported flags are error_handler, max_heap_size, message_queue_data, min_bin_vheap_size, min_heap_size, priority, save_calls, sensitive, and trap_exit");
+            prop_assert_badarg!(result(&arc_process, flag, value), "supported flags are error_handler, max_heap_size, message_queue_data, min_bin_vheap_size, min_heap_size, priority, save_calls, sensitive, and trap_exit");
 
             Ok(())
         },

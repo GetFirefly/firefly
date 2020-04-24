@@ -14,6 +14,6 @@ use native_implemented_function::native_implemented_function;
 /// **NOTE: `=</2` is not a typo.  Unlike `>=/2`, which has the `=` second, Erlang put the `=` first
 /// for `=</2`, instead of the more common `<=`.
 #[native_implemented_function(=</2)]
-pub fn native(left: Term, right: Term) -> Term {
+pub fn result(left: Term, right: Term) -> Term {
     left.le(&right).into()
 }

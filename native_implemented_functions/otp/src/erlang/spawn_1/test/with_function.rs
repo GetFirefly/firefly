@@ -15,7 +15,10 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
                 Just(arc_process.clone()),
                 strategy::module_function_arity::module(),
                 strategy::module_function_arity::function(),
-                (1_u8..=255_u8),
+                strategy::term::export_closure_arity_range_inclusive().prop_filter(
+                    "Arity cannot be zero to allow empty args to be used",
+                    |arity| *arity != 0,
+                ),
             )
                 .prop_map(|(arc_process, module, function, arity)| {
                     (
@@ -26,7 +29,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
                 })
         },
         |(arc_process, function, arity)| {
-            let result = native(&arc_process, function);
+            let result = result(&arc_process, function);
 
             prop_assert!(result.is_ok());
 

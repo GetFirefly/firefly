@@ -1,6 +1,6 @@
 use proptest::prop_assert_eq;
 
-use crate::erlang::andalso_2::native;
+use crate::erlang::andalso_2::result;
 use crate::test::strategy;
 
 #[test]
@@ -13,7 +13,7 @@ fn without_boolean_left_errors_badarg() {
             )
         },
         |(left, right)| {
-            prop_assert_badarg!(native(left, right), "left must be a bool");
+            prop_assert_badarg!(result(left, right), "left must be a bool");
 
             Ok(())
         },
@@ -23,7 +23,7 @@ fn without_boolean_left_errors_badarg() {
 #[test]
 fn with_false_left_returns_false() {
     run!(|arc_process| strategy::term(arc_process.clone()), |right| {
-        prop_assert_eq!(native(false.into(), right), Ok(false.into()));
+        prop_assert_eq!(result(false.into(), right), Ok(false.into()));
 
         Ok(())
     },);
@@ -32,7 +32,7 @@ fn with_false_left_returns_false() {
 #[test]
 fn with_true_left_returns_right() {
     run!(|arc_process| strategy::term(arc_process.clone()), |right| {
-        prop_assert_eq!(native(true.into(), right), Ok(right));
+        prop_assert_eq!(result(true.into(), right), Ok(right));
 
         Ok(())
     },);

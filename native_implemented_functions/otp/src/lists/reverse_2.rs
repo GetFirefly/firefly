@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(reverse/2)]
-pub fn native(process: &Process, list: Term, tail: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, list: Term, tail: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(tail),
         TypedTerm::List(cons) => {

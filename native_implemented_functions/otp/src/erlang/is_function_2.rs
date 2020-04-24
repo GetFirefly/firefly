@@ -13,7 +13,7 @@ use native_implemented_function::native_implemented_function;
 use crate::runtime::context::*;
 
 #[native_implemented_function(is_function/2)]
-fn native(term: Term, arity: Term) -> exception::Result<Term> {
+fn result(term: Term, arity: Term) -> exception::Result<Term> {
     let arity_arity = term_try_into_arity(arity)?;
 
     Ok(term.decode()?.is_function_with_arity(arity_arity).into())

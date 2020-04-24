@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn with_invalid_unit_errors_badarg() {
     with_process(|process| {
-        assert_badarg!(native(process, atom!("invalid")), SUPPORTED_UNITS);
+        assert_badarg!(result(process, atom!("invalid")), SUPPORTED_UNITS);
     });
 }
 
@@ -13,13 +13,13 @@ fn with_second_increases_after_2_seconds() {
         let unit = Atom::str_to_term("second");
         let start_time_in_milliseconds = monotonic::freeze_time_in_milliseconds();
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         monotonic::freeze_at_time_in_milliseconds(
             start_time_in_milliseconds + Duration::from_secs(2).as_millis() as Milliseconds,
         );
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -31,11 +31,11 @@ fn with_millisecond_increases_after_2_milliseconds() {
         let unit = Atom::str_to_term("millisecond");
         let start_time_in_milliseconds = monotonic::freeze_time_in_milliseconds();
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         monotonic::freeze_at_time_in_milliseconds(start_time_in_milliseconds + 2);
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -47,11 +47,11 @@ fn with_microsecond_increases_after_2_milliseconds() {
         let unit = Atom::str_to_term("microsecond");
         let start_time_in_milliseconds = monotonic::freeze_time_in_milliseconds();
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         monotonic::freeze_at_time_in_milliseconds(start_time_in_milliseconds + 2);
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -63,11 +63,11 @@ fn with_nanosecond_increases_after_2_milliseconds() {
         let unit = Atom::str_to_term("nanosecond");
         let start_time_in_milliseconds = monotonic::freeze_time_in_milliseconds();
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         monotonic::freeze_at_time_in_milliseconds(start_time_in_milliseconds + 2);
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -79,11 +79,11 @@ fn with_native_increases_after_2_native_time_units() {
         let unit = Atom::str_to_term("native");
         let start_time_in_milliseconds = monotonic::freeze_time_in_milliseconds();
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         monotonic::freeze_at_time_in_milliseconds(start_time_in_milliseconds + 2);
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });
@@ -95,11 +95,11 @@ fn with_perf_counter_increases_after_2_perf_counter_ticks() {
         let unit = Atom::str_to_term("perf_counter");
         let start_time_in_milliseconds = monotonic::freeze_time_in_milliseconds();
 
-        let first = native(process, unit).unwrap();
+        let first = result(process, unit).unwrap();
 
         monotonic::freeze_at_time_in_milliseconds(start_time_in_milliseconds + 2);
 
-        let second = native(process, unit).unwrap();
+        let second = result(process, unit).unwrap();
 
         assert!(first < second);
     });

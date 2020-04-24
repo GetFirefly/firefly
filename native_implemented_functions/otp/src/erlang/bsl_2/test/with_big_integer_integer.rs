@@ -10,7 +10,7 @@ fn with_negative_without_big_integer_underflow_shifts_right_and_returns_big_inte
     with(|integer, process| {
         let shift = process.integer(-1).unwrap();
 
-        let result = native(&process, integer, shift);
+        let result = result(&process, integer, shift);
 
         assert!(result.is_ok());
 
@@ -39,7 +39,7 @@ fn with_negative_with_big_integer_underflow_without_small_integer_underflow_shif
     with(|integer, process| {
         let shift = process.integer(-69).unwrap();
 
-        let result = native(&process, integer, shift);
+        let result = result(&process, integer, shift);
 
         assert!(result.is_ok());
 
@@ -56,7 +56,7 @@ fn with_negative_with_underflow_returns_zero() {
         let shift = process.integer(-74).unwrap();
 
         assert_eq!(
-            native(&process, integer, shift),
+            result(&process, integer, shift),
             Ok(process.integer(0b0).unwrap())
         );
     });
@@ -67,7 +67,7 @@ fn with_positive_returns_big_integer() {
     with(|integer, process| {
         let shift = process.integer(1).unwrap();
 
-        let result = native(&process, integer, shift);
+        let result = result(&process, integer, shift);
 
         assert!(result.is_ok());
 

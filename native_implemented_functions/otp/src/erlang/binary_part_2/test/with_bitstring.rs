@@ -16,7 +16,7 @@ fn without_tuple_start_length_errors_badarg() {
         },
         |(arc_process, binary, start_length)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 format!("start_length ({}) is not a tuple", start_length)
             );
 
@@ -44,7 +44,7 @@ fn with_tuple_without_arity_2_errors_badarg() {
         },
         |(arc_process, binary, start_length)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, start_length),
+                result(&arc_process, binary, start_length),
                 format!(
                     "start_length ({}) is a tuple, but not 2-arity",
                     start_length

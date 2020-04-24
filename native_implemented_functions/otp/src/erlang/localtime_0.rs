@@ -9,7 +9,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(localtime/0)]
-pub fn native(process: &Process) -> exception::Result<Term> {
+pub fn result(process: &Process) -> exception::Result<Term> {
     let now: [usize; 6] = datetime::local_now();
 
     let date_tuple = process.tuple_from_slice(&[

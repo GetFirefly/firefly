@@ -8,20 +8,23 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::module_function_arity::module(),
-                strategy::module_function_arity::function(),
-                (1_u8..=255_u8),
+                strategy::term::export_closure_non_zero_arity_range_inclusive(),
             )
-                .prop_map(|(arc_process, module, function, arity)| {
+                .prop_map(|(arc_process, arity)| {
                     (
                         arc_process.clone(),
                         arity,
-                        strategy::term::export_closure(&arc_process, module, function, arity),
+                        strategy::term::export_closure(
+                            &arc_process,
+                            Atom::from_str("module"),
+                            Atom::from_str("function"),
+                            arity,
+                        ),
                     )
                 })
         },
         |(arc_process, arity, function)| {
-            let result = native(&arc_process, function, options(&arc_process));
+            let result = result(&arc_process, function, options(&arc_process));
 
             prop_assert!(result.is_ok());
 

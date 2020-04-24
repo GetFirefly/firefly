@@ -16,7 +16,7 @@ use crate::runtime::context::*;
 
 /// `element/2`
 #[native_implemented_function(element/2)]
-pub fn native(index: Term, tuple: Term) -> exception::Result<Term> {
+pub fn result(index: Term, tuple: Term) -> exception::Result<Term> {
     let tuple_tuple = term_try_into_tuple!(tuple)?;
     let one_based_index = term_try_into_one_based_index(index)?;
 

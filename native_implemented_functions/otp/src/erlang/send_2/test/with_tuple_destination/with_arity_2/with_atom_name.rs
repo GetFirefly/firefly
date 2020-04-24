@@ -17,7 +17,7 @@ fn without_atom_node_errors_badarg() {
             let destination = arc_process.tuple_from_slice(&[name, node]).unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, destination, message),
+                result(&arc_process, destination, message),
                 format!(
                     "node ({}) in {{registered_name, node}} ({}) destination is not an atom",
                     node, destination

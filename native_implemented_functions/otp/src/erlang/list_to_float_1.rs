@@ -15,7 +15,7 @@ use crate::erlang::charlist_to_string::charlist_to_string;
 use crate::erlang::string_to_float::string_to_float;
 
 #[native_implemented_function(list_to_float/1)]
-pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, list: Term) -> exception::Result<Term> {
     let string = charlist_to_string(list)?;
 
     string_to_float(process, "list", &string, '\'').map_err(From::from)

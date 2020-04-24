@@ -12,7 +12,7 @@ fn without_atom_returns_true() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), true.into());
+            prop_assert_eq!(result(left, right), true.into());
 
             Ok(())
         },
@@ -23,7 +23,7 @@ fn without_atom_returns_true() {
 fn with_same_atom_returns_false() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(&strategy::term::atom(), |operand| {
-            prop_assert_eq!(native(operand, operand), false.into());
+            prop_assert_eq!(result(operand, operand), false.into());
 
             Ok(())
         })
@@ -37,7 +37,7 @@ fn with_different_atom_returns_true() {
             &(strategy::term::atom(), strategy::term::atom())
                 .prop_filter("Atoms must be different", |(left, right)| left != right),
             |(left, right)| {
-                prop_assert_eq!(native(left, right), true.into());
+                prop_assert_eq!(result(left, right), true.into());
 
                 Ok(())
             },

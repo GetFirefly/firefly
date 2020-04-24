@@ -2,8 +2,8 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_alloc::ModuleFunctionArity;
@@ -31,7 +31,7 @@ pub fn place_frame_with_arguments(
 // # returns: {:ok, inserted_child}
 // {:ok, inserted_child} = Lumen.Web.insert_before(parent, new_child, reference_child)
 // ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let ok_new_child = arc_process.stack_pop().unwrap();
@@ -60,7 +60,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         reference_child,
     )?;
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame() -> Frame {

@@ -8,7 +8,7 @@ fn returns_reference() {
         let monitored_monitor_count_before = monitor_count(&monitored_arc_process);
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
-        let monitor_reference_result = native(
+        let monitor_reference_result = result(
             &monitoring_arc_process,
             r#type(),
             monitored_arc_process.pid_term(),
@@ -42,13 +42,13 @@ fn returns_different_reference_each_time() {
         let monitored_monitor_count_before = monitor_count(&monitored_arc_process);
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
-        let first_monitor_reference = native(
+        let first_monitor_reference = result(
             &monitoring_arc_process,
             r#type(),
             monitored_arc_process.pid_term(),
         )
         .unwrap();
-        let second_monitor_reference = native(
+        let second_monitor_reference = result(
             &monitoring_arc_process,
             r#type(),
             monitored_arc_process.pid_term(),
@@ -76,14 +76,14 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
     with_process_arc(|monitoring_arc_process| {
         let monitored_arc_process = test::process::child(&monitoring_arc_process);
 
-        let first_monitor_reference = native(
+        let first_monitor_reference = result(
             &monitoring_arc_process,
             r#type(),
             monitored_arc_process.pid_term(),
         )
         .unwrap();
 
-        let second_monitor_reference = native(
+        let second_monitor_reference = result(
             &monitoring_arc_process,
             r#type(),
             monitored_arc_process.pid_term(),
@@ -93,8 +93,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
         assert!(!monitored_arc_process.is_exiting());
 
         let reason = Atom::str_to_term("normal");
-        exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&monitored_arc_process, reason);
 
         assert!(scheduler::run_through(&monitored_arc_process));
 

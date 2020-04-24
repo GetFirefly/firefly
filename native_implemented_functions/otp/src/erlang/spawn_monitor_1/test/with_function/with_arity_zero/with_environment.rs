@@ -14,15 +14,23 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                     let arc_process = test::process::init();
                     let creator = arc_process.pid().into();
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
-                        let first = arc_process.stack_pop().unwrap();
-                        let second = arc_process.stack_pop().unwrap();
-                        let reason = arc_process.list_from_slice(&[first, second])?;
 
-                        arc_process.exception(exit!(reason, anyhow!("Test").into()));
+                    fn result(
+                        process: &Process,
+                        first: Term,
+                        second: Term,
+                    ) -> exception::Result<Term> {
+                        let reason = process.list_from_slice(&[first, second])?;
 
-                        Ok(())
-                    };
+                        Err(exit!(reason, anyhow!("Test").into()).into())
+                    }
+
+                    fn native(first: Term, second: Term) -> Term {
+                        let arc_process = current_process();
+                        arc_process.reduce();
+
+                        arc_process.return_status(result(&arc_process, first, second))
+                    }
 
                     (
                         arc_process.clone(),
@@ -33,7 +41,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                                 old_unique,
                                 unique,
                                 arity,
-                                Some(code),
+                                Some(native as _),
                                 creator,
                                 &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
@@ -41,7 +49,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                     )
                 }),
             |(parent_arc_process, function)| {
-                let result = native(&parent_arc_process, function);
+                let result = result(&parent_arc_process, function);
 
                 prop_assert!(result.is_ok());
 
@@ -74,7 +82,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                     .unwrap();
 
                 match *child_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
+                    Status::RuntimeException(ref exception) => {
                         prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
                     }
                     ref status => {
@@ -122,15 +130,23 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                     let arc_process = test::process::init();
                     let creator = arc_process.pid().into();
                     let arity = 0;
-                    let code = |arc_process: &Arc<Process>| {
-                        let first = arc_process.stack_pop().unwrap();
-                        let second = arc_process.stack_pop().unwrap();
-                        let reason = arc_process.tuple_from_slice(&[first, second])?;
 
-                        arc_process.exception(exit!(reason, anyhow!("Test").into()));
+                    fn result(
+                        process: &Process,
+                        first: Term,
+                        second: Term,
+                    ) -> exception::Result<Term> {
+                        let reason = process.tuple_from_slice(&[first, second])?;
 
-                        Ok(())
-                    };
+                        Err(exit!(reason, anyhow!("Test").into()).into())
+                    }
+
+                    extern "C" fn native(first: Term, second: Term) -> Term {
+                        let arc_process = current_process();
+                        arc_process.reduce();
+
+                        arc_process.return_status(result(&arc_process, first, second))
+                    }
 
                     (
                         arc_process.clone(),
@@ -141,7 +157,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                                 old_unique,
                                 unique,
                                 arity,
-                                Some(code),
+                                Some(native as _),
                                 creator,
                                 &[
                                     Atom::str_to_term("shutdown"),
@@ -152,7 +168,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                     )
                 }),
             |(parent_arc_process, function)| {
-                let result = native(&parent_arc_process, function);
+                let result = result(&parent_arc_process, function);
 
                 prop_assert!(result.is_ok());
 
@@ -188,7 +204,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                     .unwrap();
 
                 match *child_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
+                    Status::RuntimeException(ref exception) => {
                         prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
                     }
                     ref status => {

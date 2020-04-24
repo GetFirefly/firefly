@@ -8,7 +8,7 @@ fn without_timer_returns_ok_and_sends_read_timer_message() {
         let timer_reference = process.next_reference().unwrap();
 
         assert_eq!(
-            native(process, timer_reference, options(process)),
+            result(process, timer_reference, options(process)),
             Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(

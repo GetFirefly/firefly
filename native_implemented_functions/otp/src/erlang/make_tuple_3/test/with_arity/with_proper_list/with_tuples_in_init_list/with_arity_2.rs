@@ -22,7 +22,7 @@ fn without_positive_index_errors_badarg_because_indexes_are_one_based() {
             let init = arc_process.tuple_from_slice(&[position, element]).unwrap();
             let init_list = arc_process.list_from_slice(&[init]).unwrap();
 
-            let r = native(&arc_process, arity, default_value, init_list);
+            let r = result(&arc_process, arity, default_value, init_list);
 
             prop_assert_badarg!(
                 r,

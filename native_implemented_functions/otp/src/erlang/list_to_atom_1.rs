@@ -15,7 +15,7 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::list_to_string::list_to_string;
 
 #[native_implemented_function(list_to_atom/1)]
-pub fn native(string: Term) -> exception::Result<Term> {
+pub fn result(string: Term) -> exception::Result<Term> {
     list_to_string(string).and_then(|s| match Atom::try_from_str(s) {
         Ok(atom) => Ok(atom.encode()?),
         Err(atom_error) => Err(atom_error)

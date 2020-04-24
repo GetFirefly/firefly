@@ -19,7 +19,7 @@ use crate::runtime::time;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(convert_time_unit/3)]
-pub fn native(
+pub fn result(
     process: &Process,
     time: Term,
     from_unit: Term,

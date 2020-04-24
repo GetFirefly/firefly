@@ -1,5 +1,6 @@
 use std::cmp::{max, min};
 use std::convert::TryInto;
+use std::ffi::c_void;
 use std::num::FpCategory;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -12,6 +13,8 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 use liblumen_alloc::{atom, fixnum_from};
+
+use crate::runtime::process::current_process;
 
 use super::size_range;
 
@@ -149,15 +152,45 @@ pub fn is_function_with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStra
 }
 
 pub fn export_closure(process: &Process, module: Atom, function: Atom, arity: u8) -> Term {
-    let code = |arc_process: &Arc<Process>| {
+    extern "C" fn zero() -> Term {
+        let arc_process = current_process();
         arc_process.wait();
 
-        Ok(())
+        Term::NONE
+    }
+
+    extern "C" fn one(_first: Term) -> Term {
+        let arc_process = current_process();
+        arc_process.wait();
+
+        Term::NONE
+    }
+
+    extern "C" fn two(_first: Term, _second: Term) -> Term {
+        let arc_process = current_process();
+        arc_process.wait();
+
+        Term::NONE
+    }
+
+    let native: *const c_void = match arity {
+        0 => zero as _,
+        1 => one as _,
+        2 => two as _,
+        _ => unimplemented!("Export closure with arity {}", arity),
     };
 
     process
-        .export_closure(module, function, arity, Some(code))
+        .export_closure(module, function, arity, Some(native as _))
         .unwrap()
+}
+
+pub fn export_closure_arity_range_inclusive() -> RangeInclusive<u8> {
+    0..=2
+}
+
+pub fn export_closure_non_zero_arity_range_inclusive() -> RangeInclusive<u8> {
+    1..=2
 }
 
 pub fn is_integer(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

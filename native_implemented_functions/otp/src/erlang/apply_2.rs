@@ -6,79 +6,35 @@
 mod test;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception::{badarity, Alloc};
-use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::exception::{self, badarity};
+use liblumen_alloc::erts::process::{FrameWithArguments, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
-use liblumen_alloc::ModuleFunctionArity;
+use native_implemented_function::native_implemented_function;
 
-pub fn code(arc_process: &Arc<Process>) -> code::Result {
-    arc_process.reduce();
-
-    let function = arc_process.stack_peek(1).unwrap();
-    let arguments = arc_process.stack_peek(2).unwrap();
-
-    const STACK_USED: usize = 2;
-
+#[native_implemented_function(apply/2)]
+fn result(process: &Process, function: Term, arguments: Term) -> exception::Result<Term> {
     let function_result_boxed_closure: Result<Boxed<Closure>, _> = function.try_into();
 
     match function_result_boxed_closure {
         Ok(function_boxed_closure) => {
-            let mut argument_vec = Vec::new();
-
-            match arguments.decode()? {
-                TypedTerm::Nil => (),
-                TypedTerm::List(argument_boxed_cons) => {
-                    for result in argument_boxed_cons.into_iter() {
-                        match result {
-                            Ok(element) => argument_vec.push(element),
-                            Err(_) => {
-                                arc_process.stack_popn(STACK_USED);
-                                arc_process.exception(
-                                    anyhow!(ImproperListError)
-                                        .context(format!(
-                                            "arguments ({}) is not a proper list",
-                                            arguments
-                                        ))
-                                        .into(),
-                                );
-
-                                return Ok(());
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    arc_process.stack_popn(STACK_USED);
-                    arc_process.exception(
-                        anyhow!(TypeError)
-                            .context(format!("arguments ({}) is not a list", arguments))
-                            .into(),
-                    );
-
-                    return Ok(());
-                }
-            }
+            let argument_vec = argument_list_to_vec(arguments)?;
 
             let arguments_len = argument_vec.len();
             let arity = function_boxed_closure.arity() as usize;
 
             if arguments_len == arity {
-                arc_process.stack_popn(STACK_USED);
-                function_boxed_closure
-                    .place_frame_with_arguments(arc_process, Placement::Replace, argument_vec)
-                    .unwrap();
+                let frame_with_arguments =
+                    function_boxed_closure.frame_with_arguments(false, argument_vec);
+                process.queue_frame_with_arguments(frame_with_arguments);
 
-                Process::call_code(arc_process)
+                Ok(Term::NONE)
             } else {
-                let exception = badarity(
-                    arc_process,
+                Err(badarity(
+                    process,
                     function,
                     arguments,
                     anyhow!(
@@ -89,54 +45,40 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                         function
                     )
                     .into(),
-                );
-                code::result_from_exception(arc_process, STACK_USED, exception)
+                ))
             }
         }
-        Err(_) => {
-            arc_process.stack_popn(STACK_USED);
-            arc_process.exception(
-                anyhow!(TypeError)
-                    .context(format!("function ({}) is not a function", function))
-                    .into(),
-            );
-
-            Ok(())
-        }
+        Err(_) => Err(anyhow!(TypeError)
+            .context(format!("function ({}) is not a function", function))
+            .into()),
     }
 }
 
-pub fn function() -> Atom {
-    Atom::try_from_str("apply").unwrap()
+fn argument_list_to_vec(list: Term) -> exception::Result<Vec<Term>> {
+    let mut vec = Vec::new();
+
+    match list.decode()? {
+        TypedTerm::Nil => Ok(vec),
+        TypedTerm::List(boxed_cons) => {
+            for result in boxed_cons.into_iter() {
+                match result {
+                    Ok(element) => vec.push(element),
+                    Err(_) => {
+                        return Err(anyhow!(ImproperListError)
+                            .context(format!("arguments ({}) is not a proper list", list)))
+                        .map_err(From::from)
+                    }
+                }
+            }
+
+            Ok(vec)
+        }
+        _ => Err(anyhow!(TypeError)
+            .context(format!("arguments ({}) is not a list", list))
+            .into()),
+    }
 }
 
-pub fn module() -> Atom {
-    super::module()
-}
-
-pub fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: module(),
-        function: function(),
-        arity: 2,
-    })
-}
-
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    function: Term,
-    arguments: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(arguments)?;
-    process.stack_push(function)?;
-    process.place_frame(frame(), placement);
-
-    Ok(())
-}
-
-// Private
-
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
+pub fn frame_with_arguments(function: Term, arguments: Term) -> FrameWithArguments {
+    frame().with_arguments(false, &[function, arguments])
 }

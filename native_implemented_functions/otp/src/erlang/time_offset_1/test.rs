@@ -40,16 +40,16 @@ fn approximately_system_time_minus_monotonic_time_in_perf_counter_ticks() {
 fn approximately_system_time_minus_monotonic_time_in_unit(unit_str: &str) {
     with_process(|process| {
         let unit = atom!(unit_str);
-        let monotonic_time = monotonic_time_1::native(process, unit).unwrap();
-        let system_time = system_time_1::native(process, unit).unwrap();
-        let time_offset = time_offset_1::native(process, unit).unwrap();
+        let monotonic_time = monotonic_time_1::result(process, unit).unwrap();
+        let system_time = system_time_1::result(process, unit).unwrap();
+        let time_offset = time_offset_1::result(process, unit).unwrap();
         let expected_time_offset =
-            subtract_2::native(process, system_time, monotonic_time).unwrap();
+            subtract_2::result(process, system_time, monotonic_time).unwrap();
         let time_offset_delta =
-            subtract_2::native(process, expected_time_offset, time_offset).unwrap();
+            subtract_2::result(process, expected_time_offset, time_offset).unwrap();
         let time_offset_delta_limit_seconds =
             process.integer(TIME_OFFSET_DELTA_LIMIT_SECONDS).unwrap();
-        let time_offset_delta_limit = convert_time_unit_3::native(
+        let time_offset_delta_limit = convert_time_unit_3::result(
             process,
             time_offset_delta_limit_seconds,
             atom!("seconds"),

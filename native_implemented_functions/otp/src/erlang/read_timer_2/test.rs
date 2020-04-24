@@ -9,7 +9,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::read_timer_2::native;
+use crate::erlang::read_timer_2::result;
 use crate::runtime::scheduler::SchedulerDependentAlloc;
 use crate::runtime::time::monotonic;
 use crate::test::{
@@ -29,7 +29,7 @@ fn without_reference_errors_badarg() {
         },
         |(arc_process, timer_reference, options)| {
             prop_assert_badarg!(
-                native(&arc_process, timer_reference, options),
+                result(&arc_process, timer_reference, options),
                 format!(
                     "timer_reference ({}) is not a local reference",
                     timer_reference
@@ -53,7 +53,7 @@ fn with_reference_without_list_options_errors_badarg() {
         },
         |(arc_process, timer_reference, options)| {
             prop_assert_badarg!(
-                native(&arc_process, timer_reference, options),
+                result(&arc_process, timer_reference, options),
                 "improper list"
             );
 

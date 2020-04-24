@@ -66,6 +66,13 @@ impl Stack {
         }
     }
 
+    pub unsafe fn push64(&mut self, value: u64) {
+        let mut top64 = self.top as *mut u64;
+        top64 = top64.offset(-1);
+        top64.write(value);
+        self.top = top64 as *mut u8;
+    }
+
     #[inline]
     pub fn limit(&self) -> *mut u8 {
         self.end

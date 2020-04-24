@@ -15,11 +15,11 @@ fn unregistered_errors_badarg() {
         |(arc_process, message, options)| {
             let name = registered_name();
             let destination = arc_process
-                .tuple_from_slice(&[name, erlang::node_0::native()])
+                .tuple_from_slice(&[name, erlang::node_0::result()])
                 .unwrap();
 
             prop_assert_badarg!(
-                native(&arc_process, destination, message, options),
+                result(&arc_process, destination, message, options),
                 format!("name ({}) not registered", name)
             );
 

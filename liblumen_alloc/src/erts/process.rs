@@ -1,7 +1,9 @@
 pub mod alloc;
-pub mod code;
 //pub mod ffi;
 mod flags;
+mod frame;
+mod frame_with_arguments;
+mod frames;
 pub mod gc;
 mod heap;
 mod mailbox;
@@ -10,6 +12,7 @@ pub mod priority;
 
 use core::any::Any;
 use core::cell::RefCell;
+use core::ffi::c_void;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::mem;
@@ -30,7 +33,9 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::exception::{AllocResult, ArcError, InternalResult, RuntimeException};
+use crate::erts::exception::{
+    AllocResult, ArcError, Exception, InternalResult, RuntimeException, SystemException,
+};
 use crate::erts::module_function_arity::Arity;
 use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
 use crate::erts::term::prelude::*;
@@ -40,9 +45,9 @@ use super::*;
 use self::alloc::VirtualAllocator;
 use self::alloc::{Heap, HeapAlloc, TermAlloc};
 use self::alloc::{StackAlloc, StackPrimitives};
-use self::code::stack;
-use self::code::stack::frame::{Frame, Placement};
-use self::code::Code;
+pub use self::frame::{Frame, Native};
+pub use self::frame_with_arguments::FrameWithArguments;
+pub use self::frames::{Frames, StackTrace};
 use self::gc::{GcError, RootSet};
 
 pub use self::flags::*;
@@ -112,12 +117,12 @@ pub struct Process {
     /// The `pid` of the process that does I/O on this process's behalf.
     group_leader_pid: Mutex<Pid>,
     pid: Pid,
-    pub initial_module_function_arity: Arc<ModuleFunctionArity>,
+    pub initial_module_function_arity: ModuleFunctionArity,
     /// The number of reductions in the current `run`.  `code` MUST return when `run_reductions`
     /// exceeds `MAX_REDUCTIONS_PER_RUN`.
     run_reductions: AtomicU16,
     pub total_reductions: AtomicU64,
-    code_stack: Mutex<code::stack::Stack>,
+    frames: Mutex<Frames>,
     pub status: RwLock<Status>,
     pub registered_name: RwLock<Option<Atom>>,
     /// Pids of processes that are linked to this process and need to be exited when this process
@@ -129,8 +134,8 @@ pub struct Process {
     /// Maps monitor references to the PID of the process being monitored by this process.
     pub monitored_pid_by_reference: DashMap<Reference, Pid>,
     pub mailbox: Mutex<RefCell<Mailbox>>,
-    pub registers: CalleeSavedRegisters,
-    pub stack: alloc::Stack,
+    pub registers: Mutex<CalleeSavedRegisters>,
+    pub stack: Mutex<alloc::Stack>,
     // process heap, cache line aligned to avoid false sharing with rest of struct
     heap: Mutex<ProcessHeap>,
 }
@@ -140,7 +145,7 @@ impl Process {
     pub fn new(
         priority: Priority,
         parent: Option<&Self>,
-        initial_module_function_arity: Arc<ModuleFunctionArity>,
+        initial_module_function_arity: ModuleFunctionArity,
         heap: *mut Term,
         heap_size: usize,
     ) -> Self {
@@ -173,7 +178,7 @@ impl Process {
             heap: Mutex::new(heap),
             stack: Default::default(),
             registers: Default::default(),
-            code_stack: Default::default(),
+            frames: Default::default(),
             scheduler_id: Mutex::new(None),
             priority,
             parent_pid,
@@ -191,7 +196,7 @@ impl Process {
     pub fn new_with_stack(
         priority: Priority,
         parent: Option<&Self>,
-        initial_module_function_arity: Arc<ModuleFunctionArity>,
+        initial_module_function_arity: ModuleFunctionArity,
         heap: *mut Term,
         heap_size: usize,
     ) -> AllocResult<Self> {
@@ -202,7 +207,7 @@ impl Process {
             heap,
             heap_size,
         );
-        p.stack = self::alloc::stack(4)?;
+        p.stack = Mutex::new(self::alloc::stack(4)?);
         Ok(p)
     }
 
@@ -373,7 +378,7 @@ impl Process {
     }
 
     #[inline(always)]
-    pub fn stack(&self) -> &alloc::Stack {
+    pub fn stack(&self) -> &Mutex<alloc::Stack> {
         &self.stack
     }
 
@@ -390,6 +395,23 @@ impl Process {
             let stack0 = self.alloca(1)?.as_ptr();
             ptr::write(stack0, term);
         }
+        Ok(())
+    }
+
+    pub fn stack_push_slice(&self, terms: &[Term]) -> AllocResult<()> {
+        for (i, term) in terms.iter().rev().enumerate() {
+            match self.stack_push(term.clone_to_process(self)) {
+                Ok(_) => (),
+                err @ Err(_) => {
+                    for _ in 0..i {
+                        self.stack_pop().unwrap();
+                    }
+
+                    return err;
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -570,13 +592,13 @@ impl Process {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        code: Option<Code>,
+        native: Option<*const c_void>,
         creator: Creator,
         slice: &[Term],
     ) -> AllocResult<Term> {
         self.acquire_heap()
             .anonymous_closure_with_env_from_slice(
-                module, index, old_unique, unique, arity, code, creator, slice,
+                module, index, old_unique, unique, arity, native, creator, slice,
             )
             .map(|term_ptr| term_ptr.into())
     }
@@ -586,10 +608,10 @@ impl Process {
         module: Atom,
         function: Atom,
         arity: u8,
-        code: Option<Code>,
+        native: Option<*const c_void>,
     ) -> AllocResult<Term> {
         self.acquire_heap()
-            .export_closure(module, function, arity, code)
+            .export_closure(module, function, arity, native)
             .map(|term_ptr| term_ptr.into())
     }
 
@@ -1019,25 +1041,43 @@ impl Process {
         MAX_REDUCTIONS_PER_RUN <= self.run_reductions.load(Ordering::SeqCst)
     }
 
+    pub fn runnable<F>(&self, frames_with_arguments_fn: F) -> AllocResult<()>
+    where
+        F: FnOnce(&Process) -> AllocResult<Vec<FrameWithArguments>>,
+    {
+        let mut writable_status = self.status.write();
+
+        assert_eq!(
+            *writable_status,
+            Status::Unrunnable,
+            "Process ({}) can only be marked as runnable once",
+            self
+        );
+
+        let frames_with_arguments = frames_with_arguments_fn(&self)?;
+
+        for FrameWithArguments {
+            frame, arguments, ..
+        } in frames_with_arguments.iter().rev()
+        {
+            self.stack_push_slice(arguments)?;
+            self.frames.lock().push(frame.clone());
+        }
+
+        *writable_status = Status::Runnable;
+
+        Ok(())
+    }
+
     /// Run process until `reductions` exceeds `MAX_REDUCTIONS` or process exits
-    pub fn run(arc_process: &Arc<Process>) -> code::Result {
-        arc_process.start_running();
+    pub fn run(&self) -> Ran {
+        self.start_running();
 
-        // `code` is expected to set `code` before it returns to be the next spot to continue
-        let option_code = arc_process
-            .code_stack
-            .lock()
-            .get(0)
-            .map(|frame| frame.code());
+        let run_result = self.call_native_until_reduced();
 
-        let code_result = match option_code {
-            Some(code) => code(arc_process),
-            None => Ok(arc_process.exit_normal(anyhow!("Out of code").into())),
-        };
+        self.stop_running();
 
-        arc_process.stop_running();
-
-        code_result
+        run_result
     }
 
     fn start_running(&self) {
@@ -1074,7 +1114,7 @@ impl Process {
     }
 
     pub fn is_exiting(&self) -> bool {
-        if let Status::Exiting(_) = *self.status.read() {
+        if let Status::RuntimeException(_) = *self.status.read() {
             true
         } else {
             false
@@ -1082,117 +1122,160 @@ impl Process {
     }
 
     pub fn exception(&self, exception: RuntimeException) {
-        *self.status.write() = Status::Exiting(exception);
+        *self.status.write() = Status::RuntimeException(exception);
+    }
+
+    /// Returns `Term::NONE` to indicate a (runtime or system) exception was recorded in status
+    pub fn return_status(&self, result: exception::Result<Term>) -> Term {
+        match result {
+            Ok(term) => term,
+            Err(exception) => {
+                *self.status.write() = match exception {
+                    Exception::System(system_exception) => {
+                        Status::SystemException(system_exception)
+                    }
+                    Exception::Runtime(runtime_exception) => {
+                        Status::RuntimeException(runtime_exception)
+                    }
+                };
+
+                Term::NONE
+            }
+        }
     }
 
     // Code Stack
 
-    pub fn code_stack_len(&self) -> usize {
-        self.code_stack.lock().len()
+    fn call_native_until_reduced(&self) -> Ran {
+        while !self.is_reduced() {
+            match self.call_current_native() {
+                CalledCurrentNative::Runnable => continue,
+                CalledCurrentNative::Waiting => return Ran::Waiting,
+                CalledCurrentNative::RuntimeException => return Ran::RuntimeException,
+                CalledCurrentNative::SystemException => return Ran::SystemException,
+            }
+        }
+
+        Ran::Reduced
     }
 
-    pub fn pop_code_stack(&self) {
-        let mut locked_stack = self.code_stack.lock();
-        locked_stack.pop().unwrap();
-    }
+    // Calls top `Frame`'s `native` if it exists
+    fn call_current_native(&self) -> CalledCurrentNative {
+        // not done inline in `match` argument, so that lock isn't held for `native.apply`, when
+        // `native` may want to manipulate `frame_stack`.
+        let native = self
+            .frames
+            .lock()
+            .current()
+            .map(|frame| frame.native())
+            .unwrap_or_else(|| panic!("Process ({:?}) ran out of frames without exiting", self));
 
-    /// Calls top `Frame`'s `Code` if it exists and the process is not reduced.
-    pub fn call_code(arc_process: &Arc<Process>) -> code::Result {
-        if !arc_process.is_reduced() {
-            let option_code = arc_process
-                .code_stack
-                .lock()
-                .get(0)
-                .map(|frame| frame.code());
+        let arity = native.arity() as usize;
+        let mut arguments = Vec::with_capacity(arity);
 
-            match option_code {
-                Some(code) => code(arc_process),
-                None => Ok(()),
+        for i in 0..arity {
+            let argument = self
+                .stack_peek(i + 1)
+                .unwrap_or_else(||
+                    panic!("Process ({}) did not have {} item on stack.  Only {} arguments ({:?}) could be gathered for frame ({:?})",
+                           self,
+                           i + 1,
+                           i,
+                           arguments,
+                           self.frames.lock().current().unwrap()
+                    )
+                );
+            arguments.push(argument);
+        }
+
+        let returned = native.apply(&arguments);
+
+        let called_current_native = if returned.is_none() {
+            match *self.status.read() {
+                Status::Unrunnable => unreachable!("Process ({}) should only be unrunnable when first created. not after calling a native function", self),
+                Status::Runnable => unreachable!("Process ({}) should remain in Running and no go to Runnable inside a native function", self),
+                // both running and waiting need to have queued up their re-entry point
+                Status::Running => {
+                    // remove completed frame now that it isn't needed for backtrace
+                    self.frames.lock().pop().unwrap();
+                    self.stack_popn(arity);
+
+                    self.stack_queued_frames_with_arguments();
+
+                    // unlike with non-Term::NONE `returned`, don't push `returned`
+                    CalledCurrentNative::Runnable
+                }
+                Status::Waiting => {
+                    // remove completed frame now that it isn't needed for backtrace
+                    self.frames.lock().pop().unwrap();
+                    self.stack_popn(arity);
+
+                    self.stack_queued_frames_with_arguments();
+
+                    // unlike with non-Term::NONE `returned`, don't push `returned`
+                    CalledCurrentNative::Waiting
+                },
+                Status::RuntimeException(_) => CalledCurrentNative::RuntimeException,
+                Status::SystemException(_) => CalledCurrentNative::SystemException
             }
         } else {
-            Ok(())
+            assert_eq!(*self.status.read(), Status::Running);
+            // remove completed frame now that it isn't needed for backtrace
+            self.frames.lock().pop().unwrap();
+            self.stack_popn(arity);
+
+            self.stack_queued_frames_with_arguments();
+
+            match self.stack_push(returned) {
+                Ok(()) => CalledCurrentNative::Runnable,
+                Err(_) => {
+                    unimplemented!("Stack over flow");
+                }
+            }
+        };
+
+        called_current_native
+    }
+
+    pub fn stack_queued_frames_with_arguments(&self) {
+        let mut frames = self.frames.lock();
+        let frames_with_arguments = frames.drain_queue();
+
+        for FrameWithArguments {
+            frame, arguments, ..
+        } in frames_with_arguments
+        {
+            match self.stack_push_slice(&arguments) {
+                Ok(()) => {
+                    frames.push(frame);
+                }
+                Err(_) => {
+                    unimplemented!("Stack over flow");
+                }
+            }
         }
     }
 
-    pub fn current_module_function_arity(&self) -> Option<Arc<ModuleFunctionArity>> {
-        self.code_stack
+    pub fn current_module_function_arity(&self) -> Option<ModuleFunctionArity> {
+        self.frames
             .lock()
-            .get(0)
+            .current()
             .map(|frame| frame.module_function_arity())
     }
 
     pub fn current_definition(&self) -> Option<Definition> {
-        self.code_stack
+        self.frames
             .lock()
-            .get(0)
+            .current()
             .map(|frame| frame.definition().clone())
     }
 
-    pub fn place_frame(&self, frame: Frame, placement: Placement) {
-        match placement {
-            Placement::Replace => self.replace_frame(frame),
-            Placement::Push => self.push_frame(frame),
-        }
+    pub fn queue_frame_with_arguments(&self, frame_with_arguments: FrameWithArguments) {
+        self.frames.lock().queue(frame_with_arguments);
     }
 
-    pub fn push_frame(&self, frame: Frame) {
-        self.code_stack.lock().push(frame)
-    }
-
-    pub fn replace_frame(&self, frame: Frame) {
-        let mut locked_code_stack = self.code_stack.lock();
-
-        // unwrap to ensure there is a frame to replace
-        locked_code_stack.pop().unwrap();
-
-        locked_code_stack.push(frame);
-    }
-
-    pub fn remove_last_frame(&self, stack_used: usize) {
-        self.stack_popn(stack_used);
-        let mut locked_code_stack = self.code_stack.lock();
-
-        // the last frame is at the 2nd spot because the true last frame is `lumen:out_of_code/1`.
-        assert_eq!(locked_code_stack.len(), 2);
-
-        // unwrap to ensure there is a frame to replace
-        locked_code_stack.pop().unwrap();
-    }
-
-    pub fn return_from_call(&self, stack_used: usize, term: Term) -> AllocResult<()> {
-        let mut locked_heap = self.heap.lock();
-        // ensure there is space on the stack for return value before messing with the stack and
-        // breaking reentrancy
-        if locked_heap.stack_available() + stack_used > 0 {
-            if stack_used > 0 {
-                // Heap cannot pop n 0
-                locked_heap.stack_popn(stack_used);
-            }
-
-            let mut locked_stack = self.code_stack.lock();
-
-            // remove current frame.  The caller becomes the top frame, so it's
-            // `module_function_arity` will be returned from
-            // `current_module_function_arity`.
-            locked_stack.pop();
-
-            // no caller, return value is thrown away, process will exit when
-            // `Scheduler.run_once` detects it has no frames.
-            if locked_stack.len() > 0 {
-                unsafe {
-                    let ptr = locked_heap.alloca(1).unwrap().as_ptr();
-                    ptr::write(ptr, term);
-                }
-            }
-
-            Ok(())
-        } else {
-            Err(alloc!())
-        }
-    }
-
-    pub fn stacktrace(&self) -> stack::Trace {
-        self.code_stack.lock().trace()
+    pub fn stacktrace(&self) -> StackTrace {
+        self.frames.lock().stacktrace()
     }
 }
 
@@ -1267,18 +1350,38 @@ unsafe impl Sync for Process {}
 
 type Reductions = u16;
 
+#[derive(Debug)]
+enum CalledCurrentNative {
+    Runnable,
+    Waiting,
+    RuntimeException,
+    SystemException,
+}
+
+pub enum Ran {
+    Waiting,
+    Reduced,
+    RuntimeException,
+    SystemException,
+}
+
 // [BEAM statuses](https://github.com/erlang/otp/blob/551d03fe8232a66daf1c9a106194aa38ef660ef6/erts/emulator/beam/erl_process.c#L8944-L8972)
 #[derive(Debug, PartialEq)]
 pub enum Status {
+    /// The process is spawned, but cannot be run because runtime-specific initialization has not
+    /// occurred.
+    Unrunnable,
+    /// The process has had scheduler-specific initialization and can be run when it appears.
     Runnable,
     Running,
     Waiting,
-    Exiting(RuntimeException),
+    SystemException(SystemException),
+    RuntimeException(RuntimeException),
 }
 
 impl Default for Status {
     fn default() -> Status {
-        Status::Runnable
+        Status::Unrunnable
     }
 }
 

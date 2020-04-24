@@ -9,7 +9,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry;
 
-use crate::erlang::process_info_2::native;
+use crate::erlang::process_info_2::result;
 use crate::test;
 use crate::test::{registered_name, strategy, with_process_arc};
 
@@ -25,7 +25,7 @@ fn without_local_pid_errors_badarg() {
         |(arc_process, pid)| {
             let item = Atom::str_to_term("registered_name");
 
-            prop_assert_is_not_local_pid!(native(&arc_process, pid, item), pid);
+            prop_assert_is_not_local_pid!(result(&arc_process, pid, item), pid);
 
             Ok(())
         },

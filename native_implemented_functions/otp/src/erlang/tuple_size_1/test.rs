@@ -1,7 +1,7 @@
 use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 
-use crate::erlang::tuple_size_1::native;
+use crate::erlang::tuple_size_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -14,7 +14,7 @@ fn without_tuple_errors_badarg() {
             )
         },
         |(arc_process, tuple)| {
-            prop_assert_is_not_tuple!(native(&arc_process, tuple), tuple);
+            prop_assert_is_not_tuple!(result(&arc_process, tuple), tuple);
 
             Ok(())
         },
@@ -39,7 +39,7 @@ fn with_tuple_returns_arity() {
         },
         |(arc_process, size, term)| {
             prop_assert_eq!(
-                native(&arc_process, term),
+                result(&arc_process, term),
                 Ok(arc_process.integer(size).unwrap())
             );
 

@@ -25,7 +25,7 @@ fn without_key_errors_badkey() {
                 }),
             |(arc_process, key, map)| {
                 prop_assert_badkey!(
-                    native(&arc_process, key, map),
+                    result(&arc_process, key, map),
                     &arc_process,
                     key,
                     format!("map ({}) does not have key ({})", map, key)
@@ -49,7 +49,7 @@ fn with_key_returns_value() {
                 }),
                 |(key, map)| {
                     let value = atom!("value");
-                    prop_assert_eq!(native(&arc_process, key, map), Ok(value.into()));
+                    prop_assert_eq!(result(&arc_process, key, map), Ok(value.into()));
 
                     Ok(())
                 },

@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(keys/1)]
-pub fn native(process: &Process, map: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, map: Term) -> exception::Result<Term> {
     let boxed_map = term_try_into_map_or_badmap!(process, map)?;
     let keys = boxed_map.keys();
     let list = process.list_from_slice(&keys)?;

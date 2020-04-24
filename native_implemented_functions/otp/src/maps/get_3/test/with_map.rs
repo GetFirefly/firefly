@@ -22,7 +22,7 @@ fn without_key_returns_default() {
                     }),
                 |(key, map)| {
                     let default = atom!("default");
-                    prop_assert_eq!(native(&arc_process, key, map, default), Ok(default.into()));
+                    prop_assert_eq!(result(&arc_process, key, map, default), Ok(default.into()));
 
                     Ok(())
                 },
@@ -44,7 +44,7 @@ fn with_key_returns_value() {
                 |(key, map)| {
                     let default = atom!("default");
                     let value = atom!("value");
-                    prop_assert_eq!(native(&arc_process, key, map, default), Ok(value.into()));
+                    prop_assert_eq!(result(&arc_process, key, map, default), Ok(value.into()));
 
                     Ok(())
                 },

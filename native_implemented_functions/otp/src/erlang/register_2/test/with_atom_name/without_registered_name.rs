@@ -19,7 +19,7 @@ fn without_pid_or_port_errors_badarg() {
         },
         |(arc_process, name, pid_or_port)| {
             prop_assert_badarg!(
-                erlang::register_2::native(arc_process.clone(), name, pid_or_port),
+                erlang::register_2::result(arc_process.clone(), name, pid_or_port),
                 format!("{} must be a local pid or port", pid_or_port)
             );
 

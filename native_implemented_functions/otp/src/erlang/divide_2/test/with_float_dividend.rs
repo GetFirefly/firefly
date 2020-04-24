@@ -6,7 +6,7 @@ fn with_float_divisor_without_underflow_or_overflow_returns_float() {
         let divisor = process.float(4.0).unwrap();
 
         assert_eq!(
-            native(process, dividend, divisor),
+            result(process, dividend, divisor),
             Ok(process.float(0.5).unwrap())
         );
     })
@@ -39,7 +39,7 @@ fn with_extreme(extreme: f64) {
         let divisor = process.float(0.1).unwrap();
 
         assert_eq!(
-            native(process, dividend, divisor),
+            result(process, dividend, divisor),
             Ok(process.float(extreme).unwrap())
         );
     })

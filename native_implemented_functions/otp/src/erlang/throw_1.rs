@@ -13,6 +13,6 @@ use liblumen_alloc::erts::term::prelude::Term;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(throw/1)]
-pub fn native(reason: Term) -> exception::Result<Term> {
+pub fn result(reason: Term) -> exception::Result<Term> {
     Err(throw(reason, None, anyhow!("explicit throw from Erlang").into()).into())
 }

@@ -13,7 +13,7 @@ fn without_empty_list_returns_false() {
             )
         },
         |(left, right)| {
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -22,5 +22,5 @@ fn without_empty_list_returns_false() {
 
 #[test]
 fn with_empty_list_right_returns_true() {
-    assert_eq!(native(Term::NIL, Term::NIL), true.into());
+    assert_eq!(result(Term::NIL, Term::NIL), true.into());
 }

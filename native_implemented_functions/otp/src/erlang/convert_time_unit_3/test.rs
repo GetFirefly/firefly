@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::time::Unit::{self, *};
 
-use crate::erlang::convert_time_unit_3::native;
+use crate::erlang::convert_time_unit_3::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -30,7 +30,7 @@ fn without_integer_time_returns_badarg() {
         },
         |(arc_process, time, from_unit, to_unit)| {
             prop_assert_badarg!(
-                native(&arc_process, time, from_unit, to_unit),
+                result(&arc_process, time, from_unit, to_unit),
                 format!("time ({}) must be an integer", time)
             );
 
@@ -52,7 +52,7 @@ fn with_integer_time_without_unit_from_unit_errors_badarg() {
         },
         |(arc_process, time, from_unit, to_unit)| {
             prop_assert_is_not_time_unit!(
-                native(&arc_process, time, from_unit, to_unit),
+                result(&arc_process, time, from_unit, to_unit),
                 from_unit
             );
 
@@ -73,7 +73,7 @@ fn with_integer_time_with_unit_from_unit_without_unit_to_unit_errors_badarg() {
             )
         },
         |(arc_process, time, from_unit, to_unit)| {
-            prop_assert_is_not_time_unit!(native(&arc_process, time, from_unit, to_unit), to_unit);
+            prop_assert_is_not_time_unit!(result(&arc_process, time, from_unit, to_unit), to_unit);
 
             Ok(())
         },
@@ -182,7 +182,7 @@ fn with_small_integer_time_valid_units_returns_converted_value() {
             };
 
             prop_assert_eq!(
-                native(
+                result(
                     &arc_process,
                     time,
                     from_unit.to_term(&arc_process).unwrap(),
@@ -464,7 +464,7 @@ fn with_big_integer_time_with_unit_from_unit_with_unit_to_unit_returns_converted
                 };
 
                 prop_assert_eq!(
-                    native(
+                    result(
                         process,
                         time,
                         from_unit.to_term(process).unwrap(),

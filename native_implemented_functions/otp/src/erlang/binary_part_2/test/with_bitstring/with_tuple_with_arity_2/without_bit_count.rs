@@ -23,9 +23,9 @@ fn returns_binary(
 ) -> TestCaseResult {
     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-    prop_assert_eq!(native(&arc_process, binary, start_length), Ok(binary));
+    prop_assert_eq!(result(&arc_process, binary, start_length), Ok(binary));
 
-    let returned_binary = native(&arc_process, binary, start_length).unwrap();
+    let returned_binary = result(&arc_process, binary, start_length).unwrap();
 
     prop_assert_eq!(
         returned_binary.is_boxed_subbinary(),

@@ -10,7 +10,7 @@ fn with_number_second_returns_second() {
             )
         },
         |(first, second)| {
-            prop_assert_eq!(native(first, second), second);
+            prop_assert_eq!(result(first, second), second);
 
             Ok(())
         },
@@ -50,7 +50,7 @@ fn without_number_or_atom_returns_first() {
             )
         },
         |(first, second)| {
-            prop_assert_eq!(native(first, second), first);
+            prop_assert_eq!(result(first, second), first);
 
             Ok(())
         },

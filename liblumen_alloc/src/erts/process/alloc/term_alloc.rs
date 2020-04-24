@@ -1,7 +1,6 @@
 use core::alloc::Layout;
 use core::any::Any;
 use core::ffi::c_void;
-use core::mem;
 use core::ptr;
 use core::str::Chars;
 
@@ -16,7 +15,6 @@ use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetim
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{AllocResult, InternalResult};
 use crate::erts::module_function_arity::Arity;
-use crate::erts::process::code::Code;
 use crate::erts::string::Encoding;
 use crate::erts::term::closure::{Creator, Index, OldUnique, Unique};
 use crate::erts::term::prelude::*;
@@ -535,13 +533,12 @@ pub trait TermAlloc: Heap {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        code: Option<Code>,
+        native: Option<*const c_void>,
         creator: Creator,
         slice: &[Term],
     ) -> AllocResult<Boxed<Closure>> {
-        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
         Closure::from_slice(
-            self, module, index, old_unique, unique, arity, code, creator, slice,
+            self, module, index, old_unique, unique, arity, native, creator, slice,
         )
     }
 
@@ -560,14 +557,13 @@ pub trait TermAlloc: Heap {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        code: Option<Code>,
+        native: Option<*const c_void>,
         creator: Creator,
         slices: &[&[Term]],
     ) -> AllocResult<Boxed<Closure>> {
-        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
         let len = slices.iter().map(|slice| slice.len()).sum();
         let mut closure_box = Closure::new_anonymous(
-            self, module, index, old_unique, unique, arity, code, creator, len,
+            self, module, index, old_unique, unique, arity, native, creator, len,
         )?;
 
         unsafe {
@@ -592,10 +588,9 @@ pub trait TermAlloc: Heap {
         module: Atom,
         function: Atom,
         arity: u8,
-        code: Option<Code>,
+        native: Option<*const c_void>,
     ) -> AllocResult<Boxed<Closure>> {
-        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
-        Closure::new_export(self, module, function, arity, code)
+        Closure::new_export(self, module, function, arity, native)
     }
 }
 

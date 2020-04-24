@@ -7,7 +7,7 @@ fn without_process_returns_reference_but_immediate_sends_noproc_message() {
     with_process_arc(|monitoring_arc_process| {
         let monitored_pid = Pid::next_term();
 
-        let monitor_reference_result = native(&monitoring_arc_process, r#type(), monitored_pid);
+        let monitor_reference_result = result(&monitoring_arc_process, r#type(), monitored_pid);
 
         assert!(monitor_reference_result.is_ok());
 

@@ -5,7 +5,7 @@ fn returns_true() {
     with_process_arc(|monitoring_arc_process| {
         let monitored_arc_process = test::process::child(&monitoring_arc_process);
 
-        let monitor_reference = monitor_2::native(
+        let monitor_reference = monitor_2::result(
             &monitoring_arc_process,
             r#type(),
             monitored_arc_process.pid_term(),
@@ -16,7 +16,7 @@ fn returns_true() {
         let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference),
+            result(&monitoring_arc_process, monitor_reference),
             Ok(true.into())
         );
 
@@ -41,11 +41,10 @@ fn does_not_flush_existing_message() {
         let monitored_pid_term = monitored_arc_process.pid_term();
 
         let monitor_reference =
-            monitor_2::native(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
+            monitor_2::result(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
 
         let reason = Atom::str_to_term("normal");
-        exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&monitored_arc_process, reason);
 
         assert!(scheduler::run_through(&monitored_arc_process));
 
@@ -62,7 +61,7 @@ fn does_not_flush_existing_message() {
         );
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference),
+            result(&monitoring_arc_process, monitor_reference),
             Ok(true.into())
         );
 
@@ -82,7 +81,7 @@ fn prevents_future_messages() {
         let monitored_pid_term = monitored_arc_process.pid_term();
 
         let monitor_reference =
-            monitor_2::native(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
+            monitor_2::result(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
 
         let reason = Atom::str_to_term("normal");
         let tag = Atom::str_to_term("DOWN");
@@ -95,12 +94,11 @@ fn prevents_future_messages() {
         ));
 
         assert_eq!(
-            native(&monitoring_arc_process, monitor_reference),
+            result(&monitoring_arc_process, monitor_reference),
             Ok(true.into())
         );
 
-        exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
-            .unwrap();
+        exit_when_run(&monitored_arc_process, reason);
 
         assert!(scheduler::run_through(&monitored_arc_process));
 

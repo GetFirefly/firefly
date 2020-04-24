@@ -1,8 +1,8 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{frames, Process};
 use liblumen_alloc::erts::term::prelude::{Boxed, Encoded, Resource, Term};
 
 use crate::elixir::chain::dom_output_1::label_5;
@@ -13,7 +13,7 @@ pub fn place_frame_with_arguments(
     document: Term,
     tr: Term,
     text: Term,
-) -> code::Result {
+) -> frames::Result {
     assert!(text.is_binary());
     process.stack_push(text)?;
     process.stack_push(tr)?;
@@ -43,7 +43,7 @@ pub fn place_frame_with_arguments(
 /// {:ok, tbody} = Lumen::Web::Document.get_element_by_id(document, "output")
 /// Lumen::Web::Node.append_child(tbody, tr)
 /// ```
-fn code(arc_process: &Arc<Process>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> frames::Result {
     arc_process.reduce();
 
     let pid_text = arc_process.stack_pop().unwrap();
@@ -73,7 +73,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     )
     .unwrap();
 
-    Process::call_code(arc_process)
+    Process::call_native_or_yield(arc_process)
 }
 
 fn frame(process: &Process) -> Frame {

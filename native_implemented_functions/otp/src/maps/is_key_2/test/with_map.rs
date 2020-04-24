@@ -21,7 +21,7 @@ fn without_key_returns_false() {
                         )
                     }),
                 |(key, map)| {
-                    prop_assert_eq!(native(&arc_process, key, map), Ok(false.into()));
+                    prop_assert_eq!(result(&arc_process, key, map), Ok(false.into()));
 
                     Ok(())
                 },
@@ -41,7 +41,7 @@ fn with_key_returns_true() {
                     (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
                 }),
                 |(key, map)| {
-                    prop_assert_eq!(native(&arc_process, key, map), Ok(true.into()));
+                    prop_assert_eq!(result(&arc_process, key, map), Ok(true.into()));
 
                     Ok(())
                 },

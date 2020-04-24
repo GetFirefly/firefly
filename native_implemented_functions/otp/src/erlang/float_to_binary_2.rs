@@ -16,7 +16,7 @@ use native_implemented_function::native_implemented_function;
 use crate::erlang::float_to_string::{float_to_string, Options};
 
 #[native_implemented_function(float_to_binary/2)]
-pub fn native(process: &Process, float: Term, options: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, float: Term, options: Term) -> exception::Result<Term> {
     let options_options: Options = options.try_into()?;
 
     float_to_string(float, options_options)

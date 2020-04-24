@@ -15,7 +15,7 @@ fn without_non_empty_list_or_bitstring_returns_false() {
         |right| {
             let left = Term::NIL;
 
-            prop_assert_eq!(native(left, right), false.into());
+            prop_assert_eq!(result(left, right), false.into());
 
             Ok(())
         },
@@ -34,7 +34,7 @@ fn with_non_empty_list_or_bitstring_right_returns_true() {
         |right| {
             let left = Term::NIL;
 
-            prop_assert_eq!(native(left, right), true.into());
+            prop_assert_eq!(result(left, right), true.into());
 
             Ok(())
         },

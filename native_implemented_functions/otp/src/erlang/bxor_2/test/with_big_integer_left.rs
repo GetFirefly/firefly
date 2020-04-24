@@ -16,7 +16,7 @@ fn with_small_integer_right_returns_big_integer() {
 
         assert!(right.is_smallint());
 
-        let result = native(&process, left, right);
+        let result = result(&process, left, right);
 
         assert!(result.is_ok());
 
@@ -41,7 +41,7 @@ fn with_big_integer_right_returns_big_integer() {
 
         assert!(right.is_boxed_bigint());
 
-        let result = native(&process, left, right);
+        let result = result(&process, left, right);
 
         assert!(result.is_ok());
 

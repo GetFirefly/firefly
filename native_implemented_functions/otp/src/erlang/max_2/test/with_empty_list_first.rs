@@ -15,7 +15,7 @@ fn without_non_empty_list_or_bitstring_second_returns_firsts() {
         |second| {
             let first = Term::NIL;
 
-            prop_assert_eq!(native(first, second), first);
+            prop_assert_eq!(result(first, second), first);
 
             Ok(())
         },
@@ -34,7 +34,7 @@ fn with_non_empty_list_or_bitstring_second_returns_second() {
         |second| {
             let first = Term::NIL;
 
-            prop_assert_eq!(native(first, second), second);
+            prop_assert_eq!(result(first, second), second);
 
             Ok(())
         },

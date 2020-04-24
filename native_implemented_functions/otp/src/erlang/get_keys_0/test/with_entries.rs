@@ -10,7 +10,7 @@ use crate::test;
 
 #[test]
 fn without_heap_available_does_not_modify_dictionary() {
-    crate::test::process_dictionary::without_heap_available_does_not_modify_dictionary(native);
+    crate::test::process_dictionary::without_heap_available_does_not_modify_dictionary(result);
 }
 
 #[test]
@@ -24,7 +24,7 @@ fn with_heap_available_returns_entries_as_list() {
 
     assert_eq!(arc_process.get_value_from_key(key), value);
 
-    let result = native(&arc_process);
+    let result = result(&arc_process);
 
     assert!(result.is_ok());
 
@@ -79,7 +79,7 @@ fn doc_test() {
         )
         .unwrap();
 
-    let result = native(&arc_process);
+    let result = result(&arc_process);
 
     assert!(result.is_ok());
 

@@ -6,11 +6,11 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::apply_2;
+use crate::erlang::{self, apply_2};
+use crate::runtime;
 use crate::runtime::process::spawn::options::Options;
-use crate::runtime::scheduler;
 
-pub(in crate::erlang) fn native(
+pub(in crate::erlang) fn result(
     process: &Process,
     options: Options,
     function: Term,
@@ -21,15 +21,15 @@ pub(in crate::erlang) fn native(
     let arguments = &[function, Term::NIL];
 
     // The :badarity error is raised in the child process and not in the parent process, so the
-    // child process must be running the equivalent of `apply(functon, [])`.
-    scheduler::spawn_code(
-        process,
+    // child process must be running the equivalent of `apply(function, [])`.
+    runtime::process::spawn::native(
+        Some(process),
         options,
-        apply_2::module(),
+        erlang::module(),
         apply_2::function(),
         arguments,
-        apply_2::code,
+        apply_2::NATIVE,
     )
-    .and_then(|spawned| spawned.to_term(process))
+    .and_then(|spawned| spawned.schedule_with_parent(process).to_term(process))
     .map_err(|e| e.into())
 }

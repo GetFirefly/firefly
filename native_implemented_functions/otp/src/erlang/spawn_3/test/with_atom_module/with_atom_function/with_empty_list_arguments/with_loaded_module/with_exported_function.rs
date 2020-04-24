@@ -2,16 +2,11 @@ use super::*;
 
 #[test]
 fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
-    apply_3::export();
-    exit_1::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
-
-    erlang::self_0::export();
 
     let module_atom = erlang::module();
     let module: Term = module_atom.encode().unwrap();
@@ -21,7 +16,7 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
 
     let arguments = Term::NIL;
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_3::result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -41,7 +36,7 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
     assert!(scheduler::run_through(&child_arc_process));
 
     match *child_arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
+        Status::RuntimeException(ref runtime_exception) => {
             assert_eq!(
                 runtime_exception,
                 &exit!(atom!("normal"), anyhow!("Test").into())
@@ -55,9 +50,6 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
 
 #[test]
 fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
-    apply_3::export();
-    exit_1::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
@@ -70,7 +62,7 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
     // `+` is arity 1, not 0
     let arguments = Term::NIL;
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_3::result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 

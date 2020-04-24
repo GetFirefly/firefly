@@ -4,7 +4,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
-use crate::erlang::split_binary_2::native;
+use crate::erlang::split_binary_2::result;
 use crate::test::strategy;
 use crate::test::{with_process, with_process_arc};
 
@@ -20,7 +20,7 @@ fn without_bitstring_binary_errors_badarg() {
         },
         |(arc_process, binary, position)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, position),
+                result(&arc_process, binary, position),
                 format!("binary ({}) is not a bitstring", binary)
             );
 

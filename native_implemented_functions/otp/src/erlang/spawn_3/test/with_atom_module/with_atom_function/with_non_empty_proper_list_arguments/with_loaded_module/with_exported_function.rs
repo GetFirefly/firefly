@@ -4,8 +4,6 @@ mod with_arity;
 
 #[test]
 fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
-    apply_3::export();
-
     let parent_arc_process = test::process::init();
     let arc_scheduler = scheduler::current();
 
@@ -24,7 +22,7 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
         ])
         .unwrap();
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_3::result(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 

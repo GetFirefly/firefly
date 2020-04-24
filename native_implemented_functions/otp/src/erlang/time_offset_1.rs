@@ -12,7 +12,7 @@ use crate::runtime::time::{monotonic, system, Unit};
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(time_offset/1)]
-pub fn native(process: &Process, unit: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, unit: Term) -> exception::Result<Term> {
     let unit_unit: Unit = unit.try_into()?;
     let system_time = system::time(unit_unit);
     let monotonic_time = monotonic::time(unit_unit);

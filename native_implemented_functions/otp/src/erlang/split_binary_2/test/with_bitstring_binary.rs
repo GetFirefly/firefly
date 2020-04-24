@@ -15,7 +15,7 @@ fn without_non_negative_integer_position_errors_badarg() {
         },
         |(arc_process, binary, position)| {
             prop_assert_badarg!(
-                native(&arc_process, binary, position),
+                result(&arc_process, binary, position),
                 format!("position ({}) must be in 0..byte_size(binary)", position)
             );
 
@@ -34,7 +34,7 @@ fn with_zero_position_returns_empty_prefix_and_binary() {
                 &strategy::term::is_bitstring(arc_process.clone()),
                 |binary| {
                     prop_assert_eq!(
-                        native(&arc_process, binary, position),
+                        result(&arc_process, binary, position),
                         Ok(arc_process
                             .tuple_from_slice(&[
                                 arc_process.binary_from_bytes(&[]).unwrap(),

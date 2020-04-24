@@ -5,7 +5,7 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Encoded;
 
-use crate::erlang::unlink_1::native;
+use crate::erlang::unlink_1::result;
 use crate::test::strategy;
 use crate::test::{with_process, with_process_arc};
 
@@ -23,7 +23,7 @@ fn without_pid_or_port_errors_badarg() {
         },
         |(arc_process, pid_or_port)| {
             prop_assert_badarg!(
-                native(&arc_process, pid_or_port),
+                result(&arc_process, pid_or_port),
                 format!("pid_or_port ({}) is neither a pid nor a port", pid_or_port)
             );
 

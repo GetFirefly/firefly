@@ -1,12 +1,12 @@
 use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 
-use crate::erlang::byte_size_1::native;
+use crate::erlang::byte_size_1::result;
 use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
-    crate::test::without_bitstring_errors_badarg(file!(), native);
+    crate::test::without_bitstring_errors_badarg(file!(), result);
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn with_heap_binary_is_byte_count() {
         },
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
-                native(&arc_process, bitstring),
+                result(&arc_process, bitstring),
                 Ok(arc_process.integer(byte_count).unwrap())
             );
 
@@ -51,7 +51,7 @@ fn with_subbinary_without_bit_count_is_byte_count() {
         },
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
-                native(&arc_process, bitstring),
+                result(&arc_process, bitstring),
                 Ok(arc_process.integer(byte_count).unwrap())
             );
 
@@ -84,7 +84,7 @@ fn with_subbinary_with_bit_count_is_byte_count_plus_one() {
         },
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
-                native(&arc_process, bitstring),
+                result(&arc_process, bitstring),
                 Ok(arc_process.integer(byte_count + 1).unwrap())
             );
 

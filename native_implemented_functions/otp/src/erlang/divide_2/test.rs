@@ -8,7 +8,7 @@ use proptest::{prop_assert, prop_oneof};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::divide_2::native;
+use crate::erlang::divide_2::result;
 use crate::test::strategy;
 use crate::test::with_process;
 
@@ -24,7 +24,7 @@ fn without_number_dividend_errors_badarith() {
         },
         |(arc_process, dividend, divisor)| {
             prop_assert_badarith!(
-                native(&arc_process, dividend, divisor),
+                result(&arc_process, dividend, divisor),
                 format!("dividend ({}) cannot be promoted to a float", dividend)
             );
 
@@ -45,7 +45,7 @@ fn with_number_dividend_without_number_divisor_errors_badarith() {
         },
         |(arc_process, dividend, divisor)| {
             prop_assert_badarith!(
-                native(&arc_process, dividend, divisor),
+                result(&arc_process, dividend, divisor),
                 format!("divisor ({}) cannot be promoted to a float", divisor)
             );
 
@@ -66,7 +66,7 @@ fn with_number_dividend_with_zero_divisor_errors_badarith() {
         },
         |(arc_process, dividend, divisor)| {
             prop_assert_badarith!(
-                native(&arc_process, dividend, divisor),
+                result(&arc_process, dividend, divisor),
                 format!("divisor ({}) cannot be zero", divisor)
             );
 
@@ -86,7 +86,7 @@ fn with_number_dividend_without_zero_number_divisor_returns_float() {
             )
         },
         |(arc_process, dividend, divisor)| {
-            let result = native(&arc_process, dividend, divisor);
+            let result = result(&arc_process, dividend, divisor);
 
             prop_assert!(result.is_ok());
 

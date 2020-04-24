@@ -6,7 +6,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::get_keys_1::native;
+use crate::erlang::get_keys_1::result;
 use crate::test::strategy;
 
 #[test]
@@ -19,7 +19,7 @@ fn without_entries_returns_empty_list() {
             )
         },
         |(arc_process, value)| {
-            prop_assert_eq!(native(&arc_process, value), Ok(Term::NIL));
+            prop_assert_eq!(result(&arc_process, value), Ok(Term::NIL));
 
             Ok(())
         },

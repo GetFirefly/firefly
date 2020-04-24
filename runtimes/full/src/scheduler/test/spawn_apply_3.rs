@@ -40,6 +40,6 @@ fn different_processes_have_different_pids() {
     assert_ne!(first_arc_process.pid_term(), second_arc_process.pid_term());
 }
 
-fn erlang_apply_3_code(_arc_process: &Arc<Process>) -> code::Result {
+fn erlang_apply_3_code(_arc_process: &Arc<Process>) -> frames::Result {
     unimplemented!()
 }

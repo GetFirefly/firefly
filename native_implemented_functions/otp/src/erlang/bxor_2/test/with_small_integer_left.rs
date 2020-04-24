@@ -12,7 +12,7 @@ fn with_small_integer_right_returns_small_integer() {
         let right = process.integer(0b1010).unwrap();
 
         assert_eq!(
-            native(&process, left, right),
+            result(&process, left, right),
             Ok(process.integer(0b0110).unwrap())
         );
     })
@@ -39,7 +39,7 @@ fn with_big_integer_right_returns_big_integer() {
 
         assert!(right.is_boxed_bigint());
 
-        let result = native(&process, left, right);
+        let result = result(&process, left, right);
 
         assert!(result.is_ok());
 

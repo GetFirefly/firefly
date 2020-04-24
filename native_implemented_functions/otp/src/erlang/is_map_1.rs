@@ -10,6 +10,6 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(is_map/1)]
-pub fn native(term: Term) -> Term {
+pub fn result(term: Term) -> Term {
     term.is_boxed_map().into()
 }

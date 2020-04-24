@@ -9,7 +9,7 @@ fn without_supported_item_errors_badarg() {
             .run(&unsupported_item_atom(), |item| {
                 let pid = arc_process.pid_term();
                 prop_assert_badarg!(
-                    native(&arc_process, pid, item),
+                    result(&arc_process, pid, item),
                     "supported items are backtrace, binary, catchlevel, current_function, \
                      current_location, current_stacktrace, dictionary, error_handler, \
                      garbage_collection, garbage_collection_info, group_leader, heap_size, \

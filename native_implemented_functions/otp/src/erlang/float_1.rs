@@ -16,7 +16,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(float/1)]
-pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, number: Term) -> exception::Result<Term> {
     if number.is_boxed_float() {
         Ok(number)
     } else {

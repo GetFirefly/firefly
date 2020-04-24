@@ -8,7 +8,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::Pid;
 
-use crate::erlang::is_process_alive_1::native;
+use crate::erlang::is_process_alive_1::result;
 use crate::test::strategy;
 use crate::test::with_process_arc;
 
@@ -22,7 +22,7 @@ fn without_pid_errors_badarg() {
             )
         },
         |(arc_process, pid)| {
-            prop_assert_is_not_local_pid!(native(&arc_process, pid), pid);
+            prop_assert_is_not_local_pid!(result(&arc_process, pid), pid);
 
             Ok(())
         },

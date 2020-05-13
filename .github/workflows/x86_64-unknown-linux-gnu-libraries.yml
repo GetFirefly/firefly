@@ -1,4 +1,4 @@
-name: Linux x86_64 Libraries
+name: x86_64-unknown-linux-gnu Libraries
 
 on: push
 

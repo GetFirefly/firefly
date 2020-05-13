@@ -1,4 +1,4 @@
-name: Linux wasm32
+name: wasm32-unknown-unknown (Linux)
 
 on: push
 

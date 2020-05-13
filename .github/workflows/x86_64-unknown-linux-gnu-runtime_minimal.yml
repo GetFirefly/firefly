@@ -1,27 +1,14 @@
-name: macOS x86_64 Runtime Minimal
+name: x86_64-unknown-linux-gnu Runtime Minimal
 
 on: push
 
 jobs:
   runtime:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+    container: kronicdeth/lumen-development@sha256:95aff097304cad3a0e9e81189205364ffb0f0de87d8714019fbf311639ac1792
 
     steps:
       - uses: actions/checkout@v2
-      - name: Install nightly-2020-03-10
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2020-03-10
-          override: true
-      - name: Install LLVM
-        run: |
-          mkdir -p ~/.local/share/llvm
-          pushd ~/.local/share/llvm
-          wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-          tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
-          mv clang+llvm-10.0.0-x86_64-apple-darwin19.3.0 lumen
-          popd
-          echo "::set-env name=LLVM_SYS_90_PREFIX::$HOME/.local/share/llvm/lumen"
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:

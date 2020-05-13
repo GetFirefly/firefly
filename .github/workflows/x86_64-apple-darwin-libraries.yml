@@ -1,4 +1,4 @@
-name: macOS x86_64 Libraries
+name: x86_64-apple-darwin Libraries
 
 on: push
 

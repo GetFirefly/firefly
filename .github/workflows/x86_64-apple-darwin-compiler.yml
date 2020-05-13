@@ -1,4 +1,4 @@
-name: macOS x86_64 compiler
+name: x86_64-apple-darwin compiler
 
 on: push
 

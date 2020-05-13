@@ -1,13 +1,13 @@
 FROM rust:latest
 
 RUN cd /tmp \
-  && wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-03-08/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
+  && wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-04-16/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
   && tar -xvzf clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
   && rm -f clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
   && mv clang+llvm-10.0.0-x86_64-linux-gnu /opt/llvm
 
 ENV PATH="/opt/llvm/bin:${PATH}"
-ENV LLVM_SYS_90_PREFIX="/opt/llvm"
+ENV LLVM_PREFIX="/opt/llvm"
 ENV CC=/opt/llvm/bin/clang
 ENV CXX=/opt/llvm/bin/clang++
 

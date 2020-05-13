@@ -368,11 +368,11 @@ impl SchedulerTrait for Scheduler {
         let init = Arc::new(Process::new_with_stack(
             Priority::Normal,
             None,
-            Arc::new(ModuleFunctionArity {
+            ModuleFunctionArity {
                 module: Atom::from_str("init"),
                 function: Atom::from_str("start"),
                 arity: 0,
-            }),
+            },
             init_heap,
             init_heap_size,
         )?);

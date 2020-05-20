@@ -9,7 +9,7 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::process::spawn::options::Options;
-use crate::runtime::scheduler::{self, Spawned};
+use crate::runtime::scheduler;
 use crate::runtime::sys;
 
 use super::module::ModuleRegistry;
@@ -22,7 +22,7 @@ pub struct VMState {
 
 impl VMState {
     pub fn new() -> Self {
-        liblumen_otp::erlang::apply_3::set_code(crate::code::apply);
+        liblumen_otp::erlang::apply_3::set_native(crate::code::apply);
 
         let mut modules = ModuleRegistry::new();
         modules.register_native_module(crate::native::make_erlang());
@@ -60,10 +60,7 @@ impl VMState {
         let mut options: Options = Default::default();
         options.min_heap_size = Some(4 + 1000 * 2);
 
-        let Spawned {
-            arc_process: run_arc_process,
-            ..
-        } = scheduler::spawn_apply_3(
+        let run_process_spawned = crate::runtime::process::spawn::apply_3(
             &init_arc_process,
             options,
             module,
@@ -72,10 +69,17 @@ impl VMState {
             // if this fails  a bigger sized heap
             .unwrap();
 
+        let run_arc_process_spawned = run_process_spawned.schedule_with_parent(&init_arc_process);
+        let run_arc_process = run_arc_process_spawned.arc_process;
+
         loop {
             let ran = scheduler::run_through(&run_arc_process);
 
             match *run_arc_process.status.read() {
+                Status::Unrunnable => unreachable!("{:?} was not made runnable", run_arc_process),
+                Status::SystemException(ref system_exception) => {
+                    unimplemented!("{:?}", system_exception)
+                }
                 Status::RuntimeException(ref exception) => match exception {
                     RuntimeException::Exit(err) => {
                         let reason = err.reason();

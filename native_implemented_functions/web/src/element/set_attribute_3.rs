@@ -17,7 +17,7 @@ use lumen_rt_full::binary_to_string::binary_to_string;
 use crate::element;
 
 #[native_implemented_function(set_attribute/3)]
-pub fn native(
+pub fn result(
     process: &Process,
     element_term: Term,
     name: Term,

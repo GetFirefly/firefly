@@ -25,8 +25,7 @@ pub mod test;
 use liblumen_alloc::erts::process::alloc::default_heap_size;
 
 pub use lumen_rt_core::{
-    binary_to_string, code, context, distribution, proplist, registry, send, stacktrace, time,
-    timer,
+    binary_to_string, context, distribution, proplist, registry, send, stacktrace, time, timer,
 };
 
 use bus::Bus;

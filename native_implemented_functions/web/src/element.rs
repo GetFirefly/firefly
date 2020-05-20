@@ -16,6 +16,10 @@ pub fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.Element").unwrap()
 }
 
+fn module_id() -> usize {
+    module().id()
+}
+
 // Private
 
 fn from_term(term: Term) -> InternalResult<&'static Element> {

@@ -19,12 +19,18 @@ pub use self::virtual_alloc::{VirtualAlloc, VirtualAllocator, VirtualHeap};
 pub use self::virtual_binary_heap::VirtualBinaryHeap;
 
 use core::alloc::{AllocErr, Layout};
+use core::ffi::c_void;
+use core::mem::transmute;
 use core::ptr;
 
 use lazy_static::lazy_static;
 
+use liblumen_core::sys::dynamic_call::DynamicCallee;
+
 use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::Term;
+
+use super::Frame;
 
 pub const DEFAULT_STACK_SIZE: usize = 1; // 1 page
 pub const STACK_ALIGNMENT: usize = 16;
@@ -64,6 +70,12 @@ impl Stack {
             size,
             end,
         }
+    }
+
+    pub unsafe fn push_frame(&mut self, frame: &Frame) {
+        let symbol = frame.native().ptr();
+        let dynamic_callee = transmute::<*const c_void, DynamicCallee>(symbol);
+        self.push64(dynamic_callee as u64)
     }
 
     pub unsafe fn push64(&mut self, value: u64) {

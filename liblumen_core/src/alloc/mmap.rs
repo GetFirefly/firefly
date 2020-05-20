@@ -67,7 +67,8 @@ pub unsafe fn remap(
     layout: Layout,
     new_size: usize,
 ) -> Result<NonNull<u8>, AllocErr> {
-    sys_alloc::realloc(ptr, layout, new_size, ReallocPlacement::MayMove).map(|memory_block| memory_block.ptr)
+    sys_alloc::realloc(ptr, layout, new_size, ReallocPlacement::MayMove)
+        .map(|memory_block| memory_block.ptr)
 }
 
 /// Destroys a mapping given a pointer to the mapping and the layout which created it

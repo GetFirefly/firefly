@@ -1,5 +1,3 @@
-use std::ffi::CString;
-
 use crate::{Type, Value};
 
 #[derive(Copy, Clone)]

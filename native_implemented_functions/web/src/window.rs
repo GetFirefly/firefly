@@ -11,8 +11,8 @@ use wasm_bindgen::JsCast;
 
 use web_sys::{Event, EventTarget, Window};
 
-use liblumen_alloc::erts::process::frames;
-use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::exception::AllocResult;
+use liblumen_alloc::erts::process::{FrameWithArguments, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_full::process::spawn::options::Options;
@@ -23,9 +23,9 @@ pub fn add_event_listener<F>(
     window: &Window,
     event: &'static str,
     options: Options,
-    place_frame_with_arguments: F,
+    frames_with_arguments_fn: F,
 ) where
-    F: Fn(&Process, Term) -> frames::Result + 'static,
+    F: Fn(&Process, Term) -> AllocResult<Vec<FrameWithArguments>> + 'static,
 {
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -46,7 +46,7 @@ pub fn add_event_listener<F>(
 
             let event_resource_reference = child_process.resource(Box::new(event.clone()))?;
 
-            place_frame_with_arguments(child_process, event_resource_reference)
+            frames_with_arguments_fn(child_process, event_resource_reference)
         })
         .unwrap()
     };
@@ -70,4 +70,8 @@ pub fn add_event_listener<F>(
 
 fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.Window").unwrap()
+}
+
+fn module_id() -> usize {
+    module().id()
 }

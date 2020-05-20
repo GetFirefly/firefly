@@ -11,7 +11,7 @@ use native_implemented_function::native_implemented_function;
 use crate::html_input_element;
 
 #[native_implemented_function(value/1)]
-fn native(process: &Process, html_input_element_term: Term) -> exception::Result<Term> {
+fn result(process: &Process, html_input_element_term: Term) -> exception::Result<Term> {
     let html_input_element = html_input_element::from_term(html_input_element_term)?;
     let value_string = html_input_element.value();
 

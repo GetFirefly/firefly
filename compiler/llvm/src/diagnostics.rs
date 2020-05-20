@@ -1,11 +1,9 @@
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
-use std::ptr;
 use std::slice;
 
 use liblumen_util::diagnostics::DiagnosticsHandler;
-use liblumen_util::error::FatalError;
 
 use crate::sys::{self as llvm_sys, LLVMDiagnosticInfo};
 use crate::utils::strings::{self, RustString};

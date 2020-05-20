@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(random_integer/1)]
-fn native(process: &Process, exclusive_max: Term) -> exception::Result<Term> {
+fn result(process: &Process, exclusive_max: Term) -> exception::Result<Term> {
     let exclusive_max_usize: usize = exclusive_max
         .try_into()
         .context("exclusive_max must be a positive integer")?;

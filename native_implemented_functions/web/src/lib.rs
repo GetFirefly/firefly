@@ -24,7 +24,6 @@ use web_sys::{DomException, Window};
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception::AllocResult;
-use liblumen_alloc::erts::process::frames::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 #[cfg(not(test))]
@@ -60,12 +59,10 @@ fn add_submit_listener(window: &Window) {
         window,
         "submit",
         Default::default(),
-        |child_process, event_resource_reference| {
-            window::on_submit_1::place_frame_with_arguments(
-                child_process,
-                Placement::Push,
-                event_resource_reference,
-            )
+        |_, event_resource_reference| {
+            Ok(vec![
+                window::on_submit_1::frame().with_arguments(false, &[event_resource_reference])
+            ])
         },
     );
 }

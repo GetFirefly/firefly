@@ -34,7 +34,7 @@ use crate::error_tuple;
 use crate::node::node_from_term;
 
 #[native_implemented_function(append_child/2)]
-pub fn native(process: &Process, parent: Term, child: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, parent: Term, child: Term) -> exception::Result<Term> {
     let parent_node = node_from_term(parent).with_context(|| format!("parent"))?;
     let child_node = node_from_term(child).with_context(|| format!("child"))?;
 

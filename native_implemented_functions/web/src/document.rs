@@ -20,6 +20,10 @@ fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.Document").unwrap()
 }
 
+fn module_id() -> usize {
+    module().id()
+}
+
 fn document_from_term(term: Term) -> Result<&'static Document, exception::Exception> {
     let boxed: Boxed<Resource> = term
         .try_into()

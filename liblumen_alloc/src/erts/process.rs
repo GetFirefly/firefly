@@ -122,7 +122,7 @@ pub struct Process {
     /// exceeds `MAX_REDUCTIONS_PER_RUN`.
     run_reductions: AtomicU16,
     pub total_reductions: AtomicU64,
-    frames: Mutex<Frames>,
+    pub frames: Mutex<Frames>,
     pub status: RwLock<Status>,
     pub registered_name: RwLock<Option<Atom>>,
     /// Pids of processes that are linked to this process and need to be exited when this process
@@ -1041,9 +1041,9 @@ impl Process {
         MAX_REDUCTIONS_PER_RUN <= self.run_reductions.load(Ordering::SeqCst)
     }
 
-    pub fn runnable<F>(&self, frames_with_arguments_fn: F) -> AllocResult<()>
+    pub fn runnable<F>(&self, before_runnable: F) -> AllocResult<()>
     where
-        F: FnOnce(&Process) -> AllocResult<Vec<FrameWithArguments>>,
+        F: FnOnce(&Process) -> AllocResult<()>,
     {
         let mut writable_status = self.status.write();
 
@@ -1054,15 +1054,7 @@ impl Process {
             self
         );
 
-        let frames_with_arguments = frames_with_arguments_fn(&self)?;
-
-        for FrameWithArguments {
-            frame, arguments, ..
-        } in frames_with_arguments.iter().rev()
-        {
-            self.stack_push_slice(arguments)?;
-            self.frames.lock().push(frame.clone());
-        }
+        before_runnable(self)?;
 
         *writable_status = Status::Runnable;
 

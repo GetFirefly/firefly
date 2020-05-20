@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;
 
+use crate::registry::put_pid_to_process;
 use crate::scheduler::{self, Scheduled, Scheduler};
 
 pub use self::options::{Connection, Options};
-use crate::registry::put_pid_to_process;
 
 pub struct Spawned {
     pub process: Process,

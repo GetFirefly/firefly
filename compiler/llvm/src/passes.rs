@@ -4,7 +4,7 @@ use anyhow::anyhow;
 
 use liblumen_profiling::SelfProfilerRef;
 
-use crate::enums::{self, CodeGenOptLevel, CodeGenOptSize};
+use crate::enums::{CodeGenOptLevel, CodeGenOptSize};
 use crate::profiling::{self, LlvmSelfProfiler};
 use crate::target::{TargetMachine, TargetMachineRef};
 use crate::{Module, ModuleRef};

@@ -17,7 +17,7 @@ use crate::document::document_from_term;
 use crate::option_to_ok_tuple_or_error;
 
 #[native_implemented_function(get_element_by_id/2)]
-pub fn native(process: &Process, document: Term, id: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, document: Term, id: Term) -> exception::Result<Term> {
     let document_document = document_from_term(document)?;
     let id_string: String = binary_to_string(id)?;
 

@@ -27,7 +27,7 @@ use crate::node::node_from_term;
 use crate::ok_tuple;
 
 #[native_implemented_function(replace_child/3)]
-fn native(
+fn result(
     process: &Process,
     parent: Term,
     old_child: Term,

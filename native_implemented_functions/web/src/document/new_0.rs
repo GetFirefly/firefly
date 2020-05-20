@@ -18,7 +18,7 @@ use native_implemented_function::native_implemented_function;
 use crate::ok_tuple;
 
 #[native_implemented_function(new/0)]
-fn native(process: &Process) -> exception::Result<Term> {
+fn result(process: &Process) -> exception::Result<Term> {
     match web_sys::Document::new() {
         Ok(document) => ok_tuple(process, Box::new(document)).map_err(|error| error.into()),
         // Not sure how this can happen

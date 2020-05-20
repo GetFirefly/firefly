@@ -1,16 +1,15 @@
+mod apply_3;
+
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::frames::Code;
-use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::exception::AllocResult;
+use liblumen_alloc::erts::process::{Frame, Native, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{CloneToProcess, ModuleFunctionArity};
+use liblumen_alloc::{Arity, FrameWithArguments, ModuleFunctionArity};
 
 pub use lumen_rt_core::process::spawn::*;
 
-use crate::code::export;
 use crate::process::runnable;
 
 /// Spawns a process with arguments for `apply(module, function, arguments)` on its stack.
@@ -26,58 +25,63 @@ pub fn apply_3(
 ) -> exception::Result<Spawned> {
     let arity = arity(arguments);
 
-    let child_process = options.spawn(Some(parent_process), module, function, arity)?;
-    runnable(&child_process);
-
-    let module_term = module.encode()?;
-    let function_term = function.encode()?;
-    let heap_arguments = arguments.clone_to_process(&child_process);
-
-    let erlang_atom = Atom::try_from_str("erlang").unwrap();
-    let apply_atom = Atom::try_from_str("apply").unwrap();
-    let arity = 3;
-    let code = export::get(&erlang_atom, &apply_atom, arity).expect("erlang:apply/3 not exported");
-    child_process.stack_push(heap_arguments)?;
-    child_process.stack_push(function_term)?;
-    child_process.stack_push(module_term)?;
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: erlang_atom,
-        function: apply_atom,
+    spawn(
+        Some(parent_process),
+        options,
+        module,
+        function,
         arity,
-    });
-    let frame = Frame::new(module_function_arity, code);
-    child_process.place_frame(frame, Placement::Push);
+        |_| {
+            let frame = apply_3::frame();
+            let module_term = module.encode().unwrap();
+            let function_term = function.encode().unwrap();
+            let frame_with_arguments =
+                frame.with_arguments(false, &[module_term, function_term, arguments]);
 
-    // Connect after placing frame, so that any logging can show the `Frame`s when connections occur
-    let connection = options.connect(Some(&parent_process), &child_process)?;
-
-    Ok(Spawned {
-        process: child_process,
-        connection,
-    })
+            Ok(vec![frame_with_arguments])
+        },
+    )
 }
 
-/// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
+/// Spawns a process with `arguments` on its stack and `native` run with those arguments instead
 /// of passing through `apply/3`.
-pub fn code(
+pub fn native(
     parent_process: Option<&Process>,
     options: Options,
     module: Atom,
     function: Atom,
     arguments: &[Term],
-    code: Code,
+    native: Native,
 ) -> exception::Result<Spawned> {
     let arity = arguments.len() as u8;
 
+    spawn(parent_process, options, module, function, arity, |_| {
+        let module_function_arity = ModuleFunctionArity {
+            module,
+            function,
+            arity,
+        };
+        let frame = Frame::new(module_function_arity, native);
+        let frame_with_arguments = frame.with_arguments(false, arguments);
+
+        Ok(vec![frame_with_arguments])
+    })
+}
+
+pub fn spawn<F>(
+    parent_process: Option<&Process>,
+    options: Options,
+    module: Atom,
+    function: Atom,
+    arity: Arity,
+    frames_with_arguments_fn: F,
+) -> exception::Result<Spawned>
+where
+    F: FnOnce(&Process) -> AllocResult<Vec<FrameWithArguments>>,
+{
     let child_process = options.spawn(parent_process, module, function, arity)?;
 
-    for argument in arguments.iter().rev() {
-        let process_argument = argument.clone_to_process(&child_process);
-        child_process.stack_push(process_argument)?;
-    }
-
-    let frame = Frame::new(child_process.initial_module_function_arity.clone(), code);
-    child_process.push_frame(frame);
+    runnable(&child_process, frames_with_arguments_fn)?;
 
     // Connect after placing frame, so that any logging can show the `Frame`s when connections occur
     let connection = options.connect(parent_process, &child_process)?;

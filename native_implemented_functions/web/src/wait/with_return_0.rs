@@ -1,6 +1,6 @@
+use std::cell::RefCell;
 use std::convert::TryInto;
 use std::str;
-use std::sync::Arc;
 
 use wasm_bindgen::JsValue;
 
@@ -13,8 +13,10 @@ use web_sys::{
 use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{frames, Process};
+use liblumen_alloc::erts::process::{Frame, Native, Process};
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::exception::AllocResult;
+use liblumen_alloc::{FrameWithArguments, ModuleFunctionArity};
 
 use crate::runtime::process;
 use crate::runtime::process::spawn::options::Options;
@@ -24,13 +26,11 @@ use crate::runtime::scheduler;
 
 /// Spawns process with this as the first frame, so that the next frame added in `call` can fulfill
 /// the promise.
-pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> exception::Result<Promise>
+pub fn spawn<F>(options: Options, frames_with_arguments_fn: F) -> exception::Result<Promise>
 where
-    F: Fn(&Process) -> frames::Result,
+    F: Fn(&Process) -> AllocResult<Vec<FrameWithArguments>>,
 {
-    let (process, promise) = spawn_unscheduled(options)?;
-
-    place_frame_with_arguments(&process)?;
+    let (process, promise) = spawn_unscheduled(options, frames_with_arguments_fn)?;
 
     let arc_process = scheduler::current().schedule(process);
     registry::put_pid_to_process(&arc_process);
@@ -59,18 +59,15 @@ fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
     }
 }
 
-fn code(arc_process: &Arc<Process>) -> frames::Result {
-    let return_term = arc_process.stack_peek(1).unwrap();
-    let executor_term = arc_process.stack_peek(2).unwrap();
+const NATIVE: Native = Native::Two(native);
 
+extern "C" fn native(return_term: Term, executor_term: Term) -> Term {
     let executor_resource_boxed: Boxed<Resource> = executor_term.try_into().unwrap();
     let executor_resource: Resource = executor_resource_boxed.into();
     let executor_mutex: &Mutex<Executor> = executor_resource.downcast_ref().unwrap();
     executor_mutex.lock().resolve(return_term);
 
-    arc_process.remove_last_frame(2);
-
-    Process::call_native_or_yield(arc_process)
+    Term::NONE
 }
 
 fn function() -> Atom {
@@ -141,25 +138,52 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 /// the frame that will return to this frame can be added prior to running the process to
 /// prevent a race condition on the `parent_process`'s scheduler running the new child process
 /// when only the `with_return/0` frame is there.
-fn spawn_unscheduled(options: Options) -> exception::Result<(Process, Promise)> {
+fn spawn_unscheduled<F>(
+    options: Options,
+    frames_with_arguments_fn: F,
+) -> exception::Result<(Process, Promise)>
+where
+    F: FnOnce(&Process) -> AllocResult<Vec<FrameWithArguments>>,
+{
     assert!(!options.link, "Cannot link without a parent process");
     assert!(!options.monitor, "Cannot monitor without a parent process");
 
     let parent_process = None;
-    let Spawned { process, .. } = process::spawn::code(
+    let module = super::module();
+    let function = function();
+    let arity = 0;
+    let ref_cell_option_promise: RefCell<Option<Promise>> = Default::default();
+    let Spawned { process, .. } = process::spawn::spawn(
         parent_process,
         options,
-        super::module(),
-        function(),
-        &[],
-        code,
+        module,
+        function,
+        arity,
+        |child_process| {
+            let mut frames_with_arguments = frames_with_arguments_fn(child_process)?;
+
+            let module_function_arity = ModuleFunctionArity {
+                module,
+                function,
+                arity,
+            };
+            let frame = Frame::new(module_function_arity, NATIVE);
+            let mut executor = Executor::new();
+            ref_cell_option_promise
+                .borrow_mut()
+                .replace(executor.promise());
+
+            let executor_resource_reference =
+                child_process.resource(Box::new(Mutex::new(executor)))?;
+            let frame_with_arguments = frame.with_arguments(true, &[executor_resource_reference]);
+
+            frames_with_arguments.push(frame_with_arguments);
+
+            Ok(frames_with_arguments)
+        },
     )?;
 
-    let mut executor = Executor::new();
-    let promise = executor.promise();
-
-    let executor_resource_reference = process.resource(Box::new(Mutex::new(executor)))?;
-    process.stack_push(executor_resource_reference)?;
+    let promise = ref_cell_option_promise.borrow_mut().take().unwrap();
 
     Ok((process, promise))
 }

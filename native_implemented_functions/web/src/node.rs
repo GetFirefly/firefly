@@ -18,6 +18,10 @@ fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.Node").unwrap()
 }
 
+fn module_id() -> usize {
+    module().id()
+}
+
 fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
     let boxed: Boxed<Resource> = term
         .try_into()

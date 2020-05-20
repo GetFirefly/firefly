@@ -12,7 +12,6 @@ use web_sys::Window;
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::frames::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::*;
 
 use native_implemented_function::native_implemented_function;
@@ -24,7 +23,7 @@ use liblumen_otp::erlang;
 use crate::window::add_event_listener;
 
 #[native_implemented_function(add_event_listener/4)]
-fn native(window: Term, event: Term, module: Term, function: Term) -> exception::Result<Term> {
+fn result(window: Term, event: Term, module: Term, function: Term) -> exception::Result<Term> {
     let boxed: Boxed<Resource> = window
         .try_into()
         .with_context(|| format!("window ({}) must be a window resource", window))?;
@@ -53,14 +52,10 @@ fn native(window: Term, event: Term, module: Term, function: Term) -> exception:
         move |child_process, event_resource_reference| {
             let arguments = child_process.list_from_slice(&[event_resource_reference])?;
 
-            erlang::apply_3::place_frame_with_arguments(
-                child_process,
-                Placement::Push,
-                module,
-                function,
-                arguments,
-            )
-            .map_err(|e| e.into())
+            let frame_with_argument =
+                erlang::apply_3::frame_with_arguments(module, function, arguments);
+
+            Ok(vec![frame_with_argument])
         },
     );
 

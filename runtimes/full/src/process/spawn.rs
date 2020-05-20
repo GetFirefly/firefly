@@ -68,21 +68,6 @@ pub fn native(
     })
 }
 
-// Private
-
-fn arity(arguments: Term) -> u8 {
-    match arguments.decode().unwrap() {
-        TypedTerm::Nil => 0,
-        TypedTerm::List(cons) => cons.count().unwrap().try_into().unwrap(),
-        _ => {
-            panic!(
-                "Arguments {:?} are neither an empty nor a proper list",
-                arguments
-            );
-        }
-    }
-}
-
 pub fn spawn<F>(
     parent_process: Option<&Process>,
     options: Options,
@@ -105,4 +90,19 @@ where
         process: child_process,
         connection,
     })
+}
+
+// Private
+
+fn arity(arguments: Term) -> u8 {
+    match arguments.decode().unwrap() {
+        TypedTerm::Nil => 0,
+        TypedTerm::List(cons) => cons.count().unwrap().try_into().unwrap(),
+        _ => {
+            panic!(
+                "Arguments {:?} are neither an empty nor a proper list",
+                arguments
+            );
+        }
+    }
 }

@@ -1,6 +1,7 @@
 use core::ptr::NonNull;
 
 use std::convert::TryInto;
+use std::ffi::c_void;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
@@ -8,13 +9,12 @@ use anyhow::*;
 
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::frames;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::HeapFragment;
 
 use crate::runtime::process::spawn::options::Options;
-use crate::runtime::scheduler::{self, Spawned};
+use crate::runtime::scheduler;
 use crate::runtime::sys;
 
 /// A sort of ghetto-future used to get the result from a process
@@ -52,8 +52,15 @@ pub fn call_run_erlang(
         let ran = scheduler::run_through(&run_arc_process);
 
         match *run_arc_process.status.read() {
+            Status::Unrunnable => unreachable!(
+                "Process ({:?}) not made runnable before running through",
+                run_arc_process
+            ),
             Status::RuntimeException(_) => {
                 return recv.try_get().unwrap();
+            }
+            Status::SystemException(ref system_exception) => {
+                unimplemented!("SystemException {:?}", system_exception)
             }
             Status::Waiting => {
                 if ran {
@@ -109,7 +116,7 @@ pub fn call_erlang(
             // TODO calculate `unique` for `return_ok` with `sender_term` captured.
             Default::default(),
             ARITY,
-            Some(return_ok),
+            Some(return_ok as *const c_void),
             proc.pid().into(),
             &[sender_term],
         )
@@ -122,14 +129,14 @@ pub fn call_erlang(
 
         proc.anonymous_closure_with_env_from_slice(
             module,
-            // TODO assing `index` scoped to `module`
+            // TODO assign `index` scoped to `module`
             1,
             // TODO calculate `unique` for `return_throw` with `sender_term` captured.
             Default::default(),
             // TODO calculate `unique` for `return_throw` with `sender_term` captured.
             Default::default(),
             ARITY,
-            Some(return_throw),
+            Some(return_throw as *const c_void),
             proc.pid().into(),
             &[sender_term],
         )
@@ -144,10 +151,11 @@ pub fn call_erlang(
     let options: Options = Default::default();
     //options.min_heap_size = Some(100_000);
 
-    let Spawned {
-        arc_process: run_arc_process,
-        ..
-    } = scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
+    let run_process_spawned =
+        crate::runtime::process::spawn::apply_3(&proc, options, module, function, arguments)
+            .unwrap();
+    let run_arc_process_spawned = run_process_spawned.schedule_with_parent(&proc);
+    let run_arc_process = run_arc_process_spawned.arc_process;
 
     ProcessResultReceiver {
         process: run_arc_process,
@@ -155,10 +163,7 @@ pub fn call_erlang(
     }
 }
 
-fn return_ok(arc_process: &Arc<Process>) -> frames::Result {
-    let argument_list = arc_process.stack_pop().unwrap();
-    let closure_term = arc_process.stack_pop().unwrap();
-
+extern "C" fn return_ok(argument_list: Term, closure_term: Term) -> Term {
     let mut argument_vec: Vec<Term> = Vec::new();
     match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
@@ -190,10 +195,10 @@ fn return_ok(arc_process: &Arc<Process>) -> frames::Result {
         })
         .unwrap();
 
-    Ok(arc_process.return_from_call(0, argument_vec[0])?)
+    argument_vec[0]
 }
 
-fn return_throw(arc_process: &Arc<Process>) -> frames::Result {
+fn return_throw(arc_process: &Arc<Process>) -> Term {
     let argument_list = arc_process.stack_pop().unwrap();
     let closure_term = arc_process.stack_pop().unwrap();
 
@@ -240,6 +245,7 @@ fn return_throw(arc_process: &Arc<Process>) -> frames::Result {
         stacktrace,
         anyhow!("explicit throw from Erlang").into(),
     );
+    arc_process.exception(exc);
 
-    frames::exception_to_native_return(arc_process, 0, exc.into())
+    Term::NONE
 }

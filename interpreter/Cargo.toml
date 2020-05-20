@@ -26,6 +26,8 @@ libeir_util_parse = { git = "https://github.com/eirproject/eir.git", branch = "l
 
 # workspace crates
 liblumen_alloc = { path = "../liblumen_alloc" }
+liblumen_core = { path = "../liblumen_core" }
+native_implemented_function = { path = "../native_implemented_functions/macro" }
 
 [dependencies.hashbrown]
 version = "0.7"

@@ -18,7 +18,7 @@ use lumen_rt_full::binary_to_string::binary_to_string;
 use crate::{error_tuple, ok_tuple};
 
 #[native_implemented_function(new/1)]
-pub fn native(process: &Process, url: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, url: Term) -> exception::Result<Term> {
     let url_string = binary_to_string(url)?;
 
     match WebSocket::new(&url_string) {

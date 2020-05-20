@@ -1,4 +1,5 @@
 use std::convert::{AsRef, TryInto};
+use std::ffi::c_void;
 use std::process::abort;
 use std::sync::Arc;
 
@@ -14,7 +15,6 @@ use libeir_ir::{
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception::{Exception, RuntimeException, SystemException};
-use liblumen_alloc::erts::process::frames;
 use liblumen_alloc::erts::process::gc::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
 use liblumen_alloc::erts::term::prelude::*;
@@ -152,7 +152,7 @@ fn call_closure_inner(
     closure_term: Term,
     closure_typed_term: TypedTerm,
     args: &mut [Term],
-) -> frames::Result {
+) -> Result<(), SystemException> {
     match closure_typed_term {
         TypedTerm::Closure(closure) => {
             let is_closure = closure.env_len() > 0;
@@ -162,9 +162,9 @@ fn call_closure_inner(
             }
 
             let arg_list = proc.list_from_iter(args.iter().cloned())?;
-            proc.stack_push(arg_list)?;
+            let frame_with_arguments = closure.frame_with_arguments(false, vec![arg_list]);
+            proc.queue_frame_with_arguments(frame_with_arguments);
 
-            proc.replace_frame(closure.frame());
             Ok(())
         }
         t => panic!("CALL TO: {:?}", t),
@@ -209,8 +209,7 @@ impl CallExecutor {
 
         match modules.lookup_function(module, function, arity) {
             None => {
-                self.fun_not_found(proc, args[1], module, function, arity)
-                    .unwrap();
+                self.fun_not_found(proc, args[1], module, function, arity);
             }
             Some(ResolvedFunction::Native(native)) => {
                 assert!(arity + 2 == args.len());
@@ -258,7 +257,7 @@ impl CallExecutor {
         module: Atom,
         function: Atom,
         arity: usize,
-    ) -> frames::Result {
+    ) -> Term {
         panic!("Undef: {} {} {}", module, function, arity);
         //let exit_atom = Atom::str_to_term("EXIT");
         //let undef_atom = Atom::str_to_term("undef");
@@ -414,7 +413,7 @@ impl CallExecutor {
             // TODO calculate `unique` from `code`
             Default::default(),
             arity,
-            Some(crate::code::interpreter_closure_code),
+            Some(crate::code::interpreter_closure::native as *const c_void),
             proc.pid().into(),
             &env,
         )?;
@@ -493,7 +492,7 @@ impl CallExecutor {
                             module,
                             function,
                             arity,
-                            Some(crate::code::interpreter_mfa_code),
+                            Some(crate::code::interpreter_mfa::native as *const c_void),
                         )?)
                     }
                     kind => unimplemented!("{:?}", kind),

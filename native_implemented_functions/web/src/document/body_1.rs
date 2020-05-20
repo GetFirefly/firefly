@@ -15,7 +15,7 @@ use crate::option_to_ok_tuple_or_error;
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(body/1)]
-pub fn native(process: &Process, document: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, document: Term) -> exception::Result<Term> {
     let document_document = document_from_term(document)?;
 
     option_to_ok_tuple_or_error(process, document_document.body()).map_err(|error| error.into())

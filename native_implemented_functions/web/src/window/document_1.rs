@@ -19,7 +19,7 @@ use native_implemented_function::native_implemented_function;
 use crate::option_to_ok_tuple_or_error;
 
 #[native_implemented_function(document/1)]
-pub fn native(process: &Process, window: Term) -> exception::Result<Term> {
+pub fn result(process: &Process, window: Term) -> exception::Result<Term> {
     let boxed: Boxed<Resource> = window
         .try_into()
         .with_context(|| format!("window ({}) must be a window resource", window))?;

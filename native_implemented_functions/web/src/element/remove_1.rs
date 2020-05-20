@@ -14,7 +14,7 @@ use native_implemented_function::native_implemented_function;
 use crate::element;
 
 #[native_implemented_function(remove/1)]
-fn native(element_term: Term) -> exception::Result<Term> {
+fn result(element_term: Term) -> exception::Result<Term> {
     let element = element::from_term(element_term)?;
 
     element.remove();

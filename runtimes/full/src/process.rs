@@ -12,14 +12,19 @@ where
     F: FnOnce(&Process) -> AllocResult<Vec<FrameWithArguments>>,
 {
     process.runnable(|process| {
-        let mut vec: Vec<FrameWithArguments> = Vec::new();
-
         let mut frames_with_arguments = frames_with_arguments_fn(process)?;
-        vec.append(&mut frames_with_arguments);
 
-        vec.push(out_of_code::frame().with_arguments(false, &[]));
+        frames_with_arguments.push(out_of_code::frame().with_arguments(false, &[]));
 
-        Ok(vec)
+        for FrameWithArguments {
+            frame, arguments, ..
+        } in frames_with_arguments.into_iter().rev()
+        {
+            process.stack_push_slice(&arguments)?;
+            process.frames.lock().push(frame.clone());
+        }
+
+        Ok(())
     })
 }
 

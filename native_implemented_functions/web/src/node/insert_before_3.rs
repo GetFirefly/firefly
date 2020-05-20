@@ -27,7 +27,7 @@ use crate::node::node_from_term;
 use crate::ok_tuple;
 
 #[native_implemented_function(insert_before/3)]
-fn native(
+fn result(
     process: &Process,
     parent: Term,
     new_child: Term,

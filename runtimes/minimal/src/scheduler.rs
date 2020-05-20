@@ -57,6 +57,9 @@ pub fn scheduler_stop_waiting(process: &Process) {
     }
 }
 
+#[derive(Copy, Clone)]
+struct StackPointer(*mut u64);
+
 #[export_name = "__lumen_builtin_spawn"]
 pub extern "C" fn builtin_spawn(to: Term, msg: Term) -> Term {
     unimplemented!()
@@ -75,11 +78,15 @@ pub unsafe extern "C" fn process_yield() -> bool {
 
 #[export_name = "__lumen_builtin_exit"]
 pub unsafe extern "C" fn process_exit(reason: Term) {
-    let s = Scheduler::current();
-    s.current.exit(reason, anyhow!("process exit").into());
+    let arc_dyn_scheduler = scheduler::current();
+    let scheduler = arc_dyn_scheduler
+        .as_any()
+        .downcast_ref::<Scheduler>()
+        .unwrap();
+    scheduler.current.exit(reason, anyhow!("process exit").into());
     // NOTE: We always set root=false here because the root
     // process never invokes this function
-    s.process_yield(/* root= */ false);
+    scheduler.process_yield(/* root= */ false);
 }
 
 #[naked]
@@ -239,11 +246,11 @@ impl Scheduler {
         let root = Arc::new(Process::new(
             Priority::Normal,
             None,
-            Arc::new(ModuleFunctionArity {
+            ModuleFunctionArity {
                 module: Atom::from_str("root"),
                 function: Atom::from_str("init"),
                 arity: 0,
-            }),
+            },
             ptr::null_mut(),
             0,
         ));
@@ -254,11 +261,11 @@ impl Scheduler {
         let init = Arc::new(Process::new(
             Priority::Normal,
             None,
-            Arc::new(ModuleFunctionArity {
+            ModuleFunctionArity {
                 module: Atom::from_str("undef"),
                 function: Atom::from_str("undef"),
                 arity: 0,
-            }),
+            },
             ptr::null_mut(),
             0,
         ));
@@ -594,6 +601,12 @@ impl Scheduler {
         }
         let init_fn = init_fn_result.unwrap();
 
+        #[inline(always)]
+        unsafe fn push(sp: &mut StackPointer, value: u64) {
+            sp.0 = sp.0.offset(-1);
+            ptr::write(sp.0, value);
+        }
+
         // Write the return function and init function to the end of the stack,
         // when execution resumes, the pointer before the stack pointer will be
         // used as the return address - the first time that will be the init function.
@@ -603,7 +616,8 @@ impl Scheduler {
         // the process exited. The nature of the exit is indicated by error state
         // in the process itself
         unsafe {
-            let mut sp = StackPointer(process.stack.top as *mut u64);
+            let stack = process.stack.lock();
+            let mut sp = StackPointer(stack.top as *mut u64);
             // This empty slot will hold the return address of the swap_stack function,
             // which will be used to allow the unwinder to unwind back to the scheduler
             // properly
@@ -614,22 +628,23 @@ impl Scheduler {
             // and converts them to exits
             push(&mut sp, trap_exceptions as u64);
             // Update process stack pointer
-            let s_top = &process.stack.top as *const _ as *mut _;
+            let s_top = &stack.top as *const _ as *mut _;
             ptr::write(s_top, sp.0 as *const u8);
+            let registers = process.registers.lock();
             // Update rsp/rbp
-            let rsp = &process.registers.rsp as *const u64 as *mut _;
+            let rsp = &registers.rsp as *const u64 as *mut _;
             ptr::write(rsp, sp.0 as u64);
-            let rbp = &process.registers.rbp as *const u64 as *mut _;
+            let rbp = &registers.rbp as *const u64 as *mut _;
             ptr::write(rbp, sp.0 as u64);
             // This is used to indicate to swap_stack that this process
             // is being swapped to for the first time, so that its CFA
             // can be linked to the parent stack
-            let r13 = &process.registers.r13 as *const u64 as *mut _;
+            let r13 = &registers.r13 as *const u64 as *mut _;
             ptr::write(r13, 0xdeadbeef as u64);
             // Set up the function pointers for trap_exceptions
-            let r14 = &process.registers.r14 as *const u64 as *mut _;
+            let r14 = &registers.r14 as *const u64 as *mut _;
             ptr::write(r14, init_fn as u64);
-            let r15 = &process.registers.r15 as *const u64 as *mut _;
+            let r15 = &registers.r15 as *const u64 as *mut _;
             ptr::write(r15, trap_exceptions_impl as u64);
         }
 

@@ -21,7 +21,7 @@ use lumen_rt_full::binary_to_string::binary_to_string;
 use crate::html_form_element;
 
 #[native_implemented_function(element/2)]
-fn native(process: &Process, html_form_element_term: Term, name: Term) -> exception::Result<Term> {
+fn result(process: &Process, html_form_element_term: Term, name: Term) -> exception::Result<Term> {
     let html_form_element_term = html_form_element::from_term(html_form_element_term)?;
     let name_string: String = binary_to_string(name)?;
 

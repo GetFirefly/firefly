@@ -1,6 +1,6 @@
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
@@ -10,12 +10,11 @@ use clap::ArgMatches;
 
 use log::debug;
 
-use libeir_diagnostics::{CodeMap, Emitter};
-
 use liblumen_codegen as codegen;
 use liblumen_codegen::linker::{self, LinkerInfo};
 use liblumen_codegen::meta::{CodegenResults, ProjectInfo};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
+use liblumen_util::diagnostics::{CodeMap, Emitter};
 use liblumen_util::time::HumanDuration;
 
 use crate::commands::*;
@@ -32,7 +31,7 @@ pub fn handle_command<'a>(
     // Extract options from provided arguments
     let options = Options::new(c_opts, z_opts, cwd, &matches)?;
     // Construct empty code map for use in compilation
-    let codemap = Arc::new(RwLock::new(CodeMap::new()));
+    let codemap = Arc::new(CodeMap::new());
     // Set up diagnostics
     let diagnostics = create_diagnostics_handler(&options, codemap.clone(), emitter);
 
@@ -52,9 +51,7 @@ pub fn handle_command<'a>(
     // Parse sources
     let num_inputs = inputs.len();
     if num_inputs < 1 {
-        db.diagnostics()
-            .fatal_str("No input sources found!")
-            .raise();
+        db.diagnostics().fatal("No input sources found!").raise();
     }
 
     let start = Instant::now();
@@ -70,7 +67,7 @@ pub fn handle_command<'a>(
                 if result.is_err() {
                     let diagnostics = snapshot.diagnostics();
                     let input_info = snapshot.lookup_intern_input(input);
-                    diagnostics.failed("Failed", input_info.source_name());
+                    diagnostics.failed("Failed", format!("{}", input_info.source_name()));
                 }
                 result
             })
@@ -121,7 +118,7 @@ pub fn handle_command<'a>(
     // Link all compiled objects
     let diagnostics = db.diagnostics();
     if let Err(err) = linker::link_binary(&options, &diagnostics, &codegen_results) {
-        diagnostics.error(err);
+        diagnostics.error(format!("{}", err));
         return Err(anyhow!("failed to link binary"));
     }
 

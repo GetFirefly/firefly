@@ -17,15 +17,6 @@ pub struct SourceLocation {
     pub line: u32,
     pub column: u32,
 }
-impl From<&liblumen_session::diagnostics::Location> for SourceLocation {
-    fn from(loc: &liblumen_session::diagnostics::Location) -> Self {
-        Self {
-            filename: loc.file.as_ptr(),
-            line: loc.line,
-            column: loc.column,
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
@@ -45,8 +36,8 @@ impl Default for Span {
         Self { start: 0, end: 0 }
     }
 }
-impl From<libeir_diagnostics::ByteSpan> for Span {
-    fn from(span: libeir_diagnostics::ByteSpan) -> Span {
+impl From<liblumen_util::diagnostics::SourceSpan> for Span {
+    fn from(span: liblumen_util::diagnostics::SourceSpan) -> Span {
         Self {
             start: span.start().to_usize() as u32,
             end: span.end().to_usize() as u32,

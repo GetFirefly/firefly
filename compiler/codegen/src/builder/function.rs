@@ -9,7 +9,6 @@ use anyhow::anyhow;
 
 use log::debug;
 
-use libeir_diagnostics::{ByteIndex, FileMap};
 use libeir_intern::{Ident, Symbol};
 use libeir_ir as ir;
 use libeir_ir::{AtomTerm, AtomicTerm, ConstKind, FunctionIdent};
@@ -18,6 +17,7 @@ use libeir_util_datastructures::pooled_entity_set::BoundEntitySet;
 
 use liblumen_mlir::ir::*;
 use liblumen_session::Options;
+use liblumen_util::diagnostics::{ByteIndex, SourceFile};
 
 use crate::Result;
 
@@ -161,7 +161,7 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         func.set_escape_continuation(esc, init_block);
 
         Ok(ScopedFunctionBuilder {
-            filemap: self.builder.filemap().clone(),
+            source_file: self.builder.source_file().clone(),
             filename: self.builder.filename().as_ptr(),
             func,
             eir,
@@ -182,7 +182,7 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
 /// function using the ScopedFunctionBuilder.
 pub struct ScopedFunctionBuilder<'f, 'o> {
     filename: *const libc::c_char,
-    filemap: Arc<FileMap>,
+    source_file: Arc<SourceFile>,
     func: Function,
     eir: &'f ir::Function,
     mlir: FunctionOpRef,
@@ -221,11 +221,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     pub(super) fn debug(&self, _message: &str) {}
 
     fn location(&self, index: ByteIndex) -> Option<SourceLocation> {
-        let (li, ci) = self.filemap.location(index).ok()?;
+        let loc = self.source_file.location(index).ok()?;
         Some(SourceLocation {
             filename: self.filename,
-            line: li.number().to_usize() as u32,
-            column: ci.number().to_usize() as u32,
+            line: loc.line.to_usize() as u32 + 1,
+            column: loc.column.to_usize() as u32 + 1,
         })
     }
 }
@@ -335,7 +335,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         if let Some(locs) = self.eir.value_locations(ir_value) {
             let mut fused = Vec::with_capacity(locs.len());
             for loc in locs.iter().copied() {
-                if let Some(sc) = self.location(loc.start()) {
+                if let Some(sc) = self.location(loc.start().index()) {
                     fused.push(unsafe { MLIRCreateLocation(self.builder, sc) });
                 }
             }
@@ -613,14 +613,14 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         }
 
         let loc = {
-            let (li, ci) = self
-                .filemap
-                .location(self.func.span.start())
+            let loc = self
+                .source_file
+                .location(self.func.span.start_index())
                 .expect("expected source span for function");
             let loc = SourceLocation {
                 filename: self.filename,
-                line: li.number().to_usize() as u32,
-                column: ci.number().to_usize() as u32,
+                line: loc.line.to_usize() as u32 + 1,
+                column: loc.column.to_usize() as u32 + 1,
             };
             unsafe { MLIRCreateLocation(self.builder, loc) }
         };

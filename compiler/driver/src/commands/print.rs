@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use clap::ArgMatches;
 
-use libeir_diagnostics::Emitter;
+use liblumen_util::diagnostics::Emitter;
 
 use liblumen_codegen as codegen;
 use liblumen_llvm as llvm;

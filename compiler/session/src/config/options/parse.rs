@@ -4,11 +4,11 @@ use std::str::FromStr;
 
 use clap::{ArgMatches, ErrorKind};
 
-use libeir_diagnostics::UseColors;
 use liblumen_target as target;
 use liblumen_target::spec::{
     LinkerFlavor, MergeFunctions, PanicStrategy, RelroLevel, Target, TargetError,
 };
+use liblumen_util::diagnostics::ColorArg;
 
 use super::OptionInfo;
 
@@ -148,7 +148,7 @@ impl ParseOption for Target {
         }
     }
 }
-impl ParseOption for UseColors {
+impl ParseOption for ColorArg {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
         let choice = match matches.value_of(info.name) {
             None => "auto",

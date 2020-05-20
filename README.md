@@ -26,15 +26,15 @@ In order to build Lumen, or make changes to it, you'll need the following instal
 First, you will need to install [rustup](https://rustup.rs/). Follow the instructions at that link.
 
 Once you have installed `rustup`, you will need to install the nightly version
-of Rust (currently our CI builds against the 2020-03-10 nightly). We require
+of Rust (currently our CI builds against the 2020-05-13 nightly). We require
 nightly due to a large number of nightly features we use, as well as some
 dependencies for the WebAssembly targets that we make use of.
 
     # to use the latest nightly
     rustup default nightly
     
-    # or, in case of issues, install the 2020-03-10 nightly to match our CI
-    rustup default nightly-2020-03-10
+    # or, in case of issues, install the 2020-05-13 nightly to match our CI
+    rustup default nightly-2020-05-13
 
 You may also want to install the following tools for editor support (`rustfmt` will be required on
 all pull requests!):

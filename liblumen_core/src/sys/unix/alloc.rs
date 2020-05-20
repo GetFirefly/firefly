@@ -48,13 +48,12 @@ pub unsafe fn grow(
     layout: Layout,
     new_size: usize,
     placement: ReallocPlacement,
-    init: AllocInit,
+    _init: AllocInit,
 ) -> Result<MemoryBlock, AllocErr> {
     if placement != ReallocPlacement::MayMove {
         // We can't guarantee the allocation won't move
         return Err(AllocErr);
     }
-    let old_size = layout.size();
     if layout.align() <= MIN_ALIGN && layout.align() <= new_size {
         NonNull::new(libc::realloc(ptr as *mut libc::c_void, new_size) as *mut u8)
             .ok_or(AllocErr)
@@ -78,7 +77,6 @@ pub unsafe fn shrink(
         // We can't guarantee the allocation won't move
         return Err(AllocErr);
     }
-    let old_size = layout.size();
     if layout.align() <= MIN_ALIGN && layout.align() <= new_size {
         NonNull::new(libc::realloc(ptr as *mut libc::c_void, new_size) as *mut u8)
             .ok_or(AllocErr)

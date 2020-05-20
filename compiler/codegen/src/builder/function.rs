@@ -92,7 +92,7 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
     pub fn with_scope<'s, 'o>(
         &mut self,
         name: FunctionIdent,
-        loc: Span,
+        #[allow(unused_variables)] loc: Span,
         eir: &'s ir::Function,
         analysis: &'s LowerData,
         data: &'s FunctionData,

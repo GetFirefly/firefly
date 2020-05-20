@@ -58,7 +58,7 @@ impl HeapFragment {
         let (full_layout, offset) = Layout::new::<Self>().extend(layout.clone()).unwrap();
         let size = layout.size();
         let align = layout.align();
-        let block = unsafe { std_alloc::alloc(full_layout, AllocInit::Uninitialized)? };
+        let block = std_alloc::alloc(full_layout, AllocInit::Uninitialized)?;
         let ptr = block.ptr.as_ptr() as *mut Self;
         let data = unsafe { (ptr as *mut u8).add(offset) };
         let top = data;

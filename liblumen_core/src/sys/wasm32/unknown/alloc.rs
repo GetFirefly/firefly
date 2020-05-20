@@ -1,4 +1,5 @@
-use core::alloc::prelude::*;
+use core::alloc::{AllocErr, AllocInit, Layout, MemoryBlock, ReallocPlacement};
+
 use core::ptr::NonNull;
 
 use crate::locks::SpinLock;
@@ -9,7 +10,7 @@ static SYS_ALLOC_LOCK: SpinLock<dlmalloc::Dlmalloc> = SpinLock::new(dlmalloc::DL
 pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
     let mut allocator = SYS_ALLOC_LOCK.lock();
     let layout_size = layout.size();
-    let ptr = (*allocator).malloc(layout_size, layout.align());
+    let ptr = unsafe { (*allocator).malloc(layout_size, layout.align()) };
     NonNull::new(ptr).ok_or(AllocErr).map(|ptr| MemoryBlock {
         ptr,
         size: layout_size,
@@ -20,7 +21,7 @@ pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
 pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocErr> {
     let mut allocator = SYS_ALLOC_LOCK.lock();
     let layout_size = layout.size();
-    let ptr = (*allocator).calloc(layout_size, layout.align());
+    let ptr = unsafe { (*allocator).calloc(layout_size, layout.align()) };
     NonNull::new(ptr).ok_or(AllocErr).map(|ptr| MemoryBlock {
         ptr,
         size: layout_size,
@@ -52,7 +53,7 @@ pub unsafe fn shrink(
 }
 
 #[inline]
-unsafe fn realloc(
+pub unsafe fn realloc(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,

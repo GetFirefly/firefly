@@ -6,7 +6,7 @@ use clap::ArgMatches;
 use liblumen_util::diagnostics::Emitter;
 
 use liblumen_codegen as codegen;
-use liblumen_llvm as llvm;
+use liblumen_llvm::{self as llvm, target::TargetMachineConfig};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_target::{self as target, Target};
 
@@ -49,14 +49,18 @@ pub fn handle_command<'a>(
                 Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
             let diagnostics = default_diagnostics_handler(&options, emitter);
             codegen::init(&options)?;
-            llvm::target::print_target_features(&options, &diagnostics);
+            let target_machine_config = TargetMachineConfig::new(&options);
+            let target_machine = target_machine_config.create()?;
+            target_machine.print_target_features();
         }
         ("target-cpus", subcommand_matches) => {
             let options =
                 Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
             let diagnostics = default_diagnostics_handler(&options, emitter);
             codegen::init(&options)?;
-            llvm::target::print_target_cpus(&options, &diagnostics);
+            let target_machine_config = TargetMachineConfig::new(&options);
+            let target_machine = target_machine_config.create()?;
+            target_machine.print_target_cpus();
         }
         ("passes", _subcommand_matches) => {
             llvm::passes::print();

@@ -25,7 +25,7 @@ extern crate alloc;
 
 cfg_if::cfg_if! {
     if #[cfg(target_arch = "wasm32")] {
-        #[path = "dummy.rs"]
+        #[path = "wasm.rs"]
         mod imp;
     } else if #[cfg(target_os = "hermit")] {
         #[path = "dummy.rs"]

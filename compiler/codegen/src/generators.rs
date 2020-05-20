@@ -26,7 +26,8 @@ pub fn run(
     let atom_table = atom_table::generate(options, context, target_machine, atoms, output_dir)?;
     result.modules.push(atom_table);
 
-    let symbol_table = symbol_table::generate(context, target_machine, symbols, output_dir)?;
+    let symbol_table =
+        symbol_table::generate(options, context, target_machine, symbols, output_dir)?;
     result.modules.push(symbol_table);
 
     Ok(())

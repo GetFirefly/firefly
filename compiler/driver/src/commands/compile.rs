@@ -18,7 +18,8 @@ use liblumen_util::diagnostics::{CodeMap, Emitter};
 use liblumen_util::time::HumanDuration;
 
 use crate::commands::*;
-use crate::compiler::{prelude::*, *};
+use crate::compiler::prelude::{Compiler as CompilerQueryGroup, *};
+use crate::compiler::Compiler;
 use crate::task;
 
 pub fn handle_command<'a>(
@@ -39,7 +40,7 @@ pub fn handle_command<'a>(
     codegen::init(&options)?;
 
     // Build query database
-    let mut db = CompilerDatabase::new(codemap, diagnostics);
+    let mut db = Compiler::new(codemap, diagnostics);
 
     // The core of the query system is the initial set of options provided to the compiler
     //
@@ -62,7 +63,6 @@ pub fn handle_command<'a>(
             debug!("spawning worker for {:?}", input);
             let snapshot = db.snapshot();
             task::spawn(async move {
-                use liblumen_incremental::InternerDatabase;
                 let result = snapshot.compile(input);
                 if result.is_err() {
                     let diagnostics = snapshot.diagnostics();
@@ -107,6 +107,7 @@ pub fn handle_command<'a>(
     let symbols = db.take_symbols();
     let output_dir = db.output_dir();
     codegen::generators::run(
+        &options,
         &mut codegen_results,
         context.deref(),
         target_machine.deref(),

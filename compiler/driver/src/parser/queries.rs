@@ -1,36 +1,35 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use liblumen_session::{IRModule, Input, InputType};
-use liblumen_util::{seq, seq::Seq};
+use anyhow::anyhow;
 
-use libeir_diagnostics::FileName;
 use libeir_frontend::{AnyFrontend, DynFrontend};
 use libeir_syntax_erl::ParseConfig;
 
-use crate::intern::InternedInput;
-use crate::query_groups::ParserDatabase;
-use crate::QueryResult;
+use liblumen_session::{IRModule, Input, InputType};
+use liblumen_util::diagnostics::FileName;
+use liblumen_util::{seq, seq::Seq};
+
+use super::prelude::*;
 
 pub(crate) fn output_dir<P>(db: &P) -> PathBuf
 where
-    P: ParserDatabase,
+    P: Parser,
 {
     db.options().output_dir()
 }
 
 pub(crate) fn inputs<P>(db: &P) -> QueryResult<Arc<Seq<InternedInput>>>
 where
-    P: ParserDatabase,
+    P: Parser,
 {
-    use std::io::Read;
-    use std::io::{self, Error as IoError, ErrorKind as IoErrorKind};
+    use std::io::{self, Read};
 
     let options = db.options();
 
     // Handle case where input is empty, indicating to compile the current working directory
     if options.input_file.is_none() {
-        return find_sources(db, &options.current_dir);
+        return db.to_query_result(find_sources(db, &options.current_dir));
     }
 
     // We can get three types of input:
@@ -42,13 +41,11 @@ where
         // Read from standard input
         &FileName::Virtual(ref name) if name == "-" => {
             let mut source = String::new();
-            if io::stdin().read_to_string(&mut source).is_err() {
-                db.diagnostics().io_error(IoError::new(
-                    IoErrorKind::InvalidData,
-                    "couldn't read from stdin, invalid UTF-8",
-                ));
-                return Err(());
-            }
+            db.to_query_result(
+                io::stdin()
+                    .read_to_string(&mut source)
+                    .map_err(|e| e.into()),
+            )?;
             let input = Input::new(name.clone(), source);
             let interned = db.intern_input(input);
             Ok(Arc::new(seq![interned]))
@@ -60,29 +57,25 @@ where
             Ok(Arc::new(seq![interned]))
         }
         // Read all files in a directory
-        &FileName::Real(ref path) if path.exists() && path.is_dir() => find_sources(db, path),
+        &FileName::Real(ref path) if path.exists() && path.is_dir() => {
+            db.to_query_result(find_sources(db, path))
+        }
         // Invalid virtual file
         &FileName::Virtual(_) => {
-            db.diagnostics().io_error(IoError::new(
-                IoErrorKind::InvalidInput,
-                "invalid input file, expected `-`, a file path, or a directory",
-            ));
-            Err(())
+            db.report_error("invalid input file, expected `-`, a file path, or a directory");
+            Err(ErrorReported)
         }
         // Invalid file/directory path
         &FileName::Real(_) => {
-            db.diagnostics().io_error(IoError::new(
-                IoErrorKind::InvalidInput,
-                "invalid input file, not a file or directory",
-            ));
-            Err(())
+            db.report_error("invalid input file, not a file or directory");
+            Err(ErrorReported)
         }
     }
 }
 
 pub(crate) fn input_type<P>(db: &P, input: InternedInput) -> InputType
 where
-    P: ParserDatabase,
+    P: Parser,
 {
     let input_info = db.lookup_intern_input(input);
     input_info.get_type()
@@ -90,7 +83,7 @@ where
 
 pub(crate) fn parse_config<P>(db: &P) -> ParseConfig
 where
-    P: ParserDatabase,
+    P: Parser,
 {
     let options = db.options();
     let mut parse_config = ParseConfig::new();
@@ -103,24 +96,28 @@ where
 
 pub(crate) fn input_parsed<P>(db: &P, input: InternedInput) -> QueryResult<IRModule>
 where
-    P: ParserDatabase,
+    P: Parser,
 {
     use libeir_frontend::abstr_erlang::AbstrErlangFrontend;
     use libeir_frontend::eir::EirFrontend;
     use libeir_frontend::erlang::ErlangFrontend;
 
+    let codemap = db.codemap().clone();
     let frontend: AnyFrontend = match db.input_type(input) {
-        InputType::Erlang => ErlangFrontend::new(db.parse_config()).into(),
-        InputType::AbstractErlang => AbstrErlangFrontend::new().into(),
-        InputType::EIR => EirFrontend::new().into(),
-        _ => unreachable!(),
+        InputType::Erlang => ErlangFrontend::new(db.parse_config(), codemap).into(),
+        InputType::AbstractErlang => AbstrErlangFrontend::new(codemap).into(),
+        InputType::EIR => EirFrontend::new(codemap).into(),
+        ty => {
+            db.report_error(format!("invalid input type: {}", ty));
+            return Err(ErrorReported);
+        }
     };
 
     let codemap = db.codemap().clone();
 
     let (result, diags) = match db.lookup_intern_input(input) {
-        Input::File(ref path) => frontend.parse_file_dyn(codemap, path),
-        Input::Str { ref input, .. } => frontend.parse_string_dyn(codemap, input),
+        Input::File(ref path) => frontend.parse_file_dyn(path),
+        Input::Str { ref input, .. } => frontend.parse_string_dyn(input),
     };
 
     for ref diagnostic in diags.iter() {
@@ -133,17 +130,20 @@ where
             db.maybe_emit_file_with_opts(&options, input, &module)?;
             Ok(module.into())
         }
-        Err(_) => Err(()),
+        Err(_) => {
+            db.report_error("parsing failed");
+            Err(ErrorReported)
+        }
     }
 }
 
 pub(crate) fn input_eir<P>(db: &P, input: InternedInput) -> QueryResult<IRModule>
 where
-    P: ParserDatabase,
+    P: Parser,
 {
     use libeir_passes::PassManager;
 
-    let module: IRModule = db.input_parsed(input)?;
+    let module = db.input_parsed(input)?;
     let mut ir_module: libeir_ir::Module = module.as_ref().clone();
 
     let mut pass_manager = PassManager::default();
@@ -154,9 +154,9 @@ where
     Ok(new_module)
 }
 
-pub fn find_sources<D, P>(db: &D, dir: P) -> QueryResult<Arc<Seq<InternedInput>>>
+pub fn find_sources<D, P>(db: &D, dir: P) -> anyhow::Result<Arc<Seq<InternedInput>>>
 where
-    D: ParserDatabase,
+    D: Parser,
     P: AsRef<Path>,
 {
     use walkdir::{DirEntry, WalkDir};
@@ -185,25 +185,14 @@ where
 
     let mut inputs = Vec::new();
 
-    let mut has_errors = false;
     for maybe_entry in walker.filter_entry(is_valid_entry) {
-        match maybe_entry {
-            Ok(entry) if !has_errors && entry.path().is_file() => {
-                let input = Input::from(entry.path());
-                let interned = db.intern_input(input);
-                inputs.push(interned);
-            }
-            Ok(_) => continue,
-            Err(err) => {
-                db.diagnostics().error_str(&err.to_string());
-                has_errors = true;
-            }
+        let entry = maybe_entry?;
+        if entry.path().is_file() {
+            let input = Input::from(entry.path());
+            let interned = db.intern_input(input);
+            inputs.push(interned);
         }
     }
 
-    if !has_errors {
-        Ok(Arc::new(inputs.into()))
-    } else {
-        Err(())
-    }
+    Ok(Arc::new(inputs.into()))
 }

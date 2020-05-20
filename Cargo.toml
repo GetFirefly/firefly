@@ -3,7 +3,6 @@
 members = [
   "compiler/codegen",
   "compiler/driver",
-  "compiler/incremental",
   "compiler/llvm",
   "compiler/macros",
   "compiler/mlir",
@@ -34,7 +33,6 @@ members = [
 default-members = [
   "compiler/codegen",
   "compiler/driver",
-  "compiler/incremental",
   "compiler/llvm",
   "compiler/macros",
   "compiler/mlir",
@@ -63,9 +61,6 @@ default-members = [
 # `lto`s (true and false) for `examples/spawn-chain/pkg/spawn_chaing_bg.wasm`
 opt-level = 2
 lto = false
-
-[patch.crates-io]
-dashmap = { git = "https://github.com/lumen/dashmap" }
 
 #[patch."https://github.com/eirproject/eir"]
 #libeir_diagnostics = { path = "../eir/libeir_diagnostics" }

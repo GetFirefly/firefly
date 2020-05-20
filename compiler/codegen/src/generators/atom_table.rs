@@ -10,6 +10,7 @@ use liblumen_llvm as llvm;
 use liblumen_llvm::builder::ModuleBuilder;
 use liblumen_llvm::enums::Linkage;
 use liblumen_llvm::target::TargetMachine;
+use liblumen_session::Options;
 
 use crate::meta::CompiledModule;
 use crate::Result;
@@ -25,6 +26,7 @@ use crate::Result;
 /// - Generate the __LUMEN_ATOM_TABLE global as a pointer to the first element of the array
 /// - Generate the __LUMEN_ATOM_TABLE_SIZE global with the number of elements in the array
 pub fn generate(
+    options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
     mut atoms: HashSet<Symbol>,
@@ -32,7 +34,7 @@ pub fn generate(
 ) -> Result<Arc<CompiledModule>> {
     const NAME: &'static str = "liblumen_crt_atoms";
 
-    let builder = ModuleBuilder::new(NAME, context, target_machine)?;
+    let builder = ModuleBuilder::new(NAME, options, context, target_machine)?;
 
     // Ensure true/false are always present
     atoms.insert(Symbol::intern("false"));
@@ -40,20 +42,18 @@ pub fn generate(
     atoms.insert(Symbol::intern("error"));
     atoms.insert(Symbol::intern("exit"));
     atoms.insert(Symbol::intern("throw"));
+    atoms.insert(Symbol::intern("nocatch"));
 
     fn insert_atom<'ctx>(builder: &ModuleBuilder<'ctx>, atom: Symbol) -> Result<llvm::Value> {
         // We remap true/false to 1/0 respectively
         let id = atom.as_usize();
         // Each atom must be a null-terminated string
-        let s = CString::new(atom.as_str().get()).unwrap();
-        let size = s.as_bytes().len();
-        // Each atom has type `[? x i8]` where `?` is the number of bytes in the string
-        let i8_type = builder.get_i8_type();
-        let string_type = builder.get_array_type(size + 1, i8_type);
-        // The initializer is just the string contents
-        let init = builder.build_constant_cstring(s, /* null_terminate= */ true);
-        let constant =
-            builder.build_constant(string_type, &format!("__atom{}.value", id), Some(init));
+        let s = atom.as_str().get();
+        let constant = builder.build_named_constant_string(
+            &format!("__atom{}.value", id),
+            s,
+            /* null_terminated= */ false,
+        );
         // The atom constants are not accessible directly, only via the table
         builder.set_linkage(constant, Linkage::Private);
         builder.set_alignment(constant, 8);
@@ -74,7 +74,7 @@ pub fn generate(
 
     let mut entries = Vec::with_capacity(values.len());
     for (sym, value) in values.iter() {
-        let id = builder.build_constant_uint(i64_type, sym.as_usize());
+        let id = builder.build_constant_uint(i64_type, sym.as_usize() as u64);
         let ptr = builder.build_const_inbounds_gep(*value, &[0, 0]);
         entries.push(builder.build_constant_struct(entry_type, &[id, ptr]));
     }
@@ -101,7 +101,7 @@ pub fn generate(
     builder.set_alignment(table_global, 8);
 
     // Generate atom table size global
-    let table_size_global_init = builder.build_constant_uint(i64_type, entries.len());
+    let table_size_global_init = builder.build_constant_uint(i64_type, entries.len() as u64);
     let table_size_global = builder.build_global(
         i64_type,
         "__LUMEN_ATOM_TABLE_SIZE",
@@ -110,16 +110,22 @@ pub fn generate(
     builder.set_alignment(table_size_global, 8);
 
     // Finalize module
-    let module = builder.finish();
+    let module = builder.finish()?;
+    // Open ll file for writing
+    let ir_path = output_dir.join(&format!("{}.ll", NAME));
+    let mut file = File::create(ir_path.as_path())?;
+    // Emit IR file
+    module.emit_ir(&mut file)?;
+
     // Open object file for writing
-    let path = output_dir.join(&format!("{}.o", NAME));
-    let mut file = File::create(path.as_path())?;
+    let obj_path = output_dir.join(&format!("{}.o", NAME));
+    let mut file = File::create(obj_path.as_path())?;
     // Emit object file
     module.emit_obj(&mut file)?;
 
     Ok(Arc::new(CompiledModule::new(
         NAME.to_string(),
-        Some(path),
+        Some(obj_path),
         None,
     )))
 }

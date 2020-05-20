@@ -124,7 +124,9 @@ fn main() {
     } else {
         cfg.file("c_src/RustString.cpp")
     };
-    cfg.file("c_src/ErrorHandling.cpp")
+    cfg.file("c_src/Attributes.cpp")
+       .file("c_src/IR.cpp")
+       .file("c_src/ErrorHandling.cpp")
        .file("c_src/Diagnostics.cpp")
        .file("c_src/Options.cpp")
        .file("c_src/Passes.cpp")

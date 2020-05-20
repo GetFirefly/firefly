@@ -14,6 +14,7 @@
 #include "llvm-c/Core.h"
 #include "llvm-c/TargetMachine.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Target/TargetMachine.h"
@@ -25,6 +26,7 @@ using ::mlir::OwningModuleRef;
 using ::mlir::PassManager;
 using ::llvm::StringRef;
 using ::llvm::TargetMachine;
+using ::llvm::Triple;
 
 using namespace lumen;
 
@@ -41,7 +43,6 @@ extern "C" MLIRModuleRef MLIRLowerModule(MLIRContextRef context,
   if (mlir::failed(pm->run(*ownedMod))) {
     ownedMod->dump();
     llvm::outs() << "\n";
-    ownedMod->emitError("unable to lower to llvm dialect");
     return nullptr;
   }
 
@@ -50,47 +51,25 @@ extern "C" MLIRModuleRef MLIRLowerModule(MLIRContextRef context,
 
 
 extern "C" LLVMModuleRef MLIRLowerToLLVMIR(MLIRModuleRef m,
-                                           const char *sourceName, OptLevel opt,
-                                           SizeLevel size,
-                                           LLVMTargetMachineRef tm) {
+                                           LLVMTargetMachineRef tm,
+                                           const char *sourceName,
+                                           unsigned sourceNameLen) {
   ModuleOp *mod = unwrap(m);
   TargetMachine *targetMachine = unwrap(tm);
-  auto targetTriple = targetMachine->getTargetTriple();
-  CodeGenOptLevel optLevel = toLLVM(opt);
-  unsigned sizeLevel = toLLVM(size);
-
-  bool enableOpt = optLevel >= CodeGenOptLevel::None;
-  if (sizeLevel > 0) {
-    optLevel = CodeGenOptLevel::Default;
-  }
+  Triple triple = targetMachine->getTargetTriple();
 
   auto modName = mod->getName();
 
   OwningModuleRef ownedMod(*mod);
   auto llvmModPtr = mlir::translateModuleToLLVMIR(*ownedMod);
-  if (!llvmModPtr) {
-    llvm::errs() << "Failed to emit LLVM IR!\n";
+  if (!llvmModPtr)
     return nullptr;
-  }
 
-  llvmModPtr->setModuleIdentifier(modName.getValue());
-  if (sourceName != nullptr) {
-    llvmModPtr->setSourceFileName(StringRef(sourceName));
-  }
   llvmModPtr->setDataLayout(targetMachine->createDataLayout());
-  llvmModPtr->setTargetTriple(targetTriple.getTriple());
-
-  // mlir::ExecutionEngine::setupTargetTriple(llvmModPtr.get());
-
-  // L::outs() << L::format("Making optimizing transformer with %p",
-  // targetMachine) << "\n";
-  // Optionally run an optimization pipeline
-  // auto optPipeline =
-  // M::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
-  // if (auto err = optPipeline(llvmModPtr.get())) {
-  // L::errs() << "Failed to optimize LLVM IR " << err << "\n";
-  // return nullptr;
-  //}
+  llvmModPtr->setTargetTriple(triple.getTriple());
+  llvmModPtr->setModuleIdentifier(modName.getValue());
+  if (sourceName != nullptr)
+    llvmModPtr->setSourceFileName(StringRef(sourceName, sourceNameLen));
 
   return wrap(llvmModPtr.release());
 }

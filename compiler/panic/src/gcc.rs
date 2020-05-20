@@ -137,7 +137,7 @@ cfg_if::cfg_if! {
                 // Backtraces on ARM will call the personality routine with
                 // state == _US_VIRTUAL_UNWIND_FRAME | _US_FORCE_UNWIND. In those cases
                 // we want to continue unwinding the stack, otherwise all our backtraces
-                // would end at __lumen_try
+                // would end at the enclosing try
                 if state & uw::_US_FORCE_UNWIND as c_int != 0 {
                     return continue_unwind(exception_object, context);
                 }

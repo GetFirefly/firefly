@@ -66,19 +66,26 @@ impl Module {
         context: &Context,
         source_name: Option<String>,
     ) -> anyhow::Result<llvm::module::Module> {
-        let opt = context.opt_level();
-        let size = context.opt_size();
         let target_machine = context.target_machine_ref();
         let result = if let Some(sn) = source_name {
-            let f = CString::new(sn)?;
-            unsafe { MLIRLowerToLLVMIR(self.as_ref(), f.as_ptr(), opt, size, target_machine) }
+            let source_name_bytes = sn.as_bytes();
+            let source_name = source_name_bytes.as_ptr();
+            let source_name_len = source_name_bytes.len();
+            unsafe {
+                MLIRLowerToLLVMIR(
+                    self.as_ref(),
+                    target_machine,
+                    source_name as *const libc::c_char,
+                    source_name_len as libc::c_uint,
+                )
+            }
         } else {
-            unsafe { MLIRLowerToLLVMIR(self.as_ref(), ptr::null(), opt, size, target_machine) }
+            unsafe { MLIRLowerToLLVMIR(self.as_ref(), target_machine, ptr::null(), 0) }
         };
         if result.is_null() {
             Err(anyhow!("lowering to llvm failed"))
         } else {
-            Ok(llvm::module::Module::new(result, target_machine))
+            Ok(llvm::Module::new(result, target_machine))
         }
     }
 
@@ -145,11 +152,10 @@ extern "C" {
 
     pub fn MLIRLowerToLLVMIR(
         module: ModuleRef,
-        source_name: *const libc::c_char,
-        opt: CodeGenOptLevel,
-        size: CodeGenOptSize,
         target_machine: TargetMachineRef,
-    ) -> *mut llvm::module::ModuleImpl;
+        source_name: *const libc::c_char,
+        source_name_len: libc::c_uint,
+    ) -> llvm::ModuleRef;
 
     #[cfg(not(windows))]
     pub fn MLIREmitToFileDescriptor(

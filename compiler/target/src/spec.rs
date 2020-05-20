@@ -147,9 +147,9 @@ flavor_mappings! {
     ((LinkerFlavor::Lld(LldFlavor::Link)), "lld-link"),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
-pub enum RelocMode {
+pub enum RelocModel {
     Default,
     Static,
     PIC,
@@ -159,7 +159,7 @@ pub enum RelocMode {
     #[allow(non_camel_case_types)]
     ROPI_RWPI,
 }
-impl FromStr for RelocMode {
+impl FromStr for RelocModel {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -176,7 +176,7 @@ impl FromStr for RelocMode {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub enum CodeModel {
     #[allow(dead_code)]

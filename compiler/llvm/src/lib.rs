@@ -1,14 +1,18 @@
 #![feature(extern_types)]
 #![feature(const_cstr_unchecked)]
+#![feature(crate_visibility_modifier)]
 
 pub mod archives;
+pub mod attributes;
 pub mod builder;
 pub mod config;
 pub mod context;
 pub mod diagnostics;
 pub mod enums;
+pub mod funclet;
 pub mod module;
 pub mod passes;
+pub mod profiling;
 pub mod sys;
 pub mod target;
 pub mod utils;
@@ -25,6 +29,7 @@ use liblumen_session::Options;
 pub type Block = *mut crate::sys::LLVMBasicBlock;
 pub type Type = *mut crate::sys::LLVMType;
 pub type Value = *mut crate::sys::LLVMValue;
+pub type Metadata = *mut crate::sys::LLVMOpaqueMetadata;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 

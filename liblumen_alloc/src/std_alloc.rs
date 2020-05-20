@@ -4,35 +4,35 @@
 ///!
 ///! Allocations that use multi-block carriers are filled by searching in a balanced
 ///! binary tree for the first carrier with free blocks of suitable size, then finding the
-/// block ! with the best fit within that carrier.
+///! block with the best fit within that carrier.
 ///!
 ///! Multi-block carriers are allocated using super-aligned boundaries. Specifically, this is
 ///! 262144 bytes, or put another way, 64 pages that are 4k large. Since that page size is not
 ///! guaranteed across platforms, it is not of particular significance. However the purpose of
 ///! super-alignment is to make it trivial to calculate a pointer to the carrier header given
 ///! a pointer to a block or data within the bounds of that carrier. It is also a convenient
-/// size ! as allocations of all size classes both fit into the super-aligned size, and can fit
-/// multiple ! blocks in that carrier. For example, the largest size class, 32k, can fit 7
-/// blocks of that ! size, and have room remaining for smaller blocks (carrier and block
-/// headers take up some space). !
+///! size as allocations of all size classes both fit into the super-aligned size, and can fit
+///! multiple blocks in that carrier. For example, the largest size class, 32k, can fit 7
+///! blocks of that size, and have room remaining for smaller blocks (carrier and block
+///! headers take up some space).
 ///! Single-block carriers are allocated for any allocation requests above the maximum
-/// multi-block ! size class, also called the "single-block carrier threshold". Currently this
-/// is statically set ! to the size class already mentioned (32k).
+///! multi-block size class, also called the "single-block carrier threshold". Currently this
+///! is statically set to the size class already mentioned (32k).
 ///!
 ///! The primary difference between the carrier types, other than the size of allocations they
 ///! handle, is that single-block carriers are always freed, where multi-block carriers are
-/// retained ! and reused, the allocator effectively maintaining a cache to more efficiently
-/// serve allocations. !
+///! retained and reused, the allocator effectively maintaining a cache to more efficiently
+///! serve allocations.
 ///! The allocator starts with a single multi-block carrier, and additional multi-block
-/// carriers are ! allocated as needed when the current carriers are unable to satisfy
-/// allocation requests. As ! stated previously, large allocations always allocate in
-/// single-block carriers, but none are ! allocated up front.
+///! carriers are allocated as needed when the current carriers are unable to satisfy
+///! allocation requests. As stated previously, large allocations always allocate in
+///! single-block carriers, but none are allocated up front.
 ///!
 ///! NOTE: It will be important in the future to support carrier migration to allocators in
-/// other ! threads to avoid situations where an allocator on one thread is full, so additional
-/// carriers ! are allocated when allocators on other threads have carriers that could have
-/// filled the request. ! See [CarrierMigration.md] in the OTP documentation for information
-/// about how that works and ! the rationale.
+///! other threads to avoid situations where an allocator on one thread is full, so additional
+///! carriers are allocated when allocators on other threads have carriers that could have
+///! filled the request. See [CarrierMigration.md] in the OTP documentation for information
+///! about how that works and the rationale.
 use core::cmp;
 use core::ptr::{self, NonNull};
 
@@ -46,9 +46,8 @@ use intrusive_collections::LinkedListLink;
 use intrusive_collections::{Bound, UnsafeRef};
 use intrusive_collections::{RBTree, RBTreeLink};
 
-use liblumen_core::alloc::alloc_handle::{self, AsAllocHandle};
 use liblumen_core::alloc::mmap;
-use liblumen_core::alloc::{AllocErr, AllocRef, Layout};
+use liblumen_core::alloc::prelude::*;
 use liblumen_core::locks::SpinLock;
 use liblumen_core::util::cache_padded::CachePadded;
 
@@ -76,17 +75,29 @@ cfg_if! {
 }
 
 /// Allocates a new block of memory using the given layout
-pub unsafe fn alloc(layout: Layout) -> AllocResult<(NonNull<u8>, usize)> {
-    STD_ALLOC.allocate(layout)
+pub fn alloc(layout: Layout, init: AllocInit) -> AllocResult<MemoryBlock> {
+    unsafe { STD_ALLOC.allocate(layout, init) }
 }
 
-/// Reallocates a previously allocated block of memory, in-place if possible
-pub unsafe fn realloc(
+/// Grows a previously allocated block of memory, in-place if possible
+pub unsafe fn grow(
     ptr: NonNull<u8>,
     layout: Layout,
     new_size: usize,
-) -> AllocResult<(NonNull<u8>, usize)> {
-    STD_ALLOC.reallocate(ptr, layout, new_size)
+    placement: ReallocPlacement,
+    init: AllocInit,
+) -> AllocResult<MemoryBlock> {
+    STD_ALLOC.reallocate(ptr, layout, new_size, placement, init)
+}
+
+/// Shrinks a previously allocated block of memory, in-place if possible
+pub unsafe fn shrink(
+    ptr: NonNull<u8>,
+    layout: Layout,
+    new_size: usize,
+    placement: ReallocPlacement,
+) -> AllocResult<MemoryBlock> {
+    STD_ALLOC.reallocate(ptr, layout, new_size, placement, AllocInit::Uninitialized)
 }
 
 /// Deallocates a previously allocated block of memory
@@ -148,10 +159,10 @@ impl StandardAlloc {
         sbc.iter().count()
     }
 
-    unsafe fn allocate(&self, layout: Layout) -> AllocResult<(NonNull<u8>, usize)> {
+    unsafe fn allocate(&self, layout: Layout, init: AllocInit) -> AllocResult<MemoryBlock> {
         let size = layout.size();
         if size >= self.sbc_threshold {
-            return self.alloc_large(layout);
+            return self.alloc_large(layout, init);
         }
 
         // From this point onwards, we're working with multi-block carriers
@@ -167,7 +178,7 @@ impl StandardAlloc {
         while let Some(carrier) = cursor.get() {
             // In each carrier, try to find a best fit block and allocate it
             if let Some(block) = carrier.alloc_block(&layout) {
-                return Ok((block, size));
+                return Ok(MemoryBlock { ptr: block, size });
             }
         }
         drop(mbc);
@@ -189,7 +200,7 @@ impl StandardAlloc {
             .alloc_block(&layout)
             .expect("unexpected block allocation failure");
         // Return data pointer
-        Ok((block, size))
+        Ok(MemoryBlock { ptr: block, size })
     }
 
     unsafe fn reallocate(
@@ -197,7 +208,9 @@ impl StandardAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> AllocResult<(NonNull<u8>, usize)> {
+        placement: ReallocPlacement,
+        init: AllocInit,
+    ) -> AllocResult<MemoryBlock> {
         let raw = ptr.as_ptr();
         let size = layout.size();
 
@@ -207,7 +220,7 @@ impl StandardAlloc {
             // Even if the new size would fit in a multi-block carrier, we're going
             // to keep the allocation in the single-block carrier, to avoid the extra
             // complexity, as there is little payoff
-            return self.realloc_large(ptr, layout, new_size);
+            return self.realloc_large(ptr, layout, new_size, placement, init);
         }
 
         // From this point onwards, we're working with multi-block carriers
@@ -224,24 +237,31 @@ impl StandardAlloc {
         // Attempt reallocation
         if let Some(block) = carrier.realloc_block(raw, &layout, new_size) {
             // We were able to reallocate within this carrier
-            return Ok((block, new_size));
+            return Ok(MemoryBlock {
+                ptr: block,
+                size: new_size,
+            });
         }
         drop(mbc);
 
         // If we reach this point, we have to try allocating a new block and
         // copying the data from the old block to the new one
+        if placement != ReallocPlacement::MayMove {
+            return Err(alloc!());
+        }
         let new_layout = Layout::from_size_align(new_size, layout.align()).expect("invalid layout");
-        let new_layout_size = new_layout.size();
         // Allocate new block
-        let (block, _block_size) = self.allocate(new_layout)?;
+        let block = self.allocate(new_layout, init)?;
         // Copy data from old block into new block
-        let blk = block.as_ptr() as *mut u8;
-        ptr::copy_nonoverlapping(raw, blk, cmp::min(size, new_size));
+        let blk = block.ptr.as_ptr() as *mut u8;
+        let copy_size = cmp::min(size, new_size);
+        ptr::copy_nonoverlapping(raw, blk, copy_size);
         // Free old block
         self.deallocate(ptr, layout);
 
         // Return new data pointer
-        Ok((block, new_layout_size))
+        AllocInit::init_offset(init, block, copy_size);
+        Ok(block)
     }
 
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
@@ -267,7 +287,7 @@ impl StandardAlloc {
     }
 
     /// This function handles allocations which exceed the single-block carrier threshold
-    unsafe fn alloc_large(&self, layout: Layout) -> AllocResult<(NonNull<u8>, usize)> {
+    unsafe fn alloc_large(&self, layout: Layout, init: AllocInit) -> AllocResult<MemoryBlock> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let data_layout = layout.clone();
         let carrier_layout = Layout::new::<SingleBlockCarrier<LinkedListLink>>();
@@ -296,7 +316,12 @@ impl StandardAlloc {
                 let mut sbc = self.sbc.lock();
                 sbc.push_front(carrier);
                 // Return data pointer
-                Ok((NonNull::new_unchecked(data), size))
+                let block = MemoryBlock {
+                    ptr: NonNull::new_unchecked(data),
+                    size,
+                };
+                AllocInit::init(init, block);
+                Ok(block)
             }
             Err(AllocErr) => Err(alloc!()),
         }
@@ -307,18 +332,25 @@ impl StandardAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> AllocResult<(NonNull<u8>, usize)> {
+        placement: ReallocPlacement,
+        init: AllocInit,
+    ) -> AllocResult<MemoryBlock> {
+        if placement != ReallocPlacement::MayMove {
+            return Err(alloc!());
+        }
         // Allocate new carrier
-        let (new_ptr, new_ptr_size) =
-            self.alloc_large(Layout::from_size_align_unchecked(new_size, layout.align()))?;
+        let block = self.alloc_large(
+            Layout::from_size_align_unchecked(new_size, layout.align()),
+            init,
+        )?;
         // Copy old data into new carrier
         let old_ptr = ptr.as_ptr();
         let old_size = layout.size();
-        ptr::copy_nonoverlapping(old_ptr, new_ptr.as_ptr(), cmp::min(old_size, new_size));
+        ptr::copy_nonoverlapping(old_ptr, block.ptr.as_ptr(), cmp::min(old_size, block.size));
         // Free old carrier
         self.dealloc_large(old_ptr);
         // Return new carrier
-        Ok((new_ptr, new_ptr_size))
+        Ok(block)
     }
 
     /// This function handles allocations which exceed the single-block carrier threshold
@@ -357,31 +389,38 @@ impl StandardAlloc {
 }
 unsafe impl AllocRef for StandardAlloc {
     #[inline]
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
-        self.allocate(layout).map_err(|_| AllocErr)
+    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
+        unsafe { self.allocate(layout, init).map_err(|_| AllocErr) }
     }
 
     #[inline]
-    unsafe fn realloc(
+    unsafe fn grow(
         &mut self,
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(NonNull<u8>, usize), AllocErr> {
-        self.reallocate(ptr, layout, new_size).map_err(|_| AllocErr)
+        placement: ReallocPlacement,
+        init: AllocInit,
+    ) -> Result<MemoryBlock, AllocErr> {
+        self.reallocate(ptr, layout, new_size, placement, init)
+            .map_err(|_| AllocErr)
+    }
+
+    #[inline]
+    unsafe fn shrink(
+        &mut self,
+        ptr: NonNull<u8>,
+        layout: Layout,
+        new_size: usize,
+        placement: ReallocPlacement,
+    ) -> Result<MemoryBlock, AllocErr> {
+        self.reallocate(ptr, layout, new_size, placement, AllocInit::Uninitialized)
+            .map_err(|_| AllocErr)
     }
 
     #[inline]
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
         self.deallocate(ptr, layout)
-    }
-}
-impl<'a> AsAllocHandle<'a> for StandardAlloc {
-    type Handle = alloc_handle::Handle<'a, Self>;
-
-    #[inline]
-    fn as_alloc_handle(&self) -> Self::Handle {
-        alloc_handle::Handle::new(self)
     }
 }
 impl Drop for StandardAlloc {
@@ -460,33 +499,44 @@ unsafe fn create_multi_block_carrier() -> AllocResult<UnsafeRef<MultiBlockCarrie
 mod tests {
     use super::*;
 
-    use liblumen_core::alloc::boxed::Box;
-    use liblumen_core::alloc::vec::Vec;
+    use alloc::raw_vec::RawVec;
 
     #[test]
     fn std_alloc_small_test() {
-        let allocator = StandardAlloc::new();
+        let mut allocator = StandardAlloc::new();
 
         // Allocate an object on the heap
-        let foo = Box::from_str("just a test", &allocator);
+        {
+            let phrase = "just a test";
+            let len = phrase.bytes.len();
+            let foo = RawVec::with_capacity_zeroed_in(len, &mut allocator);
+            ptr::copy_nonoverlapping(phrase.as_ptr(), foo.ptr(), len);
 
-        // Drop the boxed string
-        drop(foo);
+            let phrase_copied = unsafe {
+                let bytes = core::slice::from_raw_parts(foo.ptr(), len);
+                core::str::from_utf8(bytes).unwrap()
+            };
 
-        assert!(true);
+            assert_eq!(phrase, phrase_copied);
+
+            // Drop the allocated vec here to test for panics during deallocation
+        }
     }
 
     #[test]
     fn std_alloc_large_test() {
-        let allocator = StandardAlloc::new();
+        let mut allocator = StandardAlloc::new();
 
         // Allocate a large object on the heap
-        let mut foo = Vec::with_capacity(StandardAlloc::MAX_SIZE_CLASS + 1, &allocator);
-        foo.push(1u8);
+        {
+            let mut foo = RawVec::with_capacity(StandardAlloc::MAX_SIZE_CLASS + 1, &mut allocator);
+            foo.ptr().write(100);
 
-        // Drop it
-        drop(foo);
+            let bytes = unsafe { core::slice::from_raw_parts(foo.ptr(), 1) };
 
-        assert!(true);
+            assert_eq!(&[100u8], bytes);
+
+            // Drop the allocated vec here to test for panics during deallocation
+        }
     }
 }

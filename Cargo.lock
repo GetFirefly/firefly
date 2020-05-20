@@ -182,7 +182,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "bumpalo"
 version = "3.2.0"
-source = "git+https://github.com/bitwalker/bumpalo?branch=nightly_alloc#71f70d0c92f0de725ccaf154010846cc0a4d4ed2"
+source = "git+https://github.com/bitwalker/bumpalo?branch=nightly_alloc#2da880d13407f72ca95713a893f2c5afb4ad0cb2"
 dependencies = [
  "rustversion 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -411,8 +411,8 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "3.11.0"
-source = "git+https://github.com/lumen/dashmap#a0ba18fd594c08102b642cd783b8aedb5e041bbe"
+version = "3.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "ahash 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cfg-if 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",

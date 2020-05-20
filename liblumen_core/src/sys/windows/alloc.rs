@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::prelude::*;
 use core::ptr::NonNull;
 
 use winapi::shared::minwindef::{DWORD, LPVOID};
@@ -13,30 +13,68 @@ use crate::sys::sysconf::MIN_ALIGN;
 struct Header(*mut u8);
 
 #[inline]
-pub unsafe fn alloc(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
+pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
     let layout_size = layout.size();
     NonNull::new(alloc_with_flags(layout, 0))
         .ok_or(AllocErr)
-        .map(|ptr| (ptr, layout_size))
+        .map(|ptr| MemoryBlock {
+            ptr,
+            size: layout_size,
+        })
 }
 
 #[inline]
-pub unsafe fn alloc_zeroed(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
+pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocErr> {
     NonNull::new(alloc_with_flags(layout, HEAP_ZERO_MEMORY))
         .ok_or(AllocErr)
-        .map(|ptr| (ptr, layout_size))
+        .map(|ptr| MemoryBlock {
+            ptr,
+            size: layout_size,
+        })
 }
 
 #[inline]
-pub unsafe fn realloc(
+pub unsafe fn grow(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
+    placement: ReallocPlacement,
+    init: AllocInit,
+) -> Result<MemoryBlock, AllocErr> {
+    let old_size = layout.size();
+    let block = self::realloc(ptr, layout, new_size, placement)?;
+    AllocInit::init_offset(init, block, old_size);
+    Ok(block)
+}
+
+#[inline]
+pub unsafe fn shrink(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+    placement: ReallocPlacement,
+) -> Result<MemoryBlock, AllocErr> {
+    self::realloc(ptr, layout, new_size, placement)
+}
+
+#[inline]
+unsafe fn realloc(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+    placement: ReallocPlacement,
 ) -> Result<(NonNull<u8>, usize), AllocErr> {
+    if placement != ReallocPlacement::MayMove {
+        return Err(AllocErr);
+    }
+
     if layout.align() <= MIN_ALIGN {
         NonNull::new(HeapReAlloc(GetProcessHeap(), 0, ptr as LPVOID, new_size) as *mut u8)
             .ok_or(AllocErr)
-            .map(|ptr| (ptr, new_size))
+            .map(|ptr| MemoryBlock {
+                ptr,
+                size: new_size,
+            })
     } else {
         realloc_fallback(ptr, layout, new_size)
     }

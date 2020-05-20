@@ -4,7 +4,7 @@
 ///! this delegates to the system allocator
 use core::ptr::NonNull;
 
-use crate::alloc::{AllocErr, Layout};
+use crate::alloc::prelude::*;
 
 #[cfg(not(has_mmap))]
 use crate::sys::alloc as sys_alloc;

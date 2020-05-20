@@ -55,7 +55,7 @@ pub use self::segmented_alloc::SegmentedAlloc;
 
 // An allocator that manages buckets of slab allocators as a highly efficient
 // means of managing allocations with fixed sizes
-pub use self::size_class_alloc::SizeClassAlloc;
+pub use self::size_class_alloc::{SizeClassAlloc, SizeClassAllocRef};
 
 // Runtime system support, e.g. process heaps, etc.
 pub use erts::*;

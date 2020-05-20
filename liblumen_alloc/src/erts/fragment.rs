@@ -4,8 +4,8 @@ use core::ptr::{self, NonNull};
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
 
+use liblumen_core::alloc::prelude::*;
 use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
-use liblumen_core::alloc::Layout;
 
 use crate::erts;
 use crate::erts::exception::AllocResult;
@@ -20,13 +20,13 @@ intrusive_adapter!(pub HeapFragmentAdapter = UnsafeRef<HeapFragment>: HeapFragme
 pub struct RawFragment {
     size: usize,
     align: usize,
-    base: *mut u8,
+    base: NonNull<u8>,
 }
 impl RawFragment {
     /// Get a pointer to the data in this heap fragment
     #[inline]
     pub fn data(&self) -> NonNull<u8> {
-        unsafe { NonNull::new_unchecked(self.base) }
+        self.base
     }
 
     /// Get the layout of this heap fragment
@@ -58,8 +58,8 @@ impl HeapFragment {
         let (full_layout, offset) = Layout::new::<Self>().extend(layout.clone()).unwrap();
         let size = layout.size();
         let align = layout.align();
-        let ptr =
-            unsafe { std_alloc::alloc(full_layout).map(|(ptr, _)| ptr)?.as_ptr() as *mut Self };
+        let block = unsafe { std_alloc::alloc(full_layout, AllocInit::Uninitialized)? };
+        let ptr = block.ptr.as_ptr() as *mut Self;
         let data = unsafe { (ptr as *mut u8).add(offset) };
         let top = data;
         unsafe {
@@ -70,13 +70,13 @@ impl HeapFragment {
                     raw: RawFragment {
                         size,
                         align,
-                        base: data,
+                        base: NonNull::new_unchecked(data),
                     },
                     top,
                 },
             );
         }
-        Ok(unsafe { NonNull::new_unchecked(ptr) })
+        Ok(block.ptr.cast())
     }
 
     pub fn new_from_word_size(word_size: usize) -> AllocResult<NonNull<Self>> {
@@ -92,7 +92,7 @@ impl Drop for HeapFragment {
     fn drop(&mut self) {
         assert!(!self.link.is_linked());
         // Check if the contained value needs to have its destructor run
-        let ptr = self.raw.base as *mut Term;
+        let ptr = self.raw.base.as_ptr() as *mut Term;
         let term = unsafe { *ptr };
         term.release();
         // Actually deallocate the memory backing this fragment
@@ -106,7 +106,7 @@ impl Drop for HeapFragment {
 impl Heap for HeapFragment {
     #[inline]
     fn heap_start(&self) -> *mut Term {
-        self.raw.base as *mut Term
+        self.raw.base.as_ptr() as *mut Term
     }
 
     #[inline]
@@ -116,7 +116,7 @@ impl Heap for HeapFragment {
 
     #[inline]
     fn heap_end(&self) -> *mut Term {
-        unsafe { self.raw.base.add(self.raw.size) as *mut Term }
+        unsafe { self.raw.base.as_ptr().add(self.raw.size) as *mut Term }
     }
 }
 impl HeapAlloc for HeapFragment {

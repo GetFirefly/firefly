@@ -1,4 +1,5 @@
 mod atom_table;
+mod exceptions;
 mod symbol_table;
 
 use std::collections::HashSet;
@@ -29,6 +30,9 @@ pub fn run(
     let symbol_table =
         symbol_table::generate(options, context, target_machine, symbols, output_dir)?;
     result.modules.push(symbol_table);
+
+    let exception_handler = exceptions::generate(options, context, target_machine, output_dir)?;
+    result.modules.push(exception_handler);
 
     Ok(())
 }

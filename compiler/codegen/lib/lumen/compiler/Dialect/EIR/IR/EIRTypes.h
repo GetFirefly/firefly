@@ -37,6 +37,7 @@ struct TupleTypeStorage;
 struct BoxTypeStorage;
 struct RefTypeStorage;
 struct PtrTypeStorage;
+struct ReceiveRefTypeStorage;
 }  // namespace detail
 
 namespace TypeKind {
@@ -47,7 +48,8 @@ enum Kind {
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
   Ref = mlir::Type::FIRST_EIR_TYPE + 19,
-  Ptr = mlir::Type::LAST_EIR_TYPE,
+  Ptr = mlir::Type::FIRST_EIR_TYPE + 20,
+  ReceiveRef = mlir::Type::LAST_EIR_TYPE,
 };
 }  // namespace TypeKind
 
@@ -136,6 +138,8 @@ class OpaqueTermType : public Type {
 
   static bool classof(Type type) {
     auto kind = type.getKind();
+    // ReceiveRefs are not actually term types
+    if (kind == TypeKind::ReceiveRef) return false;
 #define EIR_TERM_KIND(Name, Val)                    \
   if (kind == (mlir::Type::FIRST_EIR_TYPE + Val)) { \
     return true;                                    \
@@ -343,6 +347,16 @@ class PtrType : public Type::TypeBase<PtrType, Type, detail::PtrTypeStorage> {
   Type getInnerType() const;
 
   static bool kindof(unsigned kind) { return kind == TypeKind::Ptr; }
+};
+
+/// Used to represent the opaque handle for a receive construct
+class ReceiveRefType : public Type::TypeBase<ReceiveRefType, Type> {
+ public:
+  using Base::Base;
+
+  static ReceiveRefType get(mlir::MLIRContext *context);
+
+  static bool kindof(unsigned kind) { return kind == TypeKind::ReceiveRef; }
 };
 
 template <typename A, typename B>

@@ -250,6 +250,12 @@ PtrType PtrType::get(MLIRContext *context) {
 
 Type PtrType::getInnerType() const { return getImpl()->innerType; }
 
+// ReceiveRef
+
+ReceiveRefType ReceiveRefType::get(MLIRContext *context) {
+  return Base::get(context, TypeKind::ReceiveRef);
+}
+
 }  // namespace eir
 }  // namespace lumen
 
@@ -416,6 +422,8 @@ Type EirDialect::parseType(mlir::DialectAsmParser &parser) const {
   if (typeNameLit == "tuple") return parseTuple(context, parser);
   // `box` `<` type `>`
   if (typeNameLit == "box") return parseTypeSingleton<BoxType>(context, parser);
+  // `receive_ref`
+  if (typeNameLit == "receive_ref") return ReceiveRefType::get(context);
 
   parser.emitError(loc, "unknown EIR type " + typeNameLit);
   return {};
@@ -542,6 +550,9 @@ void EirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
       p.printType(type.getInnerType());
       os << '>';
     } break;
+    case TypeKind::ReceiveRef:
+      os << "receive_ref";
+      break;
     default:
       llvm_unreachable("unhandled EIR type");
   }

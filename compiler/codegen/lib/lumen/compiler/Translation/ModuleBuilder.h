@@ -6,6 +6,7 @@
 #include "lumen/mlir/IR.h"
 #include "lumen/mlir/MLIR.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 using ::llvm::APFloat;
 using ::llvm::APInt;
@@ -13,6 +14,10 @@ using ::llvm::ArrayRef;
 using ::llvm::SmallVector;
 using ::llvm::SmallVectorImpl;
 using ::llvm::StringRef;
+using ::mlir::LLVM::LLVMType;
+using ::mlir::MLIRContext;
+
+namespace LLVM = ::mlir::LLVM;
 
 typedef struct OpaqueModuleBuilder *MLIRModuleBuilderRef;
 
@@ -70,7 +75,7 @@ class ModuleBuilder {
                           bool isTail, Block *ok, ArrayRef<Value> okArgs,
                           Block *err, ArrayRef<Value> errArgs);
 
-  Block *build_landing_pad(Location loc, Value catchType, Block *err);
+  Block *build_landing_pad(Location loc, ArrayRef<Value> catchClauses, Block *err);
 
   //===----------------------------------------------------------------------===//
   // Operations
@@ -98,8 +103,13 @@ class ModuleBuilder {
   Value build_cons(Location loc, Value head, Value tail);
   Value build_tuple(Location loc, ArrayRef<Value> elements);
   Value build_map(Location loc, ArrayRef<MapEntry> entries);
+  void build_binary_start(Location loc, Block *cont);
   void build_binary_push(Location loc, Value head, Value tail, Value size,
                          BinarySpecifier *spec, Block *ok, Block *err);
+  void build_binary_finish(Location loc, Block *cont, Value bin);
+  void build_receive_start(Location loc, Block *cont, Value timeout);
+  void build_receive_wait(Location loc, Block *timeout, Block *check, Value receive_ref);
+  void build_receive_done(Location loc, Block *cont, Value receive_ref, ArrayRef<Value> args);
 
   void build_trace_capture_op(Location loc, Block *dest,
                               ArrayRef<MLIRValueRef> destArgs = {});
@@ -153,6 +163,8 @@ class ModuleBuilder {
   /// The builder is used for generating IR inside of functions in the module,
   /// it is very similar to the LLVM builder
   mlir::OpBuilder builder;
+
+  mlir::LLVM::LLVMDialect *llvmDialect;
 
   Location loc(Span span);
 };

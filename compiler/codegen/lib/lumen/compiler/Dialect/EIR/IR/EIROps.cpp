@@ -804,6 +804,18 @@ Optional<OperandRange> InvokeOp::getSuccessorOperands(unsigned index) {
 }
 
 //===----------------------------------------------------------------------===//
+// eir.receive_wait
+//===----------------------------------------------------------------------===//
+
+Optional<OperandRange> ReceiveWaitOp::getSuccessorOperands(unsigned index) {
+  assert(index < getNumSuccessors() && "invalid successor index");
+  return index == timeoutIndex ? getTimeoutOperands() : getCheckOperands();
+}
+
+bool ReceiveWaitOp::canEraseSuccessorOperand() { return true; }
+
+
+//===----------------------------------------------------------------------===//
 // TableGen Output
 //===----------------------------------------------------------------------===//
 

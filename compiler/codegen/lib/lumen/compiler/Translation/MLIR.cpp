@@ -11,8 +11,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+#include "llvm/IR/LLVMContext.h"
 
-using ::llvm::TargetMachine;
 using ::lumen::CodeGenOptLevel;
 using ::lumen::OptLevel;
 using ::mlir::MLIRContext;
@@ -20,17 +20,22 @@ using ::mlir::ModuleOp;
 using ::mlir::OpPassManager;
 using ::mlir::OwningModuleRef;
 using ::mlir::PassManager;
+using ::llvm::TargetMachine;
+using ::llvm::LLVMContext;
+using ::llvm::unwrap;
 
-extern "C" void MLIRRegisterDialects() {
-  // Initializing the command-line options more than once is not allowed.
-  // So check if they've already been initialized.
-  static bool initialized = false;
-  if (initialized) return;
-  initialized = true;
+extern "C" void MLIRRegisterDialects(MLIRContextRef mlirCtx, LLVMContextRef llvmCtx) {
+  MLIRContext *mlirContext = unwrap(mlirCtx);
+  LLVMContext *llvmContext = unwrap(llvmCtx);
 
-  // Register the EIR dialect with MLIR
-  mlir::registerDialect<mlir::LLVM::LLVMDialect>();
-  mlir::registerDialect<lumen::eir::EirDialect>();
+  // Register the LLVM and EIR dialects with MLIR, providing them
+  // with the current thread's LLVMContext.
+  //
+  // NOTE: The dialect constructors internally call registerDialect,
+  // which moves ownership of the dialect objects to the MLIRContext, 
+  // so we don't have to manage them ourselves.
+  auto *llvmDialect = new mlir::LLVM::LLVMDialect(mlirContext, llvmContext);
+  auto *eirDialect = new lumen::eir::EirDialect(mlirContext);
 }
 
 extern "C" MLIRPassManagerRef MLIRCreatePassManager(MLIRContextRef context,

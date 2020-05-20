@@ -249,6 +249,11 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
       LandingPadOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
+    auto loc = op.getLoc();
+
+    Block *landingPadBlock = rewriter.getBlock();
+    Block *canHandleBlock = rewriter.splitBlock(landingPadBlock, Block::iterator(op.getOperation()));
+    Block *resumeBlock = rewriter.createBlock(landingPadBlock->getParent());
 
     // { i8*, i32 }
     //
@@ -265,11 +270,25 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
     auto exceptionTy = ctx.targetInfo.getExceptionType();
 
     // The landing pad returns the structure defined above
-    Value catchType = op.catchType();
-    Value obj = llvm_landingpad(exceptionTy, /*cleanup=*/false,
-                                ArrayRef<Value>{catchType});
+    Value obj = llvm_landingpad(exceptionTy, /*cleanup=*/false, op.catchClauses());
     // Extract the exception object (a pointer to the raw exception object)
     Value exPtr = llvm_extractvalue(i8PtrTy, obj, ctx.getI64ArrayAttr(0));
+    // Extract the exception selector (index of the clause that matched)
+    Value exSelector = llvm_extractvalue(i32Ty, obj, ctx.getI64ArrayAttr(1));
+
+    Value erlangErrorSelector = llvm_constant(i32Ty, ctx.getI32Attr(1));
+    Value canHandle =
+        llvm_icmp(LLVM::ICmpPredicate::eq, exSelector, erlangErrorSelector);
+
+    auto canHandleBrOp = rewriter.create<LLVM::CondBrOp>(loc, canHandle, canHandleBlock, resumeBlock);
+
+    // If we can't handle this block, continue unwinding
+    rewriter.setInsertionPointToEnd(resumeBlock);
+    rewriter.create<LLVM::ResumeOp>(loc, obj);
+
+    // If we can, then extract the error value from the exception
+    rewriter.setInsertionPointToStart(canHandleBlock);
+
     // Extract the Erlang exception object (a boxed 3-tuple)
     const char *symbolName = "__lumen_get_exception";
     ArrayRef<NamedAttribute> calleeAttrs = {

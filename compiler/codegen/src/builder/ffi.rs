@@ -485,6 +485,7 @@ extern "C" {
         pairs: *const MapEntry,
         num_pairs: libc::c_uint,
     ) -> ValueRef;
+    pub fn MLIRBuildBinaryStart(builder: ModuleBuilderRef, loc: LocationRef, cont_block: BlockRef);
     pub fn MLIRBuildBinaryPush(
         builder: ModuleBuilderRef,
         loc: LocationRef,
@@ -494,6 +495,33 @@ extern "C" {
         spec: &BinarySpecifier,
         ok_block: BlockRef,
         err_block: BlockRef,
+    );
+    pub fn MLIRBuildBinaryFinish(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        cont_block: BlockRef,
+        bin: ValueRef,
+    );
+    pub fn MLIRBuildReceiveStart(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        cont_block: BlockRef,
+        timeout: ValueRef,
+    );
+    pub fn MLIRBuildReceiveWait(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        timeout_block: BlockRef,
+        check_block: BlockRef,
+        receive_ref: ValueRef,
+    );
+    pub fn MLIRBuildReceiveDone(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        cont_block: BlockRef,
+        receive_ref: ValueRef,
+        argv: *const ValueRef,
+        argc: libc::c_uint,
     );
 
     pub fn MLIRIsIntrinsic(name: *const libc::c_char) -> bool;

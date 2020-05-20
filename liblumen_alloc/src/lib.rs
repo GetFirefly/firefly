@@ -13,6 +13,7 @@
 #![feature(slice_index_methods)]
 // Support backtraces in errors
 #![feature(backtrace)]
+#![feature(raw_vec_internals)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

@@ -296,12 +296,9 @@ mod tests {
         let size = SUPERALIGNED_CARRIER_SIZE;
         let carrier_layout = Layout::from_size_align(size, size).unwrap();
         // Allocate region
-        let alloc_block = unsafe {
-            SysAlloc
-                .get_mut()
-                .alloc(carrier_layout, AllocInit::Uninitialized)
-                .unwrap()
-        };
+        let alloc_block = SysAlloc::get_mut()
+            .alloc(carrier_layout, AllocInit::Uninitialized)
+            .unwrap();
         // Get pointer to carrier header location
         let carrier = alloc_block.ptr.as_ptr() as *mut MultiBlockCarrier<RBTreeLink>;
         // Write initial carrier header
@@ -346,6 +343,6 @@ mod tests {
         assert_eq!(mbc.num_blocks(), 1);
         // Cleanup
         drop(mbc);
-        unsafe { SysAlloc.get_mut().dealloc(ptr, carrier_layout) };
+        unsafe { SysAlloc::get_mut().dealloc(alloc_block.ptr, carrier_layout) };
     }
 }

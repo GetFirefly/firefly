@@ -508,9 +508,12 @@ mod tests {
         // Allocate an object on the heap
         {
             let phrase = "just a test";
-            let len = phrase.bytes.len();
+            let len = phrase.bytes().len();
             let foo = RawVec::with_capacity_zeroed_in(len, &mut allocator);
-            ptr::copy_nonoverlapping(phrase.as_ptr(), foo.ptr(), len);
+
+            unsafe {
+                ptr::copy_nonoverlapping(phrase.as_ptr(), foo.ptr(), len);
+            }
 
             let phrase_copied = unsafe {
                 let bytes = core::slice::from_raw_parts(foo.ptr(), len);
@@ -529,12 +532,15 @@ mod tests {
 
         // Allocate a large object on the heap
         {
-            let mut foo = RawVec::with_capacity(StandardAlloc::MAX_SIZE_CLASS + 1, &mut allocator);
-            foo.ptr().write(100);
+            let foo = RawVec::with_capacity_in(StandardAlloc::MAX_SIZE_CLASS + 1, &mut allocator);
+            let ptr: *mut i32 = foo.ptr();
 
-            let bytes = unsafe { core::slice::from_raw_parts(foo.ptr(), 1) };
+            let bytes = unsafe {
+                ptr.write(100);
+                core::slice::from_raw_parts(foo.ptr(), 1)
+            };
 
-            assert_eq!(&[100u8], bytes);
+            assert_eq!(&[100], bytes);
 
             // Drop the allocated vec here to test for panics during deallocation
         }

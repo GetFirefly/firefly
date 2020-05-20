@@ -1,11 +1,11 @@
 use core::ptr::{self, NonNull};
 
+use crate::alloc::prelude::*;
 use crate::alloc::realloc_fallback;
-use crate::alloc::{AllocErr, GlobalAlloc, Layout};
 use crate::sys::sysconf::MIN_ALIGN;
 
 #[inline]
-pub unsafe fn alloc(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
+pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
     let layout_size = layout.size();
     let ptr = if layout.align() <= MIN_ALIGN && layout.align() <= layout_size {
         libc::malloc(layout_size) as *mut u8
@@ -13,13 +13,14 @@ pub unsafe fn alloc(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
         libc::aligned_alloc(layout_size, layout.align()) as *mut u8
     };
 
-    NonNull::new(ptr)
-        .ok_or(AllocErr)
-        .map(|ptr| (ptr, layout_size))
+    NonNull::new(ptr).ok_or(AllocErr).map(|ptr| MemoryBlock {
+        ptr,
+        size: layout_size,
+    })
 }
 
 #[inline]
-pub unsafe fn alloc_zeroed(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocErr> {
     let layout_size = layout.size();
     let ptr = if layout.align() <= MIN_ALIGN && layout.align() <= layout_size {
         libc::calloc(layout.size(), 1) as *mut u8
@@ -31,21 +32,54 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         ptr
     };
 
-    NonNull::new(ptr)
-        .ok_or(AllocErr)
-        .map(|ptr| (ptr, layout_size))
+    NonNull::new(ptr).ok_or(AllocErr).map(|ptr| MemoryBlock {
+        ptr,
+        size: layout_size,
+    })
 }
 
 #[inline]
-pub unsafe fn realloc(
+pub unsafe fn grow(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<(NonNull<u8>, usize), AllocErr> {
+    placement: ReallocPlacement,
+    init: AllocInit,
+) -> Result<MemoryBlock, AllocErr> {
+    let old_size = layout.size();
+    let block = self::realloc(ptr, layout, new_size, placement)?;
+    AllocInit::init_offset(init, block, old_size);
+    Ok(block)
+}
+
+#[inline]
+pub unsafe fn shrink(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+    placement: ReallocPlacement,
+) -> Result<MemoryBlock, AllocErr> {
+    self::realloc(ptr, layout, new_size, placement)
+}
+
+#[inline]
+unsafe fn realloc(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+    placement: ReallocPlacement,
+) -> Result<MemoryBlock, AllocErr> {
+    if placement != ReallocPlacement::MayMove {
+        return Err(AllocErr);
+    }
+
     if layout.align() <= MIN_ALIGN && layout.align() <= new_size {
         NonNull::new(libc::realloc(ptr as *mut libc::c_void, new_size) as *mut u8)
             .ok_or(AllocErr)
-            .map(|ptr| (ptr, new_size))
+            .map(|ptr| MemoryBlock {
+                ptr,
+                size: new_size,
+            })
     } else {
         realloc_fallback(self, ptr, layout, new_size)
     }

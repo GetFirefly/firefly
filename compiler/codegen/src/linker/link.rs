@@ -29,6 +29,7 @@ use crate::meta::{CodegenResults, LibSource};
 use super::archive::{ArchiveBuilder, LlvmArchiveBuilder};
 
 enum RlibFlavor {
+    #[allow(dead_code)]
     Normal,
     StaticlibBase,
 }

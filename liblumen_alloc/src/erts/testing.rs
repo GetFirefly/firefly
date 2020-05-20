@@ -1,3 +1,4 @@
+use core::alloc::MemoryBlock;
 use core::fmt;
 use core::mem;
 use core::ptr::NonNull;
@@ -37,8 +38,8 @@ impl RegionHeap {
     /// Creates a new scratch heap from the given layout
     pub fn new(layout: Layout) -> Self {
         let size = layout.size();
-        let (ptr, _) =
-            unsafe { sys_alloc::alloc(layout.clone()).expect("unable to allocate scratch heap!") };
+        let MemoryBlock { ptr, .. } =
+            sys_alloc::alloc(layout.clone()).expect("unable to allocate scratch heap!");
         let raw = ptr.as_ptr();
         let end = unsafe { raw.add(size) };
         let top = raw;

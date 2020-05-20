@@ -8,15 +8,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Install nightly-2020-03-10
+      - name: Install nightly-2020-05-13
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2020-03-10
+          toolchain: nightly-2020-05-13
           override: true
       - name: Install wasm32 Target
-        run: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
+        run: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-13
       - name: Install wasm-bindgen-cli
-        run: cargo +nightly-2020-03-10 install wasm-bindgen-cli
+        run: cargo +nightly-2020-05-13 install wasm-bindgen-cli
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Install LLVM

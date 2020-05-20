@@ -76,7 +76,7 @@ pub unsafe extern "C" fn process_yield() -> bool {
 #[cfg(all(unix, target_arch = "x86_64"))]
 pub unsafe extern "C" fn process_return_continuation() {
     let f: fn() -> () = process_return;
-    asm!("
+    llvm_asm!("
         callq *$0
         "
     :
@@ -617,7 +617,7 @@ fn reset_reduction_counter() -> u64 {
 #[inline(never)]
 #[cfg(all(unix, target_arch = "x86_64"))]
 unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters) {
-    asm!("
+    llvm_asm!("
         # Save the stack pointer, and callee-saved registers of `prev`
         movq     %rsp, ($0)
         movq     %r15, 8($0)

@@ -18,7 +18,7 @@ pub use self::term_alloc::TermAlloc;
 pub use self::virtual_alloc::{VirtualAlloc, VirtualAllocator, VirtualHeap};
 pub use self::virtual_binary_heap::VirtualBinaryHeap;
 
-use core::alloc::CannotReallocInPlace;
+use core::alloc::{AllocErr, Layout};
 use core::ptr;
 
 use lazy_static::lazy_static;
@@ -91,6 +91,28 @@ impl Default for Stack {
 /// this is because the stack metadata is only ever accessed
 /// by the executing process.
 unsafe impl Sync for Stack {}
+impl Drop for Stack {
+    fn drop(&mut self) {
+        use liblumen_core::alloc::mmap;
+        use liblumen_core::sys::sysconf;
+
+        if self.base.is_null() {
+            return;
+        }
+
+        let page_size = sysconf::pagesize();
+        let pages = (self.size / page_size) - 1;
+
+        let (layout, _offset) = Layout::from_size_align(page_size, page_size)
+            .unwrap()
+            .repeat(pages)
+            .unwrap();
+
+        unsafe {
+            mmap::unmap(self.base, layout);
+        }
+    }
+}
 
 /// Allocate a new default-sized process heap
 #[inline]
@@ -110,27 +132,27 @@ pub fn heap(size: usize) -> AllocResult<*mut Term> {
     PROC_ALLOC.alloc(size)
 }
 
-/// Allocate a new process stack of the given size
+/// Allocate a new process stack of the given size (in pages)
 #[inline]
-pub fn stack(size: usize) -> AllocResult<Stack> {
+pub fn stack(num_pages: usize) -> AllocResult<Stack> {
     use liblumen_core::alloc::mmap;
 
-    debug_assert!(size > 0, "stack size in pages must be greater than 0");
+    debug_assert!(num_pages > 0, "stack size in pages must be greater than 0");
 
-    let ptr = unsafe { mmap::map_stack(size)? };
-    Ok(Stack::new(ptr.as_ptr(), size))
+    let ptr = unsafe { mmap::map_stack(num_pages)? };
+    Ok(Stack::new(ptr.as_ptr(), num_pages))
 }
 
 /// Reallocate a process heap, in place
 ///
 /// If reallocating and trying to grow the heap, if the allocation cannot be done
-/// in place, then `Err(CannotReallocInPlace)` will be returned
+/// in place, then `Err(AllocErr)` will be returned
 #[inline]
 pub unsafe fn realloc(
     heap: *mut Term,
     size: usize,
     new_size: usize,
-) -> Result<*mut Term, CannotReallocInPlace> {
+) -> Result<*mut Term, AllocErr> {
     PROC_ALLOC.realloc_in_place(heap, size, new_size)
 }
 

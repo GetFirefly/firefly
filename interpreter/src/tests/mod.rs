@@ -1,5 +1,9 @@
 use super::VM;
 
+use std::sync::Arc;
+
+use libeir_diagnostics::CodeMap;
+
 use libeir_ir::Module;
 
 use libeir_passes::PassManager;
@@ -8,20 +12,20 @@ use libeir_syntax_erl::ast::Module as ErlAstModule;
 use libeir_syntax_erl::lower_module;
 use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
-use libeir_util_parse::{ArcCodemap, Errors};
+use libeir_util_parse::{Errors};
 
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::scheduler;
 
-fn parse<T>(input: &str, config: ParseConfig) -> (T, ArcCodemap)
+fn parse<T>(input: &str, config: ParseConfig) -> (T, Arc<CodeMap>)
 where
     T: Parse<T>,
 {
-    let parser = Parser::new(config);
+    let codemap: Arc<CodeMap> = Default::default();
+    let parser = Parser::new(config, codemap.clone());
     let mut errors = Errors::new();
-    let codemap: ArcCodemap = Default::default();
-    match parser.parse_string::<&str, T>(&mut errors, &codemap, input) {
+    match parser.parse_string::<T, &str>(&mut errors, input) {
         Ok(ast) => return (ast, codemap),
         Err(errs) => errs,
     };
@@ -33,7 +37,7 @@ pub fn lower(input: &str, config: ParseConfig) -> Result<Module, ()> {
     let (parsed, codemap): (ErlAstModule, _) = parse(input, config);
 
     let mut errors = Errors::new();
-    let res = lower_module(&mut errors, &codemap, &parsed);
+    let res = lower_module(&mut errors, codemap.clone(), &parsed);
     errors.print(&codemap);
 
     res
@@ -54,14 +58,21 @@ pub fn compile(input: &str) -> Module {
     eir_mod
 }
 
+#[cfg(test)]
+fn run_once() {
+    crate::runtime::test::once(&[
+liblumen_otp::erlang::apply_3::function_symbol()
+    ]);
+}
+
 #[test]
 fn simple_function() {
+run_once();
+
     &*VM;
 
     let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
-    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("simple_function_test").unwrap();
     let function = Atom::try_from_str("run").unwrap();
@@ -82,12 +93,12 @@ run() -> yay.
 
 #[test]
 fn fib() {
+run_once();
+
     &*VM;
 
     let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
-    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("fib").unwrap();
     let function = Atom::try_from_str("fib").unwrap();
@@ -114,12 +125,12 @@ fib(X) -> fib(X - 1) + fib(X - 2).
 
 #[test]
 fn exception_test() {
+run_once();
+
     &*VM;
 
     let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
-    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("exception_test").unwrap();
     let function = Atom::try_from_str("a").unwrap();
@@ -145,12 +156,12 @@ a() -> 1 + a.
 
 #[test]
 fn fib_gc() {
+run_once();
+
     &*VM;
 
     let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
-    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("fib2").unwrap();
     let function = Atom::try_from_str("fib").unwrap();
@@ -177,12 +188,12 @@ fib(X) -> fib(X - 1) + fib(X - 2).
 
 #[test]
 fn ping_pong() {
+    run_once();
+
     &*VM;
 
     let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
-    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("ping_pong").unwrap();
     let function = Atom::try_from_str("run").unwrap();
@@ -225,12 +236,12 @@ run() ->
 #[test]
 #[ignore]
 fn ping_pong_count() {
+    run_once();
+
     &*VM;
 
     let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
-    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("ping_pong_count").unwrap();
     let function = Atom::try_from_str("run").unwrap();
@@ -266,12 +277,12 @@ run(N) -> this_proc(N, 0).
 #[test]
 #[ignore]
 fn ping_pong_count_large() {
+    run_once();
+
     &*VM;
 
     let arc_scheduler = scheduler::current();
     let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
-    liblumen_otp::erlang::apply_3::export();
 
     let module = Atom::try_from_str("ping_pong_count_large").unwrap();
     let function = Atom::try_from_str("run").unwrap();

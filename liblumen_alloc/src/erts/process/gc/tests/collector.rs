@@ -1,14 +1,13 @@
 use core::alloc::Layout;
 use core::convert::TryInto;
+use core::ffi::c_void;
 use core::mem;
 use core::ops::Deref;
 
-use ::alloc::sync::Arc;
-
 use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::test::process;
-use crate::erts::term::closure::*;
 use crate::erts::term::prelude::*;
+use crate::erts::term::closure::*;
 use crate::erts::*;
 use crate::{atom, fixnum};
 
@@ -100,11 +99,10 @@ fn simple_gc_test(process: Process) {
 
     let creator = Pid::new(1, 0).unwrap();
     let module = atom_from_str!("module");
-    let code = |arc_process: &Arc<Process>| {
-        arc_process.wait();
 
-        Ok(())
-    };
+    extern "C" fn native() -> Term {
+        Term::NONE
+    }
 
     let index = 1 as Index;
     let old_unique = 2 as OldUnique;
@@ -117,7 +115,7 @@ fn simple_gc_test(process: Process) {
             old_unique,
             unique,
             2,
-            Some(code),
+            Some(native as *const c_void),
             Creator::Local(creator),
             &[&[closure_num, closure_string_term]],
         )

@@ -1,14 +1,21 @@
 #[cfg(test)]
-pub mod r#loop;
+pub mod loop_0;
 #[cfg(test)]
 pub mod process;
 
 use std::sync::Once;
 
 use liblumen_alloc::erts::apply::InitializeLumenDispatchTable;
+#[cfg(test)]
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_core::symbols::FunctionSymbol;
 
 use crate::scheduler;
+
+#[cfg(test)]
+fn module() -> Atom {
+    Atom::from_str("test")
+}
 
 pub fn once(function_symbols: &[FunctionSymbol]) {
     ONCE.call_once(|| {

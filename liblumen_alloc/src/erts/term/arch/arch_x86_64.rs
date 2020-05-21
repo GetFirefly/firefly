@@ -471,6 +471,7 @@ impl core::hash::Hash for RawTerm {
 
 #[cfg(all(test, target_pointer_width = "64", target_arch = "x86_64"))]
 mod tests {
+    use core::ffi::c_void;
     use core::convert::TryInto;
 
     use crate::borrow::CloneToProcess;
@@ -766,16 +767,17 @@ mod tests {
 
     #[test]
     fn closure_encoding_x86_64() {
-        use crate::erts::process::Process;
         use crate::erts::term::closure::*;
-        use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
         let arity = 0;
-        let code = |_arc_process: &Arc<Process>| Ok(());
+        
+        extern "C" fn native() -> Term {
+            Term::NONE
+        }
 
         let one = fixnum!(1);
         let two = fixnum!(2);
@@ -789,7 +791,7 @@ mod tests {
                 old_unique,
                 unique,
                 arity,
-                Some(code),
+                Some(native as *const c_void),
                 Creator::Local(creator),
                 &[&[one, two]],
             )

@@ -1,44 +1,41 @@
-use std::convert::TryInto;
-use std::sync::Arc;
+//! ```elixir
+//! # label 3
+//! # pushed to stack: (body)
+//! # returned from call: {:ok, child}
+//! # full stack: ({:ok, child}, body)
+//! # returns: :ok
+//! :ok = Lumen.Web.Node.append_child(body, child);
+//! remove_ok = Lumen.Web.Element.remove(child);
+//! Lumen.Web.Wait.with_return(remove_ok)
+//! ```
 
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{frames, Process};
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
+use std::convert::TryInto;
 
 use web_sys::Element;
 
+use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::term::prelude::*;
+
+use liblumen_web::runtime::process::current_process;
+
 use super::label_5;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    body: Term,
-) -> Result<(), Alloc> {
-    assert!(body.is_boxed_resource_reference());
-    process.stack_push(body)?;
-    process.place_frame(frame(), placement);
-
-    Ok(())
+pub fn frame() -> Frame {
+    super::frame(NATIVE)
 }
 
 // Private
 
-// ```elixir
-// # label 3
-// # pushed to stack: (body)
-// # returned from call: {:ok, child}
-// # full stack: ({:ok, child}, body)
-// # returns: :ok
-// :ok = Lumen.Web.Node.append_child(body, child);
-// remove_ok = Lumen.Web.Element.remove(child);
-// Lumen.Web.Wait.with_return(remove_ok)
-// ```
-fn code(arc_process: &Arc<Process>) -> frames::Result {
+const NATIVE: Native = Native::Two(native);
+
+extern "C" fn native(ok_child: Term, body: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let ok_child = arc_process.stack_pop().unwrap();
+    result(&arc_process, ok_child, body)
+}
+
+fn result(process: &Process, ok_child: Term, body: Term) -> Term {
     assert!(
         ok_child.is_boxed_tuple(),
         "ok_child ({:?}) is not a tuple",
@@ -52,27 +49,13 @@ fn code(arc_process: &Arc<Process>) -> frames::Result {
     let child_reference: Resource = child_ref_boxed.into();
     let _: &Element = child_reference.downcast_ref().unwrap();
 
-    let body = arc_process.stack_pop().unwrap();
     assert!(body.is_boxed_resource_reference());
 
-    label_5::place_frame_with_arguments(arc_process, Placement::Replace, child)?;
+    process.queue_frame_with_arguments(label_5::frame().with_arguments(true, &[child]));
 
-    liblumen_web::node::append_child_2::place_frame_with_arguments(
-        arc_process,
-        Placement::Push,
-        body,
-        child,
-    )?;
+    process.queue_frame_with_arguments(
+        liblumen_web::node::append_child_2::frame().with_arguments(false, &[body, child]),
+    );
 
-    Process::call_native_or_yield(arc_process)
-}
-
-fn frame() -> Frame {
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: super::function(),
-        arity: 0,
-    });
-
-    Frame::new(module_function_arity, code)
+    Term::NONE
 }

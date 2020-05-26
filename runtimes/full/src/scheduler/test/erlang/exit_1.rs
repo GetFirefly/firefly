@@ -1,9 +1,9 @@
 use anyhow::*;
 
-use liblumen_alloc::erts::{ModuleFunctionArity, exception};
 use liblumen_alloc::erts::process::{Frame, Native};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{Arity, exit};
+use liblumen_alloc::erts::{exception, ModuleFunctionArity};
+use liblumen_alloc::{exit, Arity};
 
 pub fn frame() -> Frame {
     Frame::new(module_function_arity(), NATIVE)
@@ -29,7 +29,7 @@ fn module_function_arity() -> ModuleFunctionArity {
     ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: ARITY
+        arity: ARITY,
     }
 }
 

@@ -11,12 +11,28 @@ pub mod label_5;
 #[path = "with_nil_reference_child_appends_new_child/label_6.rs"]
 pub mod label_6;
 
-use liblumen_alloc::erts::term::prelude::Atom;
+use liblumen_alloc::erts::process::{Frame, Native};
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{Arity, ModuleFunctionArity};
+
+const ARITY: Arity = 0;
+
+fn frame(native: Native) -> Frame {
+    Frame::new(module_function_arity(), native)
+}
 
 fn function() -> Atom {
-    Atom::try_from_str("insert_before_3_with_nil_reference_child_appends_new_child").unwrap()
+    Atom::from_str("insert_before_3_with_nil_reference_child_appends_new_child")
 }
 
 fn module() -> Atom {
-    Atom::try_from_str("Lumen.Web.NodeTest").unwrap()
+    Atom::from_str("Lumen.Web.NodeTest")
+}
+
+fn module_function_arity() -> ModuleFunctionArity {
+    ModuleFunctionArity {
+        module: module(),
+        function: function(),
+        arity: ARITY,
+    }
 }

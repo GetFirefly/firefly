@@ -18,16 +18,16 @@ fn returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> {
     // document_tuple = Lumen.Web.Document.new()
     // Lumen.Web.Wait.with_return(document_tuple)
     // ```
-    let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # pushed to stack: ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns: {:ok, document} | :error
-        // ```
-        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
-
-        Ok(())
+    let promise = wait::with_return_0::spawn(options, |_| {
+        Ok(vec![
+            // ```elixir
+            // # pushed to stack: ()
+            // # returned from call: N/A
+            // # full stack: ()
+            // # returns: {:ok, document} | :error
+            // ```
+            document::new_0::frame().with_arguments(false, &[]),
+        ])
     })
     .unwrap();
 

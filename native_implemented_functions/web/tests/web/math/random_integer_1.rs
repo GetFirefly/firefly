@@ -17,19 +17,16 @@ fn returns_integer_between_0_inclusive_and_max_exclusive() -> impl Future<Item =
     // {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
     // ```
     let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # pushed to stack: ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns: {:ok, document}
-        // ```
-        liblumen_web::math::random_integer_1::place_frame_with_arguments(
-            child_process,
-            Placement::Push,
-            child_process.integer(exclusive_max).unwrap(),
-        )?;
-
-        Ok(())
+        Ok(vec![
+            // ```elixir
+            // # pushed to stack: ()
+            // # returned from call: N/A
+            // # full stack: ()
+            // # returns: {:ok, document}
+            // ```
+            liblumen_web::math::random_integer_1::frame()
+                .with_arguments(false, &[child_process.integer(exclusive_max).unwrap()]),
+        ])
     })
     .unwrap();
 

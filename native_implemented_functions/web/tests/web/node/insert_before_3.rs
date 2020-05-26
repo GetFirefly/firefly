@@ -28,33 +28,30 @@ fn with_nil_reference_child_appends_new_child() -> impl Future<Item = (), Error 
     // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
     // {:ok, inserted_child} = Lumen.Web.insert_before(parent, new_child, nil)
     // ```
-    let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # label 1
-        // # pushed to stack: ()
-        // # returned form call: {:ok, document}
-        // # full stack: ({:ok, document})
-        // # returns: {:ok, old_child}
-        // {:ok, existing_child} = Lumen.Web.Document.create_element(document, "table")
-        // {:ok, parent} = Lumen.Web.Document.create_element(parent_document, "div")
-        // :ok = Lumen.Web.Node.append_child(document, parent)
-        // :ok = Lumen.Web.Node.append_child(parent, existing_child)
-        // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
-        // {:ok, inserted_child} = Lumen.Web.insert_before(parent, new_child, nil)
-        // ```
-        with_nil_reference_child_appends_new_child::label_1::place_frame(
-            child_process,
-            Placement::Push,
-        );
-        // ```elixir
-        // # pushed to stack: ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns: {:ok, parent_document}
-        // ```
-        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
-
-        Ok(())
+    let promise = wait::with_return_0::spawn(options, |_| {
+        Ok(vec![
+            // ```elixir
+            // # pushed to stack: ()
+            // # returned from call: N/A
+            // # full stack: ()
+            // # returns: {:ok, parent_document}
+            // ```
+            document::new_0::frame().with_arguments(false, &[]),
+            // ```elixir
+            // # label 1
+            // # pushed to stack: ()
+            // # returned form call: {:ok, document}
+            // # full stack: ({:ok, document})
+            // # returns: {:ok, old_child}
+            // {:ok, existing_child} = Lumen.Web.Document.create_element(document, "table")
+            // {:ok, parent} = Lumen.Web.Document.create_element(parent_document, "div")
+            // :ok = Lumen.Web.Node.append_child(document, parent)
+            // :ok = Lumen.Web.Node.append_child(parent, existing_child)
+            // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
+            // {:ok, inserted_child} = Lumen.Web.insert_before(parent, new_child, nil)
+            // ```
+            with_nil_reference_child_appends_new_child::label_1::frame().with_arguments(true, &[]),
+        ])
     })
     .unwrap();
 
@@ -104,33 +101,31 @@ fn with_reference_child_inserts_before_reference_child() -> impl Future<Item = (
     // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
     // {:ok, inserted_child} = Lumen.Web.insert_before(parent, new_child, reference_child)
     // ```
-    let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # label 1
-        // # pushed to stack: ()
-        // # returned form call: {:ok, document}
-        // # full stack: ({:ok, document})
-        // # returns: {:ok, old_child}
-        // {:ok, reference_child} = Lumen.Web.Document.create_element(document, "table")
-        // {:ok, parent} = Lumen.Web.Document.create_element(parent_document, "div")
-        // :ok = Lumen.Web.Node.append_child(document, parent)
-        // :ok = Lumen.Web.Node.append_child(parent, reference_child)
-        // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
-        // {:ok, inserted_child} = Lumen.Web.insert_before(parent, new_child, reference_child)
-        // ```
-        with_reference_child_inserts_before_reference_child::label_1::place_frame(
-            child_process,
-            Placement::Push,
-        );
-        // ```elixir
-        // # pushed to stack: ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns: {:ok, parent_document}
-        // ```
-        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
-
-        Ok(())
+    let promise = wait::with_return_0::spawn(options, |_| {
+        Ok(vec![
+            // ```elixir
+            // # pushed to stack: ()
+            // # returned from call: N/A
+            // # full stack: ()
+            // # returns: {:ok, parent_document}
+            // ```
+            document::new_0::frame().with_arguments(false, &[]),
+            // ```elixir
+            // # label 1
+            // # pushed to stack: ()
+            // # returned form call: {:ok, document}
+            // # full stack: ({:ok, document})
+            // # returns: {:ok, old_child}
+            // {:ok, reference_child} = Lumen.Web.Document.create_element(document, "table")
+            // {:ok, parent} = Lumen.Web.Document.create_element(parent_document, "div")
+            // :ok = Lumen.Web.Node.append_child(document, parent)
+            // :ok = Lumen.Web.Node.append_child(parent, reference_child)
+            // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
+            // {:ok, inserted_child} = Lumen.Web.insert_before(parent, new_child, reference_child)
+            // ```
+            with_reference_child_inserts_before_reference_child::label_1::frame()
+                .with_arguments(true, &[]),
+        ])
     })
     .unwrap();
 

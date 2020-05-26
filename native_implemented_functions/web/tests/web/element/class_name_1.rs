@@ -8,6 +8,8 @@ pub mod label_3;
 use super::*;
 
 use liblumen_alloc::erts::term::prelude::Atom;
+use liblumen_alloc::erts::process::{Frame, Native};
+use liblumen_alloc::erts::{Arity, ModuleFunctionArity};
 
 use liblumen_web::window;
 
@@ -77,12 +79,26 @@ fn without_class_returns_empty_list() -> impl Future<Item = (), Error = JsValue>
 
 // Private
 
+const ARITY: Arity = 0;
+
+fn frame(native: Native) -> Frame {
+    Frame::new(module_function_arity(), native)
+}
+
 fn function() -> Atom {
-    Atom::try_from_str("class_name_1").unwrap()
+    Atom::from_str("class_name_1")
 }
 
 fn module() -> Atom {
-    Atom::try_from_str("Lumen.Web.ElementTest").unwrap()
+    Atom::from_str("Lumen.Web.ElementTest")
+}
+
+fn module_function_arity() -> ModuleFunctionArity {
+    ModuleFunctionArity {
+        module: module(),
+        function: function(),
+        arity: ARITY,
+    }
 }
 
 fn promise() -> js_sys::Promise {
@@ -95,28 +111,28 @@ fn promise() -> js_sys::Promise {
     // class_name = Lumen.Web.Element.class_name(body)
     // Lumen.Web.Wait.with_return(class_name)
     // ```
-    wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # label 1
-        // # pushed to stack: ()
-        // # returned from call: {:ok, window}
-        // # full stack: ({:ok, window})
-        // # returns: {:ok, document}
-        // {:ok, document} = Lumen.Web.Window.document(window)
-        // {:ok, body} = Lumen.Web.Document.body(document)
-        // class_name = Lumen.Web.Element.class_name(body)
-        // Lumen.Web.Wait.with_return(class_name)
-        // ```
-        label_1::place_frame(child_process, Placement::Push);
-        // ```elixir
-        // # pushed to stack: ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns: {:ok, window}
-        // ```
-        window::window_0::place_frame_with_arguments(child_process, Placement::Push)?;
-
-        Ok(())
+    wait::with_return_0::spawn(options, |_| {
+        Ok(vec![
+            // ```elixir
+            // # pushed to stack: ()
+            // # returned from call: N/A
+            // # full stack: ()
+            // # returns: {:ok, window}
+            // ```
+            window::window_0::frame().with_arguments(false, &[]),
+            // ```elixir
+            // # label 1
+            // # pushed to stack: ()
+            // # returned from call: {:ok, window}
+            // # full stack: ({:ok, window})
+            // # returns: {:ok, document}
+            // {:ok, document} = Lumen.Web.Window.document(window)
+            // {:ok, body} = Lumen.Web.Document.body(document)
+            // class_name = Lumen.Web.Element.class_name(body)
+            // Lumen.Web.Wait.with_return(class_name)
+            // ```
+            label_1::frame().with_arguments(true, &[]),
+        ])
     })
     .unwrap()
 }

@@ -27,8 +27,9 @@ fn with_valid_url_returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> 
         // ```
         let url = child_process.binary_from_str("wss://echo.websocket.org")?;
 
-        web_socket::new_1::place_frame_with_arguments(child_process, Placement::Push, url)
-            .map_err(|e| e.into())
+        Ok(vec![
+            web_socket::new_1::frame().with_arguments(false, &[url])
+        ])
     })
     .unwrap();
 
@@ -69,8 +70,7 @@ fn without_valid_url_returns_error_tuple() -> impl Future<Item = (), Error = JsV
         // ```
         let url = child_process.binary_from_str("invalid_url")?;
 
-        web_socket::new_1::place_frame_with_arguments(child_process, Placement::Push, url)
-            .map_err(|e| e.into())
+        Ok(vec![web_socket::new_1::frame().with_arguments(false, &[url])])
     })
     .unwrap();
 

@@ -22,30 +22,30 @@ fn removes_element() -> impl Future<Item = (), Error = JsValue> {
     // :ok = Lumen.Web.Element.remove(child);
     // Lumen.Web.Wait.with_return(body_tuple)
     // ```
-    let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # label 1
-        // # pushed to stack: ()
-        // # returned from call: {:ok, window}
-        // # full stack: ({:ok, window})
-        // # returns: {:ok, document}
-        // {:ok, document} = Lumen.Web.Window.document(window)
-        // {:ok, body} = Lumen.Web.Document.body(document)
-        // {:ok, child} = Lumen.Web.Document.create_element(body, "table");
-        // :ok = Lumen.Web.Node.append_child(body, child);
-        // :ok = Lumen.Web.Element.remove(child);
-        // Lumen.Web.Wait.with_return(body_tuple)
-        // ```
-        removes_element::label_1::place_frame(child_process, Placement::Push);
-        // ```elixir
-        // # pushed to stack: ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns: {:ok, window}
-        // ```
-        window::window_0::place_frame_with_arguments(child_process, Placement::Push)?;
-
-        Ok(())
+    let promise = wait::with_return_0::spawn(options, |_| {
+        Ok(vec![
+            // ```elixir
+            // # pushed to stack: ()
+            // # returned from call: N/A
+            // # full stack: ()
+            // # returns: {:ok, window}
+            // ```
+            window::window_0::frame().with_arguments(false, &[]),
+            // ```elixir
+            // # label 1
+            // # pushed to stack: ()
+            // # returned from call: {:ok, window}
+            // # full stack: ({:ok, window})
+            // # returns: {:ok, document}
+            // {:ok, document} = Lumen.Web.Window.document(window)
+            // {:ok, body} = Lumen.Web.Document.body(document)
+            // {:ok, child} = Lumen.Web.Document.create_element(body, "table");
+            // :ok = Lumen.Web.Node.append_child(body, child);
+            // :ok = Lumen.Web.Element.remove(child);
+            // Lumen.Web.Wait.with_return(body_tuple)
+            // ```
+            removes_element::label_1::frame().with_arguments(true, &[]),
+        ])
     })
     .unwrap();
 

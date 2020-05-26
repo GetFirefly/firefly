@@ -1,58 +1,40 @@
-use std::sync::Arc;
+//! ```elixir
+//! # label 5
+//! # pushed to stack: (child)
+//! # returned from call: :ok
+//! # full stack: (:ok, child)
+//! # returns: :ok
+//! remove_ok = Lumen.Web.Element.remove(child);
+//! Lumen.Web.Wait.with_return(remove_ok)
+//! ```
 
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{frames, Process};
+use liblumen_alloc::erts::process::{Frame, Native, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    child: Term,
-) -> Result<(), Alloc> {
-    assert!(child.is_boxed_resource_reference());
-    process.stack_push(child)?;
-    process.place_frame(frame(), placement);
+use liblumen_web::runtime::process::current_process;
 
-    Ok(())
+pub fn frame() -> Frame {
+    super::frame(NATIVE)
 }
 
 // Private
 
-// ```elixir
-// # label 5
-// # pushed to stack: (child)
-// # returned from call: :ok
-// # full stack: (:ok, child)
-// # returns: :ok
-// remove_ok = Lumen.Web.Element.remove(child);
-// Lumen.Web.Wait.with_return(remove_ok)
-// ```
-fn code(arc_process: &Arc<Process>) -> frames::Result {
+const NATIVE: Native = Native::Two(native);
+
+extern "C" fn native(ok: Term, child: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let ok = arc_process.stack_pop().unwrap();
-    assert_eq!(ok, Atom::str_to_term("ok"));
-
-    let child = arc_process.stack_pop().unwrap();
-    assert!(child.is_boxed_resource_reference());
-
-    liblumen_web::element::remove_1::place_frame_with_arguments(
-        arc_process,
-        Placement::Replace,
-        child,
-    )?;
-
-    Process::call_native_or_yield(arc_process)
+    result(&arc_process, ok, child)
 }
 
-fn frame() -> Frame {
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: super::function(),
-        arity: 0,
-    });
+fn result(process: &Process, ok: Term, child: Term) -> Term {
+    assert_eq!(ok, Atom::str_to_term("ok"));
+    assert!(child.is_boxed_resource_reference());
 
-    Frame::new(module_function_arity, code)
+    process.queue_frame_with_arguments(
+        liblumen_web::element::remove_1::frame().with_arguments(false, &[child]),
+    );
+
+    Term::NONE
 }

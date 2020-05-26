@@ -471,8 +471,8 @@ impl core::hash::Hash for RawTerm {
 
 #[cfg(all(test, target_pointer_width = "64", target_arch = "x86_64"))]
 mod tests {
-    use core::ffi::c_void;
     use core::convert::TryInto;
+    use core::ffi::c_void;
 
     use crate::borrow::CloneToProcess;
     use crate::erts::process::alloc::TermAlloc;
@@ -774,7 +774,7 @@ mod tests {
 
         let module = Atom::try_from_str("module").unwrap();
         let arity = 0;
-        
+
         extern "C" fn native() -> Term {
             Term::NONE
         }

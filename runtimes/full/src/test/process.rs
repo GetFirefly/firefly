@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use liblumen_alloc::Process;
 
-use crate::{process, scheduler};
 use crate::process::spawn::options::Options;
+use crate::{process, scheduler};
 
 use super::loop_0;
 
@@ -35,7 +35,15 @@ pub fn child(parent_process: &Process) -> Arc<Process> {
     let arguments = &[];
     let native = loop_0::NATIVE;
 
-    let spawned = process::spawn::native(Some(parent_process), options, module, function, arguments, native).unwrap();
+    let spawned = process::spawn::native(
+        Some(parent_process),
+        options,
+        module,
+        function,
+        arguments,
+        native,
+    )
+    .unwrap();
     let connection = &spawned.connection;
 
     assert!(!connection.linked);

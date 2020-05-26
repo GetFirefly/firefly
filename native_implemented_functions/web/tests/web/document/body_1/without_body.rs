@@ -3,10 +3,18 @@ pub mod label_1;
 
 use super::*;
 
-fn function() -> Atom {
-    Atom::try_from_str("body_1_without_body").unwrap()
+fn frame(native: Native) -> Frame {
+    Frame::new(module_function_arity(), native)
 }
 
-fn module() -> Atom {
-    Atom::try_from_str("Lumen.Web.DocumentTest").unwrap()
+fn function() -> Atom {
+    Atom::from_str("body_1_without_body")
+}
+
+fn module_function_arity() -> ModuleFunctionArity {
+    ModuleFunctionArity {
+        module: super::module(),
+        function: function(),
+        arity: super::ARITY,
+    }
 }

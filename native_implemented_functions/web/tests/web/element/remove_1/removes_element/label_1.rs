@@ -1,38 +1,44 @@
-use std::convert::TryInto;
-use std::sync::Arc;
+//! ```elixir
+//! # label 1
+//! # pushed to stack: ()
+//! # returned from call: {:ok, window}
+//! # full stack: ({:ok, window})
+//! # returns: {:ok, document}
+//! {:ok, document} = Lumen.Web.Window.document(window)
+//! {:ok, body} = Lumen.Web.Document.body(document)
+//! {:ok, child} = Lumen.Web.Document.create_element(body, "table");
+//! :ok = Lumen.Web.Node.append_child(document, child);
+//! :ok = Lumen.Web.Element.remove(child);
+//! Lumen.Web.Wait.with_return(body_tuple)
+//! ```
 
-use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{frames, Process};
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
+use std::convert::TryInto;
 
 use web_sys::Window;
 
+use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::term::prelude::*;
+
+use liblumen_web::runtime::process::current_process;
+
 use super::label_2;
 
-pub fn place_frame(process: &Process, placement: Placement) {
-    process.place_frame(frame(), placement);
+pub fn frame() -> Frame {
+    super::frame(NATIVE)
 }
 
 // Private
 
-// ```elixir
-// # label 1
-// # pushed to stack: ()
-// # returned from call: {:ok, window}
-// # full stack: ({:ok, window})
-// # returns: {:ok, document}
-// {:ok, document} = Lumen.Web.Window.document(window)
-// {:ok, body} = Lumen.Web.Document.body(document)
-// {:ok, child} = Lumen.Web.Document.create_element(body, "table");
-// :ok = Lumen.Web.Node.append_child(document, child);
-// :ok = Lumen.Web.Element.remove(child);
-// Lumen.Web.Wait.with_return(body_tuple)
-// ```
-fn code(arc_process: &Arc<Process>) -> frames::Result {
+const NATIVE: Native = Native::One(native);
+
+extern "C" fn native(ok_window: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let ok_window = arc_process.stack_pop().unwrap();
+    result(&arc_process, ok_window)
+}
+
+fn result(process: &Process, ok_window: Term) -> Term {
     assert!(
         ok_window.is_boxed_tuple(),
         "ok_window ({:?}) is not a tuple",
@@ -46,22 +52,10 @@ fn code(arc_process: &Arc<Process>) -> frames::Result {
     let window_reference: Resource = window_ref_boxed.into();
     let _: &Window = window_reference.downcast_ref().unwrap();
 
-    label_2::place_frame(arc_process, Placement::Replace);
-    liblumen_web::window::document_1::place_frame_with_arguments(
-        arc_process,
-        Placement::Push,
-        window,
-    )?;
+    process.queue_frame_with_arguments(label_2::frame().with_arguments(true, &[]));
+    process.queue_frame_with_arguments(
+        liblumen_web::window::document_1::frame().with_arguments(false, &[window]),
+    );
 
-    Process::call_native_or_yield(arc_process)
-}
-
-fn frame() -> Frame {
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: super::function(),
-        arity: 0,
-    });
-
-    Frame::new(module_function_arity, code)
+    Term::NONE
 }

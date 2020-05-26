@@ -7,13 +7,28 @@ pub mod label_3;
 #[path = "with_new_child_is_parent_returns_error_hierarchy_request/label_4.rs"]
 pub mod label_4;
 
-use liblumen_alloc::erts::term::prelude::Atom;
+use liblumen_alloc::erts::process::{Frame, Native};
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{Arity, ModuleFunctionArity};
+
+const ARITY: Arity = 0;
+
+fn frame(native: Native) -> Frame {
+    Frame::new(module_function_arity(), native)
+}
 
 fn function() -> Atom {
-    Atom::try_from_str("replace_child_3_with_new_child_is_parent_returns_error_hierarchy_request")
-        .unwrap()
+    Atom::from_str("replace_child_3_with_new_child_is_parent_returns_error_hierarchy_request")
 }
 
 fn module() -> Atom {
-    Atom::try_from_str("Lumen.Web.NodeTest").unwrap()
+    Atom::from_str("Lumen.Web.NodeTest")
+}
+
+fn module_function_arity() -> ModuleFunctionArity {
+    ModuleFunctionArity {
+        module: module(),
+        function: function(),
+        arity: ARITY,
+    }
 }

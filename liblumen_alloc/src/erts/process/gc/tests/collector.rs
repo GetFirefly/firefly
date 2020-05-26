@@ -6,8 +6,8 @@ use core::ops::Deref;
 
 use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::test::process;
-use crate::erts::term::prelude::*;
 use crate::erts::term::closure::*;
+use crate::erts::term::prelude::*;
 use crate::erts::*;
 use crate::{atom, fixnum};
 

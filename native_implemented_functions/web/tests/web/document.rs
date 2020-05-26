@@ -4,3 +4,7 @@ mod body_1;
 mod new_0;
 
 use super::*;
+
+fn module() -> Atom {
+    Atom::from_str("Lumen.Web.DocumentTest")
+}

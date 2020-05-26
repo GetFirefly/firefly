@@ -11,7 +11,7 @@ pub mod wait;
 pub mod web_socket;
 pub mod window;
 
-mod runtime;
+pub use lumen_rt_full as runtime;
 
 use std::any::Any;
 use std::cell::RefCell;

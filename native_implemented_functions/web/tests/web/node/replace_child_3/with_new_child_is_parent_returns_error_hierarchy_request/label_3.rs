@@ -1,40 +1,38 @@
-use std::convert::TryInto;
-use std::sync::Arc;
+//! ```elixir
+//! # label 3
+//! # pushed to stack: (old_child)
+//! # returned form call: {:ok, parent}
+//! # full stack: ({:ok, parent}, old_child)
+//! # returns: :ok
+//! :ok = Lumen.Web.Node.append_child(parent, old_child)
+//! {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
+//! ```
 
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{frames, Process};
+use std::convert::TryInto;
+
+use liblumen_alloc::erts::process::{Frame, Native, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
+
+use liblumen_web::runtime::process::current_process;
 
 use super::label_4;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    old_child: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(old_child)?;
-    process.place_frame(frame(), placement);
-
-    Ok(())
+pub fn frame() -> Frame {
+    super::frame(NATIVE)
 }
 
 // Private
 
-// ```elixir
-// # label 3
-// # pushed to stack: (old_child)
-// # returned form call: {:ok, parent}
-// # full stack: ({:ok, parent}, old_child)
-// # returns: :ok
-// :ok = Lumen.Web.Node.append_child(parent, old_child)
-// {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
-// ```
-fn code(arc_process: &Arc<Process>) -> frames::Result {
+const NATIVE: Native = Native::Two(native);
+
+extern "C" fn native(ok_parent: Term, old_child: Term) -> Term {
+    let arc_process = current_process();
     arc_process.reduce();
 
-    let ok_parent = arc_process.stack_pop().unwrap();
+    result(&arc_process, ok_parent, old_child)
+}
+
+fn result(process: &Process, ok_parent: Term, old_child: Term) -> Term {
     assert!(
         ok_parent.is_boxed_tuple(),
         "ok_parent ({:?}) is not a tuple",
@@ -46,27 +44,12 @@ fn code(arc_process: &Arc<Process>) -> frames::Result {
     let parent = ok_parent_tuple[1];
     assert!(parent.is_boxed_resource_reference());
 
-    let old_child = arc_process.stack_pop().unwrap();
     assert!(old_child.is_boxed_resource_reference());
 
-    label_4::place_frame_with_arguments(arc_process, Placement::Replace, parent, old_child)?;
+    process.queue_frame_with_arguments(label_4::frame().with_arguments(true, &[parent, old_child]));
+    process.queue_frame_with_arguments(
+        liblumen_web::node::append_child_2::frame().with_arguments(false, &[parent, old_child]),
+    );
 
-    liblumen_web::node::append_child_2::place_frame_with_arguments(
-        arc_process,
-        Placement::Push,
-        parent,
-        old_child,
-    )?;
-
-    Process::call_native_or_yield(arc_process)
-}
-
-fn frame() -> Frame {
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: super::function(),
-        arity: 0,
-    });
-
-    Frame::new(module_function_arity, code)
+    Term::NONE
 }

@@ -27,31 +27,29 @@ fn with_new_child_is_parent_returns_error_hierarchy_request(
     // :ok = Lumen.Web.Node.append_child(parent, old_child)
     // {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
     // ```
-    let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # label 1
-        // # pushed to stack: ()
-        // # returned form call: {:ok, document}
-        // # full stack: ({:ok, document})
-        // # returns: {:ok parent}
-        // {:ok, old_child} = Lumen.Web.Document.create_element(document, "table")
-        // {:ok, parent} = Lumen.Web.Document.create_element(document, "div")
-        // :ok = Lumen.Web.Node.append_child(parent, old_child)
-        // {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
-        // ```
-        with_new_child_is_parent_returns_error_hierarchy_request::label_1::place_frame(
-            child_process,
-            Placement::Push,
-        );
-        // ```elixir
-        // # pushed to stack: ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns: {:ok, document}
-        // ```
-        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
-
-        Ok(())
+    let promise = wait::with_return_0::spawn(options, |_| {
+        Ok(vec![
+            // ```elixir
+            // # pushed to stack: ()
+            // # returned from call: N/A
+            // # full stack: ()
+            // # returns: {:ok, document}
+            // ```
+            document::new_0::frame().with_arguments(false, &[]),
+            // ```elixir
+            // # label 1
+            // # pushed to stack: ()
+            // # returned form call: {:ok, document}
+            // # full stack: ({:ok, document})
+            // # returns: {:ok parent}
+            // {:ok, old_child} = Lumen.Web.Document.create_element(document, "table")
+            // {:ok, parent} = Lumen.Web.Document.create_element(document, "div")
+            // :ok = Lumen.Web.Node.append_child(parent, old_child)
+            // {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
+            // ```
+            with_new_child_is_parent_returns_error_hierarchy_request::label_1::frame()
+                .with_arguments(true, &[]),
+        ])
     })
     .unwrap();
 
@@ -93,32 +91,29 @@ fn with_new_child_returns_ok_replaced_child() -> impl Future<Item = (), Error = 
     // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
     // {:ok, replaced_child} = Lumen.Web.replace_child(parent, new_child, old_child)
     // ```
-    let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # label 1
-        // # pushed to stack: ()
-        // # returned form call: {:ok, document}
-        // # full stack: ({:ok, document})
-        // # returns: {:ok parent}
-        // {:ok, old_child} = Lumen.Web.Document.create_element(document, "table")
-        // {:ok, parent} = Lumen.Web.Document.create_element(parent_document, "div")
-        // :ok = Lumen.Web.Node.append_child(parent, old_child)
-        // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
-        // {:ok, replaced_child} = Lumen.Web.replace_child(parent, new_child, old_child)
-        // ```
-        with_new_child_returns_ok_replaced_child::label_1::place_frame(
-            child_process,
-            Placement::Push,
-        );
-        // ```elixir
-        // # pushed to stack: ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns: {:ok, parent_document}
-        // ```
-        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
-
-        Ok(())
+    let promise = wait::with_return_0::spawn(options, |_| {
+        Ok(vec![
+            // ```elixir
+            // # pushed to stack: ()
+            // # returned from call: N/A
+            // # full stack: ()
+            // # returns: {:ok, parent_document}
+            // ```
+            document::new_0::frame().with_arguments(false, &[]),
+            // ```elixir
+            // # label 1
+            // # pushed to stack: ()
+            // # returned form call: {:ok, document}
+            // # full stack: ({:ok, document})
+            // # returns: {:ok parent}
+            // {:ok, old_child} = Lumen.Web.Document.create_element(document, "table")
+            // {:ok, parent} = Lumen.Web.Document.create_element(parent_document, "div")
+            // :ok = Lumen.Web.Node.append_child(parent, old_child)
+            // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
+            // {:ok, replaced_child} = Lumen.Web.replace_child(parent, new_child, old_child)
+            // ```
+            with_new_child_returns_ok_replaced_child::label_1::frame().with_arguments(true, &[]),
+        ])
     })
     .unwrap();
 

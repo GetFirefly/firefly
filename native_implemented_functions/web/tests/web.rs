@@ -26,10 +26,9 @@ use wasm_bindgen_futures::JsFuture;
 
 use wasm_bindgen_test::*;
 
-use liblumen_alloc::erts::process::frames::stack::frame::Placement;
+use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::process::spawn::options::Options;
-
+use liblumen_web::runtime::process::spawn::options::Options;
 use liblumen_web::wait;
 
 wasm_bindgen_test_configure!(run_in_browser);

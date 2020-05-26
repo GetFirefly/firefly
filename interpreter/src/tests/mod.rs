@@ -12,7 +12,7 @@ use libeir_syntax_erl::ast::Module as ErlAstModule;
 use libeir_syntax_erl::lower_module;
 use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
-use libeir_util_parse::{Errors};
+use libeir_util_parse::Errors;
 
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -60,14 +60,12 @@ pub fn compile(input: &str) -> Module {
 
 #[cfg(test)]
 fn run_once() {
-    crate::runtime::test::once(&[
-liblumen_otp::erlang::apply_3::function_symbol()
-    ]);
+    crate::runtime::test::once(&[liblumen_otp::erlang::apply_3::function_symbol()]);
 }
 
 #[test]
 fn simple_function() {
-run_once();
+    run_once();
 
     &*VM;
 
@@ -93,7 +91,7 @@ run() -> yay.
 
 #[test]
 fn fib() {
-run_once();
+    run_once();
 
     &*VM;
 
@@ -125,7 +123,7 @@ fib(X) -> fib(X - 1) + fib(X - 2).
 
 #[test]
 fn exception_test() {
-run_once();
+    run_once();
 
     &*VM;
 
@@ -156,7 +154,7 @@ a() -> 1 + a.
 
 #[test]
 fn fib_gc() {
-run_once();
+    run_once();
 
     &*VM;
 

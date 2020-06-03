@@ -269,6 +269,9 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
     auto tupleTy = ctx.getTupleType(3);
     auto exceptionTy = ctx.targetInfo.getExceptionType();
 
+    // Make sure we're starting in the landing pad block
+    rewriter.setInsertionPointToEnd(landingPadBlock);
+
     // The landing pad returns the structure defined above
     Value obj = llvm_landingpad(exceptionTy, /*cleanup=*/false, op.catchClauses());
     // Extract the exception object (a pointer to the raw exception object)

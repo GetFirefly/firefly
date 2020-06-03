@@ -154,6 +154,8 @@ class ModuleBuilder {
   Location getLocation(SourceLocation sloc);
   Location getFusedLocation(ArrayRef<Location> locs);
 
+  bool isLikeMsvc();
+
  private:
   const llvm::TargetMachine *targetMachine;
 

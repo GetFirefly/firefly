@@ -22,6 +22,8 @@ use crate::compiler::prelude::{Compiler as CompilerQueryGroup, *};
 use crate::compiler::Compiler;
 use crate::task;
 
+const NUM_GENERATED_MODULES: usize = 3;
+
 pub fn handle_command<'a>(
     c_opts: CodegenOptions,
     z_opts: DebuggingOptions,
@@ -77,7 +79,7 @@ pub fn handle_command<'a>(
     let options = db.options();
     let mut codegen_results = CodegenResults {
         project_name: options.project_name.clone(),
-        modules: Vec::with_capacity(num_inputs),
+        modules: Vec::with_capacity(num_inputs + NUM_GENERATED_MODULES),
         windows_subsystem: None,
         linker_info: LinkerInfo::new(),
         project_info: ProjectInfo::new(&options),

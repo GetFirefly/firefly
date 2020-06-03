@@ -1263,7 +1263,6 @@ dependencies = [
  "libeir_passes",
  "libeir_syntax_erl",
  "liblumen_codegen",
- "liblumen_compiler_macros",
  "liblumen_core",
  "liblumen_llvm",
  "liblumen_mlir",

@@ -29,6 +29,7 @@ using ::mlir::edsc::intrinsics::ValueBuilder;
 
 using llvm_addressof = ValueBuilder<LLVM::AddressOfOp>;
 using llvm_bitcast = ValueBuilder<LLVM::BitcastOp>;
+using llvm_null = ValueBuilder<LLVM::NullOp>;
 using eir_cast = ValueBuilder<::lumen::eir::CastOp>;
 using eir_cmpeq = ValueBuilder<::lumen::eir::CmpEqOp>;
 using eir_cmpneq = ValueBuilder<::lumen::eir::CmpNeqOp>;
@@ -1080,9 +1081,8 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
                                       ArrayRef<Value> args, bool isTail,
                                       Block *ok, ArrayRef<Value> okArgs,
                                       Block *err, ArrayRef<Value> errArgs) {
-  llvm::outs() << "building static call with location: ";
-  loc.dump();
-  llvm::outs() << "\n";
+  edsc::ScopedContext scope(builder, loc);
+
   // If this is a call to an intrinsic, lower accordingly
   auto buildIntrinsicFnOpt = getIntrinsicBuilder(target);
   Value result;
@@ -1148,25 +1148,29 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
     Value catchType;
     LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
     LLVMType i8PtrTy = i8Ty.getPointerTo();
-    if (auto global = theModule.lookupSymbol<LLVM::GlobalOp>("__lumen_erlang_error_type_info"))
-      catchType = llvm_bitcast(i8PtrTy, llvm_addressof(global));
-    else {
-      // type_name = lumen_panic\0
-      LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
-      LLVMType typeInfoTy = LLVMType::createStructTy(
-        llvmDialect, ArrayRef<LLVMType>{i8PtrTy, i8PtrTy, typeNameTy.getPointerTo()}, StringRef("type_info")
-      );
-      Value catchTypeGlobal = getOrInsertGlobal(
-          builder,
-          theModule,
-          loc,
-          "__lumen_erlang_error_type_info",
-          typeInfoTy,
-          false,
-          LLVM::Linkage::External,
-          LLVM::ThreadLocalMode::NotThreadLocal,
-          nullptr);
-      catchType = llvm_bitcast(i8PtrTy, catchTypeGlobal);
+    if (isLikeMsvc()) {
+      if (auto global = theModule.lookupSymbol<LLVM::GlobalOp>("__lumen_erlang_error_type_info")) {
+        catchType = llvm_bitcast(i8PtrTy, llvm_addressof(global));
+      } else {
+        // type_name = lumen_panic\0
+        LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
+        LLVMType typeInfoTy = LLVMType::createStructTy(
+          llvmDialect, ArrayRef<LLVMType>{i8PtrTy, i8PtrTy, typeNameTy.getPointerTo()}, StringRef("type_info")
+        );
+        Value catchTypeGlobal = getOrInsertGlobal(
+            builder,
+            theModule,
+            loc,
+            "__lumen_erlang_error_type_info",
+            typeInfoTy,
+            false,
+            LLVM::Linkage::External,
+            LLVM::ThreadLocalMode::NotThreadLocal,
+            nullptr);
+        catchType = llvm_bitcast(i8PtrTy, catchTypeGlobal);
+      }
+    } else {
+      catchType = llvm_null(i8PtrTy);
     }
 
     // Set up landing pad in error block
@@ -1267,26 +1271,31 @@ void ModuleBuilder::build_closure_call(Location loc, Value cls,
 
     // Make sure catch type is defined
     Value catchType;
-    if (auto global = theModule.lookupSymbol<LLVM::GlobalOp>("__lumen_erlang_error_type_info"))
-      catchType = llvm_addressof(global);
-    else {
-      LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
-      LLVMType i8PtrTy = i8Ty.getPointerTo();
-      // type_name = lumen_panic\0
-      LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
-      LLVMType typeInfoTy = LLVMType::createStructTy(
-        llvmDialect, ArrayRef<LLVMType>{i8PtrTy, i8PtrTy, typeNameTy.getPointerTo()}, StringRef("type_info")
-      );
-      catchType = getOrInsertGlobal(
-          builder,
-          theModule,
-          loc,
-          "__lumen_erlang_error_type_info",
-          typeInfoTy,
-          false,
-          LLVM::Linkage::External,
-          LLVM::ThreadLocalMode::NotThreadLocal,
-          nullptr);
+    LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
+    LLVMType i8PtrTy = i8Ty.getPointerTo();
+    if (isLikeMsvc()) {
+      if (auto global = theModule.lookupSymbol<LLVM::GlobalOp>("__lumen_erlang_error_type_info")) {
+        catchType = llvm_bitcast(i8PtrTy, llvm_addressof(global));
+      } else {
+        // type_name = lumen_panic\0
+        LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
+        LLVMType typeInfoTy = LLVMType::createStructTy(
+          llvmDialect, ArrayRef<LLVMType>{i8PtrTy, i8PtrTy, typeNameTy.getPointerTo()}, StringRef("type_info")
+        );
+        Value catchTypeGlobal = getOrInsertGlobal(
+            builder,
+            theModule,
+            loc,
+            "__lumen_erlang_error_type_info",
+            typeInfoTy,
+            false,
+            LLVM::Linkage::External,
+            LLVM::ThreadLocalMode::NotThreadLocal,
+            nullptr);
+        catchType = llvm_bitcast(i8PtrTy, catchTypeGlobal);
+      }
+    } else {
+      catchType = llvm_null(i8PtrTy);
     }
 
     // Set up landing pad in error block
@@ -1985,6 +1994,19 @@ DEFINE_IS_TYPE_OP(MLIRBuildIsTypeInteger, IntegerType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeFixnum, FixnumType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeBigInt, BigIntType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeFloat, FloatType);
+
+//===----------------------------------------------------------------------===//
+// Target Info
+//===----------------------------------------------------------------------===//
+
+bool ModuleBuilder::isLikeMsvc() {
+  auto triple = targetMachine->getTargetTriple();
+  if (triple.getEnvironment() == llvm::Triple::EnvironmentType::MSVC)
+    return true;
+  if (triple.getOS() == llvm::Triple::OSType::Win32)
+    return true;
+  return false;
+}
 
 }  // namespace eir
 }  // namespace lumen

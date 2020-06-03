@@ -24,8 +24,20 @@ use crate::meta::CompiledModule;
 use crate::Result;
 
 /// Generates an LLVM module containing the top-level exception handler for processes.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn generate(
+    options: &Options,
+    context: &llvm::Context,
+    target_machine: &TargetMachine,
+    output_dir: &Path,
+) -> Result<Arc<CompiledModule>> {
+    if options.target.arch != "wasm32" {
+        generate_standard(options, context, target_machine, output_dir)
+    } else {
+        generate_wasm32(options, context, target_machine, output_dir)
+    }
+}
+
+fn generate_standard(
     options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
@@ -109,7 +121,7 @@ pub fn generate(
     );
 
     // Define global that holds the "type" of Erlang exceptions
-    let type_desc = if cfg!(target_env = "msvc") {
+    let type_desc = if options.target.options.is_like_msvc {
         let type_info_vtable = builder.declare_global("??_7type_info@@6B@", i8_ptr_type);
         let type_name = builder.build_constant_bytes(b"lumen_panic\0");
         let type_info = builder.build_constant_unnamed_struct(&[
@@ -166,7 +178,7 @@ pub fn generate(
     builder.position_at_end(catch_block);
 
     // Build landing pad for exception with a single clause for our type info
-    let catch_type = if cfg!(target_env = "msvc") {
+    let catch_type = if options.target.options.is_like_msvc {
         builder.build_bitcast(type_desc, i8_ptr_type)
     } else {
         type_desc
@@ -285,8 +297,7 @@ pub fn generate(
     )))
 }
 
-#[cfg(target_arch = "wasm32")]
-pub fn generate(
+fn generate_wasm32(
     options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
@@ -410,7 +421,7 @@ pub fn generate(
     // Define catch entry
     // %1 = catchswitch within none [label %catch.start] unwind to caller
     builder.position_at_end(catch_dispatch_block);
-    let catchswitch = builder.build_catchswitch(None, None, catch_start_block);
+    let catchswitch = builder.build_catchswitch(None, None, &[catch_start_block]);
 
     // Define catch landing pad
     // %2 = catchpad within %1 [i8* null]

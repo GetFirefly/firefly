@@ -687,9 +687,9 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         # first stack slot, otherwise resume the process normally
         pushq    %r15
         movq     24($1), %r15
-        cmpq     ${2:c}, %r15
+        cmpq     %r15, $2
         popq     %r15
-        jne      resume
+        jne      ${:private}_resume
 
         # This is the first time this process is swapped to, so
         # pop the return address we saved and write it to the beginning
@@ -701,7 +701,7 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         popq     %r15
 
         # This is where we jump if we're resuming normally
-        resume:
+        ${:private}_resume:
 
         # Save the stack pointer, and callee-saved registers of `prev`
         movq     %rsp, ($0)
@@ -738,7 +738,7 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
      0:
     "
     :
-    : "r"(prev), "r"(new), "i"(FIRST_SWAP)
+    : "r"(prev), "r"(new), "r"(FIRST_SWAP)
     :
     : "volatile", "alignstack"
     );

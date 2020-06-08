@@ -20,7 +20,7 @@ use lumen_rt_full::binary_to_string::binary_to_string;
 
 use crate::html_form_element;
 
-#[native_implemented_function(element/2)]
+#[native_implemented::function(element/2)]
 fn result(process: &Process, html_form_element_term: Term, name: Term) -> exception::Result<Term> {
     let html_form_element_term = html_form_element::from_term(html_form_element_term)?;
     let name_string: String = binary_to_string(name)?;
@@ -30,8 +30,7 @@ fn result(process: &Process, html_form_element_term: Term, name: Term) -> except
 
     match result_html_input_element {
         Ok(html_input_element) => {
-            let html_input_element_resource_reference =
-                process.resource(Box::new(html_input_element))?;
+            let html_input_element_resource_reference = process.resource(html_input_element)?;
 
             process
                 .tuple_from_slice(&[atom!("ok"), html_input_element_resource_reference])

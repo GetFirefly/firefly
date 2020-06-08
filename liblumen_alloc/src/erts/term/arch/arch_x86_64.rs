@@ -948,13 +948,13 @@ mod tests {
 
     #[test]
     fn resource_encoding_x86_64() {
-        use core::any::Any;
+        use core::any::{type_name, Any};
 
         let mut heap = RegionHeap::default();
 
         // Need a concrete type for casting
         let code: Box<dyn Any> = Box::new(Predicate::new(|input: bool| Some(input)));
-        let resource = Resource::from_value(&mut heap, code).unwrap();
+        let resource = Resource::from_value(&mut heap, code, type_name::<Predicate>()).unwrap();
         let resource_term: RawTerm = resource.into();
         assert!(resource_term.is_boxed());
         assert_eq!(resource_term.type_of(), Tag::Box);

@@ -39,7 +39,7 @@ fn result(
 
     match parent_node.replace_child(old_child_node, new_child_node) {
         Ok(replaced_child_node) => {
-            ok_tuple(process, Box::new(replaced_child_node)).map_err(|error| error.into())
+            ok_tuple(process, replaced_child_node).map_err(|error| error.into())
         }
         Err(js_value) => {
             let dom_exception = js_value.dyn_into::<DomException>().unwrap();

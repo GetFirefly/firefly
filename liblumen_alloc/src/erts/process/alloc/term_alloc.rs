@@ -1,5 +1,5 @@
 use core::alloc::Layout;
-use core::any::Any;
+use core::any::type_name;
 use core::ffi::c_void;
 use core::ptr;
 use core::str::Chars;
@@ -365,11 +365,11 @@ pub trait TermAlloc: Heap {
         }
     }
 
-    fn resource(&mut self, value: Box<dyn Any>) -> AllocResult<Boxed<Resource>>
+    fn resource<V: 'static>(&mut self, value: V) -> AllocResult<Boxed<Resource>>
     where
         Self: Sized,
     {
-        Resource::from_value(self, value)
+        Resource::from_value(self, Box::new(value), type_name::<V>())
     }
 
     /// Either returns a `&str` to the pre-existing bytes in the heap binary, process binary, or

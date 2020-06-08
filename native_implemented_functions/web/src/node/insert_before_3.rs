@@ -44,7 +44,7 @@ fn result(
 
     match parent_node.insert_before(new_child_node, option_reference_child_node) {
         Ok(inserted_child_node) => {
-            ok_tuple(process, Box::new(inserted_child_node)).map_err(|error| error.into())
+            ok_tuple(process, inserted_child_node).map_err(|error| error.into())
         }
         Err(js_value) => {
             let dom_exception = js_value.dyn_into::<DomException>().unwrap();

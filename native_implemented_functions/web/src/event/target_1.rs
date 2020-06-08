@@ -19,7 +19,7 @@ fn result(process: &Process, event_term: Term) -> exception::Result<Term> {
 
     match event.target() {
         Some(event_target) => {
-            let event_target_resource_reference = process.resource(Box::new(event_target))?;
+            let event_target_resource_reference = process.resource(event_target)?;
 
             process
                 .tuple_from_slice(&[atom!("ok"), event_target_resource_reference])

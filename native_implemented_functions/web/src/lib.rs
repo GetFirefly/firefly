@@ -13,7 +13,6 @@ pub mod window;
 
 pub use lumen_rt_full as runtime;
 
-use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -87,19 +86,19 @@ fn error_tuple(process: &Process, js_value: JsValue) -> AllocResult<Term> {
     }
 }
 
-fn ok_tuple(process: &Process, value: Box<dyn Any>) -> AllocResult<Term> {
+fn ok_tuple<V: 'static>(process: &Process, value: V) -> AllocResult<Term> {
     let ok = atom!("ok");
     let resource_term = process.resource(value)?;
 
     process.tuple_from_slice(&[ok, resource_term])
 }
 
-fn option_to_ok_tuple_or_error<T: 'static>(
+fn option_to_ok_tuple_or_error<V: 'static>(
     process: &Process,
-    option: Option<T>,
+    option: Option<V>,
 ) -> AllocResult<Term> {
     match option {
-        Some(value) => ok_tuple(process, Box::new(value)),
+        Some(value) => ok_tuple(process, value),
         None => Ok(atom!("error")),
     }
 }

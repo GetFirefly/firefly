@@ -173,8 +173,7 @@ where
                 .borrow_mut()
                 .replace(executor.promise());
 
-            let executor_resource_reference =
-                child_process.resource(Box::new(Mutex::new(executor)))?;
+            let executor_resource_reference = child_process.resource(Mutex::new(executor))?;
             let frame_with_arguments = frame.with_arguments(true, &[executor_resource_reference]);
 
             frames_with_arguments.push(frame_with_arguments);

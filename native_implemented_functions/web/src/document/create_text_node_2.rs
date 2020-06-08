@@ -18,7 +18,6 @@ pub fn result(process: &Process, document: Term, data: Term) -> exception::Resul
     let data_string: String = binary_to_string(data)?;
 
     let text = document_document.create_text_node(&data_string);
-    let text_box = Box::new(text);
 
-    process.resource(text_box).map_err(|error| error.into())
+    process.resource(text).map_err(|error| error.into())
 }

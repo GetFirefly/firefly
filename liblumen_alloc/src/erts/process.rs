@@ -10,7 +10,6 @@ mod mailbox;
 mod monitor;
 pub mod priority;
 
-use core::any::Any;
 use core::cell::RefCell;
 use core::ffi::c_void;
 use core::fmt;
@@ -711,7 +710,7 @@ impl Process {
             .map(|ref_ptr| ref_ptr.into())
     }
 
-    pub fn resource(&self, value: Box<dyn Any>) -> AllocResult<Term> {
+    pub fn resource<V: 'static>(&self, value: V) -> AllocResult<Term> {
         self.acquire_heap().resource(value).map(|r| r.into())
     }
 

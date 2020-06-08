@@ -101,7 +101,7 @@ pub fn call_erlang(
     let (tx, rx) = channel();
 
     let sender = ProcessResultSender { tx };
-    let sender_term = proc.resource(Box::new(sender)).unwrap();
+    let sender_term = proc.resource(sender).unwrap();
 
     let return_ok = {
         let module = Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap();

@@ -88,7 +88,8 @@ where
             let mut frames_with_arguments = frames_with_arguments_fn(child_process)?;
             vec.append(&mut frames_with_arguments);
 
-            let future_resource = child_process.resource(Box::new(arc_mutex_future.clone()))?;
+            let future_resource = child_process.resource(arc_mutex_future.clone())?;
+
             vec.push(frame().with_arguments(true, &[future_resource]));
 
             Ok(vec)

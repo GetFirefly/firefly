@@ -245,10 +245,12 @@ impl<T: ?Sized> Debug for Header<T> {
 const_assert_eq!(mem::size_of::<Header<usize>>(), mem::size_of::<usize>());
 impl Header<Map> {
     pub fn from_map(map: &HashMap<Term, Term>) -> Self {
-        // NOTE: This size only accounts for the HashMap header, not the values
-        let layout = Layout::for_value(map);
-        let map_size = layout.size();
-        let arity = Self::static_arity() + Self::to_word_size(map_size);
+        let header_layout = Layout::new::<Self>();
+        let value_layout = Layout::for_value(map);
+        let (layout, _value_offset) = header_layout.extend(value_layout).unwrap();
+        // subtract the header layout size in words instead of just not including it as `extend`
+        // adds padding for field alignment.
+        let arity = Self::to_word_size(layout.size()) - Self::to_word_size(header_layout.size());
         let value = Term::encode_header(arity.try_into().unwrap(), Term::HEADER_MAP);
         Self {
             value,

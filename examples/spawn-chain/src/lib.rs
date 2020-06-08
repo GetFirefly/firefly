@@ -57,21 +57,17 @@ fn run_with_output(count: usize, output: Output) -> js_sys::Promise {
     wait::with_return_0::spawn(
         options,
     |child_process| {
-            let count_term = child_process.integer(count)?;
+        let count_term = child_process.integer(count)?;
 
         // if this fails use a bigger sized heap
-        match output {
-                Output::None => {
-                    none_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
-                }
-                Output::Console => {
-                    console_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
-                }
-                Output::Dom => {
-                    dom_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
-                }
-            }
-        })
+        let frame = match output {
+            Output::None => none_1::frame(),
+            Output::Console => console_1::frame(),
+            Output::Dom => dom_1::frame()
+        };
+
+        Ok(vec![frame.with_arguments(false, &[count_term])])
+    })
     // if this fails use a bigger sized heap
     .unwrap()
 }

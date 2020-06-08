@@ -77,6 +77,7 @@ pub enum Native {
     Two(extern "C" fn(Term, Term) -> Term),
     Three(extern "C" fn(Term, Term, Term) -> Term),
     Four(extern "C" fn(Term, Term, Term, Term) -> Term),
+    Five(extern "C" fn(Term, Term, Term, Term, Term) -> Term),
 }
 
 impl Native {
@@ -87,6 +88,10 @@ impl Native {
             2 => Self::Two(transmute::<_, extern "C" fn(Term, Term) -> Term>(ptr)),
             3 => Self::Three(transmute::<_, extern "C" fn(Term, Term, Term) -> Term>(ptr)),
             4 => Self::Four(transmute::<_, extern "C" fn(Term, Term, Term, Term) -> Term>(ptr)),
+            5 => Self::Five(transmute::<
+                _,
+                extern "C" fn(Term, Term, Term, Term, Term) -> Term,
+            >(ptr)),
             _ => unimplemented!(
                 "Converting `*const c_void` ptr with arity {} to `fn`",
                 arity
@@ -116,6 +121,16 @@ impl Native {
                 assert_eq!(arguments.len(), 4);
                 f(arguments[0], arguments[1], arguments[2], arguments[3])
             }
+            Self::Five(f) => {
+                assert_eq!(arguments.len(), 5);
+                f(
+                    arguments[0],
+                    arguments[1],
+                    arguments[2],
+                    arguments[3],
+                    arguments[4],
+                )
+            }
         }
     }
 
@@ -126,6 +141,7 @@ impl Native {
             Self::Two(_) => 2,
             Self::Three(_) => 3,
             Self::Four(_) => 4,
+            Self::Five(_) => 5,
         }
     }
 
@@ -151,6 +167,7 @@ impl Native {
             Self::Two(ptr) => ptr as *const c_void,
             Self::Three(ptr) => ptr as *const c_void,
             Self::Four(ptr) => ptr as *const c_void,
+            Self::Five(ptr) => ptr as *const c_void,
         }
     }
 }

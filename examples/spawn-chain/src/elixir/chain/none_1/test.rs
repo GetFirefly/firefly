@@ -1,6 +1,8 @@
-use super::*;
+mod inspect;
 
 use std::sync::Once;
+
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_core::registry;
 
@@ -96,13 +98,13 @@ fn with_65536() {
     run_through(65536)
 }
 
-fn inspect_code(arc_process: &Arc<Process>) -> frames::Result {
-    let time_value = arc_process.stack_peek(1).unwrap();
+fn module() -> Atom {
+    Atom::from_str("Elixir.ChainTest")
+}
 
-    lumen_rt_full::sys::io::puts(&format!("{}", time_value));
-    arc_process.remove_last_frame(1);
-
-    Process::call_native_or_yield(arc_process)
+#[allow(dead_code)]
+fn module_id() -> usize {
+    module().id()
 }
 
 fn run_through(n: usize) {
@@ -111,17 +113,18 @@ fn run_through(n: usize) {
     let parent_process = None;
     let mut options: Options = Default::default();
     options.min_heap_size = Some(100 + 5 * n);
-    let Spawned { process, .. } = process::spawn::code(
+    let Spawned { process, .. } = process::spawn::native(
         parent_process,
         options,
-        Atom::try_from_str("Elixir.ChainTest").unwrap(),
-        Atom::try_from_str("inspect").unwrap(),
+        module(),
+        inspect::function(),
         &[],
-        inspect_code,
+        inspect::NATIVE,
     )
     .unwrap();
-    super::place_frame_with_arguments(&process, Placement::Push, process.integer(n).unwrap())
-        .unwrap();
+    process.queue_frame_with_arguments(
+        super::frame().with_arguments(false, &[process.integer(n).unwrap()]),
+    );
 
     let arc_scheduler = scheduler::current();
     let arc_process = arc_scheduler.schedule(process);

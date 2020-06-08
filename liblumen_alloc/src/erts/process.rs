@@ -400,7 +400,9 @@ impl Process {
 
     pub fn stack_push_slice(&self, terms: &[Term]) -> AllocResult<()> {
         for (i, term) in terms.iter().rev().enumerate() {
-            match self.stack_push(term.clone_to_process(self)) {
+            let cloned_term = term.clone_to_process(self);
+
+            match self.stack_push(cloned_term) {
                 Ok(_) => (),
                 err @ Err(_) => {
                     for _ in 0..i {

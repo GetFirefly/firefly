@@ -12,6 +12,7 @@ use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::{Heap, HeapAlloc};
 use crate::erts::term::prelude::*;
 use crate::std_alloc;
+use liblumen_core::sys::sysconf::MIN_ALIGN;
 
 // This adapter is used to track a list of heap fragments, attached to a process
 intrusive_adapter!(pub HeapFragmentAdapter = UnsafeRef<HeapFragment>: HeapFragment { link: LinkedListLink });
@@ -55,6 +56,9 @@ impl HeapFragment {
     /// Creates a new heap fragment with the given layout, allocated via `std_alloc`
     #[inline]
     pub fn new(layout: Layout) -> AllocResult<NonNull<Self>> {
+        // `alloc_layout` pads to `MIN_ALIGN`, so creating the new `HeapFragment` must too
+        // Ensure layout has alignment padding
+        let layout = layout.align_to(MIN_ALIGN).unwrap().pad_to_align();
         let (full_layout, offset) = Layout::new::<Self>().extend(layout.clone()).unwrap();
         let size = layout.size();
         let align = layout.align();
@@ -121,8 +125,6 @@ impl Heap for HeapFragment {
 }
 impl HeapAlloc for HeapFragment {
     unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
-        use liblumen_core::sys::sysconf::MIN_ALIGN;
-
         // Ensure layout has alignment padding
         let layout = layout.align_to(MIN_ALIGN).unwrap().pad_to_align();
         // Capture the base pointer for this allocation

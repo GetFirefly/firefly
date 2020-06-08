@@ -2,6 +2,7 @@
 pub mod test;
 
 use std::any::Any;
+use std::convert::TryInto;
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -139,22 +140,39 @@ impl SchedulerTrait for Scheduler {
                     if !arc_process.is_exiting() {
                         match arc_process.run() {
                             Ran::Waiting | Ran::Reduced | Ran::RuntimeException => (),
-                            Ran::SystemException => match &*arc_process.status.read() {
-                                Status::SystemException(system_exception) => match system_exception
-                                {
-                                    SystemException::Alloc(_) => {
-                                        match arc_process.garbage_collect(0, &mut []) {
-                                            Ok(_freed) => (),
-                                            Err(gc_err) => panic!(
-                                                "fatal garbage collection error: {:?}",
-                                                gc_err
-                                            ),
+                            Ran::SystemException => {
+                                let runnable = match &*arc_process.status.read() {
+                                    Status::SystemException(system_exception) => {
+                                        match system_exception {
+                                            SystemException::Alloc(_) => {
+                                                match arc_process.garbage_collect(0, &mut []) {
+                                                    Ok(reductions) => {
+                                                        arc_process.total_reductions.fetch_add(
+                                                            reductions.try_into().unwrap(),
+                                                            Ordering::SeqCst,
+                                                        );
+
+                                                        // Clear the status for `requeue` on
+                                                        // successful `garbage_collect`
+                                                        true
+                                                    }
+                                                    Err(gc_err) => panic!(
+                                                        "fatal garbage collection error: {:?}",
+                                                        gc_err
+                                                    ),
+                                                }
+                                            }
+                                            err => panic!("system error: {}", err),
                                         }
                                     }
-                                    err => panic!("system error: {}", err),
-                                },
-                                _ => unreachable!(),
-                            },
+                                    _ => unreachable!(),
+                                };
+
+                                if runnable {
+                                    // Have to set after `match` where `ReadGuard` is held
+                                    *arc_process.status.write() = Status::Runnable;
+                                }
+                            }
                         }
                     } else {
                         arc_process.reduce()

@@ -21,8 +21,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::node::node_from_term;
-use crate::ok_tuple;
+use crate::{node, ok_tuple};
 
 #[native_implemented::function(insert_before/3)]
 fn result(
@@ -31,13 +30,13 @@ fn result(
     new_child: Term,
     reference_child: Term,
 ) -> exception::Result<Term> {
-    let parent_node = node_from_term(parent)?;
-    let new_child_node = node_from_term(new_child)?;
+    let parent_node = node::from_term(parent)?;
+    let new_child_node = node::from_term(new_child)?;
 
     let option_reference_child_node = if reference_child == Atom::str_to_term("nil") {
         None
     } else {
-        Some(node_from_term(reference_child)?)
+        Some(node::from_term(reference_child)?)
     };
 
     match parent_node.insert_before(new_child_node, option_reference_child_node) {

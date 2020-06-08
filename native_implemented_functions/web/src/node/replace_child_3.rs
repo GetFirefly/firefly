@@ -21,8 +21,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::node::node_from_term;
-use crate::ok_tuple;
+use crate::{node, ok_tuple};
 
 #[native_implemented::function(replace_child/3)]
 fn result(
@@ -31,9 +30,9 @@ fn result(
     old_child: Term,
     new_child: Term,
 ) -> exception::Result<Term> {
-    let parent_node = node_from_term(parent)?;
-    let old_child_node = node_from_term(old_child)?;
-    let new_child_node = node_from_term(new_child)?;
+    let parent_node = node::from_term(parent)?;
+    let old_child_node = node::from_term(old_child)?;
+    let new_child_node = node::from_term(new_child)?;
 
     match parent_node.replace_child(old_child_node, new_child_node) {
         Ok(replaced_child_node) => {

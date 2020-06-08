@@ -28,13 +28,12 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::error_tuple;
-use crate::node::node_from_term;
+use crate::{error_tuple, node};
 
 #[native_implemented::function(append_child/2)]
 pub fn result(process: &Process, parent: Term, child: Term) -> exception::Result<Term> {
-    let parent_node = node_from_term(parent).with_context(|| format!("parent"))?;
-    let child_node = node_from_term(child).with_context(|| format!("child"))?;
+    let parent_node = node::from_term(parent).with_context(|| format!("parent"))?;
+    let child_node = node::from_term(child).with_context(|| format!("child"))?;
 
     match parent_node.append_child(child_node) {
         Ok(_) => Ok(atom!("ok")),

@@ -22,7 +22,7 @@ fn module_id() -> usize {
     module().id()
 }
 
-fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
+fn from_term(term: Term) -> Result<&'static Node, exception::Exception> {
     let boxed: Boxed<Resource> = term
         .try_into()
         .with_context(|| format!("{} must be a source", term))?;

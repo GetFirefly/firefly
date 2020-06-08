@@ -10,11 +10,11 @@ use native_implemented_function::native_implemented_function;
 
 use lumen_rt_full::binary_to_string::binary_to_string;
 
-use crate::document::document_from_term;
+use crate::document;
 
 #[native_implemented_function(create_text_node/2)]
 pub fn result(process: &Process, document: Term, data: Term) -> exception::Result<Term> {
-    let document_document = document_from_term(document)?;
+    let document_document = document::from_term(document)?;
     let data_string: String = binary_to_string(data)?;
 
     let text = document_document.create_text_node(&data_string);

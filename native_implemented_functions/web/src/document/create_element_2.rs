@@ -12,14 +12,13 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_full::binary_to_string::binary_to_string;
 
-use crate::document::document_from_term;
-use crate::ok_tuple;
+use crate::{document, ok_tuple};
 
 use native_implemented_function::native_implemented_function;
 
 #[native_implemented_function(create_element/2)]
 pub fn result(process: &Process, document: Term, tag: Term) -> exception::Result<Term> {
-    let document_document = document_from_term(document)?;
+    let document_document = document::from_term(document)?;
     let tag_string: String = binary_to_string(tag)?;
 
     match document_document.create_element(&tag_string) {

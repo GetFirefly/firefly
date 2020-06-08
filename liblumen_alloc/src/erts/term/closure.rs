@@ -4,6 +4,7 @@ use core::convert::TryFrom;
 use core::ffi::c_void;
 use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
+use core::mem::size_of;
 use core::ptr;
 use core::slice;
 
@@ -13,7 +14,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::{Heap, TermAlloc};
 use crate::erts::process::{Frame, FrameWithArguments, Native};
-use crate::erts::{self, Arity, ModuleFunctionArity};
+use crate::erts::{self, to_word_size, Arity, ModuleFunctionArity};
 
 use super::prelude::*;
 
@@ -147,7 +148,8 @@ impl Closure {
         let closure_layout = ClosureLayout::for_env_len(env_len);
         let layout = closure_layout.layout.clone();
 
-        let header = Header::from_arity(env_len);
+        let header_arity = to_word_size(layout.size() - size_of::<Header<Closure>>());
+        let header = Header::from_arity(header_arity);
         unsafe {
             // Allocate space for closure
             let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut u8;
@@ -209,8 +211,8 @@ impl Closure {
 
         // The result of calling this will be a Closure with everything located
         // contiguously in memory
-        let env_arity = env.len();
-        let header = Header::from_arity(env_arity);
+        let header_arity = to_word_size(layout.size() - size_of::<Header<Closure>>());
+        let header = Header::from_arity(header_arity);
         unsafe {
             // Allocate space for tuple and immediate elements
             let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut u8;
@@ -244,7 +246,7 @@ impl Closure {
                 env_ptr = env_ptr.offset(1);
             }
             // Construct actual Closure reference
-            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_arity))
+            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env.len()))
         }
     }
 
@@ -374,8 +376,10 @@ impl<E: super::arch::Repr> UnsizedBoxable<E> for Closure {
     unsafe fn from_raw_term(ptr: *mut E) -> Boxed<Closure> {
         let header = &*(ptr as *mut Header<Closure>);
         let arity = header.arity();
+        // -1 is size of header in words
+        let env_len = arity - (Self::base_size_words() - 1);
 
-        Self::from_raw_parts::<E>(ptr, arity)
+        Self::from_raw_parts::<E>(ptr, env_len)
     }
 }
 

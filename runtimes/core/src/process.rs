@@ -61,15 +61,18 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
 
             if !is_expected_exit_reason(reason) {
                 sys::io::puts(&format!(
-                    "** (EXIT from {}) exited with reason: {}",
-                    process, reason
+                    "** (EXIT from {}) exited with reason: {}\n\nSource: {:?}",
+                    process,
+                    reason,
+                    exception.source()
                 ));
             }
         }
         Some(Class::Error { .. }) => sys::io::puts(&format!(
-            "** (EXIT from {}) exited with reason: an exception was raised: {}\n{}",
+            "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {:?}\n{}",
             process,
             exception.reason().unwrap(),
+            exception.source(),
             process.stacktrace()
         )),
         _ => unimplemented!("{:?}", exception),

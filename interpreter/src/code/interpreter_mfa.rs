@@ -5,12 +5,10 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::exec::CallExecutor;
 
-use native_implemented_function::native_implemented_function;
-
 /// Expects the following on stack:
 /// * arity integer
 /// * argument list
-#[native_implemented_function(interpreter_mfa/1)]
+#[native_implemented::function(interpreter_mfa/1)]
 pub fn result(arc_process: Arc<Process>, argument_list: Term) -> Term {
     let mfa = arc_process.current_module_function_arity().unwrap();
 

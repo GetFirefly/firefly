@@ -11,9 +11,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(bit_size/1)]
+#[native_implemented::function(bit_size/1)]
 pub fn result(process: &Process, bitstring: Term) -> exception::Result<Term> {
     let option_total_bit_len = match bitstring.decode()? {
         TypedTerm::BinaryLiteral(binary_literal) => Some(binary_literal.total_bit_len()),

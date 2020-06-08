@@ -9,11 +9,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang::spawn_apply_3;
 
-#[native_implemented_function(spawn/3)]
+#[native_implemented::function(spawn/3)]
 pub fn result(
     process: &Process,
     module: Term,

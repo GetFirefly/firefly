@@ -7,9 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::time::{monotonic, Unit::Native};
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(monotonic_time/0)]
+#[native_implemented::function(monotonic_time/0)]
 pub fn result(process: &Process) -> exception::Result<Term> {
     let big_int = monotonic::time(Native);
 

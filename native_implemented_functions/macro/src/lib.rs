@@ -19,18 +19,43 @@ use syn::{
 };
 
 #[proc_macro_attribute]
-pub fn native_implemented_function(
+pub fn label(_: TokenStream, result_token_stream: TokenStream) -> TokenStream {
+    let result_item_fn = parse_macro_input!(result_token_stream as ItemFn);
+
+    match Signatures::label(&result_item_fn) {
+        Ok(signatures) => {
+            let frame = frame_for_label();
+            let const_native = signatures.const_native();
+            let native_fn = signatures.native_fn();
+
+            let all_tokens = quote! {
+                #frame
+                #const_native
+
+                #native_fn
+                #result_item_fn
+            };
+
+            all_tokens.into()
+        }
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+#[proc_macro_attribute]
+pub fn function(
     function_arity_token_stream: TokenStream,
     result_token_stream: TokenStream,
 ) -> TokenStream {
     let function_arity = parse_macro_input!(function_arity_token_stream as FunctionArity);
     let result_item_fn = parse_macro_input!(result_token_stream as ItemFn);
 
-    match Signatures::new(&result_item_fn, function_arity.arity) {
+    match Signatures::entry_point(&result_item_fn, function_arity.arity) {
         Ok(signatures) => {
-            let const_arity = function_arity.const_arity();
-            let const_native = function_arity.const_native();
-            let frame = frame();
+            let const_arity = signatures.const_arity();
+            let const_native = signatures.const_native();
+            let frame = frame_for_entry_point();
+            let frame_for_native = frame_for_native();
             let function = function_arity.function();
             let function_symbol = function_symbol();
             let module_function_arity = module_function_arity();
@@ -41,6 +66,7 @@ pub fn native_implemented_function(
                 #const_native
 
                 #frame
+                #frame_for_native
                 #function
                 #function_symbol
                 #module_function_arity
@@ -67,10 +93,26 @@ fn fn_arg_to_ident(fn_arg: &FnArg) -> Ident {
     }
 }
 
-fn frame() -> proc_macro2::TokenStream {
+fn frame_for_entry_point() -> proc_macro2::TokenStream {
     quote! {
         pub fn frame() -> liblumen_alloc::erts::process::Frame {
-            liblumen_alloc::erts::process::Frame::new(module_function_arity(), NATIVE)
+            frame_for_native(NATIVE)
+        }
+    }
+}
+
+fn frame_for_label() -> proc_macro2::TokenStream {
+    quote! {
+        pub fn frame() -> liblumen_alloc::erts::process::Frame {
+            super::frame_for_native(NATIVE)
+        }
+    }
+}
+
+fn frame_for_native() -> proc_macro2::TokenStream {
+    quote! {
+        pub fn frame_for_native(native: liblumen_alloc::erts::process::Native) -> liblumen_alloc::erts::process::Frame {
+            liblumen_alloc::erts::process::Frame::new(module_function_arity(), native)
         }
     }
 }
@@ -107,22 +149,6 @@ struct FunctionArity {
 }
 
 impl FunctionArity {
-    fn const_arity(&self) -> proc_macro2::TokenStream {
-        let arity = &self.arity;
-
-        quote! {
-           pub const ARITY: liblumen_alloc::Arity = #arity;
-        }
-    }
-
-    fn const_native(&self) -> proc_macro2::TokenStream {
-        let native_variant = self.native_variant();
-
-        quote! {
-             pub const NATIVE: liblumen_alloc::erts::process::Native = #native_variant;
-        }
-    }
-
     fn function(&self) -> proc_macro2::TokenStream {
         let function = &self.function;
 
@@ -130,27 +156,6 @@ impl FunctionArity {
             pub fn function() -> liblumen_alloc::erts::term::prelude::Atom {
                 liblumen_alloc::erts::term::prelude::Atom::from_str(#function)
             }
-        }
-    }
-
-    fn native_variant(&self) -> proc_macro2::TokenStream {
-        match self.arity {
-            0 => quote! {
-                liblumen_alloc::erts::process::Native::Zero(native)
-            },
-            1 => quote! {
-                liblumen_alloc::erts::process::Native::One(native)
-            },
-            2 => quote! {
-                liblumen_alloc::erts::process::Native::Two(native)
-            },
-            3 => quote! {
-                liblumen_alloc::erts::process::Native::Three(native)
-            },
-            4 => quote! {
-                liblumen_alloc::erts::process::Native::Four(native)
-            },
-            arity => unimplemented!("Don't know how to convert arity ({}) to Native", arity),
         }
     }
 }
@@ -271,6 +276,12 @@ struct Native {
     fn_arg_vec: Vec<FnArg>,
 }
 
+impl Native {
+    pub fn arity(&self) -> u8 {
+        self.fn_arg_vec.len() as u8
+    }
+}
+
 enum Process {
     Arc,
     Ref,
@@ -293,12 +304,12 @@ struct Signatures {
 }
 
 impl Signatures {
-    pub fn new(result_item_fn: &ItemFn, arity: u8) -> std::result::Result<Self, Error> {
+    pub fn entry_point(result_item_fn: &ItemFn, arity: u8) -> std::result::Result<Self, Error> {
         if result_item_fn.sig.ident != "result" {
             return Err(Error::new(
                 result_item_fn.sig.ident.span(),
                 format!(
-                    "`{}` should be called `result` when using native_implemented_function macro",
+                    "`{}` should be called `result` when using native_implemented::function macro",
                     result_item_fn.sig.ident
                 ),
             ));
@@ -434,6 +445,152 @@ impl Signatures {
         })
     }
 
+    pub fn label(result_item_fn: &ItemFn) -> std::result::Result<Self, Error> {
+        if result_item_fn.sig.ident != "result" {
+            return Err(Error::new(
+                result_item_fn.sig.ident.span(),
+                format!(
+                    "`{}` should be called `result` when using native_implemented_function macro",
+                    result_item_fn.sig.ident
+                ),
+            ));
+        }
+
+        let result_fn_arg_vec: Vec<FnArg> = result_item_fn
+            .sig
+            .inputs
+            .iter()
+            .map(|input| match input {
+                FnArg::Typed(PatType {
+                    pat: box Pat::Ident(PatIdent { .. }),
+                    ..
+                }) => input.clone(),
+                _ => unimplemented!(
+                    "result function is not expected to have argument like {:?}",
+                    input
+                ),
+            })
+            .collect();
+
+        let (process, native_fn_arg_vec) = match result_item_fn.sig.inputs.first().unwrap() {
+            FnArg::Typed(PatType { ty, .. }) => match **ty {
+                Type::Reference(TypeReference {
+                    elem:
+                        box Type::Path(TypePath {
+                            path: Path { ref segments, .. },
+                            ..
+                        }),
+                    ..
+                }) => {
+                    let PathSegment { ident, .. } = segments.last().unwrap();
+
+                    match ident.to_string().as_ref() {
+                        "Process" => (Process::Ref, result_fn_arg_vec[1..].to_vec()),
+                        s => unimplemented!(
+                            "Extracting result function process from reference ident like {:?}",
+                            s
+                        ),
+                    }
+                }
+                Type::Path(TypePath {
+                    path: Path { ref segments, .. },
+                    ..
+                }) => {
+                    let PathSegment { ident, arguments } = segments.last().unwrap();
+
+                    match ident.to_string().as_ref() {
+                            "Arc" => match arguments {
+                                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args: punctuated_generic_arguments, .. }) => {
+                                    match punctuated_generic_arguments.len() {
+                                        1 => {
+                                            match punctuated_generic_arguments.first().unwrap() {
+                                                GenericArgument::Type(Type::Path(TypePath { path: Path { segments, .. }, .. })) => {
+                                                    let PathSegment { ident, .. } = segments.last().unwrap();
+
+                                                    match ident.to_string().as_ref() {
+                                                        "Process" => (Process::Arc, result_fn_arg_vec[1..].to_vec()),
+                                                        s => unimplemented!(
+                                                            "Extracting result function process from reference ident like {:?}",
+                                                            s
+                                                        ),
+                                                    }
+                                                }
+                                                generic_argument => unimplemented!("Extracting result function process from argument to Arc like {:?}", generic_argument)
+                                            }
+                                        }
+                                        n => unimplemented!("Extracting result function process from {:?} arguments to Arc like {:?}", n, punctuated_generic_arguments)
+                                    }
+                                }
+                                _ => unimplemented!("Extracting result function process from arguments to Arc like {:?}", arguments),
+                            }
+                            "Term" => (Process::None, result_fn_arg_vec),
+                            s => unimplemented!(
+                                "Extracting result function process from path ident like {:?}",
+                                s
+                            ),
+                        }
+                }
+                _ => unimplemented!("Extracting result function process from type like {:?}", ty),
+            },
+            input => unimplemented!(
+                "Extracting result function process from argument like {:?}",
+                input
+            ),
+        };
+
+        let return_type = match result_item_fn.sig.output {
+            syn::ReturnType::Type(
+                _,
+                box Type::Path(TypePath {
+                                   path: Path { ref segments, .. },
+                                   ..
+                               }),
+            ) => {
+                let PathSegment { ident, .. } = segments.last().unwrap();
+
+                match ident.to_string().as_ref() {
+                    "Result" => ReturnType::Result,
+                    "Term" => ReturnType::Term,
+                    _ => return Err(Error::new(ident.span(), "result function return type is neither Result nor Term"))
+                }
+            }
+            ref output => return Err(Error::new(
+                output.span(),
+                "result functions must return either liblumen_alloc::erts::exception::Result or liblumen_alloc::erts::term::Term"
+            )),
+        };
+
+        Ok(Self {
+            result: Result {
+                process,
+                return_type,
+            },
+            native: Native {
+                fn_arg_vec: native_fn_arg_vec,
+            },
+        })
+    }
+
+    pub fn arity(&self) -> u8 {
+        self.native.arity()
+    }
+
+    fn const_arity(&self) -> proc_macro2::TokenStream {
+        let arity = &self.arity();
+
+        quote! {
+           pub const ARITY: liblumen_alloc::Arity = #arity;
+        }
+    }
+
+    fn const_native(&self) -> proc_macro2::TokenStream {
+        let native_variant = self.native_variant();
+
+        quote! {
+             pub const NATIVE: liblumen_alloc::erts::process::Native = #native_variant;
+        }
+    }
+
     pub fn native_fn(&self) -> proc_macro2::TokenStream {
         let mut result_argument_ident: Vec<Box<dyn ToTokens>> = match self.result.process {
             Process::Arc => vec![Box::new(quote! { arc_process.clone() })],
@@ -471,6 +628,30 @@ impl Signatures {
 
                 #result_call
             }
+        }
+    }
+
+    fn native_variant(&self) -> proc_macro2::TokenStream {
+        match self.arity() {
+            0 => quote! {
+                liblumen_alloc::erts::process::Native::Zero(native)
+            },
+            1 => quote! {
+                liblumen_alloc::erts::process::Native::One(native)
+            },
+            2 => quote! {
+                liblumen_alloc::erts::process::Native::Two(native)
+            },
+            3 => quote! {
+                liblumen_alloc::erts::process::Native::Three(native)
+            },
+            4 => quote! {
+                liblumen_alloc::erts::process::Native::Four(native)
+            },
+            5 => quote! {
+                liblumen_alloc::erts::process::Native::Five(native)
+            },
+            arity => unimplemented!("Don't know how to convert arity ({}) to Native", arity),
         }
     }
 }

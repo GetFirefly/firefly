@@ -12,13 +12,11 @@ use anyhow::*;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 /// `andalso/2` infix operator.
 ///
 /// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
 /// both operands, use `and_2`.
-#[native_implemented_function(andalso/2)]
+#[native_implemented::function(andalso/2)]
 fn result(boolean: Term, term: Term) -> exception::Result<Term> {
     let boolean_bool: bool = boolean.try_into().context("left must be a bool")?;
 

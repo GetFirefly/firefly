@@ -1,59 +1,50 @@
-use std::convert::TryInto;
-use std::sync::Arc;
+//! ```elixir
+//! # label 3
+//! # pushed to stack: (next_pid, output)
+//! # returned from call: sum
+//! # full stack: (sum, next_pid, output)
+//! # returns: sent
+//! sent = send(next_pid, sum)
+//! output.("sent #{sent} to #{next_pid}")
+//! ```
 
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{frames, Process};
+use std::convert::TryInto;
+
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    output: Term,
-    next_pid: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(next_pid).unwrap();
-    process.stack_push(output).unwrap();
-    process.place_frame(frame(process), placement);
+use liblumen_otp::erlang;
 
-    Ok(())
-}
+use super::label_4;
 
-/// ```elixir
-/// # label 3
-/// # pushed stack: (output, next_pid)
-/// # returned from call: sent
-/// # full stack: (sent, output, next_pid)
-/// # returns: :ok
-/// sent = ...
-/// output.("sent #{sent} to #{next_pid}")
-/// ```
-fn code(arc_process: &Arc<Process>) -> frames::Result {
-    arc_process.reduce();
+// Private
 
-    let sent = arc_process.stack_pop().unwrap();
-    assert!(sent.is_integer());
-    let output = arc_process.stack_pop().unwrap();
-    assert!(output.is_boxed_function());
-    let next_pid = arc_process.stack_pop().unwrap();
+#[native_implemented::label]
+fn result(process: &Process, sum: Term, next_pid: Term, output: Term) -> Term {
+    assert!(sum.is_integer());
     assert!(next_pid.is_pid());
+    let _: Boxed<Closure> = output.try_into().unwrap();
 
-    let output_closure: Boxed<Closure> = output.try_into().unwrap();
-    assert_eq!(output_closure.arity(), 1);
+    // ```elixir
+    // # pushed stack: (next_pid, sum)
+    // # returned from call: N/A
+    // # full stack: (next_pid, sum)
+    // # returns: sent
+    // send(next_pid, sum)
+    process.queue_frame_with_arguments(
+        erlang::send_2::frame().with_arguments(false, &[next_pid, sum]),
+    );
 
-    // TODO use `<>` and `to_string` instead of `format!` to properly emulate interpolation
-    let data = arc_process
-        .binary_from_str(&format!("sent {} to {}", sent, next_pid))
-        .unwrap();
-    output_closure
-        .place_frame_with_arguments(arc_process, Placement::Replace, vec![data])
-        .unwrap();
+    // ```elixir
+    // # label 4
+    // # pushed stack: (output, next_pid)
+    // # returned from call: sent
+    // # full stack: (sent, output, next_pid)
+    // # returns: :ok
+    // sent = ...
+    // output.("sent #{sent} to #{next_pid}")
+    // ```
+    process.queue_frame_with_arguments(label_4::frame().with_arguments(true, &[output, next_pid]));
 
-    Process::call_native_or_yield(arc_process)
-}
-
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
+    Term::NONE
 }

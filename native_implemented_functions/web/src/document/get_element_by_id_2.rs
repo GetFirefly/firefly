@@ -9,13 +9,11 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use lumen_rt_full::binary_to_string::binary_to_string;
 
 use crate::{document, option_to_ok_tuple_or_error};
 
-#[native_implemented_function(get_element_by_id/2)]
+#[native_implemented::function(get_element_by_id/2)]
 pub fn result(process: &Process, document: Term, id: Term) -> exception::Result<Term> {
     let document_document = document::from_term(document)?;
     let id_string: String = binary_to_string(id)?;

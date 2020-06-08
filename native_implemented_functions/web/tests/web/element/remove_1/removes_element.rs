@@ -15,7 +15,7 @@ use liblumen_alloc::{Arity, ModuleFunctionArity};
 
 const ARITY: Arity = 1;
 
-fn frame(native: Native) -> Frame {
+fn frame_for_native(native: Native) -> Frame {
     Frame::new(module_function_arity(), native)
 }
 

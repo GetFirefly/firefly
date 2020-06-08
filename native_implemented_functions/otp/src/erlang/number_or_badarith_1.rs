@@ -10,9 +10,7 @@ use anyhow::*;
 use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(+/1)]
+#[native_implemented::function(+/1)]
 pub fn result(number: Term) -> exception::Result<Term> {
     if number.is_number() {
         Ok(number)

@@ -106,11 +106,9 @@ macro_rules! number_to_integer {
         use liblumen_alloc::erts::process::Process;
         use liblumen_alloc::erts::term::prelude::*;
 
-        use native_implemented_function::native_implemented_function;
-
         use crate::erlang::number_to_integer::{f64_to_integer, NumberToInteger};
 
-        #[native_implemented_function($f/1)]
+        #[native_implemented::function($f/1)]
         pub fn result(process: &Process, number: Term) -> exception::Result<Term> {
             match number.into() {
                 NumberToInteger::Integer(integer) => Ok(integer),

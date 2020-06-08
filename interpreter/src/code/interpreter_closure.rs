@@ -9,8 +9,6 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::closure::Definition;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::exec::CallExecutor;
 
 /// Expects the following on stack:
@@ -18,7 +16,7 @@ use crate::exec::CallExecutor;
 /// * argument list
 /// * block id integer
 /// * environment list
-#[native_implemented_function(interpreter_closure/2)]
+#[native_implemented::function(interpreter_closure/2)]
 pub fn result(arc_process: Arc<Process>, argument_list: Term, closure_term: Term) -> Term {
     let closure: Boxed<Closure> = closure_term.try_into().unwrap();
     println!("{:?}", closure);

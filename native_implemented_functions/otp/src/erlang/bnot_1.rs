@@ -12,10 +12,8 @@ use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 /// `bnot/1` prefix operator.
-#[native_implemented_function(bnot/1)]
+#[native_implemented::function(bnot/1)]
 pub fn result(process: &Process, integer: Term) -> exception::Result<Term> {
     match integer.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {

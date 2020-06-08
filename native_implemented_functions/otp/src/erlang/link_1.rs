@@ -12,11 +12,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::runtime::registry::pid_to_process;
 
-#[native_implemented_function(link/1)]
+#[native_implemented::function(link/1)]
 fn result(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
     match pid_or_port.decode()? {
         TypedTerm::Pid(pid) => {

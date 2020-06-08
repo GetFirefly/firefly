@@ -12,11 +12,9 @@ use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::runtime::registry::pid_to_process;
 
-#[native_implemented_function(process_info/2)]
+#[native_implemented::function(process_info/2)]
 pub fn result(process: &Process, pid: Term, item: Term) -> exception::Result<Term> {
     let pid_pid = term_try_into_local_pid!(pid)?;
     let item_atom: Atom = term_try_into_atom!(item)?;

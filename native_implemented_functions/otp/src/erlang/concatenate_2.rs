@@ -11,10 +11,8 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 /// `++/2`
-#[native_implemented_function(++/2)]
+#[native_implemented::function(++/2)]
 pub fn result(process: &Process, list: Term, term: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(term),

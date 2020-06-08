@@ -12,11 +12,9 @@ use anyhow::*;
 use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::runtime::stacktrace;
 
-#[native_implemented_function(raise/3)]
+#[native_implemented::function(raise/3)]
 pub fn result(class: Term, reason: Term, stacktrace: Term) -> exception::Result<Term> {
     let class_class: exception::Class = class.try_into()?;
 

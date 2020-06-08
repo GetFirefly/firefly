@@ -9,28 +9,12 @@
 //! ```
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use super::label_5;
 
-use liblumen_web::runtime::process::current_process;
-
-pub fn frame() -> Frame {
-    super::frame(NATIVE)
-}
-
-// Private
-
-const NATIVE: Native = Native::Four(native);
-
-extern "C" fn native(ok: Term, document: Term, parent: Term, old_child: Term) -> Term {
-    let arc_process = current_process();
-    arc_process.reduce();
-
-    arc_process.return_status(result(&arc_process, ok, document, parent, old_child))
-}
-
+#[native_implemented::label]
 fn result(
     process: &Process,
     ok: Term,

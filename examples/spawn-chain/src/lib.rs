@@ -6,8 +6,7 @@
 mod elixir;
 mod start;
 
-use liblumen_alloc::erts::process::frames::stack::frame::Placement;
-
+use lumen_rt_full as runtime;
 use lumen_rt_full::process::spawn::options::Options;
 
 use liblumen_web::wait;
@@ -26,7 +25,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[wasm_bindgen(start)]
 pub fn start() {
     set_panic_hook();
-    export_code();
+    initialize_dispatch_table();
     liblumen_web::start();
 }
 

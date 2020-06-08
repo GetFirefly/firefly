@@ -14,9 +14,7 @@ use lumen_rt_full::binary_to_string::binary_to_string;
 
 use crate::{document, ok_tuple};
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(create_element/2)]
+#[native_implemented::function(create_element/2)]
 pub fn result(process: &Process, document: Term, tag: Term) -> exception::Result<Term> {
     let document_document = document::from_term(document)?;
     let tag_string: String = binary_to_string(tag)?;

@@ -7,8 +7,6 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 pub fn closure(process: &Process) -> exception::Result<Term> {
     let function = Atom::try_from_str("return_throw").unwrap();
     const ARITY: u8 = 3;
@@ -23,7 +21,7 @@ pub fn closure(process: &Process) -> exception::Result<Term> {
         .map_err(|error| error.into())
 }
 
-#[native_implemented_function(return_throw/1)]
+#[native_implemented::function(return_throw/1)]
 pub fn result(argument_list: Term) -> exception::Result<Term> {
     let mut argument_vec: Vec<Term> = Vec::new();
     match argument_list.decode().unwrap() {

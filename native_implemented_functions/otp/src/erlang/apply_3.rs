@@ -121,7 +121,7 @@ pub extern "C" fn native(module: Term, function: Term, argument_list: Term) -> T
     }
 }
 
-fn frame() -> Frame {
+pub fn frame() -> Frame {
     Frame::new(module_function_arity(), Native::Three(get_native()))
 }
 

@@ -10,26 +10,10 @@
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use liblumen_web::runtime::process::current_process;
-
-pub fn frame() -> Frame {
-    super::frame(NATIVE)
-}
-
-// Private
-
-const NATIVE: Native = Native::One(native);
-
-extern "C" fn native(ok_body: Term) -> Term {
-    let arc_process = current_process();
-    arc_process.reduce();
-
-    result(&arc_process, ok_body)
-}
-
+#[native_implemented::label]
 fn result(process: &Process, ok_body: Term) -> Term {
     assert!(
         ok_body.is_boxed_tuple(),

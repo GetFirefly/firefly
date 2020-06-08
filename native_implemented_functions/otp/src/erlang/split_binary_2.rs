@@ -14,9 +14,7 @@ use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(split_binary/2)]
+#[native_implemented::function(split_binary/2)]
 pub fn result(process: &Process, binary: Term, position: Term) -> exception::Result<Term> {
     let index: usize = position
         .try_into()

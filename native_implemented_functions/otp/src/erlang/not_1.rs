@@ -8,12 +8,10 @@ mod test;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::runtime::context::*;
 
 /// `not/1` prefix operator.
-#[native_implemented_function(not/1)]
+#[native_implemented::function(not/1)]
 pub fn result(boolean: Term) -> exception::Result<Term> {
     let boolean_bool: bool = term_try_into_bool("boolean", boolean)?;
     let output = !boolean_bool;

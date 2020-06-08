@@ -11,11 +11,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang;
 
-#[native_implemented_function(binary_part/2)]
+#[native_implemented::function(binary_part/2)]
 pub fn result(process: &Process, binary: Term, start_length: Term) -> exception::Result<Term> {
     let start_length_tuple = term_try_into_tuple!(start_length)?;
 

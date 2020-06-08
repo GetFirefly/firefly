@@ -14,15 +14,13 @@ use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
-use lumen_rt_full::process::spawn::options::Options;
+use crate::runtime::process::spawn::options::Options;
 
 use liblumen_otp::erlang;
 
 use crate::window::add_event_listener;
 
-#[native_implemented_function(add_event_listener/4)]
+#[native_implemented::function(add_event_listener/4)]
 fn result(window: Term, event: Term, module: Term, function: Term) -> exception::Result<Term> {
     let boxed: Boxed<Resource> = window
         .try_into()

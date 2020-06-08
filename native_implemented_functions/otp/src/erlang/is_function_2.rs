@@ -8,11 +8,9 @@ mod test;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::runtime::context::*;
 
-#[native_implemented_function(is_function/2)]
+#[native_implemented::function(is_function/2)]
 fn result(term: Term, arity: Term) -> exception::Result<Term> {
     let arity_arity = term_try_into_arity(arity)?;
 

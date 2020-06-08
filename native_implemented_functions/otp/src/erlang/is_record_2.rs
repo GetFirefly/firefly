@@ -8,11 +8,9 @@ mod test;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang::is_record;
 
-#[native_implemented_function(is_record/2)]
+#[native_implemented::function(is_record/2)]
 pub fn result(term: Term, record_tag: Term) -> exception::Result<Term> {
     is_record(term, record_tag, None)
 }

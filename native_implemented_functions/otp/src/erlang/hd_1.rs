@@ -8,9 +8,7 @@ mod test;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(hd/1)]
+#[native_implemented::function(hd/1)]
 pub fn result(list: Term) -> exception::Result<Term> {
     let cons: Boxed<Cons> = term_try_into_non_empty_list!(list)?;
 

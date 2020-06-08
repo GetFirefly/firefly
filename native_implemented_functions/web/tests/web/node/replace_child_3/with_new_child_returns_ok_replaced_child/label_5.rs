@@ -10,26 +10,10 @@
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use liblumen_web::runtime::process::current_process;
-
-pub fn frame() -> Frame {
-    super::frame(NATIVE)
-}
-
-// Private
-
-const NATIVE: Native = Native::Three(native);
-
-extern "C" fn native(ok_new_child: Term, parent: Term, old_child: Term) -> Term {
-    let arc_process = current_process();
-    arc_process.reduce();
-
-    arc_process.return_status(result(&arc_process, ok_new_child, parent, old_child))
-}
-
+#[native_implemented::label]
 fn result(
     process: &Process,
     ok_new_child: Term,

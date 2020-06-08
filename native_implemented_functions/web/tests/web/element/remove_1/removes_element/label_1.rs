@@ -16,28 +16,12 @@ use std::convert::TryInto;
 
 use web_sys::Window;
 
-use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-
-use liblumen_web::runtime::process::current_process;
 
 use super::label_2;
 
-pub fn frame() -> Frame {
-    super::frame(NATIVE)
-}
-
-// Private
-
-const NATIVE: Native = Native::One(native);
-
-extern "C" fn native(ok_window: Term) -> Term {
-    let arc_process = current_process();
-    arc_process.reduce();
-
-    result(&arc_process, ok_window)
-}
-
+#[native_implemented::label]
 fn result(process: &Process, ok_window: Term) -> Term {
     assert!(
         ok_window.is_boxed_tuple(),

@@ -13,9 +13,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(float/1)]
+#[native_implemented::function(float/1)]
 pub fn result(process: &Process, number: Term) -> exception::Result<Term> {
     if number.is_boxed_float() {
         Ok(number)

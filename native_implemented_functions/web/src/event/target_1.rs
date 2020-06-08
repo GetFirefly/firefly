@@ -9,11 +9,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::event;
 
-#[native_implemented_function(target/1)]
+#[native_implemented::function(target/1)]
 fn result(process: &Process, event_term: Term) -> exception::Result<Term> {
     let event = event::from_term(event_term)?;
 

@@ -14,11 +14,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::option_to_ok_tuple_or_error;
 
-#[native_implemented_function(document/1)]
+#[native_implemented::function(document/1)]
 pub fn result(process: &Process, window: Term) -> exception::Result<Term> {
     let boxed: Boxed<Resource> = window
         .try_into()

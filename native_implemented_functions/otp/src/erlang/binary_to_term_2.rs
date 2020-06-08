@@ -14,8 +14,6 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::binary::to_term::Options;
 use crate::runtime::distribution::external_term_format::{term, version};
 
@@ -41,7 +39,7 @@ macro_rules! maybe_aligned_maybe_binary_try_into_term {
     };
 }
 
-#[native_implemented_function(binary_to_term/2)]
+#[native_implemented::function(binary_to_term/2)]
 pub fn result(process: &Process, binary: Term, options: Term) -> exception::Result<Term> {
     let options: Options = options.try_into()?;
 

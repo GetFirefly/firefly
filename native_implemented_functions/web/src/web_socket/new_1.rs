@@ -11,13 +11,11 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use lumen_rt_full::binary_to_string::binary_to_string;
 
 use crate::{error_tuple, ok_tuple};
 
-#[native_implemented_function(new/1)]
+#[native_implemented::function(new/1)]
 pub fn result(process: &Process, url: Term) -> exception::Result<Term> {
     let url_string = binary_to_string(url)?;
 

@@ -14,8 +14,6 @@ use liblumen_alloc::erts::exception::{self, AllocResult};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang::node_0;
 use crate::runtime::context::*;
 use crate::runtime::scheduler::SchedulerDependentAlloc;
@@ -23,7 +21,7 @@ use crate::runtime::{process, registry};
 
 const TYPE_CONTEXT: &str = "supported types are :port, :process, or :time_offset";
 
-#[native_implemented_function(monitor/2)]
+#[native_implemented::function(monitor/2)]
 pub fn result(process: &Process, r#type: Term, item: Term) -> exception::Result<Term> {
     let type_atom: Atom = r#type.try_into().context(TYPE_CONTEXT)?;
 

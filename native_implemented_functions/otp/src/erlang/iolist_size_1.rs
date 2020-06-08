@@ -13,12 +13,10 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang::iolist_or_binary::{self, *};
 
 /// Returns the size, in bytes, of the binary that would be result from iolist_to_binary/1
-#[native_implemented_function(iolist_size/1)]
+#[native_implemented::function(iolist_size/1)]
 pub fn result(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
     iolist_or_binary::result(process, iolist_or_binary, iolist_or_binary_size)
 }

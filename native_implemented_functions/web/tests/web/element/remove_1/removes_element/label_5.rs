@@ -8,26 +8,10 @@
 //! Lumen.Web.Wait.with_return(remove_ok)
 //! ```
 
-use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use liblumen_web::runtime::process::current_process;
-
-pub fn frame() -> Frame {
-    super::frame(NATIVE)
-}
-
-// Private
-
-const NATIVE: Native = Native::Two(native);
-
-extern "C" fn native(ok: Term, child: Term) -> Term {
-    let arc_process = current_process();
-    arc_process.reduce();
-
-    result(&arc_process, ok, child)
-}
-
+#[native_implemented::label]
 fn result(process: &Process, ok: Term, child: Term) -> Term {
     assert_eq!(ok, Atom::str_to_term("ok"));
     assert!(child.is_boxed_resource_reference());

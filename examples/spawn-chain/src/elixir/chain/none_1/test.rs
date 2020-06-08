@@ -9,7 +9,7 @@ use lumen_rt_full::process::spawn::options::Options;
 use lumen_rt_full::process::spawn::Spawned;
 use lumen_rt_full::scheduler;
 
-use crate::start::export_code;
+use crate::start::initialize_dispatch_table;
 
 #[test]
 fn with_1() {
@@ -133,7 +133,7 @@ fn run_through(n: usize) {
 static START: Once = Once::new();
 
 fn start() {
-    export_code();
+    initialize_dispatch_table();
 }
 
 fn start_once() {

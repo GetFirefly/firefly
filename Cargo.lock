@@ -1365,7 +1365,7 @@ dependencies = [
  "liblumen_core",
  "lumen_rt_full",
  "lumen_rt_minimal",
- "native_implemented_function",
+ "native_implemented",
  "num-bigint 0.2.3",
  "num-traits",
  "proptest",
@@ -1445,7 +1445,7 @@ dependencies = [
  "liblumen_core",
  "liblumen_otp",
  "lumen_rt_full",
- "native_implemented_function",
+ "native_implemented",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -1516,7 +1516,7 @@ dependencies = [
  "liblumen_core",
  "liblumen_otp",
  "lumen_rt_full",
- "native_implemented_function",
+ "native_implemented",
 ]
 
 [[package]]
@@ -1653,7 +1653,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "native_implemented_function"
+name = "native_implemented"
 version = "0.1.0"
 dependencies = [
  "proc-macro-crate",
@@ -2579,10 +2579,12 @@ dependencies = [
  "futures 0.1.29",
  "js-sys",
  "liblumen_alloc",
+ "liblumen_core",
  "liblumen_otp",
  "liblumen_web",
  "lumen_rt_core",
  "lumen_rt_full",
+ "native_implemented",
  "num-bigint 0.2.3",
  "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "time-test",

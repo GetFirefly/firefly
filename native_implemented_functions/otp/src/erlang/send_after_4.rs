@@ -12,13 +12,11 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang::start_timer;
 use crate::runtime::timer::Timeout;
 use crate::timer;
 
-#[native_implemented_function(send_after/4)]
+#[native_implemented::function(send_after/4)]
 pub fn result(
     arc_process: Arc<Process>,
     time: Term,

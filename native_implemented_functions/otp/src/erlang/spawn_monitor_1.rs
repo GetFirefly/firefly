@@ -9,12 +9,10 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang::spawn_apply_1;
 use crate::runtime::process::spawn::options::Options;
 
-#[native_implemented_function(spawn_monitor/1)]
+#[native_implemented::function(spawn_monitor/1)]
 pub fn result(process: &Process, function: Term) -> exception::Result<Term> {
     spawn_apply_1::result(
         process,

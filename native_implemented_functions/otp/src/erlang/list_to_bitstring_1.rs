@@ -13,9 +13,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(list_to_bitstring/1)]
+#[native_implemented::function(list_to_bitstring/1)]
 pub fn result(process: &Process, bitstring_list: Term) -> exception::Result<Term> {
     match bitstring_list.decode()? {
         TypedTerm::Nil | TypedTerm::List(_) => {

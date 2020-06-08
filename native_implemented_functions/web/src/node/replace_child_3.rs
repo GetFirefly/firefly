@@ -21,12 +21,10 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::node::node_from_term;
 use crate::ok_tuple;
 
-#[native_implemented_function(replace_child/3)]
+#[native_implemented::function(replace_child/3)]
 fn result(
     process: &Process,
     parent: Term,

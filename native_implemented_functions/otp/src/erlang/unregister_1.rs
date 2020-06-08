@@ -10,11 +10,9 @@ use anyhow::*;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::runtime::registry;
 
-#[native_implemented_function(unregister/1)]
+#[native_implemented::function(unregister/1)]
 pub fn result(name: Term) -> exception::Result<Term> {
     let atom = term_try_into_atom!(name)?;
 

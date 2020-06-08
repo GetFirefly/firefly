@@ -9,11 +9,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang::integer_to_string::decimal_integer_to_string;
 
-#[native_implemented_function(integer_to_binary/1)]
+#[native_implemented::function(integer_to_binary/1)]
 pub fn result(process: &Process, integer: Term) -> exception::Result<Term> {
     let string = decimal_integer_to_string(integer)?;
     let binary = process.binary_from_str(&string)?;

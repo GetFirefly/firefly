@@ -10,9 +10,8 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry::pid_to_process;
-use native_implemented_function::native_implemented_function;
 
-#[native_implemented_function(is_process_alive/1)]
+#[native_implemented::function(is_process_alive/1)]
 pub fn result(process: &Process, pid: Term) -> exception::Result<Term> {
     if pid == process.pid_term() {
         Ok((!process.is_exiting()).into())

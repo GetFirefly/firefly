@@ -17,26 +17,18 @@ mod label_2;
 mod label_3;
 mod label_4;
 
-use std::sync::Arc;
-
-use liblumen_alloc::erts::process::frames::stack::frame::Placement;
-use liblumen_alloc::erts::process::{frames, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::Arity;
-
-pub fn export() {
-    lumen_rt_full::code::export::insert(super::module(), function(), ARITY, code);
-}
 
 // Private
 
-const ARITY: Arity = 1;
-
-fn code(arc_process: &Arc<Process>) -> frames::Result {
-    arc_process.reduce();
-
-    let event = arc_process.stack_pop().unwrap();
+#[native_implemented::function(on_submit/1)]
+fn result(process: &Process, event: Term) -> Term {
     assert!(event.is_boxed_resource_reference());
+
+    process.queue_frame_with_arguments(
+        liblumen_web::event::target_1::frame().with_arguments(false, &[event]),
+    );
 
     // ```elixir
     // # label: 1
@@ -49,14 +41,7 @@ fn code(arc_process: &Arc<Process>) -> frames::Result {
     // n = :erlang.binary_to_integer(value_string)
     // dom(n)
     // ```
-    label_1::place_frame(arc_process, Placement::Replace);
+    process.queue_frame_with_arguments(label_1::frame().with_arguments(true, &[]));
 
-    liblumen_web::event::target_1::place_frame_with_arguments(arc_process, Placement::Push, event)
-        .unwrap();
-
-    Process::call_native_or_yield(arc_process)
-}
-
-fn function() -> Atom {
-    Atom::try_from_str("on_submit").unwrap()
+    Term::NONE
 }

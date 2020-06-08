@@ -1,51 +1,30 @@
-use std::convert::TryInto;
-use std::sync::Arc;
+//! ```elixir
+//! # label 1
+//! # pushed to stack: (output, n)
+//! # returned from call: {time, value}
+//! # full stack: ({time, value}, output, n)
+//! # returns: :ok
+//! output.("Chain.run(#{n}) in #{time} microseconds")
+//! value
 
-use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::frames;
-use liblumen_alloc::erts::process::frames::stack::frame::{Frame, Placement};
+use std::convert::TryInto;
+
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::elixir::chain::run_2::label_2;
-
-/// ```elixir
-/// # label 1
-/// # pushed to stack: (output, n)
-/// # returned from call: {time, value}
-/// # full stack: ({time, value}, output, n)
-/// # returns: :ok
-/// output.("Chain.run(#{n}) in #{time} microseconds")
-/// value
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    output: Term,
-    n: Term,
-) -> Result<(), Alloc> {
-    assert!(output.is_boxed_function());
-    assert!(n.is_integer());
-    process.stack_push(n)?;
-    process.stack_push(output)?;
-    process.place_frame(frame(process), placement);
-
-    Ok(())
-}
+use super::label_2;
 
 // Private
 
-fn code(arc_process: &Arc<Process>) -> frames::Result {
-    arc_process.reduce();
-
-    let time_value = arc_process.stack_pop().unwrap();
+#[native_implemented::label]
+fn result(process: &Process, time_value: Term, output: Term, n: Term) -> exception::Result<Term> {
     assert!(
         time_value.is_boxed_tuple(),
         "time_value ({:?}) isn't a tuple",
         time_value
     );
-    let output = arc_process.stack_pop().unwrap();
     assert!(output.is_boxed_function());
-    let n = arc_process.stack_pop().unwrap();
     assert!(n.is_integer());
 
     let time_value_tuple: Boxed<Tuple> = time_value.try_into().unwrap();
@@ -58,21 +37,13 @@ fn code(arc_process: &Arc<Process>) -> frames::Result {
     let output_closure: Boxed<Closure> = output.try_into().unwrap();
     assert_eq!(output_closure.arity(), 1);
 
-    label_2::place_frame_with_arguments(arc_process, Placement::Replace, time_value).unwrap();
-
     // TODO use `<>` and `to_string` to emulate interpolation more exactly
-    let output_data = arc_process
-        .binary_from_str(&format!("Chain.run({}) in {} microsecond(s)", n, time))
-        .unwrap();
-    output_closure
-        .place_frame_with_arguments(arc_process, Placement::Push, vec![output_data])
-        .unwrap();
+    let output_data =
+        process.binary_from_str(&format!("Chain.run({}) in {} microsecond(s)", n, time))?;
+    process
+        .queue_frame_with_arguments(output_closure.frame_with_arguments(false, vec![output_data]));
 
-    Process::call_native_or_yield(arc_process)
-}
+    process.queue_frame_with_arguments(label_2::frame().with_arguments(true, &[time_value]));
 
-fn frame(process: &Process) -> Frame {
-    let module_function_arity = process.current_module_function_arity().unwrap();
-
-    Frame::new(module_function_arity, code)
+    Ok(Term::NONE)
 }

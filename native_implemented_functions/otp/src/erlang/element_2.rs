@@ -10,12 +10,10 @@ use anyhow::*;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::runtime::context::*;
 
 /// `element/2`
-#[native_implemented_function(element/2)]
+#[native_implemented::function(element/2)]
 pub fn result(index: Term, tuple: Term) -> exception::Result<Term> {
     let tuple_tuple = term_try_into_tuple!(tuple)?;
     let one_based_index = term_try_into_one_based_index(index)?;

@@ -13,28 +13,12 @@
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-
-use liblumen_web::runtime::process::current_process;
 
 use super::label_4;
 
-pub fn frame() -> Frame {
-    super::frame(NATIVE)
-}
-
-// Private
-
-const NATIVE: Native = Native::Two(native);
-
-extern "C" fn native(ok_body: Term, document: Term) -> Term {
-    let arc_process = current_process();
-    arc_process.reduce();
-
-    arc_process.return_status(result(&arc_process, ok_body, document))
-}
-
+#[native_implemented::label]
 fn result(process: &Process, ok_body: Term, document: Term) -> exception::Result<Term> {
     assert!(
         ok_body.is_boxed_tuple(),

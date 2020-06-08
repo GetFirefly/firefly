@@ -9,28 +9,12 @@
 //! ```
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{Frame, Native, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-
-use liblumen_web::runtime::process::current_process;
 
 use super::label_6;
 
-pub fn frame() -> Frame {
-    super::frame(NATIVE)
-}
-
-// Private
-
-const NATIVE: Native = Native::Three(native);
-
-extern "C" fn native(ok: Term, document: Term, parent: Term) -> Term {
-    let arc_process = current_process();
-    arc_process.reduce();
-
-    arc_process.return_status(result(&arc_process, ok, document, parent))
-}
-
+#[native_implemented::label]
 fn result(process: &Process, ok: Term, document: Term, parent: Term) -> exception::Result<Term> {
     assert_eq!(ok, Atom::str_to_term("ok"));
     assert!(document.is_boxed_resource_reference());

@@ -1,34 +1,32 @@
+//! ```elixir
+//! defp console_output(text) do
+//!   IO.puts("#{self()} #{text}")
+//! end
+//! ```
+
 mod label_1;
 
-use std::sync::Arc;
+use std::ffi::c_void;
 
 use liblumen_alloc::erts::exception::Alloc;
-use liblumen_alloc::erts::process::frames::stack::frame::Placement;
-use liblumen_alloc::erts::process::{frames, Process};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_otp::erlang;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
-    process.export_closure(function(), super::module(), ARITY, Some(code))
+    process.export_closure(
+        function(),
+        super::module(),
+        ARITY,
+        Some(native as *const c_void),
+    )
 }
 
-const ARITY: u8 = 1;
+#[native_implemented::function(console_output/1)]
+fn result(process: &Process, text: Term) -> Term {
+    process.queue_frame_with_arguments(erlang::self_0::frame().with_arguments(false, &[]));
+    process.queue_frame_with_arguments(label_1::frame().with_arguments(true, &[text]));
 
-/// defp console_output(text) do
-///   IO.puts("#{self()} #{text}")
-/// end
-fn code(arc_process: &Arc<Process>) -> frames::Result {
-    arc_process.reduce();
-
-    let text = arc_process.stack_pop().unwrap();
-
-    label_1::place_frame_with_arguments(arc_process, Placement::Replace, text).unwrap();
-    erlang::self_0::place_frame_with_arguments(arc_process, Placement::Push).unwrap();
-
-    Process::call_native_or_yield(arc_process)
-}
-
-fn function() -> Atom {
-    Atom::try_from_str("console_output").unwrap()
+    Term::NONE
 }

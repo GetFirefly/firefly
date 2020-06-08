@@ -7,10 +7,8 @@ mod test;
 
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 /// `>=/2` infix operator.  Floats and integers are converted.
-#[native_implemented_function(>=/2)]
+#[native_implemented::function(>=/2)]
 pub fn result(left: Term, right: Term) -> Term {
     left.ge(&right).into()
 }

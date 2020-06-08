@@ -9,11 +9,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::lists::reverse_2;
 
-#[native_implemented_function(reverse/1)]
+#[native_implemented::function(reverse/1)]
 fn result(process: &Process, list: Term) -> exception::Result<Term> {
     reverse_2::result(process, list, Term::NIL)
 }

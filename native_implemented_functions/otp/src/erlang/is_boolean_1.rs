@@ -7,9 +7,7 @@ mod test;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(is_boolean/1)]
+#[native_implemented::function(is_boolean/1)]
 pub fn result(term: Term) -> Term {
     term.is_boolean().into()
 }

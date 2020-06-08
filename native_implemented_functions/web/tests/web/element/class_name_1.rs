@@ -81,7 +81,7 @@ fn without_class_returns_empty_list() -> impl Future<Item = (), Error = JsValue>
 
 const ARITY: Arity = 0;
 
-fn frame(native: Native) -> Frame {
+fn frame_for_native(native: Native) -> Frame {
     Frame::new(module_function_arity(), native)
 }
 

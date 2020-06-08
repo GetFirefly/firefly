@@ -9,3 +9,7 @@ pub mod start;
 fn module() -> Atom {
     Atom::try_from_str("timer").unwrap()
 }
+
+fn module_id() -> usize {
+    module().id()
+}

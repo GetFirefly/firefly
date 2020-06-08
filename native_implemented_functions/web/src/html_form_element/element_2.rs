@@ -14,8 +14,6 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use lumen_rt_full::binary_to_string::binary_to_string;
 
 use crate::html_form_element;

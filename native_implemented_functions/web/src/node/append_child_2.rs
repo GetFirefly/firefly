@@ -28,17 +28,14 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::error_tuple;
 use crate::node::node_from_term;
 
-#[native_implemented_function(append_child/2)]
+#[native_implemented::function(append_child/2)]
 pub fn result(process: &Process, parent: Term, child: Term) -> exception::Result<Term> {
     let parent_node = node_from_term(parent).with_context(|| format!("parent"))?;
     let child_node = node_from_term(child).with_context(|| format!("child"))?;
 
-    // not sure how this could fail from `web-sys` or MDN docs.
     match parent_node.append_child(child_node) {
         Ok(_) => Ok(atom!("ok")),
         // JsValue(HierarchyRequestError: Failed to execute 'appendChild' on 'Node': The new child

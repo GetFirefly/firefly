@@ -11,12 +11,10 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::erlang::read_timer;
 use crate::timer;
 
-#[native_implemented_function(read_timer/2)]
+#[native_implemented::function(read_timer/2)]
 pub fn result(process: &Process, timer_reference: Term, options: Term) -> exception::Result<Term> {
     let read_timer_options: timer::read::Options = options.try_into()?;
 

@@ -16,9 +16,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::runtime::time;
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(convert_time_unit/3)]
+#[native_implemented::function(convert_time_unit/3)]
 pub fn result(
     process: &Process,
     time: Term,

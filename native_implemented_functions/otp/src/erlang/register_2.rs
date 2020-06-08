@@ -13,11 +13,9 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use native_implemented_function::native_implemented_function;
-
 use crate::runtime::registry;
 
-#[native_implemented_function(register/2)]
+#[native_implemented::function(register/2)]
 pub fn result(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> exception::Result<Term> {
     let atom = term_try_into_atom!(name)?;
 

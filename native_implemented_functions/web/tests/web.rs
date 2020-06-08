@@ -28,6 +28,7 @@ use wasm_bindgen_test::*;
 
 use liblumen_alloc::erts::term::prelude::*;
 
+use liblumen_web::runtime;
 use liblumen_web::runtime::process::spawn::options::Options;
 use liblumen_web::wait;
 

@@ -10,9 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::time::{system, Unit::Microsecond};
 
-use native_implemented_function::native_implemented_function;
-
-#[native_implemented_function(timestamp/0)]
+#[native_implemented::function(timestamp/0)]
 pub fn result(process: &Process) -> exception::Result<Term> {
     let big_int = system::time(Microsecond);
     let erlang_timestamp = ErlangTimestamp::from_microseconds(&big_int);

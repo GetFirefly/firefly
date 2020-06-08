@@ -3,7 +3,7 @@ pub mod label_1;
 
 use super::*;
 
-fn frame(native: Native) -> Frame {
+fn frame_for_native(native: Native) -> Frame {
     Frame::new(module_function_arity(), native)
 }
 

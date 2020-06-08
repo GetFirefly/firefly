@@ -7,8 +7,8 @@ pub mod label_3;
 
 use super::*;
 
-use liblumen_alloc::erts::term::prelude::Atom;
 use liblumen_alloc::erts::process::{Frame, Native};
+use liblumen_alloc::erts::term::prelude::Atom;
 use liblumen_alloc::erts::{Arity, ModuleFunctionArity};
 
 use liblumen_web::window;

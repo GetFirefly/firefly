@@ -47,13 +47,13 @@ fn result(process: &Process, ok_document: Term) -> exception::Result<Term> {
     let document = ok_document_tuple[1];
     assert!(document.is_boxed_resource_reference());
 
-    process.queue_frame_with_arguments(label_2::frame().with_arguments(true, &[document]));
-
     let old_child_tag = process.binary_from_str("table")?;
     process.queue_frame_with_arguments(
         liblumen_web::document::create_element_2::frame()
             .with_arguments(false, &[document, old_child_tag]),
     );
+
+    process.queue_frame_with_arguments(label_2::frame().with_arguments(true, &[document]));
 
     Ok(Term::NONE)
 }

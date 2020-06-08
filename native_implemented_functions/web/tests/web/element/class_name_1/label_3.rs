@@ -42,7 +42,9 @@ fn result(process: &Process, ok_body: Term) -> Term {
     let body = ok_body_tuple[1];
     assert!(body.is_boxed_resource_reference());
 
-    process.queue_frame_with_arguments( liblumen_web::element::class_name_1::frame().with_arguments(false, &[body]));
+    process.queue_frame_with_arguments(
+        liblumen_web::element::class_name_1::frame().with_arguments(false, &[body]),
+    );
 
     Term::NONE
 }

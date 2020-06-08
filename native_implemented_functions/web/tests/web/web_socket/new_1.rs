@@ -70,7 +70,9 @@ fn without_valid_url_returns_error_tuple() -> impl Future<Item = (), Error = JsV
         // ```
         let url = child_process.binary_from_str("invalid_url")?;
 
-        Ok(vec![web_socket::new_1::frame().with_arguments(false, &[url])])
+        Ok(vec![
+            web_socket::new_1::frame().with_arguments(false, &[url])
+        ])
     })
     .unwrap();
 

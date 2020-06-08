@@ -36,13 +36,13 @@ fn result(process: &Process, ok: Term, document: Term, parent: Term) -> exceptio
     assert!(document.is_boxed_resource_reference());
     assert!(parent.is_boxed_resource_reference());
 
-    process.queue_frame_with_arguments(label_6::frame().with_arguments(true, &[parent]));
-
     let new_child_tag = process.binary_from_str("ul")?;
     process.queue_frame_with_arguments(
         liblumen_web::document::create_element_2::frame()
             .with_arguments(false, &[document, new_child_tag]),
     );
+
+    process.queue_frame_with_arguments(label_6::frame().with_arguments(true, &[parent]));
 
     Ok(Term::NONE)
 }

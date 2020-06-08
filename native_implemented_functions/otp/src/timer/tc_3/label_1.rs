@@ -42,9 +42,10 @@ extern "C" fn native(before: Term, module: Term, function: Term, arguments: Term
     assert!(function.is_atom());
     assert!(arguments.is_list());
 
-    arc_process.queue_frame_with_arguments(label_2::frame_with_arguments(before));
-    arc_process
-        .queue_frame_with_arguments(apply_3::frame_with_arguments(module, function, arguments));
+    arc_process.queue_frame_with_arguments(
+        apply_3::frame().with_arguments(false, &[module, function, arguments]),
+    );
+    arc_process.queue_frame_with_arguments(label_2::frame().with_arguments(true, &[before]));
 
     Term::NONE
 }

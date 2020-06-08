@@ -45,10 +45,10 @@ fn result(process: &Process, ok_window: Term) -> Term {
     let window = ok_window_tuple[1];
     assert!(window.is_boxed_resource_reference());
 
-    process.queue_frame_with_arguments(label_2::frame().with_arguments(true, &[]));
     process.queue_frame_with_arguments(
         liblumen_web::window::document_1::frame().with_arguments(false, &[window]),
     );
+    process.queue_frame_with_arguments(label_2::frame().with_arguments(true, &[]));
 
     Term::NONE
 }

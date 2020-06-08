@@ -50,14 +50,14 @@ fn result(process: &Process, ok_reference_child: Term, document: Term) -> except
 
     assert!(document.is_boxed_resource_reference());
 
-    process.queue_frame_with_arguments(
-        label_3::frame().with_arguments(true, &[document, reference_child]),
-    );
-
     let parent_tag = process.binary_from_str("div")?;
     process.queue_frame_with_arguments(
         liblumen_web::document::create_element_2::frame()
             .with_arguments(false, &[document, parent_tag]),
+    );
+
+    process.queue_frame_with_arguments(
+        label_3::frame().with_arguments(true, &[document, reference_child]),
     );
 
     Ok(Term::NONE)

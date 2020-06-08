@@ -28,7 +28,6 @@ extern "C" fn native(duration: Term, value: Term) -> Term {
 
     assert!(duration.is_integer());
 
-    arc_process.queue_frame_with_arguments(label_5::frame_with_arguments(value));
     arc_process.queue_frame_with_arguments(convert_time_unit_3::frame().with_arguments(
         false,
         &[
@@ -37,6 +36,7 @@ extern "C" fn native(duration: Term, value: Term) -> Term {
             Atom::str_to_term("microsecond"),
         ],
     ));
+    arc_process.queue_frame_with_arguments(label_5::frame().with_arguments(true, &[value]));
 
     Term::NONE
 }

@@ -32,8 +32,8 @@ extern "C" fn native(value: Term, before: Term) -> Term {
 
     assert!(before.is_integer());
 
-    arc_process.queue_frame_with_arguments(label_3::frame_with_arguments(before, value));
     arc_process.queue_frame_with_arguments(monotonic_time_0::frame().with_arguments(false, &[]));
+    arc_process.queue_frame_with_arguments(label_3::frame().with_arguments(true, &[before, value]));
 
     Term::NONE
 }

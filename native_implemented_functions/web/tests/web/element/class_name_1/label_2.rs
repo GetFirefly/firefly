@@ -49,10 +49,10 @@ fn result(process: &Process, ok_document: Term) -> Term {
     let document_reference: Resource = document_ref_boxed.into();
     let _: &Document = document_reference.downcast_ref().unwrap();
 
-    process.queue_frame_with_arguments(label_3::frame().with_arguments(true, &[]));
     process.queue_frame_with_arguments(
         liblumen_web::document::body_1::frame().with_arguments(false, &[document]),
     );
+    process.queue_frame_with_arguments(label_3::frame().with_arguments(true, &[]));
 
     Term::NONE
 }

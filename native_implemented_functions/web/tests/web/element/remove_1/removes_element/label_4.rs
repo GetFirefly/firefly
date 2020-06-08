@@ -51,11 +51,10 @@ fn result(process: &Process, ok_child: Term, body: Term) -> Term {
 
     assert!(body.is_boxed_resource_reference());
 
-    process.queue_frame_with_arguments(label_5::frame().with_arguments(true, &[child]));
-
     process.queue_frame_with_arguments(
         liblumen_web::node::append_child_2::frame().with_arguments(false, &[body, child]),
     );
+    process.queue_frame_with_arguments(label_5::frame().with_arguments(true, &[child]));
 
     Term::NONE
 }

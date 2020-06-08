@@ -43,14 +43,14 @@ fn result(
     assert!(parent.is_boxed_resource_reference());
     assert!(reference_child.is_boxed_resource_reference());
 
-    process.queue_frame_with_arguments(
-        label_6::frame().with_arguments(true, &[parent, reference_child]),
-    );
-
     let new_child_tag = process.binary_from_str("ul")?;
     process.queue_frame_with_arguments(
         liblumen_web::document::create_element_2::frame()
             .with_arguments(false, &[document, new_child_tag]),
+    );
+
+    process.queue_frame_with_arguments(
+        label_6::frame().with_arguments(true, &[parent, reference_child]),
     );
 
     Ok(Term::NONE)

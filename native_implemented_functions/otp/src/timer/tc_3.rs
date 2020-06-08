@@ -33,9 +33,9 @@ extern "C" fn native(module: Term, function: Term, arguments: Term) -> Term {
     let arc_process = current_process();
     arc_process.reduce();
 
+    arc_process.queue_frame_with_arguments(monotonic_time_0::frame().with_arguments(false, &[]));
     arc_process
         .queue_frame_with_arguments(label_1::frame_with_arguments(module, function, arguments));
-    arc_process.queue_frame_with_arguments(monotonic_time_0::frame().with_arguments(false, &[]));
 
     Term::NONE
 }

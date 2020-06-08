@@ -44,12 +44,11 @@ fn result(
     assert!(reference_child.is_boxed_resource_reference());
 
     process.queue_frame_with_arguments(
-        label_5::frame().with_arguments(true, &[document, parent, reference_child]),
-    );
-
-    process.queue_frame_with_arguments(
         liblumen_web::node::append_child_2::frame()
             .with_arguments(false, &[parent, reference_child]),
+    );
+    process.queue_frame_with_arguments(
+        label_5::frame().with_arguments(true, &[document, parent, reference_child]),
     );
 
     Term::NONE

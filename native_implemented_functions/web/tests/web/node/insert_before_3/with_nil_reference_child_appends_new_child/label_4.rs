@@ -44,11 +44,11 @@ fn result(process: &Process, ok: Term, document: Term, parent: Term, existing_ch
     let existing_child_reference: Resource = existing_child_ref.into();
     let _: &Element = existing_child_reference.downcast_ref().unwrap();
 
-    process.queue_frame_with_arguments(label_5::frame().with_arguments(true, &[document, parent]));
-
     process.queue_frame_with_arguments(
-        liblumen_web::node::append_child_2::frame().with_arguments(false, &[parent, existing_child]),
+        liblumen_web::node::append_child_2::frame()
+            .with_arguments(false, &[parent, existing_child]),
     );
+    process.queue_frame_with_arguments(label_5::frame().with_arguments(true, &[document, parent]));
 
     Term::NONE
 }

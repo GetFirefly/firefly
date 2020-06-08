@@ -108,6 +108,11 @@ impl Drop for HeapFragment {
     }
 }
 impl Heap for HeapFragment {
+    fn is_corrupted(&self) -> bool {
+        // TODO real check
+        false
+    }
+
     #[inline]
     fn heap_start(&self) -> *mut Term {
         self.raw.base.as_ptr() as *mut Term

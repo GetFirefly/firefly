@@ -117,7 +117,6 @@ fn resource_reference_to_js_value(resource_reference: Resource) -> JsValue {
 
         web_socket.into()
     } else {
-        //panic!("{:?}", &resource_reference);
         unimplemented!("Convert {:?} to JsValue", resource_reference);
     }
 }

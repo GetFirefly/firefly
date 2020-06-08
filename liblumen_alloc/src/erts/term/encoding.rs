@@ -17,7 +17,7 @@ use liblumen_term::{Encoding as TermEncoding, Tag};
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{AllocResult, InternalResult};
 use crate::erts::fragment::HeapFragment;
-use crate::erts::process::alloc::TermAlloc;
+use crate::erts::process::alloc::{Heap, TermAlloc};
 
 use super::arch::{Repr, Word};
 use super::prelude::*;
@@ -654,8 +654,17 @@ impl CloneToProcess for Term {
         if self.is_immediate() || self.is_literal() {
             *self
         } else if self.is_boxed() || self.is_non_empty_list() {
-            let tt = self.decode().unwrap();
-            tt.clone_to_process(process)
+            // There is no need to clone the actual object to this process's heap if it is already
+            // there, just clone a pointer.
+            let ptr: *mut Term = self.dyn_cast();
+            if process.acquire_heap().contains(ptr) {
+                // Just return self
+                *self
+            } else {
+                // We're good to clone
+                let tt = self.decode().unwrap();
+                tt.clone_to_process(process)
+            }
         } else {
             panic!("clone_to_process called on invalid term type: {:?}", self);
         }

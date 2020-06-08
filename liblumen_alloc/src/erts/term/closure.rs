@@ -362,7 +362,12 @@ impl Closure {
     unsafe fn from_raw_parts<E: super::arch::Repr>(ptr: *const E, len: usize) -> Boxed<Closure> {
         // Invariants of slice::from_raw_parts.
         assert!(!ptr.is_null());
-        assert!(len <= isize::max_value() as usize);
+        assert!(
+            len <= isize::max_value() as usize,
+            "len ({}) is not less than isize::max_value() ({})",
+            len,
+            isize::max_value() as usize
+        );
 
         let slice = core::slice::from_raw_parts_mut(ptr as *mut E, len);
         let ptr = slice as *mut [E] as *mut Closure;

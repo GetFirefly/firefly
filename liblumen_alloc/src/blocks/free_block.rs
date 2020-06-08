@@ -189,7 +189,7 @@ impl FreeBlock {
         if !alloc_utils::is_aligned_at(ptr, align) {
             // Need to round up to nearest aligned address
             let aligned_ptr = alloc_utils::align_up_to(ptr, align) as *mut u8;
-            assert_eq!(aligned_ptr, ptr);
+            assert_ne!(aligned_ptr, ptr);
             // Check size with padding added
             let padding = (aligned_ptr as usize) - (ptr as usize);
             if self.usable_size() < size + padding {

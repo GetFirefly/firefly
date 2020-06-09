@@ -14,14 +14,14 @@ ENV CXX=/opt/llvm/bin/clang++
 RUN apt-get update \
   && apt-get install -y cmake jq libc++-dev libc++abi-dev libunwind-dev ninja-build rsync
 
-RUN rustup default nightly-2020-03-10
+RUN rustup default nightly-2020-05-13
 
 RUN rustup component add rustfmt
 
 # Add WASM target
-RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
+RUN rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-13
 
-RUN cargo +nightly-2020-03-10 install wasm-bindgen-cli
+RUN cargo +nightly-2020-05-13 install wasm-bindgen-cli
 
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 

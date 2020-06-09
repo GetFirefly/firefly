@@ -5,7 +5,7 @@ on: push
 jobs:
   runtime:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:95aff097304cad3a0e9e81189205364ffb0f0de87d8714019fbf311639ac1792
+    container: kronicdeth/lumen-development@sha256:23b0e222727354387c2e3be190a399c53188ceb1509b9067119562de6413f62d
 
     steps:
       - uses: actions/checkout@v2

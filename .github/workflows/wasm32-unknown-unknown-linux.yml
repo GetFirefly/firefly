@@ -30,6 +30,8 @@ jobs:
       # for a different user.
       - name: Own Home
         run: chown -R $(whoami) $HOME
+      - name: Build TableGen
+        run: make lumen-tblgen
       - name: Lumen Web Test
         run: wasm-pack test --headless --chrome --firefox native_implemented_functions/web
       - name: Spawn Chain Build

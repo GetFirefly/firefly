@@ -52,5 +52,7 @@ jobs:
         run: cargo test --package liblumen_arena
       - name: Test liblumen_core
         run: cargo test --package liblumen_core
+      - name: Build TableGen
+        run: make lumen-tblgen
       - name: Test liblumen_alloc
         run: cargo test --package liblumen_alloc

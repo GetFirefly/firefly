@@ -8,10 +8,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Install nightly-2020-03-10
+      - name: Install nightly-2020-05-13
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2020-03-10
+          toolchain: nightly-2020-05-13
           override: true
       - name: Install LLVM
         run: |

@@ -39,6 +39,8 @@ jobs:
           key: ${{ runner.os }}-runtime-minimal-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       - name: Build TableGen
         run: make lumen-tblgen
+      - name: Build liblumen_alloc
+        run: cargo build --package liblumen_alloc
       - name: Test lumen_rt_minimal
         run: cargo test --package lumen_rt_minimal
       - name: Test liblumen_otp with runtime_minimal

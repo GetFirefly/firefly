@@ -79,6 +79,7 @@ mod cli {
             .arg("_build")
             .arg("-o")
             .arg("cli")
+            .arg("-L../target/debug")
             // Turn off optimizations as work-around for debug info bug in EIR
             .arg("-O0")
             .arg("-lc");

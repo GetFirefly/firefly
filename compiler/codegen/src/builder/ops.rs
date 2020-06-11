@@ -29,10 +29,13 @@ pub enum OpKind {
     If(If),
     IsType(IsType),
     Match(Match),
+    BinaryStart(BinaryStart),
     BinaryPush(BinaryPush),
+    BinaryFinish(BinaryFinish),
     MapPut(MapPuts),
     BinOp(BinaryOperator),
     LogicOp(LogicalOperator),
+    #[allow(dead_code)]
     Constant(Constant),
     FunctionRef(FunctionRef),
     Tuple(Tuple),
@@ -40,7 +43,9 @@ pub enum OpKind {
     Map(Map),
     TraceCapture(TraceCapture),
     TraceConstruct(TraceConstruct),
-    Intrinsic(Intrinsic),
+    ReceiveStart(ReceiveStart),
+    ReceiveWait(ReceiveWait),
+    ReceiveDone(ReceiveDone),
 }
 
 #[derive(Debug, Clone)]
@@ -232,8 +237,8 @@ pub enum CallSuccess {
 
 #[derive(Debug, Clone)]
 pub enum CallError {
-    Throw,
-    Branch(Branch),
+    Throws,
+    Catch(Branch),
 }
 
 #[derive(Debug, Clone)]
@@ -287,6 +292,12 @@ pub struct Intrinsic {
 }
 
 #[derive(Debug, Clone)]
+pub struct BinaryStart {
+    pub loc: LocationRef,
+    pub cont: Block,
+}
+
+#[derive(Debug, Clone)]
 pub struct BinaryPush {
     pub loc: LocationRef,
     pub ok: Block,
@@ -295,6 +306,13 @@ pub struct BinaryPush {
     pub tail: Value,
     pub size: Option<Value>,
     pub spec: ir::BinaryEntrySpecifier,
+}
+
+#[derive(Debug, Clone)]
+pub struct BinaryFinish {
+    pub loc: LocationRef,
+    pub cont: Block,
+    pub bin: Value,
 }
 
 #[derive(Debug, Clone)]
@@ -317,6 +335,29 @@ pub struct MapPut {
 pub struct Throw {
     pub loc: LocationRef,
     pub kind: Value,
-    pub class: Value,
     pub reason: Value,
+    pub trace: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReceiveStart {
+    pub loc: LocationRef,
+    pub cont: Block,
+    pub timeout: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReceiveWait {
+    pub loc: LocationRef,
+    pub timeout: Block,
+    pub check: Block,
+    pub receive_ref: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReceiveDone {
+    pub loc: LocationRef,
+    pub cont: Block,
+    pub receive_ref: Value,
+    pub args: Vec<Value>,
 }

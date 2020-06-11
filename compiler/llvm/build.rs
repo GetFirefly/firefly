@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use walkdir::{DirEntry, WalkDir};
 
-const ENV_LLVM_PREFIX: &'static str = "LLVM_SYS_90_PREFIX";
+const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
 
 fn main() {
@@ -124,7 +124,9 @@ fn main() {
     } else {
         cfg.file("c_src/RustString.cpp")
     };
-    cfg.file("c_src/ErrorHandling.cpp")
+    cfg.file("c_src/Attributes.cpp")
+       .file("c_src/IR.cpp")
+       .file("c_src/ErrorHandling.cpp")
        .file("c_src/Diagnostics.cpp")
        .file("c_src/Options.cpp")
        .file("c_src/Passes.cpp")
@@ -319,8 +321,10 @@ fn rerun_if_changed_anything_in_dir(dir: &Path) {
     let walker = WalkDir::new(dir).into_iter();
     for entry in walker.filter_entry(|e| !ignore_changes(e)) {
         let entry = entry.unwrap();
-        let path = entry.path();
-        println!("cargo:rerun-if-changed={}", path.display());
+        if !entry.file_type().is_dir() {
+            let path = entry.path();
+            println!("cargo:rerun-if-changed={}", path.display());
+        }
     }
 }
 

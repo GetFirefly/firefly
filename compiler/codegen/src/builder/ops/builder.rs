@@ -11,15 +11,6 @@ use super::OpKind;
 pub struct OpBuilder;
 
 impl OpBuilder {
-    #[inline]
-    pub fn build<'f, 'o>(
-        builder: &mut ScopedFunctionBuilder<'f, 'o>,
-        ir_value: Option<ir::Value>,
-        kind: OpKind,
-    ) -> Result<Option<Value>> {
-        Self::do_build(builder, ir_value, kind)
-    }
-
     pub fn build_void_result<'f, 'o>(
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         kind: OpKind,
@@ -65,10 +56,14 @@ impl OpBuilder {
             OpKind::Cons(op) => ConsBuilder::build(builder, ir_value, op),
             OpKind::Map(op) => MapBuilder::build(builder, ir_value, op),
             OpKind::MapPut(op) => MapPutBuilder::build(builder, op),
-            OpKind::BinaryPush(op) => BinaryPushBuilder::build(builder, op),
             OpKind::TraceCapture(op) => TraceCaptureBuilder::build(builder, op),
             OpKind::TraceConstruct(op) => TraceConstructBuilder::build(builder, ir_value, op),
-            OpKind::Intrinsic(op) => IntrinsicBuilder::build(builder, ir_value, op),
+            OpKind::BinaryStart(op) => BinaryStartBuilder::build(builder, op),
+            OpKind::BinaryPush(op) => BinaryPushBuilder::build(builder, op),
+            OpKind::BinaryFinish(op) => BinaryFinishBuilder::build(builder, op),
+            OpKind::ReceiveStart(op) => ReceiveStartBuilder::build(builder, op),
+            OpKind::ReceiveWait(op) => ReceiveWaitBuilder::build(builder, op),
+            OpKind::ReceiveDone(op) => ReceiveDoneBuilder::build(builder, op),
         }
     }
 }

@@ -22,19 +22,20 @@ num_cpus = "1.0"
 crossbeam = "0.7"
 futures = "0.3"
 async-task = "1.3"
+parking_lot = "0.10"
 
 liblumen_session = { path = "../session" }
 liblumen_target = { path = "../target" }
-liblumen_incremental = { path = "../incremental" }
 liblumen_codegen = { path = "../codegen" }
 liblumen_util = { path = "../../liblumen_util" }
 liblumen_core = { path = "../../liblumen_core" }
 liblumen_llvm = { path = "../llvm" }
 liblumen_mlir = { path = "../mlir" }
 
-libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_frontend = { git = "https://github.com/eirproject/eir", branch = "lumen" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 libeir_intern = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_passes = { git = "https://github.com/eirproject/eir", branch = "lumen" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 
 [build-dependencies]

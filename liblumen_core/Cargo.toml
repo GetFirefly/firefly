@@ -6,9 +6,6 @@ publish = false
 edition = "2018"
 build = "build.rs"
 
-[lib]
-crate-type = ["staticlib", "rlib"]
-
 [dependencies]
 rustversion = "1.0"
 cfg-if = "0.1"
@@ -20,7 +17,7 @@ liblumen_core_macros = { path = "../liblumen_core_macros" }
 version = "0.1"
 features = ["allocator-api", "nightly"]
 git = "https://github.com/lumen/dlmalloc-rs.git"
-branch = "nightly-2020-03-10"
+branch = "nightly-2020-05-13"
 
 # We use libc for all platforms except wasm32-unknown-unknown
 # NOTE: On win32 we use libc for malloc/free

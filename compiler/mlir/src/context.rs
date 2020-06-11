@@ -37,10 +37,18 @@ pub struct Context {
 unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 impl Context {
-    pub fn new(thread_id: ThreadId, options: &Options, target_machine: &TargetMachine) -> Self {
+    pub fn new(
+        thread_id: ThreadId,
+        options: &Options,
+        llvm_context: &llvm::Context,
+        target_machine: &TargetMachine,
+    ) -> Self {
         let target_machine = target_machine.as_ref();
         let (opt, size) = llvm::enums::to_llvm_opt_settings(options.opt_level);
         let context = unsafe { MLIRCreateContext() };
+        unsafe {
+            MLIRRegisterDialects(context, llvm_context.as_ref());
+        }
         let enable_timing = options.debugging_opts.time_passes;
         let enable_statistics = options.debugging_opts.perf_stats;
         let pass_manager = unsafe {
@@ -141,6 +149,8 @@ impl PartialEq for Context {
 
 extern "C" {
     pub fn MLIRCreateContext() -> ContextRef;
+
+    pub fn MLIRRegisterDialects(context: ContextRef, llvm_context: llvm::ContextRef);
 
     pub fn MLIRCreatePassManager(
         context: ContextRef,

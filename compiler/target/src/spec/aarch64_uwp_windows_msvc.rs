@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target, TargetResult, PanicStrategy, Endianness};
+use crate::spec::{LinkerFlavor, Target, TargetResult, Endianness};
 
 pub fn target() -> TargetResult {
     let mut base = super::windows_uwp_msvc_base::opts();

@@ -1,14 +1,19 @@
 #![feature(extern_types)]
 #![feature(const_cstr_unchecked)]
+#![feature(crate_visibility_modifier)]
 
 pub mod archives;
+pub mod attributes;
 pub mod builder;
 pub mod config;
 pub mod context;
 pub mod diagnostics;
 pub mod enums;
+pub mod funclet;
 pub mod module;
 pub mod passes;
+pub mod profiling;
+pub mod sys;
 pub mod target;
 pub mod utils;
 
@@ -21,9 +26,10 @@ use anyhow::anyhow;
 
 use liblumen_session::Options;
 
-pub type Block = *mut llvm_sys::LLVMBasicBlock;
-pub type Type = *mut llvm_sys::LLVMType;
-pub type Value = *mut llvm_sys::LLVMValue;
+pub type Block = *mut crate::sys::LLVMBasicBlock;
+pub type Type = *mut crate::sys::LLVMType;
+pub type Value = *mut crate::sys::LLVMValue;
+pub type Metadata = *mut crate::sys::LLVMOpaqueMetadata;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
@@ -49,7 +55,7 @@ pub fn init(options: &Options) -> anyhow::Result<()> {
     unsafe {
         // Before we touch LLVM, make sure that multithreading is enabled.
         INIT.call_once(|| {
-            if llvm_sys::core::LLVMIsMultithreaded() == 1 {
+            if crate::sys::core::LLVMIsMultithreaded() == 1 {
                 // Initialize diagnostics handlers
                 diagnostics::init();
                 // Initialize all passes

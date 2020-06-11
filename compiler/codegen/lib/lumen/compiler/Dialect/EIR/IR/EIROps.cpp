@@ -777,6 +777,44 @@ int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {
   assert(false && "unimplemented boxed type in calculateAllocSize");
 }
 
+bool InvokeClosureOp::canEraseSuccessorOperand() { return true; }
+
+Optional<OperandRange> InvokeClosureOp::getSuccessorOperands(unsigned index) {
+  switch (index) {
+    case 0:
+      return llvm::None;
+    case 1:
+      return getErrOperands();
+    default:
+      assert(false && "invalid successor index");
+  }
+}
+
+bool InvokeOp::canEraseSuccessorOperand() { return true; }
+
+Optional<OperandRange> InvokeOp::getSuccessorOperands(unsigned index) {
+  switch (index) {
+    case 0:
+      return llvm::None;
+    case 1:
+      return getErrOperands();
+    default:
+      assert(false && "invalid successor index");
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// eir.receive_wait
+//===----------------------------------------------------------------------===//
+
+Optional<OperandRange> ReceiveWaitOp::getSuccessorOperands(unsigned index) {
+  assert(index < getNumSuccessors() && "invalid successor index");
+  return index == timeoutIndex ? getTimeoutOperands() : getCheckOperands();
+}
+
+bool ReceiveWaitOp::canEraseSuccessorOperand() { return true; }
+
+
 //===----------------------------------------------------------------------===//
 // TableGen Output
 //===----------------------------------------------------------------------===//

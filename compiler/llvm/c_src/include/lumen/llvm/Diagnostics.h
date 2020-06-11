@@ -9,20 +9,28 @@ enum DiagnosticKind;
 
 namespace lumen {
 enum class DiagnosticKind {
-  Other,
   InlineAsm,
+  ResourceLimit,
   StackSize,
+  Linker,
   DebugMetadataVersion,
+  DebugMetadataInvalid,
+  ISelFallback,
   SampleProfile,
   OptimizationRemark,
   OptimizationRemarkMissed,
   OptimizationRemarkAnalysis,
   OptimizationRemarkAnalysisFPCommute,
   OptimizationRemarkAnalysisAliasing,
-  OptimizationRemarkOther,
   OptimizationFailure,
+  MachineOptimizationRemark,
+  MachineOptimizationRemarkAnalysis,
+  MachineOptimizationRemarkMissed,
+  MIRParser,
   PGOProfile,
-  Linker,
+  MisExpect,
+  Unsupported,
+  Other,
 };
 
 static DiagnosticKind toDiagnosticKind(llvm::DiagnosticKind Kind);

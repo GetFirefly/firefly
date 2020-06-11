@@ -8,22 +8,17 @@ pub mod generators;
 pub mod linker;
 pub mod meta;
 
+use liblumen_llvm as llvm;
+use liblumen_mlir as mlir;
+
 pub use self::builder::GeneratedModule;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
 /// Perform initialization of MLIR/LLVM for code generation
 pub fn init(options: &liblumen_session::Options) -> Result<()> {
-    liblumen_llvm::init(options)?;
-    liblumen_mlir::init(options)?;
-
-    unsafe {
-        MLIRRegisterDialects();
-    }
+    llvm::init(options)?;
+    mlir::init(options)?;
 
     Ok(())
-}
-
-extern "C" {
-    fn MLIRRegisterDialects();
 }

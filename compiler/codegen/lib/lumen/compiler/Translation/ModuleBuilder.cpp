@@ -1,4 +1,6 @@
 #include "lumen/compiler/Translation/ModuleBuilder.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
+#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -11,8 +13,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
-#include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
+
 #include "mlir/Analysis/Verifier.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/EDSC/Intrinsics.h"
@@ -21,8 +22,14 @@
 using ::llvm::Optional;
 using ::llvm::StringSwitch;
 using ::llvm::TargetMachine;
+
+using ::mlir::LLVM::LLVMDialect;
 using ::mlir::edsc::intrinsics::OperationBuilder;
 using ::mlir::edsc::intrinsics::ValueBuilder;
+
+using llvm_addressof = ValueBuilder<LLVM::AddressOfOp>;
+using llvm_bitcast = ValueBuilder<LLVM::BitcastOp>;
+using llvm_null = ValueBuilder<LLVM::NullOp>;
 using eir_cast = ValueBuilder<::lumen::eir::CastOp>;
 using eir_cmpeq = ValueBuilder<::lumen::eir::CmpEqOp>;
 using eir_cmpneq = ValueBuilder<::lumen::eir::CmpNeqOp>;
@@ -125,6 +132,17 @@ bool unwrapValues(MLIRValueRef *argv, unsigned argc,
   return true;
 }
 
+static Value getOrInsertGlobal(
+    OpBuilder &builder,
+    ModuleOp &mod,
+    Location loc,
+    StringRef name,
+    LLVMType valueTy,
+    bool isConstant,
+    LLVM::Linkage linkage,
+    LLVM::ThreadLocalMode tlsMode,
+    Attribute value);
+
 //===----------------------------------------------------------------------===//
 // ModuleBuilder
 //===----------------------------------------------------------------------===//
@@ -142,7 +160,8 @@ extern "C" MLIRModuleBuilderRef MLIRCreateModuleBuilder(
 
 ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
                              const TargetMachine *targetMachine)
-    : builder(&context), targetMachine(targetMachine) {
+  : builder(&context), targetMachine(targetMachine),
+    llvmDialect(context.getRegisteredDialect<LLVMDialect>()) {
   // Create an empty module into which we can codegen functions
   theModule = mlir::ModuleOp::create(loc, name);
   assert(isa<mlir::ModuleOp>(theModule) && "expected moduleop");
@@ -207,6 +226,31 @@ extern "C" FunctionDeclResult MLIRCreateFunction(MLIRModuleBuilderRef b,
   return {funRef, entry};
 }
 
+FuncOp ModuleBuilder::getOrDeclareFunction(StringRef symbol, Type resultTy,
+                                           bool isVarArg,
+                                           ArrayRef<Type> argTypes) {
+  Operation *funcOp = SymbolTable::lookupNearestSymbolFrom(theModule, symbol);
+  if (funcOp) return dyn_cast_or_null<FuncOp>(funcOp);
+
+  // Create a function declaration for the symbol
+  FunctionType fnTy;
+  if (resultTy) {
+    fnTy = builder.getFunctionType(argTypes, ArrayRef<Type>{resultTy});
+  } else {
+    fnTy = builder.getFunctionType(argTypes, ArrayRef<Type>{});
+  }
+
+  auto ip = builder.saveInsertionPoint();
+  builder.setInsertionPointToStart(theModule.getBody());
+  auto op = builder.create<FuncOp>(theModule.getLoc(), symbol, fnTy);
+  if (isVarArg) {
+    op.setAttr("std.varargs", builder.getBoolAttr(true));
+  }
+  builder.restoreInsertionPoint(ip);
+
+  return op;
+}
+
 FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
                                       SmallVectorImpl<Arg> &functionArgs,
                                       EirType *resultType) {
@@ -217,7 +261,17 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
     if (!type) return nullptr;
     argTypes.push_back(type);
   }
-  ArrayRef<NamedAttribute> attrs({});
+
+  // All generated functions get our custom exception handling personality
+  Type i32Ty = builder.getIntegerType(32);
+  auto personalityFn =
+      getOrDeclareFunction("lumen_eh_personality", i32Ty, /*vararg=*/true);
+  auto personalityFnSymbol = builder.getSymbolRefAttr("lumen_eh_personality");
+  auto personalityAttr =
+      builder.getNamedAttr("personality", personalityFnSymbol);
+
+  ArrayRef<NamedAttribute> attrs({personalityAttr});
+
   if (resultType->any.tag == EirTypeTag::None) {
     auto fnType = builder.getFunctionType(argTypes, llvm::None);
     return FuncOp::create(loc, functionName, fnType, attrs);
@@ -809,11 +863,12 @@ Value ModuleBuilder::build_logical_or(Location loc, Value lhs, Value rhs) {
 // Function Calls
 //===----------------------------------------------------------------------===//
 
-#define INTRINSIC_BUILDER(Alias, Op)                                           \
-  static Value Alias(OpBuilder &builder, Location loc, ArrayRef<Value> args) { \
-    auto op = builder.create<Op>(loc, args);                                   \
-                                                                               \
-    return op.getResult();                                                     \
+#define INTRINSIC_BUILDER(Alias, Op)                             \
+  static Optional<Value> Alias(OpBuilder &builder, Location loc, \
+                               ArrayRef<Value> args) {           \
+    auto op = builder.create<Op>(loc, args);                     \
+                                                                 \
+    return op.getResult();                                       \
   }
 
 INTRINSIC_BUILDER(buildIntrinsicPrintOp, PrintOp);
@@ -836,26 +891,105 @@ INTRINSIC_BUILDER(buildIntrinsicCmpLteOp, CmpLteOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpGtOp, CmpGtOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpGteOp, CmpGteOp);
 
-static Value buildIntrinsicCmpEqStrictOp(OpBuilder &builder, Location loc,
-                                         ArrayRef<Value> args) {
+#define ERROR_SYMBOL 46
+#define THROW_SYMBOL 58
+#define EXIT_SYMBOL 59
+
+static Optional<Value> buildIntrinsicError1Op(OpBuilder &builder, Location loc,
+                                              ArrayRef<Value> args) {
+  APInt id(64, ERROR_SYMBOL, /*signed=*/false);
+  auto aError = builder.create<ConstantAtomOp>(loc, id, "error");
+  Value kind = aError.getResult();
+  Value reason = args.front();
+  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
+  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  builder.create<ThrowOp>(loc, kind, reason, trace);
+
+  return llvm::None;
+}
+
+static Optional<Value> buildIntrinsicError2Op(OpBuilder &builder, Location loc,
+                                              ArrayRef<Value> args) {
+  APInt id(64, ERROR_SYMBOL, /*signed=*/false);
+  auto aError = builder.create<ConstantAtomOp>(loc, id, "error");
+  Value kind = aError.getResult();
+  Value reason = args[0];
+  Value where = args[1];
+  auto tuple = builder.create<TupleOp>(loc, ArrayRef<Value>{reason, where});
+  Value errorReason = tuple.getResult();
+  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
+  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  builder.create<ThrowOp>(loc, kind, errorReason, trace);
+
+  return llvm::None;
+}
+
+static Optional<Value> buildIntrinsicExit1Op(OpBuilder &builder, Location loc,
+                                             ArrayRef<Value> args) {
+  APInt id(64, EXIT_SYMBOL, /*signed=*/false);
+  auto aExit = builder.create<ConstantAtomOp>(loc, id, "exit");
+  Value kind = aExit.getResult();
+  Value reason = args.front();
+  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
+  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  builder.create<ThrowOp>(loc, kind, reason, trace);
+
+  return llvm::None;
+}
+
+static Optional<Value> buildIntrinsicThrowOp(OpBuilder &builder, Location loc,
+                                             ArrayRef<Value> args) {
+  APInt id(64, THROW_SYMBOL, /*signed=*/false);
+  auto aThrow = builder.create<ConstantAtomOp>(loc, id, "throw");
+  Value kind = aThrow.getResult();
+  Value reason = args.front();
+  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
+  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  builder.create<ThrowOp>(loc, kind, reason, trace);
+
+  return llvm::None;
+}
+
+static Optional<Value> buildIntrinsicRaiseOp(OpBuilder &builder, Location loc,
+                                             ArrayRef<Value> args) {
+  Value kind = args[0];
+  Value reason = args[1];
+  Value trace = args[2];
+  builder.create<ThrowOp>(loc, kind, reason, trace);
+
+  return llvm::None;
+}
+
+static Optional<Value> buildIntrinsicCmpEqStrictOp(OpBuilder &builder,
+                                                   Location loc,
+                                                   ArrayRef<Value> args) {
   assert(args.size() == 2 && "expected =:= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
-  return builder.create<CmpEqOp>(loc, lhs, rhs, /*strict=*/true);
+  auto op = builder.create<CmpEqOp>(loc, lhs, rhs, /*strict=*/true);
+  return op.getResult();
 }
 
-static Value buildIntrinsicCmpNeqStrictOp(OpBuilder &builder, Location loc,
-                                          ArrayRef<Value> args) {
+static Optional<Value> buildIntrinsicCmpNeqStrictOp(OpBuilder &builder,
+                                                    Location loc,
+                                                    ArrayRef<Value> args) {
   assert(args.size() == 2 && "expected =/= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
-  return builder.create<CmpNeqOp>(loc, lhs, rhs, /*strict=*/true);
+  auto op = builder.create<CmpNeqOp>(loc, lhs, rhs, /*strict=*/true);
+  return op.getResult();
 }
 
-using BuildIntrinsicFnT = Value (*)(OpBuilder &, Location loc, ArrayRef<Value>);
+using BuildIntrinsicFnT = Optional<Value> (*)(OpBuilder &, Location loc,
+                                              ArrayRef<Value>);
 
 static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
   auto fnPtr = StringSwitch<BuildIntrinsicFnT>(target)
+                   .Case("erlang:error/1", buildIntrinsicError1Op)
+                   .Case("erlang:error/2", buildIntrinsicError2Op)
+                   .Case("erlang:exit/1", buildIntrinsicExit1Op)
+                   .Case("erlang:throw/1", buildIntrinsicThrowOp)
+                   .Case("erlang:raise/3", buildIntrinsicRaiseOp)
                    .Case("erlang:print/1", buildIntrinsicPrintOp)
                    .Case("erlang:+/2", buildIntrinsicAddOp)
                    .Case("erlang:-/2", buildIntrinsicSubOp)
@@ -901,7 +1035,24 @@ extern "C" MLIRValueRef MLIRBuildIntrinsic(MLIRModuleBuilderRef b,
   SmallVector<Value, 1> args;
   unwrapValues(argv, argc, args);
   auto buildIntrinsicFn = buildIntrinsicFnOpt.getValue();
-  return wrap(buildIntrinsicFn(builder->getBuilder(), loc, args));
+  auto result = buildIntrinsicFn(builder->getBuilder(), loc, args);
+  if (result.hasValue()) {
+    return wrap(result.getValue());
+  } else {
+    return nullptr;
+  }
+}
+
+extern "C" void MLIRBuildThrow(MLIRModuleBuilderRef b, MLIRLocationRef locref,
+                               MLIRValueRef kind_ref, MLIRValueRef reason_ref,
+                               MLIRValueRef trace_ref) {
+  ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
+  Value kind = unwrap(kind_ref);
+  Value reason = unwrap(reason_ref);
+  Value trace = unwrap(trace_ref);
+
+  builder->getBuilder().create<ThrowOp>(loc, kind, reason, trace);
 }
 
 extern "C" void MLIRBuildStaticCall(MLIRModuleBuilderRef b,
@@ -930,33 +1081,45 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
                                       ArrayRef<Value> args, bool isTail,
                                       Block *ok, ArrayRef<Value> okArgs,
                                       Block *err, ArrayRef<Value> errArgs) {
+  edsc::ScopedContext scope(builder, loc);
+
   // If this is a call to an intrinsic, lower accordingly
   auto buildIntrinsicFnOpt = getIntrinsicBuilder(target);
   Value result;
   if (buildIntrinsicFnOpt.hasValue()) {
     auto buildIntrinsicFn = buildIntrinsicFnOpt.getValue();
-    auto result = buildIntrinsicFn(builder, loc, args);
+    auto resultOpt = buildIntrinsicFn(builder, loc, args);
+    auto isThrow = StringSwitch<bool>(target)
+                       .Case("erlang:error/1", true)
+                       .Case("erlang:error/2", true)
+                       .Case("erlang:exit/1", true)
+                       .Case("erlang:throw/1", true)
+                       .Case("erlang:raise/3", true)
+                       .Default(false);
     if (isTail) {
-      if (result) {
-        builder.create<ReturnOp>(loc, result);
-      } else {
+      if (resultOpt.hasValue()) {
+        builder.create<ReturnOp>(loc, resultOpt.getValue());
+      } else if (!isThrow) {
         builder.create<ReturnOp>(loc);
       }
     } else {
-      if (result) {
+      if (resultOpt.hasValue()) {
         auto termTy = builder.getType<TermType>();
+        auto result = resultOpt.getValue();
         if (result.getType() != termTy) {
           auto cast = builder.create<CastOp>(loc, result, termTy);
           builder.create<BranchOp>(loc, ok, ArrayRef<Value>{cast});
         } else {
           builder.create<BranchOp>(loc, ok, ArrayRef<Value>{result});
         }
-      } else {
+      } else if (!isThrow) {
         builder.create<BranchOp>(loc, ok, ArrayRef<Value>{});
       }
     }
     return;
   }
+
+  bool isInvoke = !isTail && err != nullptr;
 
   // Create symbolref and lookup function definition (if present)
   auto callee = builder.getSymbolRefAttr(target);
@@ -977,21 +1140,84 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
   }
 
   // Build call
-  Operation *call = builder.create<CallOp>(loc, callee, fnResults, args);
-  assert(call->getNumResults() == 1 && "unsupported number of results");
-  result = call->getResult(0);
+  if (isInvoke) {
+    // Make sure catch type is defined
+    Value catchAnyType = builder.create<NullOp>(loc, builder.getType<PtrType>());
 
-  // If this is a tail call, we're returning the results directly
-  if (isTail) {
-    if (result) {
-      builder.create<ReturnOp>(loc, result);
+    // Make sure catch type is defined
+    Value catchType;
+    LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
+    LLVMType i8PtrTy = i8Ty.getPointerTo();
+    if (isLikeMsvc()) {
+      if (auto global = theModule.lookupSymbol<LLVM::GlobalOp>("__lumen_erlang_error_type_info")) {
+        catchType = llvm_bitcast(i8PtrTy, llvm_addressof(global));
+      } else {
+        // type_name = lumen_panic\0
+        LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
+        LLVMType typeInfoTy = LLVMType::createStructTy(
+          llvmDialect, ArrayRef<LLVMType>{i8PtrTy, i8PtrTy, typeNameTy.getPointerTo()}, StringRef("type_info")
+        );
+        Value catchTypeGlobal = getOrInsertGlobal(
+            builder,
+            theModule,
+            loc,
+            "__lumen_erlang_error_type_info",
+            typeInfoTy,
+            false,
+            LLVM::Linkage::External,
+            LLVM::ThreadLocalMode::NotThreadLocal,
+            nullptr);
+        catchType = llvm_bitcast(i8PtrTy, catchTypeGlobal);
+      }
     } else {
-      builder.create<ReturnOp>(loc);
+      catchType = llvm_null(i8PtrTy);
+    }
+
+    // Set up landing pad in error block
+    Block *pad = build_landing_pad(loc, ArrayRef<Value>{catchType, catchAnyType}, err);
+    Block *normal;
+    // Handle case where ok continuation is a return
+    bool generateRet = false;
+    // Create "normal" landing pad before the "unwind" pad
+    if (!ok) {
+      // If no normal block was given, create one to hold the return
+      auto ip = builder.saveInsertionPoint();
+      normal = builder.createBlock(pad);
+      builder.restoreInsertionPoint(ip);
+      generateRet = true;
+    } else {
+      // Otherwise create a new block that will relay the result
+      // to the "real" normal block
+      auto ip = builder.saveInsertionPoint();
+      normal = builder.createBlock(ok);
+      builder.restoreInsertionPoint(ip);
+    }
+    // Create invoke
+    auto res = builder.create<InvokeOp>(loc, callee, fnResults, args, normal,
+                                        okArgs, pad, errArgs);
+    // Either generate a return, or a branch, depending on what is required
+    if (generateRet) {
+      auto ip = builder.saveInsertionPoint();
+      builder.setInsertionPointToEnd(normal);
+      builder.create<ReturnOp>(loc, res.getResults());
+      builder.restoreInsertionPoint(ip);
+    } else {
+      auto ip = builder.saveInsertionPoint();
+      builder.setInsertionPointToEnd(normal);
+      builder.create<BranchOp>(loc, res.getResults(), ok);
+      builder.restoreInsertionPoint(ip);
     }
     return;
   }
 
-  build_call_landing_pad(loc, result, ok, okArgs, err, errArgs);
+  Operation *call;
+  if (isTail) {
+    call = builder.create<CallOp>(loc, callee, fnResults, args);
+    builder.create<ReturnOp>(loc, call->getResult(0));
+  } else {
+    call = builder.create<CallOp>(loc, callee, fnResults, args);
+    builder.create<BranchOp>(loc, ok, ArrayRef<Value>{call->getResult(0)});
+  }
   return;
 }
 
@@ -1022,6 +1248,9 @@ void ModuleBuilder::build_closure_call(Location loc, Value cls,
                                        Block *ok, ArrayRef<Value> okArgs,
                                        Block *err, ArrayRef<Value> errArgs) {
   edsc::ScopedContext scope(builder, loc);
+
+  bool isInvoke = !isTail && err != nullptr;
+
   // The closure call operation requires the callee to be of the
   // correct type, so cast to closure type if not already
   Value closure;
@@ -1037,63 +1266,84 @@ void ModuleBuilder::build_closure_call(Location loc, Value cls,
 
   //  Build call
   auto termTy = builder.getType<TermType>();
-  auto call = builder.create<CallClosureOp>(loc, termTy, closure, args);
-  Value result = call.getResult();
+  if (isInvoke) {
+    Value catchAnyType = builder.create<NullOp>(loc, builder.getType<PtrType>());
 
-  // If this is a tail call, we're returning the results directly
-  if (isTail) {
-    builder.create<ReturnOp>(loc, result);
+    // Make sure catch type is defined
+    Value catchType;
+    LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
+    LLVMType i8PtrTy = i8Ty.getPointerTo();
+    if (isLikeMsvc()) {
+      if (auto global = theModule.lookupSymbol<LLVM::GlobalOp>("__lumen_erlang_error_type_info")) {
+        catchType = llvm_bitcast(i8PtrTy, llvm_addressof(global));
+      } else {
+        // type_name = lumen_panic\0
+        LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
+        LLVMType typeInfoTy = LLVMType::createStructTy(
+          llvmDialect, ArrayRef<LLVMType>{i8PtrTy, i8PtrTy, typeNameTy.getPointerTo()}, StringRef("type_info")
+        );
+        Value catchTypeGlobal = getOrInsertGlobal(
+            builder,
+            theModule,
+            loc,
+            "__lumen_erlang_error_type_info",
+            typeInfoTy,
+            false,
+            LLVM::Linkage::External,
+            LLVM::ThreadLocalMode::NotThreadLocal,
+            nullptr);
+        catchType = llvm_bitcast(i8PtrTy, catchTypeGlobal);
+      }
+    } else {
+      catchType = llvm_null(i8PtrTy);
+    }
+
+    // Set up landing pad in error block
+    Block *pad = build_landing_pad(loc, ArrayRef<Value>{catchType, catchAnyType}, err);
+    // Handle case where ok continuation is a return
+    bool generateRet = false;
+    if (!ok) {
+      // Create "normal" landing pad before the "unwind" pad
+      auto ip = builder.saveInsertionPoint();
+      ok = builder.createBlock(pad);
+      builder.restoreInsertionPoint(ip);
+      generateRet = true;
+    }
+    auto res = builder.create<InvokeClosureOp>(loc, closure, args, ok, okArgs,
+                                               pad, errArgs);
+    // Generate return if needed
+    if (generateRet) {
+      auto ip = builder.saveInsertionPoint();
+      builder.setInsertionPointToEnd(ok);
+      builder.create<ReturnOp>(loc, res.getResult());
+      builder.restoreInsertionPoint(ip);
+    }
     return;
   }
-
-  build_call_landing_pad(loc, result, ok, okArgs, err, errArgs);
+  Operation *call;
+  if (isTail) {
+    call = builder.create<CallClosureOp>(loc, termTy, closure, args);
+    builder.create<ReturnOp>(loc, call->getResult(0));
+  } else {
+    call = builder.create<CallClosureOp>(loc, termTy, closure, args);
+    builder.create<BranchOp>(loc, ok, ArrayRef<Value>{call->getResult(0)});
+  }
   return;
 }
 
-void ModuleBuilder::build_call_landing_pad(Location loc, Value result,
-                                           Block *ok, ArrayRef<Value> okArgs,
-                                           Block *err,
-                                           ArrayRef<Value> errArgs) {
-  // Build call
-  auto currentBlock = builder.getBlock();
-  auto currentRegion = currentBlock->getParent();
+Block *ModuleBuilder::build_landing_pad(Location loc, ArrayRef<Value> catchClauses,
+                                        Block *err) {
+  auto ip = builder.saveInsertionPoint();
+  // This block is intended as the LLVM landing pad, and exists to
+  // ensure that exception unwinding is handled properly
+  Block *pad = builder.createBlock(err);
 
-  // It isn't possible at this point to have neither ok or err blocks
-  assert(((!ok && !err) == false) &&
-         "expected isTail when no ok/error destination provided");
-  // In addition to any block arguments, we have to append the call results
-  SmallVector<Value, 1> okArgsFinal;
-  SmallVector<Value, 1> errArgsFinal;
+  builder.setInsertionPointToEnd(pad);
+  auto op = builder.create<LandingPadOp>(loc, catchClauses);
+  builder.create<BranchOp>(loc, err, op.getResults());
+  builder.restoreInsertionPoint(ip);
 
-  Value rhs = builder.create<ConstantNoneOp>(loc);
-  Value isErr = builder.create<CmpEqOp>(loc, result, rhs, /*strict=*/true);
-  Block *ifOk = ok;
-  Block *ifErr = err;
-
-  // No success block provided, so create block to handle returning
-  if (!ok) {
-    auto ret = builder.create<ReturnOp>(loc, result);
-    ifOk = currentBlock->splitBlock(ret);
-    builder.setInsertionPointToEnd(currentBlock);
-  } else {
-    okArgsFinal.push_back(result);
-  }
-
-  // No error block provided, so create block to handle throwing
-  if (!err) {
-    auto thr = builder.create<ThrowOp>(loc, result);
-    ifErr = currentBlock->splitBlock(thr);
-    builder.setInsertionPointToEnd(currentBlock);
-  } else {
-    errArgsFinal.append(errArgs.begin(), errArgs.end());
-    errArgsFinal.push_back(result);
-  }
-
-  // Insert conditional branch in call block
-  // Use comparison to NONE as condition for cond_br
-  builder.create<CondBranchOp>(loc, isErr, ifErr, errArgsFinal, ifOk,
-                               okArgsFinal);
-  return;
+  return pad;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1126,7 +1376,9 @@ extern "C" MLIRValueRef MLIRConstructTuple(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_tuple(Location loc, ArrayRef<Value> elements) {
   auto op = builder.create<TupleOp>(loc, elements);
-  return op.getResult();
+  auto castOp =
+      builder.create<CastOp>(loc, op.getResult(), builder.getType<TermType>());
+  return castOp.getResult();
 }
 
 extern "C" MLIRValueRef MLIRConstructMap(MLIRModuleBuilderRef b,
@@ -1141,6 +1393,35 @@ extern "C" MLIRValueRef MLIRConstructMap(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_map(Location loc, ArrayRef<MapEntry> entries) {
   auto op = builder.create<ConstructMapOp>(loc, entries);
   return op.getResult(0);
+}
+
+extern "C" void MLIRBuildBinaryStart(MLIRModuleBuilderRef b,
+                                     MLIRLocationRef locref, MLIRBlockRef contBlock) {
+  ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
+  Block *cont = unwrap(contBlock);
+  builder->build_binary_start(loc, cont);
+}
+
+void ModuleBuilder::build_binary_start(Location loc, Block *cont) {
+  auto op = builder.create<BinaryStartOp>(loc, builder.getType<BinaryType>());
+  auto bin = op.getResult();
+  builder.create<BranchOp>(loc, cont, ArrayRef<Value>{bin});
+}
+  
+extern "C" void MLIRBuildBinaryFinish(MLIRModuleBuilderRef b,
+                                      MLIRLocationRef locref, MLIRBlockRef contBlock, MLIRValueRef binRef) {
+  ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
+  Block *cont = unwrap(contBlock);
+  Value bin = unwrap(binRef);
+  builder->build_binary_finish(loc, cont, bin);
+}
+
+void ModuleBuilder::build_binary_finish(Location loc, Block *cont, Value bin) {
+  auto op = builder.create<BinaryFinishOp>(loc, builder.getType<TermType>(), bin);
+  auto finished = op.getResult();
+  builder.create<BranchOp>(loc, cont, ArrayRef<Value>{finished});
 }
 
 extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b,
@@ -1205,7 +1486,65 @@ void ModuleBuilder::build_binary_push(Location loc, Value head, Value tail,
   auto success = op.getResult(1);
   ArrayRef<Value> okArgs{bin};
   ArrayRef<Value> errArgs{};
-  builder.create<::mlir::CondBranchOp>(loc, success, ok, okArgs, err, errArgs);
+  builder.create<CondBranchOp>(loc, success, ok, okArgs, err, errArgs);
+}
+
+//===----------------------------------------------------------------------===//
+// Receive
+//===----------------------------------------------------------------------===//
+
+extern "C" void MLIRBuildReceiveStart(MLIRModuleBuilderRef b,
+                                      MLIRLocationRef locref, MLIRBlockRef contBlock, MLIRValueRef timeoutRef) {
+  ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
+  Block *cont = unwrap(contBlock);
+  Value timeout = unwrap(timeoutRef);
+  builder->build_receive_start(loc, cont, timeout);
+}
+
+void ModuleBuilder::build_receive_start(Location loc, Block *cont, Value timeout) {
+  // Construct a new receive ref and branch to the continuation block with it
+  auto callee = builder.getSymbolRefAttr("__lumen_receive_start");
+  auto recvRefType = builder.getType<ReceiveRefType>();
+  auto op = builder.create<CallOp>(loc, callee, ArrayRef<Type>{recvRefType}, ArrayRef<Value>{timeout});
+  auto receive_ref = op.getResult(0);
+  builder.create<BranchOp>(loc, cont, ArrayRef<Value>{receive_ref});
+}
+
+extern "C" void MLIRBuildReceiveWait(MLIRModuleBuilderRef b,
+                                     MLIRLocationRef locref, MLIRBlockRef timeoutBlock,
+                                     MLIRBlockRef checkBlock, MLIRValueRef receiveRef) {
+  ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
+  Block *timeout = unwrap(timeoutBlock);
+  Block *check = unwrap(checkBlock);
+  Value receive_ref = unwrap(receiveRef);
+  builder->build_receive_wait(loc, timeout, check, receive_ref);
+}
+
+void ModuleBuilder::build_receive_wait(Location loc, Block *timeout, Block *check, Value receive_ref) {
+  builder.create<ReceiveWaitOp>(loc, receive_ref, timeout, ArrayRef<Value>{}, check, ArrayRef<Value>{});
+}
+  
+extern "C" void MLIRBuildReceiveDone(MLIRModuleBuilderRef b,
+                                     MLIRLocationRef locref, MLIRBlockRef contBlock,
+                                     MLIRValueRef receiveRef, MLIRValueRef *argv, unsigned argc) {
+  ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
+  Block *cont = unwrap(contBlock);
+  Value receive_ref = unwrap(receiveRef);
+  SmallVector<Value, 1> args;
+  unwrapValues(argv, argc, args);
+  builder->build_receive_done(loc, cont, receive_ref, args);
+}
+
+void ModuleBuilder::build_receive_done(Location loc, Block *cont, Value receive_ref, ArrayRef<Value> args) {
+  // Inform the runtime that the receive was successful,
+  // which removes the received message from the mailbox
+  auto callee = builder.getSymbolRefAttr("__lumen_receive_done");
+  builder.create<CallOp>(loc, callee, ArrayRef<Type>{}, ArrayRef<Value>{receive_ref});
+  // Branch to the continuation block with the bindings obtained during the receive
+  builder.create<BranchOp>(loc, cont, args);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1549,6 +1888,35 @@ extern "C" MLIRAttributeRef MLIRBuildMapAttr(MLIRModuleBuilderRef b,
 }
 
 //===----------------------------------------------------------------------===//
+// Helpers
+//===----------------------------------------------------------------------===//
+
+static Value getOrInsertGlobal(
+  OpBuilder &builder,
+  ModuleOp &mod,
+  Location loc,
+  StringRef name,
+  LLVMType valueTy,
+  bool isConstant,
+  LLVM::Linkage linkage,
+  LLVM::ThreadLocalMode tlsMode,
+  Attribute value = Attribute()) {
+    edsc::ScopedContext scope(builder, loc);
+
+    if (auto global = mod.lookupSymbol<LLVM::GlobalOp>(name))
+      return llvm_addressof(global);
+
+    auto savePoint = builder.saveInsertionPoint();
+    builder.setInsertionPointToStart(mod.getBody());
+
+    auto global = builder.create<LLVM::GlobalOp>(
+        mod.getLoc(), valueTy, isConstant, linkage, tlsMode, name, value);
+
+    builder.restoreInsertionPoint(savePoint);
+    return llvm_addressof(global);
+}
+
+//===----------------------------------------------------------------------===//
 // Locations/Spans
 //===----------------------------------------------------------------------===//
 
@@ -1626,6 +1994,19 @@ DEFINE_IS_TYPE_OP(MLIRBuildIsTypeInteger, IntegerType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeFixnum, FixnumType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeBigInt, BigIntType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeFloat, FloatType);
+
+//===----------------------------------------------------------------------===//
+// Target Info
+//===----------------------------------------------------------------------===//
+
+bool ModuleBuilder::isLikeMsvc() {
+  auto triple = targetMachine->getTargetTriple();
+  if (triple.getEnvironment() == llvm::Triple::EnvironmentType::MSVC)
+    return true;
+  if (triple.getOS() == llvm::Triple::OSType::Win32)
+    return true;
+  return false;
+}
 
 }  // namespace eir
 }  // namespace lumen

@@ -1,4 +1,3 @@
-use core::alloc::{CannotReallocInPlace, Layout};
 use core::mem;
 use core::ptr::NonNull;
 
@@ -11,18 +10,19 @@ use heapless::Vec;
 use liblumen_alloc_macros::generate_heap_sizes;
 
 use liblumen_core::alloc::mmap;
+use liblumen_core::alloc::prelude::*;
 use liblumen_core::alloc::size_classes::SizeClass;
 
 use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::Term;
-use crate::SizeClassAlloc;
+use crate::{SizeClassAlloc, SizeClassAllocRef};
 
 /// This allocator is used to allocate process heaps globally.
 ///
 /// It contains a reference to an instance of `StandardAlloc`
 /// which is used to satisfy allocation requests.
 pub struct ProcessHeapAlloc {
-    alloc: SizeClassAlloc,
+    alloc: SizeClassAllocRef,
     oversized_threshold: usize,
 }
 impl ProcessHeapAlloc {
@@ -46,7 +46,7 @@ impl ProcessHeapAlloc {
             .map(|size| SizeClass::new(*size))
             .filter(|size_class| SizeClassAlloc::can_fit_multiple_blocks(size_class))
             .collect::<Vec<_, UHEAP_SIZES_LEN>>();
-        let alloc = SizeClassAlloc::new(&size_classes);
+        let alloc = SizeClassAllocRef::new(&size_classes);
         let oversized_threshold = alloc.max_size_class();
         Self {
             alloc,
@@ -71,7 +71,12 @@ impl ProcessHeapAlloc {
         }
 
         // Allocate region
-        match unsafe { self.alloc.allocate(layout).map(|(ptr, _)| ptr) } {
+        match unsafe {
+            self.alloc
+                .as_mut()
+                .allocate(layout, AllocInit::Uninitialized)
+                .map(|block| block.ptr)
+        } {
             Ok(non_null) => {
                 let ptr = non_null.as_ptr() as *mut Term;
 
@@ -100,7 +105,7 @@ impl ProcessHeapAlloc {
         heap: *mut Term,
         size: usize,
         new_size: usize,
-    ) -> Result<*mut Term, CannotReallocInPlace> {
+    ) -> Result<*mut Term, AllocErr> {
         // Nothing to do if the size didn't change
         if size == new_size {
             return Ok(heap);
@@ -116,17 +121,35 @@ impl ProcessHeapAlloc {
             if new_size < size {
                 return Ok(heap);
             }
-            return Err(CannotReallocInPlace);
+            return Err(AllocErr);
         }
 
         let layout = self.heap_layout(size);
         let ptr = unsafe { NonNull::new_unchecked(heap as *mut u8) };
 
-        if let Ok(_) = unsafe { self.alloc.realloc_in_place(ptr, layout, new_size) } {
-            return Ok(heap);
+        if new_size < size {
+            if let Ok(_) = unsafe {
+                self.alloc
+                    .as_mut()
+                    .shrink(ptr, layout, new_size, ReallocPlacement::InPlace)
+            } {
+                return Ok(heap);
+            }
+        } else {
+            if let Ok(_) = unsafe {
+                self.alloc.as_mut().grow(
+                    ptr,
+                    layout,
+                    new_size,
+                    ReallocPlacement::InPlace,
+                    AllocInit::Uninitialized,
+                )
+            } {
+                return Ok(heap);
+            }
         }
 
-        Err(CannotReallocInPlace)
+        Err(AllocErr)
     }
 
     /// Deallocate a process heap, releasing the memory back to the operating system
@@ -138,7 +161,8 @@ impl ProcessHeapAlloc {
             Self::dealloc_oversized_heap(heap, layout);
         } else {
             self.alloc
-                .deallocate(NonNull::new_unchecked(heap as *mut u8), layout);
+                .as_mut()
+                .dealloc(NonNull::new_unchecked(heap as *mut u8), layout);
         }
     }
 

@@ -3,10 +3,10 @@
 members = [
   "compiler/codegen",
   "compiler/driver",
-  "compiler/incremental",
   "compiler/llvm",
   "compiler/macros",
   "compiler/mlir",
+  "compiler/profiling",
   "compiler/session",
   "compiler/target",
   "compiler/term",
@@ -33,10 +33,10 @@ members = [
 default-members = [
   "compiler/codegen",
   "compiler/driver",
-  "compiler/incremental",
   "compiler/llvm",
   "compiler/macros",
   "compiler/mlir",
+  "compiler/profiling",
   "compiler/session",
   "compiler/target",
   "compiler/term",

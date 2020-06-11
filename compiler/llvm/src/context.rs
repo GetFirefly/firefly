@@ -2,23 +2,39 @@ use std::fmt;
 use std::mem::MaybeUninit;
 use std::path::Path;
 use std::ptr;
+use std::sync::Arc;
 
 use anyhow::anyhow;
+
+use liblumen_util::diagnostics::DiagnosticsHandler;
 
 use crate::module::{Module, ModuleImpl};
 use crate::target::TargetMachineRef;
 use crate::utils::{LLVMString, MemoryBuffer};
 use crate::Result;
 
-pub type ContextImpl = llvm_sys::LLVMContext;
-pub type ContextRef = llvm_sys::prelude::LLVMContextRef;
+pub type ContextImpl = crate::sys::LLVMContext;
+pub type ContextRef = crate::sys::prelude::LLVMContextRef;
 
+#[repr(transparent)]
 pub struct Context {
     context: ContextRef,
 }
 impl Context {
-    pub fn new() -> Self {
-        let context = unsafe { llvm_sys::core::LLVMContextCreate() };
+    pub fn new(diagnostics: Arc<DiagnosticsHandler>) -> Self {
+        use crate::diagnostics;
+        use crate::sys::core::LLVMContextSetDiagnosticHandler;
+
+        let context = unsafe { crate::sys::core::LLVMContextCreate() };
+        unsafe {
+            let data = Box::new((context, Arc::downgrade(&diagnostics)));
+            let data = Box::into_raw(data);
+            LLVMContextSetDiagnosticHandler(
+                context,
+                Some(diagnostics::diagnostic_handler),
+                data.cast(),
+            );
+        }
         Self { context }
     }
 }
@@ -47,7 +63,7 @@ impl Context {
         mut buffer: MemoryBuffer<'_>,
         tm: TargetMachineRef,
     ) -> Result<Module> {
-        use llvm_sys::ir_reader::LLVMParseIRInContext;
+        use crate::sys::ir_reader::LLVMParseIRInContext;
 
         let mut module: *mut ModuleImpl = ptr::null_mut();
         let mut err_string = MaybeUninit::uninit();
@@ -78,7 +94,7 @@ unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 //impl Drop for Context {
 //    fn drop(&mut self) {
-//        unsafe { llvm_sys::core::LLVMContextDispose(self.context); }
+//        unsafe { crate::sys::core::LLVMContextDispose(self.context); }
 //    }
 //}
 impl fmt::Debug for Context {

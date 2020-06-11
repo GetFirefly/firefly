@@ -37,6 +37,9 @@ const MAX_REDUCTION_COUNT: u32 = 20;
 extern "C" {
     #[thread_local]
     static mut CURRENT_REDUCTION_COUNT: u32;
+
+    #[link_name = "__lumen_trap_exceptions"]
+    fn trap_exceptions_impl() -> bool;
 }
 
 thread_local! {
@@ -71,12 +74,26 @@ pub unsafe extern "C" fn process_yield() -> bool {
     s.process_yield(/* root= */ false)
 }
 
+#[export_name = "__lumen_builtin_exit"]
+pub unsafe extern "C" fn process_exit(reason: Term) {
+    let s = Scheduler::current();
+    s.current.exit(reason, anyhow!("process exit").into());
+    // NOTE: We always set root=false here because the root
+    // process never invokes this function
+    s.process_yield(/* root= */ false);
+}
+
 #[naked]
 #[inline(never)]
 #[cfg(all(unix, target_arch = "x86_64"))]
 pub unsafe extern "C" fn process_return_continuation() {
-    let f: fn() -> () = process_return;
-    asm!("
+    let f: fn(term: Term) -> () = process_return;
+    llvm_asm!("
+        # When called, %rax holds the term the process exited with,
+        # so we move it to %rdi so that it ends up as the first argument
+        # to process_return
+        movq %rax, %rdi
+
         callq *$0
         "
     :
@@ -86,10 +103,38 @@ pub unsafe extern "C" fn process_return_continuation() {
     );
 }
 
+#[naked]
 #[inline(never)]
-fn process_return() {
+#[cfg(all(unix, target_arch = "x86_64"))]
+pub unsafe extern "C" fn trap_exceptions() {
+    llvm_asm!("
+         # spawn_internal has set up the stack so that when we
+         # enter this function, %r14 holds the function pointer
+         # for the `init` function, and %r15 holds the function pointer
+         # for the 'real' trap_exceptions implementation. We need to
+         # move the init pointer to %rdi so it gets passed as the first
+         # argument to the trap_exceptions implementation.
+         #
+         # When called, trap_exceptions_impl will invoke the init function,
+         # wrapped in an exception handler that traps Erlang exceptions that
+         # went uncaught, but will allow non-Erlang exceptions to continue unwinding
+         movq  %r14, %rdi
+         callq *%r15
+
+         # When we get here, we're returning 'into' process_return_continuation
+         retq
+         "
+    :
+    :
+    :
+    : "volatile", "alignstack"
+    );
+}
+
+#[inline(never)]
+fn process_return(exit_value: Term) {
     let s = Scheduler::current();
-    do_process_return(&s);
+    do_process_return(&s, exit_value);
 }
 
 #[export_name = "__lumen_builtin_malloc"]
@@ -140,12 +185,11 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
 /// Called when the current process has finished executing, and has
 /// returned all the way to its entry function. This marks the process
 /// as exiting (if it wasn't already), and then yields to the scheduler
-fn do_process_return(scheduler: &Scheduler) -> bool {
+fn do_process_return(scheduler: &Scheduler, exit_value: Term) -> bool {
     use liblumen_alloc::erts::term::prelude::*;
-    if scheduler.current.pid() != scheduler.root.pid() {
-        scheduler
-            .current
-            .exit(atom!("normal"), anyhow!("Out of code").into());
+    let current = &scheduler.current;
+    if current.pid() != scheduler.root.pid() {
+        current.exit(exit_value, anyhow!("process exit").into());
         // NOTE: We always set root=false here, even though this can
         // be called from the root process, since returning from the
         // root process exits the scheduler loop anyway, so no stack
@@ -580,18 +624,33 @@ impl Scheduler {
         // in the process itself
         unsafe {
             let mut sp = StackPointer(process.stack.top as *mut u64);
-            // Function that will be called when returning from init_fn
+            // This empty slot will hold the return address of the swap_stack function,
+            // which will be used to allow the unwinder to unwind back to the scheduler
+            // properly
+            push(&mut sp, 0);
+            // Function that will be called when returning from trap_exceptions
             push(&mut sp, process_return_continuation as u64);
-            // Function that the newly spawned process should call first
-            push(&mut sp, init_fn as u64);
+            // Function that traps any unhandled exceptions in the spawned process
+            // and converts them to exits
+            push(&mut sp, trap_exceptions as u64);
             // Update process stack pointer
             let s_top = &process.stack.top as *const _ as *mut _;
             ptr::write(s_top, sp.0 as *const u8);
-            // Update rsp
+            // Update rsp/rbp
             let rsp = &process.registers.rsp as *const u64 as *mut _;
             ptr::write(rsp, sp.0 as u64);
             let rbp = &process.registers.rbp as *const u64 as *mut _;
             ptr::write(rbp, sp.0 as u64);
+            // This is used to indicate to swap_stack that this process
+            // is being swapped to for the first time, so that its CFA
+            // can be linked to the parent stack
+            let r13 = &process.registers.r13 as *const u64 as *mut _;
+            ptr::write(r13, 0xdeadbeef as u64);
+            // Set up the function pointers for trap_exceptions
+            let r14 = &process.registers.r14 as *const u64 as *mut _;
+            ptr::write(r14, init_fn as u64);
+            let r15 = &process.registers.r15 as *const u64 as *mut _;
+            ptr::write(r15, trap_exceptions_impl as u64);
         }
 
         *process.status.write() = Status::Runnable;
@@ -617,7 +676,33 @@ fn reset_reduction_counter() -> u64 {
 #[inline(never)]
 #[cfg(all(unix, target_arch = "x86_64"))]
 unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters) {
-    asm!("
+    const FIRST_SWAP: u64 = 0xdeadbeef;
+    llvm_asm!("
+        # Store the return address
+        leaq     0f(%rip),  %rax
+        pushq    %rax
+
+        # If this is the first time swapping to this process,
+        # we need to write the return address from above to the
+        # first stack slot, otherwise resume the process normally
+        pushq    %r15
+        movq     24($1), %r15
+        cmpq     %r15, $2
+        popq     %r15
+        jne      ${:private}_resume
+
+        # This is the first time this process is swapped to, so
+        # pop the return address we saved and write it to the beginning
+        # of the stack (3 8-byte words from the current rsp)
+        popq     %rax
+        pushq    %r15
+        movq     ($1), %r15
+        movq     %rax, -24(%r15)
+        popq     %r15
+
+        # This is where we jump if we're resuming normally
+        ${:private}_resume:
+
         # Save the stack pointer, and callee-saved registers of `prev`
         movq     %rsp, ($0)
         movq     %r15, 8($0)
@@ -649,9 +734,11 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         .cfi_restore %r12
         .cfi_restore %rbx
         .cfi_restore %rbp
-        "
+
+     0:
+    "
     :
-    : "r"(prev), "r"(new)
+    : "r"(prev), "r"(new), "r"(FIRST_SWAP)
     :
     : "volatile", "alignstack"
     );

@@ -4,7 +4,7 @@
 ///! this delegates to the system allocator
 use core::ptr::NonNull;
 
-use crate::alloc::{AllocErr, Layout};
+use crate::alloc::prelude::*;
 
 #[cfg(not(has_mmap))]
 use crate::sys::alloc as sys_alloc;
@@ -22,7 +22,7 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
 #[cfg(not(has_mmap))]
 #[inline]
 pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-    sys_alloc::alloc(layout).map(|(ptr, _)| ptr)
+    sys_alloc::alloc(layout).map(|memory_block| memory_block.ptr)
 }
 
 /// Creates a memory mapping specifically set up to behave like a stack
@@ -45,7 +45,7 @@ pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
         .repeat(pages)
         .unwrap();
 
-    sys_alloc::alloc(layout).map(|(ptr, _)| ptr)
+    sys_alloc::alloc(layout).map(|memory_block| memory_block.ptr)
 }
 
 /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new size
@@ -67,7 +67,7 @@ pub unsafe fn remap(
     layout: Layout,
     new_size: usize,
 ) -> Result<NonNull<u8>, AllocErr> {
-    sys_alloc::realloc(ptr, layout, new_size).map(|(ptr, _)| ptr)
+    sys_alloc::realloc(ptr, layout, new_size, ReallocPlacement::MayMove).map(|memory_block| memory_block.ptr)
 }
 
 /// Destroys a mapping given a pointer to the mapping and the layout which created it

@@ -1,41 +1,49 @@
-mod intern;
 mod queries;
 mod query_groups;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
+
+use parking_lot::Mutex;
 
 use log::debug;
 
-pub use salsa::ParallelDatabase;
+use salsa::ParallelDatabase;
 use salsa::Snapshot;
 
-use libeir_diagnostics::{CodeMap, Diagnostic};
 use libeir_intern::Symbol;
 
 use liblumen_core::symbols::FunctionSymbol;
-use liblumen_incremental::{InternedInput, InternerStorage};
-pub use liblumen_incremental::{ParserDatabase, ParserDatabaseBase};
-use liblumen_incremental::{ParserStorage, QueryResult};
-use liblumen_session::{DiagnosticsHandler, Emit, Options, OutputType};
+use liblumen_session::{Emit, Options, OutputType};
+use liblumen_util::diagnostics::{CodeMap, Diagnostic, DiagnosticsHandler};
+
+use crate::diagnostics::*;
+use crate::interner::{InternedInput, Interner, InternerStorage};
+use crate::output::CompilerOutput;
+use crate::parser::{Parser, ParserStorage};
+
+use self::query_groups::{Compiler as CompilerQueryGroup, CompilerExt, CompilerStorage};
 
 pub(crate) mod prelude {
-    pub use super::query_groups::*;
+    pub use super::query_groups::{Compiler, CompilerExt};
+    pub use crate::diagnostics::*;
+    pub use crate::interner::{InternedInput, Interner};
+    pub use crate::output::CompilerOutput;
+    pub use crate::parser::Parser;
+    pub use salsa::ParallelDatabase;
 }
 
-use self::prelude::*;
-
-#[salsa::database(CodegenStorage, ParserStorage, InternerStorage, StringInternerStorage)]
-pub struct CompilerDatabase {
-    runtime: salsa::Runtime<CompilerDatabase>,
-    diagnostics: DiagnosticsHandler,
-    codemap: Arc<RwLock<CodeMap>>,
+#[salsa::database(CompilerStorage, ParserStorage, InternerStorage)]
+pub struct Compiler {
+    runtime: salsa::Runtime<Compiler>,
+    diagnostics: Arc<DiagnosticsHandler>,
+    codemap: Arc<CodeMap>,
     atoms: Arc<Mutex<HashSet<Symbol>>>,
     symbols: Arc<Mutex<HashSet<FunctionSymbol>>>,
 }
-impl CompilerDatabase {
-    pub fn new(codemap: Arc<RwLock<CodeMap>>, diagnostics: DiagnosticsHandler) -> Self {
+impl Compiler {
+    pub fn new(codemap: Arc<CodeMap>, diagnostics: Arc<DiagnosticsHandler>) -> Self {
         let mut atoms = HashSet::default();
         atoms.insert(Symbol::intern("false"));
         atoms.insert(Symbol::intern("true"));
@@ -48,7 +56,7 @@ impl CompilerDatabase {
         }
     }
 }
-impl salsa::Database for CompilerDatabase {
+impl salsa::Database for Compiler {
     fn salsa_runtime(&self) -> &salsa::Runtime<Self> {
         &self.runtime
     }
@@ -57,9 +65,9 @@ impl salsa::Database for CompilerDatabase {
         &mut self.runtime
     }
 }
-impl salsa::ParallelDatabase for CompilerDatabase {
+impl salsa::ParallelDatabase for Compiler {
     fn snapshot(&self) -> Snapshot<Self> {
-        Snapshot::new(CompilerDatabase {
+        Snapshot::new(Self {
             runtime: self.runtime.snapshot(self),
             diagnostics: self.diagnostics.clone(),
             codemap: self.codemap.clone(),
@@ -69,19 +77,18 @@ impl salsa::ParallelDatabase for CompilerDatabase {
     }
 }
 
-impl ParserDatabaseBase for CompilerDatabase {
-    fn diagnostics(&self) -> &DiagnosticsHandler {
+impl CompilerDiagnostics for Compiler {
+    #[inline]
+    fn diagnostics(&self) -> &Arc<DiagnosticsHandler> {
         &self.diagnostics
     }
 
-    fn diagnostic(&self, diagnostic: &Diagnostic) {
-        self.diagnostics.diagnostic(diagnostic);
-    }
-
-    fn codemap(&self) -> &Arc<RwLock<CodeMap>> {
+    fn codemap(&self) -> &Arc<CodeMap> {
         &self.codemap
     }
+}
 
+impl CompilerOutput for Compiler {
     fn maybe_emit_file<E>(&self, input: InternedInput, output: &E) -> QueryResult<Option<PathBuf>>
     where
         E: Emit,
@@ -99,8 +106,6 @@ impl ParserDatabaseBase for CompilerDatabase {
     where
         E: Emit,
     {
-        use liblumen_incremental::InternerDatabase;
-
         let input = self.lookup_intern_input(input);
         let output_type = output.emit_output_type();
         if let Some(filename) = options.output_types.maybe_emit(&input, output_type) {
@@ -136,8 +141,6 @@ impl ParserDatabaseBase for CompilerDatabase {
     where
         F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
     {
-        use liblumen_incremental::InternerDatabase;
-
         let input = self.lookup_intern_input(input);
         if let Some(filename) = options.output_types.maybe_emit(&input, output_type) {
             debug!("emitting {} for {:?}", output_type, input);
@@ -150,9 +153,9 @@ impl ParserDatabaseBase for CompilerDatabase {
     }
 }
 
-impl CodegenDatabaseBase for CompilerDatabase {
+impl CompilerExt for Compiler {
     fn take_atoms(&mut self) -> HashSet<Symbol> {
-        let atoms = Arc::get_mut(&mut self.atoms).unwrap().get_mut().unwrap();
+        let atoms = Arc::get_mut(&mut self.atoms).unwrap().get_mut();
         let empty = HashSet::default();
         core::mem::replace(atoms, empty)
     }
@@ -161,14 +164,14 @@ impl CodegenDatabaseBase for CompilerDatabase {
     where
         I: Iterator<Item = &'a Symbol>,
     {
-        let mut locked = self.atoms.lock().unwrap();
+        let mut locked = self.atoms.lock();
         for i in atoms {
             locked.insert(*i);
         }
     }
 
     fn take_symbols(&mut self) -> HashSet<FunctionSymbol> {
-        let symbols = Arc::get_mut(&mut self.symbols).unwrap().get_mut().unwrap();
+        let symbols = Arc::get_mut(&mut self.symbols).unwrap().get_mut();
         let empty = HashSet::default();
         core::mem::replace(symbols, empty)
     }
@@ -177,7 +180,7 @@ impl CodegenDatabaseBase for CompilerDatabase {
     where
         I: Iterator<Item = &'a FunctionSymbol>,
     {
-        let mut locked = self.symbols.lock().unwrap();
+        let mut locked = self.symbols.lock();
         for i in symbols {
             locked.insert(*i);
         }

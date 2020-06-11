@@ -4,9 +4,8 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 
-use libeir_diagnostics::Emitter;
-
 use liblumen_session::{CodegenOptions, DebuggingOptions};
+use liblumen_util::diagnostics::Emitter;
 
 use crate::argparser;
 use crate::commands;

@@ -61,6 +61,11 @@ pub fn define_foreign_struct(_args: AttributeArgs, strukt: ItemStruct) -> TokenS
                     Self(::core::ptr::null_mut())
                 }
             }
+            impl std::convert::AsRef<#name> for #ref_name {
+                fn as_ref(&self) -> &#name {
+                    unsafe { &*self.0 }
+                }
+            }
             impl std::convert::From<*const #name> for #ref_name {
                 fn from(ptr: *const #name) -> Self {
                     Self(ptr as *mut _)

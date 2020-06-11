@@ -8,7 +8,7 @@ use thiserror::Error;
 use crate::config::options::{invalid_value, required_option_missing};
 use crate::config::options::{OptionInfo, ParseOption};
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Sanitizer {
     Address,
     Leak,

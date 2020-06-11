@@ -54,7 +54,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   LLVMType intNTy = LLVMType::getIntNTy(&dialect, pointerSizeInBits);
   LLVMType int8Ty = LLVMType::getInt8Ty(&dialect);
   LLVMType int32Ty = LLVMType::getInt32Ty(&dialect);
-  LLVMType i8PtrTy = LLVMType::getInt8PtrTy(&dialect);
+  LLVMType int8PtrTy = LLVMType::getInt8PtrTy(&dialect);
   LLVMType f64Ty = LLVMType::getDoubleTy(&dialect);
   impl->pointerWidthIntTy = intNTy;
   impl->i1Ty = LLVMType::getInt1Ty(&dialect);
@@ -92,7 +92,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   impl->none = APInt(pointerSizeInBits, none, /*signed=*/false);
 
   // Binary types
-  ArrayRef<LLVMType> binaryFields({intNTy, intNTy, i8PtrTy});
+  ArrayRef<LLVMType> binaryFields({intNTy, intNTy, int8PtrTy});
   impl->binaryTy =
       LLVMType::createStructTy(&dialect, binaryFields, StringRef("binary"));
 
@@ -104,6 +104,11 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   impl->defTy = LLVMType::createStructTy(
       &dialect, ArrayRef<LLVMType>{int8Ty, intNTy, impl->uniqueTy, int32Ty},
       StringRef("closure.definition"));
+
+  // Exception Type (as seen by landing pads)
+  impl->exceptionTy =
+      LLVMType::createStructTy(&dialect, ArrayRef<LLVMType>{int8PtrTy, int32Ty},
+                               StringRef("lumen.exception"));
 
   // Tags/boxes
   impl->listTag = lumen_list_tag(&impl->encoding);

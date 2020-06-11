@@ -9,7 +9,8 @@ use std::slice;
 
 use anyhow::anyhow;
 
-use llvm_sys::core::{LLVMDisposeMemoryBuffer, LLVMGetBufferSize, LLVMGetBufferStart};
+use crate::sys as llvm_sys;
+use crate::sys::core::{LLVMDisposeMemoryBuffer, LLVMGetBufferSize, LLVMGetBufferStart};
 
 use super::strings::LLVMString;
 

@@ -15,12 +15,6 @@ using namespace lumen::eir;
 using ::mlir::Attribute;
 using ::mlir::DialectAsmPrinter;
 
-// NOTE: This conflicts with manual registration when
-// dynamic linking, but would be preferable in general,
-// before removing this, try and figure out how to make
-// it work both dynamically and statically linked
-// static DialectRegistration<EirDialect> eir_dialect;
-
 /// Create an instance of the EIR dialect, owned by the context.
 ///
 /// This is where EIR types, operations, and attributes are registered.
@@ -35,7 +29,7 @@ EirDialect::EirDialect(mlir::MLIRContext *ctx)
            ::lumen::eir::IntegerType, AtomType, ::lumen::eir::BooleanType,
            FixnumType, BigIntType, ::lumen::eir::FloatType, NilType, ConsType,
            TupleType, MapType, ClosureType, BinaryType, HeapBinType,
-           ProcBinType, BoxType, RefType>();
+           ProcBinType, BoxType, RefType, PtrType>();
 
   addAttributes<AtomAttr, BinaryAttr, SeqAttr>();
 }

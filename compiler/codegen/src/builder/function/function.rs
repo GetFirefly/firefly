@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::ffi::CString;
 use std::fmt;
 use std::ptr;
@@ -9,12 +11,12 @@ use cranelift_entity::{PrimaryMap, SecondaryMap};
 
 use log::debug;
 
-use libeir_diagnostics::ByteSpan;
 use libeir_ir as ir;
 use libeir_ir::FunctionIdent;
 
 use liblumen_core::symbols::FunctionSymbol;
 use liblumen_mlir::ir::{BlockRef, FunctionOpRef, ValueRef};
+use liblumen_util::diagnostics::SourceSpan;
 
 use crate::builder::block::*;
 use crate::builder::ffi::{self, Span, Type};
@@ -25,7 +27,7 @@ use crate::Result;
 pub struct Function {
     // MFA of this function
     name: ir::FunctionIdent,
-    pub(super) span: ByteSpan,
+    pub(super) span: SourceSpan,
     // Signature of this function
     signature: Signature,
     // Primary storage for blocks
@@ -58,7 +60,11 @@ impl Function {
     /// Initializes this function definition with the given name and signature
     ///
     /// NOTE: This does not construct the function in MLIR
-    pub fn with_name_signature(span: ByteSpan, name: FunctionIdent, signature: Signature) -> Self {
+    pub fn with_name_signature(
+        span: SourceSpan,
+        name: FunctionIdent,
+        signature: Signature,
+    ) -> Self {
         Self {
             name,
             span,
@@ -117,7 +123,7 @@ impl Function {
         let result_type = returns.get(0).unwrap_or(&Type::None);
         let loc = unsafe {
             let sl = builder
-                .location(self.span.start())
+                .location(self.span.start().index())
                 .expect("expected source location for function");
             ffi::MLIRCreateLocation(builder.as_ref(), sl)
         };
@@ -157,12 +163,6 @@ impl Function {
     #[inline]
     pub fn name(&self) -> &ir::FunctionIdent {
         &self.name
-    }
-
-    /// Returns a reference to the current functions' signature
-    #[inline]
-    pub fn signature(&self) -> &Signature {
-        &self.signature
     }
 
     /// Returns true if the given value is this functions' return continuation

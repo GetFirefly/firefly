@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::panic::{resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::thread;
 
@@ -21,7 +21,7 @@ where
     R: Send + 'static,
 {
     lazy_static! {
-        static ref SCHEDULER: Scheduler = { Scheduler::new(num_cpus::get()) };
+        static ref SCHEDULER: Scheduler = Scheduler::new(num_cpus::get());
     }
 
     SCHEDULER.spawn(future)
@@ -47,14 +47,13 @@ struct Scheduler {
 }
 
 struct ThreadState {
-    id: usize,
     tx: Arc<channel::Sender<Message>>,
 }
 
 impl Scheduler {
     pub fn new(size: usize) -> Self {
         let mut threads = Vec::with_capacity(size);
-        for id in 0..size {
+        for _ in 0..size {
             let (tx, rx) = channel::unbounded();
 
             thread::spawn(move || {
@@ -68,10 +67,7 @@ impl Scheduler {
                 }
             });
 
-            threads.push(ThreadState {
-                id,
-                tx: Arc::new(tx),
-            });
+            threads.push(ThreadState { tx: Arc::new(tx) });
         }
 
         Self {
@@ -114,7 +110,7 @@ impl Scheduler {
 impl Drop for Scheduler {
     fn drop(&mut self) {
         for thread in self.threads.iter() {
-            thread.tx.send(Message::Close);
+            thread.tx.send(Message::Close).unwrap();
         }
     }
 }

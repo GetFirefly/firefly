@@ -11,12 +11,12 @@ RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//' | sed -
 RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
 TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
 TOOLCHAIN_LIB_PATH="$(cd "$TOOLCHAIN_BIN_PATH"/../lib && pwd -P)"
-RUNTIME_LIBS=(liblumen_core liblumen_term liblumen_alloc liblumen_crt lumen_rt_core lumen_rt_minimal)
+RUNTIME_LIBS=(lumen_rt_minimal)
 
-export LLVM_SYS_90_PREFIX
-LLVM_SYS_90_PREFIX="${LLVM_SYS_90_PREFIX}"
-if [ -z "$LLVM_SYS_90_PREFIX" ]; then
-    LLVM_SYS_90_PREFIX="$(cd "${XDG_DATA_HOME}/llvm/lumen" && pwd -P)"
+export LLVM_PREFIX
+LLVM_PREFIX="${LLVM_PREFIX}"
+if [ -z "$LLVM_PREFIX" ]; then
+    LLVM_PREFIX="$(cd "${XDG_DATA_HOME}/llvm/lumen" && pwd -P)"
 fi
 
 is_ci="false"
@@ -208,18 +208,20 @@ if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/tools/lumen-tblgen" ]; then
     pushd "${OUTPUT_DIR}/build/lumen_tblgen"
     _gen="make"
     _generator=""
+    _target="tools_lumen_tblgen"
     if type -p ninja >/dev/null; then
         _gen="ninja"
         _generator="-GNinja"
+        _target="lumen-tblgen"
     fi
     cmake ${_generator} \
         -DLUMEN_BUILD_COMPILER=ON \
         -DLUMEN_BUILD_TESTS=OFF \
         -DBUILD_SHARED_LIBS=OFF \
-        -DLLVM_PREFIX="$LLVM_SYS_90_PREFIX" \
+        -DLLVM_PREFIX="$LLVM_PREFIX" \
         --target lumen_tblgen \
         --build "${ROOT_DIR}/compiler/codegen/lib" && \
-    "$_gen" lumen-tblgen
+    "$_gen" "$_target"
 
     if [[ $? -ne 0 ]]; then
         echo "Failed to build lumen-tblgen!"
@@ -264,14 +266,6 @@ if [ -n "$build_package" ]; then
     exit 0
 fi
 
-# Build deps
-#for lib in "${BUILD_DEPS[@]}"; do
-    # shellcheck disable=SC2086
-#    if ! cargo rustc ${extra_cargo_flags} -p ${lib} -- -C link-args="-Wl,$build_link_args" ${extra_rustc_flags}; then
-#        exit 1
-#    fi
-#done
-
 # Build Lumen and gather artifact metadata
 # shellcheck disable=SC2086
 build_json=""
@@ -280,7 +274,15 @@ if ! build_json="$(cargo rustc --message-format=json ${extra_cargo_flags} -p lum
     exit 1
 fi
 dep_info=""
-if ! dep_info="$(echo "$build_json" | jq 'select(.reason == "compiler-artifact") | { name: .target.name, files: .filenames | arrays | map(select(endswith(".a"))) | select(. | length > 0) }' )"; then
+if ! dep_info="$(echo "$build_json" | jq -r 'select(.reason == "compiler-artifact") | { name: .target.name, files: .filenames | arrays }')"; then
+    exit 1
+fi
+staticlib_deps=""
+if ! staticlib_deps="$(echo "$dep_info" | jq '. | { name: .name, files: .files | map(select(endswith(".a"))) | select(. | length > 0) }' )"; then
+    exit 1
+fi
+rlib_deps=""
+if ! rlib_deps="$(echo "$dep_info" | jq '. | { name: .name, files: .files | map(select(endswith(".rlib"))) | select(. | length > 0) }' )"; then
     exit 1
 fi
 codegen_outdir=""
@@ -300,20 +302,61 @@ mkdir -p "${install_target_lib_dir}"
 mkdir -p "${install_prefix}"/{etc,share}
 cp "${OUTPUT_DIR}/lumen" "${install_bin_dir}/lumen"
 
-# Copy runtime libraries, build them if not present
+# Remove old libraries
+for lib in "${install_host_lib_dir}"/*.{a,dylib,rlib}; do
+    [ -f "$lib" ] && rm "$lib"
+done
+
+for lib in "${install_target_lib_dir}"/*.{a,dylib,rlib}; do
+    [ -f "$lib" ] && rm "$lib"
+done
+
+# Copy runtime libraries
+rustlibs=(libpanic_abort libpanic_unwind)
+for rustlib in "${rustlibs[@]}"; do
+    for lib in "${TOOLCHAIN_TARGET_LIB_PATH}/${rustlib}"*.rlib; do
+        if [ ! -f "$lib" ]; then
+            echo "Unable to locate $rustlib ($lib)"
+            exit 1
+        fi
+
+        rsync -a --copy-links --whole-file "$lib" "${install_target_lib_dir}/${rustlib}.rlib"
+    done
+done
+
 for lib in "${RUNTIME_LIBS[@]}"; do
-    dep_exists="$(echo "$dep_info" | jq -r "select(.name == \"$lib\") | any")"
-    if [ "$dep_exists" != "true" ]; then
-        echo "Unable to find dependency $lib"
+    found=""
+    found_ext=""
+    if found="$(echo "$rlib_deps" | jq -r "select(.name == \"$lib\") | .files[]")"; then
+        if [ -n "$found" ]; then
+            found_ext="rlib"
+        else
+            if found="$(echo "$staticlib_deps" | jq -r "select(.name == \"$lib\") | .files[]")"; then
+                found_ext="a"
+            else
+                echo "$found"
+                echo "Unexpected failure while searching for runtime libs!"
+                exit 1
+            fi
+        fi
+    else
+        echo "$found"
+        echo "Unexpected failure while searching for runtime libs!"
         exit 1
     fi
 
-    dep_output="$(echo "$dep_info" | jq -r "select(.name == \"$lib\") | .files[]")"
-    if [ ! -f "$dep_output" ]; then
-        echo "Library $dep_output for dep $lib does not exist!"
+    if [ -z "$found" ] || [ ! -f "$found" ]; then
+        echo "Unable to find archive (.a/.rlib) for dependency ($lib)"
+        echo "  build metadata:      ${OUTPUT_DIR}/build-lumen/build.json"
+        echo "  dependency metadata: ${OUTPUT_DIR}/build-lumen/deps.json"
+        echo "  search result: '$found'"
+        mkdir -p "${OUTPUT_DIR}/build-lumen"
+        echo "$build_json" > "${OUTPUT_DIR}/build-lumen/build.json"
+        echo "$dep_info" > "${OUTPUT_DIR}/build-luen/deps.json"
         exit 1
     fi
-    rsync -a --copy-links --whole-file "$dep_output" "${install_target_lib_dir}/lib${lib}.a"
+
+    rsync -a --copy-links --whole-file "$found" "${install_target_lib_dir}/lib${lib}.${found_ext}"
 done
 
 # Copy codegen libraries that are not statically linked

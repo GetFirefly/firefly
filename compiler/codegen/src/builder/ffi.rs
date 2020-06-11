@@ -17,15 +17,6 @@ pub struct SourceLocation {
     pub line: u32,
     pub column: u32,
 }
-impl From<&liblumen_session::diagnostics::Location> for SourceLocation {
-    fn from(loc: &liblumen_session::diagnostics::Location) -> Self {
-        Self {
-            filename: loc.file.as_ptr(),
-            line: loc.line,
-            column: loc.column,
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
@@ -45,8 +36,8 @@ impl Default for Span {
         Self { start: 0, end: 0 }
     }
 }
-impl From<libeir_diagnostics::ByteSpan> for Span {
-    fn from(span: libeir_diagnostics::ByteSpan) -> Span {
+impl From<liblumen_util::diagnostics::SourceSpan> for Span {
+    fn from(span: liblumen_util::diagnostics::SourceSpan) -> Span {
         Self {
             start: span.start().to_usize() as u32,
             end: span.end().to_usize() as u32,
@@ -270,6 +261,7 @@ extern "C" {
         target_machine: llvm::target::TargetMachineRef,
     ) -> ModuleBuilderRef;
 
+    #[allow(unused)]
     pub fn MLIRDumpModule(builder: ModuleBuilderRef);
 
     pub fn MLIRFinalizeModuleBuilder(builder: ModuleBuilderRef) -> ModuleRef;
@@ -317,6 +309,7 @@ extern "C" {
     // Blocks
     //---------------
 
+    #[allow(unused)]
     pub fn MLIRGetCurrentBlockArgument(builder: ModuleBuilderRef, id: libc::c_uint) -> ValueRef;
 
     pub fn MLIRGetBlockArgument(block: BlockRef, id: libc::c_uint) -> ValueRef;
@@ -364,6 +357,14 @@ extern "C" {
         loc: LocationRef,
         value: ValueRef,
     ) -> ValueRef;
+
+    pub fn MLIRBuildThrow(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        kind: ValueRef,
+        class: ValueRef,
+        reason: ValueRef,
+    );
 
     pub fn MLIRBuildStaticCall(
         builder: ModuleBuilderRef,
@@ -484,6 +485,7 @@ extern "C" {
         pairs: *const MapEntry,
         num_pairs: libc::c_uint,
     ) -> ValueRef;
+    pub fn MLIRBuildBinaryStart(builder: ModuleBuilderRef, loc: LocationRef, cont_block: BlockRef);
     pub fn MLIRBuildBinaryPush(
         builder: ModuleBuilderRef,
         loc: LocationRef,
@@ -493,6 +495,33 @@ extern "C" {
         spec: &BinarySpecifier,
         ok_block: BlockRef,
         err_block: BlockRef,
+    );
+    pub fn MLIRBuildBinaryFinish(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        cont_block: BlockRef,
+        bin: ValueRef,
+    );
+    pub fn MLIRBuildReceiveStart(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        cont_block: BlockRef,
+        timeout: ValueRef,
+    );
+    pub fn MLIRBuildReceiveWait(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        timeout_block: BlockRef,
+        check_block: BlockRef,
+        receive_ref: ValueRef,
+    );
+    pub fn MLIRBuildReceiveDone(
+        builder: ModuleBuilderRef,
+        loc: LocationRef,
+        cont_block: BlockRef,
+        receive_ref: ValueRef,
+        argv: *const ValueRef,
+        argc: libc::c_uint,
     );
 
     pub fn MLIRIsIntrinsic(name: *const libc::c_char) -> bool;

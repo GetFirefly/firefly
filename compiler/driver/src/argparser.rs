@@ -5,6 +5,7 @@ use clap::{App, AppSettings, Arg, ArgMatches};
 
 use liblumen_session::{CodegenOptions, DebuggingOptions, OptionGroup, OutputType};
 use liblumen_target::Target;
+use liblumen_util::diagnostics::ColorArg;
 
 /// Parses the provided arguments
 pub fn parse<'a>(args: impl Iterator<Item = OsString>) -> clap::Result<ArgMatches<'a>> {
@@ -130,10 +131,32 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .long("debug"),
         )
         .arg(
-            Arg::with_name("optimize")
-                .help("Apply optimizations (equivalent to -C opt-level=2)")
+            Arg::with_name("no-optimize")
+                .help("Disable optimizations (optimization is enabled by default)")
+                .long("no-optimize"),
+        )
+        .arg(
+            Arg::with_name("opt-level")
+                .conflicts_with("no-optimize")
+                .long("opt-level")
                 .short("O")
-                .long("optimize"),
+                .takes_value(true)
+                .value_name("LEVEL")
+                .default_value("2")
+                .default_value_if("no-optimize", None, "0")
+                .possible_values(&["0", "1", "2", "3", "s", "z"])
+                .next_line_help(true)
+                .help(
+                    "\
+                      Apply optimizations (default is -O2)\n  \
+                        0 = no optimizations\n  \
+                        1 = minimal optimizations\n  \
+                        2 = normal optimizations (default)\n  \
+                        3 = aggressive optimizations\n  \
+                        s = optimize for size\n  \
+                        z = aggressively optimize for size\n  \
+                        _",
+                ),
         )
         .arg(
             target
@@ -145,7 +168,8 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .help("Configure coloring of output")
                 .next_line_help(true)
                 .long("color")
-                .possible_values(&["never", "always", "auto"])
+                .possible_values(ColorArg::VARIANTS)
+                .case_insensitive(true)
                 .default_value("auto"),
         )
         .arg(

@@ -10,9 +10,9 @@ use std::str::FromStr;
 use clap::ArgMatches;
 use thiserror::Error;
 
-use libeir_diagnostics::FileName;
 use libeir_ir as eir;
 use libeir_syntax_erl as syntax;
+use liblumen_util::diagnostics::FileName;
 use liblumen_util::fs;
 
 use crate::{Input, OptionInfo, Options, ParseOption};
@@ -143,25 +143,25 @@ impl OutputType {
     }
 
     pub const fn help() -> &'static str {
-        "Comma-separated list of output types for the compiler to generate.
-You may specify one or more types (comma-separated), and each type
-may also include a glob pattern, which filters the inputs for which
-that output type should apply.
-
-Supported output types:
-- all:       Emit everything
-- ast:       Abstract Syntax Tree
-- eir:       Erlang Intermediate Representation
-- mlir-eir:  MLIR (Erlang Dialect)
-- mlir-std:  MLIR (Standard Dialect)
-- mlir-llvm: MLIR (LLVM Dialect)
-- llvm-ir:   LLVM IR
-- llvm-bc:   LLVM Bitcode (*)
-- asm:       Assembly (*)
-- obj:       Object File (*)
-- link:      Executable (*)
-
-(*) Indicates that globs cannot be applied to this output type"
+        "Comma-separated list of output types for the compiler to generate.\n\
+         You may specify one or more types (comma-separated), and each type\n\
+         may also include a glob pattern, which filters the inputs for which\n\
+         that output type should apply.\n\
+         \n\
+         Supported output types:\n  \
+           all       = Emit everything\n  \
+           ast       = Abstract Syntax Tree\n  \
+           eir       = Erlang Intermediate Representation\n  \
+           mlir-eir  = MLIR (Erlang Dialect)\n  \
+           mlir-std  = MLIR (Standard Dialect)\n  \
+           mlir-llvm = MLIR (LLVM Dialect)\n  \
+           llvm-ir   = LLVM IR\n  \
+           llvm-bc   = LLVM Bitcode (*)\n  \
+           asm       = Assembly (*)\n  \
+           obj       = Object File (*)\n  \
+           link      =  Executable (*)\n\
+         \n\
+         (*) Indicates that globs cannot be applied to this output type"
     }
 
     pub fn extension(&self) -> &'static str {

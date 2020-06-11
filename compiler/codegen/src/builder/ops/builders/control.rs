@@ -22,9 +22,11 @@ impl ThrowBuilder {
         op: Throw,
     ) -> Result<Option<Value>> {
         debug_in!(builder, "building throw");
-        // TODO: For now we just lower to an abort until we decide on how this should work
+        let kind = builder.value_ref(op.kind);
+        let reason = builder.value_ref(op.reason);
+        let trace = builder.value_ref(op.trace);
         unsafe {
-            MLIRBuildUnreachable(builder.as_ref(), op.loc);
+            MLIRBuildThrow(builder.as_ref(), op.loc, kind, reason, trace);
         }
 
         Ok(None)

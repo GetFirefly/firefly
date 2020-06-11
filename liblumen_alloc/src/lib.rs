@@ -13,6 +13,7 @@
 #![feature(slice_index_methods)]
 // Support backtraces in errors
 #![feature(backtrace)]
+#![feature(raw_vec_internals)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;
@@ -55,7 +56,7 @@ pub use self::segmented_alloc::SegmentedAlloc;
 
 // An allocator that manages buckets of slab allocators as a highly efficient
 // means of managing allocations with fixed sizes
-pub use self::size_class_alloc::SizeClassAlloc;
+pub use self::size_class_alloc::{SizeClassAlloc, SizeClassAllocRef};
 
 // Runtime system support, e.g. process heaps, etc.
 pub use erts::*;

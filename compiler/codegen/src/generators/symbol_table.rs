@@ -13,6 +13,7 @@ use liblumen_llvm as llvm;
 use liblumen_llvm::builder::ModuleBuilder;
 use liblumen_llvm::enums::{Linkage, ThreadLocalMode};
 use liblumen_llvm::target::TargetMachine;
+use liblumen_session::Options;
 
 use crate::meta::CompiledModule;
 use crate::Result;
@@ -25,6 +26,7 @@ use crate::Result;
 /// to the actual functions, and when we boot the runtime, we can reify this array into
 /// a more efficient search structure for dispatch.
 pub fn generate(
+    options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
     symbols: HashSet<FunctionSymbol>,
@@ -32,7 +34,7 @@ pub fn generate(
 ) -> Result<Arc<CompiledModule>> {
     const NAME: &'static str = "liblumen_crt_dispatch";
 
-    let builder = ModuleBuilder::new(NAME, context, target_machine)?;
+    let builder = ModuleBuilder::new(NAME, options, context, target_machine)?;
 
     fn declare_extern_symbol<'ctx>(
         builder: &ModuleBuilder<'ctx>,
@@ -45,16 +47,16 @@ pub fn generate(
             name: Ident::with_empty_span(fs),
             arity: symbol.arity as usize,
         };
-        let name = CString::new(ident.to_string()).unwrap();
+        let name = ident.to_string();
         let ty = builder.get_erlang_function_type(ident.arity);
-        Ok(builder.build_function(&name, ty))
+        Ok(builder.build_external_function(name.as_str(), ty))
     }
 
     // Translate FunctionIdent to FunctionSymbol with pointer to declared function
     let usize_type = builder.get_usize_type();
     let i8_type = builder.get_i8_type();
     let fn_ptr_type = builder.get_pointer_type(builder.get_opaque_function_type());
-    let function_type = builder.get_struct_type(
+    let function_symbol_type = builder.get_struct_type(
         Some("FunctionSymbol"),
         &[usize_type, usize_type, i8_type, fn_ptr_type],
     );
@@ -64,16 +66,17 @@ pub fn generate(
     for symbol in symbols.iter() {
         let decl = declare_extern_symbol(&builder, symbol)?;
         let decl_ptr = builder.build_pointer_cast(decl, fn_ptr_type);
-        let module = builder.build_constant_uint(usize_type, symbol.module);
-        let fun = builder.build_constant_uint(usize_type, symbol.function);
-        let arity = builder.build_constant_uint(i8_type, symbol.arity as usize);
+        let module = builder.build_constant_uint(usize_type, symbol.module as u64);
+        let fun = builder.build_constant_uint(usize_type, symbol.function as u64);
+        let arity = builder.build_constant_uint(i8_type, symbol.arity as u64);
         let function =
-            builder.build_constant_struct(function_type, &[module, fun, arity, decl_ptr]);
+            builder.build_constant_struct(function_symbol_type, &[module, fun, arity, decl_ptr]);
         functions.push(function);
     }
 
     // Generate global array of all idents
-    let functions_const_init = builder.build_constant_array(function_type, functions.as_slice());
+    let functions_const_init =
+        builder.build_constant_array(function_symbol_type, functions.as_slice());
     let functions_const_ty = builder.type_of(functions_const_init);
     let functions_const = builder.build_constant(
         functions_const_ty,
@@ -83,7 +86,7 @@ pub fn generate(
     builder.set_linkage(functions_const, Linkage::Private);
     builder.set_alignment(functions_const, 8);
 
-    let function_ptr_type = builder.get_pointer_type(function_type);
+    let function_ptr_type = builder.get_pointer_type(function_symbol_type);
     let table_global_init = builder.build_const_inbounds_gep(functions_const, &[0, 0]);
     let table_global = builder.build_global(
         function_ptr_type,
@@ -93,7 +96,7 @@ pub fn generate(
     builder.set_alignment(table_global, 8);
 
     // Generate array length global
-    let table_size_global_init = builder.build_constant_uint(usize_type, functions.len());
+    let table_size_global_init = builder.build_constant_uint(usize_type, functions.len() as u64);
     let table_size_global = builder.build_global(
         usize_type,
         "__LUMEN_SYMBOL_TABLE_SIZE",
@@ -120,8 +123,8 @@ pub fn generate(
     //
     // We do that here, since logically its another symbol in our symbol table,
     // except we call it directly like any other function in the generated code.
-    let lang_start_symbol_name = CString::new(env!("LANG_START_SYMBOL_NAME")).unwrap();
-    let lang_start_alias_name = CString::new("__lumen_lang_start_internal").unwrap();
+    let lang_start_symbol_name = env!("LANG_START_SYMBOL_NAME");
+    let lang_start_alias_name = "__lumen_lang_start_internal";
 
     let i32_type = builder.get_i32_type();
     let i8ptrptr_type = builder.get_pointer_type(builder.get_pointer_type(i8_type));
@@ -131,28 +134,36 @@ pub fn generate(
         &[main_ptr_ty, usize_type, i8ptrptr_type],
         /* varidic= */ false,
     );
-    let lang_start_fn_decl = builder.build_function(&lang_start_symbol_name, lang_start_ty);
-    builder.set_linkage(lang_start_fn_decl, Linkage::External);
-    let lang_start_shim_fn = builder.build_function(&lang_start_alias_name, lang_start_ty);
-    builder.set_linkage(lang_start_shim_fn, Linkage::External);
+
+    let lang_start_fn_decl = builder.build_external_function(lang_start_symbol_name, lang_start_ty);
+    let lang_start_shim_fn = builder.build_external_function(lang_start_alias_name, lang_start_ty);
+
     let entry_block = builder.build_entry_block(lang_start_shim_fn);
     builder.position_at_end(entry_block);
+
     let lang_start_args = builder.get_function_params(lang_start_shim_fn);
-    let lang_start_call = builder.build_call(lang_start_fn_decl, lang_start_ty, &lang_start_args);
+    let lang_start_call = builder.build_call(lang_start_fn_decl, &lang_start_args, None);
     builder.set_is_tail(lang_start_call, true);
     builder.build_return(lang_start_call);
 
     // Finalize module
-    let module = builder.finish();
+    let module = builder.finish()?;
+
+    // Open ll file for writing
+    let ir_path = output_dir.join(&format!("{}.ll", NAME));
+    let mut file = File::create(ir_path.as_path())?;
+    // Emit IR file
+    module.emit_ir(&mut file)?;
+
     // Open object file for writing
-    let path = output_dir.join(&format!("{}.o", NAME));
-    let mut file = File::create(path.as_path())?;
+    let obj_path = output_dir.join(&format!("{}.o", NAME));
+    let mut file = File::create(obj_path.as_path())?;
     // Emit object file
     module.emit_obj(&mut file)?;
 
     Ok(Arc::new(CompiledModule::new(
         NAME.to_string(),
-        Some(path),
+        Some(obj_path),
         None,
     )))
 }

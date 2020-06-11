@@ -35,11 +35,11 @@ pub mod sysconf {
     pub const MIN_ALIGN: usize = 8;
 
     lazy_static! {
-        static ref PAGE_SIZE: usize = { sysconf::pagesize() };
+        static ref PAGE_SIZE: usize = sysconf::pagesize();
     }
 
     lazy_static! {
-        static ref NUM_CPUS: usize = { sysconf::get_num_cpus() };
+        static ref NUM_CPUS: usize = sysconf::get_num_cpus();
     }
 
     /// Returns the current page size in bytes

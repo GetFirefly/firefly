@@ -36,6 +36,8 @@ struct OpaqueTermTypeStorage;
 struct TupleTypeStorage;
 struct BoxTypeStorage;
 struct RefTypeStorage;
+struct PtrTypeStorage;
+struct ReceiveRefTypeStorage;
 }  // namespace detail
 
 namespace TypeKind {
@@ -45,7 +47,9 @@ enum Kind {
 #include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
-  Ref = mlir::Type::LAST_EIR_TYPE,
+  Ref = mlir::Type::FIRST_EIR_TYPE + 19,
+  Ptr = mlir::Type::FIRST_EIR_TYPE + 20,
+  ReceiveRef = mlir::Type::LAST_EIR_TYPE,
 };
 }  // namespace TypeKind
 
@@ -127,7 +131,6 @@ class OpaqueTermType : public Type {
 
   static bool isTypeKind(Type type, TypeKind::Kind kind) {
     if (!OpaqueTermType::classof(type)) {
-      assert(false && "isTypeKind");
       return false;
     }
     return type.cast<OpaqueTermType>().getImplKind() == kind;
@@ -135,6 +138,8 @@ class OpaqueTermType : public Type {
 
   static bool classof(Type type) {
     auto kind = type.getKind();
+    // ReceiveRefs are not actually term types
+    if (kind == TypeKind::ReceiveRef) return false;
 #define EIR_TERM_KIND(Name, Val)                    \
   if (kind == (mlir::Type::FIRST_EIR_TYPE + Val)) { \
     return true;                                    \
@@ -143,7 +148,7 @@ class OpaqueTermType : public Type {
 #include "lumen/compiler/Dialect/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
-    return true;
+    return false;
   }
 
  private:
@@ -327,6 +332,31 @@ class RefType : public Type::TypeBase<RefType, Type, detail::RefTypeStorage> {
   OpaqueTermType getInnerType() const;
 
   static bool kindof(unsigned kind) { return kind == TypeKind::Ref; }
+};
+
+/// A raw pointer
+class PtrType : public Type::TypeBase<PtrType, Type, detail::PtrTypeStorage> {
+ public:
+  using Base::Base;
+
+  /// Gets or creates a PtrType with the provided target object type.
+  static PtrType get(Type innerType);
+  /// Gets or creates a PtrType with a default type of i8
+  static PtrType get(MLIRContext *context);
+
+  Type getInnerType() const;
+
+  static bool kindof(unsigned kind) { return kind == TypeKind::Ptr; }
+};
+
+/// Used to represent the opaque handle for a receive construct
+class ReceiveRefType : public Type::TypeBase<ReceiveRefType, Type> {
+ public:
+  using Base::Base;
+
+  static ReceiveRefType get(mlir::MLIRContext *context);
+
+  static bool kindof(unsigned kind) { return kind == TypeKind::ReceiveRef; }
 };
 
 template <typename A, typename B>

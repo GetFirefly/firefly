@@ -36,7 +36,9 @@ pub fn is_down(message: &Message, reference: &Reference) -> bool {
 pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
     let info = exception.reason().unwrap_or_else(|| atom!("system_error"));
 
-    for (reference, monitor) in process.monitor_by_reference.lock().iter() {
+    for entry in process.monitor_by_reference.iter() {
+        let reference = entry.key();
+        let monitor = entry.value();
         if let Some(monitoring_pid_arc_process) = pid_to_process(&monitor.monitoring_pid()) {
             let down_layout = down_message_layout(monitor, info);
             let down_layout_words = erts::to_word_size(down_layout.size());

@@ -33,5 +33,5 @@ fn without_pid_or_port_errors_badarg() {
 }
 
 fn link_count(process: &Process) -> usize {
-    process.linked_pid_set.lock().len()
+    process.linked_pid_set.len()
 }

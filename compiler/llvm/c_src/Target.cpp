@@ -8,18 +8,22 @@
 
 #include "llvm-c/Core.h"
 #include "llvm-c/Target.h"
-#include "llvm-c/TargetMachine.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/TargetRegistry.h"
 
+using ::lumen::TargetMachineConfig;
+using ::lumen::TargetFeature;
+
 using ::llvm::Optional;
 using ::llvm::ArrayRef;
+using ::llvm::StringRef;
 using ::llvm::TargetMachine;
+using ::llvm::SubtargetFeatures;
 using ::llvm::Triple;
 using ::llvm::unwrap;
 
@@ -66,51 +70,90 @@ extern "C" void PrintTargetFeatures(LLVMTargetMachineRef tm) {
       "target-feature=+feature1,-feature2\n\n");
 }
 
-extern "C" LLVMTargetMachineRef LLVMLumenCreateTargetMachine(
-    const char *TripleStr, const char *CPU, const char *Feature,
-    const char *Abi, lumen::CodeModel LumenCM, lumen::RelocMode LumenReloc,
-    lumen::OptLevel LumenOptLevel, bool PositionIndependentExecutable,
-    bool FunctionSections, bool DataSections, bool TrapUnreachable,
-    bool Singlethread, bool AsmComments, bool EmitStackSizeSection,
-    bool RelaxElfRelocations) {
-  auto OptLevel = toLLVM(LumenOptLevel);
-  auto RM = toLLVM(LumenReloc);
+extern "C" LLVMTargetMachineRef LLVMLumenCreateTargetMachine(TargetMachineConfig *conf) {
+  TargetMachineConfig config = *conf;
+  StringRef targetTriple(config.triple, config.tripleLen);
+  StringRef cpu(config.cpu, config.cpuLen);
+  StringRef abi(config.abi, config.abiLen);
+  Triple triple(Triple::normalize(targetTriple));
 
-  std::string Error;
-  Triple Trip(Triple::normalize(TripleStr));
-  const llvm::Target *TheTarget =
-      llvm::TargetRegistry::lookupTarget(Trip.getTriple(), Error);
-  if (TheTarget == nullptr) {
-    LLVMLumenSetLastError(Error.c_str());
+  std::string error;
+  const llvm::Target *target =
+      llvm::TargetRegistry::lookupTarget(triple.getTriple(), error);
+  if (target == nullptr) {
+    LLVMLumenSetLastError(error.c_str());
     return nullptr;
   }
 
-  llvm::TargetOptions Options;
+  SubtargetFeatures features;
+  features.getDefaultSubtargetFeatures(triple);
 
-  Options.FloatABIType = llvm::FloatABI::Default;
-  Options.DataSections = DataSections;
-  Options.FunctionSections = FunctionSections;
-  Options.MCOptions.AsmVerbose = AsmComments;
-  Options.MCOptions.PreserveAsmComments = AsmComments;
-
-  if (TrapUnreachable) {
-    // Tell LLVM to codegen `unreachable` into an explicit trap instruction.
-    // This limits the extent of possible undefined behavior in some cases, as
-    // it prevents control flow from "falling through" into whatever code
-    // happens to be laid out next in memory.
-    Options.TrapUnreachable = true;
+  unsigned featuresLen = config.featuresLen;
+  if (featuresLen > 0) {
+    ArrayRef<TargetFeature> targetFeatures(config.features, featuresLen);
+    for (auto &feature : targetFeatures) {
+        features.AddFeature(StringRef(feature.name, feature.nameLen));
+    }
   }
 
-  if (Singlethread) {
-    Options.ThreadModel = llvm::ThreadModel::Single;
+  auto rm = config.relocModel;
+  llvm::Reloc::Model relocModel;
+  if (rm != lumen::RelocModel::Default)
+    relocModel = toLLVM(rm);
+  else
+    relocModel = config.positionIndependentCode ? llvm::Reloc::PIC_ : llvm::Reloc::Static;
+
+  auto codeModel = toLLVM(config.codeModel);
+
+  llvm::TargetOptions options;
+  options.DebuggerTuning = llvm::DebuggerKind::LLDB;
+  options.FloatABIType = llvm::FloatABI::Default;
+  options.DataSections = config.dataSections;
+  options.FunctionSections = config.functionSections;
+  options.GuaranteedTailCallOpt = true;
+  options.MCOptions.AsmVerbose = config.preserveAsmComments;
+  options.MCOptions.PreserveAsmComments = config.preserveAsmComments;
+  options.MCOptions.ABIName = std::string(config.abi, config.abiLen);
+  options.EmitStackSizeSection = config.emitStackSizeSection;
+  // Tell LLVM to codegen `unreachable` into an explicit trap instruction.
+  // This limits the extent of possible undefined behavior in some cases, as
+  // it prevents control flow from "falling through" into whatever code
+  // happens to be laid out next in memory.
+  options.TrapUnreachable = true;
+  options.EmitCallSiteInfo = true;
+
+  if (!config.enableThreading) {
+    options.ThreadModel = llvm::ThreadModel::Single;
   }
 
-  Options.EmitStackSizeSection = EmitStackSizeSection;
+  // Always enable wasm exceptions, regardless of features provided;
+  // we do this because our codegen depends on exceptions being lowered
+  // correctly
+  switch (triple.getArch()) {
+      case Triple::ArchType::wasm32:
+      case Triple::ArchType::wasm64:
+        options.ExceptionModel = llvm::ExceptionHandling::Wasm;
+        break;
+      default:
+        break;
+  }
 
-  Optional<llvm::CodeModel::Model> CM;
-  if (LumenCM != lumen::CodeModel::None) CM = toLLVM(LumenCM);
-  return wrap(TheTarget->createTargetMachine(Trip.getTriple(), CPU, Feature,
-                                             Options, RM, CM, OptLevel));
+  auto optLevel = toLLVM(config.optLevel);
+  auto *targetMachine = target->createTargetMachine(
+    triple.getTriple(), cpu, features.getString(),
+    options, relocModel, codeModel, optLevel);
+
+  if (optLevel == llvm::CodeGenOpt::Level::None) {
+      targetMachine->setFastISel(true);
+      targetMachine->setO0WantsFastISel(true);
+      targetMachine->setGlobalISel(false);
+  } else {
+      targetMachine->setFastISel(false);
+      targetMachine->setO0WantsFastISel(false);
+      targetMachine->setGlobalISel(false);
+  }
+
+  return wrap(targetMachine);
 }
 
 extern "C" void LLVMLumenDisposeTargetMachine(LLVMTargetMachineRef tm) {
@@ -158,7 +201,7 @@ extern "C" bool LLVMTargetMachineEmitToFileDescriptor(
 }
 
 namespace lumen {
-llvm::CodeModel::Model toLLVM(CodeModel cm) {
+Optional<llvm::CodeModel::Model> toLLVM(CodeModel cm) {
   switch (cm) {
     case CodeModel::Small:
       return llvm::CodeModel::Small;
@@ -168,6 +211,8 @@ llvm::CodeModel::Model toLLVM(CodeModel cm) {
       return llvm::CodeModel::Medium;
     case CodeModel::Large:
       return llvm::CodeModel::Large;
+    case CodeModel::None:
+      return llvm::None;
     default:
       llvm::report_fatal_error("invalid llvm code model");
   }
@@ -201,24 +246,24 @@ unsigned toLLVM(SizeLevel level) {
   }
 }
 
-llvm::Reloc::Model toLLVM(RelocMode mode) {
-  switch (mode) {
-    case RelocMode::Default:
+llvm::Reloc::Model toLLVM(RelocModel model) {
+  switch (model) {
+    case RelocModel::Default:
       return llvm::Reloc::Static;
-    case RelocMode::Static:
+    case RelocModel::Static:
       return llvm::Reloc::Static;
-    case RelocMode::PIC:
+    case RelocModel::PIC:
       return llvm::Reloc::PIC_;
-    case RelocMode::DynamicNoPic:
+    case RelocModel::DynamicNoPic:
       return llvm::Reloc::DynamicNoPIC;
-    case RelocMode::ROPI:
+    case RelocModel::ROPI:
       return llvm::Reloc::ROPI;
-    case RelocMode::RWPI:
+    case RelocModel::RWPI:
       return llvm::Reloc::RWPI;
-    case RelocMode::ROPIRWPI:
+    case RelocModel::ROPIRWPI:
       return llvm::Reloc::ROPI_RWPI;
     default:
-      llvm::report_fatal_error("invalid llvm reloc mode");
+      llvm::report_fatal_error("invalid llvm reloc model");
   }
 }
 

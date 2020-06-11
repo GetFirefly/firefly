@@ -3,7 +3,7 @@ use std::convert::{From, TryFrom, TryInto};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use libeir_diagnostics::FileName;
+use liblumen_util::diagnostics::FileName;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum InputType {

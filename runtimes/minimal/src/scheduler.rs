@@ -107,7 +107,7 @@ pub unsafe extern "C" fn process_return_continuation() {
 #[inline(never)]
 #[cfg(all(unix, target_arch = "x86_64"))]
 pub unsafe extern "C" fn trap_exceptions() {
-    asm!("
+    llvm_asm!("
          # spawn_internal has set up the stack so that when we
          # enter this function, %r14 holds the function pointer
          # for the `init` function, and %r15 holds the function pointer

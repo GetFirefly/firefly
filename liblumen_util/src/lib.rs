@@ -1,4 +1,3 @@
-#![feature(negative_impls)]
 #![feature(optin_builtin_traits)]
 // Used to prevent panic!(FatalError)
 #![feature(negative_impls)]

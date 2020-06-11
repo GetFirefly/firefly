@@ -45,5 +45,7 @@ jobs:
         run: make build
       - name: Test liblumen_alloc
         run: cargo test --package liblumen_alloc
+      - name: Build lumen_rt_minimal
+        run: cargo build --package lumen_rt_minimal
       - name: Lumen Test
-        run: cargo test -p lumen
+        run: cargo test --package lumen

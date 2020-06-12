@@ -5,7 +5,7 @@
 //! @spec function_exported(module :: atom(), function :: atom(), arity :: 0..255)
 //! ```
 
-#[cfg(test)]
+#[cfg(all(not(feature = "runtime_minimal"), test))]
 mod test;
 
 use std::convert::TryInto;

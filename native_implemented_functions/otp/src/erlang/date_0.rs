@@ -1,4 +1,4 @@
-#[cfg(test)]
+#[cfg(all(not(feature = "runtime_minimal"), test))]
 mod test;
 
 use crate::runtime::time::datetime;

@@ -8,11 +8,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::*;
 
-// wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
-// use proptest completely for wasm32
-//
-// See https://github.com/rust-lang/cargo/issues/4866
-#[cfg(all(not(target_arch = "wasm32"), test))]
+#[cfg(all(not(any(target_arch = "wasm32", feature = "runtime_minimal")), test))]
 mod test;
 
 macro_rules! maybe_aligned_maybe_binary_to_atom {

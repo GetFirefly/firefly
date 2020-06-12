@@ -33,7 +33,7 @@ use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
 use lumen_rt_core::scheduler::Scheduler as SchedulerTrait;
 use lumen_rt_core::scheduler::{self, run_queue, set_unregistered, unregister, Run};
 pub use lumen_rt_core::scheduler::{
-    current, from_id, run_through, SchedulerDependentAlloc, Spawned,
+    current, from_id, run_through, Scheduled, SchedulerDependentAlloc, Spawned,
 };
 use lumen_rt_core::timer::Hierarchy;
 

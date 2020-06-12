@@ -15,5 +15,5 @@ pub mod number;
 pub mod runtime;
 pub mod timer;
 
-#[cfg(test)]
+#[cfg(all(not(feature = "runtime_minimal"), test))]
 mod test;

@@ -7,7 +7,7 @@
 //!                                  {:line, line :: pos_integer()}]}
 //! ```
 
-#[cfg(test)]
+#[cfg(all(not(feature = "runtime_minimal"), test))]
 mod test;
 
 use liblumen_alloc::erts::process::{Process, Status};

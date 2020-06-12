@@ -1,5 +1,4 @@
 use super::*;
-use lumen_rt_full::process::current_process;
 
 #[test]
 fn without_expected_exit_in_child_process_exits_linked_parent_process() {

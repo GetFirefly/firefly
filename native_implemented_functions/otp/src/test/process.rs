@@ -1,17 +1,6 @@
-#[cfg(feature = "runtime_minimal")]
-use std::ffi::c_void;
-#[cfg(feature = "runtime_minimal")]
-use std::mem;
 use std::sync::Arc;
 
-#[cfg(feature = "runtime_minimal")]
-use liblumen_core::symbols::FunctionSymbol;
-
-#[cfg(feature = "runtime_minimal")]
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Process;
-#[cfg(feature = "runtime_minimal")]
-use liblumen_core::sys::dynamic_call::DynamicCallee;
 
 use crate::runtime::process::spawn::options::Options;
 use crate::runtime::scheduler::{self, Spawned};
@@ -44,23 +33,6 @@ pub fn init() -> Arc<Process> {
             16_000,
         )
         .unwrap()
-}
-
-#[cfg(feature = "runtime_minimal")]
-extern "C" {
-    #[link_name = "__lumen_builtin_yield"]
-    fn builtin_yield() -> bool;
-}
-
-#[cfg(feature = "runtime_minimal")]
-extern "C" fn init_start() -> usize {
-    loop {
-        crate::runtime::process::current_process().wait();
-
-        unsafe {
-            builtin_yield();
-        }
-    }
 }
 
 pub fn child(parent_process: &Process) -> Arc<Process> {

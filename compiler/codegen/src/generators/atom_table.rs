@@ -43,6 +43,7 @@ pub fn generate(
     atoms.insert(Symbol::intern("exit"));
     atoms.insert(Symbol::intern("throw"));
     atoms.insert(Symbol::intern("nocatch"));
+    atoms.insert(Symbol::intern("normal"));
 
     fn insert_atom<'ctx>(builder: &ModuleBuilder<'ctx>, atom: Symbol) -> Result<llvm::Value> {
         // We remap true/false to 1/0 respectively

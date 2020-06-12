@@ -121,7 +121,9 @@ pub unsafe extern "C" fn trap_exceptions() {
          movq  %r14, %rdi
          callq *%r15
 
-         # When we get here, we're returning 'into' process_return_continuation
+         # When we get here, we're returning 'into' process_return_continuation,
+         # but we should never actually hit this, as the exception handler will invoke
+         # exit directly
          retq
          "
     :

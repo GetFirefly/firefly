@@ -159,9 +159,11 @@ fn generate_standard(
     builder.position_at_end(entry_block);
 
     // Allocate all constants here and reuse them as needed
+    let normal = Symbol::intern("normal");
     let throw = Symbol::intern("throw");
     let nocatch = Symbol::intern("nocatch");
 
+    let normal_atom = build_constant_atom(&builder, normal.as_usize(), options);
     let throw_atom = build_constant_atom(&builder, throw.as_usize(), options);
     let nocatch_atom = build_constant_atom(&builder, nocatch.as_usize(), options);
     let nocatch_header = build_tuple_header(&builder, 2, options);
@@ -268,7 +270,7 @@ fn generate_standard(
 
     let exit_value = builder.build_phi(
         usize_type,
-        &[(invoke_init, entry_block), (error_box, caught_block)],
+        &[(normal_atom, entry_block), (error_box, caught_block)],
     );
 
     let exit_fun_call = builder.build_call(exit_fun, &[exit_value], None);
@@ -403,9 +405,11 @@ fn generate_wasm32(
     let exit_value = builder.build_alloca(usize_type);
 
     // Allocate all constants here and reuse them as needed
+    let normal = Symbol::intern("normal");
     let throw = Symbol::intern("throw");
     let nocatch = Symbol::intern("nocatch");
 
+    let normal_atom = build_constant_atom(&builder, normal.as_usize(), options);
     let throw_atom = build_constant_atom(&builder, throw.as_usize(), options);
     let nocatch_atom = build_constant_atom(&builder, nocatch.as_usize(), options);
     let nocatch_header = build_tuple_header(&builder, 2, options);
@@ -515,7 +519,7 @@ fn generate_wasm32(
 
     let ret_value = builder.build_phi(
         usize_type,
-        &[(invoke_init, entry_block), (exit_value, catchret_block)],
+        &[(normal_atom, entry_block), (exit_value, catchret_block)],
     );
 
     let exit_fun_call = builder.build_call(exit_fun, &[ret_value], None);

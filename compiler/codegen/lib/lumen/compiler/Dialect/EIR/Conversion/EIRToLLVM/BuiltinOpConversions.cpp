@@ -22,7 +22,7 @@ struct IncrementReductionsOpConversion
     auto incBy = op.increment().getLimitedValue();
     Value increment = llvm_constant(i32Ty, ctx.getI32Attr(incBy));
     llvm_atomicrmw(i32Ty, LLVM::AtomicBinOp::add, reductionCount, increment,
-                   LLVM::AtomicOrdering::unordered);
+                   LLVM::AtomicOrdering::monotonic);
     rewriter.eraseOp(op);
     return success();
   }

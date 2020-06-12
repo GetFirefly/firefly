@@ -1,5 +1,5 @@
 use liblumen_llvm::utils::RustString;
-use liblumen_session::DiagnosticsHandler;
+use liblumen_util::diagnostics::DiagnosticsHandler;
 
 use crate::Context;
 

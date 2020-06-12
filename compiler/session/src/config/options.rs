@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 
 use clap::ArgMatches;
 
-use libeir_diagnostics::{ColorChoice, FileName, UseColors};
 use liblumen_target::{self as target, Target};
+use liblumen_util::diagnostics::{ColorArg, ColorChoice, FileName};
 use liblumen_util::error::{HelpRequested, Verbosity};
 use liblumen_util::fs::NativeLibraryKind;
 
@@ -46,7 +46,7 @@ pub struct Options {
     pub project_name: String,
     pub project_type: ProjectType,
     pub output_types: OutputTypes,
-    pub use_color: UseColors,
+    pub color: ColorChoice,
     pub warnings_as_errors: bool,
     pub no_warn: bool,
     pub verbosity: Verbosity,
@@ -113,7 +113,8 @@ impl Options {
             ParseOption::parse_option(&option!("project-type"), &args)?;
         let project_type = project_type_opt.unwrap_or(ProjectType::Executable);
         let output_types = OutputTypes::parse_option(&option!("emit"), &args)?;
-        let use_color = UseColors::parse_option(&option!("color"), &args)?;
+
+        let color_arg = ColorArg::parse_option(&option!("color"), &args)?;
 
         let maybe_sysroot: Option<PathBuf> = ParseOption::parse_option(&option!("sysroot"), &args)?;
         let sysroot = match &maybe_sysroot {
@@ -147,15 +148,10 @@ impl Options {
 
         let mut defines = default_configuration(&target);
 
-        let opt_level = if args.is_present("optimize") {
-            if codegen_opts.opt_level.is_some() {
-                // Prefer more precise option
-                codegen_opts.opt_level.clone().unwrap()
-            } else {
-                OptLevel::Default
-            }
+        let opt_level = if args.is_present("no-optimize") {
+            OptLevel::No
         } else {
-            codegen_opts.opt_level.clone().unwrap_or(OptLevel::Default)
+            ParseOption::parse_option(&option!("opt-level"), &args)?
         };
 
         let debug_info = if args.is_present("debug") {
@@ -170,13 +166,9 @@ impl Options {
         };
 
         // The `-g` and `-C debuginfo` flags specify the same setting
-        let debug_assertions = if args.is_present("debug") {
-            true
-        } else {
-            codegen_opts
-                .debug_assertions
-                .unwrap_or(opt_level == OptLevel::No)
-        };
+        let debug_assertions = codegen_opts
+            .debug_assertions
+            .unwrap_or(opt_level == OptLevel::No);
 
         if debug_assertions {
             defines.insert("DEBUG".to_string(), None);
@@ -231,7 +223,7 @@ impl Options {
             project_name,
             project_type,
             output_types,
-            use_color,
+            color: color_arg.into(),
             warnings_as_errors,
             no_warn,
             verbosity,
@@ -309,7 +301,7 @@ impl Options {
             project_name,
             project_type: ProjectType::Executable,
             output_types: OutputTypes::default(),
-            use_color: UseColors(ColorChoice::Auto),
+            color: ColorChoice::Auto,
             warnings_as_errors: false,
             no_warn: false,
             verbosity: Verbosity::from_level(0),

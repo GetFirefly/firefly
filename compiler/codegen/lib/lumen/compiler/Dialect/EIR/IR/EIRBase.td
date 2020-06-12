@@ -150,6 +150,7 @@ def eir_BoxType : eir_TermTypeBase<eir_TK_Box, "box">;
 
 def eir_RefType : Type<CPred<"$_self.isa<eir::RefType>()">, "pointer type">;
 def eir_PtrType : Type<CPred<"$_self.isa<eir::PtrType>()">, "raw pointer type">;
+def eir_ReceiveRefType : Type<CPred<"$_self.isa<eir::ReceiveRefType>()">, "opaque receive reference">;
 def eir_AnyTerm : Type<CPred<"$_self.isa<::lumen::eir::TermType>()">, "dynamic term type">,
                    BuildableType<"$_builder.getType<::lumen::eir::TermType>()">;
 def eir_AnyType : Type<CPred<"$_self.isa<::lumen::eir::OpaqueTermType>()">, "any term type">,

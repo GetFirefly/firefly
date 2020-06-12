@@ -15,12 +15,6 @@ using namespace lumen::eir;
 using ::mlir::Attribute;
 using ::mlir::DialectAsmPrinter;
 
-// NOTE: This conflicts with manual registration when
-// dynamic linking, but would be preferable in general,
-// before removing this, try and figure out how to make
-// it work both dynamically and statically linked
-// static DialectRegistration<EirDialect> eir_dialect;
-
 /// Create an instance of the EIR dialect, owned by the context.
 ///
 /// This is where EIR types, operations, and attributes are registered.

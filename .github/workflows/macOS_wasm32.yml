@@ -8,22 +8,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Install nightly-2020-03-10
+      - name: Install nightly-2020-05-13
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2020-03-10
+          toolchain: nightly-2020-05-13
           override: true
       - name: Install wasm32 Target
-        run: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-03-10
+        run: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-13
       - name: Install wasm-bindgen-cli
-        run: cargo +nightly-2020-03-10 install wasm-bindgen-cli
+        run: cargo +nightly-2020-05-13 install wasm-bindgen-cli
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Install LLVM
         run: |
           mkdir -p ~/.local/share/llvm
           pushd ~/.local/share/llvm
-          wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-04-16/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
+          wget https://github.com/lumen/llvm-project/releases/download/lumen-10.0.0-dev_2020-04-26/clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
           tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.3.0.tar.gz
           mv clang+llvm-10.0.0-x86_64-apple-darwin19.3.0 lumen
           popd
@@ -45,17 +45,17 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       - name: Install Chrome Driver
         run: |
-          wget https://chromedriver.storage.googleapis.com/80.0.3987.106/chromedriver_mac64.zip
+          wget https://chromedriver.storage.googleapis.com/83.0.4103.39/chromedriver_mac64.zip
           unzip chromedriver_mac64.zip
           mv chromedriver /usr/local/bin/
           rm chromedriver_mac64.zip
           chromedriver --version
       - name: Install Gecko Driver
         run: |
-          wget https://github.com/mozilla/geckodriver/releases/download/v0.24.0/geckodriver-v0.24.0-macos.tar.gz
-          tar xvfz geckodriver-v0.24.0-macos.tar.gz
+          wget https://github.com/mozilla/geckodriver/releases/download/v0.26.0/geckodriver-v0.26.0-macos.tar.gz
+          tar xvfz geckodriver-v0.26.0-macos.tar.gz
           mv geckodriver /usr/local/bin/
-          rm geckodriver-v0.24.0-macos.tar.gz
+          rm geckodriver-v0.26.0-macos.tar.gz
           geckodriver --version
       - name: Enable Safari Driver
         run: sudo safaridriver --enable

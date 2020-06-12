@@ -24,7 +24,7 @@ pub enum LLVMCodeGenOptLevel {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum LLVMRelocMode {
+pub enum LLVMRelocModel {
     LLVMRelocDefault = 0,
     LLVMRelocStatic = 1,
     LLVMRelocPIC = 2,
@@ -73,7 +73,7 @@ extern "C" {
         CPU: *const ::libc::c_char,
         Features: *const ::libc::c_char,
         Level: LLVMCodeGenOptLevel,
-        Reloc: LLVMRelocMode,
+        Reloc: LLVMRelocModel,
         CodeModel: LLVMCodeModel,
     ) -> LLVMTargetMachineRef;
     pub fn LLVMDisposeTargetMachine(T: LLVMTargetMachineRef);

@@ -16,12 +16,12 @@ use anyhow::anyhow;
 
 use log::debug;
 
-use libeir_diagnostics::{ByteIndex, FileMap};
 use libeir_intern::Symbol;
 use libeir_ir as ir;
 
 use liblumen_core::symbols::FunctionSymbol;
 use liblumen_session::Options;
+use liblumen_util::diagnostics::{ByteIndex, SourceFile};
 
 use liblumen_llvm::target::{TargetMachine, TargetMachineRef};
 use liblumen_mlir::{Context, Dialect, Module};
@@ -41,14 +41,14 @@ pub struct GeneratedModule {
 /// Constructs an MLIR module from an EIR module, using the provided context and options
 pub fn build(
     module: &ir::Module,
-    filemap: Arc<FileMap>,
+    source_file: Arc<SourceFile>,
     context: &Context,
     options: &Options,
     target_machine: &TargetMachine,
 ) -> Result<GeneratedModule> {
     debug!("building mlir module for {}", module.name());
 
-    let builder = ModuleBuilder::new(module, filemap, context, target_machine.as_ref());
+    let builder = ModuleBuilder::new(module, source_file, context, target_machine.as_ref());
     return builder.build(options);
 }
 
@@ -64,7 +64,7 @@ pub struct ModuleBuilder<'m> {
     module: &'m ir::Module,
     atoms: RefCell<HashSet<Symbol>>,
     symbols: RefCell<HashSet<FunctionSymbol>>,
-    filemap: Arc<FileMap>,
+    source_file: Arc<SourceFile>,
     source_filename: CString,
 }
 impl<'m> ModuleBuilder<'m> {
@@ -77,20 +77,20 @@ impl<'m> ModuleBuilder<'m> {
     /// Creates a new builder for the given EIR module, using the provided MLIR context
     pub fn new(
         module: &'m ir::Module,
-        filemap: Arc<FileMap>,
+        source_file: Arc<SourceFile>,
         context: &Context,
         target_machine: TargetMachineRef,
     ) -> Self {
         use ffi::MLIRCreateModuleBuilder;
 
-        let source_filename = CString::new(filemap.name().to_string()).unwrap();
-        let (li, ci) = filemap
-            .location(module.span().start())
+        let source_filename = CString::new(source_file.name().to_string()).unwrap();
+        let loc = source_file
+            .location(module.span().start_index())
             .expect("expected source filename for module");
         let module_loc = SourceLocation {
             filename: source_filename.as_ptr(),
-            line: li.number().to_usize() as u32,
-            column: ci.number().to_usize() as u32,
+            line: loc.line.to_usize() as u32 + 1,
+            column: loc.column.to_usize() as u32 + 1,
         };
         let name = module.name();
         let c_name = CString::new(name.to_string()).unwrap();
@@ -111,7 +111,7 @@ impl<'m> ModuleBuilder<'m> {
             module,
             atoms: RefCell::new(atoms),
             symbols: RefCell::new(HashSet::new()),
-            filemap,
+            source_file,
             source_filename,
         }
     }
@@ -122,16 +122,16 @@ impl<'m> ModuleBuilder<'m> {
     }
 
     #[inline]
-    pub fn filemap(&self) -> &Arc<FileMap> {
-        &self.filemap
+    pub fn source_file(&self) -> &Arc<SourceFile> {
+        &self.source_file
     }
 
     pub(super) fn location(&self, index: ByteIndex) -> Option<SourceLocation> {
-        let (li, ci) = self.filemap.location(index).ok()?;
+        let loc = self.source_file.location(index).ok()?;
         Some(SourceLocation {
             filename: self.source_filename.as_ptr(),
-            line: li.number().to_usize() as u32,
-            column: ci.number().to_usize() as u32,
+            line: loc.line.to_usize() as u32 + 1,
+            column: loc.column.to_usize() as u32 + 1,
         })
     }
 

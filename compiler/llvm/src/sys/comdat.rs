@@ -32,4 +32,13 @@ extern "C" {
 
     /// Set the conflict resolution selection kind for the Comdat.
     pub fn LLVMSetComdatSelectionKind(C: LLVMComdatRef, Kind: LLVMComdatSelectionKind);
+
+    pub fn LLVMLumenSetComdat(
+        M: LLVMModuleRef,
+        V: LLVMValueRef,
+        Name: *const ::libc::c_char,
+        NameLen: ::libc::size_t,
+    );
+
+    pub fn LLVMLumenUnsetComdat(V: LLVMValueRef);
 }

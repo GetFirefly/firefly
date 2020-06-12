@@ -34,7 +34,7 @@ use crate::sys::dynamic_call::DynamicCallee;
 #[cfg(target_arch = "x86_64")]
 pub unsafe fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize {
     let ret: usize;
-    asm!("
+    llvm_asm!("
         # First, push argc into %r12 and %r13, subtract 1 to get max index
         movq     %rdx, %r12
         movq     %rdx, %r13

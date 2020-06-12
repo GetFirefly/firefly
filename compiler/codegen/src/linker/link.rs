@@ -16,8 +16,9 @@ use tempfile::Builder as TempFileBuilder;
 
 use liblumen_session::filesearch;
 use liblumen_session::search_paths::PathKind;
-use liblumen_session::{DebugInfo, DiagnosticsHandler, Options, ProjectType, Sanitizer};
+use liblumen_session::{DebugInfo, Options, ProjectType, Sanitizer};
 use liblumen_target::{LinkerFlavor, PanicStrategy, RelroLevel};
+use liblumen_util::diagnostics::DiagnosticsHandler;
 use liblumen_util::fs::{fix_windows_verbatim_for_gcc, NativeLibraryKind};
 use liblumen_util::time::time;
 
@@ -29,6 +30,7 @@ use crate::meta::{CodegenResults, LibSource};
 use super::archive::{ArchiveBuilder, LlvmArchiveBuilder};
 
 enum RlibFlavor {
+    #[allow(dead_code)]
     Normal,
     StaticlibBase,
 }
@@ -103,7 +105,7 @@ pub fn link_binary(
     // Remove the temporary object file and metadata if we aren't saving temps
     for obj in codegen_results.modules.iter().filter_map(|m| m.object()) {
         if let Err(e) = remove(obj) {
-            diagnostics.error(e);
+            diagnostics.error(format!("{}", e));
         }
     }
 
@@ -395,7 +397,7 @@ fn use_system_linker(
             if !prog.status.success() {
                 let mut output = prog.stderr.clone();
                 output.extend_from_slice(&prog.stdout);
-                diagnostics.error_str(&format!(
+                diagnostics.error(format!(
                     "linking with `{}` failed: {}\n\
                      \n\
                      {:?}\n\
@@ -426,7 +428,7 @@ fn use_system_linker(
                 linker_error = format!("{}\n\n{:?}", linker_error, &cmd);
             }
 
-            diagnostics.error_str(&linker_error);
+            diagnostics.error(linker_error);
 
             if options.target.options.is_like_msvc && linker_not_found {
                 warn!(
@@ -451,7 +453,7 @@ fn use_system_linker(
     {
         if let Err(e) = Command::new("dsymutil").arg(output_file).output() {
             diagnostics
-                .fatal_str(&format!("failed to run dsymutil: {}", e))
+                .fatal(format!("failed to run dsymutil: {}", e))
                 .raise();
         }
     }

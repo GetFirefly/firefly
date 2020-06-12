@@ -73,7 +73,7 @@ pub unsafe fn find_eh_action(
 
     let ttype_encoding = reader.read::<u8>();
     if ttype_encoding != DW_EH_PE_omit {
-        // Rust doesn't analyze exception types, so we don't care about the type table
+        // Lumen doesn't analyze exception types, so we don't care about the type table
         reader.read_uleb128();
     }
 
@@ -135,11 +135,11 @@ fn interpret_cs_action(cs_action: u64, lpad: usize, foreign_exception: bool) -> 
         // for both Rust panics and foreign exceptions.
         EHAction::Cleanup(lpad)
     } else if foreign_exception {
-        // catch_unwind should not catch foreign exceptions, only Rust panics.
-        // Instead just continue unwinding.
+        // We only ever want to catch Erlang exceptions, all other exceptions
+        // including Rust panics should continue unwinding
         EHAction::None
     } else {
-        // Stop unwinding Rust panics at catch_unwind.
+        // Stop unwinding Erlang exceptions at the catch block.
         EHAction::Catch(lpad)
     }
 }

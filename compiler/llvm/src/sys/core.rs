@@ -263,6 +263,18 @@ extern "C" {
     pub fn LLVMGetLastFunction(M: LLVMModuleRef) -> LLVMValueRef;
     pub fn LLVMGetNextFunction(Fn: LLVMValueRef) -> LLVMValueRef;
     pub fn LLVMGetPreviousFunction(Fn: LLVMValueRef) -> LLVMValueRef;
+    pub fn LLVMLumenGetOrInsertFunction(
+        M: LLVMModuleRef,
+        Name: *const ::libc::c_char,
+        NameLen: ::libc::size_t,
+        FunctionTy: LLVMTypeRef,
+    ) -> LLVMValueRef;
+    pub fn LLVMLumenGetOrInsertGlobal(
+        M: LLVMModuleRef,
+        Name: *const ::libc::c_char,
+        NameLen: ::libc::size_t,
+        Ty: LLVMTypeRef,
+    ) -> LLVMValueRef;
 }
 
 // Core->Types
@@ -1254,6 +1266,17 @@ extern "C" {
         Catch: LLVMBasicBlockRef,
         Name: *const ::libc::c_char,
     ) -> LLVMValueRef;
+    pub fn LLVMLumenBuildInvoke(
+        arg1: LLVMBuilderRef,
+        Fn: LLVMValueRef,
+        Args: *mut LLVMValueRef,
+        NumArgs: ::libc::c_uint,
+        Then: LLVMBasicBlockRef,
+        Catch: LLVMBasicBlockRef,
+        Bundle: *const crate::funclet::ffi::OperandBundleDef,
+        Name: *const ::libc::c_char,
+    ) -> LLVMValueRef;
+
     pub fn LLVMBuildUnreachable(B: LLVMBuilderRef) -> LLVMValueRef;
 
     pub fn LLVMBuildResume(B: LLVMBuilderRef, Exn: LLVMValueRef) -> LLVMValueRef;
@@ -1555,6 +1578,14 @@ extern "C" {
         Len: LLVMValueRef,
         Align: ::libc::c_uint,
     ) -> LLVMValueRef;
+    pub fn LLVMLumenBuildMemSet(
+        B: LLVMBuilderRef,
+        Dst: LLVMValueRef,
+        DstAlign: ::libc::c_uint,
+        Val: LLVMValueRef,
+        Size: LLVMValueRef,
+        IsVolatile: bool,
+    ) -> LLVMValueRef;
     pub fn LLVMBuildMemCpy(
         B: LLVMBuilderRef,
         Dst: LLVMValueRef,
@@ -1563,6 +1594,15 @@ extern "C" {
         SrcAlign: ::libc::c_uint,
         Size: LLVMValueRef,
     ) -> LLVMValueRef;
+    pub fn LLVMLumenBuildMemCpy(
+        B: LLVMBuilderRef,
+        Dst: LLVMValueRef,
+        DstAlign: ::libc::c_uint,
+        Src: LLVMValueRef,
+        SrcAlign: LLVMValueRef,
+        Size: LLVMValueRef,
+        IsVolatile: bool,
+    ) -> LLVMValueRef;
     pub fn LLVMBuildMemMove(
         B: LLVMBuilderRef,
         Dst: LLVMValueRef,
@@ -1570,6 +1610,15 @@ extern "C" {
         Src: LLVMValueRef,
         SrcAlign: ::libc::c_uint,
         Size: LLVMValueRef,
+    ) -> LLVMValueRef;
+    pub fn LLVMLumenBuildMemMove(
+        B: LLVMBuilderRef,
+        Dst: LLVMValueRef,
+        DstAlign: ::libc::c_uint,
+        Src: LLVMValueRef,
+        SrcAlign: ::libc::c_uint,
+        Size: LLVMValueRef,
+        IsVolatile: bool,
     ) -> LLVMValueRef;
     pub fn LLVMBuildAlloca(
         arg1: LLVMBuilderRef,
@@ -1822,6 +1871,14 @@ extern "C" {
         Fn: LLVMValueRef,
         Args: *mut LLVMValueRef,
         NumArgs: ::libc::c_uint,
+        Name: *const ::libc::c_char,
+    ) -> LLVMValueRef;
+    pub fn LLVMLumenBuildCall(
+        arg1: LLVMBuilderRef,
+        Fn: LLVMValueRef,
+        Args: *mut LLVMValueRef,
+        NumArgs: ::libc::c_uint,
+        Bundle: *const crate::funclet::ffi::OperandBundleDef,
         Name: *const ::libc::c_char,
     ) -> LLVMValueRef;
     pub fn LLVMBuildSelect(

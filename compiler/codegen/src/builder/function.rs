@@ -9,15 +9,18 @@ use anyhow::anyhow;
 
 use log::debug;
 
-use libeir_diagnostics::{ByteIndex, FileMap};
 use libeir_intern::{Ident, Symbol};
 use libeir_ir as ir;
-use libeir_ir::{AtomTerm, AtomicTerm, ConstKind, FunctionIdent};
-use libeir_lowerutils::{FunctionData, LowerData};
+use libeir_ir::operation::binary_construct;
+use libeir_ir::operation::receive;
+use libeir_ir::operation::{DynOp, Op};
+use libeir_ir::{AtomTerm, AtomicTerm, ConstKind, FunctionEntry, FunctionIdent};
+use libeir_lowerutils::LowerData;
 use libeir_util_datastructures::pooled_entity_set::BoundEntitySet;
 
 use liblumen_mlir::ir::*;
 use liblumen_session::Options;
+use liblumen_util::diagnostics::{ByteIndex, SourceFile};
 
 use crate::Result;
 
@@ -63,12 +66,12 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             }
         }
 
-        let root_block = f.block_entry();
-        for (index, (entry_block, data)) in analysis.functions.iter().enumerate() {
+        let root_block = analysis.func_tree.root_fun;
+        for (index, (entry_block, func_entry)) in analysis.func_tree.functions.iter().enumerate() {
             let entry_block = *entry_block;
             let func = if entry_block == root_block {
-                self.with_scope(ident.clone(), loc, f, &analysis, data, options)
-                    .and_then(|scope| scope.build())?
+                self.with_scope(ident.clone(), loc, f, &analysis, func_entry, options)
+                    .and_then(|scope| scope.build(func_entry))?
             } else {
                 let arity = f.block_args(entry_block).len() - 2;
                 let fun = Ident::from_str(&format!("{}-fun-{}-{}", ident.name, index, arity));
@@ -80,8 +83,8 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
                 {
                     self.builder.atoms_mut().insert(fi.name.name);
                 }
-                self.with_scope(fi, loc, f, &analysis, data, options)
-                    .and_then(|scope| scope.build())?
+                self.with_scope(fi, loc, f, &analysis, func_entry, options)
+                    .and_then(|scope| scope.build(func_entry))?
             };
             unsafe { MLIRAddFunction(self.builder.as_ref(), func) }
         }
@@ -92,28 +95,28 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
     pub fn with_scope<'s, 'o>(
         &mut self,
         name: FunctionIdent,
-        loc: Span,
+        #[allow(unused_variables)] loc: Span,
         eir: &'s ir::Function,
         analysis: &'s LowerData,
-        data: &'s FunctionData,
+        func_entry: &'s FunctionEntry,
         options: &'o Options,
     ) -> Result<ScopedFunctionBuilder<'s, 'o>> {
         debug!("entering scope for {}", &name);
-        debug!("entry = {:?}", &data.entry);
-        debug!("scope = {:?}", &data.scope);
+        debug!("entry = {:?}", &func_entry.entry);
+        debug!("scope = {:?}", &func_entry.scope);
 
-        let ret = data
+        let ret = func_entry
             .ret
             .expect("expected function to have return continuation");
-        let esc = data
+        let esc = func_entry
             .thr
             .expect("expected function to have escape continuation");
 
-        let is_closure = analysis.live.live_at(data.entry).size() > 0;
+        let is_closure = analysis.live.live_at(func_entry.entry).size() > 0;
 
         // Construct signature
         let mut signature = Signature::new(CallConv::Fast);
-        let entry_args = eir.block_args(data.entry);
+        let entry_args = eir.block_args(func_entry.entry);
         {
             if is_closure {
                 // Remove the return/escape continuation parameters,
@@ -155,19 +158,18 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
 
         // Mirror the entry block for our init block
         let init_block =
-            func.new_block_with_params(Some(data.entry), entry_ref, entry_params.as_slice());
+            func.new_block_with_params(Some(func_entry.entry), entry_ref, entry_params.as_slice());
         // Initialize ret/esc continuations
         func.set_return_continuation(ret, init_block);
         func.set_escape_continuation(esc, init_block);
 
         Ok(ScopedFunctionBuilder {
-            filemap: self.builder.filemap().clone(),
+            source_file: self.builder.source_file().clone(),
             filename: self.builder.filename().as_ptr(),
             func,
             eir,
             mlir,
             analysis,
-            data,
             builder: self.builder.as_ref(),
             options,
             pos: Position::at(init_block),
@@ -182,12 +184,11 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
 /// function using the ScopedFunctionBuilder.
 pub struct ScopedFunctionBuilder<'f, 'o> {
     filename: *const libc::c_char,
-    filemap: Arc<FileMap>,
+    source_file: Arc<SourceFile>,
     func: Function,
     eir: &'f ir::Function,
     mlir: FunctionOpRef,
     analysis: &'f LowerData,
-    data: &'f FunctionData,
     builder: ModuleBuilderRef,
     options: &'o Options,
     pos: Position,
@@ -221,11 +222,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     pub(super) fn debug(&self, _message: &str) {}
 
     fn location(&self, index: ByteIndex) -> Option<SourceLocation> {
-        let (li, ci) = self.filemap.location(index).ok()?;
+        let loc = self.source_file.location(index).ok()?;
         Some(SourceLocation {
             filename: self.filename,
-            line: li.number().to_usize() as u32,
-            column: ci.number().to_usize() as u32,
+            line: loc.line.to_usize() as u32 + 1,
+            column: loc.column.to_usize() as u32 + 1,
         })
     }
 }
@@ -283,7 +284,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// target of a function call, i.e. a call to a closure. It does _not_ accept
     /// arbitrary blocks.
     pub fn block_to_closure_info(&self, block: ir::Block) -> ClosureInfo {
-        for (i, (entry_block, _data)) in self.analysis.functions.iter().enumerate() {
+        for (i, (entry_block, _func_entry)) in self.analysis.func_tree.functions.iter().enumerate()
+        {
             let entry_block = *entry_block;
             if entry_block == block {
                 let containing_ident = self.eir.ident();
@@ -335,7 +337,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         if let Some(locs) = self.eir.value_locations(ir_value) {
             let mut fused = Vec::with_capacity(locs.len());
             for loc in locs.iter().copied() {
-                if let Some(sc) = self.location(loc.start()) {
+                if let Some(sc) = self.location(loc.start().index()) {
                     fused.push(unsafe { MLIRCreateLocation(self.builder, sc) });
                 }
             }
@@ -551,7 +553,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 // Builder implementation
 impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Builds the function
-    pub fn build(mut self) -> Result<FunctionOpRef> {
+    pub fn build(mut self, func_entry: &FunctionEntry) -> Result<FunctionOpRef> {
         debug_in!(self, "building..");
 
         // NOTE: We start out in the entry block
@@ -569,14 +571,14 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             self.unpack_closure_env(entry_block, &live_at)?;
         }
 
-        let root_block = self.data.entry;
+        let root_block = func_entry.entry;
         debug_in!(self, "root block = {:?}", root_block);
         debug_in!(self, "entry block = {:?}", entry_block);
 
         // Make sure all blocks are created first
-        let mut blocks = Vec::with_capacity(self.data.scope.len());
+        let mut blocks = Vec::with_capacity(func_entry.scope.len());
         blocks.push((root_block, entry_block));
-        for ir_block in self.data.scope.iter().copied() {
+        for ir_block in func_entry.scope.iter().copied() {
             // We've already taken care of the entry block
             if ir_block == root_block {
                 continue;
@@ -613,14 +615,14 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         }
 
         let loc = {
-            let (li, ci) = self
-                .filemap
-                .location(self.func.span.start())
+            let loc = self
+                .source_file
+                .location(self.func.span.start_index())
                 .expect("expected source span for function");
             let loc = SourceLocation {
                 filename: self.filename,
-                line: li.number().to_usize() as u32,
-                column: ci.number().to_usize() as u32,
+                line: loc.line.to_usize() as u32 + 1,
+                column: loc.column.to_usize() as u32 + 1,
             };
             unsafe { MLIRCreateLocation(self.builder, loc) }
         };
@@ -977,33 +979,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     puts,
                 })
             }
-            // Construct a binary piece by pice
-            // (ok: fn(bin), fail: fn(), head, tail)
-            // (ok: fn(bin), fail: fn(), head, tail, size)
-            ir::OpKind::BinaryPush {
-                specifier: ref spec,
-                ..
-            } => {
-                debug_in!(self, "block contains binary push operation");
-                let ok = self.get_block_by_value(reads[0]);
-                let err = self.get_block_by_value(reads[1]);
-                let head = self.build_value(reads[2])?;
-                let tail = self.build_value(reads[3])?;
-                let size = if num_reads > 4 {
-                    Some(self.build_value(reads[4])?)
-                } else {
-                    None
-                };
-                OpKind::BinaryPush(BinaryPush {
-                    loc,
-                    ok,
-                    err,
-                    head,
-                    tail,
-                    size,
-                    spec: spec.clone(),
-                })
-            }
             // Simplified pattern matching on a value; this is a terminator op
             ir::OpKind::Match { mut branches, .. } => {
                 debug_in!(self, "block contains match operation");
@@ -1073,20 +1048,120 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 let capture = self.get_value(reads[0]);
                 OpKind::TraceConstruct(TraceConstruct { loc, capture })
             }
-            // Symbol + per-intrinsic args
-            ir::OpKind::Intrinsic(name) => {
-                debug_in!(self, "block contains intrinsic {:?}", name);
-                OpKind::Intrinsic(Intrinsic {
-                    loc,
-                    name,
-                    args: reads.to_vec(),
-                })
-            }
             // When encountered, this instruction traps; it also informs the optimizer that we
             // intend to never reach this point during execution
             ir::OpKind::Unreachable => {
                 debug_in!(self, "block contains unreachable");
                 OpKind::Unreachable(loc)
+            }
+            ir::OpKind::Dyn(dyn_op) => {
+                // binary_construct_start(cont: fn(bin_ref))
+                if let Some(bin_start) =
+                    dyn_op.downcast_ref::<binary_construct::BinaryConstructStart>()
+                {
+                    debug_in!(self, "block contains binary start operation");
+                    let cont = self.get_block_by_value(reads[0]);
+                    return OpBuilder::build_void_result(
+                        self,
+                        OpKind::BinaryStart(BinaryStart { loc, cont }),
+                    );
+                }
+                // binary_construct_push(ok: fn(new_bin_ref), err: fn(), bin_ref, value)
+                // binary_construct_push(ok: fn(new_bin_ref), err: fn(), bin_ref, value, size)
+                if let Some(bin_push) =
+                    dyn_op.downcast_ref::<binary_construct::BinaryConstructPush>()
+                {
+                    debug_in!(self, "block contains binary push operation");
+                    let ok = self.get_block_by_value(reads[0]);
+                    let err = self.get_block_by_value(reads[1]);
+                    let head = self.build_value(reads[2])?;
+                    let tail = self.build_value(reads[3])?;
+                    let size = if num_reads > 4 {
+                        Some(self.build_value(reads[4])?)
+                    } else {
+                        None
+                    };
+                    return OpBuilder::build_void_result(
+                        self,
+                        OpKind::BinaryPush(BinaryPush {
+                            loc,
+                            ok,
+                            err,
+                            head,
+                            tail,
+                            size,
+                            spec: bin_push.specifier.clone(),
+                        }),
+                    );
+                }
+                // binary_construct_finish(cont: fn(result), bin_ref)
+                if let Some(bin_finish) =
+                    dyn_op.downcast_ref::<binary_construct::BinaryConstructFinish>()
+                {
+                    debug_in!(self, "block contains binary finish operation");
+                    let cont = self.get_block_by_value(reads[0]);
+                    let bin = self.build_value(reads[1])?;
+                    return OpBuilder::build_void_result(
+                        self,
+                        OpKind::BinaryFinish(BinaryFinish { loc, cont, bin }),
+                    );
+                }
+                // receive_start(cont: fn(recv_ref), timeout)
+                if let Some(recv_start) = dyn_op.downcast_ref::<receive::ReceiveStart>() {
+                    debug_in!(self, "block contains receive start operation");
+                    let cont = self.get_block_by_value(reads[0]);
+                    let timeout = self.build_value(reads[1])?;
+                    return OpBuilder::build_void_result(
+                        self,
+                        OpKind::ReceiveStart(ReceiveStart { loc, cont, timeout }),
+                    );
+                }
+                // receive_wait(timeout: fn(), check_message: fn(msg), recv_ref)
+                if let Some(recv_wait) = dyn_op.downcast_ref::<receive::ReceiveWait>() {
+                    debug_in!(self, "block contains receive wait operation");
+                    let timeout = self.get_block_by_value(reads[0]);
+                    let check = self.get_block_by_value(reads[1]);
+                    let receive_ref = self.build_value(reads[2])?;
+                    debug_in!(self, "timeout block = {:?}", timeout);
+                    debug_in!(self, "check block   = {:?}", check);
+                    debug_in!(self, "receive ref   = {:?}", receive_ref);
+                    return OpBuilder::build_void_result(
+                        self,
+                        OpKind::ReceiveWait(ReceiveWait {
+                            loc,
+                            timeout,
+                            check,
+                            receive_ref,
+                        }),
+                    );
+                }
+                // receive_done(next: fn(...), recv_ref, ...)
+                //
+                // next gets N args, the values extracted from the message
+                if let Some(recv_done) = dyn_op.downcast_ref::<receive::ReceiveDone>() {
+                    debug_in!(self, "block contains receive done operation");
+                    let cont = self.get_block_by_value(reads[0]);
+                    let receive_ref = self.build_value(reads[1])?;
+                    let args = if num_reads > 2 {
+                        let mut args = Vec::with_capacity(num_reads - 2);
+                        for read in &reads[2..] {
+                            args.push(self.build_value(*read)?);
+                        }
+                        args
+                    } else {
+                        Vec::new()
+                    };
+                    return OpBuilder::build_void_result(
+                        self,
+                        OpKind::ReceiveDone(ReceiveDone {
+                            loc,
+                            cont,
+                            receive_ref,
+                            args,
+                        }),
+                    );
+                }
+                unimplemented!("{:?}", dyn_op);
             }
             invalid => panic!("invalid operation kind: {:?}", invalid),
         };

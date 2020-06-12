@@ -15,14 +15,22 @@ typedef struct LLVMOpaqueSMDiagnostic *LLVMSMDiagnosticRef;
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::SMDiagnostic, LLVMSMDiagnosticRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(llvm::DiagnosticInfo, LLVMDiagnosticInfoRef);
 
-DiagnosticKind lumen::toDiagnosticKind(llvm::DiagnosticKind Kind) {
-  switch (Kind) {
+DiagnosticKind lumen::toDiagnosticKind(llvm::DiagnosticKind kind) {
+  switch (kind) {
     case llvm::DK_InlineAsm:
       return DiagnosticKind::InlineAsm;
+    case llvm::DK_ResourceLimit:
+      return DiagnosticKind::ResourceLimit;
     case llvm::DK_StackSize:
       return DiagnosticKind::StackSize;
+    case llvm::DK_Linker:
+      return DiagnosticKind::Linker;
     case llvm::DK_DebugMetadataVersion:
       return DiagnosticKind::DebugMetadataVersion;
+    case llvm::DK_DebugMetadataInvalid:
+      return DiagnosticKind::DebugMetadataInvalid;
+    case llvm::DK_ISelFallback:
+      return DiagnosticKind::ISelFallback;
     case llvm::DK_SampleProfile:
       return DiagnosticKind::SampleProfile;
     case llvm::DK_OptimizationRemark:
@@ -35,55 +43,83 @@ DiagnosticKind lumen::toDiagnosticKind(llvm::DiagnosticKind Kind) {
       return DiagnosticKind::OptimizationRemarkAnalysisFPCommute;
     case llvm::DK_OptimizationRemarkAnalysisAliasing:
       return DiagnosticKind::OptimizationRemarkAnalysisAliasing;
+    case llvm::DK_MachineOptimizationRemark:
+      return DiagnosticKind::MachineOptimizationRemark;
+    case llvm::DK_MachineOptimizationRemarkMissed:
+      return DiagnosticKind::MachineOptimizationRemarkMissed;
+    case llvm::DK_MachineOptimizationRemarkAnalysis:
+      return DiagnosticKind::MachineOptimizationRemarkAnalysis;
+    case llvm::DK_MIRParser:
+      return DiagnosticKind::MIRParser;
     case llvm::DK_PGOProfile:
       return DiagnosticKind::PGOProfile;
-    case llvm::DK_Linker:
-      return DiagnosticKind::Linker;
+    case llvm::DK_MisExpect:
+      return DiagnosticKind::MisExpect;
+    case llvm::DK_Unsupported:
+      return DiagnosticKind::Unsupported;
     default:
-      return (Kind >= llvm::DK_FirstRemark && Kind <= llvm::DK_LastRemark)
-                 ? DiagnosticKind::OptimizationRemarkOther
-                 : DiagnosticKind::Other;
+      return DiagnosticKind::Other;
   }
 }
 
-extern "C" DiagnosticKind LLVMLumenGetDiagInfoKind(LLVMDiagnosticInfoRef DI) {
-  llvm::DiagnosticInfo *info = unwrap(DI);
+extern "C" DiagnosticKind 
+LLVMLumenGetDiagInfoKind(LLVMDiagnosticInfoRef di) {
+  llvm::DiagnosticInfo *info = unwrap(di);
   return toDiagnosticKind((llvm::DiagnosticKind)info->getKind());
 }
 
-extern "C" void LLVMLumenWriteSMDiagnosticToString(LLVMSMDiagnosticRef D,
-                                                   RustStringRef Str) {
-  RawRustStringOstream OS(Str);
-  unwrap(D)->print("", OS);
+extern "C" void 
+LLVMLumenWriteSMDiagnosticToString(LLVMSMDiagnosticRef d, RustStringRef str) {
+  RawRustStringOstream out(str);
+  unwrap(d)->print("", out);
 }
 
-extern "C" void LLVMLumenWriteDiagnosticInfoToString(LLVMDiagnosticInfoRef DI,
-                                                     RustStringRef Str) {
-  RawRustStringOstream OS(Str);
-  llvm::DiagnosticPrinterRawOStream DP(OS);
-  unwrap(DI)->print(DP);
+extern "C" void 
+LLVMLumenWriteDiagnosticInfoToString(LLVMDiagnosticInfoRef di, RustStringRef str) {
+  RawRustStringOstream out(str);
+  llvm::DiagnosticPrinterRawOStream printer(out);
+  unwrap(di)->print(printer);
 }
 
-extern "C" void LLVMLumenUnpackOptimizationDiagnostic(
-    LLVMDiagnosticInfoRef DI, RustStringRef PassNameOut,
-    LLVMValueRef *FunctionOut, unsigned *Line, unsigned *Column,
-    RustStringRef FilenameOut, RustStringRef MessageOut) {
+extern "C" bool 
+LLVMLumenIsVerboseOptimizationDiagnostic(LLVMDiagnosticInfoRef di) {
   // Undefined to call this not on an optimization diagnostic!
-  llvm::DiagnosticInfoOptimizationBase *Opt =
-      static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(DI));
+  llvm::DiagnosticInfoOptimizationBase *opt =
+      static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(di));
 
-  RawRustStringOstream PassNameOS(PassNameOut);
-  PassNameOS << Opt->getPassName();
-  *FunctionOut = wrap(&Opt->getFunction());
+  return opt->isVerbose();
+}
 
-  RawRustStringOstream FilenameOS(FilenameOut);
-  llvm::DiagnosticLocation loc = Opt->getLocation();
+extern "C" void 
+LLVMLumenUnpackOptimizationDiagnostic(LLVMDiagnosticInfoRef di, RustStringRef passNameOut,
+                                      LLVMValueRef *functionOut, 
+                                      unsigned *line, unsigned *column,
+                                      RustStringRef filenameOut, 
+                                      RustStringRef messageOut) {
+  // Undefined to call this not on an optimization diagnostic!
+  llvm::DiagnosticInfoOptimizationBase *opt =
+      static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(di));
+
+  RawRustStringOstream passNameOS(passNameOut);
+  passNameOS << opt->getPassName();
+  *functionOut = wrap(&opt->getFunction());
+
+  RawRustStringOstream filenameOS(filenameOut);
+  llvm::DiagnosticLocation loc = opt->getLocation();
   if (loc.isValid()) {
-    *Line = loc.getLine();
-    *Column = loc.getColumn();
-    FilenameOS << loc.getAbsolutePath();
+    *line = loc.getLine();
+    *column = loc.getColumn();
+    filenameOS << loc.getAbsolutePath();
   }
 
-  RawRustStringOstream MessageOS(MessageOut);
-  MessageOS << Opt->getMsg();
+  RawRustStringOstream messageOS(messageOut);
+  messageOS << opt->getMsg();
+}
+
+extern "C" void 
+LLVMLumenUnpackISelFallbackDiagnostic(LLVMDiagnosticInfoRef di, LLVMValueRef *functionOut) {
+  llvm::DiagnosticInfoISelFallback *opt =
+      static_cast<llvm::DiagnosticInfoISelFallback *>(unwrap(di));
+
+  *functionOut = wrap(&opt->getFunction());
 }

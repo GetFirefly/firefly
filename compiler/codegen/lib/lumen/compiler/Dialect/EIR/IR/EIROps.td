@@ -858,7 +858,7 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
     the exception has landed.
   }];
 
-  let arguments = (ins AnyType:$catchType);
+  let arguments = (ins Variadic<AnyType>:$catchClauses);
   let results = (outs eir_AnyType:$kind, eir_AnyType:$reason, eir_AnyType:$trace);
 
   let assemblyFormat = [{
@@ -869,9 +869,9 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
 
   //let hasCanonicalizer = 1;
   let builders = [OpBuilder<
-    "Builder *builder, OperationState &result, Value catchType", [{
+    "Builder *builder, OperationState &result, ValueRange catchClauses", [{
       Type termTy = builder->getType<TermType>();
-      build(builder, result, ArrayRef<Type>{termTy, termTy, termTy}, catchType);
+      build(builder, result, ArrayRef<Type>{termTy, termTy, termTy}, catchClauses);
   }]>];
 }
 
@@ -1903,6 +1903,31 @@ def eir_MapUpdateOp : eir_Op<"map.update", []> {
   }];
 }
 
+def eir_BinaryStartOp : eir_Op<"binary.start"> {
+  let summary = "Starts construction of a new binary";
+  let arguments = (ins);
+  let results = (outs eir_AnyType:$binRef);
+
+  let verifier = ?;
+
+  let assemblyFormat = [{
+    attr-dict `:` type(results)
+  }];
+}
+
+
+def eir_BinaryFinishOp : eir_Op<"binary.finish"> {
+  let summary = "Finishes construction of a new binary";
+  let arguments = (ins eir_AnyType:$binRef);
+  let results = (outs eir_AnyType:$bin);
+
+  let verifier = ?;
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
 def eir_BinaryPushOp : eir_Op<"binary.push"> {
   let summary = "Pushes a value into a binary based on the given specifier";
   let description = [{
@@ -1942,6 +1967,106 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
   ];
 
   let verifier = ?;
+}
+
+def eir_ReceiveWaitOp : eir_Op<"receive.wait",
+    [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>, Terminator]> {
+  let summary = "Blocks until receipt of a new message";
+  let arguments = (ins
+    eir_ReceiveRefType:$recvRef,
+    Variadic<eir_AnyType>:$timeoutDestOperands,
+    Variadic<eir_AnyType>:$checkDestOperands
+  );
+  let results = (outs);
+
+  let successors = (successor AnySuccessor:$timeoutDest, AnySuccessor:$checkDest);
+
+  let builders = [
+    OpBuilder<[{
+      Builder *builder, OperationState &result, Value receiveRef,
+      Block *timeoutDest, ValueRange timeoutOperands,
+      Block *checkDest, ValueRange checkOperands
+    }], [{
+      build(builder, result, receiveRef, timeoutOperands, checkOperands, timeoutDest, checkDest);
+    }]>,
+  ];
+
+  // Fully verified by traits
+  let verifier = ?;
+
+  let extraClassDeclaration = [{
+    /// These are the indices into the dests list.
+    enum { timeoutIndex = 0, checkIndex = 1 };
+
+    /// The receive_ref operand is the first operand in the list.
+    Value getReceiveRef() { return getOperand(0); }
+
+    /// Return the destination if the operation times out
+    Block *getTimeoutDest() {
+      return getSuccessor(timeoutIndex);
+    }
+
+    /// Return the destination if the operation finds a message
+    Block *getCheckDest() {
+      return getSuccessor(checkIndex);
+    }
+
+    /// Accessors for operands to the 'true' destination.
+    Value getTimeoutOperand(unsigned idx) {
+      assert(idx < getNumTimeoutOperands());
+      return getOperand(getTimeoutDestOperandIndex() + idx);
+    }
+
+    void setTimeoutOperand(unsigned idx, Value value) {
+      assert(idx < getNumTimeoutOperands());
+      setOperand(getTimeoutDestOperandIndex() + idx, value);
+    }
+
+    OperandRange getTimeoutOperands() { return timeoutDestOperands(); }
+
+    unsigned getNumTimeoutOperands()  { return getTimeoutOperands().size(); }
+
+    /// Erase the operand at 'index' from the timeout operand list.
+    void eraseTimeoutOperand(unsigned index)  {
+      eraseSuccessorOperand(timeoutIndex, index);
+    }
+
+    /// Accessors for operands to the 'check' destination.
+    Value getCheckOperand(unsigned idx) {
+      assert(idx < getNumCheckOperands());
+      return getOperand(getCheckDestOperandIndex() + idx);
+    }
+    void setCheckOperand(unsigned idx, Value value) {
+      assert(idx < getNumCheckOperands());
+      setOperand(getCheckDestOperandIndex() + idx, value);
+    }
+
+    OperandRange getCheckOperands() { return checkDestOperands(); }
+
+    unsigned getNumCheckOperands() { return getCheckOperands().size(); }
+
+    /// Erase the operand at 'index' from the check operand list.
+    void eraseCheckOperand(unsigned index) {
+      eraseSuccessorOperand(checkIndex, index);
+    }
+
+  private:
+    /// Get the index of the first true destination operand.
+    unsigned getTimeoutDestOperandIndex() { return 1; }
+
+    /// Get the index of the first false destination operand.
+    unsigned getCheckDestOperandIndex() {
+      return getTimeoutDestOperandIndex() + getNumTimeoutOperands();
+    }
+  }];
+
+  //let hasCanonicalizer = 1;
+  let assemblyFormat = [{
+    $recvRef `:` type($recvRef) `,`
+    $timeoutDest (`(` $timeoutDestOperands^ `:` type($timeoutDestOperands) `)`)? `,`
+    $checkDest (`(` $checkDestOperands^ `:` type($checkDestOperands) `)`)?
+    attr-dict
+  }];
 }
 
 #endif // EIR_OPS

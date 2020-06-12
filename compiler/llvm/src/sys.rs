@@ -480,5 +480,5 @@ pub const LLVMAttributeFunctionIndex: ::libc::c_uint = !0; // -1
 pub type LLVMAttributeIndex = ::libc::c_uint;
 
 pub type LLVMDiagnosticHandler =
-    Option<extern "C" fn(arg1: LLVMDiagnosticInfoRef, arg2: *mut ::libc::c_void)>;
+    Option<unsafe extern "C" fn(arg1: &LLVMDiagnosticInfo, arg2: *mut ::libc::c_void)>;
 pub type LLVMYieldCallback = Option<extern "C" fn(arg1: LLVMContextRef, arg2: *mut ::libc::c_void)>;

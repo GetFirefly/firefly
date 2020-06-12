@@ -1,8 +1,8 @@
-#![feature(asm)]
+#![feature(alloc_layout_extra)]
+#![feature(llvm_asm)]
 #![feature(naked_functions)]
 #![feature(termination_trait_lib)]
 #![feature(thread_local)]
-#![feature(alloc_layout_extra)]
 
 #[cfg(not(unix))]
 compile_error!("lumen_rt_minimal is only supported on unix targets!");

@@ -24,6 +24,7 @@ mod list;
 mod logical_operators;
 mod map;
 mod patterns;
+mod receive;
 mod trace;
 mod tuple;
 
@@ -38,5 +39,6 @@ pub use self::list::*;
 pub use self::logical_operators::*;
 pub use self::map::*;
 pub use self::patterns::*;
+pub use self::receive::*;
 pub use self::trace::*;
 pub use self::tuple::*;

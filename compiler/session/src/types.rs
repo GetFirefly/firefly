@@ -68,6 +68,13 @@ impl From<syntax::ast::Module> for ParsedModule {
 pub struct IRModule {
     module: Arc<eir::Module>,
 }
+
+unsafe impl Send for IRModule {}
+// This implementation of Sync is safe ONLY because a module
+// is read-only in the compiler; if that changes, then this
+// will result in bugs.
+unsafe impl Sync for IRModule {}
+
 impl IRModule {
     #[inline]
     pub fn new(module: eir::Module) -> Self {

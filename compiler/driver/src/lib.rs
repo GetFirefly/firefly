@@ -1,7 +1,11 @@
 pub mod argparser;
 mod commands;
 mod compiler;
+mod diagnostics;
 mod driver;
+mod interner;
+mod output;
+mod parser;
 pub(crate) mod task;
 
 pub use self::driver::{run_compiler, run_compiler_with_emitter};

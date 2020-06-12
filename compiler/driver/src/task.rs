@@ -21,7 +21,7 @@ where
     R: Send + 'static,
 {
     lazy_static! {
-        static ref SCHEDULER: Scheduler = { Scheduler::new(num_cpus::get()) };
+        static ref SCHEDULER: Scheduler = Scheduler::new(num_cpus::get());
     }
 
     SCHEDULER.spawn(future)
@@ -53,7 +53,7 @@ struct ThreadState {
 impl Scheduler {
     pub fn new(size: usize) -> Self {
         let mut threads = Vec::with_capacity(size);
-        for id in 0..size {
+        for _ in 0..size {
             let (tx, rx) = channel::unbounded();
 
             thread::spawn(move || {

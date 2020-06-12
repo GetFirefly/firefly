@@ -8,6 +8,8 @@ use anyhow::anyhow;
 
 use crate::sys as llvm_sys;
 use crate::sys::target_machine::LLVMCodeGenFileType;
+use crate::sys::LLVMModuleFlagBehavior;
+use crate::Metadata;
 
 use liblumen_session::{Emit, OutputType};
 use liblumen_util as util;
@@ -58,6 +60,57 @@ impl Module {
             }
 
             Ok(Self::new(m, target_machine))
+        }
+    }
+
+    pub fn get_module_id(&self) -> &str {
+        use llvm_sys::core::LLVMGetModuleIdentifier;
+
+        let mut len = MaybeUninit::<libc::size_t>::uninit();
+        let bytes = unsafe {
+            let id = LLVMGetModuleIdentifier(self.module, len.as_mut_ptr()) as *const u8;
+            std::slice::from_raw_parts(id, len.assume_init())
+        };
+        std::str::from_utf8(bytes).expect("invalid utf8 in module identifier!")
+    }
+
+    pub fn set_module_id(&self, name: &str) {
+        use llvm_sys::core::LLVMSetModuleIdentifier;
+
+        unsafe {
+            LLVMSetModuleIdentifier(
+                self.module,
+                name.as_ptr() as *const libc::c_char,
+                name.len() as libc::size_t,
+            )
+        }
+    }
+
+    /// Add a module-level flag to the module-level flags metadata if it doesn't already exist.
+    pub fn get_module_flag(&self, key: &str) -> Metadata {
+        use llvm_sys::core::LLVMGetModuleFlag;
+
+        unsafe {
+            LLVMGetModuleFlag(
+                self.module,
+                key.as_ptr() as *const libc::c_char,
+                key.len() as libc::size_t,
+            )
+        }
+    }
+
+    /// Add a module-level flag to the module-level flags metadata if it doesn't already exist.
+    pub fn set_module_flag(&self, key: &str, value: Metadata, behavior: LLVMModuleFlagBehavior) {
+        use llvm_sys::core::LLVMAddModuleFlag;
+
+        unsafe {
+            LLVMAddModuleFlag(
+                self.module,
+                behavior,
+                key.as_ptr() as *const libc::c_char,
+                key.len() as libc::size_t,
+                value,
+            );
         }
     }
 

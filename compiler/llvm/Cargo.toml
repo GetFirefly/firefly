@@ -12,9 +12,12 @@ links = "lumen_llvm_core"
 [dependencies]
 libc = "0.2"
 anyhow = "1.0"
+fxhash = "0.2"
 liblumen_session = { path = "../session" }
 liblumen_target = { path = "../target" }
 liblumen_util = { path = "../../liblumen_util" }
+liblumen_compiler_macros = { path = "../macros" }
+liblumen_profiling = { path = "../profiling" }
 
 [build-dependencies]
 cc = "1.0"

@@ -12,7 +12,7 @@ pub enum FileType {
 }
 
 /// LLVMCodeGenOptLevel
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd)]
 #[repr(C)]
 pub enum CodeGenOptLevel {
     Other,
@@ -33,7 +33,7 @@ impl fmt::Display for CodeGenOptLevel {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd)]
 #[repr(C)]
 pub enum CodeGenOptSize {
     Other,
@@ -58,6 +58,7 @@ pub enum Linkage {
     Internal,
     External,
     Weak,
+    LinkOnceODR,
 }
 impl Default for Linkage {
     fn default() -> Self {
@@ -71,6 +72,7 @@ impl Into<LLVMLinkage> for Linkage {
             Self::Internal => LLVMLinkage::LLVMInternalLinkage,
             Self::External => LLVMLinkage::LLVMExternalLinkage,
             Self::Weak => LLVMLinkage::LLVMWeakAnyLinkage,
+            Self::LinkOnceODR => LLVMLinkage::LLVMLinkOnceODRLinkage,
         }
     }
 }

@@ -2,8 +2,11 @@ use std::fmt;
 use std::mem::MaybeUninit;
 use std::path::Path;
 use std::ptr;
+use std::sync::Arc;
 
 use anyhow::anyhow;
+
+use liblumen_util::diagnostics::DiagnosticsHandler;
 
 use crate::module::{Module, ModuleImpl};
 use crate::target::TargetMachineRef;
@@ -13,12 +16,25 @@ use crate::Result;
 pub type ContextImpl = crate::sys::LLVMContext;
 pub type ContextRef = crate::sys::prelude::LLVMContextRef;
 
+#[repr(transparent)]
 pub struct Context {
     context: ContextRef,
 }
 impl Context {
-    pub fn new() -> Self {
+    pub fn new(diagnostics: Arc<DiagnosticsHandler>) -> Self {
+        use crate::diagnostics;
+        use crate::sys::core::LLVMContextSetDiagnosticHandler;
+
         let context = unsafe { crate::sys::core::LLVMContextCreate() };
+        unsafe {
+            let data = Box::new((context, Arc::downgrade(&diagnostics)));
+            let data = Box::into_raw(data);
+            LLVMContextSetDiagnosticHandler(
+                context,
+                Some(diagnostics::diagnostic_handler),
+                data.cast(),
+            );
+        }
         Self { context }
     }
 }

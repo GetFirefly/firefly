@@ -12,10 +12,9 @@ use fxhash::FxHashMap;
 
 use log::{debug, warn};
 
-use liblumen_session::{
-    DebugInfo, DiagnosticsHandler, LinkerPluginLto, Lto, OptLevel, Options, ProjectType,
-};
+use liblumen_session::{DebugInfo, LinkerPluginLto, Lto, OptLevel, Options, ProjectType};
 use liblumen_target::{LinkerFlavor, LldFlavor};
+use liblumen_util::diagnostics::DiagnosticsHandler;
 
 use self::command::Command;
 
@@ -337,7 +336,7 @@ impl<'a> Linker for GccLinker<'a> {
                 Ok(ref lib) => {
                     self.linker_arg(lib);
                 }
-                Err(err) => self.diagnostics.fatal(err).raise(),
+                Err(err) => self.diagnostics.fatal(format!("{}", err)).raise(),
             }
         }
     }
@@ -520,7 +519,7 @@ impl<'a> Linker for GccLinker<'a> {
             };
             if let Err(e) = res {
                 self.diagnostics
-                    .fatal_str(&format!("failed to write lib.def file: {}", e))
+                    .fatal(format!("failed to write lib.def file: {}", e))
                     .raise();
             }
         } else {
@@ -539,7 +538,7 @@ impl<'a> Linker for GccLinker<'a> {
             };
             if let Err(e) = res {
                 self.diagnostics
-                    .fatal_str(&format!("failed to write version script: {}", e))
+                    .fatal(format!("failed to write version script: {}", e))
                     .raise();
             }
         }
@@ -795,7 +794,7 @@ impl<'a> Linker for MsvcLinker<'a> {
         };
         if let Err(e) = res {
             self.diagnostics
-                .fatal_str(&format!("failed to write lib.def file: {}", e))
+                .fatal(format!("failed to write lib.def file: {}", e))
                 .raise();
         }
         let mut arg = OsString::from("/DEF:");

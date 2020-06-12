@@ -4,7 +4,7 @@ use core::ptr::{self, NonNull};
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
-use liblumen_core::alloc::{AllocErr, AllocRef, GlobalAlloc, Layout};
+use liblumen_core::alloc::prelude::*;
 use liblumen_core::locks::RwLock;
 
 use crate::stats::hooks;
@@ -116,37 +116,39 @@ impl<H: Histogram + Clone + Default> fmt::Display for Statistics<H> {
 
 unsafe impl<T: AllocRef, H: Histogram + Clone + Default> AllocRef for StatsAlloc<T, H> {
     #[inline]
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
+    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
         let size = layout.size();
         let align = layout.align();
-        match self.allocator.alloc(layout) {
+        match self.allocator.alloc(layout, init) {
             err @ Err(_) => {
                 hooks::on_alloc(self.tag.to_owned(), size, align, ptr::null_mut());
                 err
             }
-            Ok((ptr, ptr_size)) => {
+            Ok(block) => {
                 self.alloc_calls.fetch_add(1, Ordering::SeqCst);
                 self.total_bytes_alloced.fetch_add(size, Ordering::SeqCst);
                 let mut h = self.histogram.write();
-                h.add(ptr_size as u64).ok();
+                h.add(block.size as u64).ok();
                 drop(h);
-                hooks::on_alloc(self.tag.to_owned(), ptr_size, align, ptr.as_ptr());
-                Ok((ptr, ptr_size))
+                hooks::on_alloc(self.tag.to_owned(), block.size, align, block.ptr.as_ptr());
+                Ok(block)
             }
         }
     }
 
     #[inline]
-    unsafe fn realloc(
+    unsafe fn grow(
         &mut self,
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<(NonNull<u8>, usize), AllocErr> {
+        placement: ReallocPlacement,
+        init: AllocInit,
+    ) -> Result<MemoryBlock, AllocErr> {
         let old_ptr = ptr.as_ptr();
         let old_size = layout.size();
         let align = layout.align();
-        match self.allocator.realloc(ptr, layout, new_size) {
+        match self.allocator.grow(ptr, layout, new_size, placement, init) {
             err @ Err(_) => {
                 hooks::on_realloc(
                     self.tag.to_owned(),
@@ -158,27 +160,65 @@ unsafe impl<T: AllocRef, H: Histogram + Clone + Default> AllocRef for StatsAlloc
                 );
                 err
             }
-            Ok((ptr, ptr_size)) => {
+            Ok(block) => {
                 self.realloc_calls.fetch_add(1, Ordering::SeqCst);
-                if old_size < ptr_size {
-                    let diff = ptr_size - old_size;
-                    self.total_bytes_alloced.fetch_add(diff, Ordering::SeqCst);
-                } else {
-                    let diff = old_size - ptr_size;
-                    self.total_bytes_alloced.fetch_sub(diff, Ordering::SeqCst);
-                }
+                let diff = block.size - old_size;
+                self.total_bytes_alloced.fetch_add(diff, Ordering::SeqCst);
                 let mut h = self.histogram.write();
-                h.add(ptr_size as u64).ok();
+                h.add(block.size as u64).ok();
                 drop(h);
                 hooks::on_realloc(
                     self.tag.to_owned(),
                     old_size,
-                    ptr_size,
+                    block.size,
                     align,
                     old_ptr,
-                    ptr.as_ptr(),
+                    block.ptr.as_ptr(),
                 );
-                Ok((ptr, ptr_size))
+                Ok(block)
+            }
+        }
+    }
+
+    #[inline]
+    unsafe fn shrink(
+        &mut self,
+        ptr: NonNull<u8>,
+        layout: Layout,
+        new_size: usize,
+        placement: ReallocPlacement,
+    ) -> Result<MemoryBlock, AllocErr> {
+        let old_ptr = ptr.as_ptr();
+        let old_size = layout.size();
+        let align = layout.align();
+        match self.allocator.shrink(ptr, layout, new_size, placement) {
+            err @ Err(_) => {
+                hooks::on_realloc(
+                    self.tag.to_owned(),
+                    old_size,
+                    new_size,
+                    align,
+                    old_ptr,
+                    ptr::null_mut(),
+                );
+                err
+            }
+            Ok(block) => {
+                self.realloc_calls.fetch_add(1, Ordering::SeqCst);
+                let diff = old_size - block.size;
+                self.total_bytes_alloced.fetch_sub(diff, Ordering::SeqCst);
+                let mut h = self.histogram.write();
+                h.add(block.size as u64).ok();
+                drop(h);
+                hooks::on_realloc(
+                    self.tag.to_owned(),
+                    old_size,
+                    block.size,
+                    align,
+                    old_ptr,
+                    block.ptr.as_ptr(),
+                );
+                Ok(block)
             }
         }
     }

@@ -25,7 +25,11 @@ pub struct CodegenOptions {
     #[option]
     /// Prevent the linker from stripping dead code (useful for code coverage)
     pub link_dead_code: bool,
-    #[option(takes_value(true), possible_values("no", "yes", "thin", "fat"))]
+    #[option(
+        takes_value(true),
+        hidden(true),
+        possible_values("no", "yes", "thin", "fat")
+    )]
     /// Perform link-time optimization
     pub lto: LtoCli,
     #[option(value_name("CPU"), takes_value(true))]
@@ -43,7 +47,7 @@ pub struct CodegenOptions {
     #[option]
     /// Set rpath values in libs/exes
     pub rpath: bool,
-    #[option]
+    #[option(hidden(true))]
     /// Don't pre-populate the pass manager with a list of passes
     pub no_prepopulate_passes: bool,
     #[option]
@@ -75,23 +79,6 @@ pub struct CodegenOptions {
      **     _
      **/
     pub debuginfo: Option<DebugInfo>,
-    #[option(
-        next_line_help(true),
-        takes_value(true),
-        value_name("LEVEL"),
-        possible_values("0", "1", "2", "3", "s", "z")
-    )]
-    /**
-     ** The level of optimization to apply
-     **     0 = no optimizations
-     **     1 = minimal optimizations
-     **     2 = normal optimizations (default)
-     **     3 = aggressive optimizations
-     **     s = optimize for size
-     **     z = aggressively optimize for size
-     **     _
-     **/
-    pub opt_level: Option<OptLevel>,
     #[option(hidden(true))]
     /// Run `dsymutil` and delete intermediate object files
     pub run_dsymutil: Option<bool>,
@@ -104,7 +91,8 @@ pub struct CodegenOptions {
     #[option(
         possible_values("abort", "unwind"),
         value_name("STRATEGY"),
-        takes_value(true)
+        takes_value(true),
+        hidden(true)
     )]
     /// Panic strategy to compile with
     pub panic: Option<PanicStrategy>,
@@ -114,7 +102,12 @@ pub struct CodegenOptions {
     #[option(value_name("FLAVOR"), takes_value(true))]
     /// Linker flavor, e.g. 'gcc', 'ld', 'msvc', 'wasm-ld'
     pub linker_flavor: Option<LinkerFlavor>,
-    #[option(next_line_help(true), takes_value(true), default_value("false"))]
+    #[option(
+        next_line_help(true),
+        takes_value(true),
+        default_value("false"),
+        hidden(true)
+    )]
     /**
      ** Generate build artifacts that are compatible with linker-based LTO
      **     auto     = let the compiler choose
@@ -123,7 +116,7 @@ pub struct CodegenOptions {
      **     _
      **/
     pub linker_plugin_lto: LinkerPluginLto,
-    #[option]
+    #[option(hidden(true))]
     /// When set, does not implicitly link the Lumen runtime
     pub no_std: Option<bool>,
 }

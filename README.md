@@ -118,7 +118,7 @@ likewise you can change the setting to use CCache by removing that option as wel
 
 ### Building Lumen
 
-Once LLVM is installed/built, you an build the `lumen` executable:
+Once LLVM is installed/built, you can build the `lumen` executable:
 
     make build
     

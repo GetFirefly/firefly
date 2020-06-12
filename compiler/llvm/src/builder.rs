@@ -96,7 +96,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
             builder,
             intrinsics: RefCell::new(Default::default()),
             local_gen_sym_counter: Cell::new(0),
-            opt_level: opt_level,
+            opt_level,
             sanitizer: options.debugging_opts.sanitizer.clone(),
             target_cpu: crate::target::target_cpu(options).to_owned(),
             debug: options.debug_assertions,

@@ -83,7 +83,9 @@ pub unsafe extern "C" fn process_exit(reason: Term) {
         .as_any()
         .downcast_ref::<Scheduler>()
         .unwrap();
-    scheduler.current.exit(reason, anyhow!("process exit").into());
+    scheduler
+        .current
+        .exit(reason, anyhow!("process exit").into());
     // NOTE: We always set root=false here because the root
     // process never invokes this function
     scheduler.process_yield(/* root= */ false);
@@ -141,7 +143,10 @@ pub unsafe extern "C" fn trap_exceptions() {
 
 #[inline(never)]
 fn process_return(exit_value: Term) {
-    do_process_return(scheduler::current().as_any().downcast_ref().unwrap(), exit_value);
+    do_process_return(
+        scheduler::current().as_any().downcast_ref().unwrap(),
+        exit_value,
+    );
 }
 
 #[export_name = "__lumen_builtin_malloc"]

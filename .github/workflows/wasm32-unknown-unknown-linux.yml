@@ -38,7 +38,3 @@ jobs:
         run: wasm-pack build examples/spawn-chain
       - name: Spawn Chain Test
         run: wasm-pack test --headless --chrome --firefox examples/spawn-chain
-      - name: Interpreter In Browser Build
-        run: wasm-pack build examples/interpreter-in-browser
-      - name: Interpreter In Browser Test
-        run: wasm-pack test --headless --chrome --firefox examples/spawn-chain

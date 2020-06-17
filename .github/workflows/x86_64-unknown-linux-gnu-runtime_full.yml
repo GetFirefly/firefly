@@ -31,7 +31,5 @@ jobs:
       - name: Test liblumen_otp with runtime_full
         working-directory: native_implemented_functions/otp
         run: cargo test --features runtime_full
-      - name: Test interpreter
-        run: cargo test --package lumen_interpreter
       - name: Test spawn-chain example
         run: cargo test --package spawn-chain

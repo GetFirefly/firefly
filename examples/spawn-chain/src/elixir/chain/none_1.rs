@@ -21,7 +21,7 @@ use crate::elixir::chain::{none_output_1, run_2};
 
 #[native_implemented::function(none/1)]
 fn result(process: &Process, n: Term) -> exception::Result<Term> {
-    assert!(n.is_integer());
+    assert!(n.is_integer(), "n ({}) is not an integer", n);
 
     let none_output_closure = none_output_1::closure(process)?;
     process.queue_frame_with_arguments(

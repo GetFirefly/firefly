@@ -88,16 +88,6 @@ fn with_16384() {
     run_through(16384)
 }
 
-#[test]
-fn with_32768() {
-    run_through(32768)
-}
-
-#[test]
-fn with_65536() {
-    run_through(65536)
-}
-
 fn module() -> Atom {
     Atom::from_str("Elixir.ChainTest")
 }
@@ -113,24 +103,28 @@ fn run_through(n: usize) {
     let parent_process = None;
     let mut options: Options = Default::default();
     options.min_heap_size = Some(100 + 5 * n);
-    let Spawned { process, .. } = process::spawn::native(
+    let Spawned { process, .. } = process::spawn::spawn(
         parent_process,
         options,
         module(),
         inspect::function(),
-        &[],
-        inspect::NATIVE,
+        inspect::ARITY,
+        |child_process| {
+            let n_term = child_process.integer(n)?;
+
+            Ok(vec![
+                super::frame().with_arguments(false, &[n_term]),
+                inspect::frame().with_arguments(true, &[]),
+            ])
+        },
     )
     .unwrap();
-    process.queue_frame_with_arguments(
-        super::frame().with_arguments(false, &[process.integer(n).unwrap()]),
-    );
 
     let arc_scheduler = scheduler::current();
     let arc_process = arc_scheduler.schedule(process);
     registry::put_pid_to_process(&arc_process);
 
-    while scheduler::run_through(&arc_process) {}
+    while !arc_process.is_exiting() && scheduler::run_through(&arc_process) {}
 }
 
 static START: Once = Once::new();

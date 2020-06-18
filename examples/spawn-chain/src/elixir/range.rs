@@ -16,11 +16,11 @@ pub fn new(first: Term, last: Term, process: &Process) -> exception::Result<Term
                 ])
                 .map_err(From::from)
         } else {
-            Err(anyhow!("first ({}) is not an integer", first).into())
+            Err(anyhow!("last ({}) is not an integer", last).into())
         }
     } else {
         if last.is_integer() {
-            Err(anyhow!("last ({}) is not an integer", last).into())
+            Err(anyhow!("first ({}) is not an integer", first).into())
         } else {
             Err(anyhow!(
                 "neither first ({}) nor last ({}) is an integer",

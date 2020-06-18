@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry;
 
-#[native_implemented::function(registered/0)]
+#[native_implemented::function(erlang:registered/0)]
 pub fn result(process: &Process) -> exception::Result<Term> {
     registry::names(process)
 }

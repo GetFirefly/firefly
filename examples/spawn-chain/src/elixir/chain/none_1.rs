@@ -19,7 +19,7 @@ use crate::elixir::chain::{none_output_1, run_2};
 
 // Private
 
-#[native_implemented::function(none/1)]
+#[native_implemented::function(Elixir.Chain:none/1)]
 fn result(process: &Process, n: Term) -> exception::Result<Term> {
     assert!(n.is_integer(), "n ({}) is not an integer", n);
 

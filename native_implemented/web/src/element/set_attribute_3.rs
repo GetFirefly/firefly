@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::element;
 use crate::runtime::binary_to_string::binary_to_string;
 
-#[native_implemented::function(set_attribute/3)]
+#[native_implemented::function(Elixir.Lumen.Web.Element:set_attribute/3)]
 pub fn result(
     process: &Process,
     element_term: Term,

@@ -8,7 +8,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry;
 
-#[native_implemented::function(unregister/1)]
+#[native_implemented::function(erlang:unregister/1)]
 pub fn result(name: Term) -> exception::Result<Term> {
     let atom = term_try_into_atom!(name)?;
 

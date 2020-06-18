@@ -19,7 +19,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_otp::erlang;
 
-#[native_implemented::function(on_submit/1)]
+#[native_implemented::function(Elixir.Lumen.Web.Window:on_submit/1)]
 fn result(process: &Process, event: Term) -> exception::Result<Term> {
     // `.unwrap` on both of these because `on_submit_1` should only be called by code controlled
     // by us and it is a bug in `lumen_web` if these don't succeed

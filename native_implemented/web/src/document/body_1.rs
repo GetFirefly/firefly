@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::{document, option_to_ok_tuple_or_error};
 
-#[native_implemented::function(body/1)]
+#[native_implemented::function(Elixir.Lumen.Web.Document:body/1)]
 pub fn result(process: &Process, document: Term) -> exception::Result<Term> {
     let document_document = document::from_term(document)?;
 

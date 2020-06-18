@@ -13,7 +13,7 @@ mod test;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::Term;
 
-#[native_implemented::function(get_stacktrace/0)]
+#[native_implemented::function(erlang:get_stacktrace/0)]
 pub fn result(process: &Process) -> Term {
     let stacktrace = match *process.status.read() {
         Status::RuntimeException(ref exc) => exc.stacktrace().unwrap_or(Term::NIL),

@@ -12,7 +12,7 @@ use crate::erlang::start_timer;
 use crate::runtime::timer::Timeout;
 use crate::timer;
 
-#[native_implemented::function(start_timer/4)]
+#[native_implemented::function(erlang:start_timer/4)]
 pub fn result(
     arc_process: Arc<Process>,
     time: Term,

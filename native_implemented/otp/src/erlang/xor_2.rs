@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 /// `xor/2` infix operator.
 ///
 /// **NOTE: NOT SHORT-CIRCUITING!**
-#[native_implemented::function(xor/2)]
+#[native_implemented::function(erlang:xor/2)]
 pub fn result(left_boolean: Term, right_boolean: Term) -> exception::Result<Term> {
     boolean_infix_operator!(left_boolean, right_boolean, ^)
 }

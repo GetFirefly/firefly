@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry::pid_to_process;
 
-#[native_implemented::function(is_process_alive/1)]
+#[native_implemented::function(erlang:is_process_alive/1)]
 pub fn result(process: &Process, pid: Term) -> exception::Result<Term> {
     if pid == process.pid_term() {
         Ok((!process.is_exiting()).into())

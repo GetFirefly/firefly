@@ -24,7 +24,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 // Private
 
-#[native_implemented::function(counter/2)]
+#[native_implemented::function(Elixir.Chain:counter/2)]
 fn result(process: &Process, next_pid: Term, output: Term) -> exception::Result<Term> {
     assert!(next_pid.is_pid());
     // is_function(output, ...)

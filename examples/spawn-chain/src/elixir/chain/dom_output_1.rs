@@ -52,7 +52,7 @@ pub fn closure(process: &Process) -> Result<Term, Alloc> {
 
 // Private
 
-#[native_implemented::function(dom_output/1)]
+#[native_implemented::function(Elixir.Chain:dom_output/1)]
 fn result(process: &Process, text: Term) -> Term {
     process.queue_frame_with_arguments(
         liblumen_web::window::window_0::frame().with_arguments(false, &[]),

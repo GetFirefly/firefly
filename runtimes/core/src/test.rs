@@ -1,9 +1,8 @@
 use std::sync::Once;
 
-use liblumen_alloc::erts::apply::InitializeLumenDispatchTable;
 use liblumen_core::symbols::FunctionSymbol;
 
-use crate::scheduler;
+use liblumen_alloc::erts::apply::InitializeLumenDispatchTable;
 
 pub fn once(function_symbols: &[FunctionSymbol]) {
     ONCE.call_once(|| {

@@ -31,7 +31,7 @@ macro_rules! maybe_aligned_maybe_binary_to_atom {
     };
 }
 
-#[native_implemented::function(binary_to_atom / 2)]
+#[native_implemented::function(erlang:binary_to_atom / 2)]
 pub fn result(binary: Term, encoding: Term) -> exception::Result<Term> {
     let _: Encoding = encoding.try_into()?;
 

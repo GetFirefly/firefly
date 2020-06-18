@@ -334,7 +334,13 @@ impl AtomTable {
             }
             // This is safe because the underlying data is static
             let cs = CStr::from_ptr::<'static>(*value);
-            let name = cs.to_str().expect("invalid utf-8 in atom table!");
+            let name = cs.to_str().unwrap_or_else(|error| {
+                panic!(
+                    "invalid utf-8 ({:?}) in entry ({}) in atom table!",
+                    error,
+                    cs.to_string_lossy()
+                )
+            });
             assert_eq!(None, self.names.insert(id, name));
             assert_eq!(None, self.ids.insert(name, id));
         }

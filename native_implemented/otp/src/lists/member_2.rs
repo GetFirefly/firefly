@@ -6,7 +6,7 @@ use anyhow::*;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(member/2)]
+#[native_implemented::function(lists:member/2)]
 pub fn result(element: Term, list: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(false.into()),

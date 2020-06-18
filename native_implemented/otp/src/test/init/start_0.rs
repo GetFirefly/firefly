@@ -1,6 +1,9 @@
-#[cfg(feature = "runtime_full")]
-mod runtime_full;
-#[cfg(feature = "runtime_full")]
-pub use runtime_full::*;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::prelude::*;
 
-use super::{module, module_id};
+#[native_implemented::function(test:start/0)]
+fn result(process: &Process) -> Term {
+    process.wait();
+
+    Term::NONE
+}

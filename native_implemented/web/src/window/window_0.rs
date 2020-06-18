@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::option_to_ok_tuple_or_error;
 
-#[native_implemented::function(window/0)]
+#[native_implemented::function(Elixir.Lumen.Web.Window:window/0)]
 pub fn result(process: &Process) -> exception::Result<Term> {
     let option_window = web_sys::window();
 

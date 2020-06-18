@@ -9,7 +9,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::iolist_or_binary;
 
-#[native_implemented::function(list_to_binary/1)]
+#[native_implemented::function(erlang:list_to_binary/1)]
 pub fn result(process: &Process, iolist: Term) -> exception::Result<Term> {
     match iolist.decode()? {
         TypedTerm::Nil | TypedTerm::List(_) => {

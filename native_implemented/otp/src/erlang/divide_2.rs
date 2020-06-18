@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 /// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
 /// `float`.
-#[native_implemented::function(/ /2)]
+#[native_implemented::function(erlang:/ /2)]
 pub fn result(process: &Process, dividend: Term, divisor: Term) -> exception::Result<Term> {
     let dividend_f64: f64 = dividend.try_into().map_err(|_| {
         badarith(anyhow!("dividend ({}) cannot be promoted to a float", dividend).into())

@@ -23,7 +23,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::{node, ok_tuple};
 
-#[native_implemented::function(replace_child/3)]
+#[native_implemented::function(Elixir.Lumen.Web.Node:replace_child/3)]
 fn result(
     process: &Process,
     parent: Term,

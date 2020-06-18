@@ -28,7 +28,7 @@ const UNIQUE: Unique = [
     0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
 ];
 
-#[native_implemented::function(0-1-0123456789ABCDEF0123456789ABCDEF/0)]
+#[native_implemented::function(test:0-1-0123456789ABCDEF0123456789ABCDEF/0)]
 fn result() -> Term {
     returned()
 }

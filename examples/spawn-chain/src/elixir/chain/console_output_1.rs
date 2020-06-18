@@ -23,7 +23,7 @@ pub fn closure(process: &Process) -> Result<Term, Alloc> {
     )
 }
 
-#[native_implemented::function(console_output/1)]
+#[native_implemented::function(Elixir.Chain:console_output/1)]
 fn result(process: &Process, text: Term) -> Term {
     process.queue_frame_with_arguments(erlang::self_0::frame().with_arguments(false, &[]));
     process.queue_frame_with_arguments(label_1::frame().with_arguments(true, &[text]));

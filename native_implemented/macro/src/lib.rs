@@ -44,21 +44,23 @@ pub fn label(_: TokenStream, result_token_stream: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn function(
-    function_arity_token_stream: TokenStream,
+    module_function_arity_token_stream: TokenStream,
     result_token_stream: TokenStream,
 ) -> TokenStream {
-    let function_arity = parse_macro_input!(function_arity_token_stream as FunctionArity);
+    let module_function_arity =
+        parse_macro_input!(module_function_arity_token_stream as ModuleFunctionArity);
     let result_item_fn = parse_macro_input!(result_token_stream as ItemFn);
 
-    match Signatures::entry_point(&result_item_fn, function_arity.arity) {
+    match Signatures::entry_point(&result_item_fn, module_function_arity.arity) {
         Ok(signatures) => {
             let const_arity = signatures.const_arity();
             let const_native = signatures.const_native();
             let frame = frame_for_entry_point();
             let frame_for_native = frame_for_native();
-            let function = function_arity.function();
+            let function = module_function_arity.function();
             let function_symbol = function_symbol();
-            let module_function_arity = module_function_arity();
+            let module_function_arity_fn = module_function_arity_fn();
+            let export_name = module_function_arity.export_name();
             let native_fn = signatures.native_fn();
 
             let all_tokens = quote! {
@@ -69,7 +71,8 @@ pub fn function(
                 #frame_for_native
                 #function
                 #function_symbol
-                #module_function_arity
+                #module_function_arity_fn
+                #[export_name = #export_name]
                 #native_fn
                 #result_item_fn
             };
@@ -130,7 +133,7 @@ fn function_symbol() -> proc_macro2::TokenStream {
     }
 }
 
-fn module_function_arity() -> proc_macro2::TokenStream {
+fn module_function_arity_fn() -> proc_macro2::TokenStream {
     quote! {
         pub fn module_function_arity() -> liblumen_alloc::erts::ModuleFunctionArity {
             liblumen_alloc::erts::ModuleFunctionArity {
@@ -143,12 +146,17 @@ fn module_function_arity() -> proc_macro2::TokenStream {
 }
 
 #[derive(Debug)]
-struct FunctionArity {
+struct ModuleFunctionArity {
+    module: String,
     function: String,
     arity: u8,
 }
 
-impl FunctionArity {
+impl ModuleFunctionArity {
+    fn export_name(&self) -> String {
+        format!("{}:{}/{}", self.module, self.function, self.arity)
+    }
+
     fn function(&self) -> proc_macro2::TokenStream {
         let function = &self.function;
 
@@ -158,116 +166,167 @@ impl FunctionArity {
             }
         }
     }
-}
 
-impl Parse for FunctionArity {
-    fn parse(input: &ParseBuffer) -> syn::parse::Result<Self> {
-        if input.is_empty() {
-            Err(input.error("function = \"NAME\" required"))
-        } else {
-            let function: String = if let Ok(ident) = input.parse::<syn::Ident>() {
-                ident.to_string()
-            } else if let Ok(_) = input.parse::<Token![loop]>() {
-                "loop".to_string()
-            } else if let Ok(_) = input.parse::<Token![self]>() {
-                "self".to_string()
-            } else if let Ok(_) = input.parse::<Token![*]>() {
-                "*".to_string()
-            } else if let Ok(_) = input.parse::<Token![+]>() {
-                if let Ok(_) = input.parse::<Token![+]>() {
-                    "++".to_string()
-                } else {
-                    "+".to_string()
-                }
-            } else if let Ok(_) = input.parse::<Token![-]>() {
-                if let Ok(_) = input.parse::<Token![-]>() {
-                    "--".to_string()
-                } else {
-                    "-".to_string()
-                }
-            } else if let Ok(_) = input.parse::<Token![/]>() {
+    fn parse_arity(input: &ParseBuffer) -> syn::parse::Result<u8> {
+        let arity_lit_int = input.parse::<LitInt>()?;
+
+        arity_lit_int.base10_parse()
+    }
+
+    fn parse_function(input: &ParseBuffer) -> syn::parse::Result<String> {
+        let function = if let Ok(ident) = input.parse::<syn::Ident>() {
+            ident.to_string()
+        } else if let Ok(_) = input.parse::<Token![loop]>() {
+            "loop".to_string()
+        } else if let Ok(_) = input.parse::<Token![self]>() {
+            "self".to_string()
+        } else if let Ok(_) = input.parse::<Token![*]>() {
+            "*".to_string()
+        } else if let Ok(_) = input.parse::<Token![+]>() {
+            if let Ok(_) = input.parse::<Token![+]>() {
+                "++".to_string()
+            } else {
+                "+".to_string()
+            }
+        } else if let Ok(_) = input.parse::<Token![-]>() {
+            if let Ok(_) = input.parse::<Token![-]>() {
+                "--".to_string()
+            } else {
+                "-".to_string()
+            }
+        } else if let Ok(_) = input.parse::<Token![/]>() {
+            if let Ok(_) = input.parse::<Token![=]>() {
+                "/=".to_string()
+            } else {
+                "/".to_string()
+            }
+        } else if let Ok(_) = input.parse::<Token![<]>() {
+            "<".to_string()
+        } else if let Ok(_) = input.parse::<Token![=]>() {
+            if let Ok(_) = input.parse::<Token![/]>() {
                 if let Ok(_) = input.parse::<Token![=]>() {
-                    "/=".to_string()
-                } else {
-                    "/".to_string()
-                }
-            } else if let Ok(_) = input.parse::<Token![<]>() {
-                "<".to_string()
-            } else if let Ok(_) = input.parse::<Token![=]>() {
-                if let Ok(_) = input.parse::<Token![/]>() {
-                    if let Ok(_) = input.parse::<Token![=]>() {
-                        "=/=".to_string()
-                    } else {
-                        unimplemented!("parse function name from {:?}", input);
-                    }
-                } else if let Ok(_) = input.parse::<Token![:]>() {
-                    if let Ok(_) = input.parse::<Token![=]>() {
-                        "=:=".to_string()
-                    } else {
-                        unimplemented!("parse function name from {:?}", input);
-                    }
-                } else if let Ok(_) = input.parse::<Token![<]>() {
-                    "=<".to_string()
-                } else if let Ok(_) = input.parse::<Token![=]>() {
-                    "==".to_string()
+                    "=/=".to_string()
                 } else {
                     unimplemented!("parse function name from {:?}", input);
                 }
-            } else if let Ok(_) = input.parse::<Token![>]>() {
+            } else if let Ok(_) = input.parse::<Token![:]>() {
                 if let Ok(_) = input.parse::<Token![=]>() {
-                    ">=".to_string()
+                    "=:=".to_string()
                 } else {
-                    ">".to_string()
+                    unimplemented!("parse function name from {:?}", input);
                 }
-            // anonymous functions
-            } else if let Ok(index) = input.parse::<LitInt>() {
-                if let Ok(_) = input.parse::<Token![-]>() {
-                    if let Ok(old_unique) = input.parse::<LitInt>() {
-                        if let Ok(_) = input.parse::<Token![-]>() {
-                            if let Ok(unique) = input.parse::<LitInt>() {
-                                let span = unique.span();
-                                let start = span.start();
-                                let end = span.end();
+            } else if let Ok(_) = input.parse::<Token![<]>() {
+                "=<".to_string()
+            } else if let Ok(_) = input.parse::<Token![=]>() {
+                "==".to_string()
+            } else {
+                unimplemented!("parse function name from {:?}", input);
+            }
+        } else if let Ok(_) = input.parse::<Token![>]>() {
+            if let Ok(_) = input.parse::<Token![=]>() {
+                ">=".to_string()
+            } else {
+                ">".to_string()
+            }
+        // anonymous functions
+        } else if let Ok(index) = input.parse::<LitInt>() {
+            if let Ok(_) = input.parse::<Token![-]>() {
+                if let Ok(old_unique) = input.parse::<LitInt>() {
+                    if let Ok(_) = input.parse::<Token![-]>() {
+                        if let Ok(unique) = input.parse::<LitInt>() {
+                            let span = unique.span();
+                            let start = span.start();
+                            let end = span.end();
 
-                                if start.line == end.line {
-                                    let len = end.column - start.column;
+                            if start.line == end.line {
+                                let len = end.column - start.column;
 
-                                    if len == 32 {
-                                        format!("{}-{}-{}", index, old_unique, unique)
-                                    } else {
-                                        return Err(Error::new(span, format!("UNIQUE should be a 32-digit hexadecimal integer, but is {} digits long", len)));
-                                    }
+                                if len == 32 {
+                                    format!("{}-{}-{}", index, old_unique, unique)
                                 } else {
-                                    return Err(Error::new(span, "UNIQUE should be on one line"));
+                                    return Err(Error::new(span, format!("UNIQUE should be a 32-digit hexadecimal integer, but is {} digits long", len)));
                                 }
                             } else {
-                                return Err(input.error(
-                                    "Missing UNIQUE in anonymous function (INDEX-OLD_UNIQUE-UNIQUE",
-                                ));
+                                return Err(Error::new(span, "UNIQUE should be on one line"));
                             }
                         } else {
-                            return Err(input.error("Missing `-` after OLD_UNIQUE in anonymous function (INDEX-OLD_UNIQUE-UNIQUE)"));
+                            return Err(input.error(
+                                "Missing UNIQUE in anonymous function (INDEX-OLD_UNIQUE-UNIQUE",
+                            ));
                         }
                     } else {
-                        return Err(input.error(
-                            "Missing OLD_UNIQUE in anonymous function (INDEX-OLD_UNIQUE-UNIQUE",
-                        ));
+                        return Err(input.error("Missing `-` after OLD_UNIQUE in anonymous function (INDEX-OLD_UNIQUE-UNIQUE)"));
                     }
                 } else {
                     return Err(input.error(
-                        "Missing `-` after INDEX in anonymous function (INDEX-OLD_UNIQUE-UNIQUE",
+                        "Missing OLD_UNIQUE in anonymous function (INDEX-OLD_UNIQUE-UNIQUE",
                     ));
                 }
             } else {
-                unimplemented!("parse function name from {:?}", input);
-            };
+                return Err(input.error(
+                    "Missing `-` after INDEX in anonymous function (INDEX-OLD_UNIQUE-UNIQUE",
+                ));
+            }
+        } else {
+            unimplemented!("parse function name from {:?}", input);
+        };
+
+        Ok(function)
+    }
+
+    fn parse_module(input: &ParseBuffer) -> syn::parse::Result<String> {
+        let mut module = if let Ok(ident) = input.parse::<syn::Ident>() {
+            ident.to_string()
+        } else {
+            unimplemented!("parse module name from {:?}", input);
+        };
+
+        loop {
+            // End of module name.
+            // This separates module name and function name
+            if input.peek(Token![:]) {
+                break;
+            } else {
+                if let Ok(_) = input.parse::<Token![.]>() {
+                    module.push('.');
+
+                    if let Ok(relative) = input.parse::<syn::Ident>() {
+                        module.push_str(&relative.to_string());
+                    } else {
+                        return Err(input.error(
+                            "Relative module names must follow Elixir namespace separator (`.`)",
+                        ));
+                    }
+                } else {
+                    return Err(input.error("Elixir namespace operator (`.`) must follow qualifier.  Use `:` separate module from function name."));
+                }
+            }
+        }
+
+        Ok(module)
+    }
+}
+
+impl Parse for ModuleFunctionArity {
+    fn parse(input: &ParseBuffer) -> syn::parse::Result<Self> {
+        if input.is_empty() {
+            Err(input.error("MODULE:FUNCTION/ARITY required"))
+        } else {
+            let module = Self::parse_module(input)?;
+
+            input.parse::<Token![:]>()?;
+
+            let function = Self::parse_function(input)?;
 
             input.parse::<Token![/]>()?;
 
-            let arity_lit_int = input.parse::<LitInt>()?;
-            let arity = arity_lit_int.base10_parse()?;
+            let arity = Self::parse_arity(input)?;
 
-            Ok(FunctionArity { function, arity })
+            Ok(ModuleFunctionArity {
+                module,
+                function,
+                arity,
+            })
         }
     }
 }

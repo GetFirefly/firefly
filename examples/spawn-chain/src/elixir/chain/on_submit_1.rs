@@ -22,7 +22,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 // Private
 
-#[native_implemented::function(on_submit/1)]
+#[native_implemented::function(Elixir.Chain:on_submit/1)]
 fn result(process: &Process, event: Term) -> Term {
     assert!(event.is_boxed_resource_reference());
 

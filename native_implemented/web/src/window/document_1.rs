@@ -16,7 +16,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::option_to_ok_tuple_or_error;
 
-#[native_implemented::function(document/1)]
+#[native_implemented::function(Elixir.Lumen.Web.Window:document/1)]
 pub fn result(process: &Process, window: Term) -> exception::Result<Term> {
     let boxed: Boxed<Resource> = window
         .try_into()

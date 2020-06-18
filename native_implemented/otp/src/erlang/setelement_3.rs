@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::*;
 
-#[native_implemented::function(setelement/3)]
+#[native_implemented::function(erlang:setelement/3)]
 pub fn result(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
     let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let length = initial_inner_tuple.len();

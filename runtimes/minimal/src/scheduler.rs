@@ -600,7 +600,7 @@ impl Scheduler {
         let init_fn_result = apply::find_symbol(&mfa);
         if init_fn_result.is_none() {
             panic!(
-                "invalid mfa ({}) provided for process: no such symbol found",
+                "invalid mfa ({}) provided for process: no such SYMBOL FOUND",
                 &mfa
             );
         }

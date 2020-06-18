@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(values/1)]
+#[native_implemented::function(maps:values/1)]
 pub fn result(process: &Process, map: Term) -> exception::Result<Term> {
     let boxed_map = term_try_into_map_or_badmap!(process, map)?;
     let values = boxed_map.values();

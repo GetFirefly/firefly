@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::element;
 
-#[native_implemented::function(remove/1)]
+#[native_implemented::function(Elixir.Lumen.Web.Element:remove/1)]
 fn result(element_term: Term) -> exception::Result<Term> {
     let element = element::from_term(element_term)?;
 

@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::ok_tuple;
 
-#[native_implemented::function(new/0)]
+#[native_implemented::function(Elixir.Lumen.Web.Document:new/0)]
 fn result(process: &Process) -> exception::Result<Term> {
     match web_sys::Document::new() {
         Ok(document) => ok_tuple(process, document).map_err(|error| error.into()),

@@ -3,7 +3,7 @@ mod test;
 
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(is_atom/1)]
+#[native_implemented::function(erlang:is_atom/1)]
 pub fn result(term: Term) -> Term {
     term.is_atom().into()
 }

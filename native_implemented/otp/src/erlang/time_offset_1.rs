@@ -9,7 +9,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::time::{monotonic, system, Unit};
 
-#[native_implemented::function(time_offset/1)]
+#[native_implemented::function(erlang:time_offset/1)]
 pub fn result(process: &Process, unit: Term) -> exception::Result<Term> {
     let unit_unit: Unit = unit.try_into()?;
     let system_time = system::time(unit_unit);

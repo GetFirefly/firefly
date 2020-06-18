@@ -47,11 +47,13 @@ pub unsafe fn apply(symbol: &ModuleFunctionArity, args: &[Term]) -> Result<Term,
     }
 }
 
-#[inline]
 pub fn find_symbol(mfa: &ModuleFunctionArity) -> Option<DynamicCallee> {
-    let symbols = SYMBOLS
-        .get()
-        .expect("InitializeLumenDispatchTable not called");
+    let symbols = SYMBOLS.get().unwrap_or_else(|| {
+        panic!(
+            "InitializeLumenDispatchTable not called before trying to get {:?}",
+            mfa
+        )
+    });
     if let Some(f) = symbols.get_function(mfa) {
         Some(unsafe { mem::transmute::<*const c_void, DynamicCallee>(f) })
     } else {
@@ -81,13 +83,16 @@ pub unsafe extern "C" fn InitializeLumenDispatchTable(
         return false;
     }
     let raw_table = slice::from_raw_parts::<'static>(table, len);
+
     match SymbolTable::from_raw(raw_table) {
         Err(err) => {
-            panic!("{}", err);
+            eprintln!("Error: {}", err);
+            false
         }
         Ok(sym_table) => {
             if let Err(_) = SYMBOLS.set(sym_table) {
-                panic!("tried to initialize symbol table more than once!");
+                eprintln!("tried to initialize symbol table more than once!");
+                false
             } else {
                 true
             }
@@ -110,9 +115,11 @@ impl SymbolTable {
     }
 
     fn dump(&self) {
+        eprintln!("START SYMBOL TABLE");
         for mfa in self.functions.keys() {
-            println!("{:?}", mfa);
+            eprintln!("{:?}", mfa);
         }
+        eprintln!("END SYMBOL TABLE");
     }
 
     /// Used to initialize the atom table from an array of null-terminated strings with static

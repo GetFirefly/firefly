@@ -16,7 +16,7 @@ use crate::exec::CallExecutor;
 /// * argument list
 /// * block id integer
 /// * environment list
-#[native_implemented::function(interpreter_closure/2)]
+#[native_implemented::function(lumen_eir_interpreter_intrinsics:interpreter_closure/2)]
 pub fn result(arc_process: Arc<Process>, argument_list: Term, closure_term: Term) -> Term {
     let closure: Boxed<Closure> = closure_term.try_into().unwrap();
     println!("{:?}", closure);

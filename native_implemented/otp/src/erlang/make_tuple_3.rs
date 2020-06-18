@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::*;
 
-#[native_implemented::function(make_tuple/3)]
+#[native_implemented::function(erlang:make_tuple/3)]
 pub fn result(
     process: &Process,
     arity: Term,

@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::binary::{start_length_to_part_range, PartRange};
 use crate::runtime::context::*;
 
-#[native_implemented::function(binary_part/3)]
+#[native_implemented::function(erlang:binary_part/3)]
 pub fn result(
     process: &Process,
     binary: Term,

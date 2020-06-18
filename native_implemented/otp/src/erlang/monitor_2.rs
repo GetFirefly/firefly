@@ -17,7 +17,7 @@ use crate::runtime::{process, registry};
 
 const TYPE_CONTEXT: &str = "supported types are :port, :process, or :time_offset";
 
-#[native_implemented::function(monitor/2)]
+#[native_implemented::function(erlang:monitor/2)]
 pub fn result(process: &Process, r#type: Term, item: Term) -> exception::Result<Term> {
     let type_atom: Atom = r#type.try_into().context(TYPE_CONTEXT)?;
 

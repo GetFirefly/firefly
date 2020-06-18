@@ -6,7 +6,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::*;
 
-#[native_implemented::function(is_function/2)]
+#[native_implemented::function(erlang:is_function/2)]
 fn result(term: Term, arity: Term) -> exception::Result<Term> {
     let arity_arity = term_try_into_arity(arity)?;
 

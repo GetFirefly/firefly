@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::erlang::spawn_apply_3;
 
-#[native_implemented::function(spawn/3)]
+#[native_implemented::function(erlang:spawn/3)]
 pub fn result(
     process: &Process,
     module: Term,

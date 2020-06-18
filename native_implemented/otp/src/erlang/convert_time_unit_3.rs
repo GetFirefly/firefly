@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::runtime::time;
 
-#[native_implemented::function(convert_time_unit/3)]
+#[native_implemented::function(erlang:convert_time_unit/3)]
 pub fn result(
     process: &Process,
     time: Term,

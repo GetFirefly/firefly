@@ -20,7 +20,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_otp::erlang::add_2;
 
-#[native_implemented::function(reduce_range_inc/4)]
+#[native_implemented::function(Elixir.Enum:reduce_range_inc/4)]
 fn result(
     process: &Process,
     first: Term,

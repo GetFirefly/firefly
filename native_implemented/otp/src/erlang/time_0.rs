@@ -6,7 +6,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(time/0)]
+#[native_implemented::function(erlang:time/0)]
 pub fn result(process: &Process) -> exception::Result<Term> {
     let time: [usize; 3] = datetime::local_time();
 

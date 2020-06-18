@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use crate::erlang::cancel_timer;
 use crate::timer;
 
-#[native_implemented::function(cancel_timer/2)]
+#[native_implemented::function(erlang:cancel_timer/2)]
 pub fn result(process: &Process, timer_reference: Term, options: Term) -> exception::Result<Term> {
     let cancel_timer_options: timer::cancel::Options = options.try_into()?;
 

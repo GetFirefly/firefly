@@ -18,7 +18,7 @@ pub fn closure(process: &Process) -> exception::Result<Term> {
         .map_err(|error| error.into())
 }
 
-#[native_implemented::function(return_clean/1)]
+#[native_implemented::function(lumen_eir_interpreter_intrinsics:return_clean/1)]
 pub fn result(argument_list: Term) -> Term {
     argument_list
 }

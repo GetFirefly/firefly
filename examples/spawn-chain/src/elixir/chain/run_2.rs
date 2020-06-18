@@ -17,7 +17,7 @@ use liblumen_otp::timer;
 
 // Private
 
-#[native_implemented::function(run/2)]
+#[native_implemented::function(Elixir.Chain:run/2)]
 fn result(process: &Process, n: Term, output: Term) -> exception::Result<Term> {
     let module = atom!("Elixir.Chain");
     let function = atom!("create_processes");

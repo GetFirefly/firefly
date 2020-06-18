@@ -1408,7 +1408,7 @@ void ModuleBuilder::build_binary_start(Location loc, Block *cont) {
   auto bin = op.getResult();
   builder.create<BranchOp>(loc, cont, ArrayRef<Value>{bin});
 }
-  
+
 extern "C" void MLIRBuildBinaryFinish(MLIRModuleBuilderRef b,
                                       MLIRLocationRef locref, MLIRBlockRef contBlock, MLIRValueRef binRef) {
   ModuleBuilder *builder = unwrap(b);
@@ -1525,7 +1525,7 @@ extern "C" void MLIRBuildReceiveWait(MLIRModuleBuilderRef b,
 void ModuleBuilder::build_receive_wait(Location loc, Block *timeout, Block *check, Value receive_ref) {
   builder.create<ReceiveWaitOp>(loc, receive_ref, timeout, ArrayRef<Value>{}, check, ArrayRef<Value>{});
 }
-  
+
 extern "C" void MLIRBuildReceiveDone(MLIRModuleBuilderRef b,
                                      MLIRLocationRef locref, MLIRBlockRef contBlock,
                                      MLIRValueRef receiveRef, MLIRValueRef *argv, unsigned argc) {

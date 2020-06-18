@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::time::{system, Unit::Native};
 
-#[native_implemented::function(system_time/0)]
+#[native_implemented::function(erlang:system_time/0)]
 pub fn result(process: &Process) -> exception::Result<Term> {
     let big_int = system::time(Native);
 

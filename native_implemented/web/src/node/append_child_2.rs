@@ -30,7 +30,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::{error_tuple, node};
 
-#[native_implemented::function(append_child/2)]
+#[native_implemented::function(Elixir.Lumen.Web.Node:append_child/2)]
 pub fn result(process: &Process, parent: Term, child: Term) -> exception::Result<Term> {
     let parent_node = node::from_term(parent).with_context(|| format!("parent"))?;
     let child_node = node::from_term(child).with_context(|| format!("child"))?;

@@ -20,7 +20,7 @@ pub fn closure(process: &Process) -> Result<Term, Alloc> {
 
 // Private
 
-#[native_implemented::function(none_output/1)]
+#[native_implemented::function(Elixir.Chain:none_output/1)]
 fn result(_text: Term) -> Term {
     atom!("ok")
 }

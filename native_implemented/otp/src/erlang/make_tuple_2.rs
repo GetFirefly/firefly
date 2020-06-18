@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::runtime::context::*;
 
-#[native_implemented::function(make_tuple/2)]
+#[native_implemented::function(erlang:make_tuple/2)]
 pub fn result(process: &Process, arity: Term, initial_value: Term) -> exception::Result<Term> {
     // arity by definition is only 0-225, so `u8`, but ...
     let arity_u8: u8 = term_try_into_arity(arity)?;

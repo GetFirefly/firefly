@@ -8,7 +8,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::term_try_into_one_based_index;
 
-#[native_implemented::function(keyfind/3)]
+#[native_implemented::function(lists:keyfind/3)]
 pub fn result(key: Term, index: Term, tuple_list: Term) -> exception::Result<Term> {
     let index = term_try_into_one_based_index(index)?;
 

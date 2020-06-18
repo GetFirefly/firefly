@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 /// Returns a list of integers corresponding to the bytes of `bitstring`. If the number of bits in
 /// `bitstring` is not divisible by `8`, the last element of the list is a `bitstring` containing
 /// the remaining `1`-`7` bits.
-#[native_implemented::function(bitstring_to_list/1)]
+#[native_implemented::function(erlang:bitstring_to_list/1)]
 pub fn result(process: &Process, bitstring: Term) -> exception::Result<Term> {
     match bitstring.decode()? {
         TypedTerm::HeapBinary(heap_binary) => {

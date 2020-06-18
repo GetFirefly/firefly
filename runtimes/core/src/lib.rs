@@ -16,5 +16,6 @@ pub mod scheduler;
 pub mod send;
 pub mod stacktrace;
 pub mod sys;
+pub mod test;
 pub mod time;
 pub mod timer;

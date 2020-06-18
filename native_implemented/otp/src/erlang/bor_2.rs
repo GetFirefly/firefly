@@ -6,7 +6,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
 /// `bor/2` infix operator.
-#[native_implemented::function(bor/2)]
+#[native_implemented::function(erlang:bor/2)]
 pub fn result(
     process: &Process,
     left_integer: Term,

@@ -49,6 +49,7 @@ pub mod sys;
 // `pub` for `examples/spawn-chain`
 mod term;
 
+#[cfg(test)]
 pub mod test;
 
 /// The main entry point for the runtime

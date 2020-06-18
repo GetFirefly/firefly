@@ -8,7 +8,7 @@ use crate::exec::CallExecutor;
 /// Expects the following on stack:
 /// * arity integer
 /// * argument list
-#[native_implemented::function(interpreter_mfa/1)]
+#[native_implemented::function(lumen_eir_interpreter_intrinsics:interpreter_mfa/1)]
 pub fn result(arc_process: Arc<Process>, argument_list: Term) -> Term {
     let mfa = arc_process.current_module_function_arity().unwrap();
 

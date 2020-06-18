@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry::pid_to_process;
 
-#[native_implemented::function(link/1)]
+#[native_implemented::function(erlang:link/1)]
 fn result(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
     match pid_or_port.decode()? {
         TypedTerm::Pid(pid) => {

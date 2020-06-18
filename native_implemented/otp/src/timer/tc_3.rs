@@ -22,7 +22,7 @@ use crate::erlang::monotonic_time_0;
 
 // Private
 
-#[native_implemented::function(tc/3)]
+#[native_implemented::function(timer:tc/3)]
 fn result(process: &Process, module: Term, function: Term, arguments: Term) -> Term {
     process.queue_frame_with_arguments(monotonic_time_0::frame().with_arguments(false, &[]));
     process.queue_frame_with_arguments(

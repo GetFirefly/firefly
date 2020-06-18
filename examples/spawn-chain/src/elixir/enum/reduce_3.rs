@@ -10,7 +10,7 @@ use crate::elixir::r#enum::reduce_range_inc_4;
 
 // Private
 
-#[native_implemented::function(reduce/3)]
+#[native_implemented::function(Elixir.Enum:reduce/3)]
 fn result(
     process: &Process,
     enumerable: Term,

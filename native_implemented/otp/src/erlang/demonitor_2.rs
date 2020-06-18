@@ -14,7 +14,7 @@ use crate::runtime::registry::pid_to_process;
 
 use crate::erlang::demonitor_2::options::Options;
 
-#[native_implemented::function(demonitor/2)]
+#[native_implemented::function(erlang:demonitor/2)]
 pub fn result(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {
     let reference_reference = term_try_into_local_reference!(reference)?;
     let options_options: Options = options.try_into()?;

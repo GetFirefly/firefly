@@ -14,7 +14,7 @@ use crate::binary;
 /// The one-based indexing for binaries used by this function is deprecated. New code is to use
 /// [crate::binary::bin_to_list] instead. All functions in module [crate::binary]
 /// consistently use zero-based indexing.
-#[native_implemented::function(binary_to_list/3)]
+#[native_implemented::function(erlang:binary_to_list/3)]
 pub fn result(process: &Process, binary: Term, start: Term, stop: Term) -> exception::Result<Term> {
     let one_based_start_usize: usize = try_into_one_based("start", start)?;
     let one_based_stop_usize: usize = try_into_one_based("stop", stop)?;

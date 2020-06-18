@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::stacktrace;
 
-#[native_implemented::function(raise/3)]
+#[native_implemented::function(erlang:raise/3)]
 pub fn result(class: Term, reason: Term, stacktrace: Term) -> exception::Result<Term> {
     let class_class: exception::Class = class.try_into()?;
 

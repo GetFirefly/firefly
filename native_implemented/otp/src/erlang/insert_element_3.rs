@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::*;
 
-#[native_implemented::function(insert_element/3)]
+#[native_implemented::function(erlang:insert_element/3)]
 pub fn result(
     process: &Process,
     index: Term,

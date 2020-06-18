@@ -20,7 +20,7 @@ use liblumen_otp::erlang;
 
 use crate::window::add_event_listener;
 
-#[native_implemented::function(add_event_listener/4)]
+#[native_implemented::function(Elixir.Lumen.Web.Window:add_event_listener/4)]
 fn result(window: Term, event: Term, module: Term, function: Term) -> exception::Result<Term> {
     let boxed: Boxed<Resource> = window
         .try_into()

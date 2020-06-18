@@ -11,7 +11,7 @@
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(reduce_range_dec/4)]
+#[native_implemented::function(Elixir.Enum:reduce_range_dec/4)]
 fn result(_process: &Process, _first: Term, _last: Term, _acc: Term, _reducer: Term) -> Term {
     unimplemented!()
 }

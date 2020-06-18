@@ -7,7 +7,7 @@ use lumen_rt_full::sys;
 
 // Private
 
-#[native_implemented::function(puts/1)]
+#[native_implemented::function(Elixir.IO:puts/1)]
 fn result(elixir_string: Term) -> exception::Result<Term> {
     binary_to_string(elixir_string).map(|string| {
         // NOT A DEBUGGING LOG

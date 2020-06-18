@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(erase/0)]
+#[native_implemented::function(erlang:erase/0)]
 pub fn result(process: &Process) -> exception::Result<Term> {
     process.erase_entries().map_err(|alloc| alloc.into())
 }

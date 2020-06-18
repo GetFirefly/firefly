@@ -19,7 +19,6 @@ mod logging;
 pub mod process;
 pub mod scheduler;
 pub mod sys;
-pub mod test;
 
 use liblumen_alloc::erts::process::alloc::default_heap_size;
 

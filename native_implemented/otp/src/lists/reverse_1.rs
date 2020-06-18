@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::lists::reverse_2;
 
-#[native_implemented::function(reverse/1)]
+#[native_implemented::function(lists:reverse/1)]
 fn result(process: &Process, list: Term) -> exception::Result<Term> {
     reverse_2::result(process, list, Term::NIL)
 }

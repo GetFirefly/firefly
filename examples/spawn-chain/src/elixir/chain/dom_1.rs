@@ -16,7 +16,7 @@ use crate::elixir::chain::{dom_output_1, run_2};
 
 // Private
 
-#[native_implemented::function(dom/1)]
+#[native_implemented::function(Elixir.Chain:dom/1)]
 fn result(process: &Process, n: Term) -> exception::Result<Term> {
     assert!(n.is_integer());
 

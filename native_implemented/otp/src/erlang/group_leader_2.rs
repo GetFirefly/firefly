@@ -15,7 +15,7 @@ macro_rules! is_not_alive {
     };
 }
 
-#[native_implemented::function(group_leader/2)]
+#[native_implemented::function(erlang:group_leader/2)]
 pub fn result(process: &Process, group_leader: Term, pid: Term) -> exception::Result<Term> {
     let group_leader_pid: Pid = term_try_into_local_pid!(group_leader)?;
 

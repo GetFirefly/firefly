@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use crate::erlang::start_timer;
 use crate::runtime::timer::Timeout;
 
-#[native_implemented::function(send_after/3)]
+#[native_implemented::function(erlang:send_after/3)]
 pub fn result(
     arc_process: Arc<Process>,
     time: Term,

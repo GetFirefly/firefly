@@ -9,7 +9,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 /// `bnot/1` prefix operator.
-#[native_implemented::function(bnot/1)]
+#[native_implemented::function(erlang:bnot/1)]
 pub fn result(process: &Process, integer: Term) -> exception::Result<Term> {
     match integer.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {

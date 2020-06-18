@@ -14,7 +14,7 @@ pub fn export_closure(process: &Process) -> Term {
         .unwrap()
 }
 
-#[native_implemented::function(return_from_fn/1)]
+#[native_implemented::function(test:return_from_fn/1)]
 fn result(argument: Term) -> Term {
     argument
 }

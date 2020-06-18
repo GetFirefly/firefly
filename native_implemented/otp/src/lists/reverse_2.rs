@@ -7,7 +7,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(reverse/2)]
+#[native_implemented::function(lists:reverse/2)]
 pub fn result(process: &Process, list: Term, tail: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(tail),

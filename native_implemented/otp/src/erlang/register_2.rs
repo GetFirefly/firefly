@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry;
 
-#[native_implemented::function(register/2)]
+#[native_implemented::function(erlang:register/2)]
 pub fn result(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> exception::Result<Term> {
     let atom = term_try_into_atom!(name)?;
 

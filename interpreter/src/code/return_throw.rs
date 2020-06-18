@@ -21,7 +21,7 @@ pub fn closure(process: &Process) -> exception::Result<Term> {
         .map_err(|error| error.into())
 }
 
-#[native_implemented::function(return_throw/1)]
+#[native_implemented::function(lumen_eir_interpreter_intrinsics:return_throw/1)]
 pub fn result(argument_list: Term) -> exception::Result<Term> {
     let mut argument_vec: Vec<Term> = Vec::new();
     match argument_list.decode().unwrap() {

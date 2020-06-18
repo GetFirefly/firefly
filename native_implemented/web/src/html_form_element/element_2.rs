@@ -17,7 +17,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::html_form_element;
 use crate::runtime::binary_to_string::binary_to_string;
 
-#[native_implemented::function(element/2)]
+#[native_implemented::function(Elixir.Lumen.Web.HTMLFormElement:element/2)]
 fn result(process: &Process, html_form_element_term: Term, name: Term) -> exception::Result<Term> {
     let html_form_element_term = html_form_element::from_term(html_form_element_term)?;
     let name_string: String = binary_to_string(name)?;

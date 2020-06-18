@@ -44,6 +44,7 @@ pub mod date_0;
 pub mod delete_element_2;
 pub mod demonitor_1;
 pub mod demonitor_2;
+pub mod display_1;
 pub mod div_2;
 pub mod divide_2;
 pub mod element_2;

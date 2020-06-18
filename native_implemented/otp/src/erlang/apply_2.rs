@@ -9,7 +9,7 @@ use liblumen_alloc::erts::exception::{self, badarity};
 use liblumen_alloc::erts::process::{FrameWithArguments, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(apply/2)]
+#[native_implemented::function(erlang:apply/2)]
 fn result(process: &Process, function: Term, arguments: Term) -> exception::Result<Term> {
     let function_result_boxed_closure: Result<Boxed<Closure>, _> = function.try_into();
 

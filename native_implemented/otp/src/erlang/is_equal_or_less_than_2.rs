@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 ///
 /// **NOTE: `=</2` is not a typo.  Unlike `>=/2`, which has the `=` second, Erlang put the `=` first
 /// for `=</2`, instead of the more common `<=`.
-#[native_implemented::function(=</2)]
+#[native_implemented::function(erlang:=</2)]
 pub fn result(left: Term, right: Term) -> Term {
     left.le(&right).into()
 }

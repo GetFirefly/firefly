@@ -7,7 +7,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(size/1)]
+#[native_implemented::function(erlang:size/1)]
 pub fn result(process: &Process, binary_or_tuple: Term) -> exception::Result<Term> {
     let option_size = match binary_or_tuple.decode().unwrap() {
         TypedTerm::Tuple(tuple) => Some(tuple.len()),

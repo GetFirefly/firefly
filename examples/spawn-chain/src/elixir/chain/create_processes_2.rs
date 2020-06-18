@@ -38,7 +38,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir;
 
-#[native_implemented::function(create_processes/2)]
+#[native_implemented::function(Elixir.Chain:create_processes/2)]
 fn result(process: &Process, n: Term, output: Term) -> exception::Result<Term> {
     // ```elixir
     // 1..n

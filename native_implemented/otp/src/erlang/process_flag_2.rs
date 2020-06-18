@@ -9,7 +9,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::*;
 
-#[native_implemented::function(process_flag/2)]
+#[native_implemented::function(erlang:process_flag/2)]
 pub fn result(process: &Process, flag: Term, value: Term) -> exception::Result<Term> {
     let flag_atom = term_try_into_atom!(flag)?;
 

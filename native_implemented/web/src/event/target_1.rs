@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::event;
 
-#[native_implemented::function(target/1)]
+#[native_implemented::function(Elixir.Lumen.Web.Event:target/1)]
 fn result(process: &Process, event_term: Term) -> exception::Result<Term> {
     let event = event::from_term(event_term)?;
 

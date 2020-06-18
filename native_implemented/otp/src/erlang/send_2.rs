@@ -7,7 +7,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::send::{send, Sent};
 
-#[native_implemented::function(send/2)]
+#[native_implemented::function(erlang:send/2)]
 pub fn result(process: &Process, destination: Term, message: Term) -> exception::Result<Term> {
     let sent = send(destination, message, Default::default(), process)?;
 

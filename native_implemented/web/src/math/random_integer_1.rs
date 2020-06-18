@@ -12,7 +12,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-#[native_implemented::function(random_integer/1)]
+#[native_implemented::function(Elixir.Lumen.Web.Math:random_integer/1)]
 fn result(process: &Process, exclusive_max: Term) -> exception::Result<Term> {
     let exclusive_max_usize: usize = exclusive_max
         .try_into()

@@ -68,6 +68,7 @@ pub fn frame_with_arguments(module: Term, function: Term, arguments: Term) -> Fr
 
 /// `module`, `function`, and arity of `argument_list` must have code registered with
 /// `crate::runtime::code::export::insert` or returns `undef` exception.
+#[export_name = "erlang:apply/3"]
 pub extern "C" fn native(module: Term, function: Term, argument_list: Term) -> Term {
     let mut argument_vec: Vec<Term> = Vec::new();
 

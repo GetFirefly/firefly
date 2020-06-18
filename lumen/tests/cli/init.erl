@@ -1,6 +1,6 @@
 -module(init).
 -export([start/0]).
--import(erlang, [print/1]).
+-import(erlang, [display/1, print/1]).
 -spec start() -> ok | error.
 start() ->
   Args = get_args(),
@@ -15,9 +15,9 @@ start() ->
   say_hello(ShouldGreet, <<"Hello, world!">>, <<"Nothing to say.">>).
 -spec say_hello(true | false, binary(), binary()) -> ok | error.
 say_hello(true, Greet, _Ignore) ->
-  print(Greet);
+  display(Greet);
 say_hello(false, _Greet, Ignore) ->
-  print(Ignore).
+  display(Ignore).
 -spec get_args() -> {ok, [binary()]}.
 get_args() ->
   {ok, init:get_plain_arguments()}.

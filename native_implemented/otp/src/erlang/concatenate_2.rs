@@ -8,7 +8,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 /// `++/2`
-#[native_implemented::function(++/2)]
+#[native_implemented::function(erlang:++/2)]
 pub fn result(process: &Process, list: Term, term: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(term),

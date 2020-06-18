@@ -35,7 +35,7 @@ macro_rules! maybe_aligned_maybe_binary_try_into_term {
     };
 }
 
-#[native_implemented::function(binary_to_term/2)]
+#[native_implemented::function(erlang:binary_to_term/2)]
 pub fn result(process: &Process, binary: Term, options: Term) -> exception::Result<Term> {
     let options: Options = options.try_into()?;
 

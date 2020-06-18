@@ -33,7 +33,7 @@ pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, All
 
 // Private
 
-#[native_implemented::function(create_processes_reducer/3)]
+#[native_implemented::function(Elixir.Chain:create_processes_reducer/3)]
 fn result(
     process: &Process,
     element: Term,

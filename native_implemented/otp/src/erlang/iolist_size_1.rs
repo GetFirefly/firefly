@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::erlang::iolist_or_binary::{self, *};
 
 /// Returns the size, in bytes, of the binary that would be result from iolist_to_binary/1
-#[native_implemented::function(iolist_size/1)]
+#[native_implemented::function(erlang:iolist_size/1)]
 pub fn result(process: &Process, iolist_or_binary: Term) -> exception::Result<Term> {
     iolist_or_binary::result(process, iolist_or_binary, iolist_or_binary_size)
 }

@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::registry::pid_to_process;
 
-#[native_implemented::function(process_info/2)]
+#[native_implemented::function(erlang:process_info/2)]
 pub fn result(process: &Process, pid: Term, item: Term) -> exception::Result<Term> {
     let pid_pid = term_try_into_local_pid!(pid)?;
     let item_atom: Atom = term_try_into_atom!(item)?;

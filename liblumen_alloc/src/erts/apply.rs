@@ -115,11 +115,11 @@ impl SymbolTable {
     }
 
     fn dump(&self) {
-        eprintln!("START SYMBOL TABLE");
+        eprintln!("START SymbolTable at {:p}", self);
         for mfa in self.functions.keys() {
             eprintln!("{:?}", mfa);
         }
-        eprintln!("END SYMBOL TABLE");
+        eprintln!("END SymbolTable");
     }
 
     /// Used to initialize the atom table from an array of null-terminated strings with static

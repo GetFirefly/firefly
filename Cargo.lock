@@ -1489,6 +1489,7 @@ dependencies = [
  "human-panic",
  "liblumen_compiler",
  "liblumen_crt",
+ "liblumen_otp",
  "liblumen_session",
  "liblumen_util",
  "log",

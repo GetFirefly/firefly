@@ -28,3 +28,4 @@ unwind = { path = "../compiler/unwind" }
 panic = { path = "../compiler/panic" }
 liblumen_crt = { path = "../runtimes/crt" }
 lumen_rt_minimal = { path = "../runtimes/minimal" }
+liblumen_otp = { path = "../native_implemented_functions/otp" }

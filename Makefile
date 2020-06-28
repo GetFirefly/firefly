@@ -99,5 +99,6 @@ format-cpp: ## Format C++ code
 
 clean: ## Clean all
 	cargo clean
+	find bin -maxdepth 1 -mindepth 1 -type d -exec rm -rf '{}' \;
 
 rebuild: clean build ## Rebuild all

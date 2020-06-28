@@ -33,7 +33,7 @@ jobs:
       - name: Build TableGen
         run: make lumen-tblgen
       - name: Lumen Web Test
-        run: wasm-pack test --headless --chrome --firefox native_implemented_functions/web
+        run: wasm-pack test --headless --chrome --firefox native_implemented/web
       - name: Spawn Chain Build
         run: wasm-pack build examples/spawn-chain
       - name: Spawn Chain Test

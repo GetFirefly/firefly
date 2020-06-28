@@ -32,11 +32,6 @@ use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
 use crate::runtime::time::{monotonic, Milliseconds};
 use crate::runtime::timer;
 
-#[cfg(feature = "runtime_minimal")]
-#[export_name = "CURRENT_REDUCTION_COUNT"]
-#[thread_local]
-pub static mut CURRENT_REDUCTION_COUNT: u32 = 0;
-
 pub fn assert_exits<F: Fn(Option<Term>)>(
     process: &Process,
     expected_reason: Term,

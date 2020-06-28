@@ -1,4 +1,4 @@
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! assert_badarg {
     ($actual:expr, $expected_substring:expr) => {{
         let actual = $actual;
@@ -28,7 +28,7 @@ macro_rules! assert_badarg {
     }};
 }
 
-#[cfg(all(not(any(target_arch = "wasm32", feature = "runtime_minimal")), test))]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_badarith {
     ($left:expr) => {
         assert_error!(
@@ -38,7 +38,7 @@ macro_rules! assert_badarith {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! assert_error {
     ($left:expr, $reason:expr) => {{
         use liblumen_alloc::error;
@@ -65,7 +65,7 @@ macro_rules! assert_error {
     }};
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! assert_has_message {
     ($process:expr, $message:expr) => {{
         let process: &liblumen_alloc::erts::process::Process = $process;
@@ -79,7 +79,7 @@ macro_rules! assert_has_message {
     }};
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! assert_is_not_non_empty_list {
     ($actual:expr, $name:ident) => {
         assert_is_not_non_empty_list!($actual, stringify!($name), $name)
@@ -89,14 +89,14 @@ macro_rules! assert_is_not_non_empty_list {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! assert_is_not_type {
     ($actual:expr, $name:expr, $value:expr, $type:expr) => {
         assert_badarg!($actual, format!("{} ({}) is not {}", $name, $value, $type))
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_error {
     ($actual:expr, $expected_error_name:literal, $expected_reason:expr, $expected_substring:expr $(,)?) => {{
         let actual = $actual;
@@ -127,7 +127,7 @@ macro_rules! prop_assert_error {
     }};
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_badarg {
     ($actual:expr, $expected_substring:expr) => {{
         prop_assert_error!(
@@ -139,14 +139,14 @@ macro_rules! prop_assert_badarg {
     }};
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_arity {
     ($actual:expr, $value:expr) => {
         prop_assert_is_not_type!($actual, "arity", $value, "an arity (an integer in 0-255)")
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_atom {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_atom!($actual, stringify!($name), $name)
@@ -156,7 +156,7 @@ macro_rules! prop_assert_is_not_atom {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_binary {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_binary!($actual, stringify!($name), $name)
@@ -166,7 +166,7 @@ macro_rules! prop_assert_is_not_binary {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_boolean {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_boolean!($actual, stringify!($name), $name)
@@ -176,7 +176,7 @@ macro_rules! prop_assert_is_not_boolean {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_integer {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_integer!($actual, stringify!($name), $name)
@@ -186,7 +186,7 @@ macro_rules! prop_assert_is_not_integer {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_local_pid {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_local_pid!($actual, stringify!($name), $name)
@@ -196,7 +196,7 @@ macro_rules! prop_assert_is_not_local_pid {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_local_reference {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_local_reference!($actual, stringify!($name), $name)
@@ -206,7 +206,7 @@ macro_rules! prop_assert_is_not_local_reference {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_non_empty_list {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_non_empty_list!($actual, stringify!($name), $name)
@@ -216,7 +216,7 @@ macro_rules! prop_assert_is_not_non_empty_list {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_non_negative_integer {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_non_negative_integer!($actual, stringify!($name), $name)
@@ -226,7 +226,7 @@ macro_rules! prop_assert_is_not_non_negative_integer {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_number {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_number!($actual, stringify!($name), $name)
@@ -236,7 +236,7 @@ macro_rules! prop_assert_is_not_number {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_time_unit {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_time_unit!($actual, stringify!($name), $name)
@@ -246,7 +246,7 @@ macro_rules! prop_assert_is_not_time_unit {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_tuple {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_tuple!($actual, stringify!($name), $name)
@@ -256,7 +256,7 @@ macro_rules! prop_assert_is_not_tuple {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_is_not_type {
     ($actual:expr, $name:ident, $type:expr) => {
         prop_assert_is_not_type!($actual, stringify!($name), $name, $type)
@@ -266,7 +266,7 @@ macro_rules! prop_assert_is_not_type {
     };
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_badarith {
     ($actual:expr, $expected_substring:expr) => {{
         prop_assert_error!(
@@ -278,7 +278,7 @@ macro_rules! prop_assert_badarith {
     }};
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_badarity {
     ($actual:expr, $process:expr, $fun:expr, $args:expr, $expected_substring:expr) => {{
         let process = $process;
@@ -297,7 +297,7 @@ macro_rules! prop_assert_badarity {
     }};
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_badkey {
     ($actual:expr, $process:expr, $expected_key:expr, $expected_substring:expr) => {{
         prop_assert_error!(
@@ -311,7 +311,7 @@ macro_rules! prop_assert_badkey {
     }};
 }
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 macro_rules! prop_assert_badmap {
     ($actual:expr, $process:expr, $expected_map:ident) => {{
         prop_assert_badmap!(

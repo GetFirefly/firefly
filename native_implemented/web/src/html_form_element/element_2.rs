@@ -14,9 +14,8 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::binary_to_string::binary_to_string;
-
 use crate::html_form_element;
+use crate::runtime::binary_to_string::binary_to_string;
 
 #[native_implemented::function(element/2)]
 fn result(process: &Process, html_form_element_term: Term, name: Term) -> exception::Result<Term> {

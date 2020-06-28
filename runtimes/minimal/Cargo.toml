@@ -8,7 +8,7 @@ build = "build.rs"
 links = "liblumen_alloc"
 
 [lib]
-crate-type = ["staticlib", "rlib"]
+crate-type = ["staticlib"]
 
 [dependencies]
 anyhow = "1.0"
@@ -41,3 +41,6 @@ features = ["nightly"]
 [dependencies.parking_lot_core]
 version = "0.7"
 features = ["nightly"]
+
+[features]
+time_web_sys = ["lumen_rt_core/time_web_sys"]

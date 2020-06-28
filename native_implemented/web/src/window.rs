@@ -15,8 +15,7 @@ use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::{FrameWithArguments, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::process::spawn::options::Options;
-
+use crate::runtime::process::spawn::options::Options;
 use crate::wait;
 
 pub fn add_event_listener<F>(

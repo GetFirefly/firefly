@@ -10,8 +10,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::binary_to_string::binary_to_string;
-
+use crate::runtime::binary_to_string::binary_to_string;
 use crate::{document, ok_tuple};
 
 #[native_implemented::function(create_element/2)]

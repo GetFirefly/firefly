@@ -1,16 +1,18 @@
 mod init;
 mod out_of_code;
-pub mod spawn;
 
 use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::{self, Frame, FrameWithArguments, Process};
 
-pub use lumen_rt_core::process::{current_process, monitor};
+pub use lumen_rt_core::process::{current_process, monitor, spawn};
 
-pub fn runnable<F>(process: &Process, frames_with_arguments_fn: F) -> AllocResult<()>
-where
-    F: FnOnce(&Process) -> AllocResult<Vec<FrameWithArguments>>,
-{
+#[export_name = "lumen_rt_process_runnable"]
+pub fn runnable<'a>(
+    process: &Process,
+    frames_with_arguments_fn: Box<
+        dyn FnOnce(&Process) -> AllocResult<Vec<FrameWithArguments>> + 'a,
+    >,
+) -> AllocResult<()> {
     process.runnable(|process| {
         let mut frames_with_arguments = frames_with_arguments_fn(process)?;
 
@@ -42,11 +44,14 @@ pub fn init(minimum_heap_size: usize) -> AllocResult<Process> {
         heap_size,
     );
 
-    runnable(&process, |_| {
-        let frame = Frame::new(module_function_arity, init::NATIVE);
+    runnable(
+        &process,
+        Box::new(move |_| {
+            let frame = Frame::new(module_function_arity, init::NATIVE);
 
-        Ok(vec![frame.with_arguments(false, &[])])
-    })?;
+            Ok(vec![frame.with_arguments(false, &[])])
+        }),
+    )?;
 
     Ok(process)
 }

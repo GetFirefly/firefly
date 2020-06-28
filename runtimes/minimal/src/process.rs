@@ -1,17 +1,16 @@
-pub mod spawn;
-
 use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::{FrameWithArguments, Process};
 
-pub use lumen_rt_core::process::{current_process, monitor};
+pub use lumen_rt_core::process::{current_process, monitor, spawn};
 
 use crate::scheduler::{self, Scheduler};
 
-pub fn runnable<F>(process: &Process, frames_with_arguments_fn: F) -> AllocResult<()>
-where
-    F: FnOnce(&Process) -> AllocResult<Vec<FrameWithArguments>>,
-{
-    process.runnable(|process| {
+#[export_name = "lumen_rt_process_runnable"]
+pub fn runnable<'a>(
+    process: &Process,
+    frames_with_arguments_fn: Box<dyn Fn(&Process) -> AllocResult<Vec<FrameWithArguments>> + 'a>,
+) -> AllocResult<()> {
+    process.runnable(move |process| {
         unsafe {
             let mut stack = process.stack.lock();
             let mut registers = process.registers.lock();

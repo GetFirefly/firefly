@@ -109,14 +109,14 @@ fn run_through(n: usize) {
         module(),
         inspect::function(),
         inspect::ARITY,
-        |child_process| {
+        Box::new(|child_process| {
             let n_term = child_process.integer(n)?;
 
             Ok(vec![
                 super::frame().with_arguments(false, &[n_term]),
                 inspect::frame().with_arguments(true, &[]),
             ])
-        },
+        }),
     )
     .unwrap();
 

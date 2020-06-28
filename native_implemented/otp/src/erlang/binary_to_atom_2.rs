@@ -8,7 +8,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::*;
 
-#[cfg(all(not(any(target_arch = "wasm32", feature = "runtime_minimal")), test))]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
 macro_rules! maybe_aligned_maybe_binary_to_atom {

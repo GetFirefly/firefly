@@ -13,8 +13,7 @@ anyhow = "1.0"
 lazy_static = "1.2"
 liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
-lumen_rt_full = { path = "../../runtimes/full", optional = true }
-lumen_rt_minimal = { path = "../../runtimes/minimal", optional = true }
+lumen_rt_core = { path = "../../runtimes/core" }
 native_implemented = { path = "../macro" }
 num-bigint = "0.2"
 num-traits = "0.2"
@@ -35,6 +34,6 @@ proptest = "0.9.3"
 version = "0.3.20"
 features = ['console']
 
-[features]
-runtime_full = ["lumen_rt_full"]
-runtime_minimal = ["lumen_rt_minimal"]
+[dev-dependencies]
+lumen_rt_full = { path = "../../runtimes/full" }
+

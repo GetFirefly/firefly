@@ -30,6 +30,3 @@ jobs:
         run: cargo build --package liblumen_alloc
       - name: Test lumen_rt_minimal
         run: cargo test --package lumen_rt_minimal
-      - name: Test liblumen_otp with runtime_minimal
-        working-directory: native_implemented/otp
-        run: cargo test --features runtime_minimal

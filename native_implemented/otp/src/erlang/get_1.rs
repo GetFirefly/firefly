@@ -1,4 +1,4 @@
-#[cfg(all(not(any(target_arch = "wasm32", feature = "runtime_minimal")), test))]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
 use liblumen_alloc::erts::process::Process;

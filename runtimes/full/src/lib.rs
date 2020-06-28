@@ -40,7 +40,6 @@ pub use lumen_rt_core::{
 
 #[cfg(not(any(test, target_arch = "wasm32")))]
 mod config;
-pub mod future;
 mod logging;
 pub mod process;
 // `pub` for `examples/spawn-chain`

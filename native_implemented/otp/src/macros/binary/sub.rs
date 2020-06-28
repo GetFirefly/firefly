@@ -1,4 +1,4 @@
-#[cfg(all(not(any(target_arch = "wasm32", feature = "runtime_minimal")), test))]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! bitstring {
     (@acc $bits:tt :: $bit_count:tt, $process:expr, $($byte:expr),*) => {{
         let byte_count = <[()]>::len(&[$(replace_expr!($byte, ())),*]);
@@ -19,7 +19,7 @@ macro_rules! bitstring {
     };
 }
 
-#[cfg(all(not(any(target_arch = "wasm32", feature = "runtime_minimal")), test))]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! replace_expr {
     ($_t:expr, $sub:expr) => {
         $sub

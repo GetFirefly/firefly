@@ -158,7 +158,7 @@ where
         module,
         function,
         arity,
-        |child_process| {
+        Box::new(|child_process| {
             let mut frames_with_arguments = frames_with_arguments_fn(child_process)?;
 
             let module_function_arity = ModuleFunctionArity {
@@ -178,7 +178,7 @@ where
             frames_with_arguments.push(frame_with_arguments);
 
             Ok(frames_with_arguments)
-        },
+        }),
     )?;
 
     let promise = ref_cell_option_promise.borrow_mut().take().unwrap();

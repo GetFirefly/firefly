@@ -12,8 +12,8 @@ pub mod erlang;
 pub mod lists;
 pub mod maps;
 pub mod number;
-pub mod runtime;
+use lumen_rt_core as runtime;
 pub mod timer;
 
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 mod test;

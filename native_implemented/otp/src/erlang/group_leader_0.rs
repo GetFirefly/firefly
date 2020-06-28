@@ -1,4 +1,4 @@
-#[cfg(all(not(feature = "runtime_minimal"), test))]
+#[cfg(test)]
 mod test;
 
 use liblumen_alloc::erts::process::Process;

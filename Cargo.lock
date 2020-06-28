@@ -1363,8 +1363,8 @@ dependencies = [
  "lazy_static 1.4.0",
  "liblumen_alloc",
  "liblumen_core",
+ "lumen_rt_core",
  "lumen_rt_full",
- "lumen_rt_minimal",
  "native_implemented",
  "num-bigint 0.2.3",
  "num-traits",
@@ -1444,7 +1444,7 @@ dependencies = [
  "liblumen_alloc",
  "liblumen_core",
  "liblumen_otp",
- "lumen_rt_full",
+ "lumen_rt_core",
  "native_implemented",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1516,7 +1516,7 @@ dependencies = [
  "liblumen_alloc",
  "liblumen_core",
  "liblumen_otp",
- "lumen_rt_full",
+ "lumen_rt_core",
  "native_implemented",
 ]
 

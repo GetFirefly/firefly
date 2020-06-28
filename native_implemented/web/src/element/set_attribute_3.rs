@@ -10,9 +10,8 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::binary_to_string::binary_to_string;
-
 use crate::element;
+use crate::runtime::binary_to_string::binary_to_string;
 
 #[native_implemented::function(set_attribute/3)]
 pub fn result(

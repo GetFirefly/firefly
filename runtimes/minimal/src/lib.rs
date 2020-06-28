@@ -15,7 +15,6 @@ mod macros;
 mod builtins;
 mod config;
 pub mod env;
-pub mod future;
 mod logging;
 pub mod process;
 pub mod scheduler;

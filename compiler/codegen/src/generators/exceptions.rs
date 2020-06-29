@@ -147,7 +147,7 @@ fn generate_standard(
     let handle_throw_block = builder.build_named_block(func, "handle.throw");
     let handle_throw_finish_block = builder.build_named_block(func, "handle.throw.finish");
     let caught_block = builder.build_named_block(func, "caught");
-    let resume_block = builder.build_named_block(func, "resume");
+    let _resume_block = builder.build_named_block(func, "resume");
     let exit_block = builder.build_named_block(func, "exit");
 
     // Define the entry block
@@ -169,7 +169,7 @@ fn generate_standard(
 
     // Invoke the `init` function pointer
     let init_fn_ptr = builder.get_function_param(func, 0);
-    let invoke_init = builder.build_invoke(init_fn_ptr, &[], exit_block, catch_block, None);
+    let _invoke_init = builder.build_invoke(init_fn_ptr, &[], exit_block, catch_block, None);
 
     // Catch error and attempt to handle it
     builder.position_at_end(catch_block);
@@ -313,7 +313,8 @@ fn generate_wasm32(
     let fn_type = builder.get_erlang_function_type(0);
     let fn_ptr_type = builder.get_pointer_type(fn_type);
     let void_type = builder.get_void_type();
-    let exception_type = builder.get_struct_type(Some("lumen.exception"), &[i8_ptr_type, i32_type]);
+    let _exception_type =
+        builder.get_struct_type(Some("lumen.exception"), &[i8_ptr_type, i32_type]);
     let erlang_error_type = builder.get_struct_type(
         Some("tuple3"),
         &[usize_type, usize_type, usize_type, usize_type],
@@ -415,7 +416,7 @@ fn generate_wasm32(
 
     // Invoke the `init` function pointer
     let init_fn_ptr = builder.get_function_param(func, 0);
-    let invoke_init = builder.build_invoke(init_fn_ptr, &[], exit_block, catch_block, None);
+    let _invoke_init = builder.build_invoke(init_fn_ptr, &[], exit_block, catch_block, None);
 
     // Define catch entry
     // %1 = catchswitch within none [label %catch.start] unwind to caller

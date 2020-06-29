@@ -1055,9 +1055,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             }
             ir::OpKind::Dyn(dyn_op) => {
                 // binary_construct_start(cont: fn(bin_ref))
-                if let Some(bin_start) =
-                    dyn_op.downcast_ref::<binary_construct::BinaryConstructStart>()
-                {
+                if let Some(_) = dyn_op.downcast_ref::<binary_construct::BinaryConstructStart>() {
                     debug_in!(self, "block contains binary start operation");
                     let cont = self.get_block_by_value(reads[0]);
                     return OpBuilder::build_void_result(
@@ -1094,9 +1092,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     );
                 }
                 // binary_construct_finish(cont: fn(result), bin_ref)
-                if let Some(bin_finish) =
-                    dyn_op.downcast_ref::<binary_construct::BinaryConstructFinish>()
-                {
+                if let Some(_) = dyn_op.downcast_ref::<binary_construct::BinaryConstructFinish>() {
                     debug_in!(self, "block contains binary finish operation");
                     let cont = self.get_block_by_value(reads[0]);
                     let bin = self.build_value(reads[1])?;
@@ -1106,7 +1102,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     );
                 }
                 // receive_start(cont: fn(recv_ref), timeout)
-                if let Some(recv_start) = dyn_op.downcast_ref::<receive::ReceiveStart>() {
+                if let Some(_) = dyn_op.downcast_ref::<receive::ReceiveStart>() {
                     debug_in!(self, "block contains receive start operation");
                     let cont = self.get_block_by_value(reads[0]);
                     let timeout = self.build_value(reads[1])?;
@@ -1116,7 +1112,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     );
                 }
                 // receive_wait(timeout: fn(), check_message: fn(msg), recv_ref)
-                if let Some(recv_wait) = dyn_op.downcast_ref::<receive::ReceiveWait>() {
+                if let Some(_) = dyn_op.downcast_ref::<receive::ReceiveWait>() {
                     debug_in!(self, "block contains receive wait operation");
                     let timeout = self.get_block_by_value(reads[0]);
                     let check = self.get_block_by_value(reads[1]);
@@ -1137,7 +1133,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 // receive_done(next: fn(...), recv_ref, ...)
                 //
                 // next gets N args, the values extracted from the message
-                if let Some(recv_done) = dyn_op.downcast_ref::<receive::ReceiveDone>() {
+                if let Some(_) = dyn_op.downcast_ref::<receive::ReceiveDone>() {
                     debug_in!(self, "block contains receive done operation");
                     let cont = self.get_block_by_value(reads[0]);
                     let receive_ref = self.build_value(reads[1])?;

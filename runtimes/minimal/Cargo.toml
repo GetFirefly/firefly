@@ -4,8 +4,6 @@ version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 publish = false
 edition = "2018"
-build = "build.rs"
-links = "liblumen_alloc"
 
 [lib]
 crate-type = ["staticlib"]

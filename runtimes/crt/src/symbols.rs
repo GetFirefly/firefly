@@ -16,10 +16,7 @@ extern "C" {
     /// of pointers.
     #[link_name = "__LUMEN_SYMBOL_TABLE"]
     pub static SYMBOL_TABLE: *const FunctionSymbol;
-}
 
-#[link(name = "liblumen_alloc")]
-extern "C" {
     /// This function is defined in `liblumen_alloc::erts::apply`
     pub fn InitializeLumenDispatchTable(table: *const FunctionSymbol, len: usize) -> bool;
 }

@@ -1445,6 +1445,7 @@ dependencies = [
  "liblumen_core",
  "liblumen_otp",
  "lumen_rt_core",
+ "lumen_rt_full",
  "native_implemented",
  "wasm-bindgen",
  "wasm-bindgen-futures",

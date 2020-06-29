@@ -9,21 +9,20 @@ use parking_lot::Mutex;
 
 use log::debug;
 
-use salsa::ParallelDatabase;
 use salsa::Snapshot;
 
 use libeir_intern::Symbol;
 
 use liblumen_core::symbols::FunctionSymbol;
 use liblumen_session::{Emit, Options, OutputType};
-use liblumen_util::diagnostics::{CodeMap, Diagnostic, DiagnosticsHandler};
+use liblumen_util::diagnostics::{CodeMap, DiagnosticsHandler};
 
 use crate::diagnostics::*;
 use crate::interner::{InternedInput, Interner, InternerStorage};
 use crate::output::CompilerOutput;
 use crate::parser::{Parser, ParserStorage};
 
-use self::query_groups::{Compiler as CompilerQueryGroup, CompilerExt, CompilerStorage};
+use self::query_groups::{CompilerExt, CompilerStorage};
 
 pub(crate) mod prelude {
     pub use super::query_groups::{Compiler, CompilerExt};

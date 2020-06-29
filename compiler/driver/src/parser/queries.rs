@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::anyhow;
-
 use libeir_frontend::{AnyFrontend, DynFrontend};
 use libeir_syntax_erl::ParseConfig;
 
@@ -112,8 +110,6 @@ where
             return Err(ErrorReported);
         }
     };
-
-    let codemap = db.codemap().clone();
 
     let (result, diags) = match db.lookup_intern_input(input) {
         Input::File(ref path) => frontend.parse_file_dyn(path),

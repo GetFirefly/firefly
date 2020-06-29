@@ -5,9 +5,6 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kroni
 publish = false
 edition = "2018"
 
-[lib]
-crate-type = ["staticlib", "rlib"]
-
 [dependencies]
 bus = "2.0"
 cfg-if = "0.1.7"

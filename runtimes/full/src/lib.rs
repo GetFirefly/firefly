@@ -35,7 +35,8 @@ extern crate cfg_if;
 extern crate chrono;
 
 pub use lumen_rt_core::{
-    binary_to_string, context, distribution, proplist, registry, send, stacktrace, time, timer,
+    binary_to_string, context, distribution, future, proplist, registry, send, stacktrace, time,
+    timer,
 };
 
 #[cfg(not(any(test, target_arch = "wasm32")))]
@@ -49,7 +50,7 @@ pub mod sys;
 // `pub` for `examples/spawn-chain`
 mod term;
 
-#[cfg(test)]
+// Public for `liblumen_otp` Rust tests against this crate
 pub mod test;
 
 /// The main entry point for the runtime

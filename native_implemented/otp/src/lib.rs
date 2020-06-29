@@ -12,7 +12,10 @@ pub mod erlang;
 pub mod lists;
 pub mod maps;
 pub mod number;
+#[cfg(not(test))]
 use lumen_rt_core as runtime;
+#[cfg(test)]
+use lumen_rt_full as runtime;
 pub mod timer;
 
 #[cfg(test)]

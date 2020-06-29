@@ -60,7 +60,6 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     let level_filter = Level::Info.to_level_filter();
     logging::init(level_filter).expect("Unexpected failure initializing logger");
 
-    scheduler::set_unregistered_once();
     let scheduler = scheduler::current();
     scheduler.spawn_init(default_heap_size()).unwrap();
     loop {

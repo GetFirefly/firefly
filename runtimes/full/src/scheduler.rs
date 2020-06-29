@@ -13,20 +13,19 @@ use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::{Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::Ran;
 
 use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
 use lumen_rt_core::registry::put_pid_to_process;
 pub use lumen_rt_core::scheduler::{
     current, from_id, run_through, Scheduled, SchedulerDependentAlloc, Spawned,
 };
-use lumen_rt_core::scheduler::{
-    run_queue, set_unregistered, unregister, Run, Scheduler as SchedulerTrait,
-};
+use lumen_rt_core::scheduler::{run_queue, unregister, Run, Scheduler as SchedulerTrait};
 use lumen_rt_core::timer::Hierarchy;
 
 use crate::process;
-use liblumen_alloc::Ran;
 
+#[export_name = "lumen_rt_scheduler_unregistered"]
 fn unregistered() -> Arc<dyn lumen_rt_core::scheduler::Scheduler> {
     Arc::new(Scheduler {
         id: id::next(),
@@ -35,12 +34,6 @@ fn unregistered() -> Arc<dyn lumen_rt_core::scheduler::Scheduler> {
         run_queues: Default::default(),
         unique_integer: AtomicU64::new(0),
     })
-}
-
-pub fn set_unregistered_once() {
-    use std::sync::Once;
-    static SET_UNREGISTERED: Once = Once::new();
-    SET_UNREGISTERED.call_once(|| set_unregistered(Box::new(unregistered)))
 }
 
 pub struct Scheduler {

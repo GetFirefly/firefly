@@ -37,7 +37,6 @@ use crate::window::add_event_listener;
 /// [requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame).
 #[cfg_attr(not(test), entry)]
 pub fn start() {
-    scheduler::set_unregistered_once();
     add_event_listeners();
     request_animation_frames();
 }

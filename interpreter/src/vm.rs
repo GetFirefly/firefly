@@ -31,7 +31,6 @@ impl VMState {
         modules.register_native_module(crate::native::make_logger());
         modules.register_native_module(crate::native::make_lumen_intrinsics());
 
-        scheduler::set_unregistered_once();
         let arc_scheduler = scheduler::current();
         let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 

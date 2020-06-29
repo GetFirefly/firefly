@@ -134,8 +134,6 @@ fn start() {
 }
 
 fn start_once() {
-    scheduler::set_unregistered_once();
-
     START.call_once(|| {
         start();
     })

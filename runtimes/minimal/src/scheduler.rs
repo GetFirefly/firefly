@@ -31,7 +31,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_rt_core as rt_core;
 use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
 use lumen_rt_core::scheduler::Scheduler as SchedulerTrait;
-use lumen_rt_core::scheduler::{self, run_queue, set_unregistered, unregister, Run};
+use lumen_rt_core::scheduler::{self, run_queue, unregister, Run};
 pub use lumen_rt_core::scheduler::{
     current, from_id, run_through, Scheduled, SchedulerDependentAlloc, Spawned,
 };
@@ -214,14 +214,9 @@ fn do_process_return(scheduler: &Scheduler, exit_value: Term) -> bool {
     }
 }
 
+#[export_name = "lumen_rt_scheduler_unregistered"]
 fn unregistered() -> Arc<dyn lumen_rt_core::scheduler::Scheduler> {
     Arc::new(Scheduler::new().unwrap())
-}
-
-pub fn set_unregistered_once() {
-    use std::sync::Once;
-    static SET_UNREGISTERED: Once = Once::new();
-    SET_UNREGISTERED.call_once(|| set_unregistered(Box::new(unregistered)))
 }
 
 pub struct Scheduler {

@@ -20,6 +20,12 @@ use liblumen_alloc::Priority;
 use crate::process::spawn::options::Connection;
 use crate::timer::Hierarchy;
 
+extern "Rust" {
+    /// Creates an concrete `impl` of `dyn Scheduler` that hasn't yet been registered with an ID.
+    #[link_name = "lumen_rt_scheduler_unregistered"]
+    fn unregistered() -> Arc<dyn Scheduler>;
+}
+
 pub fn current() -> Arc<dyn Scheduler> {
     SCHEDULER.with(|thread_local_scheduler| thread_local_scheduler.clone())
 }
@@ -43,22 +49,9 @@ pub fn from_id(id: &ID) -> Option<Arc<dyn Scheduler>> {
     })
 }
 
-pub fn set_unregistered(unregistered: Box<dyn Fn() -> Arc<dyn Scheduler> + 'static + Sync + Send>) {
-    *RW_LOCK_OPTION_UNREGISTERED.write() = Some(unregistered);
-}
-
-fn unregistered() -> Arc<dyn Scheduler> {
-    match &*RW_LOCK_OPTION_UNREGISTERED.read() {
-        Some(unregistered) => unregistered(),
-        None => {
-            panic!("scheduler::set_unregistered not called before calling scheduler::unregistered")
-        }
-    }
-}
-
 fn registered() -> Arc<dyn Scheduler> {
     let mut locked_scheduler_by_id = SCHEDULER_BY_ID.lock();
-    let arc_scheduler = unregistered();
+    let arc_scheduler = unsafe { unregistered() };
 
     if let Some(_) =
         locked_scheduler_by_id.insert(arc_scheduler.id().clone(), Arc::downgrade(&arc_scheduler))

@@ -6,8 +6,8 @@ use anyhow::anyhow;
 
 use log::debug;
 
+use liblumen_codegen as codegen;
 use liblumen_codegen::meta::CompiledModule;
-use liblumen_codegen::{self as codegen, GeneratedModule};
 use liblumen_llvm::{self as llvm, target::TargetMachineConfig};
 use liblumen_mlir as mlir;
 use liblumen_session::{Input, InputType, OutputType};

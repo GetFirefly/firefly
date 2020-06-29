@@ -1,19 +1,14 @@
-use std::collections::HashSet;
-use std::ffi::CString;
 use std::fs::File;
-use std::mem;
 use std::path::Path;
 use std::ptr;
 use std::sync::Arc;
 
-use libeir_intern::{Ident, Symbol};
-use libeir_ir::FunctionIdent;
+use libeir_intern::Symbol;
 
-use liblumen_core::symbols::FunctionSymbol;
 use liblumen_llvm as llvm;
-use liblumen_llvm::attributes::{Attribute, AttributePlace};
-use liblumen_llvm::builder::{ICmp, ModuleBuilder};
-use liblumen_llvm::enums::{Linkage, ThreadLocalMode};
+use liblumen_llvm::attributes::Attribute;
+use liblumen_llvm::builder::ModuleBuilder;
+use liblumen_llvm::enums::Linkage;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_session::Options;
 use liblumen_term::{

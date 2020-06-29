@@ -13,7 +13,6 @@ use libeir_intern::{Ident, Symbol};
 use libeir_ir as ir;
 use libeir_ir::operation::binary_construct;
 use libeir_ir::operation::receive;
-use libeir_ir::operation::{DynOp, Op};
 use libeir_ir::{AtomTerm, AtomicTerm, ConstKind, FunctionEntry, FunctionIdent};
 use libeir_lowerutils::LowerData;
 use libeir_util_datastructures::pooled_entity_set::BoundEntitySet;

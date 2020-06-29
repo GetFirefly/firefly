@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::ffi::CString;
 use std::fs::File;
 use std::mem;
 use std::path::Path;

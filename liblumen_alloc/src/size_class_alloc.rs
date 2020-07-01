@@ -294,7 +294,8 @@ impl SizeClassIndex for SizeClassAlloc {
     /// Same as size_class for, but optimized when the request size is known to be valid
     #[inline]
     unsafe fn size_class_for_unchecked(&self, request_size: usize) -> SizeClass {
-        self.size_class_for(request_size).unwrap()
+        self.size_class_for(request_size)
+            .unwrap_or_else(|| panic!("No size class for requested size ({})", request_size))
     }
 }
 

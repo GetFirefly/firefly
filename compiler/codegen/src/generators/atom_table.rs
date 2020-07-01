@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::ffi::CString;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
@@ -53,7 +52,7 @@ pub fn generate(
         let constant = builder.build_named_constant_string(
             &format!("__atom{}.value", id),
             s,
-            /* null_terminated= */ false,
+            /* null_terminated= */ true,
         );
         // The atom constants are not accessible directly, only via the table
         builder.set_linkage(constant, Linkage::Private);

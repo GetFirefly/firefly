@@ -6,6 +6,8 @@ use core::ptr::{self, NonNull};
 use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
+use liblumen_term::Tag;
+
 use crate::erts::exception::AllocResult;
 use crate::erts::process;
 use crate::erts::process::alloc::*;
@@ -228,7 +230,7 @@ impl YoungHeap {
                     );
                 }
             } else {
-                unreachable!();
+                unreachable!("{:?} should not be in a stack slot", term);
             }
         }
         last
@@ -264,6 +266,45 @@ impl YoungHeap {
     }
 }
 impl Heap for YoungHeap {
+    fn is_corrupted(&self) -> bool {
+        const LIMIT: usize = 1;
+
+        let mut found = 0;
+        let mut pos = self.heap_start();
+
+        while pos < self.heap_top() {
+            unsafe {
+                let term = &*pos;
+                let skip = term.arity();
+
+                match term.type_of() {
+                    Tag::Unknown(_) => found += 1,
+                    _ => (),
+                };
+
+                pos = pos.add(1 + skip);
+            }
+        }
+
+        pos = self.stack_start;
+
+        while pos < self.stack_end {
+            unsafe {
+                let term = &*pos;
+                let skip = term.arity();
+
+                match term.type_of() {
+                    Tag::Unknown(_) => found += 1,
+                    _ => (),
+                };
+
+                pos = pos.add(1 + skip);
+            }
+        }
+
+        LIMIT <= found
+    }
+
     #[inline(always)]
     fn heap_start(&self) -> *mut Term {
         self.start
@@ -538,19 +579,58 @@ impl fmt::Debug for YoungHeap {
             self.heap_used() + self.stack_used(),
             self.unused(),
         ))?;
+        let mut found = 0;
         let mut pos = self.heap_start();
         while pos < self.heap_top() {
             unsafe {
                 let term = &*pos;
                 let skip = term.arity();
-                f.write_fmt(format_args!(
-                    "  {:p}: {:0bit_len$b} {:?}({:08x})\n",
-                    pos,
-                    *(pos as *const usize),
-                    term.type_of(),
-                    term.as_usize(),
-                    bit_len = (bit_size_of::<usize>())
-                ))?;
+                match term.type_of() {
+                    Tag::Box
+                    | Tag::HeapBinary
+                    | Tag::Map
+                    | Tag::Nil
+                    | Tag::ResourceReference
+                    | Tag::SmallInteger
+                    | Tag::SubBinary
+                    | Tag::Tuple => {
+                        f.write_fmt(format_args!(
+                            // "  {:p}: {:0bit_len$b} {:?}({:08x})\n",
+                            "  {:p}: {:0bit_len$b} {:?}\n",
+                            pos,
+                            *(pos as *const usize),
+                            term,
+                            // term.type_of(),
+                            // term.as_usize(),
+                            bit_len = (bit_size_of::<usize>())
+                        ))?;
+                    }
+                    Tag::Closure if found < 3 => {
+                        found += 1;
+                        f.write_fmt(format_args!(
+                            // "  {:p}: {:0bit_len$b} {:?}({:08x})\n",
+                            "  {:p}: {:0bit_len$b} {:?}\n",
+                            pos,
+                            *(pos as *const usize),
+                            term,
+                            // term.type_of(),
+                            // term.as_usize(),
+                            bit_len = (bit_size_of::<usize>())
+                        ))?;
+                    }
+                    _ => {
+                        f.write_fmt(format_args!(
+                            "  {:p}: {:0bit_len$b} {:?}({:08x})\n",
+                            // "  {:p}: {:0bit_len$b} {:?}\n",
+                            pos,
+                            *(pos as *const usize),
+                            // term,
+                            term.type_of(),
+                            term.as_usize(),
+                            bit_len = (bit_size_of::<usize>())
+                        ))?;
+                    }
+                }
                 pos = pos.add(1 + skip);
             }
         }

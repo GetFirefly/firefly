@@ -7,9 +7,12 @@ publish = false
 
 [dependencies]
 anyhow = "1.0"
-thiserror = "1.0"
 clap = "2.33.0"
+codespan = "0.9.3"
+codespan-reporting = "0.9.3"
 log = "0.4"
+termcolor = "1.1.0"
+thiserror = "1.0"
 
 liblumen_compiler_macros = { path = "../macros" }
 liblumen_target = { path = "../target" }

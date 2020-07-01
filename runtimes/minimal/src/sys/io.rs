@@ -4,6 +4,8 @@ use libc;
 
 use liblumen_alloc::erts::term::prelude::*;
 
+pub use lumen_rt_core::sys::io::puts;
+
 #[export_name = "__lumen_builtin_printf"]
 pub extern "C" fn printf_1(term: Term) -> Term {
     match term.decode() {
@@ -38,8 +40,4 @@ pub extern "C" fn format_2(
 pub extern "C" fn nl_0() -> Option<Term> {
     println!();
     Some(ok!())
-}
-
-pub fn puts(s: &str) {
-    println!("{}", s);
 }

@@ -9,14 +9,6 @@ use liblumen_util::diagnostics::{
 
 use liblumen_session::Options;
 
-pub(super) fn default_diagnostics_handler(
-    options: &Options,
-    emitter: Option<Arc<dyn Emitter>>,
-) -> Arc<DiagnosticsHandler> {
-    let codemap = Arc::new(CodeMap::new());
-    create_diagnostics_handler(options, codemap, emitter)
-}
-
 pub(super) fn create_diagnostics_handler(
     options: &Options,
     codemap: Arc<CodeMap>,
@@ -37,7 +29,7 @@ pub(super) fn default_emitter(options: &Options) -> Arc<dyn Emitter> {
 
     match options.verbosity {
         Verbosity::Silent => Arc::new(NullEmitter::new(options.color)),
-        v => Arc::new(DefaultEmitter::new(options.color)),
+        _ => Arc::new(DefaultEmitter::new(options.color)),
     }
 }
 

@@ -19,10 +19,7 @@ extern "C" {
     /// lifetime.
     #[link_name = "__LUMEN_ATOM_TABLE"]
     pub static ATOM_TABLE: *const ConstantAtom;
-}
 
-#[link(name = "liblumen_alloc")]
-extern "C" {
     /// This function is defined in `liblumen_alloc::erts::term::atom`
     pub fn InitializeLumenAtomTable(table: *const ConstantAtom, len: c_uint) -> bool;
 }

@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use libeir_ir::{Function, FunctionIndex, LiveValues, Module};
 
-use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::process::code::Result;
+use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 macro_rules! trace {
-    ($($t:tt)*) => (lumen_rt_full::system::io::puts(&format_args!($($t)*).to_string()))
+    ($($t:tt)*) => (crate::runtime::sys::io::puts(&format_args!($($t)*).to_string()))
 }
 //macro_rules! trace {
 //    ($($t:tt)*) => ()
@@ -108,8 +108,8 @@ impl ModuleRegistry {
 
 #[derive(Copy, Clone)]
 pub enum NativeFunctionKind {
-    Simple(fn(&Arc<Process>, &[Term]) -> std::result::Result<Term, Exception>),
-    Yielding(fn(&Arc<Process>, &[Term]) -> Result),
+    Simple(fn(&Arc<Process>, &[Term]) -> exception::Result<Term>),
+    Yielding(fn(&Arc<Process>, &[Term]) -> Result<(), SystemException>),
 }
 
 pub struct NativeModule {
@@ -128,7 +128,7 @@ impl NativeModule {
         &mut self,
         name: Atom,
         arity: usize,
-        fun: fn(&Arc<Process>, &[Term]) -> std::result::Result<Term, Exception>,
+        fun: fn(&Arc<Process>, &[Term]) -> exception::Result<Term>,
     ) {
         self.functions
             .insert((name, arity), NativeFunctionKind::Simple(fun));
@@ -138,7 +138,7 @@ impl NativeModule {
         &mut self,
         name: Atom,
         arity: usize,
-        fun: fn(&Arc<Process>, &[Term]) -> Result,
+        fun: fn(&Arc<Process>, &[Term]) -> Result<(), SystemException>,
     ) {
         self.functions
             .insert((name, arity), NativeFunctionKind::Yielding(fun));

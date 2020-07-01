@@ -30,13 +30,9 @@ pub fn run_compiler_with_emitter(
 
     // Dispatch to the command implementation
     match matches.subcommand() {
-        ("print", subcommand_matches) => commands::print::handle_command(
-            c_opts,
-            z_opts,
-            subcommand_matches.unwrap(),
-            cwd,
-            emitter,
-        ),
+        ("print", subcommand_matches) => {
+            commands::print::handle_command(c_opts, z_opts, subcommand_matches.unwrap(), cwd)
+        }
         ("compile", subcommand_matches) => commands::compile::handle_command(
             c_opts,
             z_opts,

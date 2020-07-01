@@ -6,8 +6,7 @@
 mod elixir;
 mod start;
 
-use liblumen_alloc::erts::process::code::stack::frame::Placement;
-
+use lumen_rt_full as runtime;
 use lumen_rt_full::process::spawn::options::Options;
 
 use liblumen_web::wait;
@@ -26,7 +25,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[wasm_bindgen(start)]
 pub fn start() {
     set_panic_hook();
-    export_code();
+    initialize_dispatch_table();
     liblumen_web::start();
 }
 
@@ -58,21 +57,17 @@ fn run_with_output(count: usize, output: Output) -> js_sys::Promise {
     wait::with_return_0::spawn(
         options,
     |child_process| {
-            let count_term = child_process.integer(count)?;
+        let count_term = child_process.integer(count)?;
 
         // if this fails use a bigger sized heap
-        match output {
-                Output::None => {
-                    none_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
-                }
-                Output::Console => {
-                    console_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
-                }
-                Output::Dom => {
-                    dom_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
-                }
-            }
-        })
+        let frame = match output {
+            Output::None => none_1::frame(),
+            Output::Console => console_1::frame(),
+            Output::Dom => dom_1::frame()
+        };
+
+        Ok(vec![frame.with_arguments(false, &[count_term])])
+    })
     // if this fails use a bigger sized heap
     .unwrap()
 }

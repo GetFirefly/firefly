@@ -1,11 +1,18 @@
-pub fn export_code() {
-    liblumen_otp::erlang::apply_3::export();
+use liblumen_alloc::erts::apply::InitializeLumenDispatchTable;
 
-    crate::elixir::chain::console_1::export();
-    crate::elixir::chain::counter_2::export();
-    crate::elixir::chain::create_processes_2::export();
-    crate::elixir::chain::dom_1::export();
-    crate::elixir::chain::on_submit_1::export();
+pub fn initialize_dispatch_table() {
+    let function_symbols = vec![
+        liblumen_otp::erlang::apply_3::function_symbol(),
+        crate::elixir::chain::console_1::function_symbol(),
+        crate::elixir::chain::counter_2::function_symbol(),
+        crate::elixir::chain::create_processes_2::function_symbol(),
+        crate::elixir::chain::dom_1::function_symbol(),
+        crate::elixir::chain::on_submit_1::function_symbol(),
+    ];
+
+    unsafe {
+        InitializeLumenDispatchTable(function_symbols.as_ptr(), function_symbols.len());
+    }
 }
 
 pub fn set_panic_hook() {

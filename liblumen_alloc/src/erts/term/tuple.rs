@@ -336,8 +336,8 @@ mod tests {
     use super::*;
 
     use alloc::sync::Arc;
+    use core::ffi::c_void;
 
-    use crate::erts::process::Process;
     use crate::erts::testing::RegionHeap;
     use crate::erts::{scheduler, Node};
 
@@ -539,13 +539,12 @@ mod tests {
         let module = Atom::try_from_str("module").unwrap();
         let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
-        let code = |arc_process: &Arc<Process>| {
-            arc_process.wait();
 
-            Ok(())
-        };
+        extern "C" fn native() -> Term {
+            Term::NONE
+        }
 
-        heap.export_closure(module, function, arity, Some(code))
+        heap.export_closure(module, function, arity, Some(native as *const c_void))
             .unwrap()
             .into()
     }

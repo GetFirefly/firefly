@@ -12,6 +12,7 @@ RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
 TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
 TOOLCHAIN_LIB_PATH="$(cd "$TOOLCHAIN_BIN_PATH"/../lib && pwd -P)"
 RUNTIME_LIBS=(lumen_rt_minimal)
+BIF_LIBS=(liblumen_otp)
 
 export LLVM_PREFIX
 LLVM_PREFIX="${LLVM_PREFIX}"
@@ -47,6 +48,43 @@ function usage() {
     echo " --install <prefix>   Install to the given prefix"
     echo " --package <package>  Build a specific crate (i.e. like cargo -p)"
     echo ""
+}
+
+function install_library() {
+    local type_name=$1
+    local lib=$2
+    local found=""
+    local found_ext=""
+    if found="$(echo "$rlib_deps" | jq -r "select(.name == \"$lib\") | .files[]")"; then
+        if [ -n "$found" ]; then
+            found_ext="rlib"
+        else
+            if found="$(echo "$staticlib_deps" | jq -r "select(.name == \"$lib\") | .files[]")"; then
+                found_ext="a"
+            else
+                echo "$found"
+                echo "Unexpected failure while searching for $type_name libs!"
+                exit 1
+            fi
+        fi
+    else
+        echo "$found"
+        echo "Unexpected failure while searching for $type_name libs!"
+        exit 1
+    fi
+
+    if [ -z "$found" ] || [ ! -f "$found" ]; then
+        echo "Unable to find archive (.a/.rlib) for dependency ($lib)"
+        echo "  build metadata:      ${OUTPUT_DIR}/build-lumen/build.json"
+        echo "  dependency metadata: ${OUTPUT_DIR}/build-lumen/deps.json"
+        echo "  search result: '$found'"
+        mkdir -p "${OUTPUT_DIR}/build-lumen"
+        echo "$build_json" > "${OUTPUT_DIR}/build-lumen/build.json"
+        echo "$dep_info" > "${OUTPUT_DIR}/build-lumen/deps.json"
+        exit 1
+    fi
+
+    rsync -a --copy-links --whole-file "$found" "${install_target_lib_dir}/lib${lib}.${found_ext}"
 }
 
 while [ $# -gt 0 ]; do
@@ -325,38 +363,11 @@ for rustlib in "${rustlibs[@]}"; do
 done
 
 for lib in "${RUNTIME_LIBS[@]}"; do
-    found=""
-    found_ext=""
-    if found="$(echo "$rlib_deps" | jq -r "select(.name == \"$lib\") | .files[]")"; then
-        if [ -n "$found" ]; then
-            found_ext="rlib"
-        else
-            if found="$(echo "$staticlib_deps" | jq -r "select(.name == \"$lib\") | .files[]")"; then
-                found_ext="a"
-            else
-                echo "$found"
-                echo "Unexpected failure while searching for runtime libs!"
-                exit 1
-            fi
-        fi
-    else
-        echo "$found"
-        echo "Unexpected failure while searching for runtime libs!"
-        exit 1
-    fi
+    install_library "runtime" $lib
+done
 
-    if [ -z "$found" ] || [ ! -f "$found" ]; then
-        echo "Unable to find archive (.a/.rlib) for dependency ($lib)"
-        echo "  build metadata:      ${OUTPUT_DIR}/build-lumen/build.json"
-        echo "  dependency metadata: ${OUTPUT_DIR}/build-lumen/deps.json"
-        echo "  search result: '$found'"
-        mkdir -p "${OUTPUT_DIR}/build-lumen"
-        echo "$build_json" > "${OUTPUT_DIR}/build-lumen/build.json"
-        echo "$dep_info" > "${OUTPUT_DIR}/build-luen/deps.json"
-        exit 1
-    fi
-
-    rsync -a --copy-links --whole-file "$found" "${install_target_lib_dir}/lib${lib}.${found_ext}"
+for lib in "${BIF_LIBS[@]}"; do
+    install_library "BIF" $lib
 done
 
 # Copy codegen libraries that are not statically linked

@@ -6,7 +6,7 @@ pub fn make_lumen_intrinsics() -> NativeModule {
     let mut native = NativeModule::new(Atom::try_from_str("lumen_intrinsics").unwrap());
 
     native.add_simple(Atom::try_from_str("println").unwrap(), 1, |_proc, args| {
-        lumen_rt_full::system::io::puts(&format!("{}", args[0]));
+        crate::runtime::sys::io::puts(&format!("{}", args[0]));
         Ok(Atom::str_to_term("ok"))
     });
 
@@ -20,7 +20,7 @@ pub fn make_lumen_intrinsics() -> NativeModule {
         Atom::try_from_str("dump_process_heap").unwrap(),
         0,
         |proc, _args| {
-            lumen_rt_full::system::io::puts(&format!("{:?}", proc.acquire_heap()));
+            crate::runtime::sys::io::puts(&format!("{:?}", proc.acquire_heap()));
             Ok(Atom::str_to_term("ok"))
         },
     );

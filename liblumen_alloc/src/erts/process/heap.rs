@@ -404,6 +404,10 @@ impl HeapAlloc for ProcessHeap {
     }
 }
 impl Heap for ProcessHeap {
+    fn is_corrupted(&self) -> bool {
+        self.heap.is_corrupted()
+    }
+
     #[inline]
     fn heap_start(&self) -> *mut Term {
         self.heap.heap_start()

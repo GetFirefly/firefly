@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::ffi::CString;
 use std::fmt;
 use std::mem::MaybeUninit;
 use std::os;
@@ -8,7 +7,6 @@ use std::ptr;
 use anyhow::anyhow;
 
 use liblumen_llvm as llvm;
-use liblumen_llvm::enums::{CodeGenOptLevel, CodeGenOptSize};
 use liblumen_llvm::target::TargetMachineRef;
 use liblumen_llvm::utils::{LLVMString, MemoryBufferRef};
 use liblumen_session::{Emit, OutputType};

@@ -7,6 +7,9 @@ edition = "2018"
 build = "build.rs"
 links = "lumen_term_core"
 
+[lib]
+crate-type = ["rlib", "staticlib"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

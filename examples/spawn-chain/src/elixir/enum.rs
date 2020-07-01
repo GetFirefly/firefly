@@ -7,5 +7,10 @@ use liblumen_alloc::erts::term::prelude::Atom;
 // Private
 
 fn module() -> Atom {
-    Atom::try_from_str("Elixir.Enum").unwrap()
+    Atom::from_str("Elixir.Enum")
+}
+
+#[allow(dead_code)]
+fn module_id() -> usize {
+    module().id()
 }

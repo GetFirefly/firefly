@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::fmt;
 use std::os;
 use std::ptr;
@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 
-use liblumen_session::{OptLevel, Options, ProjectType};
+use liblumen_session::{Options, ProjectType};
 use liblumen_target::{CodeModel, RelocModel, ThreadLocalMode};
 
 use crate::enums::{self, CodeGenOptLevel, CodeGenOptSize};
@@ -18,8 +18,8 @@ pub type TargetMachineRef = llvm_sys::target_machine::LLVMTargetMachineRef;
 pub type TargetDataRef = llvm_sys::target::LLVMTargetDataRef;
 
 mod ffi {
-    use liblumen_target::{CodeModel, RelocModel};
     use crate::enums::{CodeGenOptLevel, CodeGenOptSize};
+    use liblumen_target::{CodeModel, RelocModel};
 
     #[repr(C)]
     pub(super) struct TargetFeature<'a> {
@@ -153,7 +153,8 @@ impl TargetMachineConfig {
         let triple = self.triple.as_ptr();
         let cpu = self.cpu.as_ptr();
         let abi = self.abi.as_ptr();
-        let features = self.features
+        let features = self
+            .features
             .iter()
             .map(|f| ffi::TargetFeature::new(f))
             .collect::<Vec<_>>();

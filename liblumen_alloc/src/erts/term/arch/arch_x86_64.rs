@@ -472,6 +472,7 @@ impl core::hash::Hash for RawTerm {
 #[cfg(all(test, target_pointer_width = "64", target_arch = "x86_64"))]
 mod tests {
     use core::convert::TryInto;
+    use core::ffi::c_void;
 
     use crate::borrow::CloneToProcess;
     use crate::erts::process::alloc::TermAlloc;
@@ -766,16 +767,17 @@ mod tests {
 
     #[test]
     fn closure_encoding_x86_64() {
-        use crate::erts::process::Process;
         use crate::erts::term::closure::*;
-        use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
         let arity = 0;
-        let code = |_arc_process: &Arc<Process>| Ok(());
+
+        extern "C" fn native() -> Term {
+            Term::NONE
+        }
 
         let one = fixnum!(1);
         let two = fixnum!(2);
@@ -789,7 +791,7 @@ mod tests {
                 old_unique,
                 unique,
                 arity,
-                Some(code),
+                Some(native as *const c_void),
                 Creator::Local(creator),
                 &[&[one, two]],
             )
@@ -946,13 +948,13 @@ mod tests {
 
     #[test]
     fn resource_encoding_x86_64() {
-        use core::any::Any;
+        use core::any::{type_name, Any};
 
         let mut heap = RegionHeap::default();
 
         // Need a concrete type for casting
         let code: Box<dyn Any> = Box::new(Predicate::new(|input: bool| Some(input)));
-        let resource = Resource::from_value(&mut heap, code).unwrap();
+        let resource = Resource::from_value(&mut heap, code, type_name::<Predicate>()).unwrap();
         let resource_term: RawTerm = resource.into();
         assert!(resource_term.is_boxed());
         assert_eq!(resource_term.type_of(), Tag::Box);

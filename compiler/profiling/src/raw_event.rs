@@ -51,11 +51,13 @@ impl RawEvent {
         }
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn start_nanos(&self) -> u64 {
         self.start_time_lower as u64 | (((self.start_and_end_upper & 0xFFFF_0000) as u64) << 16)
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn end_nanos(&self) -> u64 {
         self.end_time_lower as u64 | (((self.start_and_end_upper & 0x0000_FFFF) as u64) << 32)
@@ -92,6 +94,7 @@ impl RawEvent {
         }
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub fn deserialize(bytes: &[u8]) -> RawEvent {
         assert!(bytes.len() == std::mem::size_of::<RawEvent>());

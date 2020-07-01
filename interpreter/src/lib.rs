@@ -6,6 +6,7 @@ mod module;
 pub use module::NativeModule;
 pub mod call_result;
 mod native;
+pub use lumen_rt_core as runtime;
 mod vm;
 
 #[cfg(test)]

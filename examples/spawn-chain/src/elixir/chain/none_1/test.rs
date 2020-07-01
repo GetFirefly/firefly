@@ -1,15 +1,17 @@
-use super::*;
+mod inspect;
 
 use std::sync::Once;
+
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_core::registry;
 
 use lumen_rt_full::process;
 use lumen_rt_full::process::spawn::options::Options;
 use lumen_rt_full::process::spawn::Spawned;
-use lumen_rt_full::scheduler::Scheduler;
+use lumen_rt_full::scheduler;
 
-use crate::start::export_code;
+use crate::start::initialize_dispatch_table;
 
 #[test]
 fn with_1() {
@@ -86,23 +88,13 @@ fn with_16384() {
     run_through(16384)
 }
 
-#[test]
-fn with_32768() {
-    run_through(32768)
+fn module() -> Atom {
+    Atom::from_str("Elixir.ChainTest")
 }
 
-#[test]
-fn with_65536() {
-    run_through(65536)
-}
-
-fn inspect_code(arc_process: &Arc<Process>) -> code::Result {
-    let time_value = arc_process.stack_peek(1).unwrap();
-
-    lumen_rt_full::system::io::puts(&format!("{}", time_value));
-    arc_process.remove_last_frame(1);
-
-    Process::call_code(arc_process)
+#[allow(dead_code)]
+fn module_id() -> usize {
+    module().id()
 }
 
 fn run_through(n: usize) {
@@ -111,29 +103,34 @@ fn run_through(n: usize) {
     let parent_process = None;
     let mut options: Options = Default::default();
     options.min_heap_size = Some(100 + 5 * n);
-    let Spawned { process, .. } = process::spawn::code(
+    let Spawned { process, .. } = process::spawn::spawn(
         parent_process,
         options,
-        Atom::try_from_str("Elixir.ChainTest").unwrap(),
-        Atom::try_from_str("inspect").unwrap(),
-        &[],
-        inspect_code,
+        module(),
+        inspect::function(),
+        inspect::ARITY,
+        Box::new(|child_process| {
+            let n_term = child_process.integer(n)?;
+
+            Ok(vec![
+                super::frame().with_arguments(false, &[n_term]),
+                inspect::frame().with_arguments(true, &[]),
+            ])
+        }),
     )
     .unwrap();
-    super::place_frame_with_arguments(&process, Placement::Push, process.integer(n).unwrap())
-        .unwrap();
 
-    let arc_scheduler = Scheduler::current();
-    let arc_process = arc_scheduler.clone().schedule(process);
+    let arc_scheduler = scheduler::current();
+    let arc_process = arc_scheduler.schedule(process);
     registry::put_pid_to_process(&arc_process);
 
-    while arc_scheduler.run_through(&arc_process) {}
+    while !arc_process.is_exiting() && scheduler::run_through(&arc_process) {}
 }
 
 static START: Once = Once::new();
 
 fn start() {
-    export_code();
+    initialize_dispatch_table();
 }
 
 fn start_once() {

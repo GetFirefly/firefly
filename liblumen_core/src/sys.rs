@@ -20,7 +20,6 @@ pub use self::arch::alloc;
 pub use self::arch::mmap;
 
 pub mod dynamic_call {
-    #[cfg(all(unix, target_arch = "x86_64"))]
     pub use super::arch::dynamic_call::*;
 
     pub type DynamicCallee = extern "C" fn() -> usize;

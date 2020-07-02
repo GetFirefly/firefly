@@ -1363,6 +1363,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "liblumen_alloc",
  "liblumen_core",
+ "lumen",
  "lumen_rt_core",
  "lumen_rt_full",
  "native_implemented",

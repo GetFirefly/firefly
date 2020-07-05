@@ -36,4 +36,5 @@ features = ['console']
 
 [dev-dependencies]
 lumen_rt_full = { path = "../../runtimes/full" }
+lumen = { path = "../../lumen" }
 

@@ -12,13 +12,4 @@ fn without_boolean_right_errors_badarg() {
     );
 }
 
-#[test]
-fn with_boolean_right_returns_false() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(&strategy::term::is_boolean(), |right| {
-            prop_assert_eq!(result(false.into(), right), Ok(false.into()));
-
-            Ok(())
-        })
-        .unwrap();
-}
+// `with_boolean_right_returns_false` in integration tests

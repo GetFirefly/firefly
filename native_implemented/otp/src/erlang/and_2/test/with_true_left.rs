@@ -12,12 +12,5 @@ fn without_boolean_right_errors_badarg() {
     );
 }
 
-#[test]
-fn with_false_right_returns_false() {
-    assert_eq!(result(true.into(), false.into()), Ok(false.into()));
-}
-
-#[test]
-fn with_true_right_returns_true() {
-    assert_eq!(result(true.into(), true.into()), Ok(true.into()));
-}
+// `with_false_right_returns_false` in integration tests
+// `with_true_right_returns_true` in integration tests

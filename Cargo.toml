@@ -62,18 +62,17 @@ default-members = [
 opt-level = 2
 lto = false
 
-#[patch."https://github.com/eirproject/eir"]
-#libeir_diagnostics = { path = "../eir/libeir_diagnostics" }
-#libeir_frontend = { path = "../eir/libeir_frontend" }
-#libeir_syntax_erl = { path = "../eir/libeir_syntax_erl" }
-#libeir_ir = { path = "../eir/libeir_ir" }
-#libeir_intern = { path = "../eir/libeir_intern" }
-#libeir_lowerutils = { path = "../eir/libeir_lowerutils" }
-#libeir_passes = { path = "../eir/libeir_passes" }
-#libeir_util_datastructures = { path = "../eir/util/libeir_util_datastructures" }
-#libeir_util_dot_graph = { path = "../eir/util/libeir_util_dot_graph" }
-#libeir_util_number = { path = "../eir/util/libeir_util_number" }
-#libeir_util_parse = { path = "../eir/util/libeir_util_parse" }
-#libeir_util_parse_listing = { path = "../eir/util/libeir_util_parse_listing" }
-#libeir_util_pattern_compiler = { path = "../eir/util/libeir_util_pattern_compiler" }
-
+[patch."https://github.com/eirproject/eir"]
+libeir_diagnostics = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_frontend = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_syntax_erl = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_ir = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_intern = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_lowerutils = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_passes = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_util_datastructures = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_util_dot_graph = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_util_number = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_util_parse = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_util_parse_listing = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }
+libeir_util_pattern_compiler = { git = "https://github.com/KronicDeth/eir", branch = "and-or" }

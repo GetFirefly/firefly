@@ -975,7 +975,7 @@ checksum = "dea0c0405123bba743ee3f91f49b1c7cfb684eef0da0a50110f758ccf24cdff0"
 [[package]]
 name = "libeir_diagnostics"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "anyhow",
  "codespan",
@@ -989,7 +989,7 @@ dependencies = [
 [[package]]
 name = "libeir_frontend"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "libeir_diagnostics",
  "libeir_ir",
@@ -1001,7 +1001,7 @@ dependencies = [
 [[package]]
 name = "libeir_intern"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "lazy_static 1.4.0",
  "libeir_diagnostics",
@@ -1011,7 +1011,7 @@ dependencies = [
 [[package]]
 name = "libeir_ir"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "bumpalo 3.2.0",
  "cranelift-entity",
@@ -1039,7 +1039,7 @@ dependencies = [
 [[package]]
 name = "libeir_lowerutils"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "cranelift-entity",
  "libeir_ir",
@@ -1049,7 +1049,7 @@ dependencies = [
 [[package]]
 name = "libeir_passes"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "bumpalo 3.2.0",
  "cranelift-entity",
@@ -1069,7 +1069,7 @@ dependencies = [
 [[package]]
 name = "libeir_syntax_erl"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "bumpalo 3.2.0",
  "codespan-reporting",
@@ -1095,7 +1095,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_datastructures"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "cranelift-entity",
  "hashbrown 0.7.0",
@@ -1104,12 +1104,12 @@ dependencies = [
 [[package]]
 name = "libeir_util_dot_graph"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 
 [[package]]
 name = "libeir_util_number"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "num-bigint 0.2.2",
  "num-traits",
@@ -1118,7 +1118,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "codespan-reporting",
  "libeir_diagnostics",
@@ -1129,7 +1129,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse_listing"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -1142,7 +1142,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_pattern_compiler"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "derivative",
  "either",
@@ -1363,6 +1363,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "liblumen_alloc",
  "liblumen_core",
+ "lumen",
  "lumen_rt_core",
  "lumen_rt_full",
  "native_implemented",
@@ -1649,7 +1650,7 @@ checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
 [[package]]
 name = "meta_table"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 dependencies = [
  "hashbrown 0.7.0",
 ]
@@ -2442,7 +2443,7 @@ checksum = "ea6a9290e3c9cf0f18145ef7ffa62d68ee0bf5fcd651017e586dc7fd5da448c2"
 [[package]]
 name = "scoped_cell"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#c6ce7bbe500df6780f8fb7296917f8fc83fec4e0"
+source = "git+https://github.com/KronicDeth/eir?branch=and-or#25773795fc0fd8640ffdd04e7ca6c1f200e62a35"
 
 [[package]]
 name = "scopeguard"

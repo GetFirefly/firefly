@@ -1,5 +1,3 @@
-use proptest::prop_assert_eq;
-
 use crate::erlang::andalso_2::result;
 use crate::test::strategy;
 
@@ -20,20 +18,6 @@ fn without_boolean_left_errors_badarg() {
     );
 }
 
-#[test]
-fn with_false_left_returns_false() {
-    run!(|arc_process| strategy::term(arc_process.clone()), |right| {
-        prop_assert_eq!(result(false.into(), right), Ok(false.into()));
+// `with_false_left_returns_false` in integration tests
 
-        Ok(())
-    },);
-}
-
-#[test]
-fn with_true_left_returns_right() {
-    run!(|arc_process| strategy::term(arc_process.clone()), |right| {
-        prop_assert_eq!(result(true.into(), right), Ok(right));
-
-        Ok(())
-    },);
-}
+// `with_true_left_returns_right` in integration tests

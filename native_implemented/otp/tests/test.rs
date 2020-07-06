@@ -1,7 +1,26 @@
 use std::path::{Path, PathBuf};
-pub use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
 
-pub fn compile(file: &str, name: &str) -> PathBuf {
+#[allow(unused_macros)]
+macro_rules! test_stdout {
+    ($func_name:ident, $expected_stdout:literal) => {
+        #[test]
+        fn $func_name() {
+            let output = $crate::test::output(file!(), stringify!($func_name));
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+
+            assert_eq!(
+                stdout, $expected_stdout,
+                "\nstdout = {}\nstderr = {}",
+                stdout, stderr
+            );
+        }
+    };
+}
+
+fn compile(file: &str, name: &str) -> PathBuf {
     // `file!()` starts with path relative to workspace root, but the `current_dir` will be inside
     // the crate root, so need to strip the relative crate root.
     let file_path = Path::new(file);
@@ -16,7 +35,6 @@ pub fn compile(file: &str, name: &str) -> PathBuf {
     let mut command = Command::new("../../bin/lumen");
 
     let bin_path_buf = test_directory_path.join("bin");
-    dbg!(&bin_path_buf);
     std::fs::create_dir_all(&bin_path_buf).unwrap();
 
     let output_path_buf = bin_path_buf.join(name);
@@ -47,4 +65,13 @@ pub fn compile(file: &str, name: &str) -> PathBuf {
     );
 
     output_path_buf
+}
+
+pub fn output(file: &str, name: &str) -> Output {
+    let bin_path_buf = compile(file, name);
+
+    Command::new(bin_path_buf)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap()
 }

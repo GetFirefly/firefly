@@ -1,7 +1,6 @@
+#[macro_use]
 #[path = "./test.rs"]
 mod test;
-
-use test::*;
 
 // Linux currently can't compile `lumen` compiler
 #[cfg(not(target_os = "linux"))]

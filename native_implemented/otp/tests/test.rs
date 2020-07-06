@@ -16,7 +16,6 @@ pub fn compile(file: &str, name: &str) -> PathBuf {
     let mut command = Command::new("../../bin/lumen");
 
     let bin_path_buf = test_directory_path.join("bin");
-    dbg!(&bin_path_buf);
     std::fs::create_dir_all(&bin_path_buf).unwrap();
 
     let output_path_buf = bin_path_buf.join(name);

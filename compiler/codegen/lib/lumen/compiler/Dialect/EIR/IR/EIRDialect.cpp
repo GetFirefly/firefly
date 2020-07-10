@@ -31,7 +31,7 @@ EirDialect::EirDialect(mlir::MLIRContext *ctx)
            TupleType, MapType, ClosureType, BinaryType, HeapBinType,
            ProcBinType, BoxType, RefType, PtrType>();
 
-  addAttributes<AtomAttr, BinaryAttr, SeqAttr>();
+  addAttributes<AtomAttr, BinaryAttr, FixnumAttr, SeqAttr>();
 }
 
 void EirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {

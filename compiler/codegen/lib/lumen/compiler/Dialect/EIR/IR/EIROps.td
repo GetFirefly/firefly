@@ -484,7 +484,7 @@ def eir_CondBranchOp : eir_Op<"cond_br",
   }];
 
   let arguments = (ins
-    eir_BoolType:$condition,
+    eir_BoolLike:$condition,
     Variadic<eir_AnyType>:$trueDestOperands,
     Variadic<eir_AnyType>:$falseDestOperands
   );
@@ -572,7 +572,7 @@ def eir_CondBranchOp : eir_Op<"cond_br",
 
   let hasCanonicalizer = 1;
   let assemblyFormat = [{
-    $condition `,`
+    $condition `:` type($condition) `,`
     $trueDest (`(` $trueDestOperands^ `:` type($trueDestOperands) `)`)? `,`
     $falseDest (`(` $falseDestOperands^ `:` type($falseDestOperands) `)`)?
     attr-dict
@@ -1493,9 +1493,9 @@ def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumType, "constant.int"> {
     OpBuilder<
     "Builder *builder, OperationState &result, int64_t value",
     [{
+      auto type = builder->getType<FixnumType>();
       auto n = static_cast<uint64_t>(value);
       APInt ap(64, n, /*isSigned=*/true);
-      auto type = builder->getType<FixnumType>();
       auto attr = FixnumAttr::get(builder->getContext(), ap);
       build(builder, result, type, attr);
     }]>
@@ -1634,27 +1634,6 @@ def eir_ConstantTupleOp : eir_ConstantOp<eir_TupleType, "constant.tuple"> {
       auto type = builder->getType<eir::TupleType>(ArrayRef(types));
       auto attr = SeqAttr::get(type, elements);
       build(builder, result, type, attr);
-    }]>
-  ];
-}
-
-def eir_ConstantConsOp : eir_ConstantOp<eir_BoxType, "constant.cons"> {
-  let builders = [
-    OpBuilder<
-    "Builder *builder, OperationState &result, ArrayRef<Attribute> elements",
-    [{
-      assert(elements.size() > 0 && "cons requires at least one value");
-      auto type = builder->getType<ConsType>();
-      result.addAttribute("value", SeqAttr::get(type, elements));
-      result.addTypes(BoxType::get(type));
-    }]>,
-    OpBuilder<
-    "Builder *builder, OperationState &result, Attribute head, Attribute tail",
-    [{
-      auto type = builder->getType<ConsType>();
-      auto attr = SeqAttr::get(type, ArrayRef<Attribute>{head, tail});
-      result.addAttribute("value", attr);
-      result.addTypes(BoxType::get(type));
     }]>
   ];
 }
@@ -1940,8 +1919,8 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
         %0, %err = eir.binary_push(%bin, %val) { type = bytes, unit = 1 }, %size : !eir.fixnum
   }];
 
-  let arguments = (ins eir_AnyType:$head, eir_AnyType:$tail, Variadic<eir_AnyType>:$size);
-  let results = (outs eir_AnyType:$bin, I1:$status);
+  let arguments = (ins eir_AnyType:$bin, eir_AnyType:$value, Variadic<eir_AnyType>:$size);
+  let results = (outs eir_AnyType:$newBin, I1:$successFlag);
 
   let verifier = ?;
 
@@ -1952,14 +1931,14 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<
-    "Builder *builder, OperationState &result, Value head, Value tail, Value size, NamedAttributeList attrs",
+    "Builder *builder, OperationState &result, Value bin, Value value, Value size, NamedAttributeList attrs",
     [{
       if (size) {
-        result.addOperands({head, tail, size});
+        result.addOperands({bin, value, size});
       } else {
-        result.addOperands({head, tail});
+        result.addOperands({bin, value});
       }
-      auto binTy = head.getType();
+      auto binTy = bin.getType();
       auto i1Ty = builder->getI1Type();
       result.addTypes({binTy, i1Ty});
       result.addAttributes(attrs.getAttrs());

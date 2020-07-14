@@ -52,12 +52,13 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
 
   // Initialize named types
   LLVMType intNTy = LLVMType::getIntNTy(&dialect, pointerSizeInBits);
+  LLVMType int1Ty = LLVMType::getInt1Ty(&dialect);
   LLVMType int8Ty = LLVMType::getInt8Ty(&dialect);
   LLVMType int32Ty = LLVMType::getInt32Ty(&dialect);
   LLVMType int8PtrTy = LLVMType::getInt8PtrTy(&dialect);
   LLVMType f64Ty = LLVMType::getDoubleTy(&dialect);
   impl->pointerWidthIntTy = intNTy;
-  impl->i1Ty = LLVMType::getInt1Ty(&dialect);
+  impl->i1Ty = int1Ty;
   impl->i8Ty = int8Ty;
   impl->i32Ty = int32Ty;
   impl->opaqueFnTy =
@@ -95,6 +96,9 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   ArrayRef<LLVMType> binaryFields({intNTy, intNTy, int8PtrTy});
   impl->binaryTy =
       LLVMType::createStructTy(&dialect, binaryFields, StringRef("binary"));
+  ArrayRef<LLVMType> pushResultFields({intNTy, int1Ty});
+  impl->binPushResultTy =
+      LLVMType::createStructTy(&dialect, pushResultFields, StringRef("binary.pushed"));
 
   // Closure types
   // [i8 x 16]

@@ -519,19 +519,24 @@ supported_targets! {
     //("powerpc64-wrs-vxworks", powerpc64_wrs_vxworks),
 }
 
-#[repr(C)]
-#[derive(PartialEq, Clone, Debug)]
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Endianness {
-    Native,
     Big,
     Little,
+    Native,
+}
+impl Default for Endianness {
+    fn default() -> Self {
+        Self::Native
+    }
 }
 impl ToString for Endianness {
     fn to_string(&self) -> String {
         match *self {
-            Self::Native => "native".to_string(),
             Self::Big => "big".to_string(),
             Self::Little => "little".to_string(),
+            Self::Native => "native".to_string(),
         }
     }
 }

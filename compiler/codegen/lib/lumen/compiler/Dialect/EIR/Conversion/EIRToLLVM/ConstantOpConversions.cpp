@@ -3,10 +3,12 @@
 namespace lumen {
 namespace eir {
 
+#if false
 template <typename Op>
 static LLVM::GlobalOp buildConstantCons(RewritePatternContext<Op> &ctx,
                                         ArrayRef<Attribute> values,
                                         Operation *insertAfter = nullptr);
+#endif
 
 template <typename Op>
 static Value lowerElementValue(RewritePatternContext<Op> &ctx,
@@ -186,11 +188,11 @@ struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto fixnumAttr = op.getValue().cast<FixnumAttr>();
-    auto value = (uint64_t)fixnumAttr.getValue().getLimitedValue();
+    auto attr = op.getValue().cast<FixnumAttr>();
     auto termTy = ctx.getUsizeType();
-    auto taggedFixnum = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, value);
-    auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedFixnum));
+    auto i = (uint64_t)attr.getValue().getLimitedValue();
+    auto taggedInt = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, i);
+    auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedInt));
 
     rewriter.replaceOp(op, {val});
     return success();
@@ -231,25 +233,60 @@ struct ConstantNoneOpConversion : public EIROpConversion<ConstantNoneOp> {
   }
 };
 
-struct ConstantConsOpConversion : public EIROpConversion<ConstantConsOp> {
+
+struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
   using EIROpConversion::EIROpConversion;
 
   LogicalResult matchAndRewrite(
-      ConstantConsOp op, ArrayRef<Value> operands,
+      ConstantListOp op, ArrayRef<mlir::Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
     auto attr = op.getValue().cast<SeqAttr>();
-    auto cell = buildConstantCons(ctx, attr.getValue());
+    auto elements = attr.getValue();
+    auto numElements = elements.size();
 
-    // Box the constant address
-    auto cellPtr = llvm_addressof(cell);
-    auto boxed = ctx.encodeList(cellPtr, /*isLiteral=*/true);
-    rewriter.replaceOp(op, boxed);
+    if (numElements == 0) {
+      Value nil = eir_nil();
+      rewriter.replaceOp(op, nil);
+      return success();
+    }
+
+    // Lower to single cons cell if it fits
+    if (numElements <= 2) {
+      Value head = lowerElementValue(ctx, elements[0]);
+      assert(head && "unsupported element type in cons cell");
+      Value tail = lowerElementValue(ctx, elements[1]);
+      assert(tail && "unsupported element type in cons cell");
+      Value list = eir_cons(head, tail);
+      rewriter.replaceOp(op, list);
+      return success();
+    }
+
+    unsigned cellsRequired = numElements;
+    unsigned currentIndex = numElements;
+
+    Value list;
+    while (currentIndex > 0) {
+      if (!list) {
+        Value tail = lowerElementValue(ctx, elements[--currentIndex]);
+        assert(tail && "unsupported element type in cons cell");
+        Value head = lowerElementValue(ctx, elements[--currentIndex]);
+        assert(head && "unsupported element type in cons cell");
+        list = eir_cons(head, tail);
+      } else {
+        Value head = lowerElementValue(ctx, elements[--currentIndex]);
+        assert(head && "unsupported element type in cons cell");
+        list = eir_cons(head, list);
+      }
+    }
+
+    rewriter.replaceOp(op, list);
     return success();
   }
 };
 
+#if false
 struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -297,20 +334,17 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
     unsigned cellsRequired = numElements;
     unsigned currentIndex = numElements;
 
-    Value prev;
     LLVM::GlobalOp prevGlobal;
+    bool hasPrev = false;
     for (auto i = cellsRequired; i > 1; --i) {
       auto head = elements[--currentIndex];
-      if (!prev) {
+      if (!hasPrev) {
         prevGlobal = buildConstantCons(ctx, {head});
-        auto prevPtr = llvm_addressof(prevGlobal);
-        prev = ctx.encodeList(prevPtr, /*literal=*/true);
+        hasPrev = true;
       } else {
         auto prevName = prevGlobal.getName();
-        auto prevSym = FlatSymbolRefAttr::get(prevName, prev.getContext());
+        auto prevSym = FlatSymbolRefAttr::get(prevName, prevGlobal.getContext());
         prevGlobal = buildConstantCons(ctx, {head, prevSym}, prevGlobal);
-        auto prevPtr = llvm_addressof(prevGlobal);
-        prev = ctx.encodeList(prevPtr, /*literal=*/true);
       }
     }
 
@@ -335,7 +369,37 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
     return success();
   }
 };
+#endif
 
+struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      ConstantTupleOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+
+    auto termTy = ctx.getUsizeType();
+    auto attr = op.getValue().cast<SeqAttr>();
+    auto elementAttrs = attr.getValue();
+
+    SmallVector<Value, 2> elements;
+    for (auto elementAttr : elementAttrs) {
+       auto element = lowerElementValue(ctx, elementAttr);
+       assert(element && "unsupported element type in tuple");
+       elements.push_back(element);
+    }
+
+    Value tuple = eir_tuple(elements);
+
+    rewriter.replaceOp(op, tuple);
+
+    return success();
+  }
+};
+
+
+#if false
 struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -416,9 +480,11 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
     return success();
   }
 };
+#endif
 
 // Shared conversion helpers
 
+#if false
 template <typename Op>
 static LLVM::GlobalOp buildConstantCons(RewritePatternContext<Op> &ctx,
                                         ArrayRef<Attribute> values,
@@ -477,6 +543,7 @@ static LLVM::GlobalOp buildConstantCons(RewritePatternContext<Op> &ctx,
 
   return headerConst;
 }
+#endif
 
 template <typename Op>
 static Value lowerElementValue(RewritePatternContext<Op> &ctx,
@@ -498,23 +565,25 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
       // this to dispatch on type information, but the current APIs are
       // insufficient (and we don't have access to the original EIR type here)
       if (symName.startswith("binary_")) {
-        return llvm_load(ptr);
+        return ctx.encodeLiteral(ptr);
       }
+#ifdef false
       if (symName.startswith("cons_")) {
-        return llvm_load(ptr);
+        return ctx.encodeList(ptr, /*literal=*/true);
       }
+#endif
       if (symName.startswith("float_")) {
-        return llvm_load(ptr);
+        return ctx.encodeLiteral(ptr);
       }
       if (symName.startswith("closure_")) {
-        return llvm_load(ptr);
+        return ctx.encodeLiteral(ptr);
       }
     }
     return nullptr;
   }
   // None/Nil
   if (auto typeAttr = elementAttr.dyn_cast_or_null<TypeAttr>()) {
-    auto type = typeAttr.getType();
+    auto type = typeAttr.getValue();
     if (type.isa<NilType>()) {
       return eir_cast(eir_nil(), eirTermType);
     }
@@ -523,7 +592,6 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
     }
     return nullptr;
   }
-
   // Booleans
   if (auto boolAttr = elementAttr.dyn_cast_or_null<BoolAttr>()) {
     auto b = boolAttr.getValue();
@@ -532,6 +600,14 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
     return llvm_constant(termTy, ctx.getIntegerAttr(tagged));
   }
   // Integers
+  if (auto intAttr = elementAttr.dyn_cast_or_null<FixnumAttr>()) {
+    auto i = intAttr.getValue();
+    assert(i.getBitWidth() <= ctx.targetInfo.pointerSizeInBits &&
+           "support for bigint in constant aggregates not yet implemented");
+    auto tagged =
+        ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, i.getLimitedValue());
+    return llvm_constant(termTy, ctx.getIntegerAttr(tagged));
+  }
   if (auto intAttr = elementAttr.dyn_cast_or_null<IntegerAttr>()) {
     auto i = intAttr.getValue();
     assert(i.getBitWidth() <= ctx.targetInfo.pointerSizeInBits &&
@@ -574,7 +650,7 @@ void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
                                           LLVMTypeConverter &converter,
                                           TargetInfo &targetInfo) {
   patterns.insert<ConstantAtomOpConversion, ConstantBigIntOpConversion,
-                  ConstantBinaryOpConversion, ConstantConsOpConversion,
+                  ConstantBinaryOpConversion,
                   ConstantFloatOpConversion, ConstantIntOpConversion,
                   ConstantListOpConversion, /*ConstantMapOpConversion,*/
                   ConstantNilOpConversion, ConstantNoneOpConversion,

@@ -261,7 +261,6 @@ pub struct Match {
     pub loc: LocationRef,
     pub selector: Value,
     pub branches: Vec<Pattern>,
-    pub reads: Vec<ir::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -302,8 +301,8 @@ pub struct BinaryPush {
     pub loc: LocationRef,
     pub ok: Block,
     pub err: Block,
-    pub head: Value,
-    pub tail: Value,
+    pub bin: Value,
+    pub value: Value,
     pub size: Option<Value>,
     pub spec: ir::BinaryEntrySpecifier,
 }

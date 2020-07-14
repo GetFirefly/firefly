@@ -70,6 +70,54 @@ APInt &AtomAttr::getValue() const { return getImpl()->id; }
 StringRef AtomAttr::getStringValue() const { return getImpl()->name; }
 
 //===----------------------------------------------------------------------===//
+// FixnumAttr
+//===----------------------------------------------------------------------===//
+
+/// An attribute representing an fixed-width integer literal value.
+namespace lumen {
+namespace eir {
+namespace detail {
+struct FixnumAttributeStorage : public AttributeStorage {
+  using KeyTy = std::tuple<Type, APInt>;
+
+  FixnumAttributeStorage(Type type, APInt value)
+      : AttributeStorage(type), value(std::move(value)) {}
+
+  /// Key equality function.
+  bool operator==(const KeyTy &key) const {
+    auto keyType = std::get<Type>(key);
+    auto keyValue = std::get<APInt>(key);
+    return keyType == getType() && keyValue == value;
+  }
+
+  static unsigned hashKey(const KeyTy &key) {
+    return hash_combine(hash_value(std::get<Type>(key)),
+                        hash_value(std::get<APInt>(key)));
+  }
+
+  /// Construct a new storage instance.
+  static FixnumAttributeStorage *construct(AttributeStorageAllocator &allocator,
+                                         const KeyTy &key) {
+    auto type = std::get<Type>(key);
+    auto value = new (allocator.allocate<APInt>()) APInt(std::get<APInt>(key));
+    return new (allocator.allocate<FixnumAttributeStorage>())
+        FixnumAttributeStorage(type, *value);
+  }
+
+  APInt value;
+};  // struct FixnumAttr
+}  // namespace detail
+}  // namespace eir
+}  // namespace lumen
+
+FixnumAttr FixnumAttr::get(MLIRContext *context, APInt value) {
+  unsigned kind = static_cast<unsigned>(AttributeKind::Fixnum);
+  return Base::get(context, kind, FixnumType::get(context), value);
+}
+
+APInt &FixnumAttr::getValue() const { return getImpl()->value; }
+
+//===----------------------------------------------------------------------===//
 // BinaryAttr
 //===----------------------------------------------------------------------===//
 
@@ -152,54 +200,6 @@ bool BinaryAttr::isPrintable() const {
   }
   return true;
 }
-
-//===----------------------------------------------------------------------===//
-// FixnumAttr
-//===----------------------------------------------------------------------===//
-
-/// An attribute representing a binary literal value.
-namespace lumen {
-namespace eir {
-namespace detail {
-struct FixnumAttributeStorage : public AttributeStorage {
-  using KeyTy = std::tuple<Type, APInt>;
-
-  FixnumAttributeStorage(Type type, APInt value)
-      : AttributeStorage(type), value(std::move(value)) {}
-
-  /// Key equality function.
-  bool operator==(const KeyTy &key) const {
-    auto keyType = std::get<Type>(key);
-    auto keyValue = std::get<APInt>(key);
-    return keyType == getType() && keyValue == value;
-  }
-
-  static unsigned hashKey(const KeyTy &key) {
-    return hash_combine(hash_value(std::get<Type>(key)),
-                        hash_value(std::get<APInt>(key)));
-  }
-
-  /// Construct a new storage instance.
-  static FixnumAttributeStorage *construct(AttributeStorageAllocator &allocator,
-                                           const KeyTy &key) {
-    auto type = std::get<Type>(key);
-    auto value = new (allocator.allocate<APInt>()) APInt(std::get<APInt>(key));
-    return new (allocator.allocate<AtomAttributeStorage>())
-        FixnumAttributeStorage(type, *value);
-  }
-
-  APInt value;
-};  // struct FixnumAttr
-}  // namespace detail
-}  // namespace eir
-}  // namespace lumen
-
-FixnumAttr FixnumAttr::get(MLIRContext *context, APInt value) {
-  unsigned kind = static_cast<unsigned>(AttributeKind::Fixnum);
-  return Base::get(context, kind, FixnumType::get(context), value);
-}
-
-APInt &FixnumAttr::getValue() const { return getImpl()->value; }
 
 //===----------------------------------------------------------------------===//
 // SeqAttr

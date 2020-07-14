@@ -40,6 +40,7 @@ using eir_cmplte = ValueBuilder<::lumen::eir::CmpLteOp>;
 using eir_atom = ValueBuilder<::lumen::eir::ConstantAtomOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
+using eir_int = ValueBuilder<::lumen::eir::ConstantIntOp>;
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::FuncOp, MLIRFunctionOpRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::ModuleBuilder,
@@ -527,12 +528,14 @@ void ModuleBuilder::build_match(Match op) {
     // Extract destination block and base arguments
     Block *dest = unwrap(inBranch.dest);
     Location branchLoc = unwrap(inBranch.loc);
-    ArrayRef<MLIRValueRef> inDestArgs(inBranch.destArgv,
-                                      inBranch.destArgv + inBranch.destArgc);
     SmallVector<Value, 1> destArgs;
-    for (auto argRef : inDestArgs) {
-      Value arg = unwrap(argRef);
-      destArgs.push_back(arg);
+    if (inBranch.destArgc > 0) {
+      ArrayRef<MLIRValueRef> inDestArgs(inBranch.destArgv,
+                                        inBranch.destArgv + inBranch.destArgc);
+      for (auto argRef : inDestArgs) {
+        Value arg = unwrap(argRef);
+        destArgs.push_back(arg);
+      }
     }
     // Convert match pattern payload
     auto pattern = convertMatchPattern(inBranch.pattern);
@@ -1404,7 +1407,7 @@ extern "C" void MLIRBuildBinaryStart(MLIRModuleBuilderRef b,
 }
 
 void ModuleBuilder::build_binary_start(Location loc, Block *cont) {
-  auto op = builder.create<BinaryStartOp>(loc, builder.getType<BinaryType>());
+  auto op = builder.create<BinaryStartOp>(loc, builder.getType<TermType>());
   auto bin = op.getResult();
   builder.create<BranchOp>(loc, cont, ArrayRef<Value>{bin});
 }
@@ -1425,25 +1428,25 @@ void ModuleBuilder::build_binary_finish(Location loc, Block *cont, Value bin) {
 }
 
 extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b,
-                                    MLIRLocationRef locref, MLIRValueRef h,
-                                    MLIRValueRef t, MLIRValueRef sz,
+                                    MLIRLocationRef locref, MLIRValueRef bref,
+                                    MLIRValueRef vref, MLIRValueRef sz,
                                     BinarySpecifier *spec, MLIRBlockRef okBlock,
                                     MLIRBlockRef errBlock) {
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
   Block *ok = unwrap(okBlock);
   Block *err = unwrap(errBlock);
-  Value head = unwrap(h);
-  Value tail = unwrap(t);
+  Value bin = unwrap(bref);
+  Value value = unwrap(vref);
   Value size;
   if (sz) {
     size = unwrap(sz);
   }
 
-  builder->build_binary_push(loc, head, tail, size, spec, ok, err);
+  builder->build_binary_push(loc, bin, value, size, spec, ok, err);
 }
 
-void ModuleBuilder::build_binary_push(Location loc, Value head, Value tail,
+void ModuleBuilder::build_binary_push(Location loc, Value bin, Value value,
                                       Value size, BinarySpecifier *spec,
                                       Block *ok, Block *err) {
   NamedAttributeList attrs;
@@ -1481,10 +1484,10 @@ void ModuleBuilder::build_binary_push(Location loc, Value head, Value tail,
     default:
       llvm_unreachable("invalid binary specifier type");
   }
-  auto op = builder.create<BinaryPushOp>(loc, head, tail, size, attrs);
-  auto bin = op.getResult(0);
+  auto op = builder.create<BinaryPushOp>(loc, bin, value, size, attrs);
+  auto newBin = op.getResult(0);
   auto success = op.getResult(1);
-  ArrayRef<Value> okArgs{bin};
+  ArrayRef<Value> okArgs{newBin};
   ArrayRef<Value> errArgs{};
   builder.create<CondBranchOp>(loc, success, ok, okArgs, err, errArgs);
 }
@@ -1592,9 +1595,8 @@ extern "C" MLIRValueRef MLIRBuildConstantInt(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_int(Location loc, int64_t value) {
   edsc::ScopedContext scope(builder, loc);
-  auto op = builder.create<ConstantIntOp>(loc, value);
   auto termTy = builder.getType<TermType>();
-  return eir_cast(op.getResult(), termTy);
+  return eir_cast(eir_int(value), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
@@ -1732,8 +1734,9 @@ extern "C" MLIRValueRef MLIRBuildConstantNil(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_constant_nil(Location loc) {
-  edsc::ScopedContext(builder, loc);
-  return eir_nil();
+  auto op = builder.create<ConstantNilOp>(loc);
+  auto termTy = builder.getType<TermType>();
+  return builder.create<CastOp>(loc, op.getResult(), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildNilAttr(MLIRModuleBuilderRef b,

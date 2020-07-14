@@ -1,4 +1,5 @@
 mod aligned_binary;
+mod builder;
 mod compare;
 mod heap;
 mod iter;
@@ -37,10 +38,13 @@ pub mod prelude {
     pub use super::match_context::MatchContext;
     pub use super::process::ProcBin;
     pub use super::sub::SubBinary;
+    // Expose the binary builder
+    pub use super::builder::{BinaryBuilder, BinaryPushFlags, BinaryPushResult};
     // Expose the error types
     pub use super::{BytesFromBinaryError, StrFromBinaryError};
 
     // Expose the low-level binary helpers
+    pub use super::primitives::calculate_bit_size;
     pub use super::primitives::CopyDirection;
     pub use super::primitives::{copy_binary_to_buffer, copy_bits};
 

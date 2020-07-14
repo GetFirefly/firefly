@@ -105,8 +105,7 @@ impl fmt::Debug for MatchContext {
 }
 impl MatchContext {
     /// Create a new MatchContext from a boxed procbin/heapbin/sub-bin
-    ///
-    /// See `erts_bs_start_match_2` in `erl_bits.c`
+
     #[inline]
     pub fn new(orig: Term) -> Self {
         let buffer = MatchBuffer::start_match(orig);
@@ -368,5 +367,20 @@ impl MaybePartialByte for MatchContext {
 
     fn total_byte_len(&self) -> usize {
         (self.buffer.bit_len + (8 - 1)) / 8
+    }
+}
+
+impl MaybePartialByte for Boxed<MatchContext> {
+    #[inline(always)]
+    fn partial_byte_bit_len(&self) -> u8 {
+        self.as_ref().partial_byte_bit_len()
+    }
+    #[inline(always)]
+    fn total_bit_len(&self) -> usize {
+        self.as_ref().total_bit_len()
+    }
+    #[inline(always)]
+    fn total_byte_len(&self) -> usize {
+        self.as_ref().total_byte_len()
     }
 }

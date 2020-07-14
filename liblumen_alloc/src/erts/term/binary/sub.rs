@@ -339,6 +339,21 @@ impl MaybePartialByte for SubBinary {
     }
 }
 
+impl MaybePartialByte for Boxed<SubBinary> {
+    #[inline(always)]
+    fn partial_byte_bit_len(&self) -> u8 {
+        self.as_ref().partial_byte_bit_len()
+    }
+    #[inline(always)]
+    fn total_bit_len(&self) -> usize {
+        self.as_ref().total_bit_len()
+    }
+    #[inline(always)]
+    fn total_byte_len(&self) -> usize {
+        self.as_ref().total_byte_len()
+    }
+}
+
 impl PartialOrd<Boxed<MatchContext>> for SubBinary {
     #[inline]
     fn partial_cmp(&self, other: &Boxed<MatchContext>) -> Option<core::cmp::Ordering> {

@@ -9,7 +9,6 @@ class NullOpConversion;
 class ConstantAtomOpConversion;
 class ConstantBigIntOpConversion;
 class ConstantBinaryOpConversion;
-class ConstantConsOpConversion;
 class ConstantFloatOpConversion;
 class ConstantFloatOpToStdConversion;
 class ConstantIntOpConversion;

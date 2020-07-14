@@ -25,6 +25,7 @@ namespace eir {
 
 namespace detail {
 struct AtomAttributeStorage;
+struct FixnumAttributeStorage;
 struct BinaryAttributeStorage;
 struct SeqAttributeStorage;
 }  // namespace detail
@@ -32,6 +33,7 @@ struct SeqAttributeStorage;
 namespace AttributeKind {
 enum Kind {
   Atom = Attribute::FIRST_EIR_ATTR,
+  Fixnum,
   Binary,
   Seq,
 };
@@ -53,6 +55,24 @@ class AtomAttr : public Attribute::AttrBase<AtomAttr, Attribute,
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool kindof(unsigned kind) {
     return kind == static_cast<unsigned>(AttributeKind::Atom);
+  }
+};
+
+class FixnumAttr : public Attribute::AttrBase<FixnumAttr, Attribute,
+                                            detail::FixnumAttributeStorage> {
+ public:
+  using Base::Base;
+  using ValueType = APInt;
+
+  static FixnumAttr get(MLIRContext *context, APInt value);
+
+  static StringRef getAttrName() { return "fixnum"; }
+
+  APInt &getValue() const;
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  static bool kindof(unsigned kind) {
+    return kind == static_cast<unsigned>(AttributeKind::Fixnum);
   }
 };
 

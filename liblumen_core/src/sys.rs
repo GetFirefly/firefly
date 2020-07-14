@@ -53,3 +53,13 @@ pub mod sysconf {
         *NUM_CPUS
     }
 }
+
+// NOTE: This must match the definition in liblumen_target,
+// as the underlying representation is used in FFI.
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Endianness {
+    Big,
+    Little,
+    Native,
+}

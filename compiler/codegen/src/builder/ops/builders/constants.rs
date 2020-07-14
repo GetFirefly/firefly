@@ -19,17 +19,26 @@ impl ConstantBuilder {
         let const_kind = builder.const_kind(constant).clone();
         match const_kind {
             ConstKind::Atomic(AtomicTerm::Atom(AtomTerm(symbol))) => {
+                debug_in!(builder, "building atom {:?}", symbol);
                 let value_ref = symbol.as_value_ref(loc, builder.as_ref(), builder.options())?;
                 Self::into_value(builder, constant, ir_value, value_ref)
             }
             ConstKind::Atomic(ref atomic) => {
+                debug_in!(builder, "building atomic literal {:?}", atomic);
                 let value_ref = atomic.as_value_ref(loc, builder.as_ref(), builder.options())?;
                 Self::into_value(builder, constant, ir_value, value_ref)
             }
             ConstKind::ListCell { head, tail } => {
+                debug_in!(
+                    builder,
+                    "building constant cons cell; head: {:?}, tail: {:?}",
+                    head,
+                    tail
+                );
                 Self::list(builder, constant, loc, ir_value, head, tail)
             }
             ConstKind::Tuple { ref entries } => {
+                debug_in!(builder, "building constant tuple; {:?}", entries);
                 Self::tuple(builder, constant, loc, ir_value, entries)
             }
             ConstKind::Map {
@@ -44,6 +53,7 @@ impl ConstantBuilder {
                         .zip(vs.iter().copied())
                         .collect::<Vec<_>>()
                 };
+                debug_in!(builder, "building constant map; {:?}", &kvs);
                 Self::map(builder, constant, loc, ir_value, kvs.as_slice())
             }
         }

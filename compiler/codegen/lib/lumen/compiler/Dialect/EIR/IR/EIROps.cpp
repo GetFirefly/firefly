@@ -660,9 +660,6 @@ OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
 OpFoldResult ConstantTupleOp::fold(ArrayRef<Attribute> operands) {
   return foldConstantOp(this, operands);
 }
-OpFoldResult ConstantConsOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
 OpFoldResult ConstantListOp::fold(ArrayRef<Attribute> operands) {
   return foldConstantOp(this, operands);
 }

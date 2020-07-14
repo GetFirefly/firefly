@@ -51,9 +51,21 @@ impl BigInteger {
             .sum()
     }
 
+    #[inline]
+    pub fn sign(&self) -> Sign {
+        self.value.sign()
+    }
+
     /// Returns the underlying byte representation, in little-endian order
+    #[inline]
     pub fn to_signed_bytes_le(&self) -> Vec<u8> {
         self.value.clone().to_signed_bytes_le()
+    }
+
+    /// Returns the underlying byte representation, in big-endian order
+    #[inline]
+    pub fn to_signed_bytes_be(&self) -> Vec<u8> {
+        self.value.clone().to_signed_bytes_be()
     }
 }
 impl fmt::Debug for BigInteger {

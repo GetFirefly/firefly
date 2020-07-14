@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 
+use cranelift_bforest::BoundSet;
+
 use log::debug;
 
 use libeir_intern::{Ident, Symbol};
@@ -16,7 +18,6 @@ use libeir_ir::operation::receive;
 use libeir_ir::operation::{DynOp, Op};
 use libeir_ir::{AtomTerm, AtomicTerm, ConstKind, FunctionEntry, FunctionIdent};
 use libeir_lowerutils::LowerData;
-use libeir_util_datastructures::pooled_entity_set::BoundEntitySet;
 
 use liblumen_mlir::ir::*;
 use liblumen_session::Options;
@@ -112,7 +113,7 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             .thr
             .expect("expected function to have escape continuation");
 
-        let is_closure = analysis.live.live_at(func_entry.entry).size() > 0;
+        let is_closure = analysis.live.live_at(func_entry.entry).iter().count() > 0;
 
         // Construct signature
         let mut signature = Signature::new(CallConv::Fast);
@@ -235,20 +236,20 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     /// Gets the set of EIR values that are live at the given block
     #[inline]
-    pub fn live_at(&self, block: Block) -> BoundEntitySet<'f, ir::Value> {
+    pub fn live_at(&self, block: Block) -> BoundSet<'f, ir::Value, ()> {
         let ir_block = self.func.block_to_ir_block(block).unwrap();
         self.analysis.live.live_at(ir_block)
     }
 
     /// Same as `live_at`, but takes an EIR block as argument instead
     #[inline]
-    pub fn ir_live_at(&self, ir_block: ir::Block) -> BoundEntitySet<'f, ir::Value> {
+    pub fn ir_live_at(&self, ir_block: ir::Block) -> BoundSet<'f, ir::Value, ()> {
         self.analysis.live.live_at(ir_block)
     }
 
     /// Gets the set of EIR values that are live in the given block
     #[inline]
-    pub fn live_in(&self, block: Block) -> BoundEntitySet<'f, ir::Value> {
+    pub fn live_in(&self, block: Block) -> BoundSet<'f, ir::Value, ()> {
         let ir_block = self.get_ir_block(block);
         self.analysis.live.live_in(ir_block)
     }
@@ -562,12 +563,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         // If this is a closure, extract the environment
         // A closure will have more than 1 live value, otherwise it is a regular function
         let live_at = self.live_at(entry_block);
+        let live_at_size = live_at.iter().count();
         debug_in!(
             self,
             "found {} live values at the entry block",
-            live_at.size()
+            live_at_size
         );
-        if live_at.size() > 0 {
+        if live_at_size > 0 {
             self.unpack_closure_env(entry_block, &live_at)?;
         }
 
@@ -597,7 +599,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     fn unpack_closure_env(
         &mut self,
         entry: Block,
-        live_at: &BoundEntitySet<'f, ir::Value>,
+        live_at: &BoundSet<'f, ir::Value, ()>,
     ) -> Result<()> {
         debug_in!(self, "unpacking closure environment: {:?}", live_at);
         for live in live_at.iter() {
@@ -633,7 +635,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             .copied()
             .expect("expected closure env argument from block");
         let env = self.value_ref(env_value);
-        let num_values = live_at.size();
+        let num_values = live_at.iter().count();
         let mut values: Vec<ValueRef> = Vec::with_capacity(num_values);
         unsafe {
             let result = MLIRBuildUnpackEnv(
@@ -1009,6 +1011,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         debug_in!(self, "branch {} has {} args", i, num_args);
                         let mut args = Vec::with_capacity(num_args);
                         for n in 0..num_args {
+                            assert_ne!(num_args, 0);
                             args.push(self.eir.value_list_get_n(args_vl, n).unwrap());
                         }
                         Pattern {
@@ -1024,7 +1027,6 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     loc,
                     selector: self.build_value(reads[1])?,
                     branches,
-                    reads: (&reads[2..]).to_vec(),
                 })
             }
             // Requests that a trace be saved
@@ -1074,8 +1076,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     debug_in!(self, "block contains binary push operation");
                     let ok = self.get_block_by_value(reads[0]);
                     let err = self.get_block_by_value(reads[1]);
-                    let head = self.build_value(reads[2])?;
-                    let tail = self.build_value(reads[3])?;
+                    let bin = self.build_value(reads[2])?;
+                    let value = self.build_value(reads[3])?;
                     let size = if num_reads > 4 {
                         Some(self.build_value(reads[4])?)
                     } else {
@@ -1087,8 +1089,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                             loc,
                             ok,
                             err,
-                            head,
-                            tail,
+                            bin,
+                            value,
                             size,
                             spec: bin_push.specifier.clone(),
                         }),

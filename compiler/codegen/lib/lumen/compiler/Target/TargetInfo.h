@@ -52,7 +52,7 @@ struct TargetInfoImpl {
 
   LLVMType pointerWidthIntTy, i1Ty, i8Ty, i32Ty;
   LLVMType bigIntTy, floatTy;
-  LLVMType binaryTy;
+  LLVMType binaryTy, binPushResultTy;
   LLVMType consTy;
   LLVMType opaqueFnTy;
   LLVMType uniqueTy, defTy;
@@ -92,6 +92,8 @@ class TargetInfo {
   mlir::LLVM::LLVMType getI8Type();
   mlir::LLVM::LLVMType getI32Type();
   mlir::LLVM::LLVMType getOpaqueFnType();
+
+  mlir::LLVM::LLVMType getBinaryPushResultType() { return impl->binPushResultTy; }
 
   mlir::LLVM::LLVMType getClosureUniqueType() { return impl->uniqueTy; }
   mlir::LLVM::LLVMType getClosureDefinitionType() { return impl->defTy; }

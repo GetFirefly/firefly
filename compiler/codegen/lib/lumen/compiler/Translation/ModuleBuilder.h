@@ -104,7 +104,7 @@ class ModuleBuilder {
   Value build_tuple(Location loc, ArrayRef<Value> elements);
   Value build_map(Location loc, ArrayRef<MapEntry> entries);
   void build_binary_start(Location loc, Block *cont);
-  void build_binary_push(Location loc, Value head, Value tail, Value size,
+  void build_binary_push(Location loc, Value bin, Value value, Value size,
                          BinarySpecifier *spec, Block *ok, Block *err);
   void build_binary_finish(Location loc, Block *cont, Value bin);
   void build_receive_start(Location loc, Block *cont, Value timeout);

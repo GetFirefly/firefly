@@ -5,6 +5,8 @@
 
 namespace lumen {
 namespace eir {
+class BinaryStartOpConversion;
+class BinaryFinishOpConversion;
 class BinaryPushOpConversion;
 
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,

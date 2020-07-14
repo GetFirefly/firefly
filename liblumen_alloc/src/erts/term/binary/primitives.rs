@@ -1,4 +1,7 @@
+use core::convert::TryInto;
 use core::ptr;
+
+use crate::erts::term::prelude::{Encoded, SmallInteger, Term, TypeError};
 
 /// Creates a mask which can be used to extract bits from a byte
 ///
@@ -124,7 +127,7 @@ impl CopyDirection {
 /// the copy directions, it is possible to reverse the copied bits, see
 /// the `CopyDirection` enum for more info.
 pub unsafe fn copy_bits(
-    src: *mut u8,
+    src: *const u8,
     src_offs: usize,
     src_d: CopyDirection,
     dst: *mut u8,
@@ -253,4 +256,14 @@ pub unsafe fn copy_bits(
             ptr::write(dst, mask_bits(src_bits1, *dst, rmask));
         }
     }
+}
+
+pub fn calculate_bit_size(
+    size: Term,
+    unit: u8,
+    flags: super::builder::BinaryPushFlags,
+) -> Result<usize, ()> {
+    let tt = size.decode().unwrap();
+    let small: SmallInteger = tt.try_into().map_err(|_| ())?;
+    small.try_into().map_err(|_| ())
 }

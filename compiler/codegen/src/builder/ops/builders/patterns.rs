@@ -115,8 +115,6 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
         // Get match inputs
         let selector = self.builder.value_ref(op.selector);
         debug_in!(self.builder, "selector is {:?}", op.selector);
-        let reads = op.reads.as_slice();
-        debug_in!(self.builder, "reads are {:?}", reads);
         let mut branches = Vec::with_capacity(op.branches.len());
         for Pattern {
             loc,
@@ -131,7 +129,8 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
                 kind,
                 block
             );
-            branches.push(self.translate_branch_kind(loc, kind, block, args.as_slice(), reads)?);
+            debug_in!(self.builder, "args: {:?}", &args);
+            branches.push(self.translate_branch_kind(loc, kind, block, args.as_slice())?);
         }
 
         let match_op = MatchOp {
@@ -152,7 +151,6 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
         kind: ir::MatchKind,
         block: Block,
         args: &[ir::Value],
-        reads: &[ir::Value],
     ) -> Result<MatchBranch> {
         use ir::MatchKind;
 
@@ -199,7 +197,7 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
         // Move ownership of block arguments vector to builder
         let arglist = self
             .builder
-            .build_target_block_args(block, reads)
+            .build_target_block_args(block, &[])
             .drain(..)
             .map(|v| self.builder.value_ref(v))
             .collect::<Vec<_>>();
@@ -216,12 +214,15 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
         let dest_argv = args.as_ptr();
         let dest_argc = args.len() as libc::c_uint;
 
-        Ok(MatchBranch {
+        let branch = MatchBranch {
             loc,
             dest: self.builder.block_ref(block),
             dest_argv,
             dest_argc,
             pattern,
-        })
+        };
+        debug_in!(self.builder, "built match branch: {:?}", &branch);
+
+        Ok(branch)
     }
 }

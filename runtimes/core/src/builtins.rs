@@ -2,6 +2,7 @@ use std::convert::TryInto;
 use std::panic;
 
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_core::sys::Endianness;
 
 use crate::process::current_process;
 
@@ -165,4 +166,198 @@ integer_math_builtin!("__lumen_builtin_math.bxor", builtin_math_bxor, bitxor);
 pub extern "C" fn builtin_trace_capture() -> Term {
     // TODO:
     Term::NIL
+}
+
+/// Binary Construction
+#[export_name = "__lumen_builtin_binary_start"]
+pub extern "C" fn builtin_binary_start() -> *mut BinaryBuilder {
+    let builder = Box::new(BinaryBuilder::new());
+    Box::into_raw(builder)
+}
+
+#[export_name = "__lumen_builtin_binary_finish"]
+pub extern "C" fn builtin_binary_finish(builder: *mut BinaryBuilder) -> Term {
+    let builder = unsafe { Box::from_raw(builder) };
+    let bytes = builder.finish();
+    // TODO: Need to properly handle cases where heap runs out of space
+    current_process()
+        .binary_from_bytes(bytes.as_slice())
+        .unwrap()
+}
+
+#[export_name = "__lumen_builtin_binary_push_integer"]
+pub extern "C" fn builtin_binary_push_integer(
+    builder: &mut BinaryBuilder,
+    value: Term,
+    size: Term,
+    unit: u8,
+    signed: bool,
+    endianness: Endianness,
+) -> BinaryPushResult {
+    let tt = value.decode().unwrap();
+    let val: Result<Integer, _> = tt.try_into();
+    let result = if let Ok(i) = val {
+        let flags = BinaryPushFlags::new(signed, endianness);
+        let bit_size = calculate_bit_size(size, unit, flags).unwrap();
+        builder.push_integer(i, bit_size, flags)
+    } else {
+        Err(())
+    };
+    BinaryPushResult {
+        builder,
+        success: result.is_ok(),
+    }
+}
+
+#[export_name = "__lumen_builtin_binary_push_float"]
+pub extern "C" fn builtin_binary_push_float(
+    builder: &mut BinaryBuilder,
+    value: Term,
+    size: Term,
+    unit: u8,
+    signed: bool,
+    endianness: Endianness,
+) -> BinaryPushResult {
+    let tt = value.decode().unwrap();
+    let val: Result<Float, _> = tt.try_into();
+    let result = if let Ok(f) = val {
+        let flags = BinaryPushFlags::new(signed, endianness);
+        let bit_size = calculate_bit_size(size, unit, flags).unwrap();
+        builder.push_float(f.into(), bit_size, flags)
+    } else {
+        Err(())
+    };
+    BinaryPushResult {
+        builder,
+        success: result.is_ok(),
+    }
+}
+
+#[export_name = "__lumen_builtin_binary_push_utf8"]
+pub extern "C" fn builtin_binary_push_utf8(
+    builder: &mut BinaryBuilder,
+    value: Term,
+) -> BinaryPushResult {
+    let tt = value.decode().unwrap();
+    let val: Result<SmallInteger, _> = tt.try_into();
+    let result = if let Ok(small) = val {
+        builder.push_utf8(small.into())
+    } else {
+        Err(())
+    };
+    BinaryPushResult {
+        builder,
+        success: result.is_ok(),
+    }
+}
+
+#[export_name = "__lumen_builtin_binary_push_utf16"]
+pub extern "C" fn builtin_binary_push_utf16(
+    builder: &mut BinaryBuilder,
+    value: Term,
+    signed: bool,
+    endianness: Endianness,
+) -> BinaryPushResult {
+    let tt = value.decode().unwrap();
+    let val: Result<SmallInteger, _> = tt.try_into();
+    let result = if let Ok(small) = val {
+        let flags = BinaryPushFlags::new(signed, endianness);
+        builder.push_utf16(small.into(), flags)
+    } else {
+        Err(())
+    };
+    BinaryPushResult {
+        builder,
+        success: result.is_ok(),
+    }
+}
+
+#[export_name = "__lumen_builtin_binary_push_utf32"]
+pub extern "C" fn builtin_binary_push_utf32(
+    builder: &mut BinaryBuilder,
+    value: Term,
+    size: Term,
+    unit: u8,
+    signed: bool,
+    endianness: Endianness,
+) -> BinaryPushResult {
+    let tt = value.decode().unwrap();
+    let result: Result<SmallInteger, _> = tt.try_into();
+    if let Ok(small) = result {
+        let i: isize = small.into();
+        if i > 0x10FFFF || (0xD800 <= i && i <= 0xDFFF) {
+            // Invalid utf32 integer
+            return BinaryPushResult {
+                builder,
+                success: false,
+            };
+        }
+        let flags = BinaryPushFlags::new(signed, endianness);
+        let bit_size = calculate_bit_size(size, unit, flags).unwrap();
+        let success = builder.push_integer(small.into(), bit_size, flags).is_ok();
+        BinaryPushResult { builder, success }
+    } else {
+        BinaryPushResult {
+            builder,
+            success: false,
+        }
+    }
+}
+
+#[export_name = "__lumen_builtin_binary_push_binary"]
+pub extern "C" fn builtin_binary_push_binary(
+    builder: &mut BinaryBuilder,
+    value: Term,
+    size: Term,
+    unit: u8,
+) -> BinaryPushResult {
+    let flags = BinaryPushFlags::default();
+    let bit_size = calculate_bit_size(size, unit, flags).unwrap();
+    let result = match value.decode().unwrap() {
+        TypedTerm::HeapBinary(bin) => builder.push_binary(bin, None, bit_size),
+        TypedTerm::ProcBin(bin) => builder.push_binary(bin, None, bit_size),
+        TypedTerm::BinaryLiteral(bin) => builder.push_binary(bin, None, bit_size),
+        TypedTerm::SubBinary(bin) => {
+            builder.push_binary(bin, Some(bin.bit_offset() as usize), bit_size)
+        }
+        TypedTerm::MatchContext(bin) => builder.push_binary(bin, None, bit_size),
+        _ => Err(()),
+    };
+    BinaryPushResult {
+        builder,
+        success: result.is_ok(),
+    }
+}
+
+#[export_name = "__lumen_builtin_binary_push_binary_all"]
+pub extern "C" fn builtin_binary_push_binary_all(
+    builder: &mut BinaryBuilder,
+    value: Term,
+    unit: u8,
+) -> BinaryPushResult {
+    let result = match value.decode().unwrap() {
+        TypedTerm::HeapBinary(bin) => builder.push_binary_all(bin, None, unit),
+        TypedTerm::ProcBin(bin) => builder.push_binary_all(bin, None, unit),
+        TypedTerm::BinaryLiteral(bin) => builder.push_binary_all(bin, None, unit),
+        TypedTerm::SubBinary(bin) => {
+            builder.push_binary_all(bin, Some(bin.bit_offset() as usize), unit)
+        }
+        TypedTerm::MatchContext(bin) => builder.push_binary_all(bin, None, unit),
+        _ => Err(()),
+    };
+    BinaryPushResult {
+        builder,
+        success: result.is_ok(),
+    }
+}
+
+#[export_name = "__lumen_builtin_binary_push_string"]
+pub extern "C" fn builtin_binary_push_string(
+    builder: &mut BinaryBuilder,
+    buffer: *const u8,
+    len: usize,
+) -> BinaryPushResult {
+    let bytes = unsafe { core::slice::from_raw_parts(buffer, len) };
+    let success = builder.push_string(bytes).is_ok();
+    BinaryPushResult { builder, success }
 }

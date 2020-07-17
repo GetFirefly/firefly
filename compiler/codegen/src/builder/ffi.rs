@@ -4,6 +4,7 @@ use liblumen_compiler_macros::foreign_struct;
 use liblumen_llvm as llvm;
 use liblumen_mlir::ir::*;
 use liblumen_mlir::{ContextRef, ModuleRef};
+use liblumen_target::Endianness;
 
 use crate::builder::function::Param;
 
@@ -73,25 +74,6 @@ pub struct Closure {
     pub env_len: libc::c_uint,
 }
 
-/// The endianness of a binary specifier entry
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[repr(u32)]
-pub enum Endianness {
-    Big,
-    Little,
-    Native,
-}
-impl From<libeir_ir::Endianness> for Endianness {
-    fn from(e: libeir_ir::Endianness) -> Self {
-        use libeir_ir::Endianness::*;
-        match e {
-            Big => Self::Big,
-            Little => Self::Little,
-            Native => Self::Native,
-        }
-    }
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(C)]
 pub enum BinarySpecifier {
@@ -128,23 +110,32 @@ impl From<&libeir_ir::BinaryEntrySpecifier> for BinarySpecifier {
                 unit,
             } => BinarySpecifier::Integer {
                 signed,
-                endianness: endianness.into(),
+                endianness: eir_to_target_endianness(endianness),
                 unit,
             },
             Float { endianness, unit } => BinarySpecifier::Float {
-                endianness: endianness.into(),
+                endianness: eir_to_target_endianness(endianness),
                 unit,
             },
             Bytes { unit } => BinarySpecifier::Bytes { unit },
             Bits { unit } => BinarySpecifier::Bits { unit },
             Utf8 => BinarySpecifier::Utf8,
             Utf16 { endianness } => BinarySpecifier::Utf16 {
-                endianness: endianness.into(),
+                endianness: eir_to_target_endianness(endianness),
             },
             Utf32 { endianness } => BinarySpecifier::Utf32 {
-                endianness: endianness.into(),
+                endianness: eir_to_target_endianness(endianness),
             },
         }
+    }
+}
+
+#[inline]
+fn eir_to_target_endianness(e: libeir_ir::Endianness) -> Endianness {
+    match e {
+        libeir_ir::Endianness::Big => Endianness::Big,
+        libeir_ir::Endianness::Little => Endianness::Little,
+        libeir_ir::Endianness::Native => Endianness::Native,
     }
 }
 
@@ -489,8 +480,8 @@ extern "C" {
     pub fn MLIRBuildBinaryPush(
         builder: ModuleBuilderRef,
         loc: LocationRef,
-        head: ValueRef,
-        tail: ValueRef,
+        bin: ValueRef,
+        value: ValueRef,
         size: ValueRef,
         spec: &BinarySpecifier,
         ok_block: BlockRef,

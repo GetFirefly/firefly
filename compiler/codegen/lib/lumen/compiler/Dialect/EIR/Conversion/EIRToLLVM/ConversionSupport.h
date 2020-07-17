@@ -67,6 +67,7 @@ using llvm_landingpad = ValueBuilder<LLVM::LandingpadOp>;
 using eir_cast = ValueBuilder<::lumen::eir::CastOp>;
 using eir_gep = ValueBuilder<::lumen::eir::GetElementPtrOp>;
 using eir_malloc = ValueBuilder<::lumen::eir::MallocOp>;
+using eir_cons = ValueBuilder<::lumen::eir::ConsOp>;
 using eir_tuple = ValueBuilder<::lumen::eir::TupleOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;

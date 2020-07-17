@@ -26,13 +26,13 @@ impl BinaryPushBuilder {
     ) -> Result<Option<Value>> {
         let ok = builder.block_ref(op.ok);
         let err = builder.block_ref(op.err);
-        let head = builder.value_ref(op.head);
-        let tail = builder.value_ref(op.tail);
+        let bin = builder.value_ref(op.bin);
+        let value = builder.value_ref(op.value);
         let size = op.size.map(|s| builder.value_ref(s)).unwrap_or_default();
         let spec = (&op.spec).into();
 
         unsafe {
-            MLIRBuildBinaryPush(builder.as_ref(), op.loc, head, tail, size, &spec, ok, err);
+            MLIRBuildBinaryPush(builder.as_ref(), op.loc, bin, value, size, &spec, ok, err);
         }
 
         Ok(None)

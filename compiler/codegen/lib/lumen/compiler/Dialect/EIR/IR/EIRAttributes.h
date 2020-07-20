@@ -14,6 +14,7 @@ class Type;
 }  // namespace mlir
 
 using ::llvm::APInt;
+using ::llvm::APFloat;
 using ::llvm::ArrayRef;
 using ::llvm::StringRef;
 using ::mlir::Attribute;
@@ -26,6 +27,8 @@ namespace eir {
 namespace detail {
 struct AtomAttributeStorage;
 struct FixnumAttributeStorage;
+struct BigIntAttributeStorage;
+struct FloatAttributeStorage;
 struct BinaryAttributeStorage;
 struct SeqAttributeStorage;
 }  // namespace detail
@@ -34,6 +37,8 @@ namespace AttributeKind {
 enum Kind {
   Atom = Attribute::FIRST_EIR_ATTR,
   Fixnum,
+  BigInt,
+  Float,
   Binary,
   Seq,
 };
@@ -73,6 +78,45 @@ class FixnumAttr : public Attribute::AttrBase<FixnumAttr, Attribute,
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool kindof(unsigned kind) {
     return kind == static_cast<unsigned>(AttributeKind::Fixnum);
+  }
+};
+
+class BigIntAttr : public Attribute::AttrBase<BigIntAttr, Attribute,
+                                            detail::BigIntAttributeStorage> {
+ public:
+  using Base::Base;
+  using ValueType = APInt;
+
+  static BigIntAttr get(MLIRContext *context, APInt value, bool isSigned = false);
+  static BigIntAttr get(MLIRContext *context, StringRef value, unsigned width);
+
+  static StringRef getAttrName() { return "bigint"; }
+
+  APInt &getValue() const;
+  std::string getValueAsString() const;
+  std::string getHash() const;
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  static bool kindof(unsigned kind) {
+    return kind == static_cast<unsigned>(AttributeKind::BigInt);
+  }
+};
+
+class FloatAttr : public Attribute::AttrBase<FloatAttr, Attribute,
+                                            detail::FloatAttributeStorage> {
+ public:
+  using Base::Base;
+  using ValueType = APFloat;
+
+  static FloatAttr get(MLIRContext *context, APFloat value);
+
+  static StringRef getAttrName() { return "float"; }
+
+  APFloat &getValue() const;
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  static bool kindof(unsigned kind) {
+    return kind == static_cast<unsigned>(AttributeKind::Float);
   }
 };
 

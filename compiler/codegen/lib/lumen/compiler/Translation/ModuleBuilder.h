@@ -85,12 +85,6 @@ class ModuleBuilder {
   std::unique_ptr<MatchPattern> convertMatchPattern(
       const MLIRMatchPattern &inPattern);
 
-  void build_map_update(MapUpdate op);
-  void build_map_insert_op(Location loc, Value map, Value key, Value val,
-                           Block *ok, Block *err);
-  void build_map_update_op(Location loc, Value map, Value key, Value val,
-                           Block *ok, Block *err);
-
   Value build_is_type_op(Location loc, Value value, Type matchType);
   Value build_is_equal(Location loc, Value lhs, Value rhs, bool isExact);
   Value build_is_not_equal(Location loc, Value lhs, Value rhs, bool isExact);
@@ -103,6 +97,7 @@ class ModuleBuilder {
   Value build_cons(Location loc, Value head, Value tail);
   Value build_tuple(Location loc, ArrayRef<Value> elements);
   Value build_map(Location loc, ArrayRef<MapEntry> entries);
+  void build_map_update(MapUpdate op);
   void build_binary_start(Location loc, Block *cont);
   void build_binary_push(Location loc, Value bin, Value value, Value size,
                          BinarySpecifier *spec, Block *ok, Block *err);
@@ -118,7 +113,7 @@ class ModuleBuilder {
   // Constants
   //===----------------------------------------------------------------------===//
 
-  Attribute build_float_attr(Type type, double value);
+  Attribute build_float_attr(double value);
   Value build_constant_float(Location loc, double value);
   Value build_constant_int(Location loc, int64_t value);
   Attribute build_int_attr(int64_t value, bool isSigned = true);

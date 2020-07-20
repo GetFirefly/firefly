@@ -69,6 +69,7 @@ using eir_gep = ValueBuilder<::lumen::eir::GetElementPtrOp>;
 using eir_malloc = ValueBuilder<::lumen::eir::MallocOp>;
 using eir_cons = ValueBuilder<::lumen::eir::ConsOp>;
 using eir_tuple = ValueBuilder<::lumen::eir::TupleOp>;
+using eir_map = ValueBuilder<::lumen::eir::ConstructMapOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 using eir_constant_float = ValueBuilder<::lumen::eir::ConstantFloatOp>;

@@ -31,14 +31,14 @@ impl ConstantBuilder {
             ConstKind::ListCell { head, tail } => {
                 debug_in!(
                     builder,
-                    "building constant cons cell; head: {:?}, tail: {:?}",
+                    "building constant cons cell: head: {:?}, tail: {:?}",
                     head,
                     tail
                 );
                 Self::list(builder, constant, loc, ir_value, head, tail)
             }
             ConstKind::Tuple { ref entries } => {
-                debug_in!(builder, "building constant tuple; {:?}", entries);
+                debug_in!(builder, "building constant tuple: {:?}", entries);
                 Self::tuple(builder, constant, loc, ir_value, entries)
             }
             ConstKind::Map {
@@ -53,7 +53,7 @@ impl ConstantBuilder {
                         .zip(vs.iter().copied())
                         .collect::<Vec<_>>()
                 };
-                debug_in!(builder, "building constant map; {:?}", &kvs);
+                debug_in!(builder, "building constant map: {:?}", &kvs);
                 Self::map(builder, constant, loc, ir_value, kvs.as_slice())
             }
         }

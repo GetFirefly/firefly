@@ -1,10 +1,59 @@
 use std::convert::TryInto;
 use std::panic;
 
+use hashbrown::HashMap;
+
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_core::sys::Endianness;
 
 use crate::process::current_process;
+
+#[export_name = "__lumen_builtin_bigint_from_cstr"]
+pub extern "C" fn builtin_bigint_from_cstr(ptr: *const u8, size: usize) -> Term {
+    let bytes = unsafe { core::slice::from_raw_parts(ptr, size) };
+    let value = BigInteger::from_bytes(bytes).unwrap();
+    current_process().integer(value).unwrap_or(Term::NONE)
+}
+
+#[export_name = "__lumen_builtin_map.new"]
+pub extern "C" fn builtin_map_new() -> Term {
+    current_process()
+        .map_from_hash_map(HashMap::default())
+        .unwrap_or(Term::NONE)
+}
+
+#[export_name = "__lumen_builtin_map.insert"]
+pub extern "C" fn builtin_map_insert(map: Term, key: Term, value: Term) -> Term {
+    let decodedMap: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
+    if let Ok(m) = decodedMap {
+        if let Some(newMap) = m.put(key, value) {
+            current_process()
+                .map_from_hash_map(newMap)
+                .unwrap_or(Term::NONE)
+        } else {
+            map
+        }
+    } else {
+        Term::NONE
+    }
+}
+
+#[export_name = "__lumen_builtin_map.update"]
+pub extern "C" fn builtin_map_update(map: Term, key: Term, value: Term) -> Term {
+    let decodedMap: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
+    if let Ok(m) = decodedMap {
+        if let Some(newMap) = m.update(key, value) {
+            current_process()
+                .map_from_hash_map(newMap)
+                .unwrap_or(Term::NONE)
+        } else {
+            // TODO: Trigger badkey error
+            Term::NONE
+        }
+    } else {
+        Term::NONE
+    }
+}
 
 #[export_name = "__lumen_builtin_self"]
 pub extern "C" fn builtin_self() -> Term {

@@ -51,9 +51,34 @@ struct ConstantBigIntOpConversion : public EIROpConversion<ConstantBigIntOp> {
   using EIROpConversion::EIROpConversion;
 
   LogicalResult matchAndRewrite(
-      ConstantBigIntOp _op, ArrayRef<Value> _operands,
-      ConversionPatternRewriter &_rewriter) const override {
-    assert(false && "ConstantBigIntOpConversion is unimplemented");
+      ConstantBigIntOp op, ArrayRef<Value> _operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+
+    auto bigIntAttr = op.getValue().cast<BigIntAttr>();
+    auto bigIntStr = bigIntAttr.getValueAsString();
+    auto termTy = ctx.getUsizeType();
+    auto i8Ty = ctx.getI8Type();
+    auto i8PtrTy = i8Ty.getPointerTo();
+
+    // Create constant string to hold bigint value
+    auto name = bigIntAttr.getHash();
+    auto bytesGlobal = ctx.getOrInsertConstantString(name, bigIntStr);
+
+    // Invoke the runtime function that will reify a BigInt term from the constant string
+    auto globalPtr = llvm_bitcast(i8PtrTy, llvm_addressof(bytesGlobal));
+    Value size =
+        llvm_constant(termTy, ctx.getIntegerAttr(bigIntStr.size()));
+
+    StringRef symbolName("__lumen_builtin_bigint_from_cstr");
+    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {i8PtrTy, termTy});
+
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
+                                              ArrayRef<Value>{globalPtr, size});
+
+    return success();   
   }
 };
 
@@ -123,14 +148,14 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto attr = op.getValue().cast<FloatAttr>();
-    auto rawVal = attr.getValue();
-    auto floatTy = ctx.targetInfo.getFloatType();
-    auto val = llvm_constant(floatTy,
-                             rewriter.getF64FloatAttr(attr.getValueAsDouble()));
+    auto attr = op.getValue().cast<eir::FloatAttr>();
+    auto apVal = attr.getValue();
+    auto termTy = ctx.getUsizeType();
 
     // On nanboxed targets, floats are treated normally
     if (!ctx.targetInfo.requiresPackedFloats()) {
+      auto f = apVal.bitcastToAPInt();
+      auto val = llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue()));
       rewriter.replaceOp(op, {val});
       return success();
     }
@@ -139,10 +164,12 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     // This requires generating a descriptor around the float,
     // which can then either be placed on the heap and boxed, or
     // passed by value on the stack and accessed directly
-    auto termTy = ctx.getUsizeType();
 
+    auto floatTy = ctx.targetInfo.getFloatType();
+    auto val = llvm_constant(floatTy,
+                             rewriter.getF64FloatAttr(apVal.convertToDouble()));
     auto headerName = std::string("float_") +
-                      std::to_string(rawVal.bitcastToAPInt().getLimitedValue());
+                      std::to_string(apVal.bitcastToAPInt().getLimitedValue());
     ModuleOp mod = ctx.getModule();
     LLVM::GlobalOp headerConst = mod.lookupSymbol<LLVM::GlobalOp>(headerName);
     if (!headerConst) {
@@ -163,7 +190,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
       Value headerTerm = llvm_constant(
           termTy, ctx.getIntegerAttr(headerTermVal.getLimitedValue()));
       Value floatVal = llvm_constant(
-          f64Ty, rewriter.getF64FloatAttr(rawVal.convertToDouble()));
+          f64Ty, rewriter.getF64FloatAttr(apVal.convertToDouble()));
       Value header = llvm_undef(floatTy);
       header = llvm_insertvalue(floatTy, header, headerTerm,
                                 rewriter.getI64ArrayAttr(0));
@@ -232,7 +259,6 @@ struct ConstantNoneOpConversion : public EIROpConversion<ConstantNoneOp> {
     return success();
   }
 };
-
 
 struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
   using EIROpConversion::EIROpConversion;
@@ -370,6 +396,32 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
   }
 };
 #endif
+
+struct ConstantMapOpConversion : public EIROpConversion<ConstantMapOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      ConstantMapOp op, ArrayRef<Value> _operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+
+    auto termTy = ctx.getUsizeType();
+    auto attr = op.getValue().cast<SeqAttr>();
+    auto elementAttrs = attr.getValue();
+
+    SmallVector<Value, 2> elements;
+    for (auto elementAttr : elementAttrs) {
+       auto element = lowerElementValue(ctx, elementAttr);
+       assert(element && "unsupported element type in map");
+       elements.push_back(element);
+    }
+
+    Value map = eir_map(elements);
+    rewriter.replaceOp(op, map);
+
+    return success();
+  }
+};
 
 struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
   using EIROpConversion::EIROpConversion;
@@ -599,6 +651,13 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
     auto tagged = ctx.targetInfo.encodeImmediate(TypeKind::Atom, id);
     return llvm_constant(termTy, ctx.getIntegerAttr(tagged));
   }
+  // Atoms
+  if (auto atomAttr = elementAttr.dyn_cast_or_null<AtomAttr>()) {
+    auto id = atomAttr.getValue().getLimitedValue();
+    auto tagged =
+      ctx.targetInfo.encodeImmediate(TypeKind::Atom, id);
+    return llvm_constant(termTy, ctx.getIntegerAttr(tagged));
+  }
   // Integers
   if (auto intAttr = elementAttr.dyn_cast_or_null<FixnumAttr>()) {
     auto i = intAttr.getValue();
@@ -617,7 +676,15 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
     return llvm_constant(termTy, ctx.getIntegerAttr(tagged));
   }
   // Floats
-  if (auto floatAttr = elementAttr.dyn_cast_or_null<FloatAttr>()) {
+  if (auto floatAttr = elementAttr.dyn_cast_or_null<eir::FloatAttr>()) {
+    if (!ctx.targetInfo.requiresPackedFloats()) {
+      auto f = floatAttr.getValue().bitcastToAPInt();
+      return llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue()));
+    }
+    // Packed float
+    return eir_cast(eir_constant_float(floatAttr.getValue()), eirTermType);
+  }
+  if (auto floatAttr = elementAttr.dyn_cast_or_null<mlir::FloatAttr>()) {
     if (!ctx.targetInfo.requiresPackedFloats()) {
       auto f = floatAttr.getValue().bitcastToAPInt();
       return llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue()));
@@ -632,13 +699,54 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
   }
   //  Nested aggregates
   if (auto aggAttr = elementAttr.dyn_cast_or_null<SeqAttr>()) {
+    auto elementAttrs = aggAttr.getValue();
     // Tuples
     if (auto tupleTy = aggAttr.getType().dyn_cast_or_null<TupleType>()) {
-      return eir_cast(eir_constant_tuple(tupleTy, aggAttr), eirTermType);
+      SmallVector<Value, 2> elements;
+      for (auto elementAttr : elementAttrs) {
+        auto element = lowerElementValue(ctx, elementAttr);
+        assert(element && "unsupported element type in tuple");
+        elements.push_back(element);
+      }
+
+      return eir_cast(eir_tuple(elements), eirTermType);
     }
     // Lists
     if (auto consTy = aggAttr.getType().dyn_cast_or_null<ConsType>()) {
-      return eir_cast(eir_constant_list(consTy, aggAttr), eirTermType);
+      auto numElements = elementAttrs.size();
+
+      if (numElements == 0) {
+        return eir_cast(eir_nil(), eirTermType);
+      }
+
+      // Lower to single cons cell if it fits
+      if (numElements <= 2) {
+        Value head = lowerElementValue(ctx, elementAttrs[0]);
+        assert(head && "unsupported element type in cons cell");
+        Value tail = lowerElementValue(ctx, elementAttrs[1]);
+        assert(tail && "unsupported element type in cons cell");
+        return eir_cast(eir_cons(head, tail), eirTermType);
+      }
+
+      unsigned cellsRequired = numElements;
+      unsigned currentIndex = numElements;
+
+      Value list;
+      while (currentIndex > 0) {
+        if (!list) {
+          Value tail = lowerElementValue(ctx, elementAttrs[--currentIndex]);
+          assert(tail && "unsupported element type in cons cell");
+          Value head = lowerElementValue(ctx, elementAttrs[--currentIndex]);
+          assert(head && "unsupported element type in cons cell");
+          list = eir_cons(head, tail);
+        } else {
+          Value head = lowerElementValue(ctx, elementAttrs[--currentIndex]);
+          assert(head && "unsupported element type in cons cell");
+          list = eir_cons(head, list);
+        }
+      }
+
+      return eir_cast(list, eirTermType);
     }
   }
 
@@ -652,7 +760,7 @@ void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
   patterns.insert<ConstantAtomOpConversion, ConstantBigIntOpConversion,
                   ConstantBinaryOpConversion,
                   ConstantFloatOpConversion, ConstantIntOpConversion,
-                  ConstantListOpConversion, /*ConstantMapOpConversion,*/
+                  ConstantListOpConversion, ConstantMapOpConversion,
                   ConstantNilOpConversion, ConstantNoneOpConversion,
                   ConstantTupleOpConversion, NullOpConversion>(
       context, converter, targetInfo);

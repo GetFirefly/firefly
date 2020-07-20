@@ -15,8 +15,12 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
     Value in = adaptor.input();
 
     auto termTy = ctx.getUsizeType();
-    Type fromTy = op.getAttrOfType<TypeAttr>("from").getValue();
-    Type toTy = op.getAttrOfType<TypeAttr>("to").getValue();
+    TypeAttr fromAttr = op.getAttrOfType<TypeAttr>("from");
+    assert(fromAttr && "expected cast to contain 'from' attribute!");
+    TypeAttr toAttr = op.getAttrOfType<TypeAttr>("to");
+    assert(toAttr && "expected cast to contain 'to' attribute!");
+    Type fromTy = fromAttr.getValue();
+    Type toTy = toAttr.getValue();
 
     // Remove redundant casts
     if (fromTy == toTy) {

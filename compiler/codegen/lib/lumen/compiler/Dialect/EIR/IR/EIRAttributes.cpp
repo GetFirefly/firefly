@@ -118,6 +118,123 @@ FixnumAttr FixnumAttr::get(MLIRContext *context, APInt value) {
 APInt &FixnumAttr::getValue() const { return getImpl()->value; }
 
 //===----------------------------------------------------------------------===//
+// BigIntAttr
+//===----------------------------------------------------------------------===//
+
+/// An attribute representing an arbitrarily large integer literal value.
+namespace lumen {
+namespace eir {
+namespace detail {
+struct BigIntAttributeStorage : public AttributeStorage {
+  using KeyTy = std::tuple<Type, APInt, bool>;
+
+  BigIntAttributeStorage(Type type, APInt value, bool isSigned)
+      : AttributeStorage(type), value(std::move(value)), isSigned(isSigned) {}
+
+  /// Key equality function.
+  bool operator==(const KeyTy &key) const {
+    auto keyType = std::get<Type>(key);
+    auto keyValue = std::get<APInt>(key);
+    return keyType == getType() && keyValue == value;
+  }
+
+  static unsigned hashKey(const KeyTy &key) {
+    return hash_combine(hash_value(std::get<Type>(key)),
+                        hash_value(std::get<APInt>(key)));
+  }
+
+  /// Construct a new storage instance.
+  static BigIntAttributeStorage *construct(AttributeStorageAllocator &allocator,
+                                         const KeyTy &key) {
+    auto type = std::get<Type>(key);
+    auto value = new (allocator.allocate<APInt>()) APInt(std::get<APInt>(key));
+    auto isSigned = std::get<bool>(key);
+    return new (allocator.allocate<BigIntAttributeStorage>())
+        BigIntAttributeStorage(type, *value, isSigned);
+  }
+
+  APInt value;
+  bool isSigned;
+};  // struct BigIntAttr
+}  // namespace detail
+}  // namespace eir
+}  // namespace lumen
+
+BigIntAttr BigIntAttr::get(MLIRContext *context, APInt value, bool isSigned) {
+  unsigned kind = static_cast<unsigned>(AttributeKind::BigInt);
+  return Base::get(context, kind, BigIntType::get(context), value, isSigned);
+}
+
+BigIntAttr BigIntAttr::get(MLIRContext *context, StringRef value, unsigned width) {
+  bool isSigned = value[0] == '-';
+  APInt i(width, value, /*radix=*/10);
+  unsigned kind = static_cast<unsigned>(AttributeKind::BigInt);
+  return Base::get(context, kind, BigIntType::get(context), i, isSigned);
+}
+
+APInt &BigIntAttr::getValue() const { return getImpl()->value; }
+std::string BigIntAttr::getValueAsString() const {
+  auto value = getImpl()->value;
+  bool isSigned = getImpl()->isSigned;
+  return value.toString(10, /*signed=*/isSigned);
+}
+std::string BigIntAttr::getHash() const {
+  llvm::SHA1 hasher;
+  StringRef bytes = getValueAsString();
+  hasher.update(ArrayRef<uint8_t>((uint8_t *)const_cast<char *>(bytes.data()),
+                                  bytes.size()));
+  return llvm::toHex(hasher.result(), true);
+}
+
+//===----------------------------------------------------------------------===//
+// FloatAttr
+//===----------------------------------------------------------------------===//
+
+/// An attribute representing an fixed-width integer literal value.
+namespace lumen {
+namespace eir {
+namespace detail {
+struct FloatAttributeStorage : public AttributeStorage {
+  using KeyTy = std::tuple<Type, APFloat>;
+
+  FloatAttributeStorage(Type type, APFloat value)
+      : AttributeStorage(type), value(std::move(value)) {}
+
+  /// Key equality function.
+  bool operator==(const KeyTy &key) const {
+    auto keyType = std::get<Type>(key);
+    auto keyValue = std::get<APFloat>(key);
+    return keyType == getType() && keyValue == value;
+  }
+
+  static unsigned hashKey(const KeyTy &key) {
+    return hash_combine(hash_value(std::get<Type>(key)),
+                        hash_value(std::get<APFloat>(key)));
+  }
+
+  /// Construct a new storage instance.
+  static FloatAttributeStorage *construct(AttributeStorageAllocator &allocator,
+                                          const KeyTy &key) {
+    auto type = std::get<Type>(key);
+    auto value = new (allocator.allocate<APFloat>()) APFloat(std::get<APFloat>(key));
+    return new (allocator.allocate<FloatAttributeStorage>())
+        FloatAttributeStorage(type, *value);
+  }
+
+  APFloat value;
+};  // struct FloatAttr
+}  // namespace detail
+}  // namespace eir
+}  // namespace lumen
+
+FloatAttr FloatAttr::get(MLIRContext *context, APFloat value) {
+  unsigned kind = static_cast<unsigned>(AttributeKind::Float);
+  return Base::get(context, kind, FloatType::get(context), value);
+}
+
+APFloat &FloatAttr::getValue() const { return getImpl()->value; }
+
+//===----------------------------------------------------------------------===//
 // BinaryAttr
 //===----------------------------------------------------------------------===//
 

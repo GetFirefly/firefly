@@ -41,6 +41,14 @@ using eir_atom = ValueBuilder<::lumen::eir::ConstantAtomOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 using eir_int = ValueBuilder<::lumen::eir::ConstantIntOp>;
+using eir_bigint = ValueBuilder<::lumen::eir::ConstantBigIntOp>;
+using eir_float = ValueBuilder<::lumen::eir::ConstantFloatOp>;
+using eir_map_insert = OperationBuilder<::lumen::eir::MapInsertOp>;
+using eir_map_update = OperationBuilder<::lumen::eir::MapUpdateOp>;
+using eir_constant_binary = ValueBuilder<::lumen::eir::ConstantBinaryOp>;
+using eir_constant_list = ValueBuilder<::lumen::eir::ConstantListOp>;
+using eir_constant_tuple = ValueBuilder<::lumen::eir::ConstantTupleOp>;
+using eir_constant_map = ValueBuilder<::lumen::eir::ConstantMapOp>;
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::FuncOp, MLIRFunctionOpRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::ModuleBuilder,
@@ -648,82 +656,68 @@ extern "C" void MLIRBuildMapOp(MLIRModuleBuilderRef b, MapUpdate op) {
 }
 
 void ModuleBuilder::build_map_update(MapUpdate op) {
-  assert(op.actionsc > 0 && "cannot construct empty map op");
-  SmallVector<MapAction, 2> actions(op.actionsv, op.actionsv + op.actionsc);
+  assert(op.actionsc > 0 && "expected map insert/update op to contain at least one action");
   Location loc = unwrap(op.loc);
+  edsc::ScopedContext scope(builder, loc);
+
+  ArrayRef<MapAction> actions(op.actionsv, op.actionsv + op.actionsc);
   Value map = unwrap(op.map);
-  Block *ok = unwrap(op.ok);
-  Block *err = unwrap(op.err);
   // Each insert or update implicitly branches to a continuation block for the
   // next insert/update; the last continuation block simply branches
   // unconditionally to the ok block
   Block *current = builder.getInsertionBlock();
-  Region *parent = current->getParent();
-  for (auto it = actions.begin(); it + 1 != actions.end(); ++it) {
-    MapAction action = *it;
+  Block *ok;
+  Block *err;
+
+  auto termType = builder.getType<TermType>();
+
+  unsigned numActions = actions.size();
+  unsigned lastAction = numActions - 1;
+  for (unsigned i = 0; i < numActions; i++) {
+    MapAction action = actions[i];
     Value key = unwrap(action.key);
     Value val = unwrap(action.value);
-    // Create the continuation block, which expects the updated map as an
-    // argument
-    Block *cont = builder.createBlock(parent);
-    auto mapType = builder.getType<MapType>();
-    cont->addArgument(mapType);
-    // createBlock implicitly sets the insertion point to the new block,
-    // so make sure we set it back to where we are now
+    // Create the continuation block, which expects the updated map as arg;
+    // as well as the error block. Use the ok/error blocks provided as part
+    // of the op if this is the last action being generated
+    if (i == lastAction) {
+      ok = unwrap(op.ok);
+      err = unwrap(op.err);
+    } else {
+      err = builder.createBlock(&*std::next(Region::iterator(current)));
+      ok = builder.createBlock(err, {termType});
+    }
     builder.setInsertionPointToEnd(current);
     switch (action.action) {
-      case MapActionType::Insert:
-        build_map_insert_op(loc, map, key, val, cont, err);
+      case MapActionType::Insert: {
+        auto op = builder.create<MapInsertOp>(loc, map, key, val);
+        Value newMap = op.getResult(0);
+        assert(newMap && "expected result #0");
+        Value newMapAsTerm = eir_cast(newMap, termType);
+        Value isOk = op.getResult(1);
+        assert(isOk && "expected result #1");
+        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMapAsTerm}, err, ValueRange{newMapAsTerm});
         break;
-      case MapActionType::Update:
-        build_map_update_op(loc, map, key, val, cont, err);
+      }
+      case MapActionType::Update: {
+        auto op = builder.create<MapUpdateOp>(loc, map, key, val);
+        Value newMap = op.getResult(0);
+        assert(newMap && "expected result #0");
+        Value newMapAsTerm = eir_cast(newMap, termType);
+        Value isOk = op.getResult(1);
+        assert(isOk && "expected result #1");
+        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMapAsTerm}, err, ValueRange{newMapAsTerm});
         break;
+      }
       default:
         llvm::report_fatal_error(
             "tried to construct map update op with invalid type");
     }
-    current = cont;
+    current = ok;
     // We need to update the `map` pointer, since we're implicitly in a new
     // block on the next iteration
     map = current->getArgument(0);
   }
-  // After all updates, we can unconditionally branch to `ok`, since no errors
-  // could have occurred
-  builder.setInsertionPointToEnd(current);
-  ArrayRef<Value> okArgs = {map};
-  build_br(loc, ok, okArgs);
-}
-
-void ModuleBuilder::build_map_insert_op(Location loc, Value map, Value key,
-                                        Value val, Block *ok, Block *err) {
-  // Perform the insert
-  ArrayRef<Value> pairs = {key, val};
-  auto op = builder.create<MapInsertOp>(loc, map, pairs);
-  // Get the results, which is the updated map, and a error condition flag
-  Value newMap = op.getResult(0);
-  assert(newMap != nullptr);
-  Value isOk = op.getResult(1);
-  assert(isOk != nullptr);
-  // Then branch to either the ok block, or the error block
-  ValueRange okArgs = {newMap};
-  ValueRange errArgs = {};
-  builder.create<CondBranchOp>(loc, isOk, ok, okArgs, err, errArgs);
-}
-
-void ModuleBuilder::build_map_update_op(Location loc, Value map, Value key,
-                                        Value val, Block *ok, Block *err) {
-  // Perform the update
-  ArrayRef<Value> pairs = {key, val};
-  auto op = builder.create<MapUpdateOp>(loc, map, pairs);
-  // Get the results, which is the updated map, and a error condition flag
-  Value newMap = op.getResult(0);
-  assert(newMap != nullptr);
-  Value isOk = op.getResult(1);
-  assert(isOk != nullptr);
-  // Then branch to either the ok block, or the error block
-  ValueRange okArgs = {newMap};
-  ValueRange errArgs = {};
-  builder.create<CondBranchOp>(loc, isOk, ok, okArgs, err, errArgs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1563,22 +1557,20 @@ extern "C" MLIRValueRef MLIRBuildConstantFloat(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_constant_float(Location loc, double value) {
-  auto type = builder.getType<FloatType>();
-  APFloat f(value);
-  auto op = builder.create<ConstantFloatOp>(loc, f);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, loc);
+  auto termTy = builder.getType<TermType>();
+  return eir_cast(eir_float(APFloat(value)), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildFloatAttr(MLIRModuleBuilderRef b,
                                                MLIRLocationRef locref,
                                                double value) {
   ModuleBuilder *builder = unwrap(b);
-  auto type = builder->getType<FloatType>();
-  return wrap(builder->build_float_attr(type, value));
+  return wrap(builder->build_float_attr(value));
 }
 
-Attribute ModuleBuilder::build_float_attr(Type type, double value) {
-  return builder.getFloatAttr(type, value);
+Attribute ModuleBuilder::build_float_attr(double value) {
+  return eir::FloatAttr::get(builder.getContext(), APFloat(value));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1607,9 +1599,8 @@ extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
 }
 
 Attribute ModuleBuilder::build_int_attr(int64_t value, bool isSigned) {
-  auto type = builder.getIntegerType(64);
   APInt i(64, value, isSigned);
-  return builder.getIntegerAttr(type, i);
+  return FixnumAttr::get(builder.getContext(), i);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1628,9 +1619,11 @@ extern "C" MLIRValueRef MLIRBuildConstantBigInt(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_bigint(Location loc, StringRef value,
                                            unsigned width) {
+  edsc::ScopedContext scope(builder, loc);
+  auto termTy = builder.getType<TermType>();
+  bool isSigned = value[0] == '-';
   APInt i(width, value, /*radix=*/10);
-  auto op = builder.create<ConstantBigIntOp>(loc, i);
-  return op.getResult();
+  return eir_cast(eir_bigint(i, isSigned), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildBigIntAttr(MLIRModuleBuilderRef b,
@@ -1643,9 +1636,7 @@ extern "C" MLIRAttributeRef MLIRBuildBigIntAttr(MLIRModuleBuilderRef b,
 }
 
 Attribute ModuleBuilder::build_bigint_attr(StringRef value, unsigned width) {
-  auto type = builder.getType<BigIntType>();
-  APInt i(width, value, /*radix=*/10);
-  return builder.getIntegerAttr(type, i);
+  return BigIntAttr::get(builder.getContext(), value, width);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1703,8 +1694,9 @@ extern "C" MLIRValueRef MLIRBuildConstantBinary(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_binary(Location loc, StringRef value,
                                            uint64_t header, uint64_t flags) {
-  auto op = builder.create<ConstantBinaryOp>(loc, value, header, flags);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, loc);
+  auto termTy = builder.getType<TermType>();
+  return eir_cast(eir_constant_binary(value, header, flags), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildBinaryAttr(MLIRModuleBuilderRef b,
@@ -1734,9 +1726,9 @@ extern "C" MLIRValueRef MLIRBuildConstantNil(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_constant_nil(Location loc) {
-  auto op = builder.create<ConstantNilOp>(loc);
+  edsc::ScopedContext scope(builder, loc);
   auto termTy = builder.getType<TermType>();
-  return builder.create<CastOp>(loc, op.getResult(), termTy);
+  return eir_cast(eir_nil(), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildNilAttr(MLIRModuleBuilderRef b,
@@ -1774,8 +1766,9 @@ extern "C" MLIRValueRef MLIRBuildConstantList(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_list(Location loc,
                                          ArrayRef<Attribute> elements) {
-  auto op = builder.create<ConstantListOp>(loc, elements);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, loc);
+  auto termTy = builder.getType<TermType>();
+  return eir_cast(eir_constant_list(elements), termTy);
 }
 
 extern "C" MLIRValueRef MLIRBuildConstantTuple(MLIRModuleBuilderRef b,
@@ -1785,7 +1778,7 @@ extern "C" MLIRValueRef MLIRBuildConstantTuple(MLIRModuleBuilderRef b,
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
   ArrayRef<MLIRAttributeRef> xs(elements, elements + num_elements);
-  SmallVector<Attribute, 1> tuple;
+  SmallVector<Attribute, 2> tuple;
   for (auto ar : xs) {
     Attribute attr = unwrap(ar);
     tuple.push_back(attr);
@@ -1795,8 +1788,9 @@ extern "C" MLIRValueRef MLIRBuildConstantTuple(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_tuple(Location loc,
                                           ArrayRef<Attribute> elements) {
-  auto op = builder.create<ConstantTupleOp>(loc, elements);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, loc);
+  auto termTy = builder.getType<TermType>();
+  return eir_cast(eir_constant_tuple(elements), termTy);
 }
 
 extern "C" MLIRValueRef MLIRBuildConstantMap(MLIRModuleBuilderRef b,
@@ -1808,12 +1802,12 @@ extern "C" MLIRValueRef MLIRBuildConstantMap(MLIRModuleBuilderRef b,
   ArrayRef<KeyValuePair> xs(elements, elements + num_elements);
   SmallVector<Attribute, 4> list;
   list.reserve(xs.size() * 2);
-  for (auto it = xs.begin(); it + 1 != xs.end(); ++it) {
-    Attribute key = unwrap(it->key);
-    if (!key) return nullptr;
+  for (auto kvp : xs) {
+    Attribute key = unwrap(kvp.key);
+    assert(key && "expected constant map element to define a key");
+    Attribute value = unwrap(kvp.value);
+    assert(value && "expected constant map element to define a value");
     list.push_back(key);
-    Attribute value = unwrap(it->value);
-    if (!value) return nullptr;
     list.push_back(value);
   }
   return wrap(builder->build_constant_map(loc, list));
@@ -1821,8 +1815,9 @@ extern "C" MLIRValueRef MLIRBuildConstantMap(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_map(Location loc,
                                         ArrayRef<Attribute> elements) {
-  auto op = builder.create<ConstantMapOp>(loc, elements);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, loc);
+  auto termTy = builder.getType<TermType>();
+  return eir_cast(eir_constant_map(elements), termTy);
 }
 
 Attribute build_seq_attr(ModuleBuilder *builder,

@@ -9,10 +9,12 @@
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Parser.h"
 
 using ::llvm::SmallVector;
+using ::mlir::LLVM::LLVMType;
 
 namespace lumen {
 namespace eir {
@@ -37,7 +39,7 @@ struct TupleTypeStorage : public mlir::TypeStorage {
     KeyTy(unsigned arity, ArrayRef<Type> elementTypes)
         : arity(arity), elementTypes(elementTypes) {}
     bool operator==(const KeyTy &other) const {
-      return arity == other.arity && elementTypes.equals(other.elementTypes);
+      return arity == other.arity && elementTypes == other.elementTypes;
     }
     unsigned getHashValue() const {
       return llvm::hash_combine(
@@ -45,13 +47,13 @@ struct TupleTypeStorage : public mlir::TypeStorage {
           llvm::hash_combine_range(elementTypes.begin(), elementTypes.end()));
     }
     unsigned arity;
-    ArrayRef<Type> elementTypes;
+    std::vector<Type> elementTypes;
   };
 
   TupleTypeStorage(const KeyTy &key) : key(key) {}
   static TupleTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
                                      KeyTy key) {
-    key.elementTypes = allocator.copyInto(key.elementTypes);
+    key.elementTypes = allocator.copyInto(ArrayRef<Type>(key.elementTypes));
     return new (allocator.allocate<TupleTypeStorage>()) TupleTypeStorage(key);
   }
 
@@ -179,12 +181,18 @@ LogicalResult TupleType::verifyConstructionInvariants(
   }
 
   // Make sure elements are word-sized/immediates, and valid
-  for (auto elementType : elementTypes) {
+  unsigned numElements = elementTypes.size();
+  for (unsigned i = 0; i < numElements; i++) {
+    Type elementType = elementTypes[i];
     if (auto termType = elementType.dyn_cast_or_null<OpaqueTermType>()) {
       if (termType.isOpaque() || termType.isImmediate() || termType.isBox())
         continue;
     }
-    llvm::outs() << "invalid tuple type element:";
+    if (auto llvmType = elementType.dyn_cast_or_null<LLVMType>()) {
+      if (llvmType.isIntegerTy())
+        continue;
+    }
+    llvm::outs() << "invalid tuple type element (" << i << "): ";
     elementType.dump();
     llvm::outs() << "\n";
     return failure();

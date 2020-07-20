@@ -13,7 +13,7 @@ class ConstantFloatOpConversion;
 class ConstantFloatOpToStdConversion;
 class ConstantIntOpConversion;
 class ConstantListOpConversion;
-// class ConstantMapOpConversion;
+class ConstantMapOpConversion;
 class ConstantNilOpConversion;
 class ConstantNoneOpConversion;
 class ConstantTupleOpConversion;

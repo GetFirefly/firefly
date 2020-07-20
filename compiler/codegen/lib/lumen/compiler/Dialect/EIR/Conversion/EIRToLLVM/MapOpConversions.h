@@ -5,9 +5,9 @@
 
 namespace lumen {
 namespace eir {
-// class ConstructMapOpConversion;
-// class MapInsertOpConversion;
-// class MapUpdateOpConversion;
+class ConstructMapOpConversion;
+class MapInsertOpConversion;
+class MapUpdateOpConversion;
 
 void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,

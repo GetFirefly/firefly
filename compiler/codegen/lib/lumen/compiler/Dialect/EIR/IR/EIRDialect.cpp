@@ -12,6 +12,7 @@
 
 using namespace lumen::eir;
 
+using ::llvm::SmallString;
 using ::mlir::Attribute;
 using ::mlir::DialectAsmPrinter;
 
@@ -31,7 +32,7 @@ EirDialect::EirDialect(mlir::MLIRContext *ctx)
            TupleType, MapType, ClosureType, BinaryType, HeapBinType,
            ProcBinType, BoxType, RefType, PtrType>();
 
-  addAttributes<AtomAttr, FixnumAttr, BinaryAttr, SeqAttr>();
+  addAttributes<AtomAttr, FixnumAttr, BigIntAttr, FloatAttr, BinaryAttr, SeqAttr>();
 }
 
 void EirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
@@ -51,6 +52,17 @@ void EirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
       auto fixnumAttr = attr.cast<FixnumAttr>();
       os << FixnumAttr::getAttrName() << '<';
       os << "{ value = " << fixnumAttr.getValue() << " }>";
+    } break;
+    case AttributeKind::BigInt: {
+      auto bigIntAttr = attr.cast<BigIntAttr>();
+      auto big = bigIntAttr.getValueAsString();
+      os << BigIntAttr::getAttrName() << '<';
+      os << "{ value = " << big << " }>";
+    } break;
+    case AttributeKind::Float: {
+      auto floatAttr = attr.cast<FloatAttr>();
+      os << FloatAttr::getAttrName() << '<';
+      os << "{ value = " << floatAttr.getValue().convertToDouble() << " }>";
     } break;
     case AttributeKind::Binary: {
       auto binAttr = attr.cast<BinaryAttr>();

@@ -1445,7 +1445,7 @@ def eir_NullOp : eir_Op<"null", [NoSideEffect]> {
   let verifier = ?;
 }
 
-class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic, [ConstantLike, NoSideEffect]> {
+class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic, [/*ConstantLike,*/ NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let summary = "Constructs a constant term value";
@@ -1461,7 +1461,7 @@ class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic, [ConstantLik
     Attribute getValue() { return getAttr("value"); }
   }];
 
-  let hasFolder = 1;
+  //let hasFolder = 1;
 }
 
 def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
@@ -1476,7 +1476,7 @@ def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
     "Builder *builder, OperationState &result, APFloat &value",
     [{
       auto type = builder->getType<eir::FloatType>();
-      auto attr = builder->getFloatAttr(type, value);
+      auto attr = eir::FloatAttr::get(builder->getContext(), value);
       build(builder, result, type, attr);
     }]>
   ];
@@ -1502,7 +1502,7 @@ def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, "constant.int"> {
   ];
 }
 
-def eir_ConstantBigIntOp : eir_ConstantOp<eir_BigIntType, "constant.bigint"> {
+def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, "constant.bigint"> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, Type type, Attribute val",
@@ -1511,10 +1511,11 @@ def eir_ConstantBigIntOp : eir_ConstantOp<eir_BigIntType, "constant.bigint"> {
       result.addTypes(type);
     }]>,
     OpBuilder<
-    "Builder *builder, OperationState &result, APInt &value",
+    "Builder *builder, OperationState &result, APInt &value, bool isSigned = false",
     [{
-      auto type = builder->getType<BigIntType>();
-      auto attr = builder->getIntegerAttr(type, value);
+      auto bigIntType = builder->getType<BigIntType>();
+      auto type = builder->getType<eir::BoxType>(bigIntType);
+      auto attr = BigIntAttr::get(builder->getContext(), value, isSigned);
       build(builder, result, type, attr);
     }]>
   ];
@@ -1554,7 +1555,7 @@ def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, "constant.atom"> {
   ];
 }
 
-def eir_ConstantBinaryOp : eir_ConstantOp<eir_BinaryType, "constant.binary"> {
+def eir_ConstantBinaryOp : eir_ConstantOp<eir_BoxType, "constant.binary"> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, Type type, Attribute val",
@@ -1566,7 +1567,8 @@ def eir_ConstantBinaryOp : eir_ConstantOp<eir_BinaryType, "constant.binary"> {
     "Builder *builder, OperationState &result,"
     "StringRef value, uint64_t header, uint64_t flags",
     [{
-      auto type = builder->getType<eir::BinaryType>();
+      auto binType = builder->getType<eir::BinaryType>();
+      auto type = builder->getType<eir::BoxType>(binType);
       auto attr = BinaryAttr::get(type, value, header, flags);
       build(builder, result, type, attr);
     }]>
@@ -1615,7 +1617,7 @@ def eir_ConstantNoneOp : eir_ConstantOp<eir_NoneType, "constant.none"> {
   ];
 }
 
-def eir_ConstantTupleOp : eir_ConstantOp<eir_TupleType, "constant.tuple"> {
+def eir_ConstantTupleOp : eir_ConstantOp<eir_BoxType, "constant.tuple"> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, Type type, Attribute val",
@@ -1629,9 +1631,14 @@ def eir_ConstantTupleOp : eir_ConstantOp<eir_TupleType, "constant.tuple"> {
       std::vector<Type> types;
       types.reserve(elements.size());
       for (auto element : elements) {
+        if (auto typeAttr = element.dyn_cast_or_null<TypeAttr>()) {
+            types.push_back(typeAttr.getValue());
+            continue;
+        }
         types.push_back(element.getType());
       }
-      auto type = builder->getType<eir::TupleType>(ArrayRef(types));
+      auto tupleType = builder->getType<eir::TupleType>(types);
+      auto type = builder->getType<eir::BoxType>(tupleType);
       auto attr = SeqAttr::get(type, elements);
       build(builder, result, type, attr);
     }]>
@@ -1649,14 +1656,15 @@ def eir_ConstantListOp : eir_ConstantOp<eir_BoxType, "constant.list"> {
     OpBuilder<
     "Builder *builder, OperationState &result, ArrayRef<Attribute> elements",
     [{
-      auto type = builder->getType<ConsType>();
+      auto consType = builder->getType<ConsType>();
+      auto type = builder->getType<eir::BoxType>(consType);
       auto attr = SeqAttr::get(type, elements);
       build(builder, result, BoxType::get(type), attr);
     }]>
   ];
 }
 
-def eir_ConstantMapOp : eir_ConstantOp<eir_MapType, "constant.map"> {
+def eir_ConstantMapOp : eir_ConstantOp<eir_BoxType, "constant.map"> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, Type type, Attribute val",
@@ -1667,7 +1675,8 @@ def eir_ConstantMapOp : eir_ConstantOp<eir_MapType, "constant.map"> {
     OpBuilder<
     "Builder *builder, OperationState &result, ArrayRef<Attribute> elements",
     [{
-      auto type = builder->getType<MapType>();
+      auto mapType = builder->getType<MapType>();
+      auto type = builder->getType<eir::BoxType>(mapType);
       auto attr = SeqAttr::get(type, elements);
       build(builder, result, type, attr);
     }]>
@@ -1791,6 +1800,11 @@ def eir_ConstructMapOp : eir_Op<"map.new"> {
   let verifier = ?;
 
   let builders = [
+    OpBuilder<"Builder *builder, OperationState &result, ArrayRef<Value> elements",
+    [{
+      result.addOperands(elements);
+      result.addTypes(BoxType::get(builder->getType<MapType>()));
+    }]>,
     OpBuilder<"Builder *builder, OperationState &result, ArrayRef<eir::MapEntry> entries",
     [{
       for (auto &entry : entries) {
@@ -1818,29 +1832,28 @@ def eir_MapInsertOp : eir_Op<"map.insert", []> {
     fails due to a runtime error. If an error occurs, the updated term SSA value
     is undefined.
 
-        %0, %err = eir.map_insert %map, [(%k1 : !eir.fixnum, %v1 : !eir.fixnum)]
+        %0, %err = eir.map_insert %map, %k, %v : (!eir.box<!eir.map>, !eir.fixnum, !eir.fixnum) -> (!eir.box<!eir.map>, i1)
   }];
 
-  let arguments = (ins eir_MapType:$map, Variadic<eir_AnyType>:$args);
-  let results = (outs eir_MapType:$newMap, eir_AnyType:$err);
+  let arguments = (ins eir_AnyTerm:$map, eir_AnyTerm:$key, eir_AnyTerm:$val);
+  let results = (outs eir_BoxType:$newMap, I1:$successFlag);
 
   let verifier = ?;
 
   let builders = [
     OpBuilder<
-    "Builder *builder, OperationState &result, Value map, ValueRange pairs",
+    "Builder *builder, OperationState &result, Value map, Value key, Value value",
     [{
-      auto mapType = builder->getType<MapType>();
+      auto mapType = builder->getType<BoxType>(builder->getType<MapType>());
       auto termType = builder->getType<TermType>();
-      result.addTypes(mapType);
-      result.addTypes(termType);
-      result.addOperands(map);
-      result.addOperands(pairs);
+      auto i1Ty = builder->getI1Type();
+      result.addTypes({mapType, i1Ty});
+      result.addOperands({map, key, value});
     }]>
   ];
 
   let assemblyFormat = [{
-    $map `(` $args `)` attr-dict `:` functional-type(operands, results)
+    $map `(` $key `,` $val `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 
@@ -1856,29 +1869,28 @@ def eir_MapUpdateOp : eir_Op<"map.update", []> {
 
     ## Example
 
-        %0, %err = eir.map_update %map, [(%k1 : !eir.fixnum, %v1 : !eir.fixnum)]
+        %0, %err = eir.map_update %map, %k, %v : (!eir.box<!eir.map>, !eir.fixnum, !eir.fixnum) -> (!eir.box<!eir.map>, i1)
   }];
 
-  let arguments = (ins eir_MapType:$map, Variadic<eir_AnyType>:$args);
-  let results = (outs eir_MapType:$newMap, eir_AnyType:$err);
+  let arguments = (ins eir_AnyTerm:$map, eir_AnyTerm:$key, eir_AnyTerm:$val);
+  let results = (outs eir_BoxType:$newMap, I1:$successFlag);
 
   let verifier = ?;
 
   let builders = [
     OpBuilder<
-    "Builder *builder, OperationState &result, Value map, ValueRange pairs",
+    "Builder *builder, OperationState &result, Value map, Value key, Value value",
     [{
-      auto mapType = builder->getType<MapType>();
+      auto mapType = builder->getType<BoxType>(builder->getType<MapType>());
       auto termType = builder->getType<TermType>();
-      result.addTypes(mapType);
-      result.addTypes(termType);
-      result.addOperands(map);
-      result.addOperands(pairs);
+      auto i1Ty = builder->getI1Type();
+      result.addTypes({mapType, i1Ty});
+      result.addOperands({map, key, value});
     }]>
   ];
 
   let assemblyFormat = [{
-    $map `(` $args `)` attr-dict `:` functional-type(operands, results)
+    $map `(` $key `,` $val `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 

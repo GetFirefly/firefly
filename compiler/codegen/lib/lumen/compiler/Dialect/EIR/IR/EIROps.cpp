@@ -630,43 +630,6 @@ static LogicalResult verifyConstantOp(ConstantOp &) {
   return success();
 }
 
-template <typename Op>
-OpFoldResult foldConstantOp(Op *op, ArrayRef<Attribute> operands) {
-  assert(operands.empty() && "constant has no operands");
-  return op->getValue();
-}
-
-OpFoldResult ConstantFloatOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantIntOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantBigIntOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantAtomOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantBinaryOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantNilOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantTupleOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantListOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-OpFoldResult ConstantMapOp::fold(ArrayRef<Attribute> operands) {
-  return foldConstantOp(this, operands);
-}
-
 //===----------------------------------------------------------------------===//
 // MallocOp
 //===----------------------------------------------------------------------===//

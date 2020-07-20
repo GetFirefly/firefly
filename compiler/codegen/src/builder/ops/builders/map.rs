@@ -8,6 +8,8 @@ impl MapBuilder {
         ir_value: Option<ir::Value>,
         op: Map,
     ) -> Result<Option<Value>> {
+        debug_in!(builder, "building map op: {:?}", &op);
+
         let pairs = op
             .elements
             .iter()
@@ -39,6 +41,8 @@ impl MapPutBuilder {
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         mut op: MapPuts,
     ) -> Result<Option<Value>> {
+        debug_in!(builder, "building map put op: {:?}", &op);
+
         let actions = op
             .puts
             .drain(..)

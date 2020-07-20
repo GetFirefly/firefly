@@ -124,10 +124,20 @@ impl AsValueRef for i64 {
         &self,
         loc: LocationRef,
         builder: ModuleBuilderRef,
-        _options: &Options,
+        options: &Options,
     ) -> Result<ValueRef> {
-        let val = unsafe { MLIRBuildConstantInt(builder, loc, *self) };
-        unwrap!(val, "failed to construct constant integer ({})", self)
+        let encoding_type = options.target.options.encoding;
+        let pointer_width = options.target.target_pointer_width;
+        with_encoding!(encoding_type, pointer_width, {
+            let n = *self;
+            if (Encoding::MAX_SMALLINT_VALUE as i64) < n {
+                let big = BigInt::from(n);
+                big.as_value_ref(loc, builder, options)
+            } else {
+                let val = unsafe { MLIRBuildConstantInt(builder, loc, n) };
+                unwrap!(val, "failed to construct constant integer ({})", self)
+            }
+        })
     }
 }
 impl AsValueRef for BigIntTerm {
@@ -341,10 +351,20 @@ impl AsAttributeRef for i64 {
         &self,
         loc: LocationRef,
         builder: ModuleBuilderRef,
-        _options: &Options,
+        options: &Options,
     ) -> Result<AttributeRef> {
-        let val = unsafe { MLIRBuildIntAttr(builder, loc, *self) };
-        unwrap!(val, "failed to construct integer attribute ({})", self)
+        let encoding_type = options.target.options.encoding;
+        let pointer_width = options.target.target_pointer_width;
+        with_encoding!(encoding_type, pointer_width, {
+            let n = *self;
+            if (Encoding::MAX_SMALLINT_VALUE as i64) < n {
+                let big = BigInt::from(n);
+                big.as_attribute_ref(loc, builder, options)
+            } else {
+                let val = unsafe { MLIRBuildIntAttr(builder, loc, n) };
+                unwrap!(val, "failed to construct integer attribute ({})", self)
+            }
+        })
     }
 }
 impl AsAttributeRef for BigIntTerm {

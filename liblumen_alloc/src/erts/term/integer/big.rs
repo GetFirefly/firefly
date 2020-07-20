@@ -34,6 +34,12 @@ impl BigInteger {
         }
     }
 
+    #[inline]
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let bi = BigInt::parse_bytes(bytes, 10)?;
+        Some(Self::new(bi))
+    }
+
     /// Returns the number of one bits in the byte representation
     ///
     /// NOTE: The byte representation of BigInt is compacting, and

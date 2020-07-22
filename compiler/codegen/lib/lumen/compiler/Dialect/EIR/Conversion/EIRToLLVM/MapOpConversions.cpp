@@ -107,13 +107,60 @@ struct MapUpdateOpConversion : public EIROpConversion<MapUpdateOp> {
   }
 };
 
+struct MapIsKeyOpConversion : public EIROpConversion<MapIsKeyOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      MapIsKeyOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+    MapIsKeyOpOperandAdaptor adaptor(operands);
+
+    auto termTy = ctx.getUsizeType();
+    auto i1Ty = ctx.getI1Type();
+    StringRef symbolName("__lumen_builtin_map.is_key");
+    auto callee = ctx.getOrInsertFunction(symbolName, i1Ty, {termTy, termTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+
+    Value map = adaptor.map();
+    Value key = adaptor.key();
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, i1Ty, ArrayRef<Value>{map, key});
+    return success();
+  }
+};
+
+struct MapGetKeyOpConversion : public EIROpConversion<MapGetKeyOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      MapGetKeyOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+    MapGetKeyOpOperandAdaptor adaptor(operands);
+
+    auto termTy = ctx.getUsizeType();
+    StringRef symbolName("__lumen_builtin_map.get");
+    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy, termTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+
+    Value map = adaptor.map();
+    Value key = adaptor.key();
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy, ArrayRef<Value>{map, key});
+    return success();
+  }
+};
+
 void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,
                                      LLVMTypeConverter &converter,
                                      TargetInfo &targetInfo) {
   patterns.insert<ConstructMapOpConversion,
                   MapInsertOpConversion,
-                  MapUpdateOpConversion>(context, converter, targetInfo);
+                  MapUpdateOpConversion,
+                  MapIsKeyOpConversion,
+                  MapGetKeyOpConversion>(context, converter, targetInfo);
 }
 
 }  // namespace eir

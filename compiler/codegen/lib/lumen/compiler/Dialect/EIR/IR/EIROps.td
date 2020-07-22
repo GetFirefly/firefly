@@ -179,7 +179,7 @@ def eir_IsTypeOp : eir_Op<"is_type", []> {
   }];
 
   let arguments = (ins eir_AnyType:$value);
-  let results = (outs eir_BoolLike:$isMatch);
+  let results = (outs I1:$isMatch);
 
   let assemblyFormat = "`(` operands `)` attr-dict `:` functional-type(operands, $isMatch)";
 
@@ -189,17 +189,11 @@ def eir_IsTypeOp : eir_Op<"is_type", []> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, "
-    "Value value, Type matchType, Type returnType",
-    [{
-      result.addOperands(value);
-      result.addTypes(returnType);
-      result.addAttribute("type", TypeAttr::get(matchType));
-    }]>,
-    OpBuilder<
-    "Builder *builder, OperationState &result, "
     "Value value, Type matchType",
     [{
-      build(builder, result, value, matchType, builder->getType<BooleanType>());
+      result.addOperands(value);
+      result.addTypes(builder->getI1Type());
+      result.addAttribute("type", TypeAttr::get(matchType));
     }]>
   ];
 
@@ -213,8 +207,6 @@ def eir_IsTypeOp : eir_Op<"is_type", []> {
       TypeAttr typeAttr = attr.dyn_cast<TypeAttr>();
       return typeAttr.getValue();
     }
-
-    Type getResultType() { return getResult().getType(); }
   }];
 }
 
@@ -1894,6 +1886,52 @@ def eir_MapUpdateOp : eir_Op<"map.update", []> {
   }];
 }
 
+def eir_MapIsKeyOp : eir_Op<"map.is_key", []> {
+  let summary = "Returns a boolean indicating whether the given term is a key in the given map";
+
+  let arguments = (ins eir_AnyTerm:$map, eir_AnyTerm:$key);
+  let results = (outs I1:$result);
+
+  let verifier = ?;
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value map, Value key",
+    [{
+      auto i1Ty = builder->getI1Type();
+      result.addTypes({i1Ty});
+      result.addOperands({map, key});
+    }]>
+  ];
+
+  let assemblyFormat = [{
+    operands attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def eir_MapGetKeyOp : eir_Op<"map.get", []> {
+  let summary = "Returns the term associated with the given key in the given map";
+
+  let arguments = (ins eir_AnyTerm:$map, eir_AnyTerm:$key);
+  let results = (outs eir_AnyTerm:$result);
+
+  let verifier = ?;
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value map, Value key",
+    [{
+      auto termType = builder->getType<TermType>();
+      result.addTypes({termType});
+      result.addOperands({map, key});
+    }]>
+  ];
+
+  let assemblyFormat = [{
+    operands attr-dict `:` functional-type(operands, results)
+  }];
+}
+
 def eir_BinaryStartOp : eir_Op<"binary.start"> {
   let summary = "Starts construction of a new binary";
   let arguments = (ins);
@@ -1956,8 +1994,160 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
       result.addAttributes(attrs.getAttrs());
     }]>
   ];
+}
+
+class eir_BinaryMatchOp<string mnemonic, list<OpTrait> traits = []>
+    : eir_Op<mnemonic, !listconcat(traits, [eir_BinaryMatchOpInterface])> {
+  // Defines the name of the builtin associated with this comparison op
+  string builtinSymbol = "__lumen_builtin_" # mnemonic;
+
+  let summary = ?;
+  let description = ?;
+
+  let arguments = (ins eir_AnyTerm:$bin, Variadic<eir_AnyTerm>:$args);
+  let results = (outs eir_AnyTerm:$matched, eir_AnyTerm:$rest, I1:$successFlag);
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
 
   let verifier = ?;
+
+  let extraClassDeclaration = "static StringRef builtinSymbol() { return \"" # builtinSymbol # "\"; }"
+    "IntegerAttr unitAttr() { return getAttrOfType<IntegerAttr>(\"unit\"); }"
+    "IntegerAttr endiannessAttr() { return getAttrOfType<IntegerAttr>(\"endianness\"); }"
+    "BoolAttr isSignedAttr() { return getAttrOfType<BoolAttr>(\"signed\"); }";
+}
+
+def eir_BinaryMatchRawOp : eir_BinaryMatchOp<"binary_match.raw", []> {
+  let summary = "Binary pattern match against raw bits/bytes";
+  //let hasFolder = 1;
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value bin, int64_t unit, Optional<Value> size",
+    [{
+      result.addOperands(bin);
+      if (size.hasValue()) {
+        result.addOperands(size.getValue());
+      }
+      auto termTy = builder->getType<TermType>();
+      auto i1Ty = builder->getI1Type();
+      auto i8Ty = builder->getIntegerType(8);
+      result.addTypes({termTy, termTy, i1Ty});
+      result.addAttribute("unit", builder->getIntegerAttr(i8Ty, unit));
+    }]>
+  ];
+}
+
+def eir_BinaryMatchIntegerOp : eir_BinaryMatchOp<"binary_match.integer", []> {
+  let summary = "Binary pattern match integer values";
+  //let hasFolder = 1;
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value bin, bool isSigned,"
+    "Endianness::Type endianness, int64_t unit, Optional<Value> size",
+    [{
+      result.addOperands(bin);
+      if (size.hasValue()) {
+        result.addOperands(size.getValue());
+      }
+      auto termTy = builder->getType<TermType>();
+      auto i1Ty = builder->getI1Type();
+      auto i8Ty = builder->getIntegerType(8);
+      result.addTypes({termTy, termTy, i1Ty});
+      result.addAttribute("signed", builder->getBoolAttr(isSigned));
+      result.addAttribute("endianness", builder->getIntegerAttr(i8Ty, (unsigned)endianness));
+      result.addAttribute("unit", builder->getIntegerAttr(i8Ty, unit));
+    }]>
+  ];
+}
+
+def eir_BinaryMatchFloatOp : eir_BinaryMatchOp<"binary_match.float", []> {
+  let summary = "Binary pattern match float values";
+  //let hasFolder = 1;
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value bin,"
+    "Endianness::Type endianness, int64_t unit, Optional<Value> size",
+    [{
+      result.addOperands(bin);
+      if (size.hasValue()) {
+        result.addOperands(size.getValue());
+      }
+      auto termTy = builder->getType<TermType>();
+      auto i1Ty = builder->getI1Type();
+      auto i8Ty = builder->getIntegerType(8);
+      result.addTypes({termTy, termTy, i1Ty});
+      result.addAttribute("endianness", builder->getIntegerAttr(i8Ty, (unsigned)endianness));
+      result.addAttribute("unit", builder->getIntegerAttr(i8Ty, unit));
+    }]>
+  ];
+}
+
+def eir_BinaryMatchUtf8Op : eir_BinaryMatchOp<"binary_match.utf8", []> {
+  let summary = "Binary pattern match utf8 character values";
+  //let hasFolder = 1;
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value bin, Optional<Value> size",
+    [{
+      result.addOperands(bin);
+      if (size.hasValue()) {
+        result.addOperands(size.getValue());
+      }
+      auto termTy = builder->getType<TermType>();
+      auto i1Ty = builder->getI1Type();
+      result.addTypes({termTy, termTy, i1Ty});
+    }]>
+  ];
+}
+
+def eir_BinaryMatchUtf16Op : eir_BinaryMatchOp<"binary_match.utf16", []> {
+  let summary = "Binary pattern match utf16 character values";
+  //let hasFolder = 1;
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value bin,"
+    "Endianness::Type endianness, Optional<Value> size",
+    [{
+      result.addOperands(bin);
+      if (size.hasValue()) {
+        result.addOperands(size.getValue());
+      }
+      auto termTy = builder->getType<TermType>();
+      auto i1Ty = builder->getI1Type();
+      auto i8Ty = builder->getIntegerType(8);
+      result.addTypes({termTy, termTy, i1Ty});
+      result.addAttribute("endianness", builder->getIntegerAttr(i8Ty, (unsigned)endianness));
+    }]>
+  ];
+}
+
+def eir_BinaryMatchUtf32Op : eir_BinaryMatchOp<"binary_match.utf32", []> {
+  let summary = "Binary pattern match utf32 character values";
+  //let hasFolder = 1;
+
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Value bin,"
+    "Endianness::Type endianness, Optional<Value> size",
+    [{
+      result.addOperands(bin);
+      if (size.hasValue()) {
+        result.addOperands(size.getValue());
+      }
+      auto termTy = builder->getType<TermType>();
+      auto i1Ty = builder->getI1Type();
+      auto i8Ty = builder->getIntegerType(8);
+      result.addTypes({termTy, termTy, i1Ty});
+      result.addAttribute("endianness", builder->getIntegerAttr(i8Ty, (unsigned)endianness));
+    }]>
+  ];
 }
 
 def eir_ReceiveWaitOp : eir_Op<"receive.wait",

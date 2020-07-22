@@ -667,7 +667,7 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
   // unconditionally to the ok block
   Block *current = builder.getInsertionBlock();
   Block *ok;
-  Block *err;
+  Block *err = unwrap(op.err);
 
   auto termType = builder.getType<TermType>();
 
@@ -682,9 +682,7 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
     // of the op if this is the last action being generated
     if (i == lastAction) {
       ok = unwrap(op.ok);
-      err = unwrap(op.err);
     } else {
-      err = builder.createBlock(&*std::next(Region::iterator(current)));
       ok = builder.createBlock(err, {termType});
     }
     builder.setInsertionPointToEnd(current);
@@ -696,7 +694,7 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
         Value newMapAsTerm = eir_cast(newMap, termType);
         Value isOk = op.getResult(1);
         assert(isOk && "expected result #1");
-        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMapAsTerm}, err, ValueRange{newMapAsTerm});
+        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMapAsTerm}, err, ValueRange{key});
         break;
       }
       case MapActionType::Update: {
@@ -706,7 +704,7 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
         Value newMapAsTerm = eir_cast(newMap, termType);
         Value isOk = op.getResult(1);
         assert(isOk && "expected result #1");
-        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMapAsTerm}, err, ValueRange{newMapAsTerm});
+        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMapAsTerm}, err, ValueRange{key});
         break;
       }
       default:

@@ -3,7 +3,7 @@ use std::panic;
 
 use hashbrown::HashMap;
 
-use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::term::{binary, prelude::*};
 use liblumen_core::sys::Endianness;
 
 use crate::process::current_process;
@@ -53,6 +53,20 @@ pub extern "C" fn builtin_map_update(map: Term, key: Term, value: Term) -> Term 
     } else {
         Term::NONE
     }
+}
+
+#[export_name = "__lumen_builtin_map.is_key"]
+pub extern "C" fn builtin_map_is_key(map: Term, key: Term) -> bool {
+    let decodedMap: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
+    let m = decodedMap.unwrap();
+    m.is_key(key)
+}
+
+#[export_name = "__lumen_builtin_map.get"]
+pub extern "C" fn builtin_map_get(map: Term, key: Term) -> Term {
+    let decodedMap: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
+    let m = decodedMap.unwrap();
+    m.get(key).unwrap_or(Term::NONE)
 }
 
 #[export_name = "__lumen_builtin_self"]
@@ -409,4 +423,69 @@ pub extern "C" fn builtin_binary_push_string(
     let bytes = unsafe { core::slice::from_raw_parts(buffer, len) };
     let success = builder.push_string(bytes).is_ok();
     BinaryPushResult { builder, success }
+}
+
+#[export_name = "__lumen_builtin_binary_match.raw"]
+pub extern "C" fn builtin_binary_match_raw(bin: Term, unit: u8, size: Term) -> BinaryMatchResult {
+    let sizeOpt = if size.is_none() {
+        None
+    } else {
+        let sizeDecoded: Result<SmallInteger, _> = size.decode().unwrap().try_into();
+        // TODO: Should throw badarg
+        let size: usize = sizeDecoded.unwrap().try_into().unwrap();
+        Some(size)
+    };
+    let result = match bin.decode().unwrap() {
+        TypedTerm::HeapBinary(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
+        TypedTerm::ProcBin(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
+        TypedTerm::BinaryLiteral(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
+        TypedTerm::SubBinary(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
+        TypedTerm::MatchContext(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
+        _ => Err(()),
+    };
+    result.unwrap_or_else(|_| BinaryMatchResult::failed())
+}
+
+#[export_name = "__lumen_builtin_binary_match.integer"]
+pub extern "C" fn builtin_binary_match_integer(
+    _bin: Term,
+    _signed: bool,
+    _endianness: Endianness,
+    _unit: u8,
+    _size: Term,
+) -> BinaryMatchResult {
+    unimplemented!()
+}
+
+#[export_name = "__lumen_builtin_binary_match.float"]
+pub extern "C" fn builtin_binary_match_float(
+    _bin: Term,
+    _endianness: Endianness,
+    _unit: u8,
+    _size: Term,
+) -> BinaryMatchResult {
+    unimplemented!()
+}
+
+#[export_name = "__lumen_builtin_binary_match.utf8"]
+pub extern "C" fn builtin_binary_match_utf8(_bin: Term, _size: Term) -> BinaryMatchResult {
+    unimplemented!()
+}
+
+#[export_name = "__lumen_builtin_binary_match.utf16"]
+pub extern "C" fn builtin_binary_match_utf16(
+    _bin: Term,
+    _endianness: Endianness,
+    _size: Term,
+) -> BinaryMatchResult {
+    unimplemented!()
+}
+
+#[export_name = "__lumen_builtin_binary_match.utf32"]
+pub extern "C" fn builtin_binary_match_utf32(
+    _bin: Term,
+    _endianness: Endianness,
+    _size: Term,
+) -> BinaryMatchResult {
+    unimplemented!()
 }

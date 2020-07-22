@@ -8,6 +8,8 @@ namespace eir {
 class ConstructMapOpConversion;
 class MapInsertOpConversion;
 class MapUpdateOpConversion;
+class MapIsKeyOpConversion;
+class MapGetKeyOpConversion;
 
 void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,

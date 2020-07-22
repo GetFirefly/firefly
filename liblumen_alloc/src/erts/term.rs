@@ -1,6 +1,6 @@
 pub mod arch;
 pub mod atom;
-mod binary;
+pub mod binary;
 mod boxed;
 pub mod closure;
 pub mod convert;

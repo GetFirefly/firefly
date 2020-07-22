@@ -5,6 +5,7 @@ mod heap;
 mod iter;
 mod literal;
 mod match_context;
+pub mod matcher;
 mod maybe_aligned_maybe_binary;
 mod primitives;
 mod process;
@@ -40,6 +41,8 @@ pub mod prelude {
     pub use super::sub::SubBinary;
     // Expose the binary builder
     pub use super::builder::{BinaryBuilder, BinaryPushFlags, BinaryPushResult};
+    // Expose the binary matcher
+    pub use super::matcher::BinaryMatchResult;
     // Expose the error types
     pub use super::{BytesFromBinaryError, StrFromBinaryError};
 

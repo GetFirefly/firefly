@@ -183,6 +183,15 @@ def eir_BinaryOperatorInterface : OpInterface<"eir_BinaryOperator"> {
   ];
 }
 
+def eir_BinaryMatchOpInterface : OpInterface<"eir_BinaryMatchOperator"> {
+  let description = "Common interface for binary pattern matching ops";
+
+  let methods = [
+    StaticInterfaceMethod<"get the builtin symbol name for this op",
+      "StringRef", "builtinSymbol">
+  ];
+}
+
 def YieldPoint : NativeOpTrait<"YieldPoint">;
 
 //===----------------------------------------------------------------------===//

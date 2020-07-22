@@ -249,12 +249,6 @@ static LogicalResult verify(IsTypeOp op) {
   auto typeAttr = op.getAttrOfType<TypeAttr>("type");
   if (!typeAttr) return op.emitOpError("requires type attribute named 'type'");
 
-  auto resultType = op.getResultType();
-  if (!resultType.isa<BooleanType>() && !resultType.isInteger(1)) {
-    return op.emitOpError(
-        "requires result type to be of type i1 or !eir.boolean");
-  }
-
   return success();
 }
 
@@ -360,6 +354,7 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
 
   // Common types used below
   auto termType = builder.getType<TermType>();
+  auto i1Ty = builder.getI1Type();
 
   // Used whenever we need a set of empty args below
   ArrayRef<Value> emptyArgs{};
@@ -516,26 +511,17 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         //    otherwise the next pattern
         builder.setInsertionPointToEnd(split);
         Value splitSelector = split->getArgument(0);
+        auto hasKeyOp = builder.create<MapIsKeyOp>(branchLoc, key, splitSelector);
+        auto hasKeyCond = hasKeyOp.getResult();
         ArrayRef<Value> splitSelectorArgs{splitSelector};
-        ArrayRef<Type> getKeyResultTypes = {termType};
-        ArrayRef<Value> getKeyArgs = {key, splitSelector};
-        auto hasKeyOp = builder.create<CallOp>(
-            branchLoc, "erlang::is_map_key/2", getKeyResultTypes, getKeyArgs);
-        auto hasKeyCondTerm = hasKeyOp.getResult(0);
-        auto toBoolOp = builder.create<CastOp>(branchLoc, hasKeyCondTerm,
-                                               builder.getType<BooleanType>());
-        auto hasKeyCond = toBoolOp.getResult();
         builder.create<CondBranchOp>(branchLoc, hasKeyCond, split2,
                                      splitSelectorArgs, nextPatternBlock,
                                      splitSelectorArgs);
         // 3. In the second split, call runtime function `map_get` to obtain the
         // value for the key
         builder.setInsertionPointToEnd(split2);
-        ArrayRef<Type> mapGetResultTypes = {termType};
-        ArrayRef<Value> mapGetArgs = {key, split2->getArgument(0)};
-        auto mapGetOp = builder.create<CallOp>(branchLoc, "erlang::map_get/2",
-                                               mapGetResultTypes, mapGetArgs);
-        auto valueTerm = mapGetOp.getResult(0);
+        auto mapGetOp = builder.create<MapGetKeyOp>(branchLoc, key, split2->getArgument(0));
+        auto valueTerm = mapGetOp.getResult();
         // 4. Unconditionally branch to the destination, with the key's value as
         // an additional destArg
         SmallVector<Value, 2> destArgs(baseDestArgs.begin(),
@@ -586,8 +572,56 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         // branch results in two additional destArgs being passed to the
         // destination block, the decoded entry (head), and the rest of the
         // binary (tail)
-        assert(false && "binary match patterns are not implemented yet");
         auto *pattern = b.getPatternTypeOrNull<BinaryPattern>();
+        auto spec = pattern->getSpec();
+        auto size = pattern->getSize();
+        Operation *op;
+        switch (spec.tag) {
+          case BinarySpecifierType::Integer: {
+            auto payload = spec.payload.i;
+            bool isSigned = payload.isSigned;
+            auto endianness = payload.endianness;
+            auto unit = payload.unit;
+            op = builder.create<BinaryMatchIntegerOp>(branchLoc, selectorArg, isSigned, endianness, unit, size);
+            break;
+          }
+          case BinarySpecifierType::Utf8: {
+            op = builder.create<BinaryMatchUtf8Op>(branchLoc, selectorArg, size);
+            break;
+          }
+          case BinarySpecifierType::Utf16: {
+            auto endianness = spec.payload.es.endianness;
+            op = builder.create<BinaryMatchUtf16Op>(branchLoc, selectorArg, endianness, size);
+            break;
+          }
+          case BinarySpecifierType::Utf32: {
+            auto endianness = spec.payload.es.endianness;
+            op = builder.create<BinaryMatchUtf32Op>(branchLoc, selectorArg, endianness, size);
+            break;
+          }
+          case BinarySpecifierType::Float: {
+            auto payload = spec.payload.f;
+            op = builder.create<BinaryMatchFloatOp>(branchLoc, selectorArg, payload.endianness, payload.unit, size);
+            break;
+          }
+          case BinarySpecifierType::Bytes:
+          case BinarySpecifierType::Bits: {
+            auto payload = spec.payload.us;
+            op = builder.create<BinaryMatchRawOp>(branchLoc, selectorArg, payload.unit, size);
+            break;
+          }
+          default:
+            llvm::outs() << "binary match type: " << ((unsigned)spec.tag) << "\n";
+            llvm::report_fatal_error("unknown binary match type");
+        }
+        Value matched = op->getResult(0);
+        Value rest = op->getResult(1);
+        Value success = op->getResult(2);
+        SmallVector<Value, 2> destArgs(baseDestArgs.begin(),
+                                       baseDestArgs.end());
+        destArgs.push_back(matched);
+        destArgs.push_back(rest);
+        builder.create<CondBranchOp>(branchLoc, success, dest, destArgs, nextPatternBlock, withSelectorArgs);
         break;
       }
 

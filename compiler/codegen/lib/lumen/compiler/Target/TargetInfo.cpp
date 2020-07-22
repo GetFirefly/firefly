@@ -100,6 +100,11 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   impl->binPushResultTy =
       LLVMType::createStructTy(&dialect, pushResultFields, StringRef("binary.pushed"));
 
+  // Match Result
+  ArrayRef<LLVMType> matchResultFields({intNTy, intNTy, int1Ty});
+  impl->matchResultTy =
+      LLVMType::createStructTy(&dialect, matchResultFields, StringRef("match.result"));
+
   // Closure types
   // [i8 x 16]
   impl->uniqueTy = LLVMType::getArrayTy(int8Ty, 16);

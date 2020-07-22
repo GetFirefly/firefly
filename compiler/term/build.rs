@@ -31,7 +31,7 @@ fn main() {
     let project_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let cmakelists_path = project_path
         .parent()
-        .map(|p| p.join("codegen/lib"))
+        .map(|p| p.join("codegen_llvm"))
         .unwrap();
     let compiler_path = cmakelists_path.join("lumen").join("compiler");
     let dialect_eir_path = compiler_path.join("Dialect").join("EIR");

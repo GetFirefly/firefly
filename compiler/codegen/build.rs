@@ -24,6 +24,7 @@ fn main() {
     let target = env::var("TARGET").unwrap();
 
     let cwd = env::current_dir().expect("unable to access current directory");
+    let codegen_llvm = cwd.join("../codegen_llvm");
 
     let llvm_prefix_env = env::var(ENV_LLVM_PREFIX).expect(ENV_LLVM_PREFIX);
     let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
@@ -47,7 +48,7 @@ fn main() {
         );
     }
 
-    let mut config = &mut cmake::Config::new("lib");
+    let mut config = &mut cmake::Config::new(&codegen_llvm);
     if use_ninja {
         config = config.generator("Ninja");
     }
@@ -61,7 +62,7 @@ fn main() {
     let lumen_mlir_include_dir = env::var("DEP_LUMEN_MLIR_CORE_INCLUDE").unwrap();
     let lumen_term_include_dir = env::var("DEP_LUMEN_TERM_CORE_INCLUDE").unwrap();
 
-    rerun_if_changed_anything_in_dir(&cwd.join("lib"));
+    rerun_if_changed_anything_in_dir(&codegen_llvm);
 
     let outdir = config
         .define("LUMEN_BUILD_COMPILER", "ON")

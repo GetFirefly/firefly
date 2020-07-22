@@ -456,6 +456,92 @@ struct YieldCheckOpConversion : public EIROpConversion<YieldCheckOp> {
   }
 };
 
+struct ReceiveStartOpConversion : public EIROpConversion<ReceiveStartOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      ReceiveStartOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+    ReceiveStartOpOperandAdaptor adaptor(operands);
+
+    auto termTy = ctx.getUsizeType();
+    auto recvRefTy = ctx.targetInfo.getReceiveRefType();
+
+    StringRef symbolName("__lumen_builtin_receive_start");
+    auto callee = ctx.getOrInsertFunction(symbolName, recvRefTy, {termTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+
+    Value timeout = adaptor.timeout();
+    auto startOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, recvRefTy, ArrayRef<Value>{timeout});
+
+    SmallVector<Value, 2> args;
+    args.push_back(startOp.getResult(0));
+    for (auto operand : adaptor.destOperands()) {
+      args.push_back(operand);
+    }
+
+    rewriter.replaceOpWithNewOp<LLVM::BrOp>(op, ValueRange(args), op.getSuccessor());
+    return success();
+  }
+};
+
+struct ReceiveWaitOpConversion : public EIROpConversion<ReceiveWaitOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      ReceiveWaitOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+
+    auto termTy = ctx.getUsizeType();
+    auto i1Ty = ctx.getI1Type();
+    auto recvRefTy = ctx.targetInfo.getReceiveRefType();
+    
+    StringRef symbolName("__lumen_builtin_receive_wait");
+    auto callee = ctx.getOrInsertFunction(symbolName, i1Ty, {recvRefTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+
+    ArrayRef<Value> args{op.recvRef()};
+    auto waitOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, i1Ty, args);
+    Value shouldCheck = waitOp.getResult(0);
+
+    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
+      op, shouldCheck,
+      op.checkDest(), op.checkDestOperands(),
+      op.timeoutDest(), op.timeoutDestOperands()
+    );
+    return success();
+  }
+};
+ 
+struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      ReceiveDoneOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+    ReceiveDoneOpOperandAdaptor adaptor(operands);
+
+    auto recvRefTy = ctx.targetInfo.getReceiveRefType();
+    auto voidTy = LLVMType::getVoidTy(ctx.dialect);
+
+    StringRef symbolName("__lumen_builtin_receive_done");
+
+    auto callee = ctx.getOrInsertFunction(symbolName, voidTy, {recvRefTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+
+    Value recvRef = adaptor.recvRef();
+    rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, ArrayRef<Type>{}, ArrayRef<Value>{recvRef});
+    rewriter.replaceOpWithNewOp<LLVM::BrOp>(op, adaptor.destOperands(), op.getSuccessor());
+    return success();
+  }
+};
+ 
 void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
                                              MLIRContext *context,
                                              LLVMTypeConverter &converter,
@@ -465,8 +551,9 @@ void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
       /*CallIndirectOpConversion,*/ CallOpConversion, CallClosureOpConversion,
       InvokeOpConversion, InvokeClosureOpConversion, LandingPadOpConversion,
       ReturnOpConversion, ThrowOpConversion, UnreachableOpConversion,
-      YieldOpConversion, YieldCheckOpConversion>(context, converter,
-                                                 targetInfo);
+      YieldOpConversion, YieldCheckOpConversion,
+      ReceiveStartOpConversion, ReceiveWaitOpConversion,
+      ReceiveDoneOpConversion>(context, converter, targetInfo);
 }
 
 }  // namespace eir

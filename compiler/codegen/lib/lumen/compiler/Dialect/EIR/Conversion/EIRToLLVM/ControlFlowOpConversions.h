@@ -19,6 +19,9 @@ class ThrowOpConversion;
 class UnreachableOpConversion;
 class YieldOpConversion;
 class YieldCheckOpConversion;
+class ReceiveStartOpConversion;
+class ReceiveWaitOpConversion;
+class ReceiveDoneOpConversion;
 
 void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
                                              MLIRContext *context,

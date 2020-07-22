@@ -1111,8 +1111,17 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 // receive_start(cont: fn(recv_ref), timeout)
                 if let Some(recv_start) = dyn_op.downcast_ref::<receive::ReceiveStart>() {
                     debug_in!(self, "block contains receive start operation");
+                    debug_in!(self, "reads ({:?})", &reads);
                     let cont = self.get_block_by_value(reads[0]);
+                    debug_in!(
+                        self,
+                        "continuation block = {:?} ({:?}, {:?})",
+                        cont,
+                        reads[0],
+                        self.get_ir_block(cont)
+                    );
                     let timeout = self.build_value(reads[1])?;
+                    debug_in!(self, "timeout value = {:?} ({:?})", timeout, reads[1]);
                     return OpBuilder::build_void_result(
                         self,
                         OpKind::ReceiveStart(ReceiveStart { loc, cont, timeout }),

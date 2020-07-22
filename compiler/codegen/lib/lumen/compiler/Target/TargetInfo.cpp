@@ -105,6 +105,9 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   impl->matchResultTy =
       LLVMType::createStructTy(&dialect, matchResultFields, StringRef("match.result"));
 
+  // Receives
+  impl->recvContextTy = int8Ty.getPointerTo();
+
   // Closure types
   // [i8 x 16]
   impl->uniqueTy = LLVMType::getArrayTy(int8Ty, 16);

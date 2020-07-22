@@ -1,4 +1,5 @@
 use std::panic;
+use std::ptr;
 
 use liblumen_alloc::erts::message::MessageType;
 use liblumen_alloc::erts::term::prelude::*;
@@ -84,30 +85,32 @@ impl ReceiveContext {
 }
 
 #[export_name = "__lumen_builtin_receive_start"]
-pub extern "C" fn builtin_receive_start(timeout: Term) -> ReceiveContext {
+pub extern "C" fn builtin_receive_start(timeout: Term) -> *mut ReceiveContext {
     let result = panic::catch_unwind(move || {
         let to = match timeout.decode().unwrap() {
             TypedTerm::Atom(atom) if atom == "infinity" => Timeout::Infinity,
             TypedTerm::SmallInteger(si) => Timeout::from_millis(si).expect("invalid timeout value"),
             _ => unreachable!("should never get non-atom/non-integer receive timeout"),
         };
-        let context = ReceiveContext::new(to);
+        // TODO: It would be best if ReceiveContext was repr(C) so we
+        // could keep it on the stack rather than heap allocate here
+        let context = Box::new(ReceiveContext::new(to));
         let p = current_process();
         let mbox = p.mailbox.lock();
         mbox.borrow().recv_start();
-        context
+        Box::into_raw(context)
     });
     if let Ok(res) = result {
         res
     } else {
-        ReceiveContext::failed()
+        ptr::null_mut()
     }
 }
 
 #[export_name = "__lumen_builtin_receive_wait"]
-pub extern "C" fn builtin_receive_wait(context: *mut ReceiveContext) -> bool {
+pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> bool {
     let result = panic::catch_unwind(move || {
-        let context = unsafe { &mut *context };
+        let context = unsafe { &mut *ctx };
         loop {
             {
                 let p = current_process();
@@ -141,7 +144,8 @@ pub extern "C" fn builtin_receive_wait(context: *mut ReceiveContext) -> bool {
 }
 
 #[export_name = "__lumen_builtin_receive_done"]
-pub extern "C" fn builtin_receive_done(context: ReceiveContext) -> bool {
+pub extern "C" fn builtin_receive_done(ctx: *mut ReceiveContext) -> bool {
+    let context = unsafe { Box::from_raw(ctx) };
     let result = panic::catch_unwind(|| {
         let p = current_process();
         let mbox_lock = p.mailbox.lock();

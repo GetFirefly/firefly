@@ -1498,12 +1498,12 @@ extern "C" void MLIRBuildReceiveStart(MLIRModuleBuilderRef b,
 }
 
 void ModuleBuilder::build_receive_start(Location loc, Block *cont, Value timeout) {
-  // Construct a new receive ref and branch to the continuation block with it
-  auto callee = builder.getSymbolRefAttr("__lumen_receive_start");
+  // Make sure continuation block has correct type for ReceiveRef argument
+  auto arg = cont->getArgument(0);
   auto recvRefType = builder.getType<ReceiveRefType>();
-  auto op = builder.create<CallOp>(loc, callee, ArrayRef<Type>{recvRefType}, ArrayRef<Value>{timeout});
-  auto receive_ref = op.getResult(0);
-  builder.create<BranchOp>(loc, cont, ArrayRef<Value>{receive_ref});
+  arg.setType(builder.getType<ReceiveRefType>());
+  // Create op
+  builder.create<ReceiveStartOp>(loc, cont, timeout);
 }
 
 extern "C" void MLIRBuildReceiveWait(MLIRModuleBuilderRef b,
@@ -1536,10 +1536,7 @@ extern "C" void MLIRBuildReceiveDone(MLIRModuleBuilderRef b,
 void ModuleBuilder::build_receive_done(Location loc, Block *cont, Value receive_ref, ArrayRef<Value> args) {
   // Inform the runtime that the receive was successful,
   // which removes the received message from the mailbox
-  auto callee = builder.getSymbolRefAttr("__lumen_receive_done");
-  builder.create<CallOp>(loc, callee, ArrayRef<Type>{}, ArrayRef<Value>{receive_ref});
-  // Branch to the continuation block with the bindings obtained during the receive
-  builder.create<BranchOp>(loc, cont, args);
+  builder.create<ReceiveDoneOp>(loc, cont, receive_ref, args);
 }
 
 //===----------------------------------------------------------------------===//

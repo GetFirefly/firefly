@@ -798,6 +798,17 @@ Optional<OperandRange> InvokeOp::getSuccessorOperands(unsigned index) {
 }
 
 //===----------------------------------------------------------------------===//
+// eir.receive_start
+//===----------------------------------------------------------------------===//
+
+Optional<OperandRange> ReceiveStartOp::getSuccessorOperands(unsigned index) {
+  assert(index == 0 && "invalid successor index");
+  return getOperands();
+}
+
+bool ReceiveStartOp::canEraseSuccessorOperand() { return false; }
+
+//===----------------------------------------------------------------------===//
 // eir.receive_wait
 //===----------------------------------------------------------------------===//
 
@@ -808,6 +819,17 @@ Optional<OperandRange> ReceiveWaitOp::getSuccessorOperands(unsigned index) {
 
 bool ReceiveWaitOp::canEraseSuccessorOperand() { return true; }
 
+
+//===----------------------------------------------------------------------===//
+// eir.receive_done
+//===----------------------------------------------------------------------===//
+
+Optional<OperandRange> ReceiveDoneOp::getSuccessorOperands(unsigned index) {
+  assert(index == 0 && "invalid successor index");
+  return getOperands();
+}
+
+bool ReceiveDoneOp::canEraseSuccessorOperand() { return true; }
 
 //===----------------------------------------------------------------------===//
 // TableGen Output

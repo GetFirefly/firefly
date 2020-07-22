@@ -2150,6 +2150,40 @@ def eir_BinaryMatchUtf32Op : eir_BinaryMatchOp<"binary_match.utf32", []> {
   ];
 }
 
+def eir_ReceiveStartOp : eir_Op<"receive.start",
+    [DeclareOpInterfaceMethods<BranchOpInterface>, Terminator]> {
+  let summary = "starts a receive operation";
+
+  let arguments = (ins eir_AnyType:$timeout, Variadic<eir_AnyType>:$destOperands);
+  let successors = (successor AnySuccessor:$dest);
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Block *dest, Value timeout, ValueRange args = {}",
+    [{
+      result.addSuccessors(dest);
+      result.addOperands({timeout});
+      result.addOperands(args);
+    }]>,
+   ];
+
+  // Fully verified by traits
+  let verifier = ?;
+
+  let extraClassDeclaration = [{
+    Block *getDest() { return getSuccessor(); }
+    void setDest(Block *block) { setSuccessor(block); }
+
+    /// Erase the operand at 'index' from the operand list.
+    void eraseOperand(unsigned index) { return eraseSuccessorOperand(0, index); }
+  }];
+
+  let assemblyFormat = [{
+      operands `to` $dest attr-dict `:` type(operands)
+  }];
+}
+
 def eir_ReceiveWaitOp : eir_Op<"receive.wait",
     [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>, Terminator]> {
   let summary = "Blocks until receipt of a new message";
@@ -2249,5 +2283,40 @@ def eir_ReceiveWaitOp : eir_Op<"receive.wait",
     attr-dict
   }];
 }
+
+def eir_ReceiveDoneOp : eir_Op<"receive.done",
+    [DeclareOpInterfaceMethods<BranchOpInterface>, Terminator]> {
+  let summary = "ends a receive operation";
+
+  let arguments = (ins eir_ReceiveRefType:$recvRef, Variadic<eir_AnyType>:$destOperands);
+  let successors = (successor AnySuccessor:$dest);
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<
+    "Builder *builder, OperationState &result, Block *dest, Value recvRef, ValueRange destOperands = {}",
+    [{
+      result.addSuccessors(dest);
+      result.addOperands(recvRef);
+      result.addOperands(destOperands);
+    }]>,
+   ];
+
+  // Fully verified by traits
+  let verifier = ?;
+
+  let extraClassDeclaration = [{
+    Block *getDest() { return getSuccessor(); }
+    void setDest(Block *block) { setSuccessor(block); }
+
+    /// Erase the operand at 'index' from the operand list.
+    void eraseOperand(unsigned index) { return eraseSuccessorOperand(0, index); }
+  }];
+
+  let assemblyFormat = [{
+      operands `to` $dest attr-dict `:` type(operands)
+  }];
+}
+
 
 #endif // EIR_OPS

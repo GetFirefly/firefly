@@ -8,6 +8,7 @@ include "mlir/IR/OpBase.td"
 // so that our operations can be defined against it
 def eir_Dialect : Dialect {
   let name = "eir";
+  let summary = "An MLIR dialect that corresponds to EIR produced by the Lumen front-end";
   let cppNamespace = "eir";
 }
 

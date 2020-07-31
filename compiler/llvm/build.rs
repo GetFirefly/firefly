@@ -239,7 +239,6 @@ fn main() {
     println!("cargo:ldflags={}", shared_ldflags.as_slice().join(";"));
 
     let llvm_static_stdcpp = env::var_os("LLVM_STATIC_STDCPP");
-    let llvm_use_libcxx = env::var_os("LLVM_USE_LIBCXX");
 
     let stdcppname = if target.contains("openbsd") {
         if target.contains("sparc64") {
@@ -254,8 +253,6 @@ fn main() {
     } else if target.contains("netbsd") && llvm_static_stdcpp.is_some() {
         // NetBSD uses a separate library when relocation is required
         "stdc++_pic"
-    } else if llvm_use_libcxx.is_some() {
-        "c++"
     } else {
         "stdc++"
     };

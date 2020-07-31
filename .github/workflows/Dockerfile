@@ -5,13 +5,13 @@ RUN cd /tmp \
   && tar -xvzf clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
   && rm -f clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
   && mv clang+llvm-10.0.0-x86_64-linux-gnu /opt/llvm \
-  && ln -s clang /opt/llvm/bin/cc \
-  && ln -s lld /opt/llvm/bin/ld
+  && update-alternatives --install /usr/bin/cc cc /opt/llvm/bin/clang 90 \
+  && update-alternatives --install /usr/bin/c++ c++ /opt/llvm/bin/clang++ 90 \
+  && update-alternatives --install /usr/bin/cpp cpp /opt/llvm/bin/clang++ 90 \
+  && update-alternatives --install /usr/bin/ld ld /opt/llvm/bin/lld 90
 
 ENV PATH="/opt/llvm/bin:${PATH}"
 ENV LLVM_PREFIX="/opt/llvm"
-ENV CC=/opt/llvm/bin/clang
-ENV CXX=/opt/llvm/bin/clang++
 
 RUN apt-get update \
   && apt-get install -y cmake jq libc++-dev libc++abi-dev libunwind-dev ninja-build rsync

@@ -5,7 +5,7 @@ on: push
 jobs:
   formatted:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:8625315ed528ac92ebbd31023a333755a9325d51f042f02f393877d0356e20ff
+    container: kronicdeth/lumen-development@sha256:985b21718f2d290db7efb585046161ccf5116d046e90cae922985a02e3a3d8bf
 
     steps:
       - uses: actions/checkout@v2
@@ -29,7 +29,7 @@ jobs:
 
   libraries:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:8625315ed528ac92ebbd31023a333755a9325d51f042f02f393877d0356e20ff
+    container: kronicdeth/lumen-development@sha256:985b21718f2d290db7efb585046161ccf5116d046e90cae922985a02e3a3d8bf
 
     steps:
       - uses: actions/checkout@v2

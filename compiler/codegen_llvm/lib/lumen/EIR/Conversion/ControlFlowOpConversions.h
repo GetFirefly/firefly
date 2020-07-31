@@ -21,6 +21,7 @@ class YieldOpConversion;
 class YieldCheckOpConversion;
 class ReceiveStartOpConversion;
 class ReceiveWaitOpConversion;
+class ReceiveMessageOpConversion;
 class ReceiveDoneOpConversion;
 
 void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,

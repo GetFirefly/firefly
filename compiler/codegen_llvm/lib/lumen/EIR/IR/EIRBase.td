@@ -82,6 +82,24 @@ class eir_TermType<eir_TermKind kind, string description, string typename> :
   eir_BuildableTermType<kind, description, "$_builder.getType<::lumen::eir::" # typename # ">()"> {
 }
 
+class eir_ReceiveStatus<string name, int kind> : IntEnumAttrCaseBase<I8, name, name, kind>;
+
+def eir_RS_Error    : eir_ReceiveStatus<"Error", 0>;
+def eir_RS_Ready    : eir_ReceiveStatus<"Ready", 1>;
+def eir_RS_Received : eir_ReceiveStatus<"Received", 2>;
+def eir_RS_Timeout  : eir_ReceiveStatus<"Timeout", 3>;
+
+def eir_ReceiveStatusAttr : IntEnumAttr<I8, "ReceiveStatus", "receive wait status", [
+  eir_RS_Error,
+  eir_RS_Ready,
+  eir_RS_Received,
+  eir_RS_Timeout,
+]> {
+  let cppNamespace = "lumen::eir";
+}
+
+def eir_ReceiveStatusType : TypeAlias<I8, "receive wait status type">;
+
 def eir_NoneType : eir_TermType<eir_TK_None, "none", "NoneType">;
 def eir_AtomType : eir_TermType<eir_TK_Atom, "atom", "AtomType">;
 def eir_BoolType : eir_TermType<eir_TK_Boolean, "bool", "BooleanType">;

@@ -1121,7 +1121,13 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         self.get_ir_block(cont)
                     );
                     let timeout = self.build_value(reads[1])?;
-                    debug_in!(self, "timeout value = {:?} ({:?})", timeout, reads[1]);
+                    debug_in!(
+                        self,
+                        "timeout value = {:?} ({:?} is {:?})",
+                        timeout,
+                        reads[1],
+                        self.value_kind(reads[1])
+                    );
                     return OpBuilder::build_void_result(
                         self,
                         OpKind::ReceiveStart(ReceiveStart { loc, cont, timeout }),

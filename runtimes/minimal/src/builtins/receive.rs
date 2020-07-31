@@ -108,7 +108,7 @@ pub extern "C" fn builtin_receive_start(timeout: Term) -> *mut ReceiveContext {
 }
 
 #[export_name = "__lumen_builtin_receive_wait"]
-pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> bool {
+pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState {
     let result = panic::catch_unwind(move || {
         let context = unsafe { &mut *ctx };
         loop {
@@ -119,10 +119,10 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> bool {
                 if let Some((msg, msg_type)) = mbox.recv_peek_with_type() {
                     mbox.recv_increment();
                     context.with_message(msg, msg_type);
-                    break true;
+                    break ReceiveState::Received;
                 } else if context.should_time_out() {
                     context.with_timeout();
-                    break true;
+                    break ReceiveState::Timeout;
                 } else {
                     // If there are no messages, wait and yield
                     p.wait();
@@ -139,8 +139,14 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> bool {
     if let Ok(res) = result {
         res
     } else {
-        false
+        ReceiveState::Error
     }
+}
+
+#[export_name = "__lumen_builtin_receive_message"]
+pub extern "C" fn builtin_receive_message(ctx: *mut ReceiveContext) -> Term {
+    let context = unsafe { &*ctx };
+    context.message
 }
 
 #[export_name = "__lumen_builtin_receive_done"]

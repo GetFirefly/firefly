@@ -1507,12 +1507,14 @@ extern "C" void MLIRBuildReceiveStart(MLIRModuleBuilderRef b,
 }
 
 void ModuleBuilder::build_receive_start(Location loc, Block *cont, Value timeout) {
+  edsc::ScopedContext scope(builder, loc);
   // Make sure continuation block has correct type for ReceiveRef argument
   auto arg = cont->getArgument(0);
   auto recvRefType = builder.getType<ReceiveRefType>();
   arg.setType(builder.getType<ReceiveRefType>());
   // Create op
-  builder.create<ReceiveStartOp>(loc, cont, timeout);
+  auto op = builder.create<ReceiveStartOp>(loc, timeout);
+  std_br(cont, op.getResult());
 }
 
 extern "C" void MLIRBuildReceiveWait(MLIRModuleBuilderRef b,
@@ -1527,7 +1529,40 @@ extern "C" void MLIRBuildReceiveWait(MLIRModuleBuilderRef b,
 }
 
 void ModuleBuilder::build_receive_wait(Location loc, Block *timeout, Block *check, Value receive_ref) {
-  builder.create<ReceiveWaitOp>(loc, receive_ref, timeout, ArrayRef<Value>{}, check, ArrayRef<Value>{});
+  edsc::ScopedContext scope(builder, loc);
+
+  Block *currentBlock = builder.getBlock();
+
+  auto op = builder.create<ReceiveWaitOp>(loc, receive_ref);
+  auto waitStatus = op.getResult();
+  auto receivedStatus = static_cast<int64_t>(ReceiveStatus::Received);
+  Value received = std_cmpi(::mlir::CmpIPredicate::eq, waitStatus, std_constant_int(receivedStatus, 8));
+
+  Block *fatalBlock = builder.createBlock(currentBlock->getParent(), Region::iterator(currentBlock));
+  Block *recvFailedBlock = builder.createBlock(fatalBlock);
+  Block *getMessageBlock = builder.createBlock(recvFailedBlock);
+
+  // Conditionally branch based on wait status
+  builder.setInsertionPointToEnd(currentBlock);
+  std_cond_br(received, getMessageBlock, ArrayRef<Value>{}, recvFailedBlock, ArrayRef<Value>{});
+
+  // If received, get the message and branch to the check block
+  builder.setInsertionPointToEnd(getMessageBlock);
+  auto msg = builder.create<ReceiveMessageOp>(loc, receive_ref);
+  std_br(check, ArrayRef<Value>{msg.getResult()});
+
+  // If not, check whether it was an error or a timeout
+  builder.setInsertionPointToEnd(recvFailedBlock);
+  
+  // Conditionally branch based on whether this was a timeout
+  auto timeoutStatus = static_cast<int64_t>(ReceiveStatus::Timeout);
+  Value timedOut = std_cmpi(::mlir::CmpIPredicate::eq, waitStatus, std_constant_int(timeoutStatus, 8));
+  std_cond_br(timedOut, timeout, ArrayRef<Value>{}, fatalBlock, ArrayRef<Value>{});
+
+  // If this was an error, drop an abort, for now
+  // TODO: Should do something more appropriate here
+  builder.setInsertionPointToEnd(fatalBlock);
+  builder.create<UnreachableOp>(loc);
 }
   
 extern "C" void MLIRBuildReceiveDone(MLIRModuleBuilderRef b,
@@ -1545,7 +1580,8 @@ extern "C" void MLIRBuildReceiveDone(MLIRModuleBuilderRef b,
 void ModuleBuilder::build_receive_done(Location loc, Block *cont, Value receive_ref, ArrayRef<Value> args) {
   // Inform the runtime that the receive was successful,
   // which removes the received message from the mailbox
-  builder.create<ReceiveDoneOp>(loc, cont, receive_ref, args);
+  builder.create<ReceiveDoneOp>(loc, receive_ref);
+  builder.create<BranchOp>(loc, cont, args);
 }
 
 //===----------------------------------------------------------------------===//

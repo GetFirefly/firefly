@@ -465,6 +465,7 @@ impl Process {
 
     // Pid
 
+    #[inline]
     pub fn pid(&self) -> Pid {
         self.pid
     }

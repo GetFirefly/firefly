@@ -482,28 +482,42 @@ struct ReceiveWaitOpConversion : public EIROpConversion<ReceiveWaitOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto termTy = ctx.getUsizeType();
-    auto i1Ty = ctx.getI1Type();
+    auto i8Ty = ctx.getI8Type();
     auto recvRefTy = ctx.targetInfo.getReceiveRefType();
-    
+
     StringRef symbolName("__lumen_builtin_receive_wait");
-    auto callee = ctx.getOrInsertFunction(symbolName, i1Ty, {recvRefTy});
+    auto callee = ctx.getOrInsertFunction(symbolName, i8Ty, {recvRefTy});
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
     ArrayRef<Value> args{op.recvRef()};
-    auto waitOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, i1Ty, args);
-    Value shouldCheck = waitOp.getResult(0);
-
-    rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
-      op, shouldCheck,
-      op.checkDest(), op.checkDestOperands(),
-      op.timeoutDest(), op.timeoutDestOperands()
-    );
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, i8Ty, args);
     return success();
   }
 };
  
+struct ReceiveMessageOpConversion : public EIROpConversion<ReceiveMessageOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      ReceiveMessageOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+
+    auto termTy = ctx.getUsizeType();
+    auto recvRefTy = ctx.targetInfo.getReceiveRefType();
+
+    StringRef symbolName("__lumen_builtin_receive_message");
+    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {recvRefTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+
+    ArrayRef<Value> args{op.recvRef()};
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy, args);
+    return success();
+  }
+};
+
 struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -523,8 +537,7 @@ struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
     Value recvRef = adaptor.recvRef();
-    rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, ArrayRef<Type>{}, ArrayRef<Value>{recvRef});
-    rewriter.replaceOpWithNewOp<LLVM::BrOp>(op, adaptor.destOperands(), op.getSuccessor());
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, ArrayRef<Type>{}, ArrayRef<Value>{recvRef});
     return success();
   }
 };
@@ -540,7 +553,7 @@ void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
       ReturnOpConversion, ThrowOpConversion, UnreachableOpConversion,
       YieldOpConversion, YieldCheckOpConversion,
       ReceiveStartOpConversion, ReceiveWaitOpConversion,
-      ReceiveDoneOpConversion>(context, converter, targetInfo);
+      ReceiveMessageOpConversion, ReceiveDoneOpConversion>(context, converter, targetInfo);
 }
 
 }  // namespace eir

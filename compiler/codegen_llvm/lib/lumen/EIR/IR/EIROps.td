@@ -2152,171 +2152,82 @@ def eir_BinaryMatchUtf32Op : eir_BinaryMatchOp<"binary_match.utf32", []> {
   ];
 }
 
-def eir_ReceiveStartOp : eir_Op<"receive.start",
-    [DeclareOpInterfaceMethods<BranchOpInterface>, Terminator]> {
+def eir_ReceiveStartOp : eir_Op<"receive.start", []> {
   let summary = "starts a receive operation";
 
-  let arguments = (ins eir_AnyType:$timeout, Variadic<eir_AnyType>:$destOperands);
-  let successors = (successor AnySuccessor:$dest);
+  let arguments = (ins eir_AnyType:$timeout);
+  let results = (outs eir_ReceiveRefType:$result);
+
+  let verifier = ?;
 
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<
-    "OpBuilder &builder, OperationState &result, Block *dest, Value timeout, ValueRange args = {}",
+    "OpBuilder &builder, OperationState &result, Value timeout",
     [{
-      result.addSuccessors(dest);
-      result.addOperands({timeout});
-      result.addOperands(args);
-    }]>,
-   ];
-
-  // Fully verified by traits
-  let verifier = ?;
-
-  let extraClassDeclaration = [{
-    Block *getDest() { return getSuccessor(); }
-    void setDest(Block *block) { setSuccessor(block); }
-
-    /// Erase the operand at 'index' from the operand list.
-    void eraseOperand(unsigned index) { return eraseSuccessorOperand(0, index); }
-  }];
-
-  let assemblyFormat = [{
-      operands `to` $dest attr-dict `:` type(operands)
-  }];
-}
-
-def eir_ReceiveWaitOp : eir_Op<"receive.wait",
-    [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>, Terminator]> {
-  let summary = "Blocks until receipt of a new message";
-  let arguments = (ins
-    eir_ReceiveRefType:$recvRef,
-    Variadic<eir_AnyType>:$timeoutDestOperands,
-    Variadic<eir_AnyType>:$checkDestOperands
-  );
-  let results = (outs);
-
-  let successors = (successor AnySuccessor:$timeoutDest, AnySuccessor:$checkDest);
-
-  let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, Value receiveRef,
-      Block *timeoutDest, ValueRange timeoutOperands,
-      Block *checkDest, ValueRange checkOperands
-    }], [{
-      build(builder, result, receiveRef, timeoutOperands, checkOperands, timeoutDest, checkDest);
-    }]>,
+      result.addOperands(timeout);
+      result.addTypes(builder.getType<ReceiveRefType>());
+    }]>
   ];
 
-  // Fully verified by traits
-  let verifier = ?;
-
-  let extraClassDeclaration = [{
-    /// These are the indices into the dests list.
-    enum { timeoutIndex = 0, checkIndex = 1 };
-
-    /// The receive_ref operand is the first operand in the list.
-    Value getReceiveRef() { return getOperand(0); }
-
-    /// Return the destination if the operation times out
-    Block *getTimeoutDest() {
-      return getSuccessor(timeoutIndex);
-    }
-
-    /// Return the destination if the operation finds a message
-    Block *getCheckDest() {
-      return getSuccessor(checkIndex);
-    }
-
-    /// Accessors for operands to the 'true' destination.
-    Value getTimeoutOperand(unsigned idx) {
-      assert(idx < getNumTimeoutOperands());
-      return getOperand(getTimeoutDestOperandIndex() + idx);
-    }
-
-    void setTimeoutOperand(unsigned idx, Value value) {
-      assert(idx < getNumTimeoutOperands());
-      setOperand(getTimeoutDestOperandIndex() + idx, value);
-    }
-
-    operand_range getTimeoutOperands() { return timeoutDestOperands(); }
-
-    unsigned getNumTimeoutOperands()  { return getTimeoutOperands().size(); }
-
-    /// Erase the operand at 'index' from the timeout operand list.
-    void eraseTimeoutOperand(unsigned index)  {
-      eraseSuccessorOperand(timeoutIndex, index);
-    }
-
-    /// Accessors for operands to the 'check' destination.
-    Value getCheckOperand(unsigned idx) {
-      assert(idx < getNumCheckOperands());
-      return getOperand(getCheckDestOperandIndex() + idx);
-    }
-    void setCheckOperand(unsigned idx, Value value) {
-      assert(idx < getNumCheckOperands());
-      setOperand(getCheckDestOperandIndex() + idx, value);
-    }
-
-    operand_range getCheckOperands() { return checkDestOperands(); }
-
-    unsigned getNumCheckOperands() { return getCheckOperands().size(); }
-
-    /// Erase the operand at 'index' from the check operand list.
-    void eraseCheckOperand(unsigned index) {
-      eraseSuccessorOperand(checkIndex, index);
-    }
-
-  private:
-    /// Get the index of the first true destination operand.
-    unsigned getTimeoutDestOperandIndex() { return 1; }
-
-    /// Get the index of the first false destination operand.
-    unsigned getCheckDestOperandIndex() {
-      return getTimeoutDestOperandIndex() + getNumTimeoutOperands();
-    }
-  }];
-
-  //let hasCanonicalizer = 1;
   let assemblyFormat = [{
-    $recvRef `:` type($recvRef) `,`
-    $timeoutDest (`(` $timeoutDestOperands^ `:` type($timeoutDestOperands) `)`)? `,`
-    $checkDest (`(` $checkDestOperands^ `:` type($checkDestOperands) `)`)?
-    attr-dict
+      operands attr-dict `:` functional-type(operands, results)
   }];
 }
 
-def eir_ReceiveDoneOp : eir_Op<"receive.done",
-    [DeclareOpInterfaceMethods<BranchOpInterface>, Terminator]> {
-  let summary = "ends a receive operation";
+def eir_ReceiveWaitOp : eir_Op<"receive.wait", []> {
+  let summary = "Blocks until receipt of a new message";
+  let arguments = (ins eir_ReceiveRefType:$recvRef);
+  let results = (outs eir_ReceiveStatusType:$status);
 
-  let arguments = (ins eir_ReceiveRefType:$recvRef, Variadic<eir_AnyType>:$destOperands);
-  let successors = (successor AnySuccessor:$dest);
+  let verifier = ?;
 
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<
-    "OpBuilder &builder, OperationState &result, Block *dest, Value recvRef, ValueRange destOperands = {}",
+    "OpBuilder &builder, OperationState &result, Value recvRef",
     [{
-      result.addSuccessors(dest);
       result.addOperands(recvRef);
-      result.addOperands(destOperands);
-    }]>,
-   ];
-
-  // Fully verified by traits
-  let verifier = ?;
-
-  let extraClassDeclaration = [{
-    Block *getDest() { return getSuccessor(); }
-    void setDest(Block *block) { setSuccessor(block); }
-
-    /// Erase the operand at 'index' from the operand list.
-    void eraseOperand(unsigned index) { return eraseSuccessorOperand(0, index); }
-  }];
+      result.addTypes(builder.getIntegerType(8));
+    }]>
+  ];
 
   let assemblyFormat = [{
-      operands `to` $dest attr-dict `:` type(operands)
+      operands attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def eir_ReceiveMessageOp : eir_Op<"receive.message", []> {
+  let summary = "Accesses a received message from the given context";
+  let arguments = (ins eir_ReceiveRefType:$recvRef);
+  let results = (outs eir_AnyType:$result);
+
+  let verifier = ?;
+
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value recvRef",
+    [{
+      result.addOperands(recvRef);
+      result.addTypes(builder.getType<TermType>());
+    }]>
+  ];
+
+  let assemblyFormat = [{
+      operands attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def eir_ReceiveDoneOp : eir_Op<"receive.done", []> {
+  let summary = "ends a receive operation";
+
+  let arguments = (ins eir_ReceiveRefType:$recvRef);
+  let results = (outs);
+
+  let verifier = ?;
+
+  let assemblyFormat = [{
+      operands attr-dict `:` functional-type(operands, results)
   }];
 }
 

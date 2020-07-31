@@ -29,6 +29,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_rt_core as rt_core;
 use lumen_rt_core::process::CURRENT_PROCESS;
+use lumen_rt_core::registry;
 use lumen_rt_core::scheduler::{run_queue, Run};
 use lumen_rt_core::timer::Hierarchy;
 
@@ -51,8 +52,7 @@ lazy_static! {
     static ref SCHEDULERS: Mutex<HashMap<id::ID, Weak<Scheduler>>> = Mutex::new(Default::default());
 }
 
-#[export_name = "__scheduler_stop_waiting"]
-pub fn scheduler_stop_waiting(process: &Process) {
+crate fn stop_waiting(process: &Process) {
     let id = process.scheduler_id().unwrap();
     if let Some(scheduler) = SCHEDULERS.lock().get(&id).and_then(|s| s.upgrade()) {
         scheduler.stop_waiting(process)
@@ -61,11 +61,6 @@ pub fn scheduler_stop_waiting(process: &Process) {
 
 #[derive(Copy, Clone)]
 struct StackPointer(*mut u64);
-
-#[export_name = "__lumen_builtin_spawn"]
-pub extern "C" fn builtin_spawn(to: Term, msg: Term) -> Term {
-    unimplemented!()
-}
 
 #[export_name = "__lumen_builtin_yield"]
 pub unsafe extern "C" fn process_yield() -> bool {
@@ -714,6 +709,9 @@ impl Scheduler {
         }
 
         *process.status.write() = Status::Runnable;
+
+        // Ensure pid is recorded in the registry
+        registry::put_pid_to_process(&process);
 
         let mut rq = run_queues.write();
         rq.enqueue(process);

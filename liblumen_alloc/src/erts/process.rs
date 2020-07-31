@@ -563,6 +563,11 @@ impl Process {
             .map(|list| list.into())
     }
 
+    #[inline]
+    pub fn copy_closure(&self, closure: Boxed<Closure>) -> AllocResult<Boxed<Closure>> {
+        self.acquire_heap().copy_closure(closure)
+    }
+
     pub fn anonymous_closure_with_env_from_slice(
         &self,
         module: Atom,

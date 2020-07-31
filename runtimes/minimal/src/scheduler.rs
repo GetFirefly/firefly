@@ -16,6 +16,7 @@ use lazy_static::lazy_static;
 use log::info;
 
 use liblumen_core::locks::{Mutex, RwLock};
+use liblumen_core::sys::dynamic_call::DynamicCallee;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 
 use liblumen_alloc::atom;
@@ -23,7 +24,7 @@ use liblumen_alloc::erts::apply;
 use liblumen_alloc::erts::process;
 use liblumen_alloc::erts::process::{CalleeSavedRegisters, Priority, Process, Status};
 use liblumen_alloc::erts::scheduler::id;
-use liblumen_alloc::erts::term::prelude::{Atom, ReferenceNumber, Term};
+use liblumen_alloc::erts::term::prelude::{Atom, Boxed, Closure, Pid, ReferenceNumber, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_rt_core as rt_core;
@@ -113,12 +114,17 @@ pub unsafe extern "C" fn trap_exceptions() {
          # for the `init` function, and %r15 holds the function pointer
          # for the 'real' trap_exceptions implementation. We need to
          # move the init pointer to %rdi so it gets passed as the first
-         # argument to the trap_exceptions implementation.
+         # argument to the trap_exceptions implementation. If the init
+         # function was a closure, %r12 has the closure term, which will
+         # be passed as the 2nd argument to trap_exceptions_impl, which in
+         # turn will move it to %rdi so that it is the first (and only)
+         # argument to the 'real' init function
          #
          # When called, trap_exceptions_impl will invoke the init function,
          # wrapped in an exception handler that traps Erlang exceptions that
          # went uncaught, but will allow non-Erlang exceptions to continue unwinding
          movq  %r14, %rdi
+         movq  %r12, %rsi
          callq *%r15
 
          # When we get here, we're returning 'into' process_return_continuation
@@ -573,11 +579,36 @@ impl Scheduler {
         rq.enqueue(process);
     }
 
-    /// Spawns a new process using the given init function as its entry
+    /// Spawns the given process
     #[inline]
     pub fn spawn(&mut self, process: Arc<Process>) -> anyhow::Result<()> {
         Self::spawn_internal(process, self.id, &self.run_queues);
         Ok(())
+    }
+
+    /// Spawns a new process from the given parent, using the given closure as its entry
+    pub fn spawn_closure(
+        &self,
+        parent: Option<&Process>,
+        closure: Boxed<Closure>,
+    ) -> anyhow::Result<Pid> {
+        let (heap, heap_size) = process::alloc::default_heap()?;
+        let process = Arc::new(
+            Process::new_with_stack(
+                Priority::Normal,
+                parent,
+                closure.module_function_arity(),
+                heap,
+                heap_size,
+            )
+            .unwrap(),
+        );
+        let pid = process.pid();
+
+        let closure = process.copy_closure(closure)?;
+        Self::spawn_closure_internal(process, closure, self.id, &self.run_queues);
+
+        Ok(pid)
     }
 
     // Root process uses the original thread stack, no initialization required.
@@ -595,6 +626,20 @@ impl Scheduler {
         Ok(())
     }
 
+    fn spawn_closure_internal(
+        process: Arc<Process>,
+        closure: Boxed<Closure>,
+        id: id::ID,
+        run_queues: &RwLock<run_queue::Queues>,
+    ) {
+        process.schedule_with(id);
+
+        let init_fn = closure.callee().unwrap();
+        let env: Term = closure.into();
+
+        Self::spawn_internal_impl(process, init_fn, Some(env), id, run_queues)
+    }
+
     fn spawn_internal(process: Arc<Process>, id: id::ID, run_queues: &RwLock<run_queue::Queues>) {
         process.schedule_with(id);
 
@@ -608,6 +653,16 @@ impl Scheduler {
         }
         let init_fn = init_fn_result.unwrap();
 
+        Self::spawn_internal_impl(process, init_fn, None, id, run_queues);
+    }
+
+    fn spawn_internal_impl(
+        process: Arc<Process>,
+        init_fn: DynamicCallee,
+        env: Option<Term>,
+        id: id::ID,
+        run_queues: &RwLock<run_queue::Queues>,
+    ) {
         #[inline(always)]
         unsafe fn push(sp: &mut StackPointer, value: u64) {
             sp.0 = sp.0.offset(-1);
@@ -641,6 +696,11 @@ impl Scheduler {
             ptr::write(rsp, sp.0 as u64);
             let rbp = &process.registers.rbp as *const u64 as *mut _;
             ptr::write(rbp, sp.0 as u64);
+            // If this init function has a closure env, place it in
+            // r12, which will be moved to %rsi by trap_exceptions,
+            // and moved to %rdi by trap_exceptions_impl
+            let r12 = &process.registers.r12 as *const _ as *mut Term;
+            ptr::write(r12, env.unwrap_or(Term::NONE));
             // This is used to indicate to swap_stack that this process
             // is being swapped to for the first time, so that its CFA
             // can be linked to the parent stack

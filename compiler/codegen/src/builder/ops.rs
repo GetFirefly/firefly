@@ -151,8 +151,11 @@ impl Callee {
         ));
 
         // Handle calls to closures
-        if let ir::ValueKind::Argument(_, _) = callee_kind {
-            return Ok(Self::ClosureDynamic(builder.build_value(callee_value)?));
+        match callee_kind {
+            ir::ValueKind::Argument(_, _) | ir::ValueKind::Block(_) => {
+                return Ok(Self::ClosureDynamic(builder.build_value(callee_value)?));
+            }
+            _ => {}
         }
 
         let op = builder.get_primop(callee_value);

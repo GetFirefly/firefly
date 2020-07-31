@@ -27,19 +27,6 @@ static APInt make_tag(unsigned pointerSize, uint64_t tag) {
   return APInt(pointerSize, tag, /*signed=*/false);
 }
 
-// Used for size calculations
-struct AnonymousClosureDefinition {
-  uint32_t index;
-  char unique[16];
-  uint32_t old_unique;
-};
-
-// Used for size calculations
-union ClosureDefinitionBody {
-  unsigned function;
-  AnonymousClosureDefinition anon;
-};
-
 TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
     : archType(targetMachine->getTargetTriple().getArch()),
       pointerSizeInBits(
@@ -111,10 +98,10 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   // Closure types
   // [i8 x 16]
   impl->uniqueTy = LLVMType::getArrayTy(int8Ty, 16);
-  // struct { i8 tag, usize index_or_function_atom, [i8 x 16] unique, i32
+  // struct { u32 tag, usize index_or_function_atom, [i8 x 16] unique, i32
   // oldUnique }
   impl->defTy = LLVMType::createStructTy(
-      &dialect, ArrayRef<LLVMType>{int8Ty, intNTy, impl->uniqueTy, int32Ty},
+      &dialect, ArrayRef<LLVMType>{int32Ty, intNTy, impl->uniqueTy, int32Ty},
       StringRef("closure.definition"));
 
   // Exception Type (as seen by landing pads)

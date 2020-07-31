@@ -110,6 +110,13 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
       argTypes.push_back(termTy);
     }
     auto target = ctx.getOrInsertFunction(callee.getValue(), termTy, argTypes);
+    LLVMType targetType;
+    if (auto tgt = dyn_cast_or_null<LLVM::LLVMFuncOp>(target))
+      targetType = tgt.getType();
+    else if (auto tgt = dyn_cast_or_null<mlir::FuncOp>(target))
+      targetType = ctx.typeConverter.convertType(tgt.getType()).cast<LLVM::LLVMType>();
+    else
+      targetType = ctx.typeConverter.convertType(cast<FuncOp>(target).getType()).cast<LLVM::LLVMType>();
 
     auto envLen = op.envLen();
     LLVMType opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
@@ -151,8 +158,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     // Definition - type
     Value defTypeIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
     ArrayRef<Value> defTypeIndices({zero, defIdx, defTypeIdx});
-    Value definitionTypePtrGep = llvm_gep(i8PtrTy, valRef, defTypeIndices);
-    Value anonTypeConst = llvm_constant(i8Ty, ctx.getI8Attr(1));
+    Value definitionTypePtrGep = llvm_gep(i32PtrTy, valRef, defTypeIndices);
+    Value anonTypeConst = llvm_constant(i32Ty, ctx.getI32Attr(1));
     llvm_store(anonTypeConst, definitionTypePtrGep);
 
     // Definition - index
@@ -191,8 +198,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     LLVMType opaqueFnPtrTy = opaqueFnTy.getPointerTo();
     Value codePtrGep =
         llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef, codeIndices);
-    Value codePtr =
-        llvm_constant(opaqueFnPtrTy, rewriter.getSymbolRefAttr(target));
+    Value codePtr = llvm_addressof(targetType.getPointerTo(), callee.getValue());
     llvm_store(llvm_bitcast(opaqueFnPtrTy, codePtr), codePtrGep);
 
     auto opOperands = adaptor.operands();

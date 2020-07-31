@@ -5,10 +5,12 @@ use core::ffi::c_void;
 use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
 use core::mem;
-use core::ptr;
+use core::ptr::{self, NonNull};
 use core::slice;
 
 use alloc::sync::Arc;
+
+use liblumen_core::sys::dynamic_call::DynamicCallee;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
@@ -27,7 +29,7 @@ pub struct Closure {
     definition: Definition,
     arity: u8,
     /// Pointer to function entry.  When a closure is received over ETF, `code` may be `None`.
-    code: Option<*const c_void>,
+    code: Option<NonNull<c_void>>,
     env: [Term],
 }
 impl_dynamic_header!(Closure, Term::HEADER_CLOSURE);
@@ -54,7 +56,7 @@ impl ClosureLayout {
         let (layout, _definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, _arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
         let (layout, _code_offset) = layout
-            .extend(Layout::new::<Option<*const c_void>>())
+            .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
         layout.size()
     }
@@ -66,7 +68,7 @@ impl ClosureLayout {
         let (layout, definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
         let (layout, code_offset) = layout
-            .extend(Layout::new::<Option<*const c_void>>())
+            .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
         let (layout, env_offset) = layout.extend(Layout::for_value(env)).unwrap();
 
@@ -105,7 +107,7 @@ impl Closure {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        code: Option<*const c_void>,
+        code: Option<NonNull<c_void>>,
         _creator: Creator,
         env_len: usize,
     ) -> AllocResult<Boxed<Self>>
@@ -126,7 +128,7 @@ impl Closure {
         module: Atom,
         function: Atom,
         arity: Arity,
-        code: Option<*const c_void>,
+        code: Option<NonNull<c_void>>,
     ) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + Heap,
@@ -141,7 +143,7 @@ impl Closure {
         module: Atom,
         definition: Definition,
         arity: Arity,
-        code: Option<*const c_void>,
+        code: Option<NonNull<c_void>>,
         env_len: usize,
     ) -> AllocResult<Boxed<Self>>
     where
@@ -166,7 +168,7 @@ impl Closure {
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
             arity_ptr.write(arity);
             let code_ptr =
-                ptr.offset(closure_layout.code_offset as isize) as *mut Option<*const c_void>;
+                ptr.offset(closure_layout.code_offset as isize) as *mut Option<NonNull<c_void>>;
             code_ptr.write(code);
             // Construct actual Closure reference
             Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_len))
@@ -180,7 +182,7 @@ impl Closure {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        code: Option<*const c_void>,
+        code: Option<NonNull<c_void>>,
         _creator: Creator,
         env: &[Term],
     ) -> AllocResult<Boxed<Self>>
@@ -201,7 +203,7 @@ impl Closure {
         module: Atom,
         definition: Definition,
         arity: Arity,
-        code: Option<*const c_void>,
+        code: Option<NonNull<c_void>>,
         env: &[Term],
     ) -> AllocResult<Boxed<Self>>
     where
@@ -229,7 +231,7 @@ impl Closure {
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
             arity_ptr.write(arity);
             let code_ptr =
-                ptr.offset(closure_layout.code_offset as isize) as *mut Option<*const c_void>;
+                ptr.offset(closure_layout.code_offset as isize) as *mut Option<NonNull<c_void>>;
             code_ptr.write(code);
             // Construct pointer to first env element
             let mut env_ptr = ptr.offset(closure_layout.env_offset as isize) as *mut Term;
@@ -251,6 +253,17 @@ impl Closure {
         }
     }
 
+    pub fn clone_to<A>(&self, heap: &mut A) -> AllocResult<Boxed<Closure>>
+    where
+        A: ?Sized + TermAlloc,
+    {
+        let module = self.module.clone();
+        let definition = self.definition.clone();
+        let arity = self.arity;
+        let code = self.code.clone();
+        Self::new_from_slice(heap, module, definition, arity as u8, code, &self.env)
+    }
+
     #[inline]
     pub fn base_size_words() -> usize {
         erts::to_word_size(ClosureLayout::base_size())
@@ -266,9 +279,15 @@ impl Closure {
         &self.definition
     }
 
+    #[inline]
+    pub fn callee(&self) -> Option<DynamicCallee> {
+        self.code
+            .map(|nn| unsafe { mem::transmute::<*const c_void, DynamicCallee>(nn.as_ptr()) })
+    }
+
     pub fn code(&self) -> Code {
         self.code
-            .map(|ptr| unsafe { mem::transmute::<*const c_void, Code>(ptr) })
+            .map(|nn| unsafe { mem::transmute::<*const c_void, Code>(nn.as_ptr()) })
             .unwrap_or_else(|| {
                 panic!(
                     "{} does not have code associated with it",
@@ -328,7 +347,7 @@ impl Closure {
 
     #[inline]
     pub fn code_address(&self) -> Option<usize> {
-        self.code.map(|ptr| ptr as usize)
+        self.code.map(|nn| nn.as_ptr() as usize)
     }
 
     /// Returns the length of the closure environment in terms.
@@ -392,17 +411,12 @@ impl<E: super::arch::Repr> UnsizedBoxable<E> for Closure {
 }
 
 impl CloneToProcess for Closure {
+    #[inline]
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + TermAlloc,
     {
-        let module = self.module.clone();
-        let definition = self.definition.clone();
-        let arity = self.arity;
-        let code = self.code.clone();
-        let ptr = Self::new_from_slice(heap, module, definition, arity as u8, code, &self.env)?;
-
-        Ok(ptr.into())
+        self.clone_to(heap).map(|boxed| boxed.into())
     }
 
     fn size_in_words(&self) -> usize {
@@ -421,7 +435,7 @@ impl Debug for Closure {
             .field("module", &self.module)
             .field("definition", &self.definition)
             .field("arity", &self.arity)
-            .field("code", &self.code)
+            .field("code", &self.code.map(|nn| nn.as_ptr()))
             .field("env_len", &self.env.len())
             .field("env", &self.env.iter().copied().collect::<Vec<Term>>())
             .finish()

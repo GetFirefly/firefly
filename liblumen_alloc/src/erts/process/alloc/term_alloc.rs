@@ -2,7 +2,7 @@ use core::alloc::Layout;
 use core::any::Any;
 use core::ffi::c_void;
 use core::mem;
-use core::ptr;
+use core::ptr::{self, NonNull};
 use core::str::Chars;
 
 use alloc::sync::Arc;
@@ -520,6 +520,12 @@ pub trait TermAlloc: Heap {
         Ok(tuple_box)
     }
 
+    /// Clones a `Closure` from an existing `Closure`
+    #[inline]
+    fn copy_closure(&mut self, closure: Boxed<Closure>) -> AllocResult<Boxed<Closure>> {
+        closure.clone_to(self)
+    }
+
     /// Constructs a `Closure` from a slice of `Term`
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
@@ -539,7 +545,8 @@ pub trait TermAlloc: Heap {
         creator: Creator,
         slice: &[Term],
     ) -> AllocResult<Boxed<Closure>> {
-        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
+        let code =
+            code.map(|c| unsafe { NonNull::new_unchecked(mem::transmute::<Code, *mut c_void>(c)) });
         Closure::from_slice(
             self, module, index, old_unique, unique, arity, code, creator, slice,
         )
@@ -564,7 +571,8 @@ pub trait TermAlloc: Heap {
         creator: Creator,
         slices: &[&[Term]],
     ) -> AllocResult<Boxed<Closure>> {
-        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
+        let code =
+            code.map(|c| unsafe { NonNull::new_unchecked(mem::transmute::<Code, *mut c_void>(c)) });
         let len = slices.iter().map(|slice| slice.len()).sum();
         let mut closure_box = Closure::new_anonymous(
             self, module, index, old_unique, unique, arity, code, creator, len,
@@ -594,7 +602,8 @@ pub trait TermAlloc: Heap {
         arity: u8,
         code: Option<Code>,
     ) -> AllocResult<Boxed<Closure>> {
-        let code = code.map(|c| unsafe { mem::transmute::<Code, *const c_void>(c) });
+        let code =
+            code.map(|c| unsafe { NonNull::new_unchecked(mem::transmute::<Code, *mut c_void>(c)) });
         Closure::new_export(self, module, function, arity, code)
     }
 }

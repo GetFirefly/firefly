@@ -47,6 +47,12 @@ pub struct Exception {
     _uwe: uw::_Unwind_Exception,
     cause: usize,
 }
+impl Exception {
+    #[inline(always)]
+    fn is_forced(&self) -> bool {
+        self._uwe.is_forced()
+    }
+}
 
 pub unsafe fn panic(data: usize) -> u32 {
     let exception = Box::new(Exception {
@@ -68,6 +74,28 @@ pub unsafe fn panic(data: usize) -> u32 {
             let _: Box<Exception> = Box::from_raw(exception as *mut Exception);
         }
     }
+}
+
+// Entry point for re-raising an exception, just delegates to the platform-specific implementation.
+#[unwind(allowed)]
+#[no_mangle]
+pub unsafe fn __lumen_rethrow(ptr: *mut u8) -> ! {
+    let exception = &mut *(ptr as *mut Exception);
+
+    // If this is non-forced and a stopping place was found, then this is a
+    // re-throw.
+    // Call _Unwind_RaiseException() as if this was a new exception
+    if !exception.is_forced() {
+        // Will return if there is no catch clause, at which point we
+        // abort/terminate execution
+        uw::_Unwind_RaiseException(exception as *mut _ as *mut uw::_Unwind_Exception);
+        core::intrinsics::abort();
+    }
+
+    // Call through to _Unwind_Resume() which distiguishes between forced and
+    // regular exceptions.
+    uw::_Unwind_Resume(exception as *mut _ as *mut uw::_Unwind_Exception);
+    unreachable!("_Unwind_Resume unexpectedly returned in reraise_panic");
 }
 
 #[inline]

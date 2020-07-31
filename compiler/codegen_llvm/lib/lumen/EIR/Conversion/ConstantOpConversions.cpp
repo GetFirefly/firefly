@@ -55,7 +55,7 @@ struct ConstantBigIntOpConversion : public EIROpConversion<ConstantBigIntOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto bigIntAttr = op.getValue().cast<BigIntAttr>();
+    auto bigIntAttr = op.getValue().cast<APIntAttr>();
     auto bigIntStr = bigIntAttr.getValueAsString();
     auto termTy = ctx.getUsizeType();
     auto i8Ty = ctx.getI8Type();
@@ -148,7 +148,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto attr = op.getValue().cast<eir::FloatAttr>();
+    auto attr = op.getValue().cast<APFloatAttr>();
     auto apVal = attr.getValue();
     auto termTy = ctx.getUsizeType();
 
@@ -215,7 +215,7 @@ struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto attr = op.getValue().cast<FixnumAttr>();
+    auto attr = op.getValue().cast<APIntAttr>();
     auto termTy = ctx.getUsizeType();
     auto i = (uint64_t)attr.getValue().getLimitedValue();
     auto taggedInt = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, i);
@@ -416,8 +416,8 @@ struct ConstantMapOpConversion : public EIROpConversion<ConstantMapOp> {
        elements.push_back(element);
     }
 
-    Value map = eir_map(elements);
-    rewriter.replaceOp(op, map);
+    ConstructMapOp newMap = eir_map(elements);
+    rewriter.replaceOp(op, newMap.out());
 
     return success();
   }
@@ -659,7 +659,7 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
     return llvm_constant(termTy, ctx.getIntegerAttr(tagged));
   }
   // Integers
-  if (auto intAttr = elementAttr.dyn_cast_or_null<FixnumAttr>()) {
+  if (auto intAttr = elementAttr.dyn_cast_or_null<APIntAttr>()) {
     auto i = intAttr.getValue();
     assert(i.getBitWidth() <= ctx.targetInfo.pointerSizeInBits &&
            "support for bigint in constant aggregates not yet implemented");
@@ -676,7 +676,7 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
     return llvm_constant(termTy, ctx.getIntegerAttr(tagged));
   }
   // Floats
-  if (auto floatAttr = elementAttr.dyn_cast_or_null<eir::FloatAttr>()) {
+  if (auto floatAttr = elementAttr.dyn_cast_or_null<APFloatAttr>()) {
     if (!ctx.targetInfo.requiresPackedFloats()) {
       auto f = floatAttr.getValue().bitcastToAPInt();
       return llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue()));

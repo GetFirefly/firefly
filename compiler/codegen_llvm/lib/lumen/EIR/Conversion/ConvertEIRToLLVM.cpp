@@ -38,8 +38,9 @@ class ConvertEIRToLLVMPass
 
     // Populate conversion patterns
     OwningRewritePatternList patterns;
+    auto llvmOpts = mlir::LowerToLLVMOptions::getDefaultOptions();
     mlir::populateStdToLLVMConversionPatterns(converter, patterns,
-                                              /*emitCWrappers=*/false);
+                                              llvmOpts);
     populateAggregateOpConversionPatterns(patterns, &context, converter,
                                           targetInfo);
     populateBinaryOpConversionPatterns(patterns, &context, converter,
@@ -72,8 +73,7 @@ class ConvertEIRToLLVMPass
     conversionTarget.addLegalOp<ModuleOp, ModuleTerminatorOp>();
 
     mlir::ModuleOp moduleOp = getOperation();
-    if (failed(applyFullConversion(moduleOp, conversionTarget, patterns,
-                                   &converter))) {
+    if (failed(applyFullConversion(moduleOp, conversionTarget, patterns))) {
       moduleOp.emitError() << "conversion to LLVM IR dialect failed";
       return signalPassFailure();
     }

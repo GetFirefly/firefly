@@ -50,7 +50,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
       BinaryPushOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    BinaryPushOpOperandAdaptor adaptor(operands);
+    BinaryPushOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
 
@@ -285,7 +285,7 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
 };
 
 struct BinaryMatchRawOpConversion
-    : public BinaryMatchOpConversion<BinaryMatchRawOp, BinaryMatchRawOpOperandAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchRawOp, BinaryMatchRawOpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchRawOp> &ctx, SmallVectorImpl<LLVMType> &types) const override {
@@ -300,7 +300,7 @@ struct BinaryMatchRawOpConversion
 };
 
 struct BinaryMatchIntegerOpConversion
-    : public BinaryMatchOpConversion<BinaryMatchIntegerOp, BinaryMatchIntegerOpOperandAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchIntegerOp, BinaryMatchIntegerOpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchIntegerOp> &ctx, SmallVectorImpl<LLVMType> &types) const override {
@@ -323,7 +323,7 @@ struct BinaryMatchIntegerOpConversion
 };
 
 struct BinaryMatchFloatOpConversion
-    : public BinaryMatchOpConversion<BinaryMatchFloatOp, BinaryMatchFloatOpOperandAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchFloatOp, BinaryMatchFloatOpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchFloatOp> &ctx, SmallVectorImpl<LLVMType> &types) const override {
@@ -342,12 +342,12 @@ struct BinaryMatchFloatOpConversion
 };
 
 struct BinaryMatchUtf8OpConversion
-    : public BinaryMatchOpConversion<BinaryMatchUtf8Op, BinaryMatchUtf8OpOperandAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchUtf8Op, BinaryMatchUtf8OpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 };
 
 struct BinaryMatchUtf16OpConversion
-    : public BinaryMatchOpConversion<BinaryMatchUtf16Op, BinaryMatchUtf16OpOperandAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchUtf16Op, BinaryMatchUtf16OpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchUtf16Op> &ctx, SmallVectorImpl<LLVMType> &types) const override {
@@ -362,7 +362,7 @@ struct BinaryMatchUtf16OpConversion
 };
 
 struct BinaryMatchUtf32OpConversion
-    : public BinaryMatchOpConversion<BinaryMatchUtf32Op, BinaryMatchUtf32OpOperandAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchUtf32Op, BinaryMatchUtf32OpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchUtf32Op> &ctx, SmallVectorImpl<LLVMType> &types) const override {

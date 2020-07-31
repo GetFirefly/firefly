@@ -43,27 +43,27 @@ class ComparisonOpConversion : public EIROpConversion<Op> {
 };
 
 struct CmpEqOpConversion
-    : public ComparisonOpConversion<CmpEqOp, CmpEqOpOperandAdaptor> {
+    : public ComparisonOpConversion<CmpEqOp, CmpEqOpAdaptor> {
   using ComparisonOpConversion::ComparisonOpConversion;
 };
 struct CmpNeqOpConversion
-    : public ComparisonOpConversion<CmpNeqOp, CmpNeqOpOperandAdaptor> {
+    : public ComparisonOpConversion<CmpNeqOp, CmpNeqOpAdaptor> {
   using ComparisonOpConversion::ComparisonOpConversion;
 };
 struct CmpLtOpConversion
-    : public ComparisonOpConversion<CmpLtOp, CmpLtOpOperandAdaptor> {
+    : public ComparisonOpConversion<CmpLtOp, CmpLtOpAdaptor> {
   using ComparisonOpConversion::ComparisonOpConversion;
 };
 struct CmpLteOpConversion
-    : public ComparisonOpConversion<CmpLteOp, CmpLteOpOperandAdaptor> {
+    : public ComparisonOpConversion<CmpLteOp, CmpLteOpAdaptor> {
   using ComparisonOpConversion::ComparisonOpConversion;
 };
 struct CmpGtOpConversion
-    : public ComparisonOpConversion<CmpGtOp, CmpGtOpOperandAdaptor> {
+    : public ComparisonOpConversion<CmpGtOp, CmpGtOpAdaptor> {
   using ComparisonOpConversion::ComparisonOpConversion;
 };
 struct CmpGteOpConversion
-    : public ComparisonOpConversion<CmpGteOp, CmpGteOpOperandAdaptor> {
+    : public ComparisonOpConversion<CmpGteOp, CmpGteOpAdaptor> {
   using ComparisonOpConversion::ComparisonOpConversion;
 };
 

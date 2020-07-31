@@ -15,9 +15,9 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
-#include "mlir/Support/STLExtras.h"
 
 #include <iterator>
 #include <vector>
@@ -55,32 +55,33 @@ static void print(OpAsmPrinter &p, FuncOp &op) {
 FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
                       ArrayRef<NamedAttribute> attrs) {
   OperationState state(location, FuncOp::getOperationName());
-  Builder builder(location->getContext());
-  FuncOp::build(&builder, state, name, type, attrs);
+  OpBuilder builder(location->getContext());
+  FuncOp::build(builder, state, name, type, attrs);
   return cast<FuncOp>(Operation::create(state));
 }
 
-void FuncOp::build(Builder *builder, OperationState &result, StringRef name,
+void FuncOp::build(OpBuilder &builder, OperationState &result, StringRef name,
                    FunctionType type, ArrayRef<NamedAttribute> attrs,
-                   ArrayRef<NamedAttributeList> argAttrs) {
+                   ArrayRef<MutableDictionaryAttr> argAttrs) {
   result.addRegion();
   result.addAttribute(SymbolTable::getSymbolAttrName(),
-                      builder->getStringAttr(name));
+                      builder.getStringAttr(name));
   result.addAttribute("type", TypeAttr::get(type));
   result.attributes.append(attrs.begin(), attrs.end());
   if (argAttrs.empty()) {
     return;
   }
 
+  if (argAttrs.empty())
+    return;
+
   unsigned numInputs = type.getNumInputs();
   assert(numInputs == argAttrs.size() &&
          "expected as many argument attribute lists as arguments");
   SmallString<8> argAttrName;
-  for (unsigned i = 0; i < numInputs; ++i) {
-    if (auto argDict = argAttrs[i].getDictionary()) {
+  for (unsigned i = 0, e = numInputs; i != e; ++i)
+    if (auto argDict = argAttrs[i].getDictionary(builder.getContext()))
       result.addAttribute(getArgAttrName(i, argAttrName), argDict);
-    }
-  }
 }
 
 Block *FuncOp::addEntryBlock() {
@@ -97,6 +98,13 @@ LogicalResult FuncOp::verifyType() {
     return emitOpError("requires '" + getTypeAttrName() +
                        "' attribute of function type");
   return success();
+}
+
+Region *FuncOp::getCallableRegion() { return &body(); }
+
+ArrayRef<Type> FuncOp::getCallableResults() {
+  assert(!isExternal() && "invalid callable");
+  return getType().getResults();
 }
 
 //===----------------------------------------------------------------------===//
@@ -132,6 +140,54 @@ void CallIndirectOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 // eir.br
 //===----------------------------------------------------------------------===//
+  
+/// Given a successor, try to collapse it to a new destination if it only
+/// contains a passthrough unconditional branch. If the successor is
+/// collapsable, `successor` and `successorOperands` are updated to reference
+/// the new destination and values. `argStorage` is an optional storage to use
+/// if operands to the collapsed successor need to be remapped.
+static LogicalResult collapseBranch(Block *&successor,
+                                    ValueRange &successorOperands,
+                                    SmallVectorImpl<Value> &argStorage) {
+  // Check that the successor only contains a unconditional branch.
+  if (std::next(successor->begin()) != successor->end())
+    return failure();
+  // Check that the terminator is an unconditional branch.
+  BranchOp successorBranch = dyn_cast<BranchOp>(successor->getTerminator());
+  if (!successorBranch)
+    return failure();
+  // Check that the arguments are only used within the terminator.
+  for (BlockArgument arg : successor->getArguments()) {
+    for (Operation *user : arg.getUsers())
+      if (user != successorBranch)
+        return failure();
+  }
+  // Don't try to collapse branches to infinite loops.
+  Block *successorDest = successorBranch.getDest();
+  if (successorDest == successor)
+    return failure();
+
+  // Update the operands to the successor. If the branch parent has no
+  // arguments, we can use the branch operands directly.
+  OperandRange operands = successorBranch.getOperands();
+  if (successor->args_empty()) {
+    successor = successorDest;
+    successorOperands = operands;
+    return success();
+  }
+
+  // Otherwise, we need to remap any argument operands.
+  for (Value operand : operands) {
+    BlockArgument argOperand = operand.dyn_cast<BlockArgument>();
+    if (argOperand && argOperand.getOwner() == successor)
+      argStorage.push_back(successorOperands[argOperand.getArgNumber()]);
+    else
+      argStorage.push_back(operand);
+  }
+  successor = successorDest;
+  successorOperands = argStorage;
+  return success();
+}
 
 namespace {
 struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
@@ -142,7 +198,7 @@ struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
     // Check that the successor block has a single predecessor.
     Block *succ = op.getDest();
     Block *opParent = op.getOperation()->getBlock();
-    if (succ == opParent || !has_single_element(succ->getPredecessors()))
+    if (succ == opParent || !llvm::hasSingleElement(succ->getPredecessors()))
       return failure();
 
     // Merge the successor into the current block and erase the branch.
@@ -151,19 +207,49 @@ struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
     return success();
   }
 };
+
+///   br ^bb1
+/// ^bb1
+///   br ^bbN(...)
+///
+///  -> br ^bbN(...)
+///
+struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
+  using OpRewritePattern<BranchOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BranchOp op,
+                                PatternRewriter &rewriter) const override {
+    Block *dest = op.getDest();
+    ValueRange destOperands = op.getOperands();
+    SmallVector<Value, 4> destOperandStorage;
+
+    // Try to collapse the successor if it points somewhere other than this
+    // block.
+    if (dest == op.getOperation()->getBlock() ||
+        failed(collapseBranch(dest, destOperands, destOperandStorage)))
+      return failure();
+
+    // Create a new branch with the collapsed successor.
+    rewriter.replaceOpWithNewOp<BranchOp>(op, dest, destOperands);
+    return success();
+  }
+};
 }  // namespace
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
-  results.insert<SimplifyBrToBlockWithSinglePred>(context);
+  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(context);
 }
 
-Optional<OperandRange> BranchOp::getSuccessorOperands(unsigned index) {
+  
+Optional<MutableOperandRange>
+BranchOp::getMutableSuccessorOperands(unsigned index) {
   assert(index == 0 && "invalid successor index");
-  return getOperands();
+  return destOperandsMutable();
 }
 
-bool BranchOp::canEraseSuccessorOperand() { return true; }
+Block *BranchOp::getSuccessorForOperands(ArrayRef<Attribute>) { return dest(); }
+
 
 //===----------------------------------------------------------------------===//
 // eir.cond_br
@@ -192,19 +278,112 @@ struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
     return failure();
   }
 };
+
+  
+///   cond_br %cond, ^bb1, ^bb2
+/// ^bb1
+///   br ^bbN(...)
+/// ^bb2
+///   br ^bbK(...)
+///
+///  -> cond_br %cond, ^bbN(...), ^bbK(...)
+///
+struct SimplifyPassThroughCondBranch : public OpRewritePattern<CondBranchOp> {
+  using OpRewritePattern<CondBranchOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CondBranchOp condbr,
+                                PatternRewriter &rewriter) const override {
+    Block *trueDest = condbr.trueDest(), *falseDest = condbr.falseDest();
+    ValueRange trueDestOperands = condbr.getTrueOperands();
+    ValueRange falseDestOperands = condbr.getFalseOperands();
+    SmallVector<Value, 4> trueDestOperandStorage, falseDestOperandStorage;
+
+    // Try to collapse one of the current successors.
+    LogicalResult collapsedTrue =
+        collapseBranch(trueDest, trueDestOperands, trueDestOperandStorage);
+    LogicalResult collapsedFalse =
+        collapseBranch(falseDest, falseDestOperands, falseDestOperandStorage);
+    if (failed(collapsedTrue) && failed(collapsedFalse))
+      return failure();
+
+    // Create a new branch with the collapsed successors.
+    rewriter.replaceOpWithNewOp<CondBranchOp>(condbr, condbr.getCondition(),
+                                              trueDest, trueDestOperands,
+                                              falseDest, falseDestOperands);
+    return success();
+  }
+};
+
+/// cond_br %cond, ^bb1(A, ..., N), ^bb1(A, ..., N)
+///  -> br ^bb1(A, ..., N)
+///
+/// cond_br %cond, ^bb1(A), ^bb1(B)
+///  -> %select = select %cond, A, B
+///     br ^bb1(%select)
+///
+struct SimplifyCondBranchIdenticalSuccessors
+    : public OpRewritePattern<CondBranchOp> {
+  using OpRewritePattern<CondBranchOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CondBranchOp condbr,
+                                PatternRewriter &rewriter) const override {
+    // Check that the true and false destinations are the same and have the same
+    // operands.
+    Block *trueDest = condbr.trueDest();
+    if (trueDest != condbr.falseDest())
+      return failure();
+
+    // If all of the operands match, no selects need to be generated.
+    OperandRange trueOperands = condbr.getTrueOperands();
+    OperandRange falseOperands = condbr.getFalseOperands();
+    if (trueOperands == falseOperands) {
+      rewriter.replaceOpWithNewOp<BranchOp>(condbr, trueDest, trueOperands);
+      return success();
+    }
+
+    // Otherwise, if the current block is the only predecessor insert selects
+    // for any mismatched branch operands.
+    if (trueDest->getUniquePredecessor() != condbr.getOperation()->getBlock())
+      return failure();
+
+    // Generate a select for any operands that differ between the two.
+    SmallVector<Value, 8> mergedOperands;
+    mergedOperands.reserve(trueOperands.size());
+    Value condition = condbr.getCondition();
+    for (auto it : llvm::zip(trueOperands, falseOperands)) {
+      if (std::get<0>(it) == std::get<1>(it))
+        mergedOperands.push_back(std::get<0>(it));
+      else
+        mergedOperands.push_back(rewriter.create<mlir::SelectOp>(
+            condbr.getLoc(), condition, std::get<0>(it), std::get<1>(it)));
+    }
+
+    rewriter.replaceOpWithNewOp<BranchOp>(condbr, trueDest, mergedOperands);
+    return success();
+  }
+};
 }  // end anonymous namespace.
 
 void CondBranchOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<SimplifyConstCondBranchPred>(context);
+  results.insert<SimplifyConstCondBranchPred, SimplifyPassThroughCondBranch,
+                 SimplifyCondBranchIdenticalSuccessors>(context);
 }
 
-Optional<OperandRange> CondBranchOp::getSuccessorOperands(unsigned index) {
+Optional<MutableOperandRange>
+CondBranchOp::getMutableSuccessorOperands(unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
-  return index == trueIndex ? getTrueOperands() : getFalseOperands();
+  return index == trueIndex ? trueDestOperandsMutable()
+                            : falseDestOperandsMutable();
 }
 
-bool CondBranchOp::canEraseSuccessorOperand() { return true; }
+Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
+  if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
+    return condAttr.getValue().isOneValue() ? trueDest() : falseDest();
+  return nullptr;
+}
+
+
 
 //===----------------------------------------------------------------------===//
 // eir.return
@@ -229,17 +408,6 @@ static LogicalResult verify(ReturnOp op) {
 
   return success();
 }
-
-//===----------------------------------------------------------------------===//
-// eir.yield_check
-//===----------------------------------------------------------------------===//
-
-Optional<OperandRange> YieldCheckOp::getSuccessorOperands(unsigned index) {
-  assert(index == 0 && "invalid successor index");
-  return getOperands();
-}
-
-bool YieldCheckOp::canEraseSuccessorOperand() { return true; }
 
 //===----------------------------------------------------------------------===//
 // eir.is_type
@@ -771,65 +939,56 @@ int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {
   assert(false && "unimplemented boxed type in calculateAllocSize");
 }
 
-bool InvokeClosureOp::canEraseSuccessorOperand() { return true; }
-
-Optional<OperandRange> InvokeClosureOp::getSuccessorOperands(unsigned index) {
-  switch (index) {
-    case 0:
-      return llvm::None;
-    case 1:
-      return getErrOperands();
-    default:
-      assert(false && "invalid successor index");
-  }
-}
-
-bool InvokeOp::canEraseSuccessorOperand() { return true; }
-
-Optional<OperandRange> InvokeOp::getSuccessorOperands(unsigned index) {
-  switch (index) {
-    case 0:
-      return llvm::None;
-    case 1:
-      return getErrOperands();
-    default:
-      assert(false && "invalid successor index");
-  }
-}
-
 //===----------------------------------------------------------------------===//
-// eir.receive_start
+// eir.invoke
 //===----------------------------------------------------------------------===//
-
-Optional<OperandRange> ReceiveStartOp::getSuccessorOperands(unsigned index) {
-  assert(index == 0 && "invalid successor index");
-  return getOperands();
-}
-
-bool ReceiveStartOp::canEraseSuccessorOperand() { return false; }
-
-//===----------------------------------------------------------------------===//
-// eir.receive_wait
-//===----------------------------------------------------------------------===//
-
-Optional<OperandRange> ReceiveWaitOp::getSuccessorOperands(unsigned index) {
+    
+Optional<MutableOperandRange>
+InvokeOp::getMutableSuccessorOperands(unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
-  return index == timeoutIndex ? getTimeoutOperands() : getCheckOperands();
+  return index == okIndex ? okDestOperandsMutable()
+                            : errDestOperandsMutable();
 }
 
-bool ReceiveWaitOp::canEraseSuccessorOperand() { return true; }
-
-
+Block *InvokeOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
+  if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
+    return condAttr.getValue().isOneValue() ? okDest() : errDest();
+  return nullptr;
+}
+ 
 //===----------------------------------------------------------------------===//
-// eir.receive_done
+// eir.invoke_closure
 //===----------------------------------------------------------------------===//
-
-Optional<OperandRange> ReceiveDoneOp::getSuccessorOperands(unsigned index) {
-  assert(index == 0 && "invalid successor index");
-  return getOperands();
+   
+Optional<MutableOperandRange>
+InvokeClosureOp::getMutableSuccessorOperands(unsigned index) {
+  assert(index < getNumSuccessors() && "invalid successor index");
+  return index == okIndex ? okDestOperandsMutable()
+                            : errDestOperandsMutable();
 }
 
-bool ReceiveDoneOp::canEraseSuccessorOperand() { return true; }
+Block *InvokeClosureOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
+  if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
+    return condAttr.getValue().isOneValue() ? okDest() : errDest();
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// eir.yield.check
+//===----------------------------------------------------------------------===//
+  
+Optional<MutableOperandRange>
+YieldCheckOp::getMutableSuccessorOperands(unsigned index) {
+  assert(index < getNumSuccessors() && "invalid successor index");
+  return index == trueIndex ? trueDestOperandsMutable()
+                            : falseDestOperandsMutable();
+}
+
+Block *YieldCheckOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
+  if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
+    return condAttr.getValue().isOneValue() ? trueDest() : falseDest();
+  return nullptr;
+}
 
 //===----------------------------------------------------------------------===//
 // TableGen Output

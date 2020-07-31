@@ -32,7 +32,7 @@ def eir_FuncOp : eir_Op<"func", [
     OpBuilder<[{
       OpBuilder &builder, OperationState &result, StringRef name,
       FunctionType type, ArrayRef<NamedAttribute> attrs = {},
-      ArrayRef<NamedAttributeList> argAttrs = {}
+      ArrayRef<MutableDictionaryAttr> argAttrs = {}
     }]>,
   ];
 
@@ -74,12 +74,6 @@ def eir_FuncOp : eir_Op<"func", [
     /// attribute is present. This can check for preconditions of the
     /// getNumArguments hook not failing.
     LogicalResult verifyType();
-
-    Region *getCallableRegion() { return &body(); }
-    ArrayRef<Type> getCallableResults() {
-      assert(!isExternal() && "invalid callable");
-      return getType().getResults();
-    }
   }];
 }
 
@@ -87,7 +81,7 @@ def eir_ClosureOp : eir_Op<"closure", []> {
   let summary = "Creates a closure capture at the current point in the function";
 
   let arguments = (ins
-    eir_FuncRefAttr:$callee,
+    FlatSymbolRefAttr:$callee,
     Variadic<eir_AnyType>:$operands
   );
   let results = (outs
@@ -451,7 +445,7 @@ def eir_BranchOp : eir_Op<"br",
     void setDest(Block *block) { setSuccessor(block); }
 
     /// Erase the operand at 'index' from the operand list.
-    void eraseOperand(unsigned index) { return eraseSuccessorOperand(0, index); }
+    void eraseOperand(unsigned index) { return getOperation()->eraseOperand(index); }
   }];
 
   let hasCanonicalizer = 1;
@@ -534,7 +528,7 @@ def eir_CondBranchOp : eir_Op<"cond_br",
 
     /// Erase the operand at 'index' from the true operand list.
     void eraseTrueOperand(unsigned index)  {
-      eraseSuccessorOperand(trueIndex, index);
+      trueDestOperandsMutable().erase(index);
     }
 
     /// Accessors for operands to the 'false' destination.
@@ -553,7 +547,7 @@ def eir_CondBranchOp : eir_Op<"cond_br",
 
     /// Erase the operand at 'index' from the false operand list.
     void eraseFalseOperand(unsigned index) {
-      eraseSuccessorOperand(falseIndex, index);
+      falseDestOperandsMutable().erase(index);
     }
 
   private:
@@ -634,7 +628,7 @@ class eir_InvokeBaseOp<string mnemonic, list<OpTrait> traits = []> :
 
     /// Erase the operand at 'index' from the true operand list.
     void eraseOkOperand(unsigned index)  {
-      eraseSuccessorOperand(okIndex, index);
+      okDestOperandsMutable().erase(index);
     }
 
     /// Accessors for operands to the 'false' destination.
@@ -653,7 +647,7 @@ class eir_InvokeBaseOp<string mnemonic, list<OpTrait> traits = []> :
 
     /// Erase the operand at 'index' from the false operand list.
     void eraseErrOperand(unsigned index) {
-      eraseSuccessorOperand(errIndex, index);
+      errDestOperandsMutable().erase(index);
     }
 
   private:
@@ -681,7 +675,7 @@ def eir_CallOp : eir_CallBaseOp<"call"> {
   }];
 
   let arguments = (ins
-    eir_FuncRefAttr:$callee,
+    FlatSymbolRefAttr:$callee,
     Variadic<eir_AnyType>:$operands
   );
   let results = (outs
@@ -779,7 +773,7 @@ def eir_InvokeOp : eir_InvokeBaseOp<"invoke", [CallOpInterface]> {
   }];
 
   let arguments = (ins
-    eir_FuncRefAttr:$callee,
+    FlatSymbolRefAttr:$callee,
     Variadic<eir_AnyType>:$operands,
     Variadic<eir_AnyType>:$okDestOperands,
     Variadic<eir_AnyType>:$errDestOperands
@@ -1102,7 +1096,7 @@ def eir_YieldCheckOp : eir_Op<"yield.check",
 
     /// Erase the operand at 'index' from the true operand list.
     void eraseTrueOperand(unsigned index)  {
-      eraseSuccessorOperand(trueIndex, index);
+      trueDestOperandsMutable().erase(index);
     }
 
     /// Accessors for operands to the 'false' destination.
@@ -1121,7 +1115,7 @@ def eir_YieldCheckOp : eir_Op<"yield.check",
 
     /// Erase the operand at 'index' from the false operand list.
     void eraseFalseOperand(unsigned index) {
-      eraseSuccessorOperand(falseIndex, index);
+      falseDestOperandsMutable().erase(index);
     }
 
   private:
@@ -1476,7 +1470,7 @@ def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
     "OpBuilder &builder, OperationState &result, APFloat &value",
     [{
       auto type = builder.getType<eir::FloatType>();
-      auto attr = eir::FloatAttr::get(builder.getContext(), value);
+      auto attr = APFloatAttr::get(builder.getContext(), value);
       build(builder, result, type, attr);
     }]>
   ];
@@ -1496,7 +1490,7 @@ def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, "constant.int"> {
       auto type = builder.getType<FixnumType>();
       auto n = static_cast<uint64_t>(value);
       APInt ap(64, n, /*isSigned=*/true);
-      auto attr = FixnumAttr::get(builder.getContext(), ap);
+      auto attr = APIntAttr::get(builder.getContext(), type, ap);
       build(builder, result, type, attr);
     }]>
   ];
@@ -1511,11 +1505,11 @@ def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, "constant.bigint"> {
       result.addTypes(type);
     }]>,
     OpBuilder<
-    "OpBuilder &builder, OperationState &result, APInt &value, bool isSigned = false",
+    "OpBuilder &builder, OperationState &result, APInt &value",
     [{
       auto bigIntType = builder.getType<BigIntType>();
       auto type = builder.getType<eir::BoxType>(bigIntType);
-      auto attr = BigIntAttr::get(builder.getContext(), value, isSigned);
+      auto attr = APIntAttr::get(builder.getContext(), bigIntType, value);
       build(builder, result, type, attr);
     }]>
   ];
@@ -1989,7 +1983,7 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value bin, Value value, Value size, NamedAttributeList attrs",
+    "OpBuilder &builder, OperationState &result, Value bin, Value value, Value size, ArrayRef<NamedAttribute> attrs",
     [{
       if (size) {
         result.addOperands({bin, value, size});
@@ -1999,7 +1993,7 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
       auto binTy = bin.getType();
       auto i1Ty = builder.getI1Type();
       result.addTypes({binTy, i1Ty});
-      result.addAttributes(attrs.getAttrs());
+      result.addAttributes(attrs);
     }]>
   ];
 }

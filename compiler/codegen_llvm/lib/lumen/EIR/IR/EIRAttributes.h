@@ -26,9 +26,8 @@ namespace eir {
 
 namespace detail {
 struct AtomAttributeStorage;
-struct FixnumAttributeStorage;
-struct BigIntAttributeStorage;
-struct FloatAttributeStorage;
+struct APIntAttributeStorage;
+struct APFloatAttributeStorage;
 struct BinaryAttributeStorage;
 struct SeqAttributeStorage;
 }  // namespace detail
@@ -36,8 +35,7 @@ struct SeqAttributeStorage;
 namespace AttributeKind {
 enum Kind {
   Atom = Attribute::FIRST_EIR_ATTR,
-  Fixnum,
-  BigInt,
+  Int,
   Float,
   Binary,
   Seq,
@@ -63,34 +61,17 @@ class AtomAttr : public Attribute::AttrBase<AtomAttr, Attribute,
   }
 };
 
-class FixnumAttr : public Attribute::AttrBase<FixnumAttr, Attribute,
-                                            detail::FixnumAttributeStorage> {
+class APIntAttr : public Attribute::AttrBase<APIntAttr, Attribute,
+                                            detail::APIntAttributeStorage> {
  public:
   using Base::Base;
   using ValueType = APInt;
 
-  static FixnumAttr get(MLIRContext *context, APInt value);
+  static APIntAttr get(MLIRContext *context, APInt value);
+  static APIntAttr get(MLIRContext *context, Type type, APInt value);
+  static APIntAttr get(MLIRContext *context, StringRef value, unsigned numBits);
 
-  static StringRef getAttrName() { return "fixnum"; }
-
-  APInt &getValue() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == static_cast<unsigned>(AttributeKind::Fixnum);
-  }
-};
-
-class BigIntAttr : public Attribute::AttrBase<BigIntAttr, Attribute,
-                                            detail::BigIntAttributeStorage> {
- public:
-  using Base::Base;
-  using ValueType = APInt;
-
-  static BigIntAttr get(MLIRContext *context, APInt value, bool isSigned = false);
-  static BigIntAttr get(MLIRContext *context, StringRef value, unsigned width);
-
-  static StringRef getAttrName() { return "bigint"; }
+  static StringRef getAttrName() { return "int"; }
 
   APInt &getValue() const;
   std::string getValueAsString() const;
@@ -98,17 +79,17 @@ class BigIntAttr : public Attribute::AttrBase<BigIntAttr, Attribute,
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool kindof(unsigned kind) {
-    return kind == static_cast<unsigned>(AttributeKind::BigInt);
+    return kind == static_cast<unsigned>(AttributeKind::Int);
   }
 };
 
-class FloatAttr : public Attribute::AttrBase<FloatAttr, Attribute,
-                                            detail::FloatAttributeStorage> {
+class APFloatAttr : public Attribute::AttrBase<APFloatAttr, Attribute,
+                                            detail::APFloatAttributeStorage> {
  public:
   using Base::Base;
   using ValueType = APFloat;
 
-  static FloatAttr get(MLIRContext *context, APFloat value);
+  static APFloatAttr get(MLIRContext *context, APFloat value);
 
   static StringRef getAttrName() { return "float"; }
 

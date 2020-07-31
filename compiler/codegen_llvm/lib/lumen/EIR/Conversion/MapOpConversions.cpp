@@ -11,7 +11,7 @@ struct ConstructMapOpConversion : public EIROpConversion<ConstructMapOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
     auto loc = ctx.getLoc();
-    ConstructMapOpOperandAdaptor adaptor(operands);
+    ConstructMapOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_map.new");
@@ -57,7 +57,7 @@ struct MapInsertOpConversion : public EIROpConversion<MapInsertOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
     auto loc = ctx.getLoc();
-    MapInsertOpOperandAdaptor adaptor(operands);
+    MapInsertOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_map.insert");
@@ -86,7 +86,7 @@ struct MapUpdateOpConversion : public EIROpConversion<MapUpdateOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
     auto loc = ctx.getLoc();
-    MapUpdateOpOperandAdaptor adaptor(operands);
+    MapUpdateOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_map.update");
@@ -114,7 +114,7 @@ struct MapIsKeyOpConversion : public EIROpConversion<MapIsKeyOp> {
       MapIsKeyOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    MapIsKeyOpOperandAdaptor adaptor(operands);
+    MapIsKeyOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     auto i1Ty = ctx.getI1Type();
@@ -137,7 +137,7 @@ struct MapGetKeyOpConversion : public EIROpConversion<MapGetKeyOp> {
       MapGetKeyOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    MapGetKeyOpOperandAdaptor adaptor(operands);
+    MapGetKeyOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_map.get");

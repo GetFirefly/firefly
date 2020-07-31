@@ -9,7 +9,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/PassRegistry.h"
-#include "llvm/PassSupport.h"
+#include "llvm/Pass.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/FunctionImport.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
@@ -252,7 +252,7 @@ LLVMLumenOptimize(LLVMModuleRef m,
 
   llvm::PassInstrumentationCallbacks pic;
   // Enable standard instrumentation callbacks
-  llvm::StandardInstrumentations si;
+  llvm::StandardInstrumentations si(debug);
   si.registerCallbacks(pic);
 
   auto *profiler = config.profiler;
@@ -285,7 +285,7 @@ LLVMLumenOptimize(LLVMModuleRef m,
   // We manually collect pipeline callbacks so we can apply them at O0, where the
   // PassBuilder does not create a pipeline.
   std::vector<std::function<void(ModulePassManager &)>> pipelineStartEPCallbacks;
-  std::vector<std::function<void(FunctionPassManager &, PassBuilder::OptimizationLevel)>>
+  std::vector<std::function<void(ModulePassManager &, PassBuilder::OptimizationLevel)>>
       optimizerLastEPCallbacks;
 
   if (verify) {
@@ -301,16 +301,17 @@ LLVMLumenOptimize(LLVMModuleRef m,
           pipelineStartEPCallbacks.push_back([mso](ModulePassManager &pm) {
             pm.addPass(llvm::MemorySanitizerPass(mso));
           });
-          optimizerLastEPCallbacks.push_back([mso](FunctionPassManager &pm, PassBuilder::OptimizationLevel level) {
-            pm.addPass(llvm::MemorySanitizerPass(mso));
+          optimizerLastEPCallbacks.push_back([mso](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
+            pm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::MemorySanitizerPass(mso)));
           });
       }
       if (sanitizer.thread) {
           pipelineStartEPCallbacks.push_back([](ModulePassManager &pm) {
             pm.addPass(llvm::ThreadSanitizerPass());
           });
-          optimizerLastEPCallbacks.push_back([](FunctionPassManager &pm, PassBuilder::OptimizationLevel level) {
+          optimizerLastEPCallbacks.push_back([](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
             pm.addPass(llvm::ThreadSanitizerPass());
+            pm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::ThreadSanitizerPass()));
           });
       }
       if (sanitizer.address) {
@@ -318,10 +319,10 @@ LLVMLumenOptimize(LLVMModuleRef m,
             pm.addPass(llvm::RequireAnalysisPass<llvm::ASanGlobalsMetadataAnalysis, Module>());
           });
           optimizerLastEPCallbacks.push_back(
-            [sanitizer](FunctionPassManager &pm, PassBuilder::OptimizationLevel level) {
-              pm.addPass(llvm::AddressSanitizerPass(
+            [sanitizer](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
+              pm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::AddressSanitizerPass(
                     /*compileKernel=*/false, sanitizer.recover,
-                    /*useAfterScope=*/true));
+                    /*useAfterScope=*/true)));
           });
           pipelineStartEPCallbacks.push_back([sanitizer](ModulePassManager &pm) {
             pm.addPass(llvm::ModuleAddressSanitizerPass(
@@ -346,10 +347,8 @@ LLVMLumenOptimize(LLVMModuleRef m,
       c(mpm);
 
     if (!optimizerLastEPCallbacks.empty()) {
-      FunctionPassManager fpm(debug);
       for (const auto &c : optimizerLastEPCallbacks)
-        c(fpm, optLevel);
-      mpm.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(fpm)));
+        c(mpm, optLevel);
     }
 
     mpm.addPass(llvm::AlwaysInlinerPass(/*insertLifetimeIntrinsics=*/false));

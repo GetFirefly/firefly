@@ -4,7 +4,7 @@
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIRTraits.h"
 #include "lumen/EIR/IR/EIRTypes.h"
-#include "lumen/Builder/ModuleBuilderSupport.h"
+#include "lumen/EIR/Builder/ModuleBuilderSupport.h"
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
@@ -21,7 +21,7 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
-#include "mlir/Interfaces/SideEffects.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 
 using namespace mlir;
 using ::llvm::APFloat;

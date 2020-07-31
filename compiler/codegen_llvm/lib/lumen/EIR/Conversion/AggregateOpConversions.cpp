@@ -10,7 +10,7 @@ struct ConsOpConversion : public EIROpConversion<ConsOp> {
       ConsOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    ConsOpOperandAdaptor adaptor(operands);
+    ConsOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     auto termPtrTy = termTy.getPointerTo();
@@ -46,7 +46,7 @@ struct TupleOpConversion : public EIROpConversion<TupleOp> {
       TupleOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    TupleOpOperandAdaptor adaptor(operands);
+    TupleOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     auto termPtrTy = termTy.getPointerTo();

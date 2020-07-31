@@ -14,19 +14,20 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 
-#include "mlir/Analysis/Verifier.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
-#include "mlir/EDSC/Intrinsics.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/Verifier.h"
 
 using ::llvm::Optional;
 using ::llvm::StringSwitch;
 using ::llvm::TargetMachine;
 
 using ::mlir::LLVM::LLVMDialect;
-using ::mlir::edsc::intrinsics::OperationBuilder;
-using ::mlir::edsc::intrinsics::ValueBuilder;
+using ::mlir::edsc::OperationBuilder;
+using ::mlir::edsc::ValueBuilder;
+using namespace ::mlir::edsc::intrinsics;
 
+using std_cmpi = ValueBuilder<::mlir::CmpIOp>;
 using llvm_addressof = ValueBuilder<LLVM::AddressOfOp>;
 using llvm_bitcast = ValueBuilder<LLVM::BitcastOp>;
 using llvm_null = ValueBuilder<LLVM::NullOp>;
@@ -1136,13 +1137,14 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
 
   // Build call
   if (isInvoke) {
-    // Make sure catch type is defined
-    Value catchAnyType = builder.create<NullOp>(loc, builder.getType<PtrType>());
-
-    // Make sure catch type is defined
-    Value catchType;
     LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
     LLVMType i8PtrTy = i8Ty.getPointerTo();
+
+    // Make sure catch type is defined
+    SmallVector<Value, 2> catchClauses;
+    Value catchType;
+    Value catchAnyType = llvm_null(i8PtrTy);
+
     if (isLikeMsvc()) {
       if (auto global = theModule.lookupSymbol<LLVM::GlobalOp>("__lumen_erlang_error_type_info")) {
         catchType = llvm_bitcast(i8PtrTy, llvm_addressof(global));
@@ -1164,12 +1166,14 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
             nullptr);
         catchType = llvm_bitcast(i8PtrTy, catchTypeGlobal);
       }
+      catchClauses.push_back(catchType);
+      catchClauses.push_back(catchAnyType);
     } else {
-      catchType = llvm_null(i8PtrTy);
+      catchClauses.push_back(catchAnyType);
     }
 
     // Set up landing pad in error block
-    Block *pad = build_landing_pad(loc, ArrayRef<Value>{catchType, catchAnyType}, err);
+    Block *pad = build_landing_pad(loc, catchClauses, err);
     Block *normal;
     // Handle case where ok continuation is a return
     bool generateRet = false;
@@ -1262,12 +1266,14 @@ void ModuleBuilder::build_closure_call(Location loc, Value cls,
   //  Build call
   auto termTy = builder.getType<TermType>();
   if (isInvoke) {
-    Value catchAnyType = builder.create<NullOp>(loc, builder.getType<PtrType>());
-
-    // Make sure catch type is defined
-    Value catchType;
     LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
     LLVMType i8PtrTy = i8Ty.getPointerTo();
+
+    // Make sure catch type is defined
+    SmallVector<Value, 2> catchClauses;
+    Value catchAnyType = llvm_null(i8PtrTy);
+    Value catchType;
+
     if (isLikeMsvc()) {
       if (auto global = theModule.lookupSymbol<LLVM::GlobalOp>("__lumen_erlang_error_type_info")) {
         catchType = llvm_bitcast(i8PtrTy, llvm_addressof(global));
@@ -1289,12 +1295,15 @@ void ModuleBuilder::build_closure_call(Location loc, Value cls,
             nullptr);
         catchType = llvm_bitcast(i8PtrTy, catchTypeGlobal);
       }
+
+      catchClauses.push_back(catchType);
+      catchClauses.push_back(catchAnyType);
     } else {
-      catchType = llvm_null(i8PtrTy);
+      catchClauses.push_back(catchAnyType);
     }
 
     // Set up landing pad in error block
-    Block *pad = build_landing_pad(loc, ArrayRef<Value>{catchType, catchAnyType}, err);
+    Block *pad = build_landing_pad(loc, catchClauses, err);
     // Handle case where ok continuation is a return
     bool generateRet = false;
     if (!ok) {
@@ -1441,37 +1450,37 @@ extern "C" void MLIRBuildBinaryPush(MLIRModuleBuilderRef b,
 void ModuleBuilder::build_binary_push(Location loc, Value bin, Value value,
                                       Value size, BinarySpecifier *spec,
                                       Block *ok, Block *err) {
-  NamedAttributeList attrs;
+  SmallVector<NamedAttribute, 4> attrs;
   auto tag = spec->tag;
   switch (tag) {
     case BinarySpecifierType::Bytes:
     case BinarySpecifierType::Bits:
-      attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
-      attrs.set(builder.getIdentifier("unit"),
-                builder.getI8IntegerAttr(spec->payload.us.unit));
+      attrs.push_back({builder.getIdentifier("type"), builder.getI8IntegerAttr(tag)});
+      attrs.push_back({builder.getIdentifier("unit"),
+          builder.getI8IntegerAttr(spec->payload.us.unit)});
       break;
     case BinarySpecifierType::Utf8:
     case BinarySpecifierType::Utf16:
     case BinarySpecifierType::Utf32:
-      attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
-      attrs.set(builder.getIdentifier("endianness"),
-                builder.getI8IntegerAttr(spec->payload.es.endianness));
+      attrs.push_back({builder.getIdentifier("type"), builder.getI8IntegerAttr(tag)});
+                      attrs.push_back({builder.getIdentifier("endianness"),
+                          builder.getI8IntegerAttr(spec->payload.es.endianness)});
       break;
     case BinarySpecifierType::Integer:
-      attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
-      attrs.set(builder.getIdentifier("unit"),
-                builder.getI8IntegerAttr(spec->payload.i.unit));
-      attrs.set(builder.getIdentifier("endianness"),
-                builder.getI8IntegerAttr(spec->payload.i.endianness));
-      attrs.set(builder.getIdentifier("signed"),
-                builder.getBoolAttr(spec->payload.i.isSigned));
+      attrs.push_back({builder.getIdentifier("type"), builder.getI8IntegerAttr(tag)});
+      attrs.push_back({builder.getIdentifier("unit"),
+          builder.getI8IntegerAttr(spec->payload.i.unit)});
+      attrs.push_back({builder.getIdentifier("endianness"),
+          builder.getI8IntegerAttr(spec->payload.i.endianness)});
+      attrs.push_back({builder.getIdentifier("signed"),
+          builder.getBoolAttr(spec->payload.i.isSigned)});
       break;
     case BinarySpecifierType::Float:
-      attrs.set(builder.getIdentifier("type"), builder.getI8IntegerAttr(tag));
-      attrs.set(builder.getIdentifier("unit"),
-                builder.getI8IntegerAttr(spec->payload.f.unit));
-      attrs.set(builder.getIdentifier("endianness"),
-                builder.getI8IntegerAttr(spec->payload.f.endianness));
+      attrs.push_back({builder.getIdentifier("type"), builder.getI8IntegerAttr(tag)});
+      attrs.push_back({builder.getIdentifier("unit"),
+                       builder.getI8IntegerAttr(spec->payload.f.unit)});
+      attrs.push_back({builder.getIdentifier("endianness"),
+                       builder.getI8IntegerAttr(spec->payload.f.endianness)});
       break;
     default:
       llvm_unreachable("invalid binary specifier type");
@@ -1565,7 +1574,7 @@ extern "C" MLIRAttributeRef MLIRBuildFloatAttr(MLIRModuleBuilderRef b,
 }
 
 Attribute ModuleBuilder::build_float_attr(double value) {
-  return eir::FloatAttr::get(builder.getContext(), APFloat(value));
+  return APFloatAttr::get(builder.getContext(), APFloat(value));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1595,7 +1604,7 @@ extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
 
 Attribute ModuleBuilder::build_int_attr(int64_t value, bool isSigned) {
   APInt i(64, value, isSigned);
-  return FixnumAttr::get(builder.getContext(), i);
+  return APIntAttr::get(builder.getContext(), i);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1616,9 +1625,8 @@ Value ModuleBuilder::build_constant_bigint(Location loc, StringRef value,
                                            unsigned width) {
   edsc::ScopedContext scope(builder, loc);
   auto termTy = builder.getType<TermType>();
-  bool isSigned = value[0] == '-';
   APInt i(width, value, /*radix=*/10);
-  return eir_cast(eir_bigint(i, isSigned), termTy);
+  return eir_cast(eir_bigint(i), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildBigIntAttr(MLIRModuleBuilderRef b,
@@ -1631,7 +1639,7 @@ extern "C" MLIRAttributeRef MLIRBuildBigIntAttr(MLIRModuleBuilderRef b,
 }
 
 Attribute ModuleBuilder::build_bigint_attr(StringRef value, unsigned width) {
-  return BigIntAttr::get(builder.getContext(), value, width);
+  return APIntAttr::get(builder.getContext(), value, width);
 }
 
 //===----------------------------------------------------------------------===//

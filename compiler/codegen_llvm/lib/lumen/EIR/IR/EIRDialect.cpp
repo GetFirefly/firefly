@@ -19,7 +19,7 @@ using ::mlir::DialectAsmPrinter;
 /// Create an instance of the EIR dialect, owned by the context.
 ///
 /// This is where EIR types, operations, and attributes are registered.
-EirDialect::EirDialect(mlir::MLIRContext *ctx)
+eirDialect::eirDialect(mlir::MLIRContext *ctx)
     : mlir::Dialect(getDialectNamespace(), ctx) {
   // addInterfaces<EirInlinerInterface>();
   addOperations<
@@ -32,10 +32,52 @@ EirDialect::EirDialect(mlir::MLIRContext *ctx)
            TupleType, MapType, ClosureType, BinaryType, HeapBinType,
            ProcBinType, BoxType, RefType, PtrType, ReceiveRefType>();
 
-  addAttributes<AtomAttr, FixnumAttr, BigIntAttr, FloatAttr, BinaryAttr, SeqAttr>();
+  addAttributes<AtomAttr, APIntAttr, APFloatAttr, BinaryAttr, SeqAttr>();
 }
 
-void EirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
+Attribute parseAtomAttr(DialectAsmParser &parser) {
+  assert(false && "EIR dialect parsing is not fully implemented");
+}
+
+Attribute parseAPIntAttr(DialectAsmParser &parser, Type type) {
+  assert(false && "EIR dialect parsing is not fully implemented");
+}
+
+Attribute parseAPFloatAttr(DialectAsmParser &parser) {
+  assert(false && "EIR dialect parsing is not fully implemented");
+}
+
+Attribute parseBinaryAttr(DialectAsmParser &parser, Type type) {
+  assert(false && "EIR dialect parsing is not fully implemented");
+}
+
+Attribute parseSeqAttr(DialectAsmParser &parser, Type type) {
+  assert(false && "EIR dialect parsing is not fully implemented");
+}
+
+Attribute eirDialect::parseAttribute(DialectAsmParser &parser, Type type) const {
+  // Parse the kind keyword first.
+  StringRef attrKind;
+  if (parser.parseKeyword(&attrKind))
+    return {};
+
+  if (attrKind == AtomAttr::getAttrName())
+    return parseAtomAttr(parser);
+  if (attrKind == APIntAttr::getAttrName())
+    return parseAPIntAttr(parser, type);
+  if (attrKind == APFloatAttr::getAttrName())
+    return parseAPFloatAttr(parser);
+  if (attrKind == BinaryAttr::getAttrName())
+    return parseBinaryAttr(parser, type);
+  if (attrKind == SeqAttr::getAttrName())
+    return parseSeqAttr(parser, type);
+
+  parser.emitError(parser.getNameLoc(), "unknown EIR attribute kind: ")
+      << attrKind;
+  return {};
+}
+
+void eirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
   auto &os = p.getStream();
   switch (attr.getKind()) {
     case AttributeKind::Atom: {
@@ -48,20 +90,14 @@ void EirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
       }
       os << " }>";
     } break;
-    case AttributeKind::Fixnum: {
-      auto fixnumAttr = attr.cast<FixnumAttr>();
-      os << FixnumAttr::getAttrName() << '<';
-      os << "{ value = " << fixnumAttr.getValue() << " }>";
-    } break;
-    case AttributeKind::BigInt: {
-      auto bigIntAttr = attr.cast<BigIntAttr>();
-      auto big = bigIntAttr.getValueAsString();
-      os << BigIntAttr::getAttrName() << '<';
-      os << "{ value = " << big << " }>";
+    case AttributeKind::Int: {
+      auto iAttr = attr.cast<APIntAttr>();
+      os << APIntAttr::getAttrName() << '<';
+      os << "{ value = " << iAttr.getValue() << " }>";
     } break;
     case AttributeKind::Float: {
-      auto floatAttr = attr.cast<FloatAttr>();
-      os << FloatAttr::getAttrName() << '<';
+      auto floatAttr = attr.cast<APFloatAttr>();
+      os << APFloatAttr::getAttrName() << '<';
       os << "{ value = " << floatAttr.getValue().convertToDouble() << " }>";
     } break;
     case AttributeKind::Binary: {

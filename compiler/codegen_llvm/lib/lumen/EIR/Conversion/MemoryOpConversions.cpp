@@ -9,7 +9,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
   LogicalResult matchAndRewrite(
       CastOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    CastOpOperandAdaptor adaptor(operands);
+    CastOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
     Value in = adaptor.input();
@@ -109,7 +109,7 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
   LogicalResult matchAndRewrite(
       GetElementPtrOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    GetElementPtrOpOperandAdaptor adaptor(operands);
+    GetElementPtrOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
     Value base = adaptor.base();
@@ -164,7 +164,7 @@ struct LoadOpConversion : public EIROpConversion<LoadOp> {
       LoadOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     edsc::ScopedContext context(rewriter, op.getLoc());
-    LoadOpOperandAdaptor adaptor(operands);
+    LoadOpAdaptor adaptor(operands);
 
     Value ptr = adaptor.ref();
     Value load = llvm_load(ptr);

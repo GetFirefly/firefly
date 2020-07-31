@@ -69,6 +69,21 @@ pub struct _Unwind_Exception {
     pub exception_cleanup: _Unwind_Exception_Cleanup_Fn,
     pub private: [_Unwind_Word; unwinder_private_data_size],
 }
+impl _Unwind_Exception {
+    cfg_if::cfg_if! {
+        if #[cfg(all(target_arch = "arm", not(target_os = "ios"), not(target_os = "netbsd")))] {
+            pub fn is_forced(&self) -> bool {
+                // _Unwind_RaiseException on EHABI will always set the reserved1 field to 0,
+                // which is in the same position as private_1 below.
+                false
+            }
+        } else {
+            pub fn is_forced(&self) -> bool {
+                self.private[0] != 0
+            }
+        }
+    }
+}
 
 pub enum _Unwind_Context {}
 

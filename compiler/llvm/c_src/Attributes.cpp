@@ -1,5 +1,5 @@
 #include "llvm-c/Core.h"
-#include "llvm/IR/CallSite.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/ErrorHandling.h"
 
@@ -104,46 +104,46 @@ static Attribute::AttrKind fromRust(lumen::Attribute::AttrKind kind) {
 
 extern "C" void LLVMLumenAddCallSiteAttribute(LLVMValueRef instr, unsigned index,
                                               lumen::Attribute::AttrKind lumenAttr) {
-  auto call = llvm::CallSite(unwrap<llvm::Instruction>(instr));
+  auto call = unwrap<llvm::CallBase>(instr);
   auto attr = Attribute::get(call->getContext(), fromRust(lumenAttr));
-  call.addAttribute(index, attr);
+  call->addAttribute(index, attr);
 }
 
 extern "C" void LLVMLumenAddAlignmentCallSiteAttr(LLVMValueRef instr,
                                                   unsigned index,
                                                   uint32_t bytes) {
-  auto call = llvm::CallSite(unwrap<llvm::Instruction>(instr));
+  auto call = unwrap<llvm::CallBase>(instr);
   AttrBuilder b;
   b.addAlignmentAttr(bytes);
-  call.setAttributes(call.getAttributes().addAttributes(
+  call->setAttributes(call->getAttributes().addAttributes(
       call->getContext(), index, b));
 }
 
 extern "C" void LLVMLumenAddDereferenceableCallSiteAttr(LLVMValueRef instr,
                                                         unsigned index,
                                                         uint64_t bytes) {
-  auto call = llvm::CallSite(unwrap<llvm::Instruction>(instr));
+  auto call = unwrap<llvm::CallBase>(instr);
   AttrBuilder b;
   b.addDereferenceableAttr(bytes);
-  call.setAttributes(call.getAttributes().addAttributes(
+  call->setAttributes(call->getAttributes().addAttributes(
       call->getContext(), index, b));
 }
 
 extern "C" void LLVMLumenAddDereferenceableOrNullCallSiteAttr(LLVMValueRef instr,
                                                               unsigned index,
                                                               uint64_t bytes) {
-  auto call = llvm::CallSite(unwrap<llvm::Instruction>(instr));
+  auto call = unwrap<llvm::CallBase>(instr);
   AttrBuilder b;
   b.addDereferenceableOrNullAttr(bytes);
-  call.setAttributes(call.getAttributes().addAttributes(
+  call->setAttributes(call->getAttributes().addAttributes(
       call->getContext(), index, b));
 }
 
 extern "C" void LLVMLumenAddByValCallSiteAttr(LLVMValueRef instr, unsigned index,
                                               LLVMTypeRef ty) {
-  auto call = llvm::CallSite(unwrap<llvm::Instruction>(instr));
+  auto call = unwrap<llvm::CallBase>(instr);
   Attribute attr = Attribute::getWithByValType(call->getContext(), unwrap(ty));
-  call.addAttribute(index, attr);
+  call->addAttribute(index, attr);
 }
 
 extern "C" void LLVMLumenAddFunctionAttribute(LLVMValueRef fn, unsigned index,

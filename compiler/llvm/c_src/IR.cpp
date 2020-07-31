@@ -17,6 +17,7 @@ using ::llvm::unwrap;
 using ::llvm::wrap;
 using ::llvm::LLVMContext;
 using ::llvm::DiagnosticInfo;
+using ::llvm::cast;
 
 using DiagnosticHookFn = void (*)(const DiagnosticInfo &, void*);
 
@@ -111,7 +112,10 @@ extern "C" LLVMValueRef LLVMLumenBuildCall(LLVMBuilderRef b, LLVMValueRef fn,
                                            OperandBundleDef *bundle) {
   unsigned len = bundle ? 1 : 0;
   ArrayRef<OperandBundleDef> bundles(bundle, len);
-  return wrap(unwrap(b)->CreateCall(unwrap(fn), makeArrayRef(unwrap(args), numArgs), bundles));
+  Value *fun = unwrap(fn);
+  llvm::FunctionType *fnT =
+      cast<llvm::FunctionType>(cast<llvm::PointerType>(fun->getType())->getElementType());
+  return wrap(unwrap(b)->CreateCall(fnT, fun, makeArrayRef(unwrap(args), numArgs), bundles));
 }
 
 extern "C" LLVMValueRef
@@ -121,7 +125,10 @@ LLVMLumenBuildInvoke(LLVMBuilderRef b, LLVMValueRef fn, LLVMValueRef *args,
                      const char *name) {
   unsigned len = bundle ? 1 : 0;
   ArrayRef<OperandBundleDef> bundles(bundle, len);
-  return wrap(unwrap(b)->CreateInvoke(unwrap(fn), unwrap(thenBlk), unwrap(catchBlk),
+  Value *fun = unwrap(fn);
+  llvm::FunctionType *fnT =
+      cast<llvm::FunctionType>(cast<llvm::PointerType>(fun->getType())->getElementType());
+  return wrap(unwrap(b)->CreateInvoke(fnT, fun, unwrap(thenBlk), unwrap(catchBlk),
                                       makeArrayRef(unwrap(args), numArgs),
                                       bundles, name));
 }

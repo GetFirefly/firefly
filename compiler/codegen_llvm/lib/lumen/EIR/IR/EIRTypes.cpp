@@ -14,62 +14,54 @@
 #include "mlir/Parser.h"
 
 using ::llvm::SmallVector;
+using ::llvm::StringRef;
 using ::mlir::LLVM::LLVMType;
 
 namespace lumen {
 namespace eir {
 namespace detail {
 
-/// Term Types
-struct OpaqueTermStorage : public mlir::TypeStorage {
-  OpaqueTermStorage() = delete;
-  OpaqueTermStorage(Type t) : TypeStorage(t.getKind()), implKind(t.getKind()) {}
+/// A type representing a collection of other types.
+struct TupleTypeStorage final
+    : public mlir::TypeStorage,
+      public llvm::TrailingObjects<TupleTypeStorage, Type> {
+  using KeyTy = ArrayRef<Type>;
 
-  using KeyTy = unsigned;
+  TupleTypeStorage(unsigned arity) : TypeStorage(arity) {}
 
-  bool operator==(const KeyTy &key) const { return key == implKind; }
-
-  unsigned getImplKind() const { return implKind; }
-
-  unsigned implKind;
-};
-
-struct TupleTypeStorage : public mlir::TypeStorage {
-  struct KeyTy {
-    KeyTy(unsigned arity, ArrayRef<Type> elementTypes)
-        : arity(arity), elementTypes(elementTypes) {}
-    bool operator==(const KeyTy &other) const {
-      return arity == other.arity && elementTypes == other.elementTypes;
-    }
-    unsigned getHashValue() const {
-      return llvm::hash_combine(
-          arity,
-          llvm::hash_combine_range(elementTypes.begin(), elementTypes.end()));
-    }
-    unsigned arity;
-    std::vector<Type> elementTypes;
-  };
-
-  TupleTypeStorage(const KeyTy &key) : key(key) {}
+  /// Construction.
   static TupleTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                     KeyTy key) {
-    key.elementTypes = allocator.copyInto(ArrayRef<Type>(key.elementTypes));
-    return new (allocator.allocate<TupleTypeStorage>()) TupleTypeStorage(key);
+                                     ArrayRef<Type> key) {
+    // Allocate a new storage instance.
+    auto byteSize = TupleTypeStorage::totalSizeToAlloc<Type>(key.size());
+    auto rawMem = allocator.allocate(byteSize, alignof(TupleTypeStorage));
+    auto result = ::new (rawMem) TupleTypeStorage(key.size());
+
+    // Copy in the element types into the trailing storage.
+    std::uninitialized_copy(key.begin(), key.end(),
+                            result->getTrailingObjects<Type>());
+    return result;
   }
 
-  bool operator==(const KeyTy &otherKey) const { return key == otherKey; }
-  static unsigned hashKey(const KeyTy &key) { return key.getHashValue(); }
+  bool operator==(const KeyTy &key) const { return key == getTypes(); }
 
-  KeyTy key;
+  /// Return the number of held types.
+  unsigned size() const { return getSubclassData(); }
+
+  /// Return the held types.
+  ArrayRef<Type> getTypes() const {
+    return {getTrailingObjects<Type>(), size()};
+  }
 };
 
 struct BoxTypeStorage : public mlir::TypeStorage {
-  BoxTypeStorage(Type boxedType, unsigned subclassData = 0)
-      : TypeStorage(subclassData),
+  using KeyTy = Type;
+
+  BoxTypeStorage(Type boxedType)
+      : TypeStorage(boxedType.getKind()),
         boxedType(boxedType.cast<OpaqueTermType>()) {}
 
   /// The hash key used for uniquing.
-  using KeyTy = Type;
   bool operator==(const KeyTy &key) const { return key == boxedType; }
 
   static BoxTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
@@ -82,12 +74,13 @@ struct BoxTypeStorage : public mlir::TypeStorage {
 };
 
 struct RefTypeStorage : public mlir::TypeStorage {
-  RefTypeStorage(Type innerType, unsigned subclassData = 0)
-      : TypeStorage(subclassData),
+  using KeyTy = Type;
+
+  RefTypeStorage(Type innerType)
+      : TypeStorage(innerType.getKind()),
         innerType(innerType.cast<OpaqueTermType>()) {}
 
   /// The hash key used for uniquing.
-  using KeyTy = Type;
   bool operator==(const KeyTy &key) const { return key == innerType; }
 
   static RefTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
@@ -100,11 +93,12 @@ struct RefTypeStorage : public mlir::TypeStorage {
 };
 
 struct PtrTypeStorage : public mlir::TypeStorage {
-  PtrTypeStorage(Type innerType, unsigned subclassData = 0)
-      : TypeStorage(subclassData), innerType(innerType) {}
+  using KeyTy = Type;
+
+  PtrTypeStorage(Type innerType)
+      : TypeStorage(innerType.getKind()), innerType(innerType) {}
 
   /// The hash key used for uniquing.
-  using KeyTy = Type;
   bool operator==(const KeyTy &key) const { return key == innerType; }
 
   static PtrTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
@@ -130,51 +124,38 @@ namespace eir {
 // Tuple<T>
 
 TupleType TupleType::get(MLIRContext *context) {
-  unsigned arity = -1;
-  std::vector<Type> elementTypes;
-  return Base::get(context, TypeKind::Tuple, arity, elementTypes);
+  return Base::get(context, TypeKind::Tuple, ArrayRef<Type>{});
+}
+
+TupleType TupleType::get(MLIRContext *context, ArrayRef<Type> elementTypes) {
+  return Base::get(context, TypeKind::Tuple, elementTypes);
 }
 
 TupleType TupleType::get(MLIRContext *context, unsigned arity) {
-  if (arity < 1) {
-    return TupleType::get(context);
-  }
-  auto elementType = TermType::get(context);
-  std::vector<Type> elementTypes;
-  elementTypes.reserve(arity);
-  for (unsigned i = 0; i < arity; i++) {
-    elementTypes.push_back(elementType);
-  }
-  return Base::get(context, TypeKind::Tuple, arity, elementTypes);
+  return TupleType::get(context, arity, TermType::get(context));
 }
 
 TupleType TupleType::get(MLIRContext *context, unsigned arity,
                          Type elementType) {
-  return TupleType::get(arity, elementType);
-}
-
-TupleType TupleType::get(unsigned arity, Type elementType) {
-  auto context = elementType.getContext();
-  std::vector<Type> elementTypes;
-  elementTypes.reserve(arity);
+  SmallVector<Type, 4> elementTypes;
   for (unsigned i = 0; i < arity; i++) {
     elementTypes.push_back(elementType);
   }
-  return Base::get(context, TypeKind::Tuple, arity, elementTypes);
+  return Base::get(context, TypeKind::Tuple, elementTypes);
+}
+
+TupleType TupleType::get(unsigned arity, Type elementType) {
+  return TupleType::get(elementType.getContext(), arity, elementType);
 }
 
 TupleType TupleType::get(ArrayRef<Type> elementTypes) {
   auto context = elementTypes.front().getContext();
-  return TupleType::get(context, elementTypes);
-}
-
-TupleType TupleType::get(MLIRContext *context, ArrayRef<Type> elementTypes) {
-  auto arity = elementTypes.size();
-  return Base::get(context, TypeKind::Tuple, arity, elementTypes);
+  return Base::get(context, TypeKind::Tuple, elementTypes);
 }
 
 LogicalResult TupleType::verifyConstructionInvariants(
-    Location loc, unsigned arity, ArrayRef<Type> elementTypes) {
+    Location loc, ArrayRef<Type> elementTypes) {
+  auto arity = elementTypes.size();
   if (arity < 1) {
     // If this is dynamically-shaped, then there is nothing to verify
     return success();
@@ -201,17 +182,17 @@ LogicalResult TupleType::verifyConstructionInvariants(
   return success();
 }
 
-int64_t TupleType::getArity() const { return getImpl()->key.arity; }
-int64_t TupleType::getSizeInBytes() const {
-  auto arity = getImpl()->key.arity;
+size_t TupleType::getArity() const { return getImpl()->size(); }
+size_t TupleType::getSizeInBytes() const {
+  auto arity = getArity();
   if (arity < 0) return -1;
   // Header word is always present, each element is one word
   return 8 + (arity * 8);
 };
-bool TupleType::hasStaticShape() const { return getImpl()->key.arity != -1; }
-bool TupleType::hasDynamicShape() const { return getImpl()->key.arity == -1; }
+bool TupleType::hasStaticShape() const { return getArity() != 0; }
+bool TupleType::hasDynamicShape() const { return getArity() == 0; }
 Type TupleType::getElementType(unsigned index) const {
-  return getImpl()->key.elementTypes[index];
+  return getImpl()->getTypes()[index];
 }
 
 // Box<T>
@@ -388,7 +369,7 @@ Type parseTuple(MLIRContext *context, mlir::DialectAsmParser &parser) {
   return result;
 }
 
-Type EirDialect::parseType(mlir::DialectAsmParser &parser) const {
+Type eirDialect::parseType(mlir::DialectAsmParser &parser) const {
   StringRef typeNameLit;
   if (failed(parser.parseKeyword(&typeNameLit))) return {};
 
@@ -483,7 +464,7 @@ void printTuple(TupleType type, llvm::raw_ostream &os,
   os << ">";
 }
 
-void EirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
+void eirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
   auto &os = p.getStream();
   switch (ty.getKind()) {
     case TypeKind::None:

@@ -33,7 +33,7 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
   LogicalResult matchAndRewrite(
       CallOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    CallOpOperandAdaptor adaptor(operands);
+    CallOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
     SmallVector<LLVMType, 2> argTypes;
@@ -75,7 +75,7 @@ struct CallClosureOpConversion : public EIROpConversion<CallClosureOp> {
   LogicalResult matchAndRewrite(
       CallClosureOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    CallClosureOpOperandAdaptor adaptor(operands);
+    CallClosureOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
     auto opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
@@ -253,7 +253,6 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
 
     Block *landingPadBlock = rewriter.getBlock();
     Block *canHandleBlock = rewriter.splitBlock(landingPadBlock, Block::iterator(op.getOperation()));
-    Block *resumeBlock = rewriter.createBlock(landingPadBlock->getParent());
 
     // { i8*, i32 }
     //
@@ -268,26 +267,20 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
     auto termPtrTy = termTy.getPointerTo();
     auto tupleTy = ctx.getTupleType(3);
     auto exceptionTy = ctx.targetInfo.getExceptionType();
+    auto voidTy = LLVMType::getVoidTy(ctx.dialect);
 
     // Make sure we're starting in the landing pad block
     rewriter.setInsertionPointToEnd(landingPadBlock);
 
+    auto catchClauses = op.catchClauses();
+    assert(catchClauses.size() == 1 && "expected only a single catch clause");
+
     // The landing pad returns the structure defined above
-    Value obj = llvm_landingpad(exceptionTy, /*cleanup=*/false, op.catchClauses());
+    Value obj = llvm_landingpad(exceptionTy, /*cleanup=*/false, catchClauses);
     // Extract the exception object (a pointer to the raw exception object)
     Value exPtr = llvm_extractvalue(i8PtrTy, obj, ctx.getI64ArrayAttr(0));
-    // Extract the exception selector (index of the clause that matched)
-    Value exSelector = llvm_extractvalue(i32Ty, obj, ctx.getI64ArrayAttr(1));
 
-    Value erlangErrorSelector = llvm_constant(i32Ty, ctx.getI32Attr(1));
-    Value canHandle =
-        llvm_icmp(LLVM::ICmpPredicate::eq, exSelector, erlangErrorSelector);
-
-    auto canHandleBrOp = rewriter.create<LLVM::CondBrOp>(loc, canHandle, canHandleBlock, resumeBlock);
-
-    // If we can't handle this block, continue unwinding
-    rewriter.setInsertionPointToEnd(resumeBlock);
-    rewriter.create<LLVM::ResumeOp>(loc, obj);
+    auto canHandleBrOp = rewriter.create<LLVM::BrOp>(loc, ValueRange{}, canHandleBlock);
 
     // If we can, then extract the error value from the exception
     rewriter.setInsertionPointToStart(canHandleBlock);
@@ -344,7 +337,7 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
   LogicalResult matchAndRewrite(
       ThrowOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    ThrowOpOperandAdaptor adaptor(operands);
+    ThrowOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
     auto loc = op.getLoc();
     auto termTy = ctx.getUsizeType();
@@ -463,7 +456,7 @@ struct ReceiveStartOpConversion : public EIROpConversion<ReceiveStartOp> {
       ReceiveStartOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    ReceiveStartOpOperandAdaptor adaptor(operands);
+    ReceiveStartOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     auto recvRefTy = ctx.targetInfo.getReceiveRefType();
@@ -476,13 +469,7 @@ struct ReceiveStartOpConversion : public EIROpConversion<ReceiveStartOp> {
     Value timeout = adaptor.timeout();
     auto startOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, recvRefTy, ArrayRef<Value>{timeout});
 
-    SmallVector<Value, 2> args;
-    args.push_back(startOp.getResult(0));
-    for (auto operand : adaptor.destOperands()) {
-      args.push_back(operand);
-    }
-
-    rewriter.replaceOpWithNewOp<LLVM::BrOp>(op, ValueRange(args), op.getSuccessor());
+    rewriter.replaceOp(op, {startOp.getResult(0)});
     return success();
   }
 };
@@ -524,7 +511,7 @@ struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
       ReceiveDoneOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    ReceiveDoneOpOperandAdaptor adaptor(operands);
+    ReceiveDoneOpAdaptor adaptor(operands);
 
     auto recvRefTy = ctx.targetInfo.getReceiveRefType();
     auto voidTy = LLVMType::getVoidTy(ctx.dialect);

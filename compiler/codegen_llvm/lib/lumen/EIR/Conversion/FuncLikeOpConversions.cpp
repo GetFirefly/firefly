@@ -24,18 +24,20 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
     edsc::ScopedContext scope(rewriter, op.getLoc());
     auto ctx = getRewriteContext(op, rewriter);
 
+    auto i32Ty = ctx.getI32Type();
+
     SmallVector<NamedAttribute, 2> attrs;
     for (auto fa : op.getAttrs()) {
-      if (fa.first.is(SymbolTable::getSymbolAttrName()) ||
-          fa.first.is(::mlir::impl::getTypeAttrName())) {
+      if (fa.first == SymbolTable::getSymbolAttrName() ||
+          fa.first == ::mlir::impl::getTypeAttrName()) {
         continue;
       }
       attrs.push_back(fa);
     }
-    SmallVector<NamedAttributeList, 4> argAttrs;
+    SmallVector<MutableDictionaryAttr, 4> argAttrs;
     for (unsigned i = 0, e = op.getNumArguments(); i < e; ++i) {
       auto aa = ::mlir::impl::getArgAttrs(op, i);
-      argAttrs.push_back(NamedAttributeList(aa));
+      argAttrs.push_back(MutableDictionaryAttr(aa));
     }
     auto newFunc = rewriter.create<mlir::FuncOp>(op.getLoc(), op.getName(),
                                                  op.getType(), attrs, argAttrs);
@@ -59,8 +61,7 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
       rewriter.setInsertionPointToEnd(entry);
 
       const uint32_t MAX_REDUCTIONS = 20;  // TODO: Move this up in the compiler
-      Value maxReductions = rewriter.create<mlir::ConstantOp>(
-          op.getLoc(), rewriter.getI32IntegerAttr(MAX_REDUCTIONS));
+      Value maxReductions = llvm_constant(i32Ty, ctx.getI32Attr(MAX_REDUCTIONS));
       rewriter.create<YieldCheckOp>(op.getLoc(), maxReductions, doYield,
                                     ValueRange{}, dontYield, ValueRange{});
       // Then insert the actual yield point in the yield block
@@ -82,7 +83,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
   LogicalResult matchAndRewrite(
       ClosureOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    ClosureOpOperandAdaptor adaptor(operands);
+    ClosureOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
     auto loc = ctx.getLoc();
@@ -222,7 +223,7 @@ struct UnpackEnvOpConversion : public EIROpConversion<UnpackEnvOp> {
   LogicalResult matchAndRewrite(
       UnpackEnvOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    UnpackEnvOpOperandAdaptor adaptor(operands);
+    UnpackEnvOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
     LLVMType termTy = ctx.getUsizeType();

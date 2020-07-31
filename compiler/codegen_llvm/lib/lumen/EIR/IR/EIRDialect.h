@@ -6,7 +6,7 @@
 namespace lumen {
 namespace eir {
 
-#include "lumen/EIR/IR/EIROpsDialect.h.inc"
+#include "lumen/EIR/IR/EIRDialect.h.inc"
 
 } // namespace eir
 } // namespace lumen

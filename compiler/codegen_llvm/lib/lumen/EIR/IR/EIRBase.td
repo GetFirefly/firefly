@@ -36,47 +36,8 @@ def eir_EncodingAttr : BitEnumAttr<"Encoding", "term encoding metadata", [
   eir_EC_Boxed,
   eir_EC_Literal,
 ]> {
-  let cppNamespace = "eir::Encoding";
+  let cppNamespace = "lumen::eir";
 }
-
-//===----------------------------------------------------------------------===//
-// Attributes
-//===----------------------------------------------------------------------===//
-
-def FuncTypeAttr      : TypeAttrBase<"FunctionType", "function type">;
-
-class AliasedSymbolRefAttr : Attr<CPred<"$_self.isa<FlatSymbolRefAttr>()">,
-                                        "symbol reference attribute"> {
-  let storageType = [{ FlatSymbolRefAttr }];
-  let returnType = [{ StringRef }];
-  let constBuilderCall = "$_builder.getSymbolRefAttr($0)";
-}
-
-class BaseAtomAttr : Attr<CPred<"$_self.isa<AtomAttr>()">,
-                                "atom attribute"> {
-  let storageType = [{ AtomAttr }];
-  let returnType = [{ APInt }];
-}
-
-class BaseBinaryAttr : Attr<CPred<"$_self.isa<BinaryAttr>()">,
-                                  "binary attribute"> {
-  let storageType = [{ BinaryAttr }];
-  let returnType = [{ StringRef }];
-}
-
-class BaseSeqAttr : Attr<CPred<"$_self.isa<SeqAttr>()">,
-                               "seq attribute"> {
-  let storageType = [{ SeqAttr }];
-  let returnType = [{ ArrayRef<Attribute> }];
-}
-
-def eir_AtomAttr : BaseAtomAttr;
-def eir_BinaryAttr : BaseBinaryAttr;
-def eir_SeqAttr : BaseSeqAttr;
-def eir_GlobalRefAttr : AliasedSymbolRefAttr;
-def eir_FuncRefAttr   : AliasedSymbolRefAttr;
-
-def eir_NilAttr : TypeAttrBase<"NilType", "nil type">;
 
 //===----------------------------------------------------------------------===//
 // Types
@@ -153,6 +114,51 @@ def eir_FloatLike : AnyTypeOf<[F64, eir_FloatType], "float-like type">;
 def eir_ListLike : AnyTypeOf<[eir_NilType, eir_ConsType, eir_ListType], "list-like type">;
 def eir_BinaryLike : AnyTypeOf<[eir_BinaryType, eir_HeapBinType, eir_ProcBinType], "binary-like type">;
 def eir_PointerLike : AnyTypeOf<[eir_BoxType, eir_RefType, eir_PtrType], "pointer-like type">;
+
+//===----------------------------------------------------------------------===//
+// Attributes
+//===----------------------------------------------------------------------===//
+
+class APIntAttrBase<Type attrValType, Pred condition, string descr> :
+  DialectAttr<
+    eir_Dialect,
+    And<[CPred<"$_self.isa<APIntAttr>()">, condition]>,
+    descr> {
+
+  let constBuilderCall = "::lumen::eir::APIntAttr::get($_builder.getContext(), " # attrValType.builderCall # ", $0)";
+  let storageType = "::lumen::eir::APIntAttr";
+  let returnType = "::llvm::APInt";
+  let valueType = attrValType;
+}
+
+def FixnumAttr : APIntAttrBase<eir_FixnumType, CPred<"$_self.cast<APIntAttr>().getType().isa<FixnumType>()">, "fixed-width integer attribute">;
+def BigIntAttr : APIntAttrBase<eir_BigIntType, CPred<"$_self.cast<APIntAttr>().getType().isa<BigIntType>()">, "arbitrary-width integer attribute">;
+
+def APFloatAttr : DialectAttr<eir_Dialect, CPred<"$_self.isa<APFloatAttr>()">,
+                     "floating-point attribute"> {
+  let storageType = "::lumen::eir::APFloatAttr";
+  let returnType = "::llvm::APFloat";
+  let valueType = eir_FloatType;
+}
+
+def AtomAttr : DialectAttr<eir_Dialect, CPred<"$_self.isa<AtomAttr>()">, "atom attribute"> {
+  let storageType = "::lumen::eir::AtomAttr";
+  let returnType = "::llvm::APInt";
+}
+
+def BinaryAttr : DialectAttr<eir_Dialect, CPred<"$_self.isa<BinaryAttr>()">,
+                                  "binary attribute"> {
+  let storageType = "::lumen::eir::BinaryAttr";
+  let returnType = "::llvm::StringRef";
+}
+
+def SeqAttr : DialectAttr<eir_Dialect, CPred<"$_self.isa<SeqAttr>()">,
+                               "seq attribute"> {
+  let storageType = "::lumen::eir::SeqAttr";
+  let returnType = "::llvm::ArrayRef<Attribute>";
+}
+
+def eir_NilAttr : TypeAttrBase<"NilType", "nil type">;
 
 //===----------------------------------------------------------------------===//
 // Traits

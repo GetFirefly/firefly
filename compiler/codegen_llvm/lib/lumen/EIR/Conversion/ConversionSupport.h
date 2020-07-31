@@ -11,7 +11,6 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/EDSC/Intrinsics.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
@@ -25,8 +24,8 @@ using ::mlir::ConversionPatternRewriter;
 using ::mlir::LLVMTypeConverter;
 using ::mlir::LogicalResult;
 using ::mlir::success;
-using ::mlir::edsc::intrinsics::OperationBuilder;
-using ::mlir::edsc::intrinsics::ValueBuilder;
+using ::mlir::edsc::OperationBuilder;
+using ::mlir::edsc::ValueBuilder;
 using ::mlir::LLVM::LLVMDialect;
 using ::mlir::LLVM::LLVMType;
 
@@ -69,7 +68,7 @@ using eir_gep = ValueBuilder<::lumen::eir::GetElementPtrOp>;
 using eir_malloc = ValueBuilder<::lumen::eir::MallocOp>;
 using eir_cons = ValueBuilder<::lumen::eir::ConsOp>;
 using eir_tuple = ValueBuilder<::lumen::eir::TupleOp>;
-using eir_map = ValueBuilder<::lumen::eir::ConstructMapOp>;
+using eir_map = OperationBuilder<::lumen::eir::ConstructMapOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 using eir_constant_float = ValueBuilder<::lumen::eir::ConstantFloatOp>;

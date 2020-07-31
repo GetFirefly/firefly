@@ -336,7 +336,8 @@ const char *CFI_Parser<A>::parseCIE(A &addressSpace, pint_t cie,
   // parse data alignment factor
   cieInfo->dataAlignFactor = (int)addressSpace.getSLEB128(p, cieContentEnd);
   // parse return address register
-  uint64_t raReg = addressSpace.getULEB128(p, cieContentEnd);
+  uint64_t raReg = (version == 1) ? addressSpace.get8(p++)
+                                  : addressSpace.getULEB128(p, cieContentEnd);
   assert(raReg < 255 && "return address register too large");
   cieInfo->returnAddressRegister = (uint8_t)raReg;
   // parse augmentation data based on augmentation string
@@ -401,6 +402,7 @@ bool CFI_Parser<A>::parseFDEInstructions(A &addressSpace,
                         fdeInfo.fdeStart + fdeInfo.fdeLength, cieInfo,
                         upToPC - fdeInfo.pcStart, rememberStack, arch, results);
 
+#if !defined(_LIBUNWIND_NO_HEAP)
   // Clean up rememberStack. Even in the case where every DW_CFA_remember_state
   // is paired with a DW_CFA_restore_state, parseInstructions can skip restore
   // opcodes if it reaches the target PC and stops interpreting, so we have to
@@ -410,6 +412,7 @@ bool CFI_Parser<A>::parseFDEInstructions(A &addressSpace,
     free(rememberStack);
     rememberStack = next;
   }
+#endif
 
   return returnValue;
 }

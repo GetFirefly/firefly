@@ -33,8 +33,7 @@ fn main() {
         .parent()
         .map(|p| p.join("codegen_llvm"))
         .unwrap();
-    let compiler_path = cmakelists_path.join("lumen").join("compiler");
-    let dialect_eir_path = compiler_path.join("Dialect").join("EIR");
+    let dialect_eir_path = cmakelists_path.join("lib").join("lumen").join("EIR");
     let ir_path = dialect_eir_path.join("IR");
     let tablegen_input_path = ir_path.join("EIRBase.td");
 
@@ -61,17 +60,27 @@ fn main() {
     println!("cargo:include={}", include_dir.display());
     println!("cargo:output_dir={}", outdir.display());
 
-    tblgen(flags.as_slice()).expect("unable to generate term_encoding.rs!");
+    tblgen(flags.as_slice());
 }
 
-fn tblgen(args: &[String]) -> std::io::Result<String> {
+fn tblgen(args: &[String]) {
     use std::io;
-    match Command::new("lumen-tblgen").args(args).output() {
-        Ok(output) => match String::from_utf8(output.stdout) {
-            Ok(s) => Ok(s.trim_end().to_owned()),
-            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
+    let result = Command::new("lumen-tblgen")
+        .args(args)
+        .output();
+    match result {
+        Ok(output) => {
+            if output.status.success() {
+                return;
+            }
+            String::from_utf8(output.stdout)
+                .map(|s| println!("{}", s.trim_end()))
+                .unwrap();
+            String::from_utf8(output.stderr)
+                .map(|s| println!("{}", s.trim_end()))
+                .unwrap();
         },
-        Err(e) => Err(e),
+        Err(e) => fail(&format!("command failed: {}", e)),
     }
 }
 

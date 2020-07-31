@@ -34,7 +34,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
   LogicalResult matchAndRewrite(
       IsTypeOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    IsTypeOpOperandAdaptor adaptor(operands);
+    IsTypeOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
     auto termTy = ctx.getUsizeType();
@@ -116,7 +116,7 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
   LogicalResult matchAndRewrite(
       MallocOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    MallocOpOperandAdaptor adaptor(operands);
+    MallocOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
     OpaqueTermType innerTy = op.getAllocType();
@@ -124,7 +124,7 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
 
     if (innerTy.hasDynamicExtent()) {
       Value allocPtr =
-          ctx.buildMalloc(ty, innerTy.getKind(), adaptor.arity().front());
+          ctx.buildMalloc(ty, innerTy.getKind(), adaptor.arity());
       rewriter.replaceOp(op, allocPtr);
     } else {
       Value zero = llvm_constant(ctx.getUsizeType(), ctx.getIntegerAttr(0));

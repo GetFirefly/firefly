@@ -33,7 +33,6 @@ namespace lumen {
 namespace eir {
 
 namespace detail {
-struct OpaqueTermTypeStorage;
 struct TupleTypeStorage;
 struct BoxTypeStorage;
 struct RefTypeStorage;
@@ -56,7 +55,6 @@ enum Kind {
 
 class OpaqueTermType : public Type {
  public:
-  using ImplType = detail::OpaqueTermTypeStorage;
   using Type::Type;
 
   unsigned getImplKind() const { return getKind(); }
@@ -152,6 +150,14 @@ class OpaqueTermType : public Type {
     return false;
   }
 
+  Optional<int64_t> getSizeInBytes() {
+      auto implKind = getImplKind();
+      if (isImmediate(implKind)) {
+          return 8;
+      }
+      return llvm::None;
+  }
+
  private:
   static bool isOpaque(unsigned implKind) { return implKind == TypeKind::Term; }
 
@@ -227,7 +233,7 @@ class OpaqueTermType : public Type {
 };
 
 #define PrimitiveType(TYPE, KIND)                                  \
-  class TYPE : public mlir::Type::TypeBase<TYPE, OpaqueTermType> { \
+  class TYPE : public mlir::Type::TypeBase<TYPE, OpaqueTermType, mlir::TypeStorage> { \
    public:                                                         \
     using Base::Base;                                              \
     static TYPE get(mlir::MLIRContext *context) {                  \
@@ -272,12 +278,12 @@ class TupleType : public Type::TypeBase<TupleType, OpaqueTermType,
 
   // Verifies construction invariants and issues errors/warnings.
   static LogicalResult verifyConstructionInvariants(
-      Location loc, unsigned arity, ArrayRef<Type> elementTypes);
+      Location loc, ArrayRef<Type> elementTypes);
 
   // Returns the size of the shaped type
-  int64_t getArity() const;
+  size_t getArity() const;
   // Get the size in bytes needed to represent the tuple in memory
-  int64_t getSizeInBytes() const;
+  size_t getSizeInBytes() const;
   // Returns true if the dimensions of the tuple are known
   bool hasStaticShape() const;
   // Returns true if the dimensions of the tuple are unknown
@@ -351,7 +357,7 @@ class PtrType : public Type::TypeBase<PtrType, Type, detail::PtrTypeStorage> {
 };
 
 /// Used to represent the opaque handle for a receive construct
-class ReceiveRefType : public Type::TypeBase<ReceiveRefType, Type> {
+class ReceiveRefType : public Type::TypeBase<ReceiveRefType, Type, mlir::TypeStorage> {
  public:
   using Base::Base;
 

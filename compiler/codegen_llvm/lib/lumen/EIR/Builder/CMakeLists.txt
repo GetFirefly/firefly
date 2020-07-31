@@ -1,0 +1,19 @@
+lumen_cc_library(
+  HDRS
+    "ModuleBuilder.h"
+    "ModuleBuilderSupport.h"
+  SRCS
+    "MLIR.cpp"
+    "ModuleBuilder.cpp"
+  DEPS
+    lumen::EIR::IR
+    LLVMSupport
+    LLVMTarget
+    LLVMBitWriter
+    MLIRIR
+    MLIRSupport
+    MLIRStandardOps
+    MLIRLLVMIR
+    MLIRTransforms
+  PUBLIC
+)

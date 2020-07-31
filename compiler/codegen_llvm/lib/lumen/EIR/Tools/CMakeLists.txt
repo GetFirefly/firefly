@@ -1,0 +1,12 @@
+lumen_cc_library(
+  NAME
+    TableGen
+  SRCS
+    "EIREncodingGen.cpp"
+  DEPS
+    LLVMSupport
+    LLVMTableGen
+    MLIRSupport
+    MLIRTableGen
+  PUBLIC
+)

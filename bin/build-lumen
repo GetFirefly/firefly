@@ -202,13 +202,13 @@ fi
 cd "$ROOT_DIR"
 
 printf "Checking for lumen-tblgen.."
-if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/tools/lumen-tblgen" ]; then
+if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/lumen-tblgen/lumen-tblgen" ]; then
     printf 'not found!\n\n'
     mkdir -p "${OUTPUT_DIR}/build/lumen_tblgen"
     pushd "${OUTPUT_DIR}/build/lumen_tblgen"
     _gen="make"
     _generator=""
-    _target="tools_lumen_tblgen"
+    _target="lumen-tblgen_lumen_tblgen"
     if type -p ninja >/dev/null; then
         _gen="ninja"
         _generator="-GNinja"
@@ -220,14 +220,14 @@ if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/tools/lumen-tblgen" ]; then
         -DBUILD_SHARED_LIBS=OFF \
         -DLLVM_PREFIX="$LLVM_PREFIX" \
         --target lumen_tblgen \
-        --build "${ROOT_DIR}/compiler/codegen/lib" && \
+        --build "${ROOT_DIR}/compiler/codegen_llvm" && \
     "$_gen" "$_target"
 
     if [[ $? -ne 0 ]]; then
         echo "Failed to build lumen-tblgen!"
     fi
 
-    if [ ! -f "tools/lumen-tblgen" ]; then
+    if [ ! -f "lumen-tblgen/lumen-tblgen" ]; then
         echo "Expected lumen-tblgen binary, but one was not produced!"
         exit 1
     fi
@@ -237,9 +237,9 @@ else
     printf 'ok!\033[1K\r'
 fi
 
-export PATH="${OUTPUT_DIR}/build/lumen_tblgen/tools:$PATH"
+export PATH="${OUTPUT_DIR}/build/lumen_tblgen/lumen-tblgen:$PATH"
 if [ "$is_ci" = "true" ]; then
-    echo "::add-path::${OUTPUT_DIR}/build/lumen_tblgen/tools"
+    echo "::add-path::${OUTPUT_DIR}/build/lumen_tblgen/lumen-tblgen"
 fi
 
 if [ "$only_tblgen" = "true" ]; then

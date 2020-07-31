@@ -8,7 +8,7 @@ function(lumen_tablegen_library)
     _RULE
     "TESTONLY"
     "NAME;TBLGEN"
-    "TD_FILE;OUTS"
+    "TD_FILE;OUTS;EXTRA"
     ${ARGN}
   )
 
@@ -33,7 +33,7 @@ function(lumen_tablegen_library)
       list(REMOVE_AT _RULE_OUTS 0)
       list(GET _RULE_OUTS 0 _FILE)
       list(REMOVE_AT _RULE_OUTS 0)
-      tablegen(${_TBLGEN} ${_FILE} ${_COMMAND} ${_INCLUDE_DIRS})
+      tablegen(${_TBLGEN} ${_FILE} ${_COMMAND} ${_RULE_EXTRA} ${_INCLUDE_DIRS})
       list(APPEND _OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/${_FILE})
     endwhile()
     add_custom_target(${_NAME}_target DEPENDS ${_OUTPUTS})

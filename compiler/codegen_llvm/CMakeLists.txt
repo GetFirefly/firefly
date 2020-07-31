@@ -60,7 +60,6 @@ include(lumen_cc_test)
 include(lumen_tablegen_library)
 include(lumen_glob_lit_tests)
 include(lumen_lit_test)
-include(lumen_alwayslink)
 
 string(JOIN " " CMAKE_CXX_FLAGS ${LUMEN_DEFAULT_COPTS} ${CMAKE_CXX_FLAGS})
 
@@ -89,13 +88,12 @@ endif()
 
 
 if (${LUMEN_BUILD_COMPILER})
-  set_alwayslink_mlir_libs()
-  add_subdirectory(lumen/compiler)
+  add_subdirectory(lib)
   if (${LUMEN_BUILD_TESTS})
-    enable_testing(lumen)
-    add_subdirectory(lumen/testing)
+    enable_testing(lib)
+    add_subdirectory(test)
   endif()
-  add_subdirectory(tools)
+  add_subdirectory(lumen-tblgen)
 endif()
 
 #lumen_complete_dylib_link_options()

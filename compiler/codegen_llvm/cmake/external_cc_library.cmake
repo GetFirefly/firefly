@@ -16,7 +16,6 @@ include(CMakeParseArguments)
 # DEFINES: List of public defines
 # INCLUDES: Include directories to add to dependencies
 # LINKOPTS: List of link options
-# ALWAYSLINK: Always link the library into any binary with a direct dep.
 # PUBLIC: Add this so that this library will be exported under ${PACKAGE}::
 # Also in IDE, target will appear in ${PACKAGE} folder while non PUBLIC will be
 # in ${PACKAGE}/internal.
@@ -63,7 +62,7 @@ include(CMakeParseArguments)
 # )
 function(external_cc_library)
   cmake_parse_arguments(_RULE
-    "PUBLIC;ALWAYSLINK;TESTONLY"
+    "PUBLIC;TESTONLY"
     "PACKAGE;NAME;ROOT"
     "HDRS;SRCS;COPTS;DEFINES;LINKOPTS;DEPS;INCLUDES"
     ${ARGN}
@@ -122,10 +121,6 @@ function(external_cc_library)
         PUBLIC
           ${_RULE_DEFINES}
       )
-
-      if(DEFINED _RULE_ALWAYSLINK)
-        set_property(TARGET ${_NAME} PROPERTY ALWAYSLINK 1)
-      endif()
 
       # Add all external targets to a a folder in the IDE for organization.
       if(_RULE_PUBLIC)

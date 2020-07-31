@@ -71,7 +71,11 @@ function(lumen_cc_library)
   if(NOT _RULE_TESTONLY OR LUMEN_BUILD_TESTS)
     # Prefix the library with the package name, so we get: lumen_package_name.
     lumen_package_name(_PACKAGE_NAME)
-    set(_NAME "${_PACKAGE_NAME}_${_RULE_NAME}")
+    if(NOT _RULE_NAME)
+      set(_NAME "${_PACKAGE_NAME}")
+    else()
+      set(_NAME "${_PACKAGE_NAME}_${_RULE_NAME}")
+    endif()
 
     # Check if this is a header-only library.
     # Note that as of February 2019, many popular OS's (for example, Ubuntu
@@ -179,13 +183,12 @@ function(lumen_cc_library)
     # Alias the lumen_package_name library to lumen::package::name.
     # This lets us more clearly map to Bazel and makes it possible to
     # disambiguate the underscores in paths vs. the separators.
-    add_library(${_PACKAGE_NS}::${_RULE_NAME} ALIAS ${_NAME})
-    lumen_package_dir(_PACKAGE_DIR)
-    if(${_RULE_NAME} STREQUAL ${_PACKAGE_DIR})
-      # If the library name matches the package then treat it as a default.
-      # For example, foo/bar/ library 'bar' would end up as 'foo::bar'.
+    if(NOT _RULE_NAME)
       add_library(${_PACKAGE_NS} ALIAS ${_NAME})
+    else()
+      add_library(${_PACKAGE_NS}::${_RULE_NAME} ALIAS ${_NAME})
     endif()
+    lumen_package_dir(_PACKAGE_DIR)
 
     if (_RULE_SHARED)
       # Defer computing transitive dependencies and calling target_link_libraries()

@@ -10,7 +10,10 @@ include(CMakeParseArguments)
 # Example when called from lumen/base/CMakeLists.txt:
 #   lumen::base
 function(lumen_package_ns PACKAGE_NS)
-  string(REPLACE ${LUMEN_ROOT_DIR} "" _PACKAGE ${CMAKE_CURRENT_LIST_DIR})
+  # Try to strip the lib path first
+  string(REPLACE ${LUMEN_ROOT_DIR}/lib "" _PACKAGE ${CMAKE_CURRENT_LIST_DIR})
+  # Strip without the lib path just in case we're compiling outside the main lib directory
+  string(REPLACE ${LUMEN_ROOT_DIR} "" _PACKAGE ${_PACKAGE})
   string(SUBSTRING ${_PACKAGE} 1 -1 _PACKAGE)
   string(REPLACE "/" "::" _PACKAGE_NS ${_PACKAGE})
   set(${PACKAGE_NS} ${_PACKAGE_NS} PARENT_SCOPE)

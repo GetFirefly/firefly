@@ -85,7 +85,7 @@ fn main() {
     );
 
     let compile_commands_src = outdir.join("build").join("compile_commands.json");
-    let compile_commands_dest = cwd.join("lib").join("compile_commands.json");
+    let compile_commands_dest = codegen_llvm.join("lib").join("compile_commands.json");
 
     fs::copy(compile_commands_src, compile_commands_dest)
         .expect("unable to copy compile_commands.json!");
@@ -93,11 +93,9 @@ fn main() {
     println!("cargo:rustc-link-search=native={}/lib", outdir.display());
 
     link_libs(&[
-        "lumen_compiler_Dialect_EIR_IR_IR",
-        "lumen_compiler_Dialect_EIR_Conversion_EIRToLLVM_EIRToLLVM",
-        "lumen_compiler_Dialect_EIR_Transforms_Transforms",
-        "lumen_compiler_Target_Target",
-        "lumen_compiler_Translation_Translation",
+        "lumen_EIR_IR",
+        "lumen_EIR_Conversion",
+        "lumen_EIR_Builder",
     ]);
 
     // Get demangled lang_start_internal name

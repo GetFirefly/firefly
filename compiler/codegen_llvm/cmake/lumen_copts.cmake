@@ -6,8 +6,8 @@ set(LUMEN_CXX_STANDARD 17)
 
 set(LUMEN_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 list(APPEND LUMEN_COMMON_INCLUDE_DIRS
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib
+  ${CMAKE_CURRENT_BINARY_DIR}/lib
 )
 
 lumen_select_compiler_opts(LUMEN_DEFAULT_COPTS
@@ -89,17 +89,36 @@ find_package(LLVM REQUIRED CONFIG
     NO_DEFAULT_PATH
 )
 
+find_package(MLIR REQUIRED CONFIG
+    PATHS ${LLVM_PREFIX}
+    NO_DEFAULT_PATH
+)
+
+set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
+set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
+set(MLIR_BINARY_DIR ${CMAKE_BINARY_DIR})
+
+list(APPEND CMAKE_MODULE_PATH ${MLIR_DIR})
 list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
+include(TableGen)
+include(AddLLVM)
+include(AddMLIR)
+include(HandleLLVMOptions)
 
 list(APPEND LUMEN_COMMON_INCLUDE_DIRS
-  ${LLVM_PREFIX}/include
+  ${LLVM_INCLUDE_DIRS}
+  ${MLIR_INCLUDE_DIRS}
   ${CARGO_MANIFEST_DIR}
 )
 
+include_directories(${LLVM_INCLUDE_DIRS})
+include_directories(${MLIR_INCLUDE_DIRS})
+include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_BINARY_DIR}/include)
+link_directories(${LLVM_BUILD_LIBRARY_DIR})
+add_definitions(${LLVM_DEFINITIONS})
+
 set(MLIR_TABLEGEN_EXE mlir-tblgen)
 set(LUMEN_TABLEGEN_EXE lumen-tblgen)
-
-include(AddLLVM)
-include(TableGen)
 
 find_program(LLVM_CONFIG_PATH NAMES llvm-config PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)

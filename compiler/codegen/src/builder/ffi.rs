@@ -515,15 +515,6 @@ extern "C" {
         argc: libc::c_uint,
     );
 
-    pub fn MLIRIsIntrinsic(name: *const libc::c_char) -> bool;
-    pub fn MLIRBuildIntrinsic(
-        builder: ModuleBuilderRef,
-        loc: LocationRef,
-        name: *const libc::c_char,
-        argv: *const ValueRef,
-        argc: libc::c_uint,
-    ) -> ValueRef;
-
     //---------------
     // Constants
     //---------------

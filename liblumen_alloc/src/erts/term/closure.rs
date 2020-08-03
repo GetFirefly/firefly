@@ -4,7 +4,7 @@ use core::convert::TryFrom;
 use core::ffi::c_void;
 use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
-use core::mem;
+use core::mem::{self, size_of};
 use core::ptr::{self, NonNull};
 use core::slice;
 
@@ -15,10 +15,8 @@ use liblumen_core::sys::dynamic_call::DynamicCallee;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::{Heap, TermAlloc};
-use crate::erts::process::code::stack::frame::{Frame, Placement};
-use crate::erts::process::code::Code;
-use crate::erts::process::Process;
-use crate::erts::{self, Arity, ModuleFunctionArity};
+use crate::erts::process::{Frame, FrameWithArguments, Native};
+use crate::erts::{self, to_word_size, Arity, ModuleFunctionArity};
 
 use super::prelude::*;
 
@@ -28,8 +26,8 @@ pub struct Closure {
     module: Atom,
     definition: Definition,
     arity: u8,
-    /// Pointer to function entry.  When a closure is received over ETF, `code` may be `None`.
-    code: Option<NonNull<c_void>>,
+    /// Pointer to function entry.  When a closure is received over ETF, this may be `None`.
+    native: Option<NonNull<c_void>>,
     env: [Term],
 }
 impl_dynamic_header!(Closure, Term::HEADER_CLOSURE);
@@ -40,7 +38,7 @@ pub struct ClosureLayout {
     module_offset: usize,
     definition_offset: usize,
     arity_offset: usize,
-    code_offset: usize,
+    native_offset: usize,
     env_offset: usize,
 }
 impl ClosureLayout {
@@ -55,7 +53,7 @@ impl ClosureLayout {
             .unwrap();
         let (layout, _definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, _arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
-        let (layout, _code_offset) = layout
+        let (layout, _native_offset) = layout
             .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
         layout.size()
@@ -67,7 +65,7 @@ impl ClosureLayout {
             .unwrap();
         let (layout, definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
-        let (layout, code_offset) = layout
+        let (layout, native_offset) = layout
             .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
         let (layout, env_offset) = layout.extend(Layout::for_value(env)).unwrap();
@@ -79,7 +77,7 @@ impl ClosureLayout {
             module_offset,
             definition_offset,
             arity_offset,
-            code_offset,
+            native_offset,
             env_offset,
         }
     }
@@ -107,7 +105,7 @@ impl Closure {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        code: Option<NonNull<c_void>>,
+        native: Option<NonNull<c_void>>,
         _creator: Creator,
         env_len: usize,
     ) -> AllocResult<Boxed<Self>>
@@ -119,7 +117,7 @@ impl Closure {
             unique,
             old_unique,
         };
-        Self::new(heap, module, definition, arity, code, env_len)
+        Self::new(heap, module, definition, arity, native, env_len)
     }
 
     /// Like `new_anonymous`, but for export definitions
@@ -128,13 +126,13 @@ impl Closure {
         module: Atom,
         function: Atom,
         arity: Arity,
-        code: Option<NonNull<c_void>>,
+        native: Option<NonNull<c_void>>,
     ) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + Heap,
     {
         let definition = Definition::Export { function };
-        Self::new(heap, module, definition, arity, code, 0)
+        Self::new(heap, module, definition, arity, native, 0)
     }
 
     /// Internal helper for the `new_*` constructors
@@ -143,7 +141,7 @@ impl Closure {
         module: Atom,
         definition: Definition,
         arity: Arity,
-        code: Option<NonNull<c_void>>,
+        native: Option<NonNull<c_void>>,
         env_len: usize,
     ) -> AllocResult<Boxed<Self>>
     where
@@ -152,7 +150,8 @@ impl Closure {
         let closure_layout = ClosureLayout::for_env_len(env_len);
         let layout = closure_layout.layout.clone();
 
-        let header = Header::from_arity(env_len);
+        let header_arity = to_word_size(layout.size() - size_of::<Header<Closure>>());
+        let header = Header::from_arity(header_arity);
         unsafe {
             // Allocate space for closure
             let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut u8;
@@ -167,9 +166,9 @@ impl Closure {
             definition_ptr.write(definition);
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
             arity_ptr.write(arity);
-            let code_ptr =
-                ptr.offset(closure_layout.code_offset as isize) as *mut Option<NonNull<c_void>>;
-            code_ptr.write(code);
+            let native_ptr =
+                ptr.offset(closure_layout.native_offset as isize) as *mut Option<NonNull<c_void>>;
+            native_ptr.write(native);
             // Construct actual Closure reference
             Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_len))
         }
@@ -182,7 +181,7 @@ impl Closure {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        code: Option<NonNull<c_void>>,
+        native: Option<NonNull<c_void>>,
         _creator: Creator,
         env: &[Term],
     ) -> AllocResult<Boxed<Self>>
@@ -195,7 +194,7 @@ impl Closure {
             old_unique,
         };
 
-        Self::new_from_slice(heap, module, definition, arity, code, env)
+        Self::new_from_slice(heap, module, definition, arity, native, env)
     }
 
     fn new_from_slice<A>(
@@ -203,7 +202,7 @@ impl Closure {
         module: Atom,
         definition: Definition,
         arity: Arity,
-        code: Option<NonNull<c_void>>,
+        native: Option<NonNull<c_void>>,
         env: &[Term],
     ) -> AllocResult<Boxed<Self>>
     where
@@ -214,8 +213,8 @@ impl Closure {
 
         // The result of calling this will be a Closure with everything located
         // contiguously in memory
-        let env_arity = env.len();
-        let header = Header::from_arity(env_arity);
+        let header_arity = to_word_size(layout.size() - size_of::<Header<Closure>>());
+        let header = Header::from_arity(header_arity);
         unsafe {
             // Allocate space for tuple and immediate elements
             let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut u8;
@@ -230,9 +229,9 @@ impl Closure {
             definition_ptr.write(definition);
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
             arity_ptr.write(arity);
-            let code_ptr =
-                ptr.offset(closure_layout.code_offset as isize) as *mut Option<NonNull<c_void>>;
-            code_ptr.write(code);
+            let native_ptr =
+                ptr.offset(closure_layout.native_offset as isize) as *mut Option<NonNull<c_void>>;
+            native_ptr.write(native);
             // Construct pointer to first env element
             let mut env_ptr = ptr.offset(closure_layout.env_offset as isize) as *mut Term;
             // Walk original slice of terms and copy them into new memory region,
@@ -249,7 +248,7 @@ impl Closure {
                 env_ptr = env_ptr.offset(1);
             }
             // Construct actual Closure reference
-            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_arity))
+            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env.len()))
         }
     }
 
@@ -260,8 +259,8 @@ impl Closure {
         let module = self.module.clone();
         let definition = self.definition.clone();
         let arity = self.arity;
-        let code = self.code.clone();
-        Self::new_from_slice(heap, module, definition, arity as u8, code, &self.env)
+        let native = self.native.clone();
+        Self::new_from_slice(heap, module, definition, arity as u8, native, &self.env)
     }
 
     #[inline]
@@ -270,8 +269,8 @@ impl Closure {
     }
 
     #[inline]
-    pub fn arity(&self) -> u8 {
-        self.module_function_arity().arity
+    pub fn arity(&self) -> Arity {
+        self.arity
     }
 
     #[inline]
@@ -281,58 +280,51 @@ impl Closure {
 
     #[inline]
     pub fn callee(&self) -> Option<DynamicCallee> {
-        self.code
+        self.native
             .map(|nn| unsafe { mem::transmute::<*const c_void, DynamicCallee>(nn.as_ptr()) })
     }
 
-    pub fn code(&self) -> Code {
-        self.code
-            .map(|nn| unsafe { mem::transmute::<*const c_void, Code>(nn.as_ptr()) })
-            .unwrap_or_else(|| {
-                panic!(
-                    "{} does not have code associated with it",
-                    self.module_function_arity()
-                )
-            })
-    }
-
-    pub fn frame(&self) -> Frame {
-        let mfa = self.module_function_arity();
-        Frame::from_definition(mfa.module, self.definition.clone(), mfa.arity, self.code())
-    }
-
-    pub fn module_function_arity(&self) -> Arc<ModuleFunctionArity> {
-        Arc::new(ModuleFunctionArity {
-            module: self.module,
-            function: self.function(),
-            arity: self.arity,
+    pub fn native(&self) -> NonNull<c_void> {
+        self.native.unwrap_or_else(|| {
+            panic!(
+                "{} does not have a native function associated with it",
+                self.module_function_arity()
+            )
         })
     }
 
-    pub fn place_frame_with_arguments(
-        &self,
-        process: &Process,
-        placement: Placement,
-        arguments: Vec<Term>,
-    ) -> AllocResult<()> {
-        assert_eq!(arguments.len(), self.arity() as usize);
-        for argument in arguments.iter().rev() {
-            process.stack_push(*argument)?;
-        }
-
-        self.push_env_to_stack(process)?;
-
-        process.place_frame(self.frame(), placement);
-
-        Ok(())
+    /// The `native` function needs to accept both the explicit arguments of `arity`, but also the
+    /// implicit arguments of the captured environment.
+    ///
+    /// FIXME(pauls): The above is not true for generated code, so this requires review
+    pub fn native_arity(&self) -> Arity {
+        self.arity + self.env_len() as Arity
     }
 
-    fn push_env_to_stack(&self, process: &Process) -> AllocResult<()> {
-        for term in self.env.iter().rev() {
-            process.stack_push(*term)?;
-        }
+    pub fn frame(&self) -> Frame {
+        Frame::from_definition(self.module, self.definition.clone(), self.arity, unsafe {
+            Native::from_ptr(self.native().as_ptr(), self.native_arity())
+        })
+    }
 
-        Ok(())
+    pub fn module_function_arity(&self) -> ModuleFunctionArity {
+        ModuleFunctionArity {
+            module: self.module,
+            function: self.function(),
+            arity: self.arity,
+        }
+    }
+
+    pub fn frame_with_arguments(
+        &self,
+        uses_returned: bool,
+        arguments: Vec<Term>,
+    ) -> FrameWithArguments {
+        let mut full_arguments = Vec::with_capacity(arguments.len() + self.env_len());
+        full_arguments.extend_from_slice(&arguments);
+        full_arguments.extend_from_slice(self.env_slice());
+
+        self.frame().with_arguments(uses_returned, &full_arguments)
     }
 
     #[inline]
@@ -346,8 +338,8 @@ impl Closure {
     }
 
     #[inline]
-    pub fn code_address(&self) -> Option<usize> {
-        self.code.map(|nn| nn.as_ptr() as usize)
+    pub fn native_address(&self) -> Option<usize> {
+        self.native.map(|nn| nn.as_ptr() as usize)
     }
 
     /// Returns the length of the closure environment in terms.
@@ -391,7 +383,12 @@ impl Closure {
     unsafe fn from_raw_parts<E: super::arch::Repr>(ptr: *const E, len: usize) -> Boxed<Closure> {
         // Invariants of slice::from_raw_parts.
         assert!(!ptr.is_null());
-        assert!(len <= isize::max_value() as usize);
+        assert!(
+            len <= isize::max_value() as usize,
+            "len ({}) is not less than isize::max_value() ({})",
+            len,
+            isize::max_value() as usize
+        );
 
         let slice = core::slice::from_raw_parts_mut(ptr as *mut E, len);
         let ptr = slice as *mut [E] as *mut Closure;
@@ -405,8 +402,10 @@ impl<E: super::arch::Repr> UnsizedBoxable<E> for Closure {
     unsafe fn from_raw_term(ptr: *mut E) -> Boxed<Closure> {
         let header = &*(ptr as *mut Header<Closure>);
         let arity = header.arity();
+        // -1 is size of header in words
+        let env_len = arity - (Self::base_size_words() - 1);
 
-        Self::from_raw_parts::<E>(ptr, arity)
+        Self::from_raw_parts::<E>(ptr, env_len)
     }
 }
 
@@ -435,7 +434,7 @@ impl Debug for Closure {
             .field("module", &self.module)
             .field("definition", &self.definition)
             .field("arity", &self.arity)
-            .field("code", &self.code.map(|nn| nn.as_ptr()))
+            .field("native", &self.native.map(|nn| nn.as_ptr()))
             .field("env_len", &self.env.len())
             .field("env", &self.env.iter().copied().collect::<Vec<Term>>())
             .finish()
@@ -466,7 +465,7 @@ impl Hash for Closure {
         self.module.hash(state);
         self.definition.hash(state);
         self.arity.hash(state);
-        self.code_address().hash(state);
+        self.native_address().hash(state);
         self.env_slice().hash(state);
     }
 }
@@ -477,7 +476,7 @@ impl Ord for Closure {
             .cmp(&other.module)
             .then_with(|| self.definition.cmp(&other.definition))
             .then_with(|| self.arity.cmp(&other.arity))
-            .then_with(|| self.code_address().cmp(&other.code_address()))
+            .then_with(|| self.native_address().cmp(&other.native_address()))
             .then_with(|| self.env_slice().cmp(other.env_slice()))
     }
 }
@@ -487,7 +486,7 @@ impl PartialEq for Closure {
         (self.module == other.module)
             && (self.definition == other.definition)
             && (self.arity == other.arity)
-            && (self.code_address() == other.code_address())
+            && (self.native_address() == other.native_address())
             && (self.env_slice() == other.env_slice())
     }
 }
@@ -582,13 +581,12 @@ impl Definition {
                 old_unique,
                 unique,
                 ..
-            } => Atom::try_from_str(format!(
+            } => Atom::from_str(format!(
                 "{}-{}-{}",
                 index,
                 old_unique,
                 Self::format_unique(&unique)
-            ))
-            .unwrap(),
+            )),
         }
     }
 

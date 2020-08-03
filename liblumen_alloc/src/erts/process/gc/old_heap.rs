@@ -5,6 +5,8 @@ use core::ptr::{self, NonNull};
 
 use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 
+use liblumen_term::Tag;
+
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::*;
 use crate::erts::term::prelude::*;
@@ -65,6 +67,26 @@ impl OldHeap {
     }
 }
 impl Heap for OldHeap {
+    fn is_corrupted(&self) -> bool {
+        let mut pos = self.heap_start();
+
+        while pos < self.heap_top() {
+            unsafe {
+                let term = &*pos;
+                let skip = term.arity();
+
+                match term.type_of() {
+                    Tag::Unknown(_) => return true,
+                    _ => (),
+                };
+
+                pos = pos.add(1 + skip);
+            }
+        }
+
+        false
+    }
+
     #[inline(always)]
     fn heap_start(&self) -> *mut Term {
         self.start

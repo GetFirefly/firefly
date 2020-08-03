@@ -14,6 +14,7 @@ pub use self::free_block_tree::{FreeBlockTree, FreeBlocks};
 
 #[cfg(test)]
 mod tests {
+    use core::alloc::AllocInit;
     use core::mem;
     use core::ptr;
 

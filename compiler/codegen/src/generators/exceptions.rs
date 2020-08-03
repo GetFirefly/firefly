@@ -1,19 +1,14 @@
-use std::collections::HashSet;
-use std::ffi::CString;
 use std::fs::File;
-use std::mem;
 use std::path::Path;
 use std::ptr;
 use std::sync::Arc;
 
-use libeir_intern::{Ident, Symbol};
-use libeir_ir::FunctionIdent;
+use libeir_intern::Symbol;
 
-use liblumen_core::symbols::FunctionSymbol;
 use liblumen_llvm as llvm;
-use liblumen_llvm::attributes::{Attribute, AttributePlace};
-use liblumen_llvm::builder::{ICmp, ModuleBuilder};
-use liblumen_llvm::enums::{Linkage, ThreadLocalMode};
+use liblumen_llvm::attributes::Attribute;
+use liblumen_llvm::builder::ModuleBuilder;
+use liblumen_llvm::enums::Linkage;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_session::Options;
 use liblumen_term::{
@@ -162,9 +157,11 @@ fn generate_standard(
     builder.position_at_end(entry_block);
 
     // Allocate all constants here and reuse them as needed
+    let normal = Symbol::intern("normal");
     let throw = Symbol::intern("throw");
     let nocatch = Symbol::intern("nocatch");
 
+    let normal_atom = build_constant_atom(&builder, normal.as_usize(), options);
     let throw_atom = build_constant_atom(&builder, throw.as_usize(), options);
     let nocatch_atom = build_constant_atom(&builder, nocatch.as_usize(), options);
     let nocatch_header = build_tuple_header(&builder, 2, options);
@@ -176,7 +173,7 @@ fn generate_standard(
     // Invoke the `init` function pointer
     let init_fn_ptr = builder.get_function_param(func, 0);
     let init_fn_env_arg = builder.get_function_param(func, 1);
-    let invoke_init = builder.build_invoke(
+    builder.build_invoke(
         init_fn_ptr,
         &[init_fn_env_arg],
         exit_block,
@@ -278,7 +275,7 @@ fn generate_standard(
 
     let exit_value = builder.build_phi(
         usize_type,
-        &[(invoke_init, entry_block), (error_box, caught_block)],
+        &[(normal_atom, entry_block), (error_box, caught_block)],
     );
 
     let exit_fun_call = builder.build_call(exit_fun, &[exit_value], None);
@@ -326,7 +323,8 @@ fn generate_wasm32(
     let fn_type = builder.get_erlang_function_type(1);
     let fn_ptr_type = builder.get_pointer_type(fn_type);
     let void_type = builder.get_void_type();
-    let exception_type = builder.get_struct_type(Some("lumen.exception"), &[i8_ptr_type, i32_type]);
+    let _exception_type =
+        builder.get_struct_type(Some("lumen.exception"), &[i8_ptr_type, i32_type]);
     let erlang_error_type = builder.get_struct_type(
         Some("tuple3"),
         &[usize_type, usize_type, usize_type, usize_type],
@@ -417,9 +415,11 @@ fn generate_wasm32(
     let exit_value = builder.build_alloca(usize_type);
 
     // Allocate all constants here and reuse them as needed
+    let normal = Symbol::intern("normal");
     let throw = Symbol::intern("throw");
     let nocatch = Symbol::intern("nocatch");
 
+    let normal_atom = build_constant_atom(&builder, normal.as_usize(), options);
     let throw_atom = build_constant_atom(&builder, throw.as_usize(), options);
     let nocatch_atom = build_constant_atom(&builder, nocatch.as_usize(), options);
     let nocatch_header = build_tuple_header(&builder, 2, options);
@@ -431,7 +431,7 @@ fn generate_wasm32(
     // Invoke the `init` function pointer
     let init_fn_ptr = builder.get_function_param(func, 0);
     let init_fn_env_arg = builder.get_function_param(func, 1);
-    let invoke_init = builder.build_invoke(
+    builder.build_invoke(
         init_fn_ptr,
         &[init_fn_env_arg],
         exit_block,
@@ -536,7 +536,7 @@ fn generate_wasm32(
 
     let ret_value = builder.build_phi(
         usize_type,
-        &[(invoke_init, entry_block), (exit_value, catchret_block)],
+        &[(normal_atom, entry_block), (exit_value, catchret_block)],
     );
 
     let exit_fun_call = builder.build_call(exit_fun, &[ret_value], None);

@@ -2,12 +2,10 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::thread::{self, ThreadId};
 
-use anyhow::anyhow;
-
 use log::debug;
 
+use liblumen_codegen as codegen;
 use liblumen_codegen::meta::CompiledModule;
-use liblumen_codegen::{self as codegen, GeneratedModule};
 use liblumen_llvm::{self as llvm, target::TargetMachineConfig};
 use liblumen_mlir as mlir;
 use liblumen_session::{Input, InputType, OutputType};
@@ -190,8 +188,6 @@ pub(super) fn get_target_machine<C>(db: &C, thread_id: ThreadId) -> Arc<llvm::ta
 where
     C: Compiler,
 {
-    let options = db.options();
-    let diagnostics = db.diagnostics();
     let config = db.get_target_machine_config(thread_id);
     debug!("constructing new target machine for thread {:?}", thread_id);
     Arc::new(config.create().expect("failed to create target machine"))

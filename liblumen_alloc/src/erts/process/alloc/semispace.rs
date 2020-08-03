@@ -151,6 +151,10 @@ where
     A: Heap + VirtualAlloc,
     B: Heap + VirtualAlloc,
 {
+    fn is_corrupted(&self) -> bool {
+        self.young.is_corrupted() || self.old.is_corrupted()
+    }
+
     #[inline]
     fn heap_start(&self) -> *mut Term {
         self.young.heap_start()

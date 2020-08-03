@@ -317,7 +317,7 @@ version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ceface2475f2f57a7ece9ba239b96e06bda8323ee68aa6df539752f13a74f60"
 dependencies = [
- "termcolor 1.0.5",
+ "termcolor 1.1.0",
  "unicode-width",
 ]
 
@@ -598,7 +598,7 @@ dependencies = [
  "humantime",
  "log",
  "regex",
- "termcolor 1.0.5",
+ "termcolor 1.1.0",
 ]
 
 [[package]]
@@ -1382,14 +1382,16 @@ dependencies = [
  "lazy_static 1.4.0",
  "liblumen_alloc",
  "liblumen_core",
+ "lumen",
  "lumen_rt_core",
  "lumen_rt_full",
- "native_implemented_function",
+ "native_implemented",
  "num-bigint 0.2.3",
  "num-traits",
  "proptest",
  "radix_fmt",
  "thiserror",
+ "web-sys",
 ]
 
 [[package]]
@@ -1412,12 +1414,15 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "codespan",
+ "codespan-reporting",
  "libeir_ir",
  "libeir_syntax_erl",
  "liblumen_compiler_macros",
  "liblumen_target",
  "liblumen_util",
  "log",
+ "termcolor 1.1.0",
  "thiserror",
 ]
 
@@ -1461,7 +1466,7 @@ dependencies = [
  "liblumen_otp",
  "lumen_rt_core",
  "lumen_rt_full",
- "native_implemented_function",
+ "native_implemented",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -1500,10 +1505,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "codespan-reporting",
  "env_logger",
  "human-panic",
  "liblumen_compiler",
  "liblumen_crt",
+ "liblumen_otp",
  "liblumen_session",
  "liblumen_util",
  "log",
@@ -1528,8 +1535,10 @@ dependencies = [
  "libeir_syntax_erl",
  "libeir_util_parse",
  "liblumen_alloc",
+ "liblumen_core",
  "liblumen_otp",
- "lumen_rt_full",
+ "lumen_rt_core",
+ "native_implemented",
 ]
 
 [[package]]
@@ -1554,6 +1563,7 @@ dependencies = [
  "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "radix_fmt",
  "thiserror",
+ "wasm-bindgen",
  "web-sys",
 ]
 
@@ -1568,7 +1578,6 @@ dependencies = [
  "clap",
  "colored",
  "hashbrown 0.7.1",
- "js-sys",
  "lazy_static 1.4.0",
  "libc",
  "liblumen_alloc",
@@ -1666,7 +1675,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "native_implemented_function"
+name = "native_implemented"
 version = "0.1.0"
 dependencies = [
  "proc-macro-crate",
@@ -2592,10 +2601,12 @@ dependencies = [
  "futures 0.1.29",
  "js-sys",
  "liblumen_alloc",
+ "liblumen_core",
  "liblumen_otp",
  "liblumen_web",
  "lumen_rt_core",
  "lumen_rt_full",
+ "native_implemented",
  "num-bigint 0.2.3",
  "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "time-test",
@@ -2760,16 +2771,16 @@ version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adc4587ead41bf016f11af03e55a624c06568b5a19db4e90fde573d805074f83"
 dependencies = [
- "wincolor 0.1.6",
+ "wincolor",
 ]
 
 [[package]]
 name = "termcolor"
-version = "1.0.5"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96d6098003bde162e4277c70665bd87c326f5a0c3f3fbfb285787fa482d54e6e"
+checksum = "bb6bfa289a4d7c5766392812c0a1f4c1ba45afa1ad47803c11e1f407d846d75f"
 dependencies = [
- "wincolor 1.0.2",
+ "winapi-util",
 ]
 
 [[package]]
@@ -3111,9 +3122,9 @@ checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
 
 [[package]]
 name = "winapi-util"
-version = "0.1.2"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7168bab6e1daee33b4557efd0e95d5ca70a03706d39fa5f3fe7a236f584b03c9"
+checksum = "70ec6ce85bb158151cae5e5c87f95a8e97d2c0c4b001223f33a334e3ce5de178"
 dependencies = [
  "winapi",
 ]
@@ -3131,16 +3142,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eeb06499a3a4d44302791052df005d5232b927ed1a9658146d842165c4de7767"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "wincolor"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96f5016b18804d24db43cebf3c77269e7569b8954a8464501c216cc5e070eaa9"
-dependencies = [
- "winapi",
- "winapi-util",
 ]
 
 [[package]]

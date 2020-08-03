@@ -8,6 +8,7 @@ use liblumen_alloc::erts::Process;
 
 use lumen_rt_core::process::current_process;
 use lumen_rt_core::registry;
+use lumen_rt_core::scheduler::from_id;
 
 use crate::scheduler::Scheduler;
 
@@ -54,7 +55,7 @@ pub extern "C" fn builtin_spawn(closure: Term) -> Term {
         if let Ok(fun) = decoded_result {
             let p = current_process();
             let id = p.scheduler_id().unwrap();
-            let scheduler = Scheduler::from_id(&id).unwrap();
+            let scheduler = from_id(&id).unwrap();
             let pid = scheduler.spawn_closure(Some(&p), fun).unwrap();
             pid.into()
         } else {

@@ -101,9 +101,15 @@ impl Next {
         match status {
             Status::Runnable => Next::PushBack,
             Status::Waiting => Next::Wait,
-            Status::Exiting(_) => Next::Exit,
+            Status::RuntimeException(_) => Next::Exit,
+            Status::SystemException(_) => {
+                unreachable!("System exception should have already been cleared")
+            }
             Status::Running => {
                 unreachable!("Process.stop_running() should have been called before this")
+            }
+            Status::Unrunnable => {
+                unreachable!("runtime::process::runnable(process) show have been called before attempting to run a process with a scheduler")
             }
         }
     }

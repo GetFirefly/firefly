@@ -1,6 +1,6 @@
 /// A resource is something from a BIF or NIF that needs to be memory managed, but cannot be
 /// converted to a normal Term.
-use core::any::{Any, TypeId};
+use core::any::Any;
 use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display};
 use core::ptr::{self, NonNull};
@@ -24,19 +24,23 @@ pub struct Resource {
 }
 impl_static_header!(Resource, Term::HEADER_RESOURCE_REFERENCE);
 impl Resource {
-    pub fn new(value: Box<dyn Any>) -> AllocResult<Self> {
-        let inner = ResourceInner::new(value)?;
+    pub fn new(value: Box<dyn Any>, type_name: &'static str) -> AllocResult<Self> {
+        let inner = ResourceInner::new(value, type_name)?;
         Ok(Self {
             header: Default::default(),
             inner,
         })
     }
 
-    pub fn from_value<A>(heap: &mut A, value: Box<dyn Any>) -> AllocResult<Boxed<Self>>
+    pub fn from_value<A>(
+        heap: &mut A,
+        value: Box<dyn Any>,
+        type_name: &'static str,
+    ) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + Heap,
     {
-        let resource = Self::new(value)?;
+        let resource = Self::new(value, type_name)?;
         let layout = Layout::new::<Self>();
 
         unsafe {
@@ -101,9 +105,8 @@ impl Resource {
         self.inner().resource.is::<T>()
     }
 
-    #[inline]
-    pub fn type_id(&self) -> TypeId {
-        self.inner().resource.type_id()
+    pub fn type_name(&self) -> &'static str {
+        self.inner().resource_type_name
     }
 
     #[inline]
@@ -224,12 +227,7 @@ impl Debug for Resource {
             .field("header", &self.header)
             .field(
                 "inner",
-                &format_args!(
-                    "{:p} => (type_id: {:?}) {:?}",
-                    self.inner,
-                    self.type_id(),
-                    self.value()
-                ),
+                &format_args!("{:p} => {:?}", self.inner, unsafe { self.inner.as_ref() }),
             )
             .finish()
     }
@@ -276,9 +274,10 @@ impl TryFrom<TypedTerm> for Boxed<Resource> {
 pub struct ResourceInner {
     reference_count: AtomicUsize,
     resource: Box<dyn Any>,
+    resource_type_name: &'static str,
 }
 impl ResourceInner {
-    fn new(resource: Box<dyn Any>) -> AllocResult<NonNull<Self>> {
+    fn new(resource: Box<dyn Any>, resource_type_name: &'static str) -> AllocResult<NonNull<Self>> {
         let layout = Layout::new::<Self>();
 
         unsafe {
@@ -291,6 +290,7 @@ impl ResourceInner {
             ptr.write(Self {
                 reference_count: Default::default(),
                 resource,
+                resource_type_name,
             });
 
             Ok(NonNull::new_unchecked(ptr))
@@ -300,13 +300,24 @@ impl ResourceInner {
 
 impl Debug for ResourceInner {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ResourceInner")
-            .field("reference_count", &self.reference_count)
-            .field(
-                "resource",
-                &format_args!("Any with {:?}", self.resource.type_id()),
-            )
-            .finish()
+        if self
+            .reference_count
+            .load(std::sync::atomic::Ordering::SeqCst)
+            < 100
+        {
+            f.debug_struct("ResourceInner")
+                .field("reference_count", &self.reference_count)
+                .field(
+                    "resource",
+                    &format_args!("Any with {:?}", self.resource.type_id()),
+                )
+                .field("resource_type_name", &self.resource_type_name)
+                .finish()
+        } else {
+            f.debug_struct("ResourceInner")
+                .field("reference_count", &self.reference_count)
+                .finish()
+        }
     }
 }
 

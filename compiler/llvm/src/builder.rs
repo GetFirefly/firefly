@@ -7,7 +7,7 @@ use std::ptr;
 use anyhow::anyhow;
 use fxhash::FxHashMap;
 
-use liblumen_session::{OptLevel, Options, Sanitizer};
+use liblumen_session::{Options, Sanitizer};
 
 use crate::sys as llvm_sys;
 use crate::sys::prelude::LLVMBuilderRef;
@@ -96,7 +96,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
             builder,
             intrinsics: RefCell::new(Default::default()),
             local_gen_sym_counter: Cell::new(0),
-            opt_level: opt_level,
+            opt_level,
             sanitizer: options.debugging_opts.sanitizer.clone(),
             target_cpu: crate::target::target_cpu(options).to_owned(),
             debug: options.debug_assertions,
@@ -430,7 +430,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
     }
 
     pub fn build_named_constant_string(&self, name: &str, s: &str, null_terminated: bool) -> Value {
-        use llvm_sys::core::{LLVMConstStringInContext, LLVMSetGlobalConstant};
+        use llvm_sys::core::LLVMConstStringInContext;
 
         unsafe {
             let sc = LLVMConstStringInContext(
@@ -459,7 +459,6 @@ impl<'ctx> ModuleBuilder<'ctx> {
 
     pub fn build_constant_struct(&self, ty: Type, fields: &[Value]) -> Value {
         use llvm_sys::core::LLVMConstNamedStruct;
-        use llvm_sys::core::LLVMConstStructInContext;
         use llvm_sys::core::LLVMGetStructName;
 
         let name = unsafe { LLVMGetStructName(ty) };

@@ -8,9 +8,15 @@ mod cli {
 
         let cli_output = Command::new("./cli").stdin(Stdio::null()).output().unwrap();
 
+        let stdout = String::from_utf8_lossy(&cli_output.stdout);
+        let stderr = String::from_utf8_lossy(&cli_output.stderr);
+
         assert_eq!(
             String::from_utf8_lossy(&cli_output.stdout),
-            "\"Nothing to say.\"\n"
+            "\"Nothing to say.\"\n",
+            "\nstdout = {}\nstderr = {}",
+            stdout,
+            stderr
         );
     }
 
@@ -24,9 +30,13 @@ mod cli {
             .output()
             .unwrap();
 
+        let stdout = String::from_utf8_lossy(&cli_output.stdout);
+        let stderr = String::from_utf8_lossy(&cli_output.stderr);
+
         assert_eq!(
-            String::from_utf8_lossy(&cli_output.stdout),
-            "\"Nothing to say.\"\n"
+            stdout, "\"Nothing to say.\"\n",
+            "\nstdout = {}\nstderr = {}",
+            stdout, stderr
         );
     }
 
@@ -40,9 +50,13 @@ mod cli {
             .output()
             .unwrap();
 
+        let stdout = String::from_utf8_lossy(&cli_output.stdout);
+        let stderr = String::from_utf8_lossy(&cli_output.stderr);
+
         assert_eq!(
-            String::from_utf8_lossy(&cli_output.stdout),
-            "\"Hello, world!\"\n"
+            stdout, "\"Hello, world!\"\n",
+            "\nstdout = {}\nstderr = {}",
+            stdout, stderr
         );
     }
 
@@ -65,6 +79,8 @@ mod cli {
             .arg("_build")
             .arg("-o")
             .arg("cli")
+            // Turn off optimizations as work-around for debug info bug in EIR
+            .arg("-O0")
             .arg("-lc");
 
         add_link_args(&mut command);

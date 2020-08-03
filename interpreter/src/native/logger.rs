@@ -3,7 +3,7 @@ use liblumen_alloc::erts::term::prelude::Atom;
 use crate::module::NativeModule;
 
 macro_rules! trace {
-    ($($t:tt)*) => (lumen_rt_full::system::io::puts(&format_args!($($t)*).to_string()))
+    ($($t:tt)*) => (crate::runtime::sys::io::puts(&format_args!($($t)*).to_string()))
 }
 
 pub fn make_logger() -> NativeModule {

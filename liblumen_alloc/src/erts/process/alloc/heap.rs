@@ -48,6 +48,8 @@ where
 ///
 /// Provides access to metadata about a heap above and beyond the low-level allocation functions
 pub trait Heap: HeapAlloc {
+    fn is_corrupted(&self) -> bool;
+
     /// Returns the lowest address that is part of the underlying heaps' range
     fn heap_start(&self) -> *mut Term;
 
@@ -127,6 +129,10 @@ where
     H: Heap,
     T: DerefMut<Target = H>,
 {
+    fn is_corrupted(&self) -> bool {
+        self.deref().is_corrupted()
+    }
+
     #[inline]
     fn heap_start(&self) -> *mut Term {
         self.deref().heap_start()

@@ -13,6 +13,8 @@ mod hello_world {
             .arg("_build")
             .arg("-o")
             .arg("hello_world")
+            // Turn off optimizations as work-around for debug info bug in EIR
+            .arg("-O0")
             .arg("-lc");
 
         add_link_args(&mut command);
@@ -31,10 +33,13 @@ mod hello_world {
         );
 
         let hello_world_output = Command::new("./hello_world").output().unwrap();
+        let hello_world_stdout = String::from_utf8_lossy(&hello_world_output.stdout);
+        let hello_world_stderr = String::from_utf8_lossy(&hello_world_output.stderr);
 
         assert_eq!(
-            String::from_utf8_lossy(&hello_world_output.stdout),
-            "\"Hello, world!\"\n"
+            hello_world_stdout, "\"Hello, world!\"\n",
+            "\nstdout = {}\nstderr = {}",
+            hello_world_stdout, hello_world_stderr
         );
     }
 

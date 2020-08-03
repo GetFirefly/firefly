@@ -8,9 +8,9 @@ use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
-use lumen_rt_full::process::spawn::options::Options;
-use lumen_rt_full::scheduler::{Scheduler, Spawned};
-use lumen_rt_full::system;
+use crate::runtime::process::spawn::options::Options;
+use crate::runtime::scheduler;
+use crate::runtime::sys;
 
 use super::module::ModuleRegistry;
 
@@ -22,7 +22,7 @@ pub struct VMState {
 
 impl VMState {
     pub fn new() -> Self {
-        liblumen_otp::erlang::apply_3::set_code(crate::code::apply);
+        liblumen_otp::erlang::apply_3::set_native(crate::code::apply);
 
         let mut modules = ModuleRegistry::new();
         modules.register_native_module(crate::native::make_erlang());
@@ -31,7 +31,7 @@ impl VMState {
         modules.register_native_module(crate::native::make_logger());
         modules.register_native_module(crate::native::make_lumen_intrinsics());
 
-        let arc_scheduler = Scheduler::current();
+        let arc_scheduler = scheduler::current();
         let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
         VMState {
@@ -46,7 +46,7 @@ impl VMState {
         fun: &FunctionIdent,
         args: &[Term],
     ) -> Result<Rc<Term>, (Rc<Term>, Rc<Term>, Rc<Term>)> {
-        let arc_scheduler = Scheduler::current();
+        let arc_scheduler = scheduler::current();
         let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
         let module = Atom::try_from_str(&fun.module.as_str()).unwrap();
@@ -59,10 +59,7 @@ impl VMState {
         let mut options: Options = Default::default();
         options.min_heap_size = Some(4 + 1000 * 2);
 
-        let Spawned {
-            arc_process: run_arc_process,
-            ..
-        } = Scheduler::spawn_apply_3(
+        let run_process_spawned = crate::runtime::process::spawn::apply_3(
             &init_arc_process,
             options,
             module,
@@ -71,11 +68,18 @@ impl VMState {
             // if this fails  a bigger sized heap
             .unwrap();
 
+        let run_arc_process_spawned = run_process_spawned.schedule_with_parent(&init_arc_process);
+        let run_arc_process = run_arc_process_spawned.arc_process;
+
         loop {
-            let ran = Scheduler::current().run_through(&run_arc_process);
+            let ran = scheduler::run_through(&run_arc_process);
 
             match *run_arc_process.status.read() {
-                Status::Exiting(ref exception) => match exception {
+                Status::Unrunnable => unreachable!("{:?} was not made runnable", run_arc_process),
+                Status::SystemException(ref system_exception) => {
+                    unimplemented!("{:?}", system_exception)
+                }
+                Status::RuntimeException(ref exception) => match exception {
                     RuntimeException::Exit(err) => {
                         let reason = err.reason();
                         if reason != atom!("normal") {
@@ -94,28 +98,28 @@ impl VMState {
                 },
                 Status::Waiting => {
                     if ran {
-                        system::io::puts(&format!(
+                        sys::io::puts(&format!(
                             "WAITING Run queues len = {:?}",
-                            Scheduler::current().run_queues_len()
+                            scheduler::current().run_queues_len()
                         ));
                     } else {
                         panic!(
                             "{:?} did not run.  Deadlock likely in {:#?}",
                             run_arc_process,
-                            Scheduler::current()
+                            scheduler::current()
                         );
                     }
                 }
                 Status::Runnable => {
-                    system::io::puts(&format!(
+                    sys::io::puts(&format!(
                         "RUNNABLE Run queues len = {:?}",
-                        Scheduler::current().run_queues_len()
+                        scheduler::current().run_queues_len()
                     ));
                 }
                 Status::Running => {
-                    system::io::puts(&format!(
+                    sys::io::puts(&format!(
                         "RUNNING Run queues len = {:?}",
-                        Scheduler::current().run_queues_len()
+                        scheduler::current().run_queues_len()
                     ));
                 }
             }

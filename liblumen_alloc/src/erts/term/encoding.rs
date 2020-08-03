@@ -17,7 +17,7 @@ use liblumen_term::{Encoding as TermEncoding, Tag};
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{AllocResult, InternalResult};
 use crate::erts::fragment::HeapFragment;
-use crate::erts::process::alloc::TermAlloc;
+use crate::erts::process::alloc::{Heap, TermAlloc};
 
 use super::arch::{Repr, Word};
 use super::prelude::*;
@@ -245,10 +245,12 @@ impl<T: ?Sized> Debug for Header<T> {
 const_assert_eq!(mem::size_of::<Header<usize>>(), mem::size_of::<usize>());
 impl Header<Map> {
     pub fn from_map(map: &HashMap<Term, Term>) -> Self {
-        // NOTE: This size only accounts for the HashMap header, not the values
-        let layout = Layout::for_value(map);
-        let map_size = layout.size();
-        let arity = Self::static_arity() + Self::to_word_size(map_size);
+        let header_layout = Layout::new::<Self>();
+        let value_layout = Layout::for_value(map);
+        let (layout, _value_offset) = header_layout.extend(value_layout).unwrap();
+        // subtract the header layout size in words instead of just not including it as `extend`
+        // adds padding for field alignment.
+        let arity = Self::to_word_size(layout.size()) - Self::to_word_size(header_layout.size());
         let value = Term::encode_header(arity.try_into().unwrap(), Term::HEADER_MAP);
         Self {
             value,
@@ -652,8 +654,17 @@ impl CloneToProcess for Term {
         if self.is_immediate() || self.is_literal() {
             *self
         } else if self.is_boxed() || self.is_non_empty_list() {
-            let tt = self.decode().unwrap();
-            tt.clone_to_process(process)
+            // There is no need to clone the actual object to this process's heap if it is already
+            // there, just clone a pointer.
+            let ptr: *mut Term = self.dyn_cast();
+            if process.acquire_heap().contains(ptr) {
+                // Just return self
+                *self
+            } else {
+                // We're good to clone
+                let tt = self.decode().unwrap();
+                tt.clone_to_process(process)
+            }
         } else {
             panic!("clone_to_process called on invalid term type: {:?}", self);
         }

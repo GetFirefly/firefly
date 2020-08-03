@@ -338,7 +338,11 @@ where
             sweep_term(sweeper, term)
         }
     } else {
-        assert!(term.is_non_empty_list());
+        assert!(
+            term.is_non_empty_list(),
+            "Term ({:?}) is not a non-empty list",
+            term
+        );
         // This is just a list pointer, not a pointer to a list pointer,
         // so sweep it normally
         sweep_term(sweeper, term)

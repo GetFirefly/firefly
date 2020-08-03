@@ -1,0 +1,58 @@
+name: x86_64-unknown-linux-gnu Libraries
+
+on: push
+
+jobs:
+  formatted:
+    runs-on: ubuntu-latest
+    container: kronicdeth/lumen-development@sha256:985b21718f2d290db7efb585046161ccf5116d046e90cae922985a02e3a3d8bf
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-formatted-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-formatted-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-formatted-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: Check Formatted
+        run: cargo fmt -- --check
+
+  libraries:
+    runs-on: ubuntu-latest
+    container: kronicdeth/lumen-development@sha256:985b21718f2d290db7efb585046161ccf5116d046e90cae922985a02e3a3d8bf
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-libraries-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-libraries-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-libraries-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: Test liblumen_arena
+        run: cargo test --package liblumen_arena
+      - name: Test liblumen_core
+        run: cargo test --package liblumen_core
+      - name: Build TableGen
+        run: make lumen-tblgen
+      - name: Test liblumen_alloc
+        run: cargo test --package liblumen_alloc

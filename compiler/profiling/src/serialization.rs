@@ -5,6 +5,7 @@ use std::path::Path;
 pub struct Addr(pub u32);
 
 impl Addr {
+    #[allow(dead_code)]
     pub fn as_usize(self) -> usize {
         self.0 as usize
     }
@@ -40,12 +41,14 @@ pub struct ByteVecSink {
 }
 
 impl ByteVecSink {
+    #[allow(dead_code)]
     pub fn new() -> ByteVecSink {
         ByteVecSink {
             data: Mutex::new(Vec::new()),
         }
     }
 
+    #[allow(dead_code)]
     pub fn into_bytes(self) -> Vec<u8> {
         self.data.into_inner()
     }

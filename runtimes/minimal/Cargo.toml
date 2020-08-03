@@ -39,3 +39,6 @@ features = ["nightly"]
 [dependencies.parking_lot_core]
 version = "0.7"
 features = ["nightly"]
+
+[features]
+time_web_sys = ["lumen_rt_core/time_web_sys"]

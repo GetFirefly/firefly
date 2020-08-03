@@ -12,11 +12,13 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
+anyhow = "1.0"
 clap = "2.33.0"
+codespan-reporting = "0.9.4"
+env_logger = "0.7"
 human-panic = "1.0"
 log = "0.4"
-env_logger = "0.7"
-anyhow = "1.0"
+
 liblumen_util = { path = "../liblumen_util" }
 liblumen_compiler = { path = "../compiler/driver" }
 liblumen_session = { path = "../compiler/session" }
@@ -26,3 +28,4 @@ unwind = { path = "../compiler/unwind" }
 panic = { path = "../compiler/panic" }
 liblumen_crt = { path = "../runtimes/crt" }
 lumen_rt_minimal = { path = "../runtimes/minimal" }
+liblumen_otp = { path = "../native_implemented/otp" }

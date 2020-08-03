@@ -140,6 +140,9 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
   }
 };
 
+// This magic constant here matches the same value in the term encoding in Rust
+const uint64_t MIN_DOUBLE = ~((uint64_t)(INT64_MIN >> 12));
+
 struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -155,7 +158,8 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     // On nanboxed targets, floats are treated normally
     if (!ctx.targetInfo.requiresPackedFloats()) {
       auto f = apVal.bitcastToAPInt();
-      auto val = llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue()));
+      // The magic constant here is MIN_DOUBLE, as defined in the term encoding in Rust
+      auto val = llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue() + MIN_DOUBLE));
       rewriter.replaceOp(op, {val});
       return success();
     }

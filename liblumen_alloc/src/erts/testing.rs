@@ -115,6 +115,10 @@ impl VirtualAllocator<ProcBin> for RegionHeap {
     }
 }
 impl Heap for RegionHeap {
+    fn is_corrupted(&self) -> bool {
+        false
+    }
+
     #[inline]
     fn heap_start(&self) -> *mut Term {
         self.ptr.as_ptr() as *mut Term

@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::fmt;
 use std::os;
 use std::ptr;
@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 
-use liblumen_session::{OptLevel, Options, ProjectType};
+use liblumen_session::{Options, ProjectType};
 use liblumen_target::{CodeModel, RelocModel, TlsModel};
 
 use crate::enums::{self, CodeGenOptLevel, CodeGenOptSize};

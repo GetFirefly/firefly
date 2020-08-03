@@ -933,7 +933,11 @@ pub fn add_local_native_libraries(
     // Add runtime libs we depend on
     let no_std = options.codegen_opts.no_std.unwrap_or(false);
     let libstd_libs = match options.target.arch.as_str() {
-        "x86_64" if !no_std => vec!["libpanic_unwind.rlib", "lumen_rt_minimal"],
+        "x86_64" if !no_std => vec![
+            "libpanic_unwind.rlib",
+            "lumen_rt_minimal",
+            "libliblumen_otp.rlib",
+        ],
         "wasm32" if !no_std => vec!["libpanic_abort.rlib", "lumen_web"],
         _ => vec!["libpanic_unwind.rlib"],
     };

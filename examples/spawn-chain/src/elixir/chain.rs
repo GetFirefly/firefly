@@ -91,7 +91,7 @@ pub mod console_1;
 mod console_output_1;
 pub mod counter_2;
 pub mod create_processes_2;
-mod create_processes_reducer_2;
+mod create_processes_reducer_3;
 pub mod dom_1;
 mod dom_output_1;
 pub mod none_1;
@@ -102,5 +102,9 @@ mod run_2;
 use liblumen_alloc::erts::term::prelude::Atom;
 
 pub fn module() -> Atom {
-    Atom::try_from_str("Elixir.Chain").unwrap()
+    Atom::from_str("Elixir.Chain")
+}
+
+fn module_id() -> usize {
+    module().id()
 }

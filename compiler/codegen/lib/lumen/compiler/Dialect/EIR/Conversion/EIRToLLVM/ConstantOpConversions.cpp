@@ -186,11 +186,11 @@ struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto fixnumAttr = op.getValue().cast<FixnumAttr>();
-    auto value = (uint64_t)fixnumAttr.getValue().getLimitedValue();
+    auto attr = op.getValue().cast<IntegerAttr>();
     auto termTy = ctx.getUsizeType();
-    auto taggedFixnum = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, value);
-    auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedFixnum));
+    auto i = (uint64_t)attr.getValue().getLimitedValue();
+    auto taggedInt = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, i);
+    auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedInt));
 
     rewriter.replaceOp(op, {val});
     return success();

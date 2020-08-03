@@ -1482,7 +1482,7 @@ def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
   ];
 }
 
-def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumType, "constant.int"> {
+def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, "constant.int"> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, Type type, Attribute val",
@@ -1493,10 +1493,10 @@ def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumType, "constant.int"> {
     OpBuilder<
     "Builder *builder, OperationState &result, int64_t value",
     [{
+      auto type = builder->getIntegerType(64);
       auto n = static_cast<uint64_t>(value);
       APInt ap(64, n, /*isSigned=*/true);
-      auto type = builder->getType<FixnumType>();
-      auto attr = FixnumAttr::get(builder->getContext(), ap);
+      auto attr = builder->getIntegerAttr(type, ap);
       build(builder, result, type, attr);
     }]>
   ];

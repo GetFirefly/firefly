@@ -1591,10 +1591,8 @@ extern "C" MLIRValueRef MLIRBuildConstantInt(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_constant_int(Location loc, int64_t value) {
-  edsc::ScopedContext scope(builder, loc);
   auto op = builder.create<ConstantIntOp>(loc, value);
-  auto termTy = builder.getType<TermType>();
-  return eir_cast(op.getResult(), termTy);
+  return op.getResult();
 }
 
 extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,

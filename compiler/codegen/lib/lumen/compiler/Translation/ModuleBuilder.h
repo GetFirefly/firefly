@@ -118,7 +118,7 @@ class ModuleBuilder {
   // Constants
   //===----------------------------------------------------------------------===//
 
-  Attribute build_float_attr(Type type, double value);
+  Attribute build_float_attr(double value);
   Value build_constant_float(Location loc, double value);
   Value build_constant_int(Location loc, int64_t value);
   Attribute build_int_attr(int64_t value, bool isSigned = true);

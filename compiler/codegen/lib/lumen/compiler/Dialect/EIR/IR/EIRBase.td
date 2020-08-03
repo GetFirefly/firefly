@@ -72,6 +72,12 @@ class BaseFixnumAttr : Attr<CPred<"$_self.isa<FixnumAttr>()">,
   let returnType = [{ APInt }];
 }
 
+class BaseFloatAttr : Attr<CPred<"$_self.isa<FloatAttr>()">,
+                                 "float attribute"> {
+  let storageType = [{ FloatAttr }];
+  let returnType = [{ APFloat }];
+}
+
 class BaseBinaryAttr : Attr<CPred<"$_self.isa<BinaryAttr>()">,
                                   "binary attribute"> {
   let storageType = [{ BinaryAttr }];
@@ -87,6 +93,7 @@ class BaseSeqAttr : Attr<CPred<"$_self.isa<SeqAttr>()">,
 def eir_AtomAttr : BaseAtomAttr;
 def eir_BinaryAttr : BaseBinaryAttr;
 def eir_FixnumAttr : BaseFixnumAttr;
+def eir_FloatAttr : BaseFloatAttr;
 def eir_SeqAttr : BaseSeqAttr;
 def eir_GlobalRefAttr : AliasedSymbolRefAttr;
 def eir_FuncRefAttr   : AliasedSymbolRefAttr;

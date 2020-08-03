@@ -127,7 +127,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     auto rawVal = attr.getValue();
     auto floatTy = ctx.targetInfo.getFloatType();
     auto val = llvm_constant(floatTy,
-                             rewriter.getF64FloatAttr(attr.getValueAsDouble()));
+                             rewriter.getF64FloatAttr(attr.getValue().convertToDouble()));
 
     // On nanboxed targets, floats are treated normally
     if (!ctx.targetInfo.requiresPackedFloats()) {
@@ -623,7 +623,7 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
       return llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue()));
     }
     // Packed float
-    return eir_cast(eir_constant_float(floatAttr.getValue()), eirTermType);
+    return eir_cast(eir_constant_float(floatAttr.getValue().convertToDouble()), eirTermType);
   }
   // Binaries
   if (auto binAttr = elementAttr.dyn_cast_or_null<BinaryAttr>()) {

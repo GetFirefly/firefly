@@ -1,10 +1,12 @@
 #ifndef EIR_ATTRIBUTES_H
 #define EIR_ATTRIBUTES_H
 
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "mlir/IR/Attributes.h"
 
 namespace llvm {
+class APFloat;
 class APInt;
 }
 
@@ -13,6 +15,7 @@ class MLIRContext;
 class Type;
 }  // namespace mlir
 
+using ::llvm::APFloat;
 using ::llvm::APInt;
 using ::llvm::ArrayRef;
 using ::llvm::StringRef;
@@ -26,6 +29,7 @@ namespace eir {
 namespace detail {
 struct AtomAttributeStorage;
 struct FixnumAttributeStorage;
+struct FloatAttributeStorage;
 struct BinaryAttributeStorage;
 struct SeqAttributeStorage;
 }  // namespace detail
@@ -34,6 +38,7 @@ namespace AttributeKind {
 enum Kind {
   Atom = Attribute::FIRST_EIR_ATTR,
   Fixnum,
+  Float,
   Binary,
   Seq,
 };
@@ -59,7 +64,7 @@ class AtomAttr : public Attribute::AttrBase<AtomAttr, Attribute,
 };
 
 class FixnumAttr : public Attribute::AttrBase<FixnumAttr, Attribute,
-                                            detail::FixnumAttributeStorage> {
+                                              detail::FixnumAttributeStorage> {
  public:
   using Base::Base;
   using ValueType = APInt;
@@ -73,6 +78,24 @@ class FixnumAttr : public Attribute::AttrBase<FixnumAttr, Attribute,
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool kindof(unsigned kind) {
     return kind == static_cast<unsigned>(AttributeKind::Fixnum);
+  }
+};
+
+class FloatAttr : public Attribute::AttrBase<FloatAttr, Attribute,
+                                             detail::FloatAttributeStorage> {
+ public:
+  using Base::Base;
+  using ValueType = APFloat;
+
+  static FloatAttr get(MLIRContext *context, APFloat value);
+
+  static StringRef getAttrName() { return "float"; }
+
+  APFloat &getValue() const;
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  static bool kindof(unsigned kind) {
+    return kind == static_cast<unsigned>(AttributeKind::Float);
   }
 };
 

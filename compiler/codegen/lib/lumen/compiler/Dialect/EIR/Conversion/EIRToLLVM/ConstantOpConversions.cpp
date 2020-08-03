@@ -125,13 +125,14 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
 
     auto attr = op.getValue().cast<FloatAttr>();
     auto rawVal = attr.getValue();
-    auto floatTy = ctx.targetInfo.getFloatType();
-    auto val = llvm_constant(floatTy,
-                             rewriter.getF64FloatAttr(attr.getValue().convertToDouble()));
+    auto termTy = ctx.getUsizeType();
 
     // On nanboxed targets, floats are treated normally
     if (!ctx.targetInfo.requiresPackedFloats()) {
-      rewriter.replaceOp(op, {val});
+      // although floats have no additional tag bits in nanboxing, they need to be stored as integer to act as a
+      // lowered Term
+      Value term = llvm_constant(termTy, ctx.getIntegerAttr(rawVal.bitcastToAPInt().getLimitedValue()));
+      rewriter.replaceOp(op, term);
       return success();
     }
 
@@ -139,8 +140,6 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     // This requires generating a descriptor around the float,
     // which can then either be placed on the heap and boxed, or
     // passed by value on the stack and accessed directly
-    auto termTy = ctx.getUsizeType();
-
     auto headerName = std::string("float_") +
                       std::to_string(rawVal.bitcastToAPInt().getLimitedValue());
     ModuleOp mod = ctx.getModule();
@@ -148,6 +147,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     if (!headerConst) {
       auto i64Ty = LLVMType::getInt64Ty(ctx.dialect);
       auto f64Ty = LLVMType::getDoubleTy(ctx.dialect);
+      auto floatTy = ctx.targetInfo.getFloatType();
       auto i8Ty = ctx.getI8Type();
       auto i8PtrTy = i8Ty.getPointerTo();
 

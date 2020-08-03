@@ -129,9 +129,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
 
     // On nanboxed targets, floats are treated normally
     if (!ctx.targetInfo.requiresPackedFloats()) {
-      // although floats have no additional tag bits in nanboxing, they need to be stored as integer to act as a
-      // lowered Term
-      Value term = llvm_constant(termTy, ctx.getIntegerAttr(rawVal.bitcastToAPInt().getLimitedValue()));
+      Value term = llvm_constant(termTy, ctx.getIntegerAttr(rawVal.bitcastToAPInt().getLimitedValue() + 2251799813685247));
       rewriter.replaceOp(op, term);
       return success();
     }

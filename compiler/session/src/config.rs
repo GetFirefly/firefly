@@ -1,5 +1,6 @@
 //! Contains infrastructure for configuring the compiler, including parsing
 //! command-line options.
+mod cfguard;
 mod debug;
 mod input;
 mod optimization;
@@ -8,7 +9,8 @@ mod output;
 mod project;
 mod sanitizer;
 
-pub use self::debug::DebugInfo;
+pub use self::cfguard::CFGuard;
+pub use self::debug::{DebugInfo, Strip};
 pub use self::input::{Input, InputType};
 pub use self::optimization::{LinkerPluginLto, Lto, LtoCli, OptLevel, Passes};
 pub use self::options::{

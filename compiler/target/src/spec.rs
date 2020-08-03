@@ -4,28 +4,30 @@ mod apple_base;
 mod apple_sdk_base;
 mod arm_base;
 mod cloudabi_base;
+pub mod crt_objects;
 mod dragonfly_base;
 mod freebsd_base;
 mod fuchsia_base;
 mod haiku_base;
 mod hermit_base;
 mod hermit_kernel_base;
+mod illumos_base;
 mod l4re_base;
 mod linux_base;
 mod linux_kernel_base;
 mod linux_musl_base;
+mod msvc_base;
 mod netbsd_base;
 mod openbsd_base;
 mod redox_base;
 mod riscv_base;
 mod solaris_base;
-mod thumb_base;
-mod uefi_base;
+mod uefi_msvc_base;
 mod vxworks_base;
 mod wasm32_base;
-mod windows_base;
+mod windows_gnu_base;
 mod windows_msvc_base;
-mod windows_uwp_base;
+mod windows_uwp_gnu_base;
 mod windows_uwp_msvc_base;
 
 use std::collections::BTreeMap;
@@ -37,6 +39,7 @@ use thiserror::Error;
 pub use liblumen_term::EncodingType;
 
 use self::abi::Abi;
+use self::crt_objects::{CrtObjects, CrtObjectsFallback};
 
 #[derive(Error, Debug)]
 #[error("invalid linker flavor: '{0}'")]
@@ -202,14 +205,14 @@ impl FromStr for CodeModel {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Hash)]
-pub enum ThreadLocalMode {
+pub enum TlsModel {
     NotThreadLocal,
     GeneralDynamic,
     LocalDynamic,
     InitialExec,
     LocalExec,
 }
-impl FromStr for ThreadLocalMode {
+impl FromStr for TlsModel {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -280,6 +283,54 @@ impl FromStr for RelroLevel {
     }
 }
 
+/// Everything is flattened to a single enum to make the json encoding/decoding less annoying.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum LinkOutputKind {
+    /// Dynamically linked non position-independent executable.
+    DynamicNoPicExe,
+    /// Dynamically linked position-independent executable.
+    DynamicPicExe,
+    /// Statically linked non position-independent executable.
+    StaticNoPicExe,
+    /// Statically linked position-independent executable.
+    StaticPicExe,
+    /// Regular dynamic library ("dynamically linked").
+    DynamicDylib,
+    /// Dynamic library with bundled libc ("statically linked").
+    StaticDylib,
+}
+
+impl LinkOutputKind {
+    fn as_str(&self) -> &'static str {
+        match self {
+            LinkOutputKind::DynamicNoPicExe => "dynamic-nopic-exe",
+            LinkOutputKind::DynamicPicExe => "dynamic-pic-exe",
+            LinkOutputKind::StaticNoPicExe => "static-nopic-exe",
+            LinkOutputKind::StaticPicExe => "static-pic-exe",
+            LinkOutputKind::DynamicDylib => "dynamic-dylib",
+            LinkOutputKind::StaticDylib => "static-dylib",
+        }
+    }
+
+    pub(super) fn from_str(s: &str) -> Option<LinkOutputKind> {
+        Some(match s {
+            "dynamic-nopic-exe" => LinkOutputKind::DynamicNoPicExe,
+            "dynamic-pic-exe" => LinkOutputKind::DynamicPicExe,
+            "static-nopic-exe" => LinkOutputKind::StaticNoPicExe,
+            "static-pic-exe" => LinkOutputKind::StaticPicExe,
+            "dynamic-dylib" => LinkOutputKind::DynamicDylib,
+            "static-dylib" => LinkOutputKind::StaticDylib,
+            _ => return None,
+        })
+    }
+}
+
+impl fmt::Display for LinkOutputKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 macro_rules! supported_targets {
     ( $(($( $triple:literal, )+ $module:ident ),)+ ) => {
         $(mod $module;)+
@@ -342,24 +393,7 @@ supported_targets! {
     ("x86_64-unknown-linux-gnux32", x86_64_unknown_linux_gnux32),
     ("i686-unknown-linux-gnu", i686_unknown_linux_gnu),
     ("i586-unknown-linux-gnu", i586_unknown_linux_gnu),
-    //("mips-unknown-linux-gnu", mips_unknown_linux_gnu),
-    //("mips64-unknown-linux-gnuabi64", mips64_unknown_linux_gnuabi64),
-    //("mips64el-unknown-linux-gnuabi64", mips64el_unknown_linux_gnuabi64),
-    //("mipsisa32r6-unknown-linux-gnu", mipsisa32r6_unknown_linux_gnu),
-    //("mipsisa32r6el-unknown-linux-gnu", mipsisa32r6el_unknown_linux_gnu),
-    //("mipsisa64r6-unknown-linux-gnuabi64", mipsisa64r6_unknown_linux_gnuabi64),
-    //("mipsisa64r6el-unknown-linux-gnuabi64", mipsisa64r6el_unknown_linux_gnuabi64),
-    //("mipsel-unknown-linux-gnu", mipsel_unknown_linux_gnu),
-    //("powerpc-unknown-linux-gnu", powerpc_unknown_linux_gnu),
-    //("powerpc-unknown-linux-gnuspe", powerpc_unknown_linux_gnuspe),
-    //("powerpc-unknown-linux-musl", powerpc_unknown_linux_musl),
-    //("powerpc64-unknown-linux-gnu", powerpc64_unknown_linux_gnu),
-    //("powerpc64-unknown-linux-musl", powerpc64_unknown_linux_musl),
-    //("powerpc64le-unknown-linux-gnu", powerpc64le_unknown_linux_gnu),
-    //("powerpc64le-unknown-linux-musl", powerpc64le_unknown_linux_musl),
-    //("s390x-unknown-linux-gnu", s390x_unknown_linux_gnu),
-    //("sparc-unknown-linux-gnu", sparc_unknown_linux_gnu),
-    //("sparc64-unknown-linux-gnu", sparc64_unknown_linux_gnu),
+
     ("arm-unknown-linux-gnueabi", arm_unknown_linux_gnueabi),
     ("arm-unknown-linux-gnueabihf", arm_unknown_linux_gnueabihf),
     ("arm-unknown-linux-musleabi", arm_unknown_linux_musleabi),
@@ -369,8 +403,6 @@ supported_targets! {
     ("armv5te-unknown-linux-musleabi", armv5te_unknown_linux_musleabi),
     ("armv7-unknown-linux-gnueabi", armv7_unknown_linux_gnueabi),
     ("armv7-unknown-linux-gnueabihf", armv7_unknown_linux_gnueabihf),
-    //("thumbv7neon-unknown-linux-gnueabihf", thumbv7neon_unknown_linux_gnueabihf),
-    //("thumbv7neon-unknown-linux-musleabihf", thumbv7neon_unknown_linux_musleabihf),
     ("armv7-unknown-linux-musleabi", armv7_unknown_linux_musleabi),
     ("armv7-unknown-linux-musleabihf", armv7_unknown_linux_musleabihf),
     ("aarch64-unknown-linux-gnu", aarch64_unknown_linux_gnu),
@@ -378,20 +410,11 @@ supported_targets! {
     ("x86_64-unknown-linux-musl", x86_64_unknown_linux_musl),
     ("i686-unknown-linux-musl", i686_unknown_linux_musl),
     ("i586-unknown-linux-musl", i586_unknown_linux_musl),
-    //("mips-unknown-linux-musl", mips_unknown_linux_musl),
-    //("mipsel-unknown-linux-musl", mipsel_unknown_linux_musl),
-    //("mips64-unknown-linux-muslabi64", mips64_unknown_linux_muslabi64),
-    //("mips64el-unknown-linux-muslabi64", mips64el_unknown_linux_muslabi64),
-    //("hexagon-unknown-linux-musl", hexagon_unknown_linux_musl),
-
-    //("mips-unknown-linux-uclibc", mips_unknown_linux_uclibc),
-    //("mipsel-unknown-linux-uclibc", mipsel_unknown_linux_uclibc),
 
     ("i686-linux-android", i686_linux_android),
     ("x86_64-linux-android", x86_64_linux_android),
     ("arm-linux-androideabi", arm_linux_androideabi),
     ("armv7-linux-androideabi", armv7_linux_androideabi),
-    //("thumbv7neon-linux-androideabi", thumbv7neon_linux_androideabi),
     ("aarch64-linux-android", aarch64_linux_android),
 
     ("x86_64-linux-kernel", x86_64_linux_kernel),
@@ -422,6 +445,7 @@ supported_targets! {
     ("i686-unknown-haiku", i686_unknown_haiku),
     ("x86_64-unknown-haiku", x86_64_unknown_haiku),
 
+    ("aarch64-apple-darwin", aarch64_apple_darwin),
     ("x86_64-apple-darwin", x86_64_apple_darwin),
     ("i686-apple-darwin", i686_apple_darwin),
 
@@ -450,7 +474,6 @@ supported_targets! {
     // `x86_64-pc-solaris` is an alias for `x86_64_sun_solaris` for backwards compatibility reasons.
     // (See <https://github.com/rust-lang/rust/issues/40531>.)
     ("x86_64-sun-solaris", "x86_64-pc-solaris", x86_64_sun_solaris),
-    //("sparcv9-sun-solaris", sparcv9_sun_solaris),
 
     ("x86_64-pc-windows-gnu", x86_64_pc_windows_gnu),
     ("i686-pc-windows-gnu", i686_pc_windows_gnu),
@@ -464,25 +487,10 @@ supported_targets! {
     ("i686-pc-windows-msvc", i686_pc_windows_msvc),
     ("i686-uwp-windows-msvc", i686_uwp_windows_msvc),
     ("i586-pc-windows-msvc", i586_pc_windows_msvc),
-    //("thumbv7a-pc-windows-msvc", thumbv7a_pc_windows_msvc),
 
-    //("asmjs-unknown-emscripten", asmjs_unknown_emscripten),
     ("wasm32-unknown-emscripten", wasm32_unknown_emscripten),
     ("wasm32-unknown-unknown", wasm32_unknown_unknown),
     ("wasm32-wasi", wasm32_wasi),
-
-    //("thumbv6m-none-eabi", thumbv6m_none_eabi),
-    //("thumbv7m-none-eabi", thumbv7m_none_eabi),
-    //("thumbv7em-none-eabi", thumbv7em_none_eabi),
-    //("thumbv7em-none-eabihf", thumbv7em_none_eabihf),
-    //("thumbv8m.base-none-eabi", thumbv8m_base_none_eabi),
-    //("thumbv8m.main-none-eabi", thumbv8m_main_none_eabi),
-    //("thumbv8m.main-none-eabihf", thumbv8m_main_none_eabihf),
-
-    //("armv7a-none-eabi", armv7a_none_eabi),
-    //("armv7a-none-eabihf", armv7a_none_eabihf),
-
-    //("msp430-none-elf", msp430_none_elf),
 
     ("aarch64-unknown-cloudabi", aarch64_unknown_cloudabi),
     ("armv7-unknown-cloudabi-eabihf", armv7_unknown_cloudabi_eabihf),
@@ -493,30 +501,16 @@ supported_targets! {
     ("x86_64-unknown-hermit", x86_64_unknown_hermit),
     ("x86_64-unknown-hermit-kernel", x86_64_unknown_hermit_kernel),
 
-    //("riscv32i-unknown-none-elf", riscv32i_unknown_none_elf),
-    //("riscv32imc-unknown-none-elf", riscv32imc_unknown_none_elf),
-    //("riscv32imac-unknown-none-elf", riscv32imac_unknown_none_elf),
-    //("riscv64imac-unknown-none-elf", riscv64imac_unknown_none_elf),
-    //("riscv64gc-unknown-none-elf", riscv64gc_unknown_none_elf),
-    //("riscv64gc-unknown-linux-gnu", riscv64gc_unknown_linux_gnu),
-
     ("aarch64-unknown-none", aarch64_unknown_none),
     ("aarch64-unknown-none-softfloat", aarch64_unknown_none_softfloat),
 
-    //("x86_64-fortanix-unknown-sgx", x86_64_fortanix_unknown_sgx),
-
     ("x86_64-unknown-uefi", x86_64_unknown_uefi),
     ("i686-unknown-uefi", i686_unknown_uefi),
-
-    //("nvptx64-nvidia-cuda", nvptx64_nvidia_cuda),
 
     ("i686-wrs-vxworks", i686_wrs_vxworks),
     ("x86_64-wrs-vxworks", x86_64_wrs_vxworks),
     ("armv7-wrs-vxworks-eabihf", armv7_wrs_vxworks_eabihf),
     ("aarch64-wrs-vxworks", aarch64_wrs_vxworks),
-    //("powerpc-wrs-vxworks", powerpc_wrs_vxworks),
-    //("powerpc-wrs-vxworks-spe", powerpc_wrs_vxworks_spe),
-    //("powerpc64-wrs-vxworks", powerpc64_wrs_vxworks),
 }
 
 #[repr(u32)]
@@ -613,12 +607,17 @@ pub struct TargetOptions {
 
     /// Linker arguments that are passed *before* any user-defined libraries.
     pub pre_link_args: LinkArgs, // ... unconditionally
-    pub pre_link_args_crt: LinkArgs, // ... when linking with a bundled crt
-    /// Objects to link before all others, always found within the
-    /// sysroot folder.
-    pub pre_link_objects_exe: Vec<String>, // ... when linking an executable, unconditionally
-    pub pre_link_objects_exe_crt: Vec<String>, // ... when linking an executable with a bundled crt
-    pub pre_link_objects_dll: Vec<String>, // ... when linking a dylib
+    /// Objects to link before and after all other object code.
+    pub pre_link_objects: CrtObjects,
+    pub post_link_objects: CrtObjects,
+    /// Same as `(pre|post)_link_objects`, but when we fail to pull the objects with help of the
+    /// target's native gcc and fall back to the "self-contained" mode and pull them manually.
+    /// See `crt_objects.rs` for some more detailed documentation.
+    pub pre_link_objects_fallback: CrtObjects,
+    pub post_link_objects_fallback: CrtObjects,
+    /// Which logic to use to determine whether to fall back to the "self-contained" mode or not.
+    pub crt_objects_fallback: Option<CrtObjectsFallback>,
+
     /// Linker arguments that are unconditionally passed after any
     /// user-defined but before post_link_objects. Standard platform
     /// libraries that should be always be linked to, usually go here.
@@ -629,13 +628,13 @@ pub struct TargetOptions {
     /// Linker arguments used in addition to `late_link_args` if all Lumen
     /// dependencies are statically linked.
     pub late_link_args_static: LinkArgs,
-    /// Objects to link after all others, always found within the
-    /// sysroot folder.
-    pub post_link_objects: Vec<String>, // ... unconditionally
-    pub post_link_objects_crt: Vec<String>, // ... when linking with a bundled crt
     /// Linker arguments that are unconditionally passed *after* any
     /// user-defined libraries.
     pub post_link_args: LinkArgs,
+    /// Optional link script applied to `dylib` and `executable` crate types.
+    /// This is a string containing the script, not a path. Can only be applied
+    /// to linkers where `linker_is_gnu` is true.
+    pub link_script: Option<String>,
 
     /// Environment variables to be set for the linker invocation.
     pub link_env: Vec<(String, String)>,
@@ -661,12 +660,12 @@ pub struct TargetOptions {
     pub executables: bool,
     /// Relocation model to use in object file. Corresponds to `llc
     /// -relocation-model=$relocation_model`. Defaults to "pic".
-    pub relocation_model: String,
+    pub relocation_model: RelocModel,
     /// Code model to use. Corresponds to `llc -code-model=$code_model`.
-    pub code_model: Option<String>,
+    pub code_model: Option<CodeModel>,
     /// TLS model to use. Options are "global-dynamic" (default), "local-dynamic", "initial-exec"
     /// and "local-exec". This is similar to the -ftls-model option in GCC/Clang.
-    pub tls_model: String,
+    pub tls_model: TlsModel,
     /// Do not emit code that uses the "red zone", if the ABI has one. Defaults to false.
     pub disable_redzone: bool,
     /// Eliminate frame pointers from stack frames if possible. Defaults to true.
@@ -728,6 +727,8 @@ pub struct TargetOptions {
     /// the functions in the executable are not randomized and can be used
     /// during an exploit of a vulnerability in any code.
     pub position_independent_executables: bool,
+    /// Executables that are both statically linked and position-independent are supported.
+    pub static_position_independent_executables: bool,
     /// Determines if the target always requires using the PLT for indirect
     /// library calls or not. This controls the default value of the `-Z plt` flag.
     pub needs_plt: bool,
@@ -753,6 +754,10 @@ pub struct TargetOptions {
     // If we give emcc .o files that are actually .bc files it
     // will 'just work'.
     pub obj_is_bitcode: bool,
+    /// Whether the target requires that emitted object code includes bitcode.
+    pub forces_embed_bitcode: bool,
+    /// Content of the LLVM cmdline section associated with embedded bitcode.
+    pub bitcode_llvm_cmdline: String,
 
     /// Don't use this field; instead use the `.min_atomic_width()` method.
     pub min_atomic_width: Option<u64>,
@@ -766,9 +771,10 @@ pub struct TargetOptions {
     /// Panic strategy: "unwind" or "abort"
     pub panic_strategy: PanicStrategy,
 
-    /// A blacklist of ABIs unsupported by the current target. Note that generic
-    /// ABIs are considered to be supported on all platforms and cannot be blacklisted.
-    pub abi_blacklist: Vec<Abi>,
+    /// A list of ABIs unsupported by the current target. Note that generic ABIs
+    /// are considered to be supported on all platforms and cannot be marked
+    /// unsupported.
+    pub unsupported_abis: Vec<Abi>,
 
     /// Whether or not linking dylibs to a static CRT is allowed.
     pub crt_static_allows_dylibs: bool,
@@ -800,9 +806,6 @@ pub struct TargetOptions {
     /// Whether library functions call lowering/optimization is disabled in LLVM
     /// for this target unconditionally.
     pub no_builtins: bool,
-
-    /// The codegen backend to use for this target, typically "llvm"
-    pub codegen_backend: String,
 
     /// The default visibility for symbols in this target should be "hidden"
     /// rather than "default"
@@ -848,6 +851,15 @@ pub struct TargetOptions {
 
     /// Additional arguments to pass to LLVM, similar to the `-C llvm-args` codegen option.
     pub llvm_args: Vec<String>,
+
+    /// Whether to use legacy .ctors initialization hooks rather than .init_array. Defaults
+    /// to false (uses .init_array).
+    pub use_ctors_section: bool,
+
+    /// Whether the linker is instructed to add a `GNU_EH_FRAME` ELF header
+    /// used to locate unwinding information is passed
+    /// (only has effect if the linker is `ld`-like).
+    pub eh_frame_header: bool,
 }
 
 impl Default for TargetOptions {
@@ -860,17 +872,17 @@ impl Default for TargetOptions {
             linker: option_env!("CFG_DEFAULT_LINKER").map(|s| s.to_string()),
             lld_flavor: LldFlavor::Ld,
             pre_link_args: LinkArgs::new(),
-            pre_link_args_crt: LinkArgs::new(),
             post_link_args: LinkArgs::new(),
+            link_script: None,
             asm_args: Vec::new(),
             cpu: "generic".to_string(),
             features: String::new(),
             dynamic_linking: false,
             only_cdylib: false,
             executables: false,
-            relocation_model: "pic".to_string(),
+            relocation_model: RelocModel::PIC,
             code_model: None,
-            tls_model: "global-dynamic".to_string(),
+            tls_model: TlsModel::GeneralDynamic,
             disable_redzone: false,
             eliminate_frame_pointer: true,
             function_sections: true,
@@ -893,13 +905,14 @@ impl Default for TargetOptions {
             has_rpath: false,
             no_default_libraries: true,
             position_independent_executables: false,
+            static_position_independent_executables: false,
             needs_plt: false,
             relro_level: RelroLevel::None,
-            pre_link_objects_exe: Vec::new(),
-            pre_link_objects_exe_crt: Vec::new(),
-            pre_link_objects_dll: Vec::new(),
-            post_link_objects: Vec::new(),
-            post_link_objects_crt: Vec::new(),
+            pre_link_objects: Default::default(),
+            post_link_objects: Default::default(),
+            pre_link_objects_fallback: Default::default(),
+            post_link_objects_fallback: Default::default(),
+            crt_objects_fallback: None,
             late_link_args: LinkArgs::new(),
             late_link_args_dynamic: LinkArgs::new(),
             late_link_args_static: LinkArgs::new(),
@@ -910,11 +923,13 @@ impl Default for TargetOptions {
             allow_asm: true,
             has_elf_tls: false,
             obj_is_bitcode: false,
+            forces_embed_bitcode: false,
+            bitcode_llvm_cmdline: String::new(),
             min_atomic_width: None,
             max_atomic_width: None,
             atomic_cas: true,
             panic_strategy: PanicStrategy::Unwind,
-            abi_blacklist: vec![],
+            unsupported_abis: vec![],
             crt_static_allows_dylibs: false,
             crt_static_default: false,
             crt_static_respected: false,
@@ -925,7 +940,6 @@ impl Default for TargetOptions {
             requires_lto: false,
             singlethread: false,
             no_builtins: false,
-            codegen_backend: "llvm".to_string(),
             default_hidden_visibility: false,
             emit_debug_gdb_scripts: true,
             requires_uwtable: false,
@@ -937,6 +951,8 @@ impl Default for TargetOptions {
             llvm_abiname: "".to_string(),
             relax_elf_relocations: false,
             llvm_args: vec![],
+            use_ctors_section: false,
+            eh_frame_header: true,
         }
     }
 }
@@ -988,6 +1004,6 @@ impl Target {
     }
 
     pub fn is_abi_supported(&self, abi: Abi) -> bool {
-        abi.generic() || !self.options.abi_blacklist.contains(&abi)
+        abi.generic() || !self.options.unsupported_abis.contains(&abi)
     }
 }

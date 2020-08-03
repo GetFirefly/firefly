@@ -7,7 +7,7 @@ use std::str::FromStr;
 use anyhow::anyhow;
 
 use liblumen_session::{OptLevel, Options, ProjectType};
-use liblumen_target::{CodeModel, RelocModel, ThreadLocalMode};
+use liblumen_target::{CodeModel, RelocModel, TlsModel};
 
 use crate::enums::{self, CodeGenOptLevel, CodeGenOptSize};
 use crate::module::ModuleRef;
@@ -18,8 +18,8 @@ pub type TargetMachineRef = llvm_sys::target_machine::LLVMTargetMachineRef;
 pub type TargetDataRef = llvm_sys::target::LLVMTargetDataRef;
 
 mod ffi {
-    use liblumen_target::{CodeModel, RelocModel};
     use crate::enums::{CodeGenOptLevel, CodeGenOptSize};
+    use liblumen_target::{CodeModel, RelocModel};
 
     #[repr(C)]
     pub(super) struct TargetFeature<'a> {
@@ -102,9 +102,7 @@ impl TargetMachineConfig {
             .code_model
             .as_ref());
 
-        let code_model = code_model_arg
-            .map(|s| CodeModel::from_str(s).expect("expected a valid CodeModel value"))
-            .unwrap_or(CodeModel::None);
+        let code_model = code_model_arg.copied().unwrap_or(CodeModel::None);
 
         let features = llvm_target_features(options)
             .map(|f| f.to_owned())
@@ -153,7 +151,8 @@ impl TargetMachineConfig {
         let triple = self.triple.as_ptr();
         let cpu = self.cpu.as_ptr();
         let abi = self.abi.as_ptr();
-        let features = self.features
+        let features = self
+            .features
             .iter()
             .map(|f| ffi::TargetFeature::new(f))
             .collect::<Vec<_>>();
@@ -303,21 +302,17 @@ pub fn is_any_library(options: &Options) -> bool {
 }
 
 pub fn get_reloc_mode(options: &Options) -> RelocModel {
-    let arg = match options.codegen_opts.relocation_mode {
-        Some(ref s) => &s[..],
-        None => &options.target.options.relocation_model[..],
-    };
-
-    RelocModel::from_str(arg).unwrap()
+    match options.codegen_opts.relocation_model {
+        Some(model) => model,
+        None => options.target.options.relocation_model,
+    }
 }
 
-pub fn get_tls_mode(options: &Options) -> ThreadLocalMode {
-    let arg = match options.codegen_opts.tls_mode {
-        Some(ref s) => &s[..],
-        None => &options.target.options.tls_model[..],
-    };
-
-    ThreadLocalMode::from_str(arg).unwrap()
+pub fn get_tls_model(options: &Options) -> TlsModel {
+    match options.codegen_opts.tls_model {
+        Some(model) => model,
+        None => options.target.options.tls_model,
+    }
 }
 
 extern "C" {

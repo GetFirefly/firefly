@@ -1,5 +1,5 @@
+use crate::spec::crt_objects::{self, CrtObjectsFallback};
 use crate::spec::{LinkArgs, LinkerFlavor, TargetOptions};
-use std::default::Default;
 
 pub fn opts() -> TargetOptions {
     let mut pre_link_args = LinkArgs::new();
@@ -11,28 +11,27 @@ pub fn opts() -> TargetOptions {
             "-fno-use-linker-plugin".to_string(),
             // Always enable DEP (NX bit) when it is available
             "-Wl,--nxcompat".to_string(),
-            // Do not use the standard system startup files or libraries when linking
-            "-nostdlib".to_string(),
         ],
     );
 
     let mut late_link_args = LinkArgs::new();
     let mut late_link_args_dynamic = LinkArgs::new();
     let mut late_link_args_static = LinkArgs::new();
+    // Order of `late_link_args*` was found through trial and error to work with various
+    // mingw-w64 versions (not tested on the CI). It's expected to change from time to time.
     late_link_args.insert(
         LinkerFlavor::Gcc,
         vec![
+            "-lmsvcrt".to_string(),
             "-lmingwex".to_string(),
             "-lmingw32".to_string(),
-            "-lmsvcrt".to_string(),
             // mingw's msvcrt is a weird hybrid import library and static library.
             // And it seems that the linker fails to use import symbols from msvcrt
             // that are required from functions in msvcrt in certain cases. For example
             // `_fmode` that is used by an implementation of `__p__fmode` in x86_64.
-            // Listing the library twice seems to fix that, and seems to also be done
-            // by mingw's gcc (Though not sure if it's done on purpose, or by mistake).
+            // The library is purposely listed twice to fix that.
             //
-            // See https://github.com/rust-lang/rust/pull/47483
+            // See https://github.com/rust-lang/rust/pull/47483 for some more details.
             "-lmsvcrt".to_string(),
             "-luser32".to_string(),
             "-lkernel32".to_string(),
@@ -57,9 +56,9 @@ pub fn opts() -> TargetOptions {
             // binaries to be redistributed without the libgcc_s-dw2-1.dll
             // dependency, but unfortunately break unwinding across DLL
             // boundaries when unwinding across FFI boundaries.
-            "-lgcc".to_string(),
             "-lgcc_eh".to_string(),
-            "-lpthread".to_string(),
+            "-l:libpthread.a".to_string(),
+            "-lgcc".to_string(),
             // libpthread depends on libmsvcrt, so we need to link it *again*.
             "-lmsvcrt".to_string(),
             "-lkernel32".to_string(),
@@ -75,27 +74,24 @@ pub fn opts() -> TargetOptions {
         dll_prefix: String::new(),
         dll_suffix: ".dll".to_string(),
         exe_suffix: ".exe".to_string(),
-        staticlib_prefix: String::new(),
-        staticlib_suffix: ".lib".to_string(),
+        staticlib_prefix: "lib".to_string(),
+        staticlib_suffix: ".a".to_string(),
         target_family: Some("windows".to_string()),
         is_like_windows: true,
         allows_weak_linkage: false,
         pre_link_args,
-        pre_link_objects_exe: vec![
-            "crt2.o".to_string(),    // mingw C runtime initialization for executables
-            "rsbegin.o".to_string(), // Rust compiler runtime initialization, see rsbegin.rs
-        ],
-        pre_link_objects_dll: vec![
-            "dllcrt2.o".to_string(), // mingw C runtime initialization for dlls
-            "rsbegin.o".to_string(),
-        ],
+        pre_link_objects: crt_objects::pre_mingw(),
+        post_link_objects: crt_objects::post_mingw(),
+        pre_link_objects_fallback: crt_objects::pre_mingw_fallback(),
+        post_link_objects_fallback: crt_objects::post_mingw_fallback(),
+        crt_objects_fallback: Some(CrtObjectsFallback::Mingw),
         late_link_args,
         late_link_args_dynamic,
         late_link_args_static,
-        post_link_objects: vec!["rsend.o".to_string()],
         abi_return_struct_as_int: true,
         emit_debug_gdb_scripts: false,
         requires_uwtable: true,
+        eh_frame_header: false,
 
         ..Default::default()
     }

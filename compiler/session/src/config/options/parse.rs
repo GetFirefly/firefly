@@ -6,7 +6,8 @@ use clap::{ArgMatches, ErrorKind};
 
 use liblumen_target as target;
 use liblumen_target::spec::{
-    LinkerFlavor, MergeFunctions, PanicStrategy, RelroLevel, Target, TargetError,
+    CodeModel, LinkerFlavor, MergeFunctions, PanicStrategy, RelocModel, RelroLevel, Target,
+    TargetError, TlsModel,
 };
 use liblumen_util::diagnostics::ColorArg;
 
@@ -68,7 +69,11 @@ impl ParseOption for String {
 }
 impl ParseOption for bool {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
-        Ok(matches.is_present(info.name))
+        match matches.value_of(info.name) {
+            None => Ok(matches.is_present(info.name)),
+            Some("false") | Some("no") => Ok(false),
+            Some(_) => Ok(true),
+        }
     }
 }
 impl ParseOption for u64 {
@@ -102,6 +107,34 @@ impl ParseOption for RelroLevel {
             Some(s) => {
                 RelroLevel::from_str(s).map_err(|_| invalid_value(info, "invalid relro level type"))
             }
+        }
+    }
+}
+impl ParseOption for RelocModel {
+    fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
+        match matches.value_of(info.name) {
+            None => Err(required_option_missing(info)),
+            Some(s) => {
+                RelocModel::from_str(s).map_err(|_| invalid_value(info, "invalid relocation model"))
+            }
+        }
+    }
+}
+impl ParseOption for CodeModel {
+    fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
+        match matches.value_of(info.name) {
+            None => Err(required_option_missing(info)),
+            Some(s) => {
+                CodeModel::from_str(s).map_err(|_| invalid_value(info, "invalid code model"))
+            }
+        }
+    }
+}
+impl ParseOption for TlsModel {
+    fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
+        match matches.value_of(info.name) {
+            None => Err(required_option_missing(info)),
+            Some(s) => TlsModel::from_str(s).map_err(|_| invalid_value(info, "invalid tls model")),
         }
     }
 }

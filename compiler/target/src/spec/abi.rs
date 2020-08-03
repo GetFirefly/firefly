@@ -5,6 +5,15 @@ pub enum Abi {
     // N.B., this ordering MUST match the AbiDatas array below.
     // (This is ensured by the test indices_are_correct().)
 
+    // Multiplatform / generic ABIs
+    //
+    // These ABIs come first because every time we add a new ABI, we
+    // have to re-bless all the hashing tests. These are used in many
+    // places, so giving them stable values reduces test churn. The
+    // specific values are meaningless.
+    Erlang = 0,
+    C = 1,
+
     // Single platform ABIs
     Cdecl,
     Stdcall,
@@ -19,11 +28,13 @@ pub enum Abi {
     X86Interrupt,
     AmdGpuKernel,
     EfiApi,
+    AvrInterrupt,
+    AvrNonBlockingInterrupt,
 
     // Multiplatform / generic ABIs
-    Erlang,
-    C,
     System,
+    RustIntrinsic,
+    RustCall,
     PlatformIntrinsic,
     Unadjusted,
 }
@@ -41,6 +52,16 @@ pub struct AbiData {
 
 #[allow(non_upper_case_globals)]
 const AbiDatas: &[AbiData] = &[
+    AbiData {
+        abi: Abi::Erlang,
+        name: "Erlang",
+        generic: true,
+    },
+    AbiData {
+        abi: Abi::C,
+        name: "C",
+        generic: true,
+    },
     // Platform-specific ABIs
     AbiData {
         abi: Abi::Cdecl,
@@ -107,20 +128,30 @@ const AbiDatas: &[AbiData] = &[
         name: "efiapi",
         generic: false,
     },
+    AbiData {
+        abi: Abi::AvrInterrupt,
+        name: "avr-interrupt",
+        generic: false,
+    },
+    AbiData {
+        abi: Abi::AvrNonBlockingInterrupt,
+        name: "avr-non-blocking-interrupt",
+        generic: false,
+    },
     // Cross-platform ABIs
-    AbiData {
-        abi: Abi::Erlang,
-        name: "Erlang",
-        generic: true,
-    },
-    AbiData {
-        abi: Abi::C,
-        name: "C",
-        generic: true,
-    },
     AbiData {
         abi: Abi::System,
         name: "system",
+        generic: true,
+    },
+    AbiData {
+        abi: Abi::RustIntrinsic,
+        name: "rust-intrinsic",
+        generic: true,
+    },
+    AbiData {
+        abi: Abi::RustCall,
+        name: "rust-call",
         generic: true,
     },
     AbiData {

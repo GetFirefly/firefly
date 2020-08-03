@@ -1,9 +1,12 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness, EncodingType};
+use crate::spec::{EncodingType, Endianness, LinkerFlavor, Target, TargetOptions, TargetResult};
 
 pub fn target() -> TargetResult {
-    let mut base = super::windows_uwp_base::opts();
+    let mut base = super::windows_uwp_gnu_base::opts();
     base.cpu = "x86-64".to_string();
-    base.pre_link_args.get_mut(&LinkerFlavor::Gcc).unwrap().push("-m64".to_string());
+    base.pre_link_args
+        .get_mut(&LinkerFlavor::Gcc)
+        .unwrap()
+        .push("-m64".to_string());
     base.max_atomic_width = Some(64);
 
     Ok(Target {

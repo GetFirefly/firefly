@@ -2,6 +2,8 @@
 #![feature(arbitrary_enum_discriminant)]
 #![feature(associated_type_bounds)]
 #![feature(try_blocks)]
+#![feature(option_result_contains)]
+#![feature(or_patterns)]
 
 pub mod builder;
 pub mod generators;

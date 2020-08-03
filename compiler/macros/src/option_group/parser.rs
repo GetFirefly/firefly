@@ -242,6 +242,7 @@ fn make_lit_expr(lit: Lit) -> Expr {
 }
 
 /// This struct defines compile-time metadata about a specific option in an option group
+#[derive(Debug)]
 pub struct OptionInfo {
     name: Ident,
     docs: Option<String>,
@@ -416,13 +417,15 @@ impl OptionInfo {
                 .filter_map(utils::named_meta_to_map_entry)
                 .collect::<HashMap<String, Meta>>();
 
+            let default_value = Self::opt_string(&opt_metas, "default_value")?;
+            let takes_value = Self::boolean(&opt_metas, "takes_value", default_value.is_some())?;
             Ok(Self {
                 name,
                 docs,
                 help: Self::opt_string(&opt_metas, "help")?,
-                default_value: Self::opt_string(&opt_metas, "default_value")?,
+                default_value,
                 conflicts: Self::opt_string_list(&opt_metas, "conflicts")?,
-                takes_value: Self::boolean(&opt_metas, "takes_value", false)?,
+                takes_value,
                 multiple: Self::boolean(&opt_metas, "multiple", false)?,
                 allow_hyphen_values: Self::boolean(&opt_metas, "allow_hyphen_values", false)?,
                 number_of_values: Self::opt_uint(&opt_metas, "number_of_values")?,

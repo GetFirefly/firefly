@@ -1,5 +1,5 @@
 use super::apple_sdk_base::{opts, AppleOS, Arch};
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness};
+use crate::spec::{Endianness, LinkerFlavor, Target, TargetOptions, TargetResult};
 
 pub fn target() -> TargetResult {
     let base = opts(Arch::Armv7, AppleOS::iOS)?;
@@ -17,8 +17,8 @@ pub fn target() -> TargetResult {
         options: TargetOptions {
             features: "+v7,+vfp3,+neon".to_string(),
             max_atomic_width: Some(64),
-            abi_blacklist: super::arm_base::abi_blacklist(),
-            .. base
-        }
+            unsupported_abis: super::arm_base::unsupported_abis(),
+            ..base
+        },
     })
 }

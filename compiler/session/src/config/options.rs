@@ -12,12 +12,14 @@ pub use self::option_group::{
 pub use self::option_info::OptionInfo;
 pub use self::parse::*;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
 use clap::ArgMatches;
 
+use liblumen_target::spec::{CodeModel, PanicStrategy, RelocModel, TlsModel};
 use liblumen_target::{self as target, Target};
 use liblumen_util::diagnostics::{ColorArg, ColorChoice, FileName};
 use liblumen_util::error::{HelpRequested, Verbosity};
@@ -330,6 +332,14 @@ impl Options {
         })
     }
 
+    /// Returns the panic strategy for this compile session. If the user explicitly selected one
+    /// using '-C panic', use that, otherwise use the panic strategy defined by the target.
+    pub fn panic_strategy(&self) -> PanicStrategy {
+        self.codegen_opts
+            .panic
+            .unwrap_or(self.target.options.panic_strategy)
+    }
+
     pub fn lto(&self) -> Lto {
         match self.codegen_opts.lto {
             LtoCli::No => Lto::No,
@@ -353,34 +363,43 @@ impl Options {
             })
     }
 
-    pub fn crt_static(&self) -> bool {
-        // If the target does not opt in to crt-static support, use its default.
-        if self.target.options.crt_static_respected {
-            self.crt_static_feature()
-        } else {
-            self.target.options.crt_static_default
-        }
+    pub fn relocation_model(&self) -> RelocModel {
+        self.codegen_opts
+            .relocation_model
+            .unwrap_or(self.target.options.relocation_model)
     }
 
-    pub fn crt_static_feature(&self) -> bool {
-        let requested_features = self
-            .codegen_opts
-            .target_features
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or_else(|| "")
-            .split(',');
-        let found_negative = requested_features.clone().any(|r| r == "-crt-static");
-        let found_positive = requested_features.clone().any(|r| r == "+crt-static");
+    pub fn code_model(&self) -> Option<CodeModel> {
+        self.codegen_opts
+            .code_model
+            .or(self.target.options.code_model)
+    }
 
-        // If the target we're compiling for requests a static crt by default,
-        // then see if the `-crt-static` feature was passed to disable that.
-        // Otherwise if we don't have a static crt by default then see if the
-        // `+crt-static` feature was passed.
-        if self.target.options.crt_static_default {
-            !found_negative
+    pub fn tls_model(&self) -> TlsModel {
+        self.codegen_opts
+            .tls_model
+            .unwrap_or(self.target.options.tls_model)
+    }
+
+    /// Check whether this compile session and crate type use static crt.
+    pub fn crt_static(&self, project_type: Option<ProjectType>) -> bool {
+        if !self.target.options.crt_static_respected {
+            // If the target does not opt in to crt-static support, use its default.
+            return self.target.options.crt_static_default;
+        }
+
+        if let Some(ref requested_features) = self.codegen_opts.target_features {
+            let features = requested_features.split(',');
+            let found_negative = features.clone().any(|r| r == "-crt-static");
+            let found_positive = features.clone().any(|r| r == "+crt-static");
+
+            if found_positive || found_negative {
+                found_positive
+            } else {
+                self.target.options.crt_static_default
+            }
         } else {
-            found_positive
+            self.target.options.crt_static_default
         }
     }
 

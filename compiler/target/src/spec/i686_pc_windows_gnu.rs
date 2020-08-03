@@ -1,7 +1,7 @@
-use crate::spec::{LinkerFlavor, Target, TargetResult, Endianness};
+use crate::spec::{Endianness, LinkerFlavor, Target, TargetResult};
 
 pub fn target() -> TargetResult {
-    let mut base = super::windows_base::opts();
+    let mut base = super::windows_gnu_base::opts();
     base.cpu = "pentium4".to_string();
     base.max_atomic_width = Some(64);
     base.eliminate_frame_pointer = false; // Required for backtraces
@@ -10,7 +10,9 @@ pub fn target() -> TargetResult {
     // Mark all dynamic libraries and executables as compatible with the larger 4GiB address
     // space available to x86 Windows binaries on x86_64.
     base.pre_link_args
-        .get_mut(&LinkerFlavor::Gcc).unwrap().push("-Wl,--large-address-aware".to_string());
+        .get_mut(&LinkerFlavor::Gcc)
+        .unwrap()
+        .push("-Wl,--large-address-aware".to_string());
 
     Ok(Target {
         llvm_target: "i686-pc-windows-gnu".to_string(),

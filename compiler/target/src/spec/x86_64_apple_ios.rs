@@ -1,5 +1,5 @@
 use super::apple_sdk_base::{opts, AppleOS, Arch};
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness, EncodingType};
+use crate::spec::{EncodingType, Endianness, LinkerFlavor, Target, TargetOptions, TargetResult};
 
 pub fn target() -> TargetResult {
     let base = opts(Arch::X86_64, AppleOS::iOS)?;
@@ -19,7 +19,7 @@ pub fn target() -> TargetResult {
             encoding: EncodingType::Encoding64Nanboxed,
             max_atomic_width: Some(64),
             stack_probes: true,
-            .. base
-        }
+            ..base
+        },
     })
 }

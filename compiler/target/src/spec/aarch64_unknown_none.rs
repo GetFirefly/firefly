@@ -6,20 +6,22 @@
 //
 // For example, `-C target-cpu=cortex-a53`.
 
-use super::{LldFlavor, LinkerFlavor, Target, TargetOptions, PanicStrategy, Endianness};
+use super::{
+    Endianness, LinkerFlavor, LldFlavor, PanicStrategy, RelocModel, Target, TargetOptions,
+};
 
 pub fn target() -> Result<Target, String> {
     let opts = TargetOptions {
         linker: Some("lumen-lld".to_owned()),
         features: "+strict-align,+neon,+fp-armv8".to_string(),
         executables: true,
-        relocation_model: "static".to_string(),
+        relocation_model: RelocModel::Static,
         disable_redzone: true,
         linker_is_gnu: true,
         max_atomic_width: Some(128),
         panic_strategy: PanicStrategy::Abort,
-        abi_blacklist: super::arm_base::abi_blacklist(),
-        .. Default::default()
+        unsupported_abis: super::arm_base::unsupported_abis(),
+        ..Default::default()
     };
     Ok(Target {
         llvm_target: "aarch64-unknown-none".to_string(),

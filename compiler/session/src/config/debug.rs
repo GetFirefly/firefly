@@ -31,3 +31,40 @@ impl ParseOption for DebugInfo {
         )
     }
 }
+
+/// The different settings that the `-Z strip` flag can have.
+#[derive(Clone, Copy, PartialEq, Hash, Debug)]
+pub enum Strip {
+    /// Do not strip at all.
+    None,
+
+    /// Strip debuginfo.
+    DebugInfo,
+
+    /// Strip all symbols.
+    Symbols,
+}
+impl Default for Strip {
+    fn default() -> Self {
+        Self::None
+    }
+}
+impl FromStr for Strip {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "none" => Ok(Self::None),
+            "debuginfo" => Ok(Self::DebugInfo),
+            "symbols" => Ok(Self::Symbols),
+            _ => Err(()),
+        }
+    }
+}
+impl ParseOption for Strip {
+    fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
+        matches.value_of(info.name).map_or_else(
+            || Err(required_option_missing(info)),
+            |s| Self::from_str(s).map_err(|_| invalid_value(info, "invalid strip setting")),
+        )
+    }
+}

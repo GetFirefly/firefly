@@ -1,4 +1,6 @@
-use crate::spec::{LinkArgs, LinkerFlavor, LldFlavor, PanicStrategy, TargetOptions};
+use crate::spec::{
+    LinkArgs, LinkerFlavor, LldFlavor, PanicStrategy, RelocModel, TargetOptions, TlsModel,
+};
 use std::default::Default;
 
 pub fn opts() -> TargetOptions {
@@ -20,9 +22,9 @@ pub fn opts() -> TargetOptions {
         pre_link_args,
         panic_strategy: PanicStrategy::Abort,
         position_independent_executables: true,
-        relocation_model: "static".to_string(),
+        relocation_model: RelocModel::Static,
         target_family: None,
-        tls_model: "initial-exec".to_string(),
+        tls_model: TlsModel::InitialExec,
         ..Default::default()
     }
 }

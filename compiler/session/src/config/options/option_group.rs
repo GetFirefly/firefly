@@ -68,6 +68,17 @@ pub struct OptionGroupParser<T: OptionGroup> {
     args: Vec<String>,
     _marker: PhantomData<T>,
 }
+impl<T> Default for OptionGroupParser<T>
+where
+    T: OptionGroup,
+{
+    fn default() -> Self {
+        Self {
+            args: vec![],
+            _marker: PhantomData,
+        }
+    }
+}
 impl<T> OptionGroupParser<T>
 where
     T: OptionGroup,

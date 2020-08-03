@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness};
+use crate::spec::{Endianness, LinkerFlavor, Target, TargetOptions, TargetResult};
 
 pub fn target() -> TargetResult {
     let base = super::linux_base::opts();
@@ -18,9 +18,9 @@ pub fn target() -> TargetResult {
             features: "+soft-float,+strict-align".to_string(),
             // Atomic operations provided by compiler-builtins
             max_atomic_width: Some(32),
-            abi_blacklist: super::arm_base::abi_blacklist(),
+            unsupported_abis: super::arm_base::unsupported_abis(),
             target_mcount: "\u{1}__gnu_mcount_nc".to_string(),
-            .. base
-        }
+            ..base
+        },
     })
 }

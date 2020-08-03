@@ -141,7 +141,10 @@ Run with 'lumen -{} OPT[=VALUE]'
             fn parse_option_group<'a>(matches: &clap::ArgMatches<'a>) -> crate::config::options::OptionGroupParseResult<Self> {
                 use crate::config::options::{OptionGroupParser, OptionGroupParseResult};
                 match matches.values_of(#option_group_name) {
-                    None => Ok(None),
+                    None => {
+                        let parser = OptionGroupParser::default();
+                        parser.parse()
+                    }
                     Some(values) => {
                         let parser = OptionGroupParser::new(values);
                         parser.parse()

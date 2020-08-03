@@ -1,4 +1,5 @@
-use super::{LinkerFlavor, LldFlavor, PanicStrategy, TargetOptions};
+use super::crt_objects::CrtObjectsFallback;
+use super::{LinkerFlavor, LldFlavor, PanicStrategy, RelocModel, TargetOptions, TlsModel};
 use std::collections::BTreeMap;
 
 pub fn options() -> TargetOptions {
@@ -39,24 +40,26 @@ pub fn options() -> TargetOptions {
     // corrupting static data.
     arg("--stack-first");
 
-    // FIXME we probably shouldn't pass this but instead pass an explicit
-    // whitelist of symbols we'll allow to be undefined. We don't currently have
-    // a mechanism of knowing, however, which symbols are intended to be
-    // imported from the environment and which are intended to be imported from
-    // other objects linked elsewhere. This is a coarse approximation but is
-    // sure to hide some bugs and frustrate someone at some point, so we should
-    // ideally work towards a world where we can explicitly list symbols that
-    // are supposed to be imported and have all other symbols generate errors if
+    // FIXME we probably shouldn't pass this but instead pass an explicit list
+    // of symbols we'll allow to be undefined. We don't currently have a
+    // mechanism of knowing, however, which symbols are intended to be imported
+    // from the environment and which are intended to be imported from other
+    // objects linked elsewhere. This is a coarse approximation but is sure to
+    // hide some bugs and frustrate someone at some point, so we should ideally
+    // work towards a world where we can explicitly list symbols that are
+    // supposed to be imported and have all other symbols generate errors if
     // they remain undefined.
     arg("--allow-undefined");
 
-    // Warnings are often indicative of bugs, let's prevent them.
+    // Rust code should never have warnings, and warnings are often
+    // indicative of bugs, let's prevent them.
     arg("--fatal-warnings");
 
     // LLD only implements C++-like demangling, which doesn't match our own
     // mangling scheme. Tell LLD to not demangle anything and leave it up to
-    // us to demangle these symbols later. Currently lumen does not perform
-    // further demangling, but eventually it, or other tools, may.
+    // us to demangle these symbols later. Currently rustc does not perform
+    // further demangling, but tools like twiggy and wasm-bindgen are intended
+    // to do so.
     arg("--no-demangle");
 
     // The symbol visibility story is a bit in flux right now with LLD.
@@ -104,12 +107,12 @@ pub fn options() -> TargetOptions {
         // no dynamic linking, no need for default visibility!
         default_hidden_visibility: true,
 
-        // Symbol visibility takes care of this for WebAssembly.
+        // Symbol visibility takes care of this for the WebAssembly.
         // Additionally the only known linker, LLD, doesn't support the script
         // arguments just yet
         limit_rdylib_exports: false,
 
-        // we use the LLD shipped with the Lumen toolchain by default
+        // we use the LLD shipped with the Rust toolchain by default
         linker: Some("lumen-lld".to_owned()),
         lld_flavor: LldFlavor::Wasm,
 
@@ -121,6 +124,8 @@ pub fn options() -> TargetOptions {
 
         pre_link_args,
 
+        crt_objects_fallback: Some(CrtObjectsFallback::Wasm),
+
         // This has no effect in LLVM 8 or prior, but in LLVM 9 and later when
         // PIC code is implemented this has quite a drastric effect if it stays
         // at the default, `pic`. In an effort to keep wasm binaries as minimal
@@ -128,7 +133,7 @@ pub fn options() -> TargetOptions {
         // that eventually we can ship a `pic`-compatible standard library which
         // works with `static` as well (or works with some method of generating
         // non-relative calls and such later on).
-        relocation_model: "static".to_string(),
+        relocation_model: RelocModel::Static,
 
         // When the atomics feature is activated then these two keys matter,
         // otherwise they're basically ignored by the standard library. In this
@@ -136,7 +141,7 @@ pub fn options() -> TargetOptions {
         // `has_elf_tls`) and we need to get it to work by specifying
         // `local-exec` as that's all that's implemented in LLVM today for wasm.
         has_elf_tls: true,
-        tls_model: "local-exec".to_string(),
+        tls_model: TlsModel::LocalExec,
 
         // gdb scripts don't work on wasm blobs
         emit_debug_gdb_scripts: false,

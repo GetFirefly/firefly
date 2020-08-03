@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness};
+use crate::spec::{Endianness, LinkerFlavor, Target, TargetOptions, TargetResult};
 
 pub fn target() -> TargetResult {
     let mut base = super::linux_musl_base::opts();
@@ -22,9 +22,9 @@ pub fn target() -> TargetResult {
         target_vendor: "unknown".to_string(),
         linker_flavor: LinkerFlavor::Gcc,
         options: TargetOptions {
-            abi_blacklist: super::arm_base::abi_blacklist(),
+            unsupported_abis: super::arm_base::unsupported_abis(),
             target_mcount: "\u{1}mcount".to_string(),
-            .. base
+            ..base
         },
     })
 }

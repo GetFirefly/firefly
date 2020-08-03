@@ -1,11 +1,15 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness, EncodingType};
+use crate::spec::{EncodingType, Endianness, LinkerFlavor, Target, TargetOptions, TargetResult};
 
 pub fn target() -> TargetResult {
     let mut base = super::linux_musl_base::opts();
     base.cpu = "x86-64".to_string();
     base.max_atomic_width = Some(64);
-    base.pre_link_args.get_mut(&LinkerFlavor::Gcc).unwrap().push("-m64".to_string());
+    base.pre_link_args
+        .get_mut(&LinkerFlavor::Gcc)
+        .unwrap()
+        .push("-m64".to_string());
     base.stack_probes = true;
+    base.static_position_independent_executables = true;
 
     Ok(Target {
         llvm_target: "x86_64-unknown-linux-musl".to_string(),

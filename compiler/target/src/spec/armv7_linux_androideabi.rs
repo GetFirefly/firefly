@@ -1,4 +1,4 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness};
+use crate::spec::{Endianness, LinkerFlavor, Target, TargetOptions, TargetResult};
 
 // This target if is for the baseline of the Android v7a ABI
 // in thumb mode. It's named armv7-* instead of thumbv7-*
@@ -12,7 +12,10 @@ pub fn target() -> TargetResult {
     let mut base = super::android_base::opts();
     base.features = "+v7,+thumb-mode,+thumb2,+vfp3,-d32,-neon".to_string();
     base.max_atomic_width = Some(64);
-    base.pre_link_args.get_mut(&LinkerFlavor::Gcc).unwrap().push("-march=armv7-a".to_string());
+    base.pre_link_args
+        .get_mut(&LinkerFlavor::Gcc)
+        .unwrap()
+        .push("-march=armv7-a".to_string());
 
     Ok(Target {
         llvm_target: "armv7-none-linux-android".to_string(),
@@ -25,6 +28,9 @@ pub fn target() -> TargetResult {
         target_env: String::new(),
         target_vendor: "unknown".to_string(),
         linker_flavor: LinkerFlavor::Gcc,
-        options: TargetOptions { abi_blacklist: super::arm_base::abi_blacklist(), ..base },
+        options: TargetOptions {
+            unsupported_abis: super::arm_base::unsupported_abis(),
+            ..base
+        },
     })
 }

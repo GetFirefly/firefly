@@ -118,6 +118,54 @@ FixnumAttr FixnumAttr::get(MLIRContext *context, APInt value) {
 APInt &FixnumAttr::getValue() const { return getImpl()->value; }
 
 //===----------------------------------------------------------------------===//
+// FloatAttr
+//===----------------------------------------------------------------------===//
+
+/// An attribute representing an floating-point literal value.
+namespace lumen {
+namespace eir {
+namespace detail {
+struct FloatAttributeStorage : public AttributeStorage {
+  using KeyTy = std::tuple<Type, APFloat>;
+
+  FloatAttributeStorage(Type type, APFloat value)
+      : AttributeStorage(type), value(std::move(value)) {}
+
+  /// Key equality function.
+  bool operator==(const KeyTy &key) const {
+    auto keyType = std::get<Type>(key);
+    auto keyValue = std::get<APFloat>(key);
+    return keyType == getType() && keyValue == value;
+  }
+
+  static unsigned hashKey(const KeyTy &key) {
+    return hash_combine(hash_value(std::get<Type>(key)),
+                        hash_value(std::get<APFloat>(key)));
+  }
+
+  /// Construct a new storage instance.
+  static FloatAttributeStorage *construct(AttributeStorageAllocator &allocator,
+                                         const KeyTy &key) {
+    auto type = std::get<Type>(key);
+    auto value = new (allocator.allocate<APFloat>()) APFloat(std::get<APFloat>(key));
+    return new (allocator.allocate<FloatAttributeStorage>())
+        FloatAttributeStorage(type, *value);
+  }
+
+  APFloat value;
+};  // struct FloatAttr
+}  // namespace detail
+}  // namespace eir
+}  // namespace lumen
+
+FloatAttr FloatAttr::get(MLIRContext *context, APFloat value) {
+  unsigned kind = static_cast<unsigned>(AttributeKind::Float);
+  return Base::get(context, kind, FloatType::get(context), value);
+}
+
+APFloat &FloatAttr::getValue() const { return getImpl()->value; }
+
+//===----------------------------------------------------------------------===//
 // BinaryAttr
 //===----------------------------------------------------------------------===//
 

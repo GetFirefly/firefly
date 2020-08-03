@@ -31,7 +31,7 @@ EirDialect::EirDialect(mlir::MLIRContext *ctx)
            TupleType, MapType, ClosureType, BinaryType, HeapBinType,
            ProcBinType, BoxType, RefType, PtrType>();
 
-  addAttributes<AtomAttr, FixnumAttr, BinaryAttr, SeqAttr>();
+  addAttributes<AtomAttr, FixnumAttr, ::lumen::eir::FloatAttr, BinaryAttr, SeqAttr>();
 }
 
 void EirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
@@ -51,6 +51,11 @@ void EirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
       auto fixnumAttr = attr.cast<FixnumAttr>();
       os << FixnumAttr::getAttrName() << '<';
       os << "{ value = " << fixnumAttr.getValue() << " }>";
+    } break;
+    case AttributeKind::Float: {
+      auto floatAttr = attr.cast<eir::FloatAttr>();
+      os << eir::FloatAttr::getAttrName() << '<';
+      os << "{ value = " << floatAttr.getValue().convertToDouble() << " }>";
     } break;
     case AttributeKind::Binary: {
       auto binAttr = attr.cast<BinaryAttr>();

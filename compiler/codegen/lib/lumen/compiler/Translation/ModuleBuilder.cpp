@@ -2,6 +2,7 @@
 #include "lumen/compiler/Dialect/EIR/IR/EIROps.h"
 #include "lumen/compiler/Dialect/EIR/IR/EIRTypes.h"
 
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
@@ -41,6 +42,7 @@ using eir_atom = ValueBuilder<::lumen::eir::ConstantAtomOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 using eir_int = ValueBuilder<::lumen::eir::ConstantIntOp>;
+using eir_float = ValueBuilder<::lumen::eir::ConstantFloatOp>;
 
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::FuncOp, MLIRFunctionOpRef);
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lumen::eir::ModuleBuilder,
@@ -1563,21 +1565,21 @@ extern "C" MLIRValueRef MLIRBuildConstantFloat(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_constant_float(Location loc, double value) {
-  auto type = builder.getType<FloatType>();
-  APFloat f(value);
-  auto op = builder.create<ConstantFloatOp>(loc, f);
-  return op.getResult();
+  edsc::ScopedContext scope(builder, loc);
+  auto termTy = builder.getType<TermType>();
+  return eir_cast(eir_float(value), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildFloatAttr(MLIRModuleBuilderRef b,
                                                MLIRLocationRef locref,
                                                double value) {
   ModuleBuilder *builder = unwrap(b);
-  auto type = builder->getType<FloatType>();
-  return wrap(builder->build_float_attr(type, value));
+  return wrap(builder->build_float_attr(value));
 }
 
-Attribute ModuleBuilder::build_float_attr(Type type, double value) {
+Attribute ModuleBuilder::build_float_attr(double value) {
+  auto type = builder.getF64Type();
+  APFloat f(value);
   return builder.getFloatAttr(type, value);
 }
 

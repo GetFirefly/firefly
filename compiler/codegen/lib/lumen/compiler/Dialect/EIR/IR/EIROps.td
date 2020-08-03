@@ -1464,7 +1464,7 @@ class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic, [ConstantLik
   let hasFolder = 1;
 }
 
-def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
+def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatType, "constant.float"> {
   let builders = [
     OpBuilder<
     "Builder *builder, OperationState &result, Type type, Attribute val",
@@ -1473,10 +1473,11 @@ def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
       result.addTypes(type);
     }]>,
     OpBuilder<
-    "Builder *builder, OperationState &result, APFloat &value",
+    "Builder *builder, OperationState &result, double value",
     [{
       auto type = builder->getType<eir::FloatType>();
-      auto attr = builder->getFloatAttr(type, value);
+      APFloat ap(value);
+      auto attr = eir::FloatAttr::get(builder->getContext(), ap);
       build(builder, result, type, attr);
     }]>
   ];

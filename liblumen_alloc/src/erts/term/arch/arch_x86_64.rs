@@ -315,7 +315,7 @@ impl Encoded for RawTerm {
             Tag::List => Ok(TypedTerm::List(unsafe { self.decode_list() })),
             Tag::SmallInteger => Ok(TypedTerm::SmallInteger(self.decode_smallint())),
             // When compiling for non-x86_64, we use boxed floats, so
-            // we accomodate that by boxing the float.
+            // we accommodate that by boxing the float.
             #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
             Tag::Float => Ok(TypedTerm::Float(self.decode_float())),
             #[cfg(not(all(target_pointer_width = "64", target_arch = "x86_64")))]

@@ -660,35 +660,30 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto cip = builder.saveInsertionPoint();
         Block *split2 =
             builder.createBlock(region, Region::iterator(nextPatternBlock));
-        split2->addArgument(selectorType);
         Block *split = builder.createBlock(region, Region::iterator(split2));
-        split->addArgument(selectorType);
         builder.restoreInsertionPoint(cip);
         auto *pattern = b.getPatternTypeOrNull<MapPattern>();
         auto key = pattern->getKey();
-        auto mapType = builder.getType<MapType>();
+        auto mapType = BoxType::get(builder.getType<MapType>());
         auto isMapOp =
             builder.create<IsTypeOp>(branchLoc, selectorArg, mapType);
         auto isMapCond = isMapOp.getResult();
         auto ifOp = builder.create<CondBranchOp>(
-            branchLoc, isMapCond, split, withSelectorArgs, nextPatternBlock,
-            withSelectorArgs);
+            branchLoc, isMapCond, split, ArrayRef<Value>{}, nextPatternBlock, withSelectorArgs);
         // 2. In the split, call runtime function `is_map_key` to confirm
         // existence of the key in the map,
         //    then conditionally branch to the second split if successful,
         //    otherwise the next pattern
         builder.setInsertionPointToEnd(split);
-        Value splitSelector = split->getArgument(0);
-        auto hasKeyOp = builder.create<MapIsKeyOp>(branchLoc, key, splitSelector);
+        auto hasKeyOp = builder.create<MapIsKeyOp>(branchLoc, selectorArg, key);
         auto hasKeyCond = hasKeyOp.getResult();
-        ArrayRef<Value> splitSelectorArgs{splitSelector};
         builder.create<CondBranchOp>(branchLoc, hasKeyCond, split2,
-                                     splitSelectorArgs, nextPatternBlock,
-                                     splitSelectorArgs);
+                                     ArrayRef<Value>{}, nextPatternBlock,
+                                     withSelectorArgs);
         // 3. In the second split, call runtime function `map_get` to obtain the
         // value for the key
         builder.setInsertionPointToEnd(split2);
-        auto mapGetOp = builder.create<MapGetKeyOp>(branchLoc, key, split2->getArgument(0));
+        auto mapGetOp = builder.create<MapGetKeyOp>(branchLoc, selectorArg, key);
         auto valueTerm = mapGetOp.getResult();
         // 4. Unconditionally branch to the destination, with the key's value as
         // an additional destArg

@@ -43,9 +43,13 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
 
     auto matchType = op.getMatchType().cast<OpaqueTermType>();
     // Boxed types and immediate types are dispatched differently
-    if (matchType.isBox()) {
-      auto boxType = matchType.cast<BoxType>();
-      auto boxedType = boxType.getBoxedType();
+    if (matchType.isBox() || matchType.isBoxable()) {
+      OpaqueTermType boxedType;
+      if (matchType.isBox()) {
+        boxedType = matchType.cast<BoxType>().getBoxedType();
+      } else {
+        boxedType = matchType;
+      }
 
       // Lists have a unique pointer tag, so we can avoid the function call
       if (boxedType.isa<ConsType>()) {

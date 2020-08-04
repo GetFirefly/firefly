@@ -41,7 +41,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                                 old_unique,
                                 unique,
                                 arity,
-                                Some(native as _),
+                                NonNull::new(native as _),
                                 creator,
                                 &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
@@ -149,7 +149,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
             old_unique,
             unique,
             arity,
-            Some(native as _),
+            NonNull::new(native as _),
             creator,
             &[
                 Atom::str_to_term("shutdown"),

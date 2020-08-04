@@ -9,8 +9,6 @@
 //! end
 //! ```
 
-use std::ffi::c_void;
-
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::Process;
@@ -25,7 +23,7 @@ pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, All
         Default::default(),
         Default::default(),
         2,
-        Some(native as *const c_void),
+        CLOSURE_NATIVE,
         process.pid().into(),
         &[output],
     )

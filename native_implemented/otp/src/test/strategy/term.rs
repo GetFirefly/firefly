@@ -3,6 +3,7 @@ use std::convert::TryInto;
 use std::ffi::c_void;
 use std::num::FpCategory;
 use std::ops::RangeInclusive;
+use std::ptr::NonNull;
 use std::sync::Arc;
 
 use proptest::arbitrary::any;
@@ -181,7 +182,7 @@ pub fn export_closure(process: &Process, module: Atom, function: Atom, arity: u8
     };
 
     process
-        .export_closure(module, function, arity, Some(native as _))
+        .export_closure(module, function, arity, NonNull::new(native as _))
         .unwrap()
 }
 

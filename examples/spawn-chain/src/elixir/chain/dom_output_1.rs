@@ -35,19 +35,12 @@ mod label_7;
 mod label_8;
 mod label_9;
 
-use std::ffi::c_void;
-
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
-    process.export_closure(
-        super::module(),
-        function(),
-        ARITY,
-        Some(native as *const c_void),
-    )
+    process.export_closure(super::module(), function(), ARITY, CLOSURE_NATIVE)
 }
 
 // Private

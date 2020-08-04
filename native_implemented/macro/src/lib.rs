@@ -55,6 +55,7 @@ pub fn function(
         Ok(signatures) => {
             let const_arity = signatures.const_arity();
             let const_native = signatures.const_native();
+            let const_closure_native = signatures.const_closure_native();
             let frame = frame_for_entry_point();
             let frame_for_native = frame_for_native();
             let function = module_function_arity.function();
@@ -66,6 +67,7 @@ pub fn function(
             let all_tokens = quote! {
                 #const_arity
                 #const_native
+                #const_closure_native
 
                 #frame
                 #frame_for_native
@@ -647,6 +649,12 @@ impl Signatures {
 
         quote! {
              pub const NATIVE: liblumen_alloc::erts::process::Native = #native_variant;
+        }
+    }
+
+    fn const_closure_native(&self) -> proc_macro2::TokenStream {
+        quote! {
+             pub const CLOSURE_NATIVE: Option<std::ptr::NonNull<std::ffi::c_void>> = Some(unsafe { std::ptr::NonNull::new_unchecked(native as *mut std::ffi::c_void) });
         }
     }
 

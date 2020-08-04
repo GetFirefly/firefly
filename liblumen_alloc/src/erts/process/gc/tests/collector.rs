@@ -1,8 +1,8 @@
 use core::alloc::Layout;
 use core::convert::TryInto;
-use core::ffi::c_void;
 use core::mem;
 use core::ops::Deref;
+use core::ptr::NonNull;
 
 use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::test::process;
@@ -115,7 +115,7 @@ fn simple_gc_test(process: Process) {
             old_unique,
             unique,
             2,
-            Some(native as *const c_void),
+            NonNull::new(native as _),
             Creator::Local(creator),
             &[&[closure_num, closure_string_term]],
         )

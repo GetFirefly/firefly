@@ -84,7 +84,7 @@ fn with_environment_runs_function_in_child_process() {
                                 old_unique,
                                 unique,
                                 arity,
-                                Some(native as _),
+                                NonNull::new(native as _),
                                 creator,
                                 &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )

@@ -14,6 +14,7 @@ mod with_subbinary_left;
 mod with_tuple_left;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use proptest::arbitrary::any;
 use proptest::prop_assert_eq;

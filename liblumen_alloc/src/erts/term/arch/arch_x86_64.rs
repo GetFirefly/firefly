@@ -472,7 +472,7 @@ impl core::hash::Hash for RawTerm {
 #[cfg(all(test, target_pointer_width = "64", target_arch = "x86_64"))]
 mod tests {
     use core::convert::TryInto;
-    use core::ffi::c_void;
+    use core::ptr::NonNull;
 
     use crate::borrow::CloneToProcess;
     use crate::erts::process::alloc::TermAlloc;
@@ -791,7 +791,7 @@ mod tests {
                 old_unique,
                 unique,
                 arity,
-                Some(native as *const c_void),
+                NonNull::new(native as _),
                 Creator::Local(creator),
                 &[&[one, two]],
             )

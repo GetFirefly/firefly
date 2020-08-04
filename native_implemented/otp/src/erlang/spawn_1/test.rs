@@ -1,6 +1,7 @@
 mod with_function;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use proptest::prop_assert_eq;
 use proptest::strategy::Just;

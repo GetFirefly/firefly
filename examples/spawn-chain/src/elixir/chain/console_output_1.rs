@@ -6,8 +6,6 @@
 
 mod label_1;
 
-use std::ffi::c_void;
-
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -15,12 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_otp::erlang;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
-    process.export_closure(
-        function(),
-        super::module(),
-        ARITY,
-        Some(native as *const c_void),
-    )
+    process.export_closure(function(), super::module(), ARITY, CLOSURE_NATIVE)
 }
 
 #[native_implemented::function(Elixir.Chain:console_output/1)]

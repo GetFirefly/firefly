@@ -26,7 +26,7 @@ pub fn with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
                         erlang::module(),
                         erlang::self_0::function(),
                         erlang::self_0::ARITY,
-                        Some(erlang::self_0::native as _)
+                        erlang::self_0::CLOSURE_NATIVE
                     )
                     .unwrap()
             ),
@@ -40,7 +40,7 @@ pub fn with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
                         erlang::module(),
                         erlang::number_or_badarith_1::function(),
                         erlang::number_or_badarith_1::ARITY,
-                        Some(erlang::number_or_badarith_1::native as _)
+                        erlang::number_or_badarith_1::CLOSURE_NATIVE
                     )
                     .unwrap()
             ),
@@ -74,7 +74,7 @@ pub fn with_native(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
                         module,
                         erlang::self_0::function(),
                         erlang::self_0::ARITY,
-                        Some(erlang::self_0::native as _),
+                        erlang::self_0::CLOSURE_NATIVE,
                     )
                     .unwrap(),
                 1 => arc_process
@@ -82,7 +82,7 @@ pub fn with_native(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
                         module,
                         erlang::number_or_badarith_1::function(),
                         erlang::number_or_badarith_1::ARITY,
-                        Some(erlang::number_or_badarith_1::native as _),
+                        erlang::number_or_badarith_1::CLOSURE_NATIVE,
                     )
                     .unwrap(),
                 _ => unreachable!("arity {}", arity),

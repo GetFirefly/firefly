@@ -118,6 +118,7 @@ class TargetInfo {
   uint64_t listMask() const;
   uint64_t boxTag() const;
   uint64_t literalTag() const;
+  uint32_t closureHeaderArity(uint32_t envLen) const;
   MaskInfo &immediateMask() const;
   MaskInfo &headerMask() const;
 

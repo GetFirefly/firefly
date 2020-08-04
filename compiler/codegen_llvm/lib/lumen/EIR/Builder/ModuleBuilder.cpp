@@ -976,6 +976,18 @@ static Optional<Value> buildIntrinsicCmpNeqStrictOp(OpBuilder &builder,
   return op.getResult();
 }
 
+
+static Optional<Value> buildIntrinsicSpawn1Op(OpBuilder &builder,
+                                              Location loc,
+                                              ArrayRef<Value> args) {
+  assert(args.size() == 1 && "expected spawn/1 to receive one operand");
+  auto calleeSymbol = FlatSymbolRefAttr::get("__lumen_builtin_spawn/1", builder.getContext());
+  auto termTy = builder.getType<TermType>();
+  SmallVector<Type, 1> resultTypes{termTy};
+  auto op = builder.create<CallOp>(loc, calleeSymbol, resultTypes, args);
+  return op.getResult(0);
+}
+
 using BuildIntrinsicFnT = Optional<Value> (*)(OpBuilder &, Location loc,
                                               ArrayRef<Value>);
 
@@ -987,6 +999,7 @@ static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
                    .Case("erlang:throw/1", buildIntrinsicThrowOp)
                    .Case("erlang:raise/3", buildIntrinsicRaiseOp)
                    .Case("erlang:print/1", buildIntrinsicPrintOp)
+                   .Case("erlang:spawn/1", buildIntrinsicSpawn1Op)
                    .Case("erlang:+/2", buildIntrinsicAddOp)
                    .Case("erlang:-/2", buildIntrinsicSubOp)
                    .Case("erlang:*/2", buildIntrinsicMulOp)

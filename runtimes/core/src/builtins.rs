@@ -8,11 +8,6 @@ use liblumen_core::sys::Endianness;
 
 use crate::process::current_process;
 
-#[export_name = "erlang:self/0"]
-pub extern "C" fn builtin_self() -> Term {
-    current_process().pid_term()
-}
-
 #[export_name = "__lumen_builtin_bigint_from_cstr"]
 pub extern "C" fn builtin_bigint_from_cstr(ptr: *const u8, size: usize) -> Term {
     let bytes = unsafe { core::slice::from_raw_parts(ptr, size) };

@@ -20,12 +20,22 @@ use crate::erts::{self, to_word_size, Arity, ModuleFunctionArity};
 
 use super::prelude::*;
 
+#[export_name = "lumen_closure_base_size"]
+pub extern "C" fn closure_base_size(pointer_width: u32) -> u32 {
+    if pointer_width == 64 {
+        ClosureLayout::base_size_64bit() as u32
+    } else {
+        assert_eq!(pointer_width, 32);
+        ClosureLayout::base_size_32bit() as u32
+    }
+}
+
 #[repr(C)]
 pub struct Closure {
     header: Header<Closure>,
     module: Atom,
     definition: Definition,
-    arity: u8,
+    arity: u32,
     /// Pointer to function entry.  When a closure is received over ETF, this may be `None`.
     native: Option<NonNull<c_void>>,
     env: [Term],
@@ -47,12 +57,48 @@ impl ClosureLayout {
         &self.layout
     }
 
+    #[inline(always)]
     pub fn base_size() -> usize {
+        if cfg!(target_pointer_width = "64") {
+            debug_assert_eq!(Self::base_size_native(), Self::base_size_64bit());
+            Self::base_size_64bit()
+        } else {
+            assert!(cfg!(target_pointer_width = "32"));
+            debug_assert_eq!(Self::base_size_native(), Self::base_size_32bit());
+            Self::base_size_32bit()
+        }
+    }
+
+    pub fn base_size_32bit() -> usize {
+        // Header<T> + Atom
+        let (layout, _module_offset) = Layout::new::<u32>().extend(Layout::new::<u32>()).unwrap();
+        // Definition
+        let (layout, _definition_offset) = layout.extend(Layout::new::<Definition32>()).unwrap();
+        // u8
+        let (layout, _arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
+        // Option<NonNull<c_void>>
+        let (layout, _native_offset) = layout.extend(Layout::new::<u32>()).unwrap();
+        layout.size()
+    }
+
+    pub fn base_size_64bit() -> usize {
+        // Header<T> + Atom
+        let (layout, _module_offset) = Layout::new::<u64>().extend(Layout::new::<u64>()).unwrap();
+        // Definition
+        let (layout, _definition_offset) = layout.extend(Layout::new::<Definition64>()).unwrap();
+        // u8
+        let (layout, _arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
+        // Option<NonNull<c_void>>
+        let (layout, _native_offset) = layout.extend(Layout::new::<u64>()).unwrap();
+        layout.size()
+    }
+
+    fn base_size_native() -> usize {
         let (layout, _module_offset) = Layout::new::<Header<Closure>>()
             .extend(Layout::new::<Atom>())
             .unwrap();
         let (layout, _definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
-        let (layout, _arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
+        let (layout, _arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
         let (layout, _native_offset) = layout
             .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
@@ -64,7 +110,7 @@ impl ClosureLayout {
             .extend(Layout::new::<Atom>())
             .unwrap();
         let (layout, definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
-        let (layout, arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
+        let (layout, arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
         let (layout, native_offset) = layout
             .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
@@ -164,8 +210,8 @@ impl Closure {
             let definition_ptr =
                 ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
             definition_ptr.write(definition);
-            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
-            arity_ptr.write(arity);
+            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut u32;
+            arity_ptr.write(arity.into());
             let native_ptr =
                 ptr.offset(closure_layout.native_offset as isize) as *mut Option<NonNull<c_void>>;
             native_ptr.write(native);
@@ -227,8 +273,8 @@ impl Closure {
             let definition_ptr =
                 ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
             definition_ptr.write(definition);
-            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
-            arity_ptr.write(arity);
+            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut u32;
+            arity_ptr.write(arity.into());
             let native_ptr =
                 ptr.offset(closure_layout.native_offset as isize) as *mut Option<NonNull<c_void>>;
             native_ptr.write(native);
@@ -270,7 +316,7 @@ impl Closure {
 
     #[inline]
     pub fn arity(&self) -> Arity {
-        self.arity
+        self.arity as u8
     }
 
     #[inline]
@@ -298,20 +344,23 @@ impl Closure {
     ///
     /// FIXME(pauls): The above is not true for generated code, so this requires review
     pub fn native_arity(&self) -> Arity {
-        self.arity + self.env_len() as Arity
+        (self.arity as u8 + self.env_len() as u8) as Arity
     }
 
     pub fn frame(&self) -> Frame {
-        Frame::from_definition(self.module, self.definition.clone(), self.arity, unsafe {
-            Native::from_ptr(self.native().as_ptr(), self.native_arity())
-        })
+        Frame::from_definition(
+            self.module,
+            self.definition.clone(),
+            self.arity as u8,
+            unsafe { Native::from_ptr(self.native().as_ptr(), self.native_arity()) },
+        )
     }
 
     pub fn module_function_arity(&self) -> ModuleFunctionArity {
         ModuleFunctionArity {
             module: self.module,
             function: self.function(),
-            arity: self.arity,
+            arity: self.arity as u8,
         }
     }
 
@@ -562,6 +611,44 @@ pub enum Definition {
     Anonymous {
         /// Each anonymous function within a module has an unique index.
         index: usize,
+        /// The 16 bytes MD5 of the significant parts of the Beam file.
+        unique: [u8; 16],
+        /// The hash value of the parse tree for the fun, but must fit in i32, so not the same as
+        /// `unique`.
+        old_unique: u32,
+        /* Not used in Lumen, needed for term_to_binary/external communication
+         * creator: Creator, */
+    },
+}
+
+// For size calculations
+#[repr(C)]
+enum Definition32 {
+    /// External functions captured with `fun M:F/A` in Erlang or `&M.f/a` in Elixir.
+    Export { function: u32 },
+    /// Anonymous functions declared with `fun` in Erlang or `fn` in Elixir.
+    Anonymous {
+        /// Each anonymous function within a module has an unique index.
+        index: u32,
+        /// The 16 bytes MD5 of the significant parts of the Beam file.
+        unique: [u8; 16],
+        /// The hash value of the parse tree for the fun, but must fit in i32, so not the same as
+        /// `unique`.
+        old_unique: u32,
+        /* Not used in Lumen, needed for term_to_binary/external communication
+         * creator: Creator, */
+    },
+}
+
+// For size calculations
+#[repr(C)]
+enum Definition64 {
+    /// External functions captured with `fun M:F/A` in Erlang or `&M.f/a` in Elixir.
+    Export { function: u64 },
+    /// Anonymous functions declared with `fun` in Erlang or `fn` in Elixir.
+    Anonymous {
+        /// Each anonymous function within a module has an unique index.
+        index: u64,
         /// The 16 bytes MD5 of the significant parts of the Beam file.
         unique: [u8; 16],
         /// The hash value of the parse tree for the fun, but must fit in i32, so not the same as

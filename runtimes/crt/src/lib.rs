@@ -40,14 +40,10 @@ pub fn main_internal() -> i32 {
         return 102;
     }
 
-    eprintln!("Initalized atom table");
-
     // Initialize the dispatch table
     if unsafe { InitializeLumenDispatchTable(SYMBOL_TABLE, NUM_SYMBOLS) } == false {
         return 103;
     }
-
-    eprintln!("Initalized dispatch table");
 
     // Invoke platform-specific entry point
     unsafe { lumen_entry() }

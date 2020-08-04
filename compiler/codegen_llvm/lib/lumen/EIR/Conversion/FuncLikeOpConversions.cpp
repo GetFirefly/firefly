@@ -127,8 +127,9 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
 
     // Allocate closure header block
     auto boxedClosureTy = BoxType::get(rewriter.getType<ClosureType>());
-    Value arityConst = llvm_constant(termTy, ctx.getIntegerAttr(arity));
-    auto mallocOp = rewriter.create<MallocOp>(loc, boxedClosureTy, arityConst);
+    auto headerArity = ctx.targetInfo.closureHeaderArity(envLen);
+    Value headerArityConst = llvm_constant(termTy, ctx.getIntegerAttr(headerArity));
+    auto mallocOp = rewriter.create<MallocOp>(loc, boxedClosureTy, headerArityConst);
     auto valRef = mallocOp.getResult();
 
     // Calculate pointers to each field in the header and write the
@@ -136,7 +137,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
 
     // Header term
-    auto closureHeader = ctx.targetInfo.encodeHeader(TypeKind::Closure, envLen);
+    auto closureHeader = ctx.targetInfo.encodeHeader(TypeKind::Closure, headerArity);
     Value header = llvm_constant(
         termTy, ctx.getIntegerAttr(closureHeader.getLimitedValue()));
     Value headerIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
@@ -185,11 +186,12 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     llvm_store(oldUniqueConst, definitionOldUniqueGep);
 
     // Arity
-    // arity: u8,
+    // arity: u32,
     Value arityIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
     ArrayRef<Value> arityIndices({zero, arityIdx});
-    Value arityPtrGep = llvm_gep(i8PtrTy, valRef, arityIndices);
-    llvm_store(llvm_trunc(i8Ty, arityConst), arityPtrGep);
+    Value arityPtrGep = llvm_gep(i32PtrTy, valRef, arityIndices);
+    Value arityConst = llvm_constant(i32Ty, ctx.getIntegerAttr(arity));
+    llvm_store(arityConst, arityPtrGep);
 
     // Code
     // code: Option<*const ()>,

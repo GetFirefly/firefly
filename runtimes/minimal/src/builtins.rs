@@ -48,7 +48,7 @@ pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
     }
 }
 
-#[export_name = "erlang:spawn/1"]
+#[export_name = "__lumen_builtin_spawn/1"]
 pub extern "C" fn builtin_spawn(closure: Term) -> Term {
     let result = panic::catch_unwind(|| {
         let decoded_result: Result<Boxed<Closure>, _> = closure.decode().unwrap().try_into();

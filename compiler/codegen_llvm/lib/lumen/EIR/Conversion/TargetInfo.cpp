@@ -21,6 +21,8 @@ using ::lumen::MaskInfo;
 
 using namespace lumen::eir;
 
+extern "C" uint32_t lumen_closure_base_size(uint32_t pointerWidth);
+
 namespace lumen {
 
 static APInt make_tag(unsigned pointerSize, uint64_t tag) {
@@ -167,11 +169,11 @@ LLVMType TargetInfo::makeClosureType(LLVMDialect *dialect, unsigned size) {
   // Construct type of the fields
   auto intNTy = impl->pointerWidthIntTy;
   auto defTy = getClosureDefinitionType();
-  auto int8Ty = getI8Type();
+  auto int32Ty = getI32Type();
   auto voidPtrTy = LLVMType::getFunctionTy(LLVMType::getVoidTy(dialect), false)
                        .getPointerTo();
   auto envTy = LLVMType::getArrayTy(intNTy, size);
-  ArrayRef<LLVMType> fields{intNTy, intNTy, defTy, int8Ty, voidPtrTy, envTy};
+  ArrayRef<LLVMType> fields{intNTy, intNTy, defTy, int32Ty, voidPtrTy, envTy};
 
   // Name the type based on the arity of the env, makes IR more readable
   const char *fmt = "closure%d";
@@ -204,6 +206,17 @@ uint64_t TargetInfo::listTag() const { return impl->listTag; }
 uint64_t TargetInfo::listMask() const { return impl->listMask; }
 uint64_t TargetInfo::boxTag() const { return impl->boxTag; }
 uint64_t TargetInfo::literalTag() const { return impl->literalTag; }
+uint32_t TargetInfo::closureHeaderArity(uint32_t envLen) const {
+    uint32_t wordSize;
+    if (pointerSizeInBits == 64) {
+      wordSize = 8;
+    } else {
+      assert(pointerSizeInBits == 32 && "unsupported pointer width");
+      wordSize = 4;
+    }
+    auto totalBytes = lumen_closure_base_size(pointerSizeInBits) + (envLen * wordSize);
+    return (totalBytes / wordSize) - 1;
+}
 MaskInfo &TargetInfo::immediateMask() const { return impl->immediateMask; }
 MaskInfo &TargetInfo::headerMask() const { return impl->headerMask; }
 

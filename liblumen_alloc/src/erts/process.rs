@@ -600,7 +600,7 @@ impl Process {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        native: Option<NonNull<c_void>>,
+        native: Option<*const c_void>,
         creator: Creator,
         slice: &[Term],
     ) -> AllocResult<Term> {
@@ -616,7 +616,7 @@ impl Process {
         module: Atom,
         function: Atom,
         arity: u8,
-        native: Option<NonNull<c_void>>,
+        native: Option<*const c_void>,
     ) -> AllocResult<Term> {
         self.acquire_heap()
             .export_closure(module, function, arity, native)

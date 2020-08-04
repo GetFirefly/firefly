@@ -539,10 +539,11 @@ pub trait TermAlloc: Heap {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        native: Option<NonNull<c_void>>,
+        native: Option<*const c_void>,
         creator: Creator,
         slice: &[Term],
     ) -> AllocResult<Boxed<Closure>> {
+        let native = native.and_then(|ptr| NonNull::new(ptr as *mut c_void));
         Closure::from_slice(
             self, module, index, old_unique, unique, arity, native, creator, slice,
         )
@@ -563,10 +564,11 @@ pub trait TermAlloc: Heap {
         old_unique: OldUnique,
         unique: Unique,
         arity: Arity,
-        native: Option<NonNull<c_void>>,
+        native: Option<*const c_void>,
         creator: Creator,
         slices: &[&[Term]],
     ) -> AllocResult<Boxed<Closure>> {
+        let native = native.and_then(|ptr| NonNull::new(ptr as *mut c_void));
         let len = slices.iter().map(|slice| slice.len()).sum();
         let mut closure_box = Closure::new_anonymous(
             self, module, index, old_unique, unique, arity, native, creator, len,
@@ -594,8 +596,9 @@ pub trait TermAlloc: Heap {
         module: Atom,
         function: Atom,
         arity: u8,
-        native: Option<NonNull<c_void>>,
+        native: Option<*const c_void>,
     ) -> AllocResult<Boxed<Closure>> {
+        let native = native.and_then(|ptr| NonNull::new(ptr as *mut c_void));
         Closure::new_export(self, module, function, arity, native)
     }
 }

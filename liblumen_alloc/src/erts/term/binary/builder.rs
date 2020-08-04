@@ -108,12 +108,12 @@ pub struct BinaryPushResult {
  * the source and destinations binaries were aligned.
  */
 
+#[allow(unused)]
 const BITS_PER_REDUCTION: usize = 8 * 1024;
 
 pub struct BinaryBuilder {
     buffer: Vec<u8>,
     offset: usize,
-    writable: bool,
 }
 impl BinaryBuilder {
     #[inline]
@@ -121,7 +121,6 @@ impl BinaryBuilder {
         Self {
             buffer: Vec::new(),
             offset: 0,
-            writable: true,
         }
     }
 
@@ -161,8 +160,7 @@ impl BinaryBuilder {
 
         let mut bin_offset = self.offset;
         let bit_offset = bit_offset!(bin_offset);
-        let mut b = 0;
-        let mut unaligned = false;
+        let mut b;
         let num_bytes = nbytes!(num_bits);
 
         self.ensure_needed(num_bytes);
@@ -264,7 +262,7 @@ impl BinaryBuilder {
                 )?;
                 bin_offset += offset;
             }
-            Integer::Big(ref big) => {
+            Integer::Big(_) => {
                 // We must format the number into a temporary buffer, and
                 // then copy that into the binary.
                 let mut tmp_buffer: Vec<u8> = Vec::with_capacity(num_bytes);
@@ -302,11 +300,11 @@ impl BinaryBuilder {
 
     pub fn push_utf8(&mut self, value: isize) -> Result<(), ()> {
         let bin_offset = self.offset;
-        let mut bit_offset = 0;
-        let mut num_bits = 0;
+        let bit_offset;
+        let num_bits;
         let mut tmp_buf = [0u8; 4];
         let mut use_tmp = false;
-        let mut dst: *mut u8 = ptr::null_mut();
+        let mut dst: *mut u8;
 
         if value < 0 {
             return Err(());
@@ -412,11 +410,11 @@ impl BinaryBuilder {
 
     pub fn push_utf16(&mut self, value: isize, flags: BinaryPushFlags) -> Result<(), ()> {
         let bin_offset = self.offset;
-        let mut bit_offset = 0;
-        let mut num_bits = 0;
+        let bit_offset;
+        let num_bits;
         let mut tmp_buf = [0u8; 4];
         let mut use_tmp = false;
-        let mut dst: *mut u8 = ptr::null_mut();
+        let mut dst: *mut u8;
 
         if value > 0x10FFFF || (0xD800 <= value && value <= 0xDFFF) {
             return Err(());
@@ -458,8 +456,8 @@ impl BinaryBuilder {
                 }
             }
         } else {
-            let mut w1 = 0u16;
-            let mut w2 = 0u16;
+            let w1;
+            let w2;
 
             num_bits = 32;
             self.ensure_needed(nbytes!(num_bits));
@@ -517,13 +515,11 @@ impl BinaryBuilder {
     where
         B: Bitstring + MaybePartialByte,
     {
-        let bitoffs = bit_offset.unwrap_or(0);
-        let bitsize = value.partial_byte_bit_len();
-        let num_bytes = value.full_byte_len();
-
         if num_bits > value.total_bit_len() {
             return Err(());
         }
+
+        let bitoffs = bit_offset.unwrap_or(0);
 
         self.ensure_needed(nbytes!(num_bits));
 
@@ -662,7 +658,6 @@ unsafe fn fmt_int_bytes(
 unsafe fn pad_bytes(dst: *mut u8, offset: usize, padding: usize, sign: u8) -> usize {
     use super::primitives::{make_bitmask, mask_bits};
 
-    let pad_bits = padding * 8;
     if offset % 8 == 0 {
         // Byte-aligned
         dst.offset(byte_offset!(offset) as isize)
@@ -687,17 +682,15 @@ unsafe fn write_bytes(dst: *mut u8, offset: usize, value: &[u8]) -> usize {
     let ptr = value.as_ptr();
     let num_bytes = value.len();
     if bit_offset!(offset) != 0 {
-        unsafe {
-            copy_bits(
-                ptr,
-                0,
-                CopyDirection::Forward,
-                dst,
-                offset,
-                CopyDirection::Forward,
-                num_bytes * 8,
-            );
-        }
+        copy_bits(
+            ptr,
+            0,
+            CopyDirection::Forward,
+            dst,
+            offset,
+            CopyDirection::Forward,
+            num_bytes * 8,
+        );
     } else {
         let byte_offs = byte_offset!(offset) as isize;
         ptr::copy_nonoverlapping(ptr, dst.offset(byte_offs), num_bytes);

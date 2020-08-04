@@ -64,7 +64,6 @@ fn main() {
 }
 
 fn tblgen(args: &[String]) {
-    use std::io;
     let result = Command::new("lumen-tblgen").args(args).output();
     match result {
         Ok(output) => {

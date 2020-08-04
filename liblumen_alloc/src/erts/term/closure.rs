@@ -8,8 +8,6 @@ use core::mem::{self, size_of};
 use core::ptr::{self, NonNull};
 use core::slice;
 
-use alloc::sync::Arc;
-
 use liblumen_core::sys::dynamic_call::DynamicCallee;
 
 use crate::borrow::CloneToProcess;
@@ -623,6 +621,7 @@ pub enum Definition {
 
 // For size calculations
 #[repr(C)]
+#[allow(unused)]
 enum Definition32 {
     /// External functions captured with `fun M:F/A` in Erlang or `&M.f/a` in Elixir.
     Export { function: u32 },
@@ -642,6 +641,7 @@ enum Definition32 {
 
 // For size calculations
 #[repr(C)]
+#[allow(unused)]
 enum Definition64 {
     /// External functions captured with `fun M:F/A` in Erlang or `&M.f/a` in Elixir.
     Export { function: u64 },

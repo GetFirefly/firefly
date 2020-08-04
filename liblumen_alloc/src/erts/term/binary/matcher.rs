@@ -1,7 +1,5 @@
 use crate::erts::term::prelude::*;
 
-use liblumen_core::sys::Endianness;
-
 #[repr(C)]
 pub struct BinaryMatchResult {
     // The value matched by the match operation
@@ -29,7 +27,7 @@ impl BinaryMatchResult {
     }
 }
 
-pub fn match_raw<B>(bin: B, unit: u8, size: Option<usize>) -> Result<BinaryMatchResult, ()>
+pub fn match_raw<B>(bin: B, _unit: u8, size: Option<usize>) -> Result<BinaryMatchResult, ()>
 where
     B: Bitstring + MaybePartialByte,
 {

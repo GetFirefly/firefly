@@ -55,6 +55,10 @@ liblumen_crt:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_crt 
 
+liblumen_otp:
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_otp
+
 liblumen_term:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_term 

@@ -1,7 +1,7 @@
 use core::convert::TryInto;
 use core::ptr;
 
-use crate::erts::term::prelude::{Encoded, SmallInteger, Term, TypeError};
+use crate::erts::term::prelude::{Encoded, SmallInteger, Term};
 
 /// Creates a mask which can be used to extract bits from a byte
 ///
@@ -260,8 +260,8 @@ pub unsafe fn copy_bits(
 
 pub fn calculate_bit_size(
     size: Term,
-    unit: u8,
-    flags: super::builder::BinaryPushFlags,
+    _unit: u8,
+    _flags: super::builder::BinaryPushFlags,
 ) -> Result<usize, ()> {
     let tt = size.decode().unwrap();
     let small: SmallInteger = tt.try_into().map_err(|_| ())?;

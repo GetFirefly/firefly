@@ -24,11 +24,11 @@ pub extern "C" fn builtin_map_new() -> Term {
 
 #[export_name = "__lumen_builtin_map.insert"]
 pub extern "C" fn builtin_map_insert(map: Term, key: Term, value: Term) -> Term {
-    let decodedMap: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
-    if let Ok(m) = decodedMap {
-        if let Some(newMap) = m.put(key, value) {
+    let decoded_map: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
+    if let Ok(m) = decoded_map {
+        if let Some(new_map) = m.put(key, value) {
             current_process()
-                .map_from_hash_map(newMap)
+                .map_from_hash_map(new_map)
                 .unwrap_or(Term::NONE)
         } else {
             map
@@ -40,11 +40,11 @@ pub extern "C" fn builtin_map_insert(map: Term, key: Term, value: Term) -> Term 
 
 #[export_name = "__lumen_builtin_map.update"]
 pub extern "C" fn builtin_map_update(map: Term, key: Term, value: Term) -> Term {
-    let decodedMap: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
-    if let Ok(m) = decodedMap {
-        if let Some(newMap) = m.update(key, value) {
+    let decoded_map: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
+    if let Ok(m) = decoded_map {
+        if let Some(new_map) = m.update(key, value) {
             current_process()
-                .map_from_hash_map(newMap)
+                .map_from_hash_map(new_map)
                 .unwrap_or(Term::NONE)
         } else {
             // TODO: Trigger badkey error
@@ -57,15 +57,15 @@ pub extern "C" fn builtin_map_update(map: Term, key: Term, value: Term) -> Term 
 
 #[export_name = "__lumen_builtin_map.is_key"]
 pub extern "C" fn builtin_map_is_key(map: Term, key: Term) -> bool {
-    let decodedMap: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
-    let m = decodedMap.unwrap();
+    let decoded_map: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
+    let m = decoded_map.unwrap();
     m.is_key(key)
 }
 
 #[export_name = "__lumen_builtin_map.get"]
 pub extern "C" fn builtin_map_get(map: Term, key: Term) -> Term {
-    let decodedMap: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
-    let m = decodedMap.unwrap();
+    let decoded_map: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
+    let m = decoded_map.unwrap();
     m.get(key).unwrap_or(Term::NONE)
 }
 
@@ -422,20 +422,20 @@ pub extern "C" fn builtin_binary_push_string(
 
 #[export_name = "__lumen_builtin_binary_match.raw"]
 pub extern "C" fn builtin_binary_match_raw(bin: Term, unit: u8, size: Term) -> BinaryMatchResult {
-    let sizeOpt = if size.is_none() {
+    let size_opt = if size.is_none() {
         None
     } else {
-        let sizeDecoded: Result<SmallInteger, _> = size.decode().unwrap().try_into();
+        let size_decoded: Result<SmallInteger, _> = size.decode().unwrap().try_into();
         // TODO: Should throw badarg
-        let size: usize = sizeDecoded.unwrap().try_into().unwrap();
+        let size: usize = size_decoded.unwrap().try_into().unwrap();
         Some(size)
     };
     let result = match bin.decode().unwrap() {
-        TypedTerm::HeapBinary(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
-        TypedTerm::ProcBin(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
-        TypedTerm::BinaryLiteral(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
-        TypedTerm::SubBinary(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
-        TypedTerm::MatchContext(bin) => binary::matcher::match_raw(bin, unit, sizeOpt),
+        TypedTerm::HeapBinary(bin) => binary::matcher::match_raw(bin, unit, size_opt),
+        TypedTerm::ProcBin(bin) => binary::matcher::match_raw(bin, unit, size_opt),
+        TypedTerm::BinaryLiteral(bin) => binary::matcher::match_raw(bin, unit, size_opt),
+        TypedTerm::SubBinary(bin) => binary::matcher::match_raw(bin, unit, size_opt),
+        TypedTerm::MatchContext(bin) => binary::matcher::match_raw(bin, unit, size_opt),
         _ => Err(()),
     };
     result.unwrap_or_else(|_| BinaryMatchResult::failed())

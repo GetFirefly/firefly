@@ -1,10 +1,14 @@
 #include "lumen/EIR/IR/EIROps.h"
-#include "lumen/EIR/IR/EIRAttributes.h"
-#include "lumen/EIR/IR/EIRTypes.h"
+
+#include <iterator>
+#include <vector>
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SMLoc.h"
+#include "lumen/EIR/IR/EIRAttributes.h"
+#include "lumen/EIR/IR/EIRTypes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
@@ -15,12 +19,8 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
-
-#include <iterator>
-#include <vector>
 
 using namespace lumen;
 using namespace lumen::eir;
@@ -72,8 +72,7 @@ void FuncOp::build(OpBuilder &builder, OperationState &result, StringRef name,
     return;
   }
 
-  if (argAttrs.empty())
-    return;
+  if (argAttrs.empty()) return;
 
   unsigned numInputs = type.getNumInputs();
   assert(numInputs == argAttrs.size() &&
@@ -140,7 +139,7 @@ void CallIndirectOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 // eir.br
 //===----------------------------------------------------------------------===//
-  
+
 /// Given a successor, try to collapse it to a new destination if it only
 /// contains a passthrough unconditional branch. If the successor is
 /// collapsable, `successor` and `successorOperands` are updated to reference
@@ -150,22 +149,18 @@ static LogicalResult collapseBranch(Block *&successor,
                                     ValueRange &successorOperands,
                                     SmallVectorImpl<Value> &argStorage) {
   // Check that the successor only contains a unconditional branch.
-  if (std::next(successor->begin()) != successor->end())
-    return failure();
+  if (std::next(successor->begin()) != successor->end()) return failure();
   // Check that the terminator is an unconditional branch.
   BranchOp successorBranch = dyn_cast<BranchOp>(successor->getTerminator());
-  if (!successorBranch)
-    return failure();
+  if (!successorBranch) return failure();
   // Check that the arguments are only used within the terminator.
   for (BlockArgument arg : successor->getArguments()) {
     for (Operation *user : arg.getUsers())
-      if (user != successorBranch)
-        return failure();
+      if (user != successorBranch) return failure();
   }
   // Don't try to collapse branches to infinite loops.
   Block *successorDest = successorBranch.getDest();
-  if (successorDest == successor)
-    return failure();
+  if (successorDest == successor) return failure();
 
   // Update the operands to the successor. If the branch parent has no
   // arguments, we can use the branch operands directly.
@@ -238,18 +233,17 @@ struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
-  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(context);
+  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(
+      context);
 }
 
-  
-Optional<MutableOperandRange>
-BranchOp::getMutableSuccessorOperands(unsigned index) {
+Optional<MutableOperandRange> BranchOp::getMutableSuccessorOperands(
+    unsigned index) {
   assert(index == 0 && "invalid successor index");
   return destOperandsMutable();
 }
 
 Block *BranchOp::getSuccessorForOperands(ArrayRef<Attribute>) { return dest(); }
-
 
 //===----------------------------------------------------------------------===//
 // eir.cond_br
@@ -279,7 +273,6 @@ struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
   }
 };
 
-  
 ///   cond_br %cond, ^bb1, ^bb2
 /// ^bb1
 ///   br ^bbN(...)
@@ -303,8 +296,7 @@ struct SimplifyPassThroughCondBranch : public OpRewritePattern<CondBranchOp> {
         collapseBranch(trueDest, trueDestOperands, trueDestOperandStorage);
     LogicalResult collapsedFalse =
         collapseBranch(falseDest, falseDestOperands, falseDestOperandStorage);
-    if (failed(collapsedTrue) && failed(collapsedFalse))
-      return failure();
+    if (failed(collapsedTrue) && failed(collapsedFalse)) return failure();
 
     // Create a new branch with the collapsed successors.
     rewriter.replaceOpWithNewOp<CondBranchOp>(condbr, condbr.getCondition(),
@@ -330,8 +322,7 @@ struct SimplifyCondBranchIdenticalSuccessors
     // Check that the true and false destinations are the same and have the same
     // operands.
     Block *trueDest = condbr.trueDest();
-    if (trueDest != condbr.falseDest())
-      return failure();
+    if (trueDest != condbr.falseDest()) return failure();
 
     // If all of the operands match, no selects need to be generated.
     OperandRange trueOperands = condbr.getTrueOperands();
@@ -370,8 +361,8 @@ void CondBranchOp::getCanonicalizationPatterns(
                  SimplifyCondBranchIdenticalSuccessors>(context);
 }
 
-Optional<MutableOperandRange>
-CondBranchOp::getMutableSuccessorOperands(unsigned index) {
+Optional<MutableOperandRange> CondBranchOp::getMutableSuccessorOperands(
+    unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
   return index == trueIndex ? trueDestOperandsMutable()
                             : falseDestOperandsMutable();
@@ -382,8 +373,6 @@ Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
     return condAttr.getValue().isOneValue() ? trueDest() : falseDest();
   return nullptr;
 }
-
-
 
 //===----------------------------------------------------------------------===//
 // eir.return
@@ -669,7 +658,8 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
             builder.create<IsTypeOp>(branchLoc, selectorArg, mapType);
         auto isMapCond = isMapOp.getResult();
         auto ifOp = builder.create<CondBranchOp>(
-            branchLoc, isMapCond, split, ArrayRef<Value>{}, nextPatternBlock, withSelectorArgs);
+            branchLoc, isMapCond, split, ArrayRef<Value>{}, nextPatternBlock,
+            withSelectorArgs);
         // 2. In the split, call runtime function `is_map_key` to confirm
         // existence of the key in the map,
         //    then conditionally branch to the second split if successful,
@@ -683,7 +673,8 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         // 3. In the second split, call runtime function `map_get` to obtain the
         // value for the key
         builder.setInsertionPointToEnd(split2);
-        auto mapGetOp = builder.create<MapGetKeyOp>(branchLoc, selectorArg, key);
+        auto mapGetOp =
+            builder.create<MapGetKeyOp>(branchLoc, selectorArg, key);
         auto valueTerm = mapGetOp.getResult();
         // 4. Unconditionally branch to the destination, with the key's value as
         // an additional destArg
@@ -745,36 +736,43 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
             bool isSigned = payload.isSigned;
             auto endianness = payload.endianness;
             auto unit = payload.unit;
-            op = builder.create<BinaryMatchIntegerOp>(branchLoc, selectorArg, isSigned, endianness, unit, size);
+            op = builder.create<BinaryMatchIntegerOp>(
+                branchLoc, selectorArg, isSigned, endianness, unit, size);
             break;
           }
           case BinarySpecifierType::Utf8: {
-            op = builder.create<BinaryMatchUtf8Op>(branchLoc, selectorArg, size);
+            op =
+                builder.create<BinaryMatchUtf8Op>(branchLoc, selectorArg, size);
             break;
           }
           case BinarySpecifierType::Utf16: {
             auto endianness = spec.payload.es.endianness;
-            op = builder.create<BinaryMatchUtf16Op>(branchLoc, selectorArg, endianness, size);
+            op = builder.create<BinaryMatchUtf16Op>(branchLoc, selectorArg,
+                                                    endianness, size);
             break;
           }
           case BinarySpecifierType::Utf32: {
             auto endianness = spec.payload.es.endianness;
-            op = builder.create<BinaryMatchUtf32Op>(branchLoc, selectorArg, endianness, size);
+            op = builder.create<BinaryMatchUtf32Op>(branchLoc, selectorArg,
+                                                    endianness, size);
             break;
           }
           case BinarySpecifierType::Float: {
             auto payload = spec.payload.f;
-            op = builder.create<BinaryMatchFloatOp>(branchLoc, selectorArg, payload.endianness, payload.unit, size);
+            op = builder.create<BinaryMatchFloatOp>(
+                branchLoc, selectorArg, payload.endianness, payload.unit, size);
             break;
           }
           case BinarySpecifierType::Bytes:
           case BinarySpecifierType::Bits: {
             auto payload = spec.payload.us;
-            op = builder.create<BinaryMatchRawOp>(branchLoc, selectorArg, payload.unit, size);
+            op = builder.create<BinaryMatchRawOp>(branchLoc, selectorArg,
+                                                  payload.unit, size);
             break;
           }
           default:
-            llvm::outs() << "binary match type: " << ((unsigned)spec.tag) << "\n";
+            llvm::outs() << "binary match type: " << ((unsigned)spec.tag)
+                         << "\n";
             llvm::report_fatal_error("unknown binary match type");
         }
         Value matched = op->getResult(0);
@@ -784,7 +782,8 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
                                        baseDestArgs.end());
         destArgs.push_back(matched);
         destArgs.push_back(rest);
-        builder.create<CondBranchOp>(branchLoc, success, dest, destArgs, nextPatternBlock, withSelectorArgs);
+        builder.create<CondBranchOp>(branchLoc, success, dest, destArgs,
+                                     nextPatternBlock, withSelectorArgs);
         break;
       }
 
@@ -937,12 +936,11 @@ int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {
 //===----------------------------------------------------------------------===//
 // eir.invoke
 //===----------------------------------------------------------------------===//
-    
-Optional<MutableOperandRange>
-InvokeOp::getMutableSuccessorOperands(unsigned index) {
+
+Optional<MutableOperandRange> InvokeOp::getMutableSuccessorOperands(
+    unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
-  return index == okIndex ? okDestOperandsMutable()
-                            : errDestOperandsMutable();
+  return index == okIndex ? okDestOperandsMutable() : errDestOperandsMutable();
 }
 
 Block *InvokeOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
@@ -950,16 +948,15 @@ Block *InvokeOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
     return condAttr.getValue().isOneValue() ? okDest() : errDest();
   return nullptr;
 }
- 
+
 //===----------------------------------------------------------------------===//
 // eir.invoke_closure
 //===----------------------------------------------------------------------===//
-   
-Optional<MutableOperandRange>
-InvokeClosureOp::getMutableSuccessorOperands(unsigned index) {
+
+Optional<MutableOperandRange> InvokeClosureOp::getMutableSuccessorOperands(
+    unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
-  return index == okIndex ? okDestOperandsMutable()
-                            : errDestOperandsMutable();
+  return index == okIndex ? okDestOperandsMutable() : errDestOperandsMutable();
 }
 
 Block *InvokeClosureOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
@@ -971,9 +968,9 @@ Block *InvokeClosureOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // eir.yield.check
 //===----------------------------------------------------------------------===//
-  
-Optional<MutableOperandRange>
-YieldCheckOp::getMutableSuccessorOperands(unsigned index) {
+
+Optional<MutableOperandRange> YieldCheckOp::getMutableSuccessorOperands(
+    unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
   return index == trueIndex ? trueDestOperandsMutable()
                             : falseDestOperandsMutable();

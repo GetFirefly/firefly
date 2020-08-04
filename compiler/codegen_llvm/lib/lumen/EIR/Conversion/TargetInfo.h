@@ -97,7 +97,9 @@ class TargetInfo {
   mlir::LLVM::LLVMType getI32Type();
   mlir::LLVM::LLVMType getOpaqueFnType();
 
-  mlir::LLVM::LLVMType getBinaryPushResultType() { return impl->binPushResultTy; }
+  mlir::LLVM::LLVMType getBinaryPushResultType() {
+    return impl->binPushResultTy;
+  }
 
   mlir::LLVM::LLVMType getMatchResultType() { return impl->matchResultTy; }
 

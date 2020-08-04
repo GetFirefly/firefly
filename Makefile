@@ -93,7 +93,7 @@ format-rust: ## Format Rust code
 	cargo fmt
 
 format-cpp: ## Format C++ code
-	find compiler/codegen/lib/{tools,lumen} \
+	find compiler/codegen_llvm/lib/{lumen-tblgen,lumen} \
 		-type f \( -name '*.cpp' -or -name '*.h' \) \
 		-print0 | xargs -0 clang-format -i --verbose
 

@@ -13,8 +13,8 @@ class MLIRContext;
 class Type;
 }  // namespace mlir
 
-using ::llvm::APInt;
 using ::llvm::APFloat;
+using ::llvm::APInt;
 using ::llvm::ArrayRef;
 using ::llvm::StringRef;
 using ::mlir::Attribute;
@@ -62,7 +62,7 @@ class AtomAttr : public Attribute::AttrBase<AtomAttr, Attribute,
 };
 
 class APIntAttr : public Attribute::AttrBase<APIntAttr, Attribute,
-                                            detail::APIntAttributeStorage> {
+                                             detail::APIntAttributeStorage> {
  public:
   using Base::Base;
   using ValueType = APInt;
@@ -83,8 +83,9 @@ class APIntAttr : public Attribute::AttrBase<APIntAttr, Attribute,
   }
 };
 
-class APFloatAttr : public Attribute::AttrBase<APFloatAttr, Attribute,
-                                            detail::APFloatAttributeStorage> {
+class APFloatAttr
+    : public Attribute::AttrBase<APFloatAttr, Attribute,
+                                 detail::APFloatAttributeStorage> {
  public:
   using Base::Base;
   using ValueType = APFloat;

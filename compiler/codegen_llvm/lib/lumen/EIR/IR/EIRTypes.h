@@ -1,12 +1,13 @@
 #ifndef EIR_TYPES_H
 #define EIR_TYPES_H
 
-#include "lumen/EIR/IR/EIREnums.h"
+#include <vector>
 
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/raw_ostream.h"
+#include "lumen/EIR/IR/EIREnums.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/StandardTypes.h"
@@ -14,8 +15,6 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
-
-#include <vector>
 
 using ::llvm::ArrayRef;
 using ::llvm::Optional;
@@ -151,11 +150,11 @@ class OpaqueTermType : public Type {
   }
 
   Optional<int64_t> getSizeInBytes() {
-      auto implKind = getImplKind();
-      if (isImmediate(implKind)) {
-          return 8;
-      }
-      return llvm::None;
+    auto implKind = getImplKind();
+    if (isImmediate(implKind)) {
+      return 8;
+    }
+    return llvm::None;
   }
 
  private:
@@ -232,14 +231,15 @@ class OpaqueTermType : public Type {
   static bool isBox(unsigned implKind) { return implKind == TypeKind::Box; }
 };
 
-#define PrimitiveType(TYPE, KIND)                                  \
-  class TYPE : public mlir::Type::TypeBase<TYPE, OpaqueTermType, mlir::TypeStorage> { \
-   public:                                                         \
-    using Base::Base;                                              \
-    static TYPE get(mlir::MLIRContext *context) {                  \
-      return Base::get(context, KIND);                             \
-    }                                                              \
-    static bool kindof(unsigned kind) { return kind == KIND; }     \
+#define PrimitiveType(TYPE, KIND)                                              \
+  class TYPE                                                                   \
+      : public mlir::Type::TypeBase<TYPE, OpaqueTermType, mlir::TypeStorage> { \
+   public:                                                                     \
+    using Base::Base;                                                          \
+    static TYPE get(mlir::MLIRContext *context) {                              \
+      return Base::get(context, KIND);                                         \
+    }                                                                          \
+    static bool kindof(unsigned kind) { return kind == KIND; }                 \
   }
 
 PrimitiveType(NoneType, TypeKind::None);
@@ -357,7 +357,8 @@ class PtrType : public Type::TypeBase<PtrType, Type, detail::PtrTypeStorage> {
 };
 
 /// Used to represent the opaque handle for a receive construct
-class ReceiveRefType : public Type::TypeBase<ReceiveRefType, Type, mlir::TypeStorage> {
+class ReceiveRefType
+    : public Type::TypeBase<ReceiveRefType, Type, mlir::TypeStorage> {
  public:
   using Base::Base;
 

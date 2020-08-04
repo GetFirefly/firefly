@@ -61,7 +61,8 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
       rewriter.setInsertionPointToEnd(entry);
 
       const uint32_t MAX_REDUCTIONS = 20;  // TODO: Move this up in the compiler
-      Value maxReductions = llvm_constant(i32Ty, ctx.getI32Attr(MAX_REDUCTIONS));
+      Value maxReductions =
+          llvm_constant(i32Ty, ctx.getI32Attr(MAX_REDUCTIONS));
       rewriter.create<YieldCheckOp>(op.getLoc(), maxReductions, doYield,
                                     ValueRange{}, dontYield, ValueRange{});
       // Then insert the actual yield point in the yield block
@@ -114,9 +115,11 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     if (auto tgt = dyn_cast_or_null<LLVM::LLVMFuncOp>(target))
       targetType = tgt.getType();
     else if (auto tgt = dyn_cast_or_null<mlir::FuncOp>(target))
-      targetType = ctx.typeConverter.convertType(tgt.getType()).cast<LLVM::LLVMType>();
+      targetType =
+          ctx.typeConverter.convertType(tgt.getType()).cast<LLVM::LLVMType>();
     else
-      targetType = ctx.typeConverter.convertType(cast<FuncOp>(target).getType()).cast<LLVM::LLVMType>();
+      targetType = ctx.typeConverter.convertType(cast<FuncOp>(target).getType())
+                       .cast<LLVM::LLVMType>();
 
     auto envLen = op.envLen();
     LLVMType opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
@@ -128,8 +131,10 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     // Allocate closure header block
     auto boxedClosureTy = BoxType::get(rewriter.getType<ClosureType>());
     auto headerArity = ctx.targetInfo.closureHeaderArity(envLen);
-    Value headerArityConst = llvm_constant(termTy, ctx.getIntegerAttr(headerArity));
-    auto mallocOp = rewriter.create<MallocOp>(loc, boxedClosureTy, headerArityConst);
+    Value headerArityConst =
+        llvm_constant(termTy, ctx.getIntegerAttr(headerArity));
+    auto mallocOp =
+        rewriter.create<MallocOp>(loc, boxedClosureTy, headerArityConst);
     auto valRef = mallocOp.getResult();
 
     // Calculate pointers to each field in the header and write the
@@ -137,7 +142,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
 
     // Header term
-    auto closureHeader = ctx.targetInfo.encodeHeader(TypeKind::Closure, headerArity);
+    auto closureHeader =
+        ctx.targetInfo.encodeHeader(TypeKind::Closure, headerArity);
     Value header = llvm_constant(
         termTy, ctx.getIntegerAttr(closureHeader.getLimitedValue()));
     Value headerIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
@@ -200,7 +206,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     LLVMType opaqueFnPtrTy = opaqueFnTy.getPointerTo();
     Value codePtrGep =
         llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef, codeIndices);
-    Value codePtr = llvm_addressof(targetType.getPointerTo(), callee.getValue());
+    Value codePtr =
+        llvm_addressof(targetType.getPointerTo(), callee.getValue());
     llvm_store(llvm_bitcast(opaqueFnPtrTy, codePtr), codePtrGep);
 
     auto opOperands = adaptor.operands();

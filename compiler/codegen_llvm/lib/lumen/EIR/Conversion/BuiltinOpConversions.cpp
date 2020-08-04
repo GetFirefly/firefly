@@ -127,8 +127,7 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
     auto ty = ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
 
     if (innerTy.hasDynamicExtent()) {
-      Value allocPtr =
-          ctx.buildMalloc(ty, innerTy.getKind(), adaptor.arity());
+      Value allocPtr = ctx.buildMalloc(ty, innerTy.getKind(), adaptor.arity());
       rewriter.replaceOp(op, allocPtr);
     } else {
       Value zero = llvm_constant(ctx.getUsizeType(), ctx.getIntegerAttr(0));

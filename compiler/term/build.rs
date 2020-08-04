@@ -65,9 +65,7 @@ fn main() {
 
 fn tblgen(args: &[String]) {
     use std::io;
-    let result = Command::new("lumen-tblgen")
-        .args(args)
-        .output();
+    let result = Command::new("lumen-tblgen").args(args).output();
     match result {
         Ok(output) => {
             if output.status.success() {
@@ -79,7 +77,7 @@ fn tblgen(args: &[String]) {
             String::from_utf8(output.stderr)
                 .map(|s| println!("{}", s.trim_end()))
                 .unwrap();
-        },
+        }
         Err(e) => fail(&format!("command failed: {}", e)),
     }
 }

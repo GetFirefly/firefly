@@ -1,21 +1,23 @@
-#include "lumen/llvm/Target.h"
-#include "lumen/mlir/MLIR.h"
 #include "lumen/EIR/Conversion/Passes.h"
-#include "lumen/EIR/Conversion/ConvertEIRToLLVM.h"
-#include "lumen/EIR/IR/EIROps.h"
+
+#include <memory>
 
 #include "llvm/Target/TargetMachine.h"
+#include "lumen/EIR/Conversion/ConvertEIRToLLVM.h"
+#include "lumen/EIR/IR/EIROps.h"
+#include "lumen/llvm/Target.h"
+#include "lumen/mlir/MLIR.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/Passes.h"
 
-#include <memory>
-
+using ::llvm::TargetMachine;
+using ::llvm::unwrap;
 using ::lumen::CodeGenOptLevel;
 using ::lumen::OptLevel;
 using ::mlir::MLIRContext;
@@ -23,9 +25,6 @@ using ::mlir::ModuleOp;
 using ::mlir::OpPassManager;
 using ::mlir::OwningModuleRef;
 using ::mlir::PassManager;
-using ::llvm::TargetMachine;
-using ::llvm::unwrap;
-
 
 namespace lumen {
 namespace eir {

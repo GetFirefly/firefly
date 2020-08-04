@@ -252,7 +252,8 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
     auto loc = op.getLoc();
 
     Block *landingPadBlock = rewriter.getBlock();
-    Block *canHandleBlock = rewriter.splitBlock(landingPadBlock, Block::iterator(op.getOperation()));
+    Block *canHandleBlock = rewriter.splitBlock(
+        landingPadBlock, Block::iterator(op.getOperation()));
 
     // { i8*, i32 }
     //
@@ -280,7 +281,8 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
     // Extract the exception object (a pointer to the raw exception object)
     Value exPtr = llvm_extractvalue(i8PtrTy, obj, ctx.getI64ArrayAttr(0));
 
-    auto canHandleBrOp = rewriter.create<LLVM::BrOp>(loc, ValueRange{}, canHandleBlock);
+    auto canHandleBrOp =
+        rewriter.create<LLVM::BrOp>(loc, ValueRange{}, canHandleBlock);
 
     // If we can, then extract the error value from the exception
     rewriter.setInsertionPointToStart(canHandleBlock);
@@ -467,7 +469,8 @@ struct ReceiveStartOpConversion : public EIROpConversion<ReceiveStartOp> {
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
     Value timeout = adaptor.timeout();
-    auto startOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, recvRefTy, ArrayRef<Value>{timeout});
+    auto startOp = rewriter.create<mlir::CallOp>(
+        op.getLoc(), calleeSymbol, recvRefTy, ArrayRef<Value>{timeout});
 
     rewriter.replaceOp(op, {startOp.getResult(0)});
     return success();
@@ -495,7 +498,7 @@ struct ReceiveWaitOpConversion : public EIROpConversion<ReceiveWaitOp> {
     return success();
   }
 };
- 
+
 struct ReceiveMessageOpConversion : public EIROpConversion<ReceiveMessageOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -537,11 +540,12 @@ struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
     Value recvRef = adaptor.recvRef();
-    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, ArrayRef<Type>{}, ArrayRef<Value>{recvRef});
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(
+        op, calleeSymbol, ArrayRef<Type>{}, ArrayRef<Value>{recvRef});
     return success();
   }
 };
- 
+
 void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
                                              MLIRContext *context,
                                              LLVMTypeConverter &converter,
@@ -551,9 +555,9 @@ void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
       /*CallIndirectOpConversion,*/ CallOpConversion, CallClosureOpConversion,
       InvokeOpConversion, InvokeClosureOpConversion, LandingPadOpConversion,
       ReturnOpConversion, ThrowOpConversion, UnreachableOpConversion,
-      YieldOpConversion, YieldCheckOpConversion,
-      ReceiveStartOpConversion, ReceiveWaitOpConversion,
-      ReceiveMessageOpConversion, ReceiveDoneOpConversion>(context, converter, targetInfo);
+      YieldOpConversion, YieldCheckOpConversion, ReceiveStartOpConversion,
+      ReceiveWaitOpConversion, ReceiveMessageOpConversion,
+      ReceiveDoneOpConversion>(context, converter, targetInfo);
 }
 
 }  // namespace eir

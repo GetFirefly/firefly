@@ -19,7 +19,8 @@ struct ConstructMapOpConversion : public EIROpConversion<ConstructMapOp> {
 
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
-    auto newMapOp = rewriter.create<mlir::CallOp>(loc, calleeSymbol, termTy, ArrayRef<Value>{});
+    auto newMapOp = rewriter.create<mlir::CallOp>(loc, calleeSymbol, termTy,
+                                                  ArrayRef<Value>{});
     Value newMap = newMapOp.getResult(0);
 
     auto numElements = operands.size();
@@ -32,15 +33,17 @@ struct ConstructMapOpConversion : public EIROpConversion<ConstructMapOp> {
     assert(numElements % 2 == 0 && "expected an even number of elements");
 
     StringRef insertSymbolName("__lumen_builtin_map.insert");
-    auto insertCallee = ctx.getOrInsertFunction(insertSymbolName, termTy, {termTy, termTy});
+    auto insertCallee =
+        ctx.getOrInsertFunction(insertSymbolName, termTy, {termTy, termTy});
     auto insertCalleeSymbol =
-      FlatSymbolRefAttr::get(insertSymbolName, insertCallee->getContext());
+        FlatSymbolRefAttr::get(insertSymbolName, insertCallee->getContext());
 
     for (unsigned i = 0; i < numElements; i++) {
       Value key = operands[i];
       Value val = operands[++i];
 
-      auto insertMapOp = rewriter.create<mlir::CallOp>(loc, insertCalleeSymbol, termTy, ArrayRef<Value>{newMap, key, val});
+      auto insertMapOp = rewriter.create<mlir::CallOp>(
+          loc, insertCalleeSymbol, termTy, ArrayRef<Value>{newMap, key, val});
       newMap = insertMapOp.getResult(0);
     }
 
@@ -61,16 +64,20 @@ struct MapInsertOpConversion : public EIROpConversion<MapInsertOp> {
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_map.insert");
-    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy, termTy, termTy});
+    auto callee =
+        ctx.getOrInsertFunction(symbolName, termTy, {termTy, termTy, termTy});
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
     Value map = adaptor.map();
     Value key = adaptor.key();
     Value value = adaptor.val();
-    auto newMapOp = rewriter.create<mlir::CallOp>(loc, calleeSymbol, termTy, ArrayRef<Value>{map, key, value});
+    auto newMapOp = rewriter.create<mlir::CallOp>(
+        loc, calleeSymbol, termTy, ArrayRef<Value>{map, key, value});
     Value newMap = newMapOp.getResult(0);
-    Value noneVal = llvm_constant(termTy, ctx.getIntegerAttr(ctx.targetInfo.getNoneValue().getLimitedValue()));
+    Value noneVal = llvm_constant(
+        termTy,
+        ctx.getIntegerAttr(ctx.targetInfo.getNoneValue().getLimitedValue()));
     Value isOk = llvm_icmp(LLVM::ICmpPredicate::ne, newMap, noneVal);
 
     rewriter.replaceOp(op, {newMap, isOk});
@@ -90,16 +97,20 @@ struct MapUpdateOpConversion : public EIROpConversion<MapUpdateOp> {
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_map.update");
-    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy, termTy, termTy});
+    auto callee =
+        ctx.getOrInsertFunction(symbolName, termTy, {termTy, termTy, termTy});
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
     Value map = adaptor.map();
     Value key = adaptor.key();
     Value value = adaptor.val();
-    auto newMapOp = rewriter.create<mlir::CallOp>(loc, calleeSymbol, termTy, ArrayRef<Value>{map, key, value});
+    auto newMapOp = rewriter.create<mlir::CallOp>(
+        loc, calleeSymbol, termTy, ArrayRef<Value>{map, key, value});
     Value newMap = newMapOp.getResult(0);
-    Value noneVal = llvm_constant(termTy, ctx.getIntegerAttr(ctx.targetInfo.getNoneValue().getLimitedValue()));
+    Value noneVal = llvm_constant(
+        termTy,
+        ctx.getIntegerAttr(ctx.targetInfo.getNoneValue().getLimitedValue()));
     Value isOk = llvm_icmp(LLVM::ICmpPredicate::ne, newMap, noneVal);
 
     rewriter.replaceOp(op, {newMap, isOk});
@@ -125,7 +136,8 @@ struct MapIsKeyOpConversion : public EIROpConversion<MapIsKeyOp> {
 
     Value map = adaptor.map();
     Value key = adaptor.key();
-    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, i1Ty, ArrayRef<Value>{map, key});
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, i1Ty,
+                                              ArrayRef<Value>{map, key});
     return success();
   }
 };
@@ -147,7 +159,8 @@ struct MapGetKeyOpConversion : public EIROpConversion<MapGetKeyOp> {
 
     Value map = adaptor.map();
     Value key = adaptor.key();
-    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy, ArrayRef<Value>{map, key});
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
+                                              ArrayRef<Value>{map, key});
     return success();
   }
 };
@@ -156,10 +169,8 @@ void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,
                                      LLVMTypeConverter &converter,
                                      TargetInfo &targetInfo) {
-  patterns.insert<ConstructMapOpConversion,
-                  MapInsertOpConversion,
-                  MapUpdateOpConversion,
-                  MapIsKeyOpConversion,
+  patterns.insert<ConstructMapOpConversion, MapInsertOpConversion,
+                  MapUpdateOpConversion, MapIsKeyOpConversion,
                   MapGetKeyOpConversion>(context, converter, targetInfo);
 }
 

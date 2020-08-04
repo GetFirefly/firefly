@@ -88,38 +88,45 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         if (sizeOpt != nullptr) {
           StringRef symbolName("__lumen_builtin_binary_push_binary");
           // __lumen_builtin_binary_push_binary(bin, value, size, unit)
-          auto callee = ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy, termTy, i8Ty});
+          auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
+                                                {termTy, termTy, termTy, i8Ty});
           auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+              FlatSymbolRefAttr::get(symbolName, callee->getContext());
           ArrayRef<Value> args({bin, value, size, unitVal});
-          pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, pushTy, args);
+          pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                                 pushTy, args);
         } else {
           StringRef symbolName("__lumen_builtin_binary_push_binary_all");
           // __lumen_builtin_binary_push_binary_all(bin, value, unit)
-          auto callee = ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy, i8Ty});
+          auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
+                                                {termTy, termTy, i8Ty});
           auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+              FlatSymbolRefAttr::get(symbolName, callee->getContext());
           ArrayRef<Value> args({bin, value, unitVal});
-          pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, pushTy, args);
+          pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                                 pushTy, args);
         }
         break;
       }
       case BinarySpecifierType::Utf8: {
         StringRef symbolName("__lumen_builtin_binary_push_utf8");
         // __lumen_builtin_binary_push_utf8(bin, value)
-        auto callee = ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy});
+        auto callee =
+            ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy});
         auto calleeSymbol =
-          FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            FlatSymbolRefAttr::get(symbolName, callee->getContext());
         ArrayRef<Value> args({bin, value});
-        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, pushTy, args);
+        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                               pushTy, args);
         break;
       }
       case BinarySpecifierType::Utf16: {
         StringRef symbolName("__lumen_builtin_binary_push_utf16");
         // __lumen_builtin_binary_push_utf16(bin, value, signed, endianness)
-        auto callee = ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy, i1Ty, i32Ty});
+        auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
+                                              {termTy, termTy, i1Ty, i32Ty});
         auto calleeSymbol =
-          FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            FlatSymbolRefAttr::get(symbolName, callee->getContext());
         endianness = static_cast<Endianness::Type>(
             op.getAttrOfType<IntegerAttr>("endianness")
                 .getValue()
@@ -128,15 +135,18 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
         Value endiannessVal = llvm_constant(i32Ty, ctx.getI32Attr(endianness));
         ArrayRef<Value> args({bin, value, signedVal, endiannessVal});
-        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, pushTy, args);
+        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                               pushTy, args);
         break;
       }
       case BinarySpecifierType::Utf32: {
         StringRef symbolName("__lumen_builtin_binary_push_utf32");
-        // __lumen_builtin_binary_push_utf32(bin, value, size, unit, signed, endianness)
-        auto callee = ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
+        // __lumen_builtin_binary_push_utf32(bin, value, size, unit, signed,
+        // endianness)
+        auto callee = ctx.getOrInsertFunction(
+            symbolName, pushTy, {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
         auto calleeSymbol =
-          FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            FlatSymbolRefAttr::get(symbolName, callee->getContext());
         unit = static_cast<unsigned>(
             op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
         endianness = static_cast<Endianness::Type>(
@@ -147,16 +157,20 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
         Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
         Value endiannessVal = llvm_constant(i32Ty, ctx.getI32Attr(endianness));
-        ArrayRef<Value> args({bin, value, size, unitVal, signedVal, endiannessVal});
-        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, pushTy, args);
+        ArrayRef<Value> args(
+            {bin, value, size, unitVal, signedVal, endiannessVal});
+        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                               pushTy, args);
         break;
       }
       case BinarySpecifierType::Integer: {
         StringRef symbolName("__lumen_builtin_binary_push_integer");
-        // __lumen_builtin_binary_push_integer(bin, value, size, unit, signed, endianness)
-        auto callee = ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
+        // __lumen_builtin_binary_push_integer(bin, value, size, unit, signed,
+        // endianness)
+        auto callee = ctx.getOrInsertFunction(
+            symbolName, pushTy, {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
         auto calleeSymbol =
-          FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            FlatSymbolRefAttr::get(symbolName, callee->getContext());
         unit = static_cast<unsigned>(
             op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
         endianness = static_cast<Endianness::Type>(
@@ -167,16 +181,20 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
         Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
         Value endiannessVal = llvm_constant(i32Ty, ctx.getI32Attr(endianness));
-        ArrayRef<Value> args({bin, value, size, unitVal, signedVal, endiannessVal});
-        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, pushTy, args);
+        ArrayRef<Value> args(
+            {bin, value, size, unitVal, signedVal, endiannessVal});
+        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                               pushTy, args);
         break;
       }
       case BinarySpecifierType::Float: {
         StringRef symbolName("__lumen_builtin_binary_push_float");
-        // __lumen_builtin_binary_push_float(bin, value, size, unit, signed, endianness)
-        auto callee = ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
+        // __lumen_builtin_binary_push_float(bin, value, size, unit, signed,
+        // endianness)
+        auto callee = ctx.getOrInsertFunction(
+            symbolName, pushTy, {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
         auto calleeSymbol =
-          FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            FlatSymbolRefAttr::get(symbolName, callee->getContext());
         unit = static_cast<unsigned>(
             op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
         endianness = static_cast<Endianness::Type>(
@@ -187,8 +205,10 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
         Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
         Value endiannessVal = llvm_constant(i32Ty, ctx.getI32Attr(endianness));
-        ArrayRef<Value> args({bin, value, size, unitVal, signedVal, endiannessVal});
-        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, pushTy, args);
+        ArrayRef<Value> args(
+            {bin, value, size, unitVal, signedVal, endiannessVal});
+        pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                               pushTy, args);
         break;
       }
       default:
@@ -249,22 +269,28 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
     // Handle optional size parameter, using a none val to represent no size
     Value size;
     if (numOpArgs > 0) {
-      assert(numOpArgs == 1 && "unexpected extra arguments to binary_match.raw");
+      assert(numOpArgs == 1 &&
+             "unexpected extra arguments to binary_match.raw");
       size = opArgs.front();
     } else {
-      size = llvm_constant(termTy, ctx.getIntegerAttr(ctx.targetInfo.getNoneValue().getLimitedValue()));
+      size = llvm_constant(
+          termTy,
+          ctx.getIntegerAttr(ctx.targetInfo.getNoneValue().getLimitedValue()));
     }
 
     SmallVector<Value, 5> args;
     args.push_back(bin);
     addExtraArgValues(op, ctx, args);
     args.push_back(size);
-    assert(args.size() == argTypes.size() && "mismatched parameter types and values in match op");
+    assert(args.size() == argTypes.size() &&
+           "mismatched parameter types and values in match op");
 
     // Call the match function
-    auto matchOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, matchResultTy, args);
+    auto matchOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                                 matchResultTy, args);
 
-    // Obtain the result values from the match result structure and map them to the op outputs
+    // Obtain the result values from the match result structure and map them to
+    // the op outputs
     Value result = matchOp.getResult(0);
     Value matched = llvm_extractvalue(termTy, result, ctx.getI64ArrayAttr(0));
     Value tail = llvm_extractvalue(termTy, result, ctx.getI64ArrayAttr(1));
@@ -275,8 +301,14 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
   }
 
  protected:
-  virtual void addExtraArgTypes(RewritePatternContext<Op> &ctx, SmallVectorImpl<LLVMType> &types) const { return; };
-  virtual void addExtraArgValues(Op &op, RewritePatternContext<Op> &ctx, SmallVectorImpl<Value> &args) const { return; };
+  virtual void addExtraArgTypes(RewritePatternContext<Op> &ctx,
+                                SmallVectorImpl<LLVMType> &types) const {
+    return;
+  };
+  virtual void addExtraArgValues(Op &op, RewritePatternContext<Op> &ctx,
+                                 SmallVectorImpl<Value> &args) const {
+    return;
+  };
 
  private:
   using EIROpConversion<Op>::getRewriteContext;
@@ -285,97 +317,129 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
 };
 
 struct BinaryMatchRawOpConversion
-    : public BinaryMatchOpConversion<BinaryMatchRawOp, BinaryMatchRawOpAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchRawOp,
+                                     BinaryMatchRawOpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
-    void addExtraArgTypes(RewritePatternContext<BinaryMatchRawOp> &ctx, SmallVectorImpl<LLVMType> &types) const override {
-      types.push_back(ctx.getI8Type());
-    }
+  void addExtraArgTypes(RewritePatternContext<BinaryMatchRawOp> &ctx,
+                        SmallVectorImpl<LLVMType> &types) const override {
+    types.push_back(ctx.getI8Type());
+  }
 
-    void addExtraArgValues(BinaryMatchRawOp &op, RewritePatternContext<BinaryMatchRawOp> &ctx, SmallVectorImpl<Value> &args) const override {
-      auto i8Ty = ctx.getI8Type();
-      Value unit = llvm_constant(i8Ty, ctx.getIntegerAttr(op.unitAttr().getValue().getLimitedValue()));
-      args.push_back(unit);
-    }
+  void addExtraArgValues(BinaryMatchRawOp &op,
+                         RewritePatternContext<BinaryMatchRawOp> &ctx,
+                         SmallVectorImpl<Value> &args) const override {
+    auto i8Ty = ctx.getI8Type();
+    Value unit = llvm_constant(
+        i8Ty, ctx.getIntegerAttr(op.unitAttr().getValue().getLimitedValue()));
+    args.push_back(unit);
+  }
 };
 
 struct BinaryMatchIntegerOpConversion
-    : public BinaryMatchOpConversion<BinaryMatchIntegerOp, BinaryMatchIntegerOpAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchIntegerOp,
+                                     BinaryMatchIntegerOpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
-    void addExtraArgTypes(RewritePatternContext<BinaryMatchIntegerOp> &ctx, SmallVectorImpl<LLVMType> &types) const override {
-      types.push_back(ctx.getI1Type());
-      types.push_back(ctx.getUsizeType());
-      types.push_back(ctx.getI8Type());
-    }
+  void addExtraArgTypes(RewritePatternContext<BinaryMatchIntegerOp> &ctx,
+                        SmallVectorImpl<LLVMType> &types) const override {
+    types.push_back(ctx.getI1Type());
+    types.push_back(ctx.getUsizeType());
+    types.push_back(ctx.getI8Type());
+  }
 
-    void addExtraArgValues(BinaryMatchIntegerOp &op, RewritePatternContext<BinaryMatchIntegerOp> &ctx, SmallVectorImpl<Value> &args) const override {
-      auto i1Ty = ctx.getI1Type();
-      auto i8Ty = ctx.getI8Type();
-      auto usizeTy = ctx.getUsizeType();
-      Value isSigned = llvm_constant(i1Ty, ctx.getIntegerAttr(op.isSignedAttr().getValue()));
-      Value endianness = llvm_constant(usizeTy, ctx.getIntegerAttr(op.endiannessAttr().getValue().getLimitedValue()));
-      Value unit = llvm_constant(i8Ty, ctx.getIntegerAttr(op.unitAttr().getValue().getLimitedValue()));
-      args.push_back(isSigned);
-      args.push_back(endianness);
-      args.push_back(unit);
-    }
+  void addExtraArgValues(BinaryMatchIntegerOp &op,
+                         RewritePatternContext<BinaryMatchIntegerOp> &ctx,
+                         SmallVectorImpl<Value> &args) const override {
+    auto i1Ty = ctx.getI1Type();
+    auto i8Ty = ctx.getI8Type();
+    auto usizeTy = ctx.getUsizeType();
+    Value isSigned =
+        llvm_constant(i1Ty, ctx.getIntegerAttr(op.isSignedAttr().getValue()));
+    Value endianness = llvm_constant(
+        usizeTy,
+        ctx.getIntegerAttr(op.endiannessAttr().getValue().getLimitedValue()));
+    Value unit = llvm_constant(
+        i8Ty, ctx.getIntegerAttr(op.unitAttr().getValue().getLimitedValue()));
+    args.push_back(isSigned);
+    args.push_back(endianness);
+    args.push_back(unit);
+  }
 };
 
 struct BinaryMatchFloatOpConversion
-    : public BinaryMatchOpConversion<BinaryMatchFloatOp, BinaryMatchFloatOpAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchFloatOp,
+                                     BinaryMatchFloatOpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
-    void addExtraArgTypes(RewritePatternContext<BinaryMatchFloatOp> &ctx, SmallVectorImpl<LLVMType> &types) const override {
-      types.push_back(ctx.getUsizeType());
-      types.push_back(ctx.getI8Type());
-    }
+  void addExtraArgTypes(RewritePatternContext<BinaryMatchFloatOp> &ctx,
+                        SmallVectorImpl<LLVMType> &types) const override {
+    types.push_back(ctx.getUsizeType());
+    types.push_back(ctx.getI8Type());
+  }
 
-    void addExtraArgValues(BinaryMatchFloatOp &op, RewritePatternContext<BinaryMatchFloatOp> &ctx, SmallVectorImpl<Value> &args) const override {
-      auto i8Ty = ctx.getI8Type();
-      auto usizeTy = ctx.getUsizeType();
-      Value endianness = llvm_constant(usizeTy, ctx.getIntegerAttr(op.endiannessAttr().getValue().getLimitedValue()));
-      Value unit = llvm_constant(i8Ty, ctx.getIntegerAttr(op.unitAttr().getValue().getLimitedValue()));
-      args.push_back(endianness);
-      args.push_back(unit);
-    }
+  void addExtraArgValues(BinaryMatchFloatOp &op,
+                         RewritePatternContext<BinaryMatchFloatOp> &ctx,
+                         SmallVectorImpl<Value> &args) const override {
+    auto i8Ty = ctx.getI8Type();
+    auto usizeTy = ctx.getUsizeType();
+    Value endianness = llvm_constant(
+        usizeTy,
+        ctx.getIntegerAttr(op.endiannessAttr().getValue().getLimitedValue()));
+    Value unit = llvm_constant(
+        i8Ty, ctx.getIntegerAttr(op.unitAttr().getValue().getLimitedValue()));
+    args.push_back(endianness);
+    args.push_back(unit);
+  }
 };
 
 struct BinaryMatchUtf8OpConversion
-    : public BinaryMatchOpConversion<BinaryMatchUtf8Op, BinaryMatchUtf8OpAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchUtf8Op,
+                                     BinaryMatchUtf8OpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 };
 
 struct BinaryMatchUtf16OpConversion
-    : public BinaryMatchOpConversion<BinaryMatchUtf16Op, BinaryMatchUtf16OpAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchUtf16Op,
+                                     BinaryMatchUtf16OpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
-    void addExtraArgTypes(RewritePatternContext<BinaryMatchUtf16Op> &ctx, SmallVectorImpl<LLVMType> &types) const override {
-      types.push_back(ctx.getUsizeType());
-    }
+  void addExtraArgTypes(RewritePatternContext<BinaryMatchUtf16Op> &ctx,
+                        SmallVectorImpl<LLVMType> &types) const override {
+    types.push_back(ctx.getUsizeType());
+  }
 
-    void addExtraArgValues(BinaryMatchUtf16Op &op, RewritePatternContext<BinaryMatchUtf16Op> &ctx, SmallVectorImpl<Value> &args) const override {
-      auto usizeTy = ctx.getUsizeType();
-      Value endianness = llvm_constant(usizeTy, ctx.getIntegerAttr(op.endiannessAttr().getValue().getLimitedValue()));
-      args.push_back(endianness);
-    }
+  void addExtraArgValues(BinaryMatchUtf16Op &op,
+                         RewritePatternContext<BinaryMatchUtf16Op> &ctx,
+                         SmallVectorImpl<Value> &args) const override {
+    auto usizeTy = ctx.getUsizeType();
+    Value endianness = llvm_constant(
+        usizeTy,
+        ctx.getIntegerAttr(op.endiannessAttr().getValue().getLimitedValue()));
+    args.push_back(endianness);
+  }
 };
 
 struct BinaryMatchUtf32OpConversion
-    : public BinaryMatchOpConversion<BinaryMatchUtf32Op, BinaryMatchUtf32OpAdaptor> {
+    : public BinaryMatchOpConversion<BinaryMatchUtf32Op,
+                                     BinaryMatchUtf32OpAdaptor> {
   using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
-    void addExtraArgTypes(RewritePatternContext<BinaryMatchUtf32Op> &ctx, SmallVectorImpl<LLVMType> &types) const override {
-      types.push_back(ctx.getUsizeType());
-    }
+  void addExtraArgTypes(RewritePatternContext<BinaryMatchUtf32Op> &ctx,
+                        SmallVectorImpl<LLVMType> &types) const override {
+    types.push_back(ctx.getUsizeType());
+  }
 
-    void addExtraArgValues(BinaryMatchUtf32Op &op, RewritePatternContext<BinaryMatchUtf32Op> &ctx, SmallVectorImpl<Value> &args) const override {
-      auto usizeTy = ctx.getUsizeType();
-      Value endianness = llvm_constant(usizeTy, ctx.getIntegerAttr(op.endiannessAttr().getValue().getLimitedValue()));
-      args.push_back(endianness);
-    }
+  void addExtraArgValues(BinaryMatchUtf32Op &op,
+                         RewritePatternContext<BinaryMatchUtf32Op> &ctx,
+                         SmallVectorImpl<Value> &args) const override {
+    auto usizeTy = ctx.getUsizeType();
+    Value endianness = llvm_constant(
+        usizeTy,
+        ctx.getIntegerAttr(op.endiannessAttr().getValue().getLimitedValue()));
+    args.push_back(endianness);
+  }
 };
-
 
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,

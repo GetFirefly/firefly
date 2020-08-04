@@ -8,7 +8,7 @@ namespace eir {
 
 #include "lumen/EIR/IR/EIRDialect.h.inc"
 
-} // namespace eir
-} // namespace lumen
+}  // namespace eir
+}  // namespace lumen
 
-#endif // EIR_DIALECT_H
+#endif  // EIR_DIALECT_H

@@ -1,15 +1,15 @@
-#include "lumen/EIR/IR/EIRDialect.h"
 #include "lumen/EIR/IR/EIRTypes.h"
-#include "lumen/EIR/IR/EIREnums.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
+#include "lumen/EIR/IR/EIRDialect.h"
+#include "lumen/EIR/IR/EIREnums.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Parser.h"
 
@@ -170,8 +170,7 @@ LogicalResult TupleType::verifyConstructionInvariants(
         continue;
     }
     if (auto llvmType = elementType.dyn_cast_or_null<LLVMType>()) {
-      if (llvmType.isIntegerTy())
-        continue;
+      if (llvmType.isIntegerTy()) continue;
     }
     llvm::outs() << "invalid tuple type element (" << i << "): ";
     elementType.dump();

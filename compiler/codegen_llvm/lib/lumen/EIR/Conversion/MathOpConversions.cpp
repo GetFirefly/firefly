@@ -73,16 +73,16 @@ class MathOpConversion : public EIROpConversion<Op> {
   using EIROpConversion<Op>::getRewriteContext;
 };
 
-struct AddOpConversion : public MathOpConversion<AddOp, AddOpAdaptor,
-                                                 LLVM::AddOp, LLVM::FAddOp> {
+struct AddOpConversion
+    : public MathOpConversion<AddOp, AddOpAdaptor, LLVM::AddOp, LLVM::FAddOp> {
   using MathOpConversion::MathOpConversion;
 };
-struct SubOpConversion : public MathOpConversion<SubOp, SubOpAdaptor,
-                                                 LLVM::SubOp, LLVM::FSubOp> {
+struct SubOpConversion
+    : public MathOpConversion<SubOp, SubOpAdaptor, LLVM::SubOp, LLVM::FSubOp> {
   using MathOpConversion::MathOpConversion;
 };
-struct MulOpConversion : public MathOpConversion<MulOp, MulOpAdaptor,
-                                                 LLVM::MulOp, LLVM::FMulOp> {
+struct MulOpConversion
+    : public MathOpConversion<MulOp, MulOpAdaptor, LLVM::MulOp, LLVM::FMulOp> {
   using MathOpConversion::MathOpConversion;
 };
 
@@ -141,8 +141,7 @@ struct RemOpConversion
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 struct BandOpConversion
-    : public IntegerMathOpConversion<BandOp, BandOpAdaptor,
-                                     LLVM::AndOp> {
+    : public IntegerMathOpConversion<BandOp, BandOpAdaptor, LLVM::AndOp> {
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 struct BorOpConversion
@@ -150,8 +149,7 @@ struct BorOpConversion
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 struct BxorOpConversion
-    : public IntegerMathOpConversion<BxorOp, BxorOpAdaptor,
-                                     LLVM::XOrOp> {
+    : public IntegerMathOpConversion<BxorOp, BxorOpAdaptor, LLVM::XOrOp> {
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 struct BslOpConversion

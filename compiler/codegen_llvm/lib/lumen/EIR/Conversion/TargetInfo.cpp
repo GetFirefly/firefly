@@ -1,5 +1,4 @@
 #include "lumen/EIR/Conversion/TargetInfo.h"
-#include "lumen/EIR/IR/EIRTypes.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -7,6 +6,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Target/TargetMachine.h"
+#include "lumen/EIR/IR/EIRTypes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 using ::llvm::APInt;
@@ -86,13 +86,13 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   impl->binaryTy =
       LLVMType::createStructTy(&dialect, binaryFields, StringRef("binary"));
   ArrayRef<LLVMType> pushResultFields({intNTy, int1Ty});
-  impl->binPushResultTy =
-      LLVMType::createStructTy(&dialect, pushResultFields, StringRef("binary.pushed"));
+  impl->binPushResultTy = LLVMType::createStructTy(&dialect, pushResultFields,
+                                                   StringRef("binary.pushed"));
 
   // Match Result
   ArrayRef<LLVMType> matchResultFields({intNTy, intNTy, int1Ty});
-  impl->matchResultTy =
-      LLVMType::createStructTy(&dialect, matchResultFields, StringRef("match.result"));
+  impl->matchResultTy = LLVMType::createStructTy(&dialect, matchResultFields,
+                                                 StringRef("match.result"));
 
   // Receives
   impl->recvContextTy = int8Ty.getPointerTo();
@@ -207,15 +207,16 @@ uint64_t TargetInfo::listMask() const { return impl->listMask; }
 uint64_t TargetInfo::boxTag() const { return impl->boxTag; }
 uint64_t TargetInfo::literalTag() const { return impl->literalTag; }
 uint32_t TargetInfo::closureHeaderArity(uint32_t envLen) const {
-    uint32_t wordSize;
-    if (pointerSizeInBits == 64) {
-      wordSize = 8;
-    } else {
-      assert(pointerSizeInBits == 32 && "unsupported pointer width");
-      wordSize = 4;
-    }
-    auto totalBytes = lumen_closure_base_size(pointerSizeInBits) + (envLen * wordSize);
-    return (totalBytes / wordSize) - 1;
+  uint32_t wordSize;
+  if (pointerSizeInBits == 64) {
+    wordSize = 8;
+  } else {
+    assert(pointerSizeInBits == 32 && "unsupported pointer width");
+    wordSize = 4;
+  }
+  auto totalBytes =
+      lumen_closure_base_size(pointerSizeInBits) + (envLen * wordSize);
+  return (totalBytes / wordSize) - 1;
 }
 MaskInfo &TargetInfo::immediateMask() const { return impl->immediateMask; }
 MaskInfo &TargetInfo::headerMask() const { return impl->headerMask; }

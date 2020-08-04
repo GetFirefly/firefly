@@ -65,20 +65,21 @@ struct ConstantBigIntOpConversion : public EIROpConversion<ConstantBigIntOp> {
     auto name = bigIntAttr.getHash();
     auto bytesGlobal = ctx.getOrInsertConstantString(name, bigIntStr);
 
-    // Invoke the runtime function that will reify a BigInt term from the constant string
+    // Invoke the runtime function that will reify a BigInt term from the
+    // constant string
     auto globalPtr = llvm_bitcast(i8PtrTy, llvm_addressof(bytesGlobal));
-    Value size =
-        llvm_constant(termTy, ctx.getIntegerAttr(bigIntStr.size()));
+    Value size = llvm_constant(termTy, ctx.getIntegerAttr(bigIntStr.size()));
 
     StringRef symbolName("__lumen_builtin_bigint_from_cstr");
-    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {i8PtrTy, termTy});
+    auto callee =
+        ctx.getOrInsertFunction(symbolName, termTy, {i8PtrTy, termTy});
 
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
                                               ArrayRef<Value>{globalPtr, size});
 
-    return success();   
+    return success();
   }
 };
 
@@ -158,8 +159,10 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     // On nanboxed targets, floats are treated normally
     if (!ctx.targetInfo.requiresPackedFloats()) {
       auto f = apVal.bitcastToAPInt();
-      // The magic constant here is MIN_DOUBLE, as defined in the term encoding in Rust
-      auto val = llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue() + MIN_DOUBLE));
+      // The magic constant here is MIN_DOUBLE, as defined in the term encoding
+      // in Rust
+      auto val = llvm_constant(
+          termTy, ctx.getIntegerAttr(f.getLimitedValue() + MIN_DOUBLE));
       rewriter.replaceOp(op, {val});
       return success();
     }
@@ -415,9 +418,9 @@ struct ConstantMapOpConversion : public EIROpConversion<ConstantMapOp> {
 
     SmallVector<Value, 2> elements;
     for (auto elementAttr : elementAttrs) {
-       auto element = lowerElementValue(ctx, elementAttr);
-       assert(element && "unsupported element type in map");
-       elements.push_back(element);
+      auto element = lowerElementValue(ctx, elementAttr);
+      assert(element && "unsupported element type in map");
+      elements.push_back(element);
     }
 
     ConstructMapOp newMap = eir_map(elements);
@@ -441,9 +444,9 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
 
     SmallVector<Value, 2> elements;
     for (auto elementAttr : elementAttrs) {
-       auto element = lowerElementValue(ctx, elementAttr);
-       assert(element && "unsupported element type in tuple");
-       elements.push_back(element);
+      auto element = lowerElementValue(ctx, elementAttr);
+      assert(element && "unsupported element type in tuple");
+      elements.push_back(element);
     }
 
     Value tuple = eir_tuple(elements);
@@ -453,7 +456,6 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
     return success();
   }
 };
-
 
 #if false
 struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
@@ -658,8 +660,7 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
   // Atoms
   if (auto atomAttr = elementAttr.dyn_cast_or_null<AtomAttr>()) {
     auto id = atomAttr.getValue().getLimitedValue();
-    auto tagged =
-      ctx.targetInfo.encodeImmediate(TypeKind::Atom, id);
+    auto tagged = ctx.targetInfo.encodeImmediate(TypeKind::Atom, id);
     return llvm_constant(termTy, ctx.getIntegerAttr(tagged));
   }
   // Integers
@@ -762,12 +763,11 @@ void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
                                           LLVMTypeConverter &converter,
                                           TargetInfo &targetInfo) {
   patterns.insert<ConstantAtomOpConversion, ConstantBigIntOpConversion,
-                  ConstantBinaryOpConversion,
-                  ConstantFloatOpConversion, ConstantIntOpConversion,
-                  ConstantListOpConversion, ConstantMapOpConversion,
-                  ConstantNilOpConversion, ConstantNoneOpConversion,
-                  ConstantTupleOpConversion, NullOpConversion>(
-      context, converter, targetInfo);
+                  ConstantBinaryOpConversion, ConstantFloatOpConversion,
+                  ConstantIntOpConversion, ConstantListOpConversion,
+                  ConstantMapOpConversion, ConstantNilOpConversion,
+                  ConstantNoneOpConversion, ConstantTupleOpConversion,
+                  NullOpConversion>(context, converter, targetInfo);
 }
 
 }  // namespace eir

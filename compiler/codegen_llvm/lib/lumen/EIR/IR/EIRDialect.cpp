@@ -1,9 +1,9 @@
 #include "lumen/EIR/IR/EIRDialect.h"
+
+#include "llvm/Support/Format.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
-
-#include "llvm/Support/Format.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Module.h"
@@ -55,22 +55,18 @@ Attribute parseSeqAttr(DialectAsmParser &parser, Type type) {
   assert(false && "EIR dialect parsing is not fully implemented");
 }
 
-Attribute eirDialect::parseAttribute(DialectAsmParser &parser, Type type) const {
+Attribute eirDialect::parseAttribute(DialectAsmParser &parser,
+                                     Type type) const {
   // Parse the kind keyword first.
   StringRef attrKind;
-  if (parser.parseKeyword(&attrKind))
-    return {};
+  if (parser.parseKeyword(&attrKind)) return {};
 
-  if (attrKind == AtomAttr::getAttrName())
-    return parseAtomAttr(parser);
-  if (attrKind == APIntAttr::getAttrName())
-    return parseAPIntAttr(parser, type);
-  if (attrKind == APFloatAttr::getAttrName())
-    return parseAPFloatAttr(parser);
+  if (attrKind == AtomAttr::getAttrName()) return parseAtomAttr(parser);
+  if (attrKind == APIntAttr::getAttrName()) return parseAPIntAttr(parser, type);
+  if (attrKind == APFloatAttr::getAttrName()) return parseAPFloatAttr(parser);
   if (attrKind == BinaryAttr::getAttrName())
     return parseBinaryAttr(parser, type);
-  if (attrKind == SeqAttr::getAttrName())
-    return parseSeqAttr(parser, type);
+  if (attrKind == SeqAttr::getAttrName()) return parseSeqAttr(parser, type);
 
   parser.emitError(parser.getNameLoc(), "unknown EIR attribute kind: ")
       << attrKind;

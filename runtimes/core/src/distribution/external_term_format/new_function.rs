@@ -54,11 +54,10 @@ pub fn decode<'a>(
         arity,
     };
 
-    let option_native = find_symbol(&module_function_arity)
-        .map(|dynamic_callee| unsafe { 
-            let ptr = mem::transmute::<_, *mut c_void>(dynamic_callee);
-            NonNull::new_unchecked(ptr)
-        });
+    let option_native = find_symbol(&module_function_arity).map(|dynamic_callee| unsafe {
+        let ptr = mem::transmute::<_, *mut c_void>(dynamic_callee);
+        NonNull::new_unchecked(ptr)
+    });
 
     let closure = process.anonymous_closure_with_env_from_slice(
         module,

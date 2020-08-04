@@ -1,11 +1,11 @@
 #include "lumen/EIR/IR/EIRAttributes.h"
-#include "lumen/EIR/IR/EIRDialect.h"
-#include "lumen/EIR/IR/EIRTypes.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/SHA1.h"
+#include "lumen/EIR/IR/EIRDialect.h"
+#include "lumen/EIR/IR/EIRTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/MLIRContext.h"
@@ -97,7 +97,7 @@ struct APIntAttributeStorage : public AttributeStorage {
 
   /// Construct a new storage instance.
   static APIntAttributeStorage *construct(AttributeStorageAllocator &allocator,
-                                         const KeyTy &key) {
+                                          const KeyTy &key) {
     auto type = std::get<Type>(key);
     auto value = new (allocator.allocate<APInt>()) APInt(std::get<APInt>(key));
     auto isSigned = std::get<bool>(key);
@@ -123,7 +123,8 @@ APIntAttr APIntAttr::get(MLIRContext *context, Type type, APInt value) {
   return Base::get(context, kind, type, value, isSigned);
 }
 
-APIntAttr APIntAttr::get(MLIRContext *context, StringRef value, unsigned numBits) {
+APIntAttr APIntAttr::get(MLIRContext *context, StringRef value,
+                         unsigned numBits) {
   APInt i(numBits, value, /*radix=*/10);
   bool isSigned = i.isSignedIntN(i.getBitWidth());
   unsigned kind = static_cast<unsigned>(AttributeKind::Int);
@@ -173,10 +174,11 @@ struct APFloatAttributeStorage : public AttributeStorage {
   }
 
   /// Construct a new storage instance.
-  static APFloatAttributeStorage *construct(AttributeStorageAllocator &allocator,
-                                          const KeyTy &key) {
+  static APFloatAttributeStorage *construct(
+      AttributeStorageAllocator &allocator, const KeyTy &key) {
     auto type = std::get<Type>(key);
-    auto value = new (allocator.allocate<APFloat>()) APFloat(std::get<APFloat>(key));
+    auto value =
+        new (allocator.allocate<APFloat>()) APFloat(std::get<APFloat>(key));
     return new (allocator.allocate<APFloatAttributeStorage>())
         APFloatAttributeStorage(type, *value);
   }

@@ -1,4 +1,5 @@
 #include "lumen/EIR/Conversion/ConvertEIRToLLVM.h"
+
 #include "lumen/EIR/Conversion/AggregateOpConversions.h"
 #include "lumen/EIR/Conversion/BinaryOpConversions.h"
 #include "lumen/EIR/Conversion/BuiltinOpConversions.h"
@@ -39,8 +40,7 @@ class ConvertEIRToLLVMPass
     // Populate conversion patterns
     OwningRewritePatternList patterns;
     auto llvmOpts = mlir::LowerToLLVMOptions::getDefaultOptions();
-    mlir::populateStdToLLVMConversionPatterns(converter, patterns,
-                                              llvmOpts);
+    mlir::populateStdToLLVMConversionPatterns(converter, patterns, llvmOpts);
     populateAggregateOpConversionPatterns(patterns, &context, converter,
                                           targetInfo);
     populateBinaryOpConversionPatterns(patterns, &context, converter,

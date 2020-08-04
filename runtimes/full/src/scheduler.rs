@@ -243,7 +243,11 @@ impl SchedulerTrait for Scheduler {
         Ok(arc_process)
     }
 
-    fn spawn_closure(&self, _parent: Option<&Process>, _fun: Boxed<Closure>) -> anyhow::Result<Pid> {
+    fn spawn_closure(
+        &self,
+        _parent: Option<&Process>,
+        _fun: Boxed<Closure>,
+    ) -> anyhow::Result<Pid> {
         unimplemented!("spawn_closure is not implemented in lumen_rt_full");
     }
 

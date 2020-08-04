@@ -1985,10 +1985,10 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Value bin, Value value, Value size, ArrayRef<NamedAttribute> attrs",
     [{
-      if (size) {
-        result.addOperands({bin, value, size});
-      } else {
+      if (size == nullptr) {
         result.addOperands({bin, value});
+      } else {
+        result.addOperands({bin, value, size});
       }
       auto binTy = bin.getType();
       auto i1Ty = builder.getI1Type();

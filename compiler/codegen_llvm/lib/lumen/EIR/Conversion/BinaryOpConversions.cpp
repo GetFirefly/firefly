@@ -56,13 +56,13 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
 
     Value bin = adaptor.bin();
     Value value = adaptor.value();
-    ArrayRef<Value> sizeOpt = adaptor.size();
+    Value sizeOpt = adaptor.size();
     Value size;
-    if (sizeOpt.size() > 0) {
-      size = sizeOpt.front();
-    } else {
+    if (sizeOpt == nullptr) {
       auto taggedSize = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, 0);
       size = llvm_constant(termTy, ctx.getIntegerAttr(taggedSize));
+    } else {
+      size = sizeOpt;
     }
 
     auto pushType = static_cast<uint32_t>(
@@ -85,7 +85,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         unit = static_cast<unsigned>(
             op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
-        if (sizeOpt.size() > 0) {
+        if (sizeOpt != nullptr) {
           StringRef symbolName("__lumen_builtin_binary_push_binary");
           // __lumen_builtin_binary_push_binary(bin, value, size, unit)
           auto callee = ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy, termTy, i8Ty});

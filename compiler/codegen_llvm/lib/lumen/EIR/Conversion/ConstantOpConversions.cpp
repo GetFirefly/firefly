@@ -683,7 +683,7 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
   // Floats
   if (auto floatAttr = elementAttr.dyn_cast_or_null<APFloatAttr>()) {
     if (!ctx.targetInfo.requiresPackedFloats()) {
-      auto f = floatAttr.getValue().bitcastToAPInt();
+      auto f = floatAttr.getValue().bitcastToAPInt() + MIN_DOUBLE;
       return llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue()));
     }
     // Packed float
@@ -691,7 +691,7 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
   }
   if (auto floatAttr = elementAttr.dyn_cast_or_null<mlir::FloatAttr>()) {
     if (!ctx.targetInfo.requiresPackedFloats()) {
-      auto f = floatAttr.getValue().bitcastToAPInt();
+      auto f = floatAttr.getValue().bitcastToAPInt() + MIN_DOUBLE;
       return llvm_constant(termTy, ctx.getIntegerAttr(f.getLimitedValue()));
     }
     // Packed float

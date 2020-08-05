@@ -27,6 +27,10 @@ build: ## Build the Lumen compiler
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx
 
+bloat:
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
+		bin/build-lumen --bloat --debug --dynamic --use-libcxx
+
 lumen-tblgen:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --only-tblgen

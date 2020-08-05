@@ -33,6 +33,7 @@ build_toolchain=""
 host_target=""
 extra_rustc_flags=""
 extra_cargo_flags=""
+run_bloat=""
 
 function usage() {
     echo "usage: $(basename "$0") [--static] [OPTIONS..]"
@@ -47,6 +48,7 @@ function usage() {
     echo " --target <triple>    The target triple to build for"
     echo " --install <prefix>   Install to the given prefix"
     echo " --package <package>  Build a specific crate (i.e. like cargo -p)"
+    echo " --bloat              Run cargo bloat against the lumen binary"
     echo ""
 }
 
@@ -147,6 +149,10 @@ while [ $# -gt 0 ]; do
         -package | --package )
             has_value="true"
             build_package="$rhs"
+            ;;
+
+        -bloat | --bloat )
+            run_bloat="true"
             ;;
 
         *)
@@ -302,6 +308,12 @@ if [ -n "$build_package" ]; then
         exit 1
     fi
     exit 0
+fi
+
+# If requested, run bloat and exit
+if [ -n "$run_bloat" ]; then
+    cargo bloat -p lumen
+    exit $?
 fi
 
 # Build Lumen and gather artifact metadata

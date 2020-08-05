@@ -43,5 +43,3 @@ jobs:
         run: cargo test --package lumen_rt_full
       - name: Test liblumen_otp with runtime_full
         run: cargo test --package liblumen_otp
-      - name: Test spawn-chain example
-        run: cargo test --package spawn-chain

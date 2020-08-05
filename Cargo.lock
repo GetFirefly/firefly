@@ -3096,12 +3096,12 @@ dependencies = [
 
 [[package]]
 name = "which"
-version = "2.0.1"
+version = "4.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b57acb10231b9493c8472b20cb57317d0679a49e0bdbee44b3b803a6473af164"
+checksum = "87c14ef7e1b8b8ecfc75d5eca37949410046e66f15d185c01d70824f1f8111ef"
 dependencies = [
- "failure",
  "libc",
+ "thiserror",
 ]
 
 [[package]]

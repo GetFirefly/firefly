@@ -1,5 +1,3 @@
-use std::ffi::c_void;
-
 use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::closure::*;
@@ -12,7 +10,7 @@ pub fn anonymous_closure(process: &Process) -> AllocResult<Term> {
         OLD_UNIQUE,
         UNIQUE,
         ARITY,
-        Some(native as *const c_void),
+        CLOSURE_NATIVE,
         process.pid().into(),
         &[],
     )

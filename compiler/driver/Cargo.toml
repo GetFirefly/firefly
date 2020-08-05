@@ -39,4 +39,4 @@ libeir_passes = { git = "https://github.com/eirproject/eir", branch = "lumen" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 
 [build-dependencies]
-which = "2.0"
+which = "4.0"

@@ -336,7 +336,7 @@ mod tests {
     use super::*;
 
     use alloc::sync::Arc;
-    use core::ffi::c_void;
+    use core::ptr::NonNull;
 
     use crate::erts::testing::RegionHeap;
     use crate::erts::{scheduler, Node};
@@ -544,7 +544,7 @@ mod tests {
             Term::NONE
         }
 
-        heap.export_closure(module, function, arity, Some(native as *const c_void))
+        heap.export_closure(module, function, arity, NonNull::new(native as _))
             .unwrap()
             .into()
     }

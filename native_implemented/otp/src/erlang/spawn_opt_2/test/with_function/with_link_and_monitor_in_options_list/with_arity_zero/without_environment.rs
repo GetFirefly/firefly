@@ -26,7 +26,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent_and_paren
                     (
                         arc_process.clone(),
                         arc_process
-                            .export_closure(module, function, arity, Some(native as _))
+                            .export_closure(module, function, arity, NonNull::new(native as _))
                             .unwrap(),
                     )
                 }),
@@ -145,7 +145,7 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
                     (
                         arc_process.clone(),
                         arc_process
-                            .export_closure(module, function, arity, Some(native as _))
+                            .export_closure(module, function, arity, NonNull::new(native as _))
                             .unwrap(),
                     )
                 }),

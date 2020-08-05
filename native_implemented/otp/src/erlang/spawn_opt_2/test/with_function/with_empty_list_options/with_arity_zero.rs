@@ -19,7 +19,7 @@ fn without_environment_runs_function_in_child_process() {
     }
 
     let function = arc_process
-        .export_closure(module, function, arity, Some(native as _))
+        .export_closure(module, function, arity, NonNull::new(native as _))
         .unwrap();
     let result = result(&arc_process, function, options(&arc_process));
 
@@ -79,7 +79,7 @@ fn with_environment_runs_function_in_child_process() {
             old_unique,
             unique,
             arity,
-            Some(native as _),
+            NonNull::new(native as _),
             creator,
             &[Atom::str_to_term("first"), Atom::str_to_term("second")],
         )

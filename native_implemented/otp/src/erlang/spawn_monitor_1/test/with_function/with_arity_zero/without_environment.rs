@@ -19,7 +19,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
     }
 
     let function = parent_arc_process
-        .export_closure(module, function, arity, Some(native as _))
+        .export_closure(module, function, arity, NonNull::new(native as _))
         .unwrap();
     let result = result(&parent_arc_process, function);
 
@@ -97,7 +97,7 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
     let function = Atom::from_str("function");
     let arity = 0;
     let function = parent_arc_process
-        .export_closure(module, function, arity, Some(native as _))
+        .export_closure(module, function, arity, NonNull::new(native as _))
         .unwrap();
     let result = result(&parent_arc_process, function);
 

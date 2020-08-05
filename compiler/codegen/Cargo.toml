@@ -38,7 +38,7 @@ libeir_util_datastructures = { git = "https://github.com/eirproject/eir.git", br
 # llvm crates
 [build-dependencies]
 cmake = "0.1"
-which = "2.0.1"
+which = "4.0"
 walkdir = "2.3"
 liblumen_term = { path = "../term" }
 liblumen_llvm = { path = "../llvm" }

@@ -48,10 +48,10 @@ fn with_same_value_native_right_returns_true() {
                     };
 
                     let left_term = arc_process
-                        .export_closure(module, function, arity, Some(native as _))
+                        .export_closure(module, function, arity, NonNull::new(native as _))
                         .unwrap();
                     let right_term = arc_process
-                        .export_closure(module, function, arity, Some(native as _))
+                        .export_closure(module, function, arity, NonNull::new(native as _))
                         .unwrap();
 
                     (left_term, right_term)
@@ -80,14 +80,14 @@ fn with_different_native_right_returns_false() {
                         Term::NONE
                     };
                     let left_term = arc_process
-                        .export_closure(module, function, arity, Some(left_native as _))
+                        .export_closure(module, function, arity, NonNull::new(left_native as _))
                         .unwrap();
 
                     extern "C" fn right_native() -> Term {
                         Term::NONE
                     };
                     let right_term = arc_process
-                        .export_closure(module, function, arity, Some(right_native as _))
+                        .export_closure(module, function, arity, NonNull::new(right_native as _))
                         .unwrap();
 
                     (left_term, right_term)

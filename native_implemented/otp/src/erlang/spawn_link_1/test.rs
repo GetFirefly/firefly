@@ -1,6 +1,7 @@
 mod with_function;
 
 use std::convert::TryInto;
+use std::ptr::NonNull;
 
 use anyhow::*;
 

@@ -16,4 +16,4 @@ crate-type = ["rlib", "staticlib"]
 
 
 [build-dependencies]
-which = "2.0.1"
+which = "4.0"

@@ -826,6 +826,144 @@ static LogicalResult verifyConstantOp(ConstantOp &) {
   return success();
 }
 
+OpFoldResult ConstantIntOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant has no operands");
+  return getValue();
+}
+
+OpFoldResult ConstantBigIntOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant has no operands");
+  return getValue();
+}
+
+OpFoldResult ConstantFloatOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant has no operands");
+  return getValue();
+}
+
+OpFoldResult ConstantAtomOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant has no operands");
+  return getValue();
+}
+
+OpFoldResult ConstantNilOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant has no operands");
+  return getValue();
+}
+
+OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant has no operands");
+  return getValue();
+}
+
+//===----------------------------------------------------------------------===//
+// eir.neg
+//===----------------------------------------------------------------------===//
+
+/// Matches a ConstantIntOp
+
+/// The matcher that matches a constant numeric operation and binds the constant value.
+struct constant_apint_op_binder {
+  APIntAttr::ValueType *bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  constant_apint_op_binder(APIntAttr::ValueType *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    Attribute attr;
+    if (!mlir::detail::constant_op_binder<Attribute>(&attr).match(op))
+      return false;
+    auto type = op->getResult(0).getType();
+
+    if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
+      if (opaque.isFixnum())
+        return mlir::detail::attr_value_binder<APIntAttr>(bind_value).match(attr);
+      if (opaque.isBox()) {
+        auto box = type.cast<BoxType>();
+        if (box.getBoxedType().isInteger())
+          return mlir::detail::attr_value_binder<APIntAttr>(bind_value).match(attr);
+      }
+    }
+
+    return false;
+  }
+};
+
+/// The matcher that matches a constant numeric operation and binds the constant value.
+struct constant_apfloat_op_binder {
+  APFloatAttr::ValueType *bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  constant_apfloat_op_binder(APFloatAttr::ValueType *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    Attribute attr;
+    if (!mlir::detail::constant_op_binder<Attribute>(&attr).match(op))
+      return false;
+    auto type = op->getResult(0).getType();
+
+    if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
+      if (opaque.isFloat())
+        return mlir::detail::attr_value_binder<APFloatAttr>(bind_value).match(attr);
+    }
+
+    return false;
+  }
+};
+
+inline constant_apint_op_binder m_ConstInt(APIntAttr::ValueType *bind_value) {
+  return constant_apint_op_binder(bind_value);
+}
+
+inline constant_apfloat_op_binder m_ConstFloat(APFloatAttr::ValueType *bind_value) {
+  return constant_apfloat_op_binder(bind_value);
+}
+
+namespace {
+/// Fold negations of constants into negated constants
+struct ApplyConstantNegations : public OpRewritePattern<NegOp> {
+  using OpRewritePattern<NegOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(NegOp op, PatternRewriter &rewriter) const override {
+    auto rhs = op.rhs();
+
+    APInt intVal;
+    auto intPattern = m_Op<CastOp>(m_ConstInt(&intVal));
+    if (matchPattern(rhs, intPattern)) {
+      auto castOp = dyn_cast<CastOp>(rhs.getDefiningOp());
+      auto castType = castOp.getType();
+      intVal.negate();
+      if (castOp.getSourceType().isa<FixnumType>()) {
+        auto newInt = rewriter.create<ConstantIntOp>(op.getLoc(), intVal);
+        rewriter.replaceOpWithNewOp<CastOp>(op, newInt.getResult(), castType);
+      } else {
+        auto newInt = rewriter.create<ConstantBigIntOp>(op.getLoc(), intVal);
+        rewriter.replaceOpWithNewOp<CastOp>(op, newInt.getResult(), castType);
+      }
+      return success();
+    }
+
+    APFloat fltVal(0.0);
+    auto floatPattern = m_Op<CastOp>(m_ConstFloat(&fltVal));
+    if (matchPattern(rhs, floatPattern)) {
+      auto castType = dyn_cast<CastOp>(rhs.getDefiningOp()).getType();
+      APFloat newFltVal = -fltVal;
+      auto newFlt = rewriter.create<ConstantFloatOp>(op.getLoc(), newFltVal);
+      rewriter.replaceOpWithNewOp<CastOp>(op, newFlt.getResult(), castType);
+      return success();
+    }
+
+    return failure();
+  }
+};
+} // end anonymous namespace
+
+void NegOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<ApplyConstantNegations>(context);
+}
+
+
 //===----------------------------------------------------------------------===//
 // MallocOp
 //===----------------------------------------------------------------------===//
@@ -893,11 +1031,6 @@ static LogicalResult verify(MallocOp op) {
   }
 
   return success();
-}
-
-/// Matches a ConstantIntOp or mlir::ConstantIndexOp.
-static mlir::detail::op_matcher<ConstantIntOp> m_ConstantDimension() {
-  return mlir::detail::op_matcher<ConstantIntOp>();
 }
 
 namespace {

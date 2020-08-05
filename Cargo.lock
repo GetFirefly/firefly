@@ -1253,6 +1253,7 @@ dependencies = [
  "libeir_lowerutils",
  "libeir_syntax_erl",
  "libeir_util_datastructures",
+ "libeir_util_number",
  "liblumen_alloc",
  "liblumen_compiler_macros",
  "liblumen_core",

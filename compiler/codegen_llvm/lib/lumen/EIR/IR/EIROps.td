@@ -207,6 +207,36 @@ def eir_IsTypeOp : eir_Op<"is_type", []> {
   }];
 }
 
+class eir_UnaryOperator<string mnemonic, Type right, Type result, list<OpTrait> traits = []>
+    : eir_Op<mnemonic, !listconcat(traits, [eir_UnaryOperatorInterface])> {
+  // Defines the name of the builtin associated with this comparison op
+  string builtinSymbol = "__lumen_builtin_" # mnemonic;
+
+  let summary = ?;
+  let description = ?;
+
+  let arguments = (ins right:$rhs);
+  let results = (outs result:$result);
+
+  let assemblyFormat = "operands attr-dict `:` functional-type(operands, $result)";
+
+  let verifier = ?;
+
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Type resultTy, Value rhs,"
+    "ArrayRef<NamedAttribute> attrs = {}",
+    [{
+      result.addOperands(rhs);
+      result.addTypes(resultTy);
+      result.addAttributes(attrs);
+    }]>
+  ];
+
+  let extraClassDeclaration = "static StringRef builtinSymbol() { return \"" # builtinSymbol # "\"; }";
+}
+
+
 class eir_BinaryOperator<string mnemonic, Type left, Type right, Type result, list<OpTrait> traits = []>
     : eir_Op<mnemonic, !listconcat(traits, [eir_BinaryOperatorInterface])> {
   // Defines the name of the builtin associated with this comparison op
@@ -333,6 +363,22 @@ def eir_CmpGteOp :
   //let hasFolder = 1;
 }
 
+class eir_UnaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = []>
+    : eir_UnaryOperator<mnemonic, type, type, traits> {
+  let summary = "Peform the specified arithmetic operation on one operand";
+
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, ArrayRef<Value> args",
+    [{
+      assert(args.size() == 1 && "expected exactly one argument for arithmetic operator");
+      Value rhs = args[0];
+      Type resultTy = rhs.getType();
+      build(builder, result, resultTy, rhs);
+    }]>
+  ];
+}
+
 class eir_BinaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = []>
     : eir_BinaryOperator<mnemonic, type, type, type, traits> {
   let summary = "Peform the specified arithmetic operation over two operands";
@@ -353,6 +399,13 @@ class eir_BinaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = 
 def eir_AddOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.add", [Commutative]> {
   let summary = "Addition operator";
+}
+
+def eir_NegOp :
+    eir_UnaryArithmeticOp<eir_AnyType, "math.neg"> {
+  let summary = "Negation operator";
+
+  let hasCanonicalizer = 1;
 }
 
 def eir_SubOp :
@@ -1216,6 +1269,11 @@ def eir_CastOp : eir_Op<"cast", []> {
     $input `:` type($input) `to` type($output) attr-dict
   }];
 
+  let extraClassDeclaration = [{
+    Type getSourceType() { return getOperation()->getAttrOfType<TypeAttr>("from").getValue(); }
+  }];
+
+
   //let hasFolder = 1;
 }
 
@@ -1439,7 +1497,8 @@ def eir_NullOp : eir_Op<"null", [NoSideEffect]> {
   let verifier = ?;
 }
 
-class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic, [/*ConstantLike,*/ NoSideEffect]> {
+class eir_ConstantOp<Type type, string mnemonic, list<OpTrait> traits = []>
+    : eir_Op<mnemonic, !listconcat(traits, [NoSideEffect])> {
 
   let skipDefaultBuilders = 1;
   let summary = "Constructs a constant term value";
@@ -1453,12 +1512,13 @@ class eir_ConstantOp<Type type, string mnemonic> : eir_Op<mnemonic, [/*ConstantL
 
   let extraClassDeclaration = [{
     Attribute getValue() { return getAttr("value"); }
+    void setValue(Attribute val) { setAttr("value", val); }
   }];
 
   //let hasFolder = 1;
 }
 
-def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
+def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1474,9 +1534,11 @@ def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, "constant.float"> {
       build(builder, result, type, attr);
     }]>
   ];
+
+  let hasFolder = 1;
 }
 
-def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, "constant.int"> {
+def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, "constant.int", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1492,11 +1554,20 @@ def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, "constant.int"> {
       APInt ap(64, n, /*isSigned=*/true);
       auto attr = APIntAttr::get(builder.getContext(), type, ap);
       build(builder, result, type, attr);
+    }]>,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, APInt &value",
+    [{
+      auto type = builder.getType<FixnumType>();
+      auto attr = APIntAttr::get(builder.getContext(), type, value);
+      build(builder, result, type, attr);
     }]>
   ];
+
+  let hasFolder = 1;
 }
 
-def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, "constant.bigint"> {
+def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, "constant.bigint", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1513,9 +1584,11 @@ def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, "constant.bigint"> {
       build(builder, result, type, attr);
     }]>
   ];
+
+  let hasFolder = 1;
 }
 
-def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, "constant.atom"> {
+def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, "constant.atom", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1547,6 +1620,8 @@ def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, "constant.atom"> {
       build(builder, result, type, attr);
     }]>
   ];
+
+  let hasFolder = 1;
 }
 
 def eir_ConstantBinaryOp : eir_ConstantOp<eir_BoxType, "constant.binary"> {
@@ -1569,7 +1644,7 @@ def eir_ConstantBinaryOp : eir_ConstantOp<eir_BoxType, "constant.binary"> {
   ];
 }
 
-def eir_ConstantNilOp : eir_ConstantOp<eir_NilType, "constant.nil"> {
+def eir_ConstantNilOp : eir_ConstantOp<eir_NilType, "constant.nil", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1591,9 +1666,11 @@ def eir_ConstantNilOp : eir_ConstantOp<eir_NilType, "constant.nil"> {
       build(builder, result, type);
     }]>
   ];
+
+  let hasFolder = 1;
 }
 
-def eir_ConstantNoneOp : eir_ConstantOp<eir_NoneType, "constant.none"> {
+def eir_ConstantNoneOp : eir_ConstantOp<eir_NoneType, "constant.none", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1609,6 +1686,8 @@ def eir_ConstantNoneOp : eir_ConstantOp<eir_NoneType, "constant.none"> {
       build(builder, result, type, attr);
     }]>
   ];
+
+  let hasFolder = 1;
 }
 
 def eir_ConstantTupleOp : eir_ConstantOp<eir_BoxType, "constant.tuple"> {

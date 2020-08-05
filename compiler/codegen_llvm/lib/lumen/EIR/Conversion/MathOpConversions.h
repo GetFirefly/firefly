@@ -12,6 +12,7 @@ class FDivOpConversion;
 class MulOpConversion;
 class RemOpConversion;
 class SubOpConversion;
+class NegOpConversion;
 // Bitwise
 class BandOpConversion;
 class BorOpConversion;

@@ -190,8 +190,17 @@ def eir_OpInterface : OpInterface<"eir_Op"> {
   let methods = [];
 }
 
+def eir_UnaryOperatorInterface : OpInterface<"eir_UnaryOperator"> {
+  let description = "Common interface for unary ops";
+
+  let methods = [
+    StaticInterfaceMethod<"get the builtin symbol name for this op",
+      "StringRef", "builtinSymbol">
+  ];
+}
+
 def eir_BinaryOperatorInterface : OpInterface<"eir_BinaryOperator"> {
-  let description = "Common interface for binary comparison ops";
+  let description = "Common interface for binary ops";
 
   let methods = [
     StaticInterfaceMethod<"get the builtin symbol name for this op",

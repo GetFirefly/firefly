@@ -867,6 +867,7 @@ Value ModuleBuilder::build_logical_or(Location loc, Value lhs, Value rhs) {
 INTRINSIC_BUILDER(buildIntrinsicPrintOp, PrintOp);
 INTRINSIC_BUILDER(buildIntrinsicAddOp, AddOp);
 INTRINSIC_BUILDER(buildIntrinsicSubOp, SubOp);
+INTRINSIC_BUILDER(buildIntrinsicNegOp, NegOp);
 INTRINSIC_BUILDER(buildIntrinsicMulOp, MulOp);
 INTRINSIC_BUILDER(buildIntrinsicDivOp, DivOp);
 INTRINSIC_BUILDER(buildIntrinsicRemOp, RemOp);
@@ -997,6 +998,7 @@ static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
                    .Case("erlang:print/1", buildIntrinsicPrintOp)
                    .Case("erlang:spawn/1", buildIntrinsicSpawn1Op)
                    .Case("erlang:+/2", buildIntrinsicAddOp)
+                   .Case("erlang:-/1", buildIntrinsicNegOp)
                    .Case("erlang:-/2", buildIntrinsicSubOp)
                    .Case("erlang:*/2", buildIntrinsicMulOp)
                    .Case("erlang:div/2", buildIntrinsicDivOp)
@@ -1700,7 +1702,9 @@ extern "C" MLIRAttributeRef MLIRBuildBigIntAttr(MLIRModuleBuilderRef b,
 }
 
 Attribute ModuleBuilder::build_bigint_attr(StringRef value, unsigned width) {
-  return APIntAttr::get(builder.getContext(), value, width);
+  APInt i(width, value, /*radix=*/10);
+  auto bigIntType = builder.getType<BigIntType>();
+  return APIntAttr::get(builder.getContext(), bigIntType, i);
 }
 
 //===----------------------------------------------------------------------===//

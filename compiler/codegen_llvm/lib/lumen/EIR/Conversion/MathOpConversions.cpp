@@ -21,6 +21,14 @@ static Value specializeFloatMathOp(RewritePatternContext<Op> &ctx, Value lhs,
   return fpOp.getResult();
 }
 
+template <typename Op, typename T>
+static Value specializeUnaryFloatMathOp(RewritePatternContext<Op> &ctx, Value rhs) {
+  auto fpTy = LLVMType::getDoubleTy(ctx.dialect);
+  Value r = eir_cast(rhs, fpTy);
+  auto fpOp = ctx.rewriter.template create<T>(ctx.getLoc(), r);
+  return fpOp.getResult();
+}
+
 template <typename Op, typename OperandAdaptor, typename IntOp,
           typename FloatOp>
 class MathOpConversion : public EIROpConversion<Op> {
@@ -71,6 +79,48 @@ class MathOpConversion : public EIROpConversion<Op> {
 
  private:
   using EIROpConversion<Op>::getRewriteContext;
+};
+
+struct NegOpConversion : public EIROpConversion<NegOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      NegOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    edsc::ScopedContext scope(rewriter, op.getLoc());
+    NegOpAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
+
+    Value rhs = adaptor.rhs();
+    Type rhsTy = rhs.getType();
+
+    // Use specialized lowerings if types are compatible
+    if (rhsTy.isa<FixnumType>()) {
+      Value rhsInt = ctx.decodeImmediate(rhs);
+      Value lhsInt = llvm_constant(rhsInt.getType(), ctx.getI32Attr(0));
+      rewriter.replaceOpWithNewOp<LLVM::SubOp>(op, lhsInt, rhsInt);
+      return success();
+    }
+    if (rhsTy.isa<FloatType>()) {
+      auto newOp = specializeUnaryFloatMathOp<NegOp, LLVM::FNegOp>(ctx, rhs);
+      rewriter.replaceOp(op, newOp);
+      return success();
+    }
+
+    // Call builtin function
+    StringRef builtinSymbol("erlang:-/1");
+    auto termTy = ctx.getUsizeType();
+    auto callee =
+        ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy});
+
+    ArrayRef<Value> args({rhs});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
+                                              ArrayRef<Type>{termTy}, args);
+    return success();
+  }
 };
 
 struct AddOpConversion
@@ -217,7 +267,7 @@ void populateMathOpConversionPatterns(OwningRewritePatternList &patterns,
                                       MLIRContext *context,
                                       LLVMTypeConverter &converter,
                                       TargetInfo &targetInfo) {
-  patterns.insert<AddOpConversion, SubOpConversion, MulOpConversion,
+  patterns.insert<AddOpConversion, SubOpConversion, NegOpConversion, MulOpConversion,
                   DivOpConversion, FDivOpConversion, RemOpConversion,
                   BslOpConversion, BsrOpConversion, BandOpConversion,
                   BorOpConversion, BxorOpConversion>(context, converter,

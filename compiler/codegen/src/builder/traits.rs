@@ -2,7 +2,7 @@ use std::ffi::CString;
 
 use anyhow::anyhow;
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 
 use libeir_intern::Symbol;
 use libeir_ir::{AtomTerm, AtomicTerm, BigIntTerm, BinaryTerm, FloatTerm, IntTerm};
@@ -149,7 +149,11 @@ impl AsValueRef for BigIntTerm {
     ) -> Result<ValueRef> {
         // Redundant, but needed, since libeir_ir is referencing a different num_bigint than us
         let bi = self.value();
-        let width = bi.bits();
+        let width = if bi.sign() == libeir_util_number::bigint::Sign::Minus {
+            bi.bits()
+        } else {
+            bi.bits() + 1
+        };
         let s = CString::new(bi.to_str_radix(10)).unwrap();
         let val =
             unsafe { MLIRBuildConstantBigInt(builder, loc, s.as_ptr(), width as libc::c_uint) };
@@ -163,7 +167,11 @@ impl AsValueRef for BigInt {
         builder: ModuleBuilderRef,
         _options: &Options,
     ) -> Result<ValueRef> {
-        let width = self.bits();
+        let width = if self.sign() == Sign::Minus {
+            self.bits()
+        } else {
+            self.bits() + 1
+        };
         let s = CString::new(self.to_str_radix(10)).unwrap();
         let val =
             unsafe { MLIRBuildConstantBigInt(builder, loc, s.as_ptr(), width as libc::c_uint) };
@@ -376,7 +384,11 @@ impl AsAttributeRef for BigIntTerm {
     ) -> Result<AttributeRef> {
         // Redundant, but needed, as libeir_ir uses a different num_bigint than us
         let bi = self.value();
-        let width = bi.bits();
+        let width = if bi.sign() == libeir_util_number::bigint::Sign::Minus {
+            bi.bits()
+        } else {
+            bi.bits() + 1
+        };
         let s = CString::new(bi.to_str_radix(10)).unwrap();
         let val = unsafe { MLIRBuildBigIntAttr(builder, loc, s.as_ptr(), width as libc::c_uint) };
         unwrap!(val, "failed to construct bigint attribute ({})", bi)
@@ -389,7 +401,11 @@ impl AsAttributeRef for num_bigint::BigInt {
         builder: ModuleBuilderRef,
         _options: &Options,
     ) -> Result<AttributeRef> {
-        let width = self.bits();
+        let width = if self.sign() == Sign::Minus {
+            self.bits()
+        } else {
+            self.bits() + 1
+        };
         let s = CString::new(self.to_str_radix(10)).unwrap();
         let val = unsafe { MLIRBuildBigIntAttr(builder, loc, s.as_ptr(), width as libc::c_uint) };
         unwrap!(val, "failed to construct bigint attribute ({})", self)

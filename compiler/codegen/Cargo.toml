@@ -34,6 +34,7 @@ libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 libeir_lowerutils = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 libeir_util_datastructures = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_util_number = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
 
 # llvm crates
 [build-dependencies]

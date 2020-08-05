@@ -128,6 +128,8 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("debug")
                 .help("Generate source level debug information (same as -C debuginfo=2)")
                 .short("g")
+                .default_value("true")
+                .default_value_if("opt-level", Some("3"), "true")
                 .long("debug"),
         )
         .arg(

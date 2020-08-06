@@ -137,7 +137,7 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
     );
     assert_exits_badarith(
         &child_arc_process,
-        "number (:'zero') is not an integer or a float",
+        "number (zero) is not an integer or a float",
     );
 
     assert!(!parent_arc_process.is_exiting());

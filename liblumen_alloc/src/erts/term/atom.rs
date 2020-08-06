@@ -167,6 +167,28 @@ impl Atom {
         Self(id)
     }
 
+    // See https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L193-L212
+    fn needs_quotes(&self) -> bool {
+        let mut chars = self.name().chars();
+
+        match chars.next() {
+            Some(first_char) => {
+                // https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L198-L199
+                // -> https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L98
+                !first_char.is_ascii_lowercase() || {
+                    // https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L201-L200
+                    // -> https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L102
+                    //    -> https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L91
+                    //    -> https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L91
+                    //    -> https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L99
+                    chars.any(|c| (!c.is_ascii_alphanumeric() && c != '_'))
+                }
+            }
+            // https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L187-L190
+            None => true,
+        }
+    }
+
     fn validate(name: &str) -> Result<(), AtomError> {
         let len = name.len();
         if len > MAX_ATOM_LENGTH {
@@ -209,12 +231,22 @@ impl From<bool> for Atom {
 
 impl Display for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(":'")?;
+        let needs_quotes = self.needs_quotes();
+
+        if needs_quotes {
+            f.write_char('\'')?;
+        }
+
         self.name()
             .chars()
             .flat_map(char::escape_default)
             .try_for_each(|c| f.write_char(c))?;
-        f.write_char('\'')
+
+        if needs_quotes {
+            f.write_char('\'')?;
+        }
+
+        Ok(())
     }
 }
 

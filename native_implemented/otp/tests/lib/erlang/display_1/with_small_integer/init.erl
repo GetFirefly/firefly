@@ -4,5 +4,4 @@
 
 start() ->
   display(1),
-  display(0),
-  display(-1).
+  display(0).

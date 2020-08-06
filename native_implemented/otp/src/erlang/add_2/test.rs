@@ -4,9 +4,7 @@ mod with_small_integer_augend;
 
 use std::sync::Arc;
 
-use proptest::arbitrary::any;
 use proptest::strategy::{Just, Strategy};
-use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;

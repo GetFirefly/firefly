@@ -23,6 +23,8 @@ const HEADER_TAG_SHIFT: u64 = 3;
 const MASK_PRIMARY: u64 = 0b111;
 // Header is composed of 3 primary tag bits, and 4 subtag bits
 const MASK_HEADER: u64 = 0b11111_111;
+// The maximum allowed value to be stored in a header
+pub const MAX_HEADER_VALUE: u64 = u64::max_value() >> HEADER_SHIFT;
 
 pub struct Encoding64;
 
@@ -128,6 +130,7 @@ impl Encoding for Encoding64 {
         MaskInfo {
             shift: PRIMARY_SHIFT as i32,
             mask: MASK_PRIMARY,
+            max_allowed_value: Self::MAX_IMMEDIATE_VALUE,
         }
     }
 
@@ -136,6 +139,7 @@ impl Encoding for Encoding64 {
         MaskInfo {
             shift: HEADER_SHIFT as i32,
             mask: 0,
+            max_allowed_value: MAX_HEADER_VALUE,
         }
     }
 

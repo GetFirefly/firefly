@@ -18,6 +18,7 @@ use crate::Tag;
 pub struct MaskInfo {
     pub shift: i32,
     pub mask: u64,
+    pub max_allowed_value: u64,
 }
 
 pub trait Word:

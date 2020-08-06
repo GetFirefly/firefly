@@ -78,10 +78,10 @@ namespace lumen {
 namespace eir {
 namespace detail {
 struct APIntAttributeStorage : public AttributeStorage {
-  using KeyTy = std::tuple<Type, APInt, bool>;
+  using KeyTy = std::tuple<Type, APInt>;
 
-  APIntAttributeStorage(Type type, APInt value, bool isSigned)
-      : AttributeStorage(type), value(std::move(value)), isSigned(isSigned) {}
+  APIntAttributeStorage(Type type, APInt value)
+      : AttributeStorage(type), value(std::move(value)) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
@@ -100,13 +100,11 @@ struct APIntAttributeStorage : public AttributeStorage {
                                           const KeyTy &key) {
     auto type = std::get<Type>(key);
     auto value = new (allocator.allocate<APInt>()) APInt(std::get<APInt>(key));
-    auto isSigned = std::get<bool>(key);
     return new (allocator.allocate<APIntAttributeStorage>())
-        APIntAttributeStorage(type, *value, isSigned);
+        APIntAttributeStorage(type, *value);
   }
 
   APInt value;
-  bool isSigned;
 };  // struct APIntAttr
 }  // namespace detail
 }  // namespace eir
@@ -117,25 +115,23 @@ APIntAttr APIntAttr::get(MLIRContext *context, APInt value) {
 }
 
 APIntAttr APIntAttr::get(MLIRContext *context, Type type, APInt value) {
-  auto numBits = value.getBitWidth();
-  bool isSigned = value.isSignedIntN(numBits);
   unsigned kind = static_cast<unsigned>(AttributeKind::Int);
-  return Base::get(context, kind, type, value, isSigned);
+  return Base::get(context, kind, type, value);
 }
 
 APIntAttr APIntAttr::get(MLIRContext *context, StringRef value,
                          unsigned numBits) {
   APInt i(numBits, value, /*radix=*/10);
-  bool isSigned = i.isSignedIntN(i.getBitWidth());
   unsigned kind = static_cast<unsigned>(AttributeKind::Int);
-  return Base::get(context, kind, BigIntType::get(context), i, isSigned);
+  return Base::get(context, kind, BigIntType::get(context), i);
 }
 
 APInt &APIntAttr::getValue() const { return getImpl()->value; }
 
 std::string APIntAttr::getValueAsString() const {
   auto value = getImpl()->value;
-  bool isSigned = getImpl()->isSigned;
+  auto numBits = value.getBitWidth();
+  bool isSigned = value.isSignedIntN(numBits);
   return value.toString(10, /*signed=*/isSigned);
 }
 

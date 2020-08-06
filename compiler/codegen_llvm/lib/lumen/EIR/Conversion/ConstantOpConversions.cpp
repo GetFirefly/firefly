@@ -224,11 +224,16 @@ struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
 
     auto attr = op.getValue().cast<APIntAttr>();
     auto termTy = ctx.getUsizeType();
-    auto i = (uint64_t)attr.getValue().getLimitedValue();
-    auto taggedInt = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, i);
-    auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedInt));
+    auto value = attr.getValue();
+    if (ctx.targetInfo.isValidImmediateValue(value)) {
+      auto taggedInt = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, value.getLimitedValue());
+      auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedInt));
 
-    rewriter.replaceOp(op, {val});
+      rewriter.replaceOp(op, {val});
+    } else {
+      // Too large for an immediate, promote to bigint
+      rewriter.replaceOpWithNewOp<ConstantBigIntOp>(op, value);
+    }
     return success();
   }
 };

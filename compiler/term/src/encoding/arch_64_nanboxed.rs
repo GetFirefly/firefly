@@ -186,6 +186,7 @@ impl Encoding for Encoding64Nanboxed {
         MaskInfo {
             shift: 0,
             mask: IMMEDIATE_MASK,
+            max_allowed_value: Self::MAX_IMMEDIATE_VALUE,
         }
     }
 
@@ -194,6 +195,7 @@ impl Encoding for Encoding64Nanboxed {
         MaskInfo {
             shift: 0,
             mask: MAX_HEADER_VALUE,
+            max_allowed_value: MAX_HEADER_VALUE,
         }
     }
 

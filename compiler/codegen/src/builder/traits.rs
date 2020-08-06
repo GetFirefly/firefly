@@ -130,7 +130,7 @@ impl AsValueRef for i64 {
         let pointer_width = options.target.target_pointer_width;
         with_encoding!(encoding_type, pointer_width, {
             let n = *self;
-            if (Encoding::MAX_SMALLINT_VALUE as i64) < n {
+            if (Encoding::MAX_IMMEDIATE_VALUE as u64) < (n as u64) {
                 let big = BigInt::from(n);
                 big.as_value_ref(loc, builder, options)
             } else {
@@ -365,7 +365,7 @@ impl AsAttributeRef for i64 {
         let pointer_width = options.target.target_pointer_width;
         with_encoding!(encoding_type, pointer_width, {
             let n = *self;
-            if (Encoding::MAX_SMALLINT_VALUE as i64) < n {
+            if (Encoding::MAX_IMMEDIATE_VALUE as u64) < (n as u64) {
                 let big = BigInt::from(n);
                 big.as_attribute_ref(loc, builder, options)
             } else {

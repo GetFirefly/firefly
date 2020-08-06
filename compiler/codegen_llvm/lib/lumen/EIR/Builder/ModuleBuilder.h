@@ -29,7 +29,7 @@ class FuncOp;
 class ModuleBuilder {
  public:
   ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
-                const llvm::TargetMachine *tm);
+                const llvm::TargetMachine *tm, unsigned immediateBitWidth);
   ~ModuleBuilder();
 
   void dump();
@@ -118,8 +118,8 @@ class ModuleBuilder {
 
   Attribute build_float_attr(double value);
   Value build_constant_float(Location loc, double value);
-  Value build_constant_int(Location loc, int64_t value);
-  Attribute build_int_attr(int64_t value, bool isSigned = true);
+  Value build_constant_int(Location loc, uint64_t value);
+  Attribute build_int_attr(uint64_t value);
   Value build_constant_bigint(Location loc, StringRef value, unsigned width);
   Attribute build_bigint_attr(StringRef value, unsigned width);
   Value build_constant_atom(Location loc, StringRef value, uint64_t valueId);
@@ -153,6 +153,9 @@ class ModuleBuilder {
   Location getFusedLocation(ArrayRef<Location> locs);
 
   bool isLikeMsvc();
+
+ public:
+  unsigned immediateBitWidth;
 
  private:
   const llvm::TargetMachine *targetMachine;

@@ -3,29 +3,29 @@
 namespace lumen {
 namespace eir {
 template <typename Op, typename T>
-static Value specializeIntegerMathOp(RewritePatternContext<Op> &ctx, Value lhs,
+static Value specializeIntegerMathOp(Location loc, RewritePatternContext<Op> &ctx, Value lhs,
                                      Value rhs) {
   Value lhsInt = ctx.decodeImmediate(lhs);
   Value rhsInt = ctx.decodeImmediate(rhs);
-  auto mathOp = ctx.rewriter.template create<T>(ctx.getLoc(), lhsInt, rhsInt);
+  auto mathOp = ctx.rewriter.template create<T>(loc, lhsInt, rhsInt);
   return mathOp.getResult();
 }
 
 template <typename Op, typename T>
-static Value specializeFloatMathOp(RewritePatternContext<Op> &ctx, Value lhs,
+static Value specializeFloatMathOp(Location loc, RewritePatternContext<Op> &ctx, Value lhs,
                                    Value rhs) {
   auto fpTy = LLVMType::getDoubleTy(ctx.dialect);
   Value l = eir_cast(lhs, fpTy);
   Value r = eir_cast(rhs, fpTy);
-  auto fpOp = ctx.rewriter.template create<T>(ctx.getLoc(), l, r);
+  auto fpOp = ctx.rewriter.template create<T>(loc, l, r);
   return fpOp.getResult();
 }
 
 template <typename Op, typename T>
-static Value specializeUnaryFloatMathOp(RewritePatternContext<Op> &ctx, Value rhs) {
+static Value specializeUnaryFloatMathOp(Location loc, RewritePatternContext<Op> &ctx, Value rhs) {
   auto fpTy = LLVMType::getDoubleTy(ctx.dialect);
   Value r = eir_cast(rhs, fpTy);
-  auto fpOp = ctx.rewriter.template create<T>(ctx.getLoc(), r);
+  auto fpOp = ctx.rewriter.template create<T>(loc, r);
   return fpOp.getResult();
 }
 
@@ -42,6 +42,7 @@ class MathOpConversion : public EIROpConversion<Op> {
   LogicalResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
     OperandAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
@@ -52,12 +53,12 @@ class MathOpConversion : public EIROpConversion<Op> {
 
     // Use specialized lowerings if types are compatible
     if (lhsTy.isa<FixnumType>() && rhsTy.isa<FixnumType>()) {
-      auto newOp = specializeIntegerMathOp<Op, IntOp>(ctx, lhs, rhs);
+      auto newOp = specializeIntegerMathOp<Op, IntOp>(loc, ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
       return success();
     }
     if (lhsTy.isa<FloatType>() && rhsTy.isa<FloatType>()) {
-      auto newOp = specializeFloatMathOp<Op, FloatOp>(ctx, lhs, rhs);
+      auto newOp = specializeFloatMathOp<Op, FloatOp>(loc, ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
       return success();
     }
@@ -87,7 +88,7 @@ struct NegOpConversion : public EIROpConversion<NegOp> {
   LogicalResult matchAndRewrite(
       NegOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    edsc::ScopedContext scope(rewriter, op.getLoc());
+    auto loc = op.getLoc();
     NegOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
@@ -102,7 +103,7 @@ struct NegOpConversion : public EIROpConversion<NegOp> {
       return success();
     }
     if (rhsTy.isa<FloatType>()) {
-      auto newOp = specializeUnaryFloatMathOp<NegOp, LLVM::FNegOp>(ctx, rhs);
+      auto newOp = specializeUnaryFloatMathOp<NegOp, LLVM::FNegOp>(loc, ctx, rhs);
       rewriter.replaceOp(op, newOp);
       return success();
     }
@@ -149,6 +150,7 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
   LogicalResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
     OperandAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
@@ -159,7 +161,7 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
 
     // Use specialized lowerings if types are compatible
     if (lhsTy.isa<FixnumType>() && rhsTy.isa<FixnumType>()) {
-      auto newOp = specializeIntegerMathOp<Op, IntOp>(ctx, lhs, rhs);
+      auto newOp = specializeIntegerMathOp<Op, IntOp>(loc, ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
       return success();
     }
@@ -224,6 +226,7 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
   LogicalResult matchAndRewrite(
       Op op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
     OperandAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
@@ -234,7 +237,7 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
 
     // Use specialized lowerings if types are compatible
     if (lhsTy.isa<FloatType>() && rhsTy.isa<FloatType>()) {
-      auto newOp = specializeIntegerMathOp<Op, FloatOp>(ctx, lhs, rhs);
+      auto newOp = specializeIntegerMathOp<Op, FloatOp>(loc, ctx, lhs, rhs);
       rewriter.replaceOp(op, newOp);
       return success();
     }

@@ -1,4 +1,5 @@
 #include "lumen/EIR/Builder/ModuleBuilder.h"
+#include "lumen/term/Encoding.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -157,15 +158,24 @@ extern "C" MLIRModuleBuilderRef MLIRCreateModuleBuilder(
   TargetMachine *targetMachine = unwrap(tm);
   StringRef moduleName(name);
   StringRef filename(sl.filename);
+
+  auto archType = targetMachine->getTargetTriple().getArch();
+  auto pointerSizeInBits = targetMachine->createDataLayout().getPointerSizeInBits(0);
+  bool supportsNanboxing = archType == llvm::Triple::ArchType::x86_64;
+  auto encoding = lumen::Encoding{pointerSizeInBits, supportsNanboxing};
+  auto immediateMask = lumen_immediate_mask(&encoding);
+  auto maxAllowedImmediateVal = APInt(64, immediateMask.maxAllowedValue, /*signed=*/false);
+  auto immediateBits = maxAllowedImmediateVal.getActiveBits();
   Location loc = mlir::FileLineColLoc::get(filename, sl.line, sl.column, ctx);
-  return wrap(new ModuleBuilder(*ctx, moduleName, loc, targetMachine));
+  return wrap(new ModuleBuilder(*ctx, moduleName, loc, targetMachine, immediateBits));
 }
 
 ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
-                             const TargetMachine *targetMachine)
+                             const TargetMachine *targetMachine, unsigned immediateBits)
     : builder(&context),
       targetMachine(targetMachine),
-      llvmDialect(context.getRegisteredDialect<LLVMDialect>()) {
+      llvmDialect(context.getRegisteredDialect<LLVMDialect>()),
+      immediateBitWidth(immediateBits) {
   // Create an empty module into which we can codegen functions
   theModule = mlir::ModuleOp::create(loc, name);
   assert(isa<mlir::ModuleOp>(theModule) && "expected moduleop");
@@ -857,8 +867,9 @@ Value ModuleBuilder::build_logical_or(Location loc, Value lhs, Value rhs) {
 //===----------------------------------------------------------------------===//
 
 #define INTRINSIC_BUILDER(Alias, Op)                             \
-  static Optional<Value> Alias(OpBuilder &builder, Location loc, \
+  static Optional<Value> Alias(ModuleBuilder *modBuilder, Location loc, \
                                ArrayRef<Value> args) {           \
+    auto builder = modBuilder->getBuilder();                     \
     auto op = builder.create<Op>(loc, args);                     \
                                                                  \
     return op.getResult();                                       \
@@ -889,9 +900,10 @@ INTRINSIC_BUILDER(buildIntrinsicCmpGteOp, CmpGteOp);
 #define THROW_SYMBOL 58
 #define EXIT_SYMBOL 59
 
-static Optional<Value> buildIntrinsicError1Op(OpBuilder &builder, Location loc,
+static Optional<Value> buildIntrinsicError1Op(ModuleBuilder *modBuilder, Location loc,
                                               ArrayRef<Value> args) {
-  APInt id(64, ERROR_SYMBOL, /*signed=*/false);
+  auto builder = modBuilder->getBuilder();
+  APInt id(modBuilder->immediateBitWidth, ERROR_SYMBOL, /*signed=*/false);
   auto aError = builder.create<ConstantAtomOp>(loc, id, "error");
   Value kind = aError.getResult();
   Value reason = args.front();
@@ -902,9 +914,10 @@ static Optional<Value> buildIntrinsicError1Op(OpBuilder &builder, Location loc,
   return llvm::None;
 }
 
-static Optional<Value> buildIntrinsicError2Op(OpBuilder &builder, Location loc,
+static Optional<Value> buildIntrinsicError2Op(ModuleBuilder *modBuilder, Location loc,
                                               ArrayRef<Value> args) {
-  APInt id(64, ERROR_SYMBOL, /*signed=*/false);
+  auto builder = modBuilder->getBuilder();
+  APInt id(modBuilder->immediateBitWidth, ERROR_SYMBOL, /*signed=*/false);
   auto aError = builder.create<ConstantAtomOp>(loc, id, "error");
   Value kind = aError.getResult();
   Value reason = args[0];
@@ -918,9 +931,10 @@ static Optional<Value> buildIntrinsicError2Op(OpBuilder &builder, Location loc,
   return llvm::None;
 }
 
-static Optional<Value> buildIntrinsicExit1Op(OpBuilder &builder, Location loc,
+static Optional<Value> buildIntrinsicExit1Op(ModuleBuilder *modBuilder, Location loc,
                                              ArrayRef<Value> args) {
-  APInt id(64, EXIT_SYMBOL, /*signed=*/false);
+  auto builder = modBuilder->getBuilder();
+  APInt id(modBuilder->immediateBitWidth, ERROR_SYMBOL, /*signed=*/false);
   auto aExit = builder.create<ConstantAtomOp>(loc, id, "exit");
   Value kind = aExit.getResult();
   Value reason = args.front();
@@ -931,9 +945,10 @@ static Optional<Value> buildIntrinsicExit1Op(OpBuilder &builder, Location loc,
   return llvm::None;
 }
 
-static Optional<Value> buildIntrinsicThrowOp(OpBuilder &builder, Location loc,
+static Optional<Value> buildIntrinsicThrowOp(ModuleBuilder *modBuilder, Location loc,
                                              ArrayRef<Value> args) {
-  APInt id(64, THROW_SYMBOL, /*signed=*/false);
+  auto builder = modBuilder->getBuilder();
+  APInt id(modBuilder->immediateBitWidth, THROW_SYMBOL, /*signed=*/false);
   auto aThrow = builder.create<ConstantAtomOp>(loc, id, "throw");
   Value kind = aThrow.getResult();
   Value reason = args.front();
@@ -944,8 +959,9 @@ static Optional<Value> buildIntrinsicThrowOp(OpBuilder &builder, Location loc,
   return llvm::None;
 }
 
-static Optional<Value> buildIntrinsicRaiseOp(OpBuilder &builder, Location loc,
+static Optional<Value> buildIntrinsicRaiseOp(ModuleBuilder *modBuilder, Location loc,
                                              ArrayRef<Value> args) {
+  auto builder = modBuilder->getBuilder();
   Value kind = args[0];
   Value reason = args[1];
   Value trace = args[2];
@@ -954,9 +970,10 @@ static Optional<Value> buildIntrinsicRaiseOp(OpBuilder &builder, Location loc,
   return llvm::None;
 }
 
-static Optional<Value> buildIntrinsicCmpEqStrictOp(OpBuilder &builder,
+static Optional<Value> buildIntrinsicCmpEqStrictOp(ModuleBuilder *modBuilder,
                                                    Location loc,
                                                    ArrayRef<Value> args) {
+  auto builder = modBuilder->getBuilder();
   assert(args.size() == 2 && "expected =:= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
@@ -964,9 +981,10 @@ static Optional<Value> buildIntrinsicCmpEqStrictOp(OpBuilder &builder,
   return op.getResult();
 }
 
-static Optional<Value> buildIntrinsicCmpNeqStrictOp(OpBuilder &builder,
+static Optional<Value> buildIntrinsicCmpNeqStrictOp(ModuleBuilder *modBuilder,
                                                     Location loc,
                                                     ArrayRef<Value> args) {
+  auto builder = modBuilder->getBuilder();
   assert(args.size() == 2 && "expected =/= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
@@ -974,8 +992,9 @@ static Optional<Value> buildIntrinsicCmpNeqStrictOp(OpBuilder &builder,
   return op.getResult();
 }
 
-static Optional<Value> buildIntrinsicSpawn1Op(OpBuilder &builder, Location loc,
+static Optional<Value> buildIntrinsicSpawn1Op(ModuleBuilder *modBuilder, Location loc,
                                               ArrayRef<Value> args) {
+  auto builder = modBuilder->getBuilder();
   assert(args.size() == 1 && "expected spawn/1 to receive one operand");
   auto calleeSymbol =
       FlatSymbolRefAttr::get("__lumen_builtin_spawn/1", builder.getContext());
@@ -985,7 +1004,7 @@ static Optional<Value> buildIntrinsicSpawn1Op(OpBuilder &builder, Location loc,
   return op.getResult(0);
 }
 
-using BuildIntrinsicFnT = Optional<Value> (*)(OpBuilder &, Location loc,
+using BuildIntrinsicFnT = Optional<Value> (*)(ModuleBuilder *, Location loc,
                                               ArrayRef<Value>);
 
 static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
@@ -1042,7 +1061,7 @@ extern "C" MLIRValueRef MLIRBuildIntrinsic(MLIRModuleBuilderRef b,
   SmallVector<Value, 1> args;
   unwrapValues(argv, argc, args);
   auto buildIntrinsicFn = buildIntrinsicFnOpt.getValue();
-  auto result = buildIntrinsicFn(builder->getBuilder(), loc, args);
+  auto result = buildIntrinsicFn(builder, loc, args);
   if (result.hasValue()) {
     return wrap(result.getValue());
   } else {
@@ -1095,7 +1114,7 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
   Value result;
   if (buildIntrinsicFnOpt.hasValue()) {
     auto buildIntrinsicFn = buildIntrinsicFnOpt.getValue();
-    auto resultOpt = buildIntrinsicFn(builder, loc, args);
+    auto resultOpt = buildIntrinsicFn(this, loc, args);
     auto isThrow = StringSwitch<bool>(target)
                        .Case("erlang:error/1", true)
                        .Case("erlang:error/2", true)
@@ -1646,27 +1665,28 @@ Attribute ModuleBuilder::build_float_attr(double value) {
 
 extern "C" MLIRValueRef MLIRBuildConstantInt(MLIRModuleBuilderRef b,
                                              MLIRLocationRef locref,
-                                             int64_t value) {
+                                             uint64_t value) {
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
   return wrap(builder->build_constant_int(loc, value));
 }
 
-Value ModuleBuilder::build_constant_int(Location loc, int64_t value) {
+Value ModuleBuilder::build_constant_int(Location loc, uint64_t value) {
   edsc::ScopedContext scope(builder, loc);
   auto termTy = builder.getType<TermType>();
-  return eir_cast(eir_int(value), termTy);
+  APInt i(immediateBitWidth, value, /*signed=*/true);
+  return eir_cast(eir_int(i), termTy);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
                                              MLIRLocationRef locref,
-                                             int64_t value) {
+                                             uint64_t value) {
   ModuleBuilder *builder = unwrap(b);
-  return wrap(builder->build_int_attr(value, /*signed=*/true));
+  return wrap(builder->build_int_attr(value));
 }
 
-Attribute ModuleBuilder::build_int_attr(int64_t value, bool isSigned) {
-  APInt i(64, value, isSigned);
+Attribute ModuleBuilder::build_int_attr(uint64_t value) {
+  APInt i(immediateBitWidth, value, /*signed=*/true);
   return APIntAttr::get(builder.getContext(), i);
 }
 
@@ -1723,7 +1743,7 @@ extern "C" MLIRValueRef MLIRBuildConstantAtom(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_constant_atom(Location loc, StringRef value,
                                          uint64_t valueId) {
   edsc::ScopedContext scope(builder, loc);
-  APInt id(64, valueId, /*isSigned=*/false);
+  APInt id(immediateBitWidth, valueId, /*isSigned=*/false);
   auto termTy = builder.getType<TermType>();
   return eir_cast(eir_atom(id, value), termTy);
 }
@@ -1737,7 +1757,7 @@ extern "C" MLIRAttributeRef MLIRBuildAtomAttr(MLIRModuleBuilderRef b,
 }
 
 Attribute ModuleBuilder::build_atom_attr(StringRef value, uint64_t valueId) {
-  APInt id(64, valueId, /*isSigned=*/false);
+  APInt id(immediateBitWidth, valueId, /*isSigned=*/false);
   return AtomAttr::get(builder.getContext(), id, value);
 }
 

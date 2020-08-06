@@ -13,6 +13,7 @@ extern "C" struct Encoding {
 extern "C" struct MaskInfo {
   int32_t shift;
   uint64_t mask;
+  uint64_t maxAllowedValue;
 
   bool requiresShift() const { return shift != 0; }
 };

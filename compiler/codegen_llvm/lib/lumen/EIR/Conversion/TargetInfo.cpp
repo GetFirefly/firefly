@@ -118,6 +118,9 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, LLVMDialect &dialect)
   impl->literalTag = lumen_literal_tag(&impl->encoding);
   impl->immediateMask = lumen_immediate_mask(&impl->encoding);
   impl->headerMask = lumen_header_mask(&impl->encoding);
+
+  auto maxAllowedImmediateVal = APInt(64, impl->immediateMask.maxAllowedValue, /*signed=*/false);
+  impl->immediateBits = maxAllowedImmediateVal.getActiveBits();
 }
 
 TargetInfo::TargetInfo(const TargetInfo &other)

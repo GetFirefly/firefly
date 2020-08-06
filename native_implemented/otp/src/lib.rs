@@ -10,6 +10,7 @@ mod macros;
 pub mod binary;
 pub mod erlang;
 pub mod lists;
+pub mod lumen;
 pub mod maps;
 pub mod number;
 #[cfg(not(test))]

@@ -22,21 +22,6 @@ jobs:
           mv clang+llvm-10.0.0-x86_64-apple-darwin19.5.0 lumen
           popd
           echo "::set-env name=LLVM_PREFIX::$HOME/.local/share/llvm/lumen"
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       - name: Make Build
         run: make build
       - name: Test lumen_rt_full

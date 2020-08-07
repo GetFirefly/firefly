@@ -4,6 +4,8 @@ pub mod add_2;
 pub mod and_2;
 #[path = "erlang/andalso_2.rs"]
 pub mod andalso_2;
+#[path = "erlang/atom_to_binary_2.rs"]
+pub mod atom_to_binary_2;
 #[path = "erlang/display_1.rs"]
 pub mod display_1;
 #[path = "erlang/or_2.rs"]

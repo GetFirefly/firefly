@@ -167,6 +167,7 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             source_file: self.builder.source_file().clone(),
             filename: self.builder.filename().as_ptr(),
             func,
+            func_entry: func_entry.entry,
             eir,
             mlir,
             analysis,
@@ -186,6 +187,7 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     filename: *const libc::c_char,
     source_file: Arc<SourceFile>,
     func: Function,
+    func_entry: ir::Block,
     eir: &'f ir::Function,
     mlir: FunctionOpRef,
     analysis: &'f LowerData,
@@ -334,6 +336,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
 
     /// Gets the location data for the given EIR value
     pub fn value_location(&self, ir_value: ir::Value) -> LocationRef {
+        // Handle blocks specially
+        if let ir::ValueKind::Block(ir_block) = self.value_kind(ir_value) {
+            return self.block_location(ir_block);
+        }
+
         if let Some(locs) = self.eir.value_locations(ir_value) {
             let mut fused = Vec::with_capacity(locs.len());
             for loc in locs.iter().copied() {
@@ -341,22 +348,45 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     fused.push(unsafe { MLIRCreateLocation(self.builder, sc) });
                 }
             }
-            if fused.len() > 0 {
+            match fused.len() {
+                1 => return fused.pop().unwrap(),
+                n if n > 1 => {
+                    return unsafe {
+                        MLIRCreateFusedLocation(
+                            self.builder,
+                            fused.as_ptr(),
+                            fused.len() as libc::c_uint,
+                        )
+                    }
+                }
+                _ => {}
+            }
+        }
+        log::warn!("unknown location: {:?}", self.value_kind(ir_value));
+        self.block_location(self.func_entry)
+    }
+
+    pub fn block_location(&self, ir_block: ir::Block) -> LocationRef {
+        let locs = self.eir.block_locations(ir_block);
+        let mut fused = Vec::with_capacity(locs.len());
+        for loc in locs.iter().copied() {
+            if let Some(sc) = self.location(loc.start().index()) {
+                fused.push(unsafe { MLIRCreateLocation(self.builder, sc) });
+            }
+        }
+        match fused.len() {
+            1 => return fused.pop().unwrap(),
+            n if n > 1 => {
                 return unsafe {
                     MLIRCreateFusedLocation(
                         self.builder,
                         fused.as_ptr(),
                         fused.len() as libc::c_uint,
                     )
-                };
+                }
             }
+            _ => panic!("unknown location for block {:?}", ir_block),
         }
-        self.unknown_value_location()
-    }
-
-    #[inline(always)]
-    pub fn unknown_value_location(&self) -> LocationRef {
-        unsafe { MLIRUnknownLocation(self.builder) }
     }
 
     /// Returns true if the given EIR value is defined by an argument of the given block

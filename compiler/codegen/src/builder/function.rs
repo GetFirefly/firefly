@@ -153,7 +153,24 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         }
 
         // Create function
-        let mut func = Function::with_name_signature(eir.span(), name, signature);
+        let func_span = eir.span();
+        let func_src_loc = self
+            .builder
+            .source_file
+            .location(func_span.start().index())
+            .unwrap();
+        let func_loc = unsafe {
+            MLIRCreateLocation(
+                self.builder.as_ref(),
+                SourceLocation {
+                    filename: self.builder.filename().as_ptr(),
+                    line: func_src_loc.line.to_usize() as u32 + 1,
+                    column: func_src_loc.column.to_usize() as u32 + 1,
+                },
+            )
+        };
+        let mut func = Function::with_name_signature(func_span, name, signature);
+
         let (mlir, entry_ref) = func.build(self.builder)?;
 
         // Mirror the entry block for our init block
@@ -168,6 +185,7 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             filename: self.builder.filename().as_ptr(),
             func,
             func_entry: func_entry.entry,
+            func_loc,
             eir,
             mlir,
             analysis,
@@ -188,6 +206,7 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     source_file: Arc<SourceFile>,
     func: Function,
     func_entry: ir::Block,
+    func_loc: LocationRef,
     eir: &'f ir::Function,
     mlir: FunctionOpRef,
     analysis: &'f LowerData,
@@ -334,11 +353,24 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         self.eir.value_kind(ir_value)
     }
 
-    /// Gets the location data for the given EIR value
     pub fn value_location(&self, ir_value: ir::Value) -> LocationRef {
+        if let Some(loc) = self.maybe_value_location(ir_value, None) {
+            return loc;
+        }
+
+        log::warn!("unknown location: {:?}", self.value_kind(ir_value));
+        self.func_loc
+    }
+
+    /// Gets the location data for the given EIR value
+    pub fn maybe_value_location(
+        &self,
+        ir_value: ir::Value,
+        default: Option<LocationRef>,
+    ) -> Option<LocationRef> {
         // Handle blocks specially
         if let ir::ValueKind::Block(ir_block) = self.value_kind(ir_value) {
-            return self.block_location(ir_block);
+            return self.maybe_block_location(ir_block, default);
         }
 
         if let Some(locs) = self.eir.value_locations(ir_value) {
@@ -349,24 +381,35 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 }
             }
             match fused.len() {
-                1 => return fused.pop().unwrap(),
+                1 => return fused.pop(),
                 n if n > 1 => {
-                    return unsafe {
+                    return Some(unsafe {
                         MLIRCreateFusedLocation(
                             self.builder,
                             fused.as_ptr(),
                             fused.len() as libc::c_uint,
                         )
-                    }
+                    });
                 }
                 _ => {}
             }
         }
-        log::warn!("unknown location: {:?}", self.value_kind(ir_value));
-        self.block_location(self.func_entry)
+        default
     }
 
     pub fn block_location(&self, ir_block: ir::Block) -> LocationRef {
+        if let Some(loc) = self.maybe_block_location(ir_block, None) {
+            return loc;
+        }
+
+        panic!("unknown location for block {:?}", ir_block);
+    }
+
+    pub fn maybe_block_location(
+        &self,
+        ir_block: ir::Block,
+        default: Option<LocationRef>,
+    ) -> Option<LocationRef> {
         let locs = self.eir.block_locations(ir_block);
         let mut fused = Vec::with_capacity(locs.len());
         for loc in locs.iter().copied() {
@@ -375,17 +418,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             }
         }
         match fused.len() {
-            1 => return fused.pop().unwrap(),
-            n if n > 1 => {
-                return unsafe {
-                    MLIRCreateFusedLocation(
-                        self.builder,
-                        fused.as_ptr(),
-                        fused.len() as libc::c_uint,
-                    )
-                }
-            }
-            _ => panic!("unknown location for block {:?}", ir_block),
+            1 => fused.pop(),
+            n if n > 1 => Some(unsafe {
+                MLIRCreateFusedLocation(self.builder, fused.as_ptr(), fused.len() as libc::c_uint)
+            }),
+            _ => default,
         }
     }
 
@@ -794,7 +831,9 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         // Get the set of values this block reads in its body
         let reads = self.eir.block_reads(ir_block);
         let num_reads = reads.len();
-        let loc = self.value_location(self.eir.block_value(ir_block));
+        let loc = self
+            .maybe_block_location(ir_block, Some(self.func_loc))
+            .expect("expected block location");
         // Build the operation contained in this block
         let op = match self.eir.block_kind(ir_block).unwrap().clone() {
             // Branch to another block in this function, return or throw
@@ -1032,7 +1071,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     .map(|(i, kind)| {
                         debug_in!(self, "branch {} has kind {:?}", i, kind);
                         let block_value = self.eir.value_list_get_n(dests, i).unwrap();
-                        let branch_loc = self.value_location(block_value);
+                        let branch_loc = self.maybe_value_location(block_value, Some(loc));
                         let block = self.get_block_by_value(block_value);
                         debug_in!(self, "branch {} has dest {:?}", i, block);
                         let args_vl = reads[i + 2];
@@ -1045,7 +1084,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                         }
                         Pattern {
                             kind,
-                            loc: branch_loc,
+                            loc: branch_loc.unwrap(),
                             block,
                             args,
                         }
@@ -1534,14 +1573,22 @@ pub(super) fn block_arg_to_param(f: &ir::Function, arg: ir::Value, is_implicit: 
 
 /// Shared helper to construct a Span from the location info of an EIR value
 pub(super) fn value_location(f: &ir::Function, value: ir::Value) -> Span {
-    f.value_locations(value)
-        .map(|locs| {
-            let span = locs[0];
-            let start = span.start().to_usize() as u32;
-            let end = span.end().to_usize() as u32;
-            Span::new(start, end)
-        })
-        .unwrap_or_else(Span::default)
+    if let Some(loc) = f.value_locations(value).map(|locs| {
+        let span = locs[0];
+        let start = span.start().to_usize() as u32;
+        let end = span.end().to_usize() as u32;
+        Span::new(start, end)
+    }) {
+        return loc;
+    }
+
+    let mut locs = f.block_locations(f.block_entry());
+    let loc = locs
+        .pop()
+        .expect("expected function entry to have location");
+    let start = loc.start().to_usize() as u32;
+    let end = loc.end().to_usize() as u32;
+    Span::new(start, end)
 }
 
 pub(super) fn get_block_argument(block_ref: BlockRef, index: usize) -> ValueRef {

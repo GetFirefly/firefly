@@ -10,8 +10,8 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::time;
 
-pub fn string(name: &'static str, quote: char, value: &str) -> String {
-    format!("{} ({}{}{})", name, quote, value.escape_default(), quote)
+pub fn string(name: &'static str, term: Term) -> String {
+    format!("{} ({})", name, term)
 }
 
 pub fn term_is_not_type(name: &str, value: Term, r#type: &str) -> String {

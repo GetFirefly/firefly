@@ -80,7 +80,7 @@ fn with_non_decimal_errors_badarg() {
 
         assert_badarg!(
             result(&arc_process, list),
-            format!("list ('{}') is not base 10", string)
+            format!("list ({}) is not base 10", list)
         );
     });
 }

@@ -111,7 +111,7 @@ fn with_list_without_integer_in_base_errors_badarg() {
         |(arc_process, string, list, base)| {
             prop_assert_badarg!(
                 result(&arc_process, list, base),
-                format!("list ('{}') is not in base ({})", string, base)
+                format!("list ({}) is not in base ({})", list, base)
             );
 
             Ok(())

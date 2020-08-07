@@ -7,13 +7,10 @@ use anyhow::anyhow;
 
 use liblumen_alloc::erts::process::ffi::process_raise;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::Process;
 
 use lumen_rt_core::process::current_process;
 use lumen_rt_core::registry;
 use lumen_rt_core::scheduler::from_id;
-
-use crate::scheduler::Scheduler;
 
 #[export_name = "erlang:!/2"]
 pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {

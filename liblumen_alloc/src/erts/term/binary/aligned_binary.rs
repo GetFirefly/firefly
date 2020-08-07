@@ -215,11 +215,11 @@ impl_aligned_try_into!(BinaryLiteral);
 
 /// Displays a binary using Erlang-style formatting
 pub(super) fn display(bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
-    match str::from_utf8(bytes) {
-        Ok(s) => write!(f, "\"{}\"", s.escape_default().to_string()),
-        Err(_) => {
-            f.write_str("<<")?;
+    f.write_str("<<")?;
 
+    match str::from_utf8(bytes) {
+        Ok(s) => write!(f, "\"{}\"", s.escape_default().to_string())?,
+        Err(_) => {
             let mut iter = bytes.iter();
 
             if let Some(byte) = iter.next() {
@@ -229,10 +229,10 @@ pub(super) fn display(bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
                     write!(f, ", {:#04x}", byte)?;
                 }
             }
-
-            f.write_str(">>")
         }
     }
+
+    f.write_str(">>")
 }
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait

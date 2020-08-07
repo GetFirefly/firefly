@@ -12,5 +12,5 @@ use crate::runtime::binary_to_string::binary_to_string;
 pub fn result(process: &Process, binary: Term) -> exception::Result<Term> {
     let string = binary_to_string(binary)?;
 
-    string_to_float(process, "binary", &string, '"').map_err(From::from)
+    string_to_float(process, "binary", binary, &string).map_err(From::from)
 }

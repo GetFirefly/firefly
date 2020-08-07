@@ -509,8 +509,8 @@ fn prop_assert_raises(
     stacktrace: Term,
 ) -> Result<(), TestCaseError> {
     if let Err(Exception::Runtime(ref runtime_exception)) = result(class, reason, stacktrace) {
-        prop_assert_eq!(runtime_exception.class(), Some(class_variant));
-        prop_assert_eq!(runtime_exception.reason(), Some(reason));
+        prop_assert_eq!(runtime_exception.class(), class_variant);
+        prop_assert_eq!(runtime_exception.reason(), reason);
         prop_assert_eq!(runtime_exception.stacktrace(), Some(stacktrace));
 
         Ok(())

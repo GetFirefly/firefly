@@ -202,10 +202,15 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
 /// returned all the way to its entry function. This marks the process
 /// as exiting (if it wasn't already), and then yields to the scheduler
 fn do_process_return(scheduler: &Scheduler, exit_value: Term) -> bool {
+    use liblumen_alloc::erts::process;
     use liblumen_alloc::erts::term::prelude::*;
     let current = &scheduler.current;
     if current.pid() != scheduler.root.pid() {
-        current.exit(exit_value, anyhow!("process exit").into());
+        if let Some(err) = process::ffi::process_error() {
+            current.exception(err);
+        } else {
+            current.exit(exit_value, anyhow!("process exit").into());
+        }
         // NOTE: We always set root=false here, even though this can
         // be called from the root process, since returning from the
         // root process exits the scheduler loop anyway, so no stack

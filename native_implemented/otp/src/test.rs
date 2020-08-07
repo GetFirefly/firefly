@@ -40,7 +40,7 @@ pub fn assert_exits<F: Fn(Option<Term>)>(
 ) {
     match *process.status.read() {
         Status::RuntimeException(ref runtime_exception) => {
-            assert_eq!(runtime_exception.reason(), Some(expected_reason));
+            assert_eq!(runtime_exception.reason(), expected_reason);
             assert_stacktrace(runtime_exception.stacktrace());
 
             let source_string = format!("{:?}", runtime_exception.source());

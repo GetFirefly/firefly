@@ -4,6 +4,7 @@ use core::fmt;
 use anyhow::*;
 use thiserror::Error;
 
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::term::prelude::*;
 
 use super::ArcError;
@@ -24,6 +25,15 @@ impl Throw {
             stacktrace: trace,
             source,
         }
+    }
+    pub fn as_error_tuple<A>(&self, heap: &mut A) -> super::AllocResult<Term>
+    where
+        A: TermAlloc,
+    {
+        let class = Atom::THROW.as_term();
+        let trace = self.stacktrace.unwrap_or(Term::NIL);
+        heap.tuple_from_slice(&[class, self.reason, trace])
+            .map(|t| t.into())
     }
     pub fn class(&self) -> Class {
         Class::Throw
@@ -89,6 +99,15 @@ impl Error {
             source,
         }
     }
+    pub fn as_error_tuple<A>(&self, heap: &mut A) -> super::AllocResult<Term>
+    where
+        A: TermAlloc,
+    {
+        let class = Atom::ERROR.as_term();
+        let trace = self.stacktrace.unwrap_or(Term::NIL);
+        heap.tuple_from_slice(&[class, self.reason, trace])
+            .map(|t| t.into())
+    }
     pub fn arguments(&self) -> Option<Term> {
         self.arguments
     }
@@ -151,6 +170,15 @@ impl Exit {
             stacktrace: trace,
             source,
         }
+    }
+    pub fn as_error_tuple<A>(&self, heap: &mut A) -> super::AllocResult<Term>
+    where
+        A: TermAlloc,
+    {
+        let class = Atom::EXIT.as_term();
+        let trace = self.stacktrace.unwrap_or(Term::NIL);
+        heap.tuple_from_slice(&[class, self.reason, trace])
+            .map(|t| t.into())
     }
     pub fn class(&self) -> Class {
         Class::Exit

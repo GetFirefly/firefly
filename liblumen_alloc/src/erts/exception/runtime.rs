@@ -2,6 +2,7 @@ use core::convert::TryFrom;
 
 use thiserror::Error;
 
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::term::prelude::*;
 
 use super::{ArcError, Exception, SystemException, UnexpectedExceptionError};
@@ -28,19 +29,19 @@ impl PartialEq for RuntimeException {
     }
 }
 impl RuntimeException {
-    pub fn class(&self) -> Option<super::Class> {
+    pub fn class(&self) -> super::Class {
         match self {
-            RuntimeException::Throw(e) => Some(e.class()),
-            RuntimeException::Exit(e) => Some(e.class()),
-            RuntimeException::Error(e) => Some(e.class()),
+            RuntimeException::Throw(e) => e.class(),
+            RuntimeException::Exit(e) => e.class(),
+            RuntimeException::Error(e) => e.class(),
         }
     }
 
-    pub fn reason(&self) -> Option<Term> {
+    pub fn reason(&self) -> Term {
         match self {
-            RuntimeException::Throw(e) => Some(e.reason()),
-            RuntimeException::Exit(e) => Some(e.reason()),
-            RuntimeException::Error(e) => Some(e.reason()),
+            RuntimeException::Throw(e) => e.reason(),
+            RuntimeException::Exit(e) => e.reason(),
+            RuntimeException::Error(e) => e.reason(),
         }
     }
 
@@ -49,6 +50,18 @@ impl RuntimeException {
             RuntimeException::Throw(e) => e.stacktrace(),
             RuntimeException::Exit(e) => e.stacktrace(),
             RuntimeException::Error(e) => e.stacktrace(),
+        }
+    }
+
+    #[inline]
+    pub fn as_error_tuple<A>(&self, heap: &mut A) -> super::AllocResult<Term>
+    where
+        A: TermAlloc,
+    {
+        match self {
+            RuntimeException::Throw(e) => e.as_error_tuple(heap),
+            RuntimeException::Exit(e) => e.as_error_tuple(heap),
+            RuntimeException::Error(e) => e.as_error_tuple(heap),
         }
     }
 
@@ -94,8 +107,8 @@ mod tests {
             let reason = atom!("badarg");
             let error = error!(reason, anyhow!("source").into());
 
-            assert_eq!(error.reason(), Some(reason));
-            assert_eq!(error.class(), Some(Class::Error { arguments: None }));
+            assert_eq!(error.reason(), reason);
+            assert_eq!(error.class(), Class::Error { arguments: None });
         }
 
         #[test]
@@ -104,12 +117,12 @@ mod tests {
             let arguments = Term::NIL;
             let error = error!(reason, arguments, anyhow!("source").into());
 
-            assert_eq!(error.reason(), Some(reason));
+            assert_eq!(error.reason(), reason);
             assert_eq!(
                 error.class(),
-                Some(Class::Error {
+                Class::Error {
                     arguments: Some(arguments)
-                })
+                }
             );
         }
     }

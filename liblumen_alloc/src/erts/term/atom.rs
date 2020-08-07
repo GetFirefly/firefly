@@ -70,6 +70,9 @@ impl Atom {
 
     pub const TRUE: Self = Self(1);
     pub const FALSE: Self = Self(0);
+    pub const ERROR: Self = Self(46);
+    pub const THROW: Self = Self(58);
+    pub const EXIT: Self = Self(59);
 
     /// Gets the identifier associated with this atom
     #[inline(always)]
@@ -116,6 +119,14 @@ impl Atom {
         use crate::erts::term::prelude::Encode;
 
         Self::from_str(s).encode().unwrap()
+    }
+
+    /// Convenience function for encoding atoms as terms
+    #[inline(always)]
+    pub fn as_term(&self) -> Term {
+        use crate::erts::term::prelude::Encode;
+
+        self.encode().unwrap()
     }
 
     /// Creates a new atom from a `str`.

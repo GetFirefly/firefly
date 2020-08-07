@@ -213,7 +213,7 @@ pub fn prop_assert_exits<
 ) -> proptest::test_runner::TestCaseResult {
     match *process.status.read() {
         Status::RuntimeException(ref runtime_exception) => {
-            prop_assert_eq!(runtime_exception.reason(), Some(expected_reason));
+            prop_assert_eq!(runtime_exception.reason(), expected_reason);
             prop_assert_stacktrace(runtime_exception.stacktrace())?;
 
             let source_string = format!("{:?}", runtime_exception.source());

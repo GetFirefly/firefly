@@ -1,5 +1,5 @@
 pub mod alloc;
-//pub mod ffi;
+pub mod ffi;
 mod flags;
 mod frame;
 mod frame_with_arguments;

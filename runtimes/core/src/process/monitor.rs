@@ -6,7 +6,7 @@ use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{self, Message};
-use liblumen_alloc::{atom, CloneToProcess, HeapFragment};
+use liblumen_alloc::{CloneToProcess, HeapFragment};
 
 use liblumen_core::alloc::Layout;
 
@@ -34,7 +34,7 @@ pub fn is_down(message: &Message, reference: &Reference) -> bool {
 }
 
 pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
-    let info = exception.reason().unwrap_or_else(|| atom!("system_error"));
+    let info = exception.reason();
 
     for entry in process.monitor_by_reference.iter() {
         let reference = entry.key();

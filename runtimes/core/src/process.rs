@@ -30,7 +30,7 @@ pub fn maybe_current_process() -> Option<Arc<Process>> {
 pub fn is_expected_exception(exception: &RuntimeException) -> bool {
     use exception::Class;
     match exception.class() {
-        Some(Class::Exit) => is_expected_exit_reason(exception.reason().unwrap()),
+        Class::Exit => is_expected_exit_reason(exception.reason()),
         _ => false,
     }
 }
@@ -56,8 +56,8 @@ fn is_expected_exit_reason(reason: Term) -> bool {
 pub fn log_exit(process: &Process, exception: &RuntimeException) {
     use exception::Class;
     match exception.class() {
-        Some(Class::Exit) => {
-            let reason = exception.reason().unwrap();
+        Class::Exit => {
+            let reason = exception.reason();
 
             if !is_expected_exit_reason(reason) {
                 sys::io::puts(&format!(
@@ -68,10 +68,10 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
                 ));
             }
         }
-        Some(Class::Error { .. }) => sys::io::puts(&format!(
+        Class::Error { .. } => sys::io::puts(&format!(
             "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {:?}\n{}",
             process,
-            exception.reason().unwrap(),
+            exception.reason(),
             exception.source(),
             process.stacktrace()
         )),
@@ -104,7 +104,7 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
     if !is_expected_exception(exception) {
         let tag = atom!("EXIT");
         let from = process.pid_term();
-        let reason = exception.reason().unwrap_or_else(|| atom!("system_error"));
+        let reason = exception.reason();
         let reason_word_size = reason.size_in_words();
         let exit_message_elements: &[Term] = &[tag, from, reason];
         let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);

@@ -1004,6 +1004,18 @@ static Optional<Value> buildIntrinsicSpawn1Op(ModuleBuilder *modBuilder, Locatio
   return op.getResult(0);
 }
 
+static Optional<Value> buildIntrinsicFailOp(ModuleBuilder *modBuilder, Location loc,
+                                                 ArrayRef<Value> args) {
+  auto builder = modBuilder->getBuilder();
+  assert(args.size() == 1 && "expected fail/1 to receive one operand");
+  auto calleeSymbol =
+      FlatSymbolRefAttr::get("__lumen_builtin_fail/1", builder.getContext());
+  auto termTy = builder.getType<TermType>();
+  SmallVector<Type, 1> resultTypes{termTy};
+  auto op = builder.create<CallOp>(loc, calleeSymbol, resultTypes, args);
+  return op.getResult(0);
+}
+
 using BuildIntrinsicFnT = Optional<Value> (*)(ModuleBuilder *, Location loc,
                                               ArrayRef<Value>);
 
@@ -1016,6 +1028,7 @@ static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
                    .Case("erlang:raise/3", buildIntrinsicRaiseOp)
                    .Case("erlang:print/1", buildIntrinsicPrintOp)
                    .Case("erlang:spawn/1", buildIntrinsicSpawn1Op)
+                   .Case("erlang:fail/1", buildIntrinsicFailOp)
                    .Case("erlang:+/2", buildIntrinsicAddOp)
                    .Case("erlang:-/1", buildIntrinsicNegOp)
                    .Case("erlang:-/2", buildIntrinsicSubOp)

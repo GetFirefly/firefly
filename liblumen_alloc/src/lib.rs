@@ -15,6 +15,8 @@
 #![feature(slice_index_methods)]
 #![feature(trait_alias)]
 #![feature(raw_vec_internals)]
+// Support external thread locals
+#![feature(thread_local)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

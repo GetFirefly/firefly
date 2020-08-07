@@ -29,4 +29,6 @@ jobs:
           RUST_BACKTRACE: full
         run: make build
       - name: Lumen Test
+        env:
+          LLVM_BUILD_STATIC: 1
         run: cargo test --package lumen

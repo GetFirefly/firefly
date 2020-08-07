@@ -114,6 +114,24 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
 
         let is_closure = analysis.live.live_at(func_entry.entry).iter().count() > 0;
 
+        // Create function location
+        let func_span = eir.span();
+        let func_src_loc = self
+            .builder
+            .source_file
+            .location(func_span.start().index())
+            .unwrap();
+        let func_loc = unsafe {
+            MLIRCreateLocation(
+                self.builder.as_ref(),
+                SourceLocation {
+                    filename: self.builder.filename().as_ptr(),
+                    line: func_src_loc.line.to_usize() as u32 + 1,
+                    column: func_src_loc.column.to_usize() as u32 + 1,
+                },
+            )
+        };
+
         // Construct signature
         let mut signature = Signature::new(CallConv::Fast);
         let entry_args = eir.block_args(func_entry.entry);
@@ -153,22 +171,6 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
         }
 
         // Create function
-        let func_span = eir.span();
-        let func_src_loc = self
-            .builder
-            .source_file
-            .location(func_span.start().index())
-            .unwrap();
-        let func_loc = unsafe {
-            MLIRCreateLocation(
-                self.builder.as_ref(),
-                SourceLocation {
-                    filename: self.builder.filename().as_ptr(),
-                    line: func_src_loc.line.to_usize() as u32 + 1,
-                    column: func_src_loc.column.to_usize() as u32 + 1,
-                },
-            )
-        };
         let mut func = Function::with_name_signature(func_span, name, signature);
 
         let (mlir, entry_ref) = func.build(self.builder)?;
@@ -1582,12 +1584,9 @@ pub(super) fn value_location(f: &ir::Function, value: ir::Value) -> Span {
         return loc;
     }
 
-    let mut locs = f.block_locations(f.block_entry());
-    let loc = locs
-        .pop()
-        .expect("expected function entry to have location");
-    let start = loc.start().to_usize() as u32;
-    let end = loc.end().to_usize() as u32;
+    let entry = f.span();
+    let start = entry.start().to_usize() as u32;
+    let end = entry.end().to_usize() as u32;
     Span::new(start, end)
 }
 

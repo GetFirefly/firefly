@@ -68,26 +68,4 @@ fn with_atom_with_atom_without_name_encoding_errors_badarg() {
     );
 }
 
-#[test]
-fn with_atom_with_encoding_atom_returns_name_in_binary() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                any::<String>(),
-                strategy::term::is_encoding(),
-            )
-                .prop_map(|(arc_process, string, encoding)| {
-                    (arc_process, Atom::str_to_term(&string), encoding, string)
-                })
-        },
-        |(arc_process, atom, encoding, string)| {
-            prop_assert_eq!(
-                result(&arc_process, atom, encoding),
-                Ok(arc_process.binary_from_bytes(string.as_bytes()).unwrap())
-            );
-
-            Ok(())
-        },
-    );
-}
+// `with_atom_with_encoding_atom_returns_name_in_binary` in integration tests

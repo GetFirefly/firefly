@@ -15,6 +15,7 @@ endif()
 # SRCS: List of source files for the library
 # DEPS: List of other libraries to be linked in to the binary targets
 # DEPENDS: List of other libraries that are dependencies, but not linked in
+# LLVM_COMPONENTS: List of other LLVM libraries to link to
 # COPTS: List of private compile options
 # DEFINES: List of public defines
 # INCLUDES: Include directories to add to dependencies
@@ -59,7 +60,7 @@ function(lumen_cc_library)
     _RULE
     "PUBLIC;ALWAYSLINK;TESTONLY;SHARED"
     "NAME"
-    "HDRS;TEXTUAL_HDRS;SRCS;COPTS;DEFINES;LINKOPTS;DEPS;DEPENDS;INCLUDES"
+    "HDRS;TEXTUAL_HDRS;SRCS;COPTS;DEFINES;LINKOPTS;DEPS;DEPENDS;INCLUDES;LLVM_COMPONENTS"
     ${ARGN}
   )
 
@@ -67,6 +68,18 @@ function(lumen_cc_library)
   # Replace dependencies passed by ::name with ::lumen::package::name
   list(TRANSFORM _RULE_DEPS REPLACE "^::" "${_PACKAGE_NS}::")
   list(TRANSFORM _RULE_DEPENDS REPLACE "^::" "${_PACKAGE_NS}::")
+
+
+  if ("${_RULE_LLVM_COMPONENTS}")
+    if (LLVM_LINK_LLVM_DYLIB)
+      set(_LLVM_LIBS LLVM)
+    else()
+      llvm_map_components_to_libnames(_LLVM_LIBS
+         ${ARG_LLVM_COMPONENTS}
+         ${LLVM_LINK_COMPONENTS}
+      )
+    endif()
+  endif()
 
   if(NOT _RULE_TESTONLY OR LUMEN_BUILD_TESTS)
     # Prefix the library with the package name, so we get: lumen_package_name.
@@ -125,6 +138,11 @@ function(lumen_cc_library)
             ${LUMEN_DEFAULT_LINKOPTS}
         )
       endif()
+      if ("${_LLVM_LIBS}")
+        target_link_libraries(${_NAME}
+          ${_LLVM_LIBS}
+        )
+      endif()
       if ("${_RULE_DEPENDS}")
         add_dependencies(${_NAME}
           ${_RULE_DEPENDS}
@@ -166,6 +184,7 @@ function(lumen_cc_library)
       target_link_libraries(${_NAME}
         INTERFACE
           ${_RULE_DEPS}
+          ${_LLVM_LIBS}
           ${_RULE_LINKOPTS}
           ${LUMEN_DEFAULT_LINKOPTS}
       )
@@ -195,7 +214,7 @@ function(lumen_cc_library)
       # until all shared libraries have been declared.
       # Track target and deps, use in lumen_complete_dylib_link_options() later.
       set_property(GLOBAL APPEND PROPERTY _LUMEN_CC_DYLIB_NAMES "${_NAME}")
-      set_property(TARGET ${_NAME} PROPERTY DIRECT_DEPS ${_RULE_DEPS})
+      set_property(TARGET ${_NAME} PROPERTY DIRECT_DEPS ${_RULE_DEPS} ${_LLVM_LIBS})
       set_property(TARGET ${_NAME} PROPERTY DIRECT_LINKOPTS ${_RULE_LINKOPTS})
     endif()
   endif()

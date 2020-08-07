@@ -73,11 +73,12 @@ lumen_cc_library(
     lumen::EIR::IR::EIROpsGen
     lumen::EIR::IR::EIROpInterfaceGen
     lumen::EIR::IR::EIREncodingGen
-    LLVMSupport
     MLIRIR
     MLIRParser
     MLIRStandardOps
     MLIRSupport
     MLIRTransformUtils
+  LLVM_COMPONENTS
+    LLVMSupport
   PUBLIC
 )

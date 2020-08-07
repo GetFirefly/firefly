@@ -9,6 +9,7 @@ use walkdir::{DirEntry, WalkDir};
 
 const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
+const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "LLVM_LINK_LLVM_DYLIB";
 
 fn main() {
     let cwd = env::current_dir().unwrap();
@@ -156,8 +157,13 @@ fn link_libs_static(libs: &[&str]) {
 
 #[inline]
 fn link_libs_dylib(libs: &[&str]) {
-    for lib in libs {
-        link_lib_dylib(lib);
+    let llvm_link_llvm_dylib = env::var(ENV_LLVM_LINK_LLVM_DYLIB).unwrap_or("OFF".to_owned());
+    if llvm_link_llvm_dylib == "ON" {
+        link_lib_dylib("MLIR");
+    } else {
+        for lib in libs {
+            link_lib_dylib(lib);
+        }
     }
 }
 

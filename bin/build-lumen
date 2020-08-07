@@ -44,6 +44,7 @@ function usage() {
     echo " --release            Build release binary"
     echo " --static             Build a statically linked executable"
     echo " --dynamic            Build the compiler dynamically linked against its libraries"
+    echo " --link-aio-dylib     Link against libLLVM/libMLIR shared libs"
     echo " --use-libcxx         Build the compiler dynamically linked against its libraries"
     echo " --target <triple>    The target triple to build for"
     echo " --install <prefix>   Install to the given prefix"
@@ -134,6 +135,12 @@ while [ $# -gt 0 ]; do
         -dynamic | --dynamic )
             build_static="false"
             build_dynamic="true"
+            ;;
+
+        -link-aio-dylib | --link-aio-dylib )
+            build_dynamic="true"
+            build_static="false"
+            export LLVM_LINK_LLVM_DYLIB="ON"
             ;;
 
         -use-libcxx | --use-libcxx )
@@ -238,6 +245,7 @@ if [ "$build_static" = "true" ]; then
 else
     #extra_rustc_flags="-C prefer-dynamic $extra_rustc_flags"
     build_link_args="-rpath,${TOOLCHAIN_TARGET_LIB_PATH}${build_link_args:+,$build_link_args}"
+    build_link_args="-rpath,${LLVM_PREFIX}/lib,${build_link_args}"
 fi
 if [ "$build_use_libcxx" = "true" ]; then
     export LLVM_USE_LIBCXX=1
@@ -258,10 +266,22 @@ if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/lumen-tblgen/lumen-tblgen" ]; then
         _generator="-GNinja"
         _target="lumen-tblgen"
     fi
+    _build_shared_libs="OFF"
+    _link_llvm_dylib="OFF"
+    if [ "$build_static" != "true" ]; then
+        if [ "$LLVM_LINK_LLVM_DYLIB" == "ON" ]; then
+            _build_shared_libs="OFF"
+            _link_llvm_dylib="ON"
+        else
+            _build_shared_libs="ON"
+            _link_llvm_dylib="OFF"
+        fi
+    fi
     cmake ${_generator} \
         -DLUMEN_BUILD_COMPILER=ON \
         -DLUMEN_BUILD_TESTS=OFF \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="${_build_shared_libs}" \
+        -DLLVM_LINK_LLVM_DYLIB="${_link_llvm_dylib}" \
         -DLLVM_PREFIX="$LLVM_PREFIX" \
         --target lumen_tblgen \
         --build "${ROOT_DIR}/compiler/codegen_llvm" && \

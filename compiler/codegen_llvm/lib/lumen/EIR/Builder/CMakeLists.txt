@@ -7,13 +7,14 @@ lumen_cc_library(
     "ModuleBuilder.cpp"
   DEPS
     lumen::EIR::IR
-    LLVMSupport
-    LLVMTarget
-    LLVMBitWriter
     MLIRIR
     MLIRSupport
     MLIRStandardOps
     MLIRLLVMIR
     MLIRTransforms
+  LLVM_COMPONENTS
+    LLVMSupport
+    LLVMTarget
+    LLVMBitWriter
   PUBLIC
 )

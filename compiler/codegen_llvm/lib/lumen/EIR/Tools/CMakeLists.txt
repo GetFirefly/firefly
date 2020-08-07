@@ -4,9 +4,10 @@ lumen_cc_library(
   SRCS
     "EIREncodingGen.cpp"
   DEPS
-    LLVMSupport
-    LLVMTableGen
     MLIRSupport
     MLIRTableGen
+  LLVM_COMPONENTS
+    LLVMSupport
+    LLVMTableGen
   PUBLIC
 )

@@ -32,9 +32,6 @@ lumen_cc_library(
   DEPS
     lumen::EIR::IR::EIREncodingGen
     lumen::EIR::IR
-    LLVMSupport
-    LLVMCodeGen
-    LLVMTarget
     MLIRLLVMIR
     MLIRIR
     MLIRPass
@@ -43,5 +40,9 @@ lumen_cc_library(
     MLIRTransforms
     MLIRTransformUtils
     MLIRStandardToLLVM
+  LLVM_COMPONENTS
+    LLVMSupport
+    LLVMCodeGen
+    LLVMTarget
   PUBLIC
 )

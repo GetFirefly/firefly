@@ -10,12 +10,14 @@ use walkdir::{DirEntry, WalkDir};
 
 const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
+const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "LLVM_LINK_LLVM_DYLIB";
 
 fn main() {
     let cwd = env::current_dir().unwrap();
 
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
+    println!("cargo:rerun-if-env-changed={}", ENV_LLVM_LINK_LLVM_DYLIB);
 
     rerun_if_changed_anything_in_dir(&cwd.join("c_src"));
 
@@ -25,6 +27,7 @@ fn main() {
     let is_crossed = target != host;
 
     let llvm_prefix_env = env::var(ENV_LLVM_PREFIX).expect(ENV_LLVM_PREFIX);
+    let llvm_link_llvm_dylib = env::var(ENV_LLVM_LINK_LLVM_DYLIB).unwrap_or("OFF".to_owned());
     let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
     let llvm_config = llvm_prefix.as_path().join("bin/llvm-config").to_path_buf();
 
@@ -142,48 +145,52 @@ fn main() {
 
     let (llvm_kind, llvm_link_arg) = detect_llvm_link();
 
-    // Link in all LLVM libraries
-    let mut cmd = Command::new(&llvm_config);
-    cmd.arg(llvm_link_arg).arg("--libs");
+    if llvm_kind == "static" && llvm_link_llvm_dylib == "ON" {
+        println!("cargo:rustc-link-lib=dylib=LLVM");
+    } else {
+        // Link in all LLVM libraries
+        let mut cmd = Command::new(&llvm_config);
+        cmd.arg(llvm_link_arg).arg("--libs");
 
-    if !is_crossed {
-        cmd.arg("--system-libs");
-    }
-    cmd.args(&components);
-
-    for lib in output(&mut cmd).split_whitespace() {
-        let name = if lib.starts_with("-l") {
-            &lib[2..]
-        } else if lib.starts_with('-') {
-            &lib[1..]
-        } else if Path::new(lib).exists() {
-            // On MSVC llvm-config will print the full name to libraries, but
-            // we're only interested in the name part
-            let name = Path::new(lib).file_name().unwrap().to_str().unwrap();
-            name.trim_end_matches(".lib")
-        } else if lib.ends_with(".lib") {
-            // Some MSVC libraries just come up with `.lib` tacked on, so chop
-            // that off
-            lib.trim_end_matches(".lib")
-        } else {
-            continue;
-        };
-
-        // Don't need or want this library, but LLVM's CMake build system
-        // doesn't provide a way to disable it, so filter it here even though we
-        // may or may not have built it. We don't reference anything from this
-        // library and it otherwise may just pull in extra dependencies on
-        // libedit which we don't want
-        if name == "LLVMLineEditor" {
-            continue;
+        if !is_crossed {
+            cmd.arg("--system-libs");
         }
+        cmd.args(&components);
 
-        let kind = if name.starts_with("LLVM") {
-            llvm_kind
-        } else {
-            "dylib"
-        };
-        println!("cargo:rustc-link-lib={}={}", kind, name);
+        for lib in output(&mut cmd).split_whitespace() {
+            let name = if lib.starts_with("-l") {
+                &lib[2..]
+            } else if lib.starts_with('-') {
+                &lib[1..]
+            } else if Path::new(lib).exists() {
+                // On MSVC llvm-config will print the full name to libraries, but
+                // we're only interested in the name part
+                let name = Path::new(lib).file_name().unwrap().to_str().unwrap();
+                name.trim_end_matches(".lib")
+            } else if lib.ends_with(".lib") {
+                // Some MSVC libraries just come up with `.lib` tacked on, so chop
+                // that off
+                lib.trim_end_matches(".lib")
+            } else {
+                continue;
+            };
+
+            // Don't need or want this library, but LLVM's CMake build system
+            // doesn't provide a way to disable it, so filter it here even though we
+            // may or may not have built it. We don't reference anything from this
+            // library and it otherwise may just pull in extra dependencies on
+            // libedit which we don't want
+            if name == "LLVMLineEditor" {
+                continue;
+            }
+
+            let kind = if name.starts_with("LLVM") {
+                llvm_kind
+            } else {
+                "dylib"
+            };
+            println!("cargo:rustc-link-lib={}={}", kind, name);
+        }
     }
 
     // LLVM ldflags
@@ -307,11 +314,11 @@ pub fn output(cmd: &mut Command) -> String {
 
 fn detect_llvm_link() -> (&'static str, &'static str) {
     // Force the link mode we want, preferring static by default, but
-    //if env::var_os(ENV_LLVM_BUILD_STATIC).is_some() {
-    ("static", "--link-static")
-    //} else {
-    //("dylib", "--link-shared")
-    //}
+    if env::var_os(ENV_LLVM_BUILD_STATIC).is_some() {
+        ("static", "--link-static")
+    } else {
+        ("dylib", "--link-shared")
+    }
 }
 
 fn rerun_if_changed_anything_in_dir(dir: &Path) {

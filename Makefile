@@ -25,7 +25,11 @@ install: ## Install the Lumen compiler
 
 build: ## Build the Lumen compiler
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx
+		bin/build-lumen --debug --static --use-libcxx
+
+build-shared: ## Build the Lumen compiler dynamically linked to LLVM
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
+		bin/build-lumen --debug --dynamic --link-aio-dylib --use-libcxx
 
 bloat:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \

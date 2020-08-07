@@ -9,6 +9,7 @@ lumen_cc_binary(
     lumen::EIR::Tools::TableGen
     MLIRSupport
     MLIRTableGen
+  LLVM_COMPONENTS
     LLVMSupport
     LLVMTableGen
   LINKOPTS

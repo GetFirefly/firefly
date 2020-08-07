@@ -88,7 +88,7 @@ where
     parse_config.warnings_as_errors = options.warnings_as_errors;
     parse_config.no_warn = options.no_warn;
     parse_config.include_paths = options.include_path.clone();
-    parse_config.code_paths = options.code_path.clone();
+    parse_config.code_paths = Default::default();
     parse_config
 }
 

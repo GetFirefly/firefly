@@ -239,20 +239,10 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .number_of_values(1),
         )
         .arg(
-            Arg::with_name("append-path")
-                .help("Appends a path to the Erlang code path")
-                .long("append-path")
-                .short("p")
-                .value_name("PATH")
-                .takes_value(true)
-                .multiple(true)
-                .number_of_values(1),
-        )
-        .arg(
-            Arg::with_name("prepend-path")
-                .help("Prepends a path to the Erlang code path")
-                .long("prepend-path")
-                .short("P")
+            Arg::with_name("include-paths")
+                .help("Add a path to the Erlang include path")
+                .long("include")
+                .short("I")
                 .value_name("PATH")
                 .takes_value(true)
                 .multiple(true)

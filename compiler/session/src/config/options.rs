@@ -75,7 +75,6 @@ pub struct Options {
     pub source_path_prefix: Vec<(PathBuf, PathBuf)>,
     pub search_paths: Vec<SearchPath>,
     pub include_path: VecDeque<PathBuf>,
-    pub code_path: VecDeque<PathBuf>,
     pub link_libraries: Vec<(String, Option<String>, Option<NativeLibraryKind>)>,
     pub defines: HashMap<String, Option<String>>,
 
@@ -207,18 +206,8 @@ impl Options {
         let no_warn = args.is_present("no-warn");
         let verbosity = Verbosity::from_level(args.occurrences_of("verbose") as isize);
         let mut include_path = VecDeque::new();
-        let mut code_path = VecDeque::new();
-        if let Some(values) = args.values_of_os("prepend-path") {
+        if let Some(values) = args.values_of_os("include-paths") {
             for value in values {
-                // Prepend in the order given
-                code_path.push_front(PathBuf::from(value));
-                include_path.push_front(PathBuf::from(value));
-            }
-        }
-        if let Some(values) = args.values_of_os("append-path") {
-            for value in values {
-                // Append in the order given
-                code_path.push_back(PathBuf::from(value));
                 include_path.push_front(PathBuf::from(value));
             }
         }
@@ -249,7 +238,6 @@ impl Options {
             source_path_prefix,
             search_paths,
             include_path,
-            code_path,
             link_libraries,
             defines,
             cli_forced_thinlto_off: false,
@@ -327,7 +315,6 @@ impl Options {
             source_path_prefix: vec![],
             search_paths: Default::default(),
             include_path: Default::default(),
-            code_path: Default::default(),
             link_libraries: Default::default(),
             defines,
             cli_forced_thinlto_off: false,

@@ -206,18 +206,20 @@ impl Options {
         let warnings_as_errors = args.is_present("warnings-as-errors");
         let no_warn = args.is_present("no-warn");
         let verbosity = Verbosity::from_level(args.occurrences_of("verbose") as isize);
-        let include_path = VecDeque::new();
+        let mut include_path = VecDeque::new();
         let mut code_path = VecDeque::new();
         if let Some(values) = args.values_of_os("prepend-path") {
             for value in values {
                 // Prepend in the order given
                 code_path.push_front(PathBuf::from(value));
+                include_path.push_front(PathBuf::from(value));
             }
         }
         if let Some(values) = args.values_of_os("append-path") {
             for value in values {
                 // Append in the order given
                 code_path.push_back(PathBuf::from(value));
+                include_path.push_front(PathBuf::from(value));
             }
         }
 

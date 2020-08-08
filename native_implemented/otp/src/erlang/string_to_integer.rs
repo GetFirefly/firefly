@@ -14,7 +14,7 @@ pub fn base_string_to_integer(
     process: &Process,
     base: Term,
     name: &'static str,
-    quote: char,
+    term: Term,
     string: &str,
 ) -> InternalResult<Term> {
     let base_base: Base = base.try_into()?;
@@ -22,23 +22,18 @@ pub fn base_string_to_integer(
 
     match BigInt::parse_bytes(bytes, base_base.radix()) {
         Some(big_int) => process.integer(big_int).map_err(|error| error.into()),
-        None => Err(anyhow!(
-            "{} is not in base ({})",
-            context::string(name, quote, string),
-            base
-        )
-        .into()),
+        None => Err(anyhow!("{} is not in base ({})", context::string(name, term), base).into()),
     }
 }
 
 pub fn decimal_string_to_integer(
     process: &Process,
     name: &'static str,
-    quote: char,
-    value: &str,
+    term: Term,
+    string: &str,
 ) -> InternalResult<Term> {
-    match BigInt::parse_bytes(value.as_bytes(), 10) {
+    match BigInt::parse_bytes(string.as_bytes(), 10) {
         Some(big_int) => process.integer(big_int).map_err(|error| error.into()),
-        None => Err(anyhow!("{} is not base 10", context::string(name, quote, value)).into()),
+        None => Err(anyhow!("{} is not base 10", context::string(name, term)).into()),
     }
 }

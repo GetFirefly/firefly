@@ -13,7 +13,7 @@ mod cli {
 
         assert_eq!(
             String::from_utf8_lossy(&cli_output.stdout),
-            "\"Nothing to say.\"\n",
+            "<<\"Nothing to say.\">>\n",
             "\nstdout = {}\nstderr = {}",
             stdout,
             stderr
@@ -34,7 +34,7 @@ mod cli {
         let stderr = String::from_utf8_lossy(&cli_output.stderr);
 
         assert_eq!(
-            stdout, "\"Nothing to say.\"\n",
+            stdout, "<<\"Nothing to say.\">>\n",
             "\nstdout = {}\nstderr = {}",
             stdout, stderr
         );
@@ -54,7 +54,7 @@ mod cli {
         let stderr = String::from_utf8_lossy(&cli_output.stderr);
 
         assert_eq!(
-            stdout, "\"Hello, world!\"\n",
+            stdout, "<<\"Hello, world!\">>\n",
             "\nstdout = {}\nstderr = {}",
             stdout, stderr
         );

@@ -12,5 +12,5 @@ use crate::erlang::string_to_float::string_to_float;
 pub fn result(process: &Process, list: Term) -> exception::Result<Term> {
     let string = charlist_to_string(list)?;
 
-    string_to_float(process, "list", &string, '\'').map_err(From::from)
+    string_to_float(process, "list", list, &string).map_err(From::from)
 }

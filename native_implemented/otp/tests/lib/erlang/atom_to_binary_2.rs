@@ -4,5 +4,5 @@
 
 test_stdout!(
     with_atom_with_encoding_atom_returns_name_in_binary,
-    "\"one\"\n\"two\"\n\"three\"\n"
+    "<<\"one\">>\n<<\"two\">>\n<<\"three\">>\n"
 );

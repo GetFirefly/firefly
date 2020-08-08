@@ -11,19 +11,19 @@ use crate::runtime::context;
 pub fn string_to_float(
     process: &Process,
     name: &'static str,
-    value: &str,
-    quote: char,
+    term: Term,
+    string: &str,
 ) -> InternalResult<Term> {
-    match value.parse::<f64>() {
+    match string.parse::<f64>() {
         Ok(inner) => {
             match inner.classify() {
                 FpCategory::Normal | FpCategory::Subnormal =>
                 // unlike Rust, Erlang requires float strings to have a decimal point
                 {
-                    if (inner.fract() == 0.0) && !value.chars().any(|b| b == '.') {
+                    if (inner.fract() == 0.0) && !string.chars().any(|b| b == '.') {
                         Err(anyhow!(
                             "{} does not contain decimal point",
-                            context::string(name, quote, value)
+                            context::string(name, term)
                         )
                         .into())
                     } else {
@@ -31,15 +31,15 @@ pub fn string_to_float(
                     }
                 }
                 // Erlang has no support for Nan, +inf or -inf
-                FpCategory::Nan => Err(anyhow!("Erlang does not support NANs ({})", value).into()),
+                FpCategory::Nan => Err(anyhow!("Erlang does not support NANs ({})", string).into()),
                 FpCategory::Infinite => {
-                    Err(anyhow!("Erlang does not support infinities ({})", value).into())
+                    Err(anyhow!("Erlang does not support infinities ({})", string).into())
                 }
                 FpCategory::Zero => {
-                    if !value.chars().any(|b| b == '.') {
+                    if !string.chars().any(|b| b == '.') {
                         Err(anyhow!(
                             "{} does not contain decimal point",
-                            context::string(name, quote, value)
+                            context::string(name, term)
                         )
                         .into())
                     } else {
@@ -54,7 +54,7 @@ pub fn string_to_float(
         Err(error) => Err(error)
             .context(format!(
                 "{} cannot be parsed as float",
-                context::string(name, quote, value),
+                context::string(name, term),
             ))
             .map_err(From::from),
     }

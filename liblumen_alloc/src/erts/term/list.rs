@@ -177,6 +177,25 @@ impl Cons {
 
         Ok(None)
     }
+
+    // See https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L117-L140
+    fn is_printable_string(&self) -> bool {
+        self.into_iter().all(|result| match result {
+            Ok(ref element) => {
+                // See https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L128-L129
+                let result_char: Result<char, _> = (*element).try_into();
+
+                match result_char {
+                    Ok(c) => {
+                        // https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L132
+                        c.is_ascii_graphic()
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        })
+    }
 }
 
 impl Debug for Cons {
@@ -202,22 +221,41 @@ impl Debug for Cons {
 
 impl Display for Cons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_char('[')?;
+        // See https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L423-443
+        if self.is_printable_string() {
+            f.write_char('\"')?;
 
-        let mut iter = self.into_iter();
+            for result in self.into_iter() {
+                // `is_printable_string` guarantees all Ok
+                let element = result.unwrap();
+                let c: char = element.try_into().unwrap();
 
-        if let Some(first_result) = iter.next() {
-            write!(f, "{}", first_result.unwrap())?;
-
-            for result in iter {
-                match result {
-                    Ok(element) => write!(f, ", {}", element)?,
-                    Err(ImproperList { tail }) => write!(f, " | {}", tail)?,
+                match c {
+                    '\n' => f.write_str("\\\n")?,
+                    '\"' => f.write_str("\\\"")?,
+                    _ => f.write_char(c)?,
                 }
             }
-        }
 
-        f.write_char(']')
+            f.write_char('\"')
+        } else {
+            f.write_char('[')?;
+
+            let mut iter = self.into_iter();
+
+            if let Some(first_result) = iter.next() {
+                write!(f, "{}", first_result.unwrap())?;
+
+                for result in iter {
+                    match result {
+                        Ok(element) => write!(f, ", {}", element)?,
+                        Err(ImproperList { tail }) => write!(f, " | {}", tail)?,
+                    }
+                }
+            }
+
+            f.write_char(']')
+        }
     }
 }
 

@@ -74,7 +74,7 @@ fn with_list_encoding_local_pid() {
 
         assert_badarg!(
             result(&process, process.charlist_from_str("<0.1.2>?").unwrap()),
-            "extra characters ([63]) beyond end of formatted pid"
+            "extra characters (\"?\") beyond end of formatted pid"
         );
     })
 }
@@ -135,7 +135,7 @@ fn with_list_encoding_external_pid_without_known_node_errors_badarg() {
 
         assert_badarg!(
             result(&process, process.charlist_from_str("<2.3.4>?").unwrap()),
-            "extra characters ([63]) beyond end of formatted pid"
+            "extra characters (\"?\") beyond end of formatted pid"
         );
     });
 }

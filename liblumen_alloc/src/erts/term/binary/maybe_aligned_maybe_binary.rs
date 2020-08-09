@@ -41,10 +41,10 @@ macro_rules! display {
                     let mut full_byte_iter = self.full_byte_iter();
 
                     let has_full_bytes = if let Some(byte) = full_byte_iter.next() {
-                        write!(f, "{:#04x?}", byte)?;
+                        write!(f, "{}", byte)?;
 
                         for byte in full_byte_iter {
-                            write!(f, ", {:04x}", byte)?;
+                            write!(f, ",{}", byte)?;
                         }
 
                         true

@@ -1,4 +1,5 @@
 //! All modules under the `liblumen_otp` crate should mirror modules shipped with C-BEAM OTP
+#![deny(warnings)]
 #![feature(backtrace)]
 #![feature(thread_local)]
 // for `liblumen_otp/src/erlang/subtract_list_2`.

@@ -1,7 +1,6 @@
 mod with_binary;
 
-use proptest::strategy::{Just, Strategy};
-use proptest::{prop_assert, prop_assert_eq};
+use proptest::strategy::Just;
 
 use crate::erlang::binary_to_integer_1::result;
 use crate::test::strategy;

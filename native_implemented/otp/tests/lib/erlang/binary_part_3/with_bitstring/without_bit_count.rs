@@ -1,0 +1,12 @@
+test_stdout!(
+    with_positive_start_and_positive_length_returns_subbinary,
+    "<<1>>\n"
+);
+test_stdout!(
+    with_size_start_and_negative_size_length_returns_binary,
+    "<<0,1,2>>\n"
+);
+test_stdout!(
+    with_zero_start_and_size_length_returns_binary,
+    "<<0,1,2>>\n"
+);

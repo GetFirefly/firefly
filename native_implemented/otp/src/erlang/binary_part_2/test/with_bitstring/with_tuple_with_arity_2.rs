@@ -3,7 +3,7 @@ use super::*;
 use proptest::strategy::Strategy;
 
 mod with_bit_count;
-mod without_bit_count;
+// `without_bit_count` in integration tests
 
 #[test]
 fn without_integer_start_without_integer_length_errors_badarg() {
@@ -147,26 +147,4 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
     );
 }
 
-#[test]
-fn with_positive_start_and_negative_length_returns_subbinary() {
-    crate::test::with_positive_start_and_negative_length_returns_subbinary(
-        file!(),
-        returns_subbinary,
-    );
-}
-
-fn returns_subbinary(
-    (arc_process, binary, start, length): (Arc<Process>, Term, Term, Term),
-) -> TestCaseResult {
-    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
-
-    let result = result(&arc_process, binary, start_length);
-
-    prop_assert!(result.is_ok());
-
-    let returned = result.unwrap();
-
-    prop_assert!(returned.is_boxed_subbinary());
-
-    Ok(())
-}
+// `with_positive_start_and_negative_length_returns_subbinary` in integration tests

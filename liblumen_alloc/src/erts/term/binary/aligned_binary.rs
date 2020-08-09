@@ -217,22 +217,31 @@ impl_aligned_try_into!(BinaryLiteral);
 pub(super) fn display(bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
     f.write_str("<<")?;
 
-    match str::from_utf8(bytes) {
-        Ok(s) => write!(f, "\"{}\"", s.escape_default().to_string())?,
-        Err(_) => {
-            let mut iter = bytes.iter();
+    // Erlang restricts string formatting to only ascii.
+    if is_printable_ascii(bytes) {
+        write!(
+            f,
+            "\"{}\"",
+            str::from_utf8(bytes).unwrap().escape_default().to_string()
+        )?;
+    } else {
+        let mut iter = bytes.iter();
 
-            if let Some(byte) = iter.next() {
-                write!(f, "{:#04x}", byte)?;
+        if let Some(byte) = iter.next() {
+            write!(f, "{}", byte)?;
 
-                for byte in iter {
-                    write!(f, ", {:#04x}", byte)?;
-                }
+            for byte in iter {
+                write!(f, ",{}", byte)?;
             }
         }
     }
 
     f.write_str(">>")
+}
+
+// See https://github.com/erlang/otp/blob/dbf25321bdfdc3f4aae422b8ba2c0f31429eba61/erts/emulator/beam/erl_printf_term.c#L145-L149
+fn is_printable_ascii(bytes: &[u8]) -> bool {
+    !bytes.iter().any(|byte| *byte < (' ' as u8) || *byte >= 127)
 }
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait

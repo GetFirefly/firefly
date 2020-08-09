@@ -102,13 +102,12 @@ fn with_list_without_integer_in_base_errors_badarg() {
 
                 (
                     arc_process.clone(),
-                    string.clone(),
                     arc_process.charlist_from_str(&string).unwrap(),
                     arc_process.integer(base).unwrap(),
                 )
             })
         },
-        |(arc_process, string, list, base)| {
+        |(arc_process, list, base)| {
             prop_assert_badarg!(
                 result(&arc_process, list, base),
                 format!("list ({}) is not in base ({})", list, base)

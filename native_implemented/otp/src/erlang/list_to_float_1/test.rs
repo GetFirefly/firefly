@@ -32,12 +32,11 @@ fn with_list_with_integer_errors_badarg() {
 
                 (
                     arc_process.clone(),
-                    string.clone(),
                     arc_process.charlist_from_str(&string).unwrap(),
                 )
             })
         },
-        |(arc_process, string, list)| {
+        |(arc_process, list)| {
             prop_assert_badarg!(
                 result(&arc_process, list),
                 format!("list ({}) does not contain decimal point", list)

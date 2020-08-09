@@ -1,8 +1,4 @@
-use proptest::arbitrary::any;
-use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
-
-use radix_fmt::radix;
 
 use crate::erlang::binary_to_integer_2::result;
 use crate::test::strategy;
@@ -42,44 +38,6 @@ fn with_utf8_binary_without_base_errors_badarg() {
             prop_assert_badarg!(
                 result(&arc_process, binary, base),
                 format!("base must be an integer in 2-36")
-            );
-
-            Ok(())
-        },
-    );
-}
-
-#[test]
-fn with_binary_with_integer_in_base_returns_integers() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                any::<isize>(),
-                strategy::base::base(),
-            )
-                .prop_flat_map(|(arc_process, integer, base)| {
-                    // `radix` does 2's complement for negatives, but that's not what Erlang expects
-                    let string = if integer < 0 {
-                        format!("-{}", radix(-1 * integer, base))
-                    } else {
-                        format!("{}", radix(integer, base))
-                    };
-
-                    let byte_vec = string.as_bytes().to_owned();
-
-                    (
-                        Just(arc_process.clone()),
-                        Just(integer),
-                        strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                        Just(arc_process.integer(base).unwrap()),
-                    )
-                })
-        },
-        |(arc_process, integer, binary, base)| {
-            prop_assert_eq!(
-                result(&arc_process, binary, base),
-                Ok(arc_process.integer(integer).unwrap())
             );
 
             Ok(())

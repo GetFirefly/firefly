@@ -56,14 +56,18 @@ macro_rules! display {
 
                     if let Some(bit) = partial_byte_bit_iter.next() {
                         if has_full_bytes {
-                            f.write_str(", ")?;
+                            f.write_str(",")?;
                         }
 
-                        write!(f, "{} :: 1", bit)?;
+                        let mut partial_byte = bit;
+                        let mut partial_byte_bit_len = 1;
 
                         for bit in partial_byte_bit_iter {
-                            write!(f, ", {} :: 1", bit)?;
+                            partial_byte_bit_len += 1;
+                            partial_byte = (partial_byte << 1) | bit;
                         }
+
+                        write!(f, "{}:{}", partial_byte, partial_byte_bit_len)?;
                     }
 
                     f.write_str(">>")

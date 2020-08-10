@@ -42,7 +42,7 @@ fn with_byte_len_with_bit_count_errors_badarg() {
         let binary = bitstring!(1, 2 :: 2, &process);
         let position = process.integer(2).unwrap();
 
-        assert_badarg!(result(process, binary, position), "bitstring (<<1, 1 :: 1, 0 :: 1>>) has 2 bits in its partial bytes, so the index (2) cannot equal the total byte length (2)");
+        assert_badarg!(result(process, binary, position), "bitstring (<<1,2:2>>) has 2 bits in its partial bytes, so the index (2) cannot equal the total byte length (2)");
     });
 }
 
@@ -54,7 +54,7 @@ fn with_greater_than_byte_len_errors_badarg() {
 
         assert_badarg!(
             result(process, binary, position),
-            "index (3) exceeds total byte length (2) of bitstring (<<1, 1 :: 1, 0 :: 1>>)"
+            "index (3) exceeds total byte length (2) of bitstring (<<1,2:2>>)"
         );
     });
 }

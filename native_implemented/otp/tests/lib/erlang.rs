@@ -18,6 +18,8 @@ pub mod binary_to_integer_1;
 pub mod binary_to_integer_2;
 #[path = "erlang/binary_to_list_1.rs"]
 pub mod binary_to_list_1;
+#[path = "erlang/binary_to_list_3.rs"]
+pub mod binary_to_list_3;
 #[path = "erlang/display_1.rs"]
 pub mod display_1;
 #[path = "erlang/or_2.rs"]

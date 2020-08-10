@@ -248,10 +248,21 @@ impl Display for Atom {
             f.write_char('\'')?;
         }
 
-        self.name()
-            .chars()
-            .flat_map(char::escape_default)
-            .try_for_each(|c| f.write_char(c))?;
+        for c in self.name().chars() {
+            // https://github.com/erlang/otp/blob/dbf25321bdfdc3f4aae422b8ba2c0f31429eba61/erts/emulator/beam/erl_printf_term.c#L215-L232
+            match c {
+                '\'' => f.write_str("\\'")?,
+                '\\' => f.write_str("\\\\")?,
+                '\n' => f.write_str("\\n")?,
+                '\u{C}' => f.write_str("\\f")?,
+                '\t' => f.write_str("\\t")?,
+                '\r' => f.write_str("\\r")?,
+                '\u{8}' => f.write_str("\\b")?,
+                '\u{B}' => f.write_str("\\v")?,
+                _ if c.is_control() => write!(f, "\\{:o}", c as u8)?,
+                _ => f.write_char(c)?,
+            }
+        }
 
         if needs_quotes {
             f.write_char('\'')?;

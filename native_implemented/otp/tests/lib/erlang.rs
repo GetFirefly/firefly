@@ -22,6 +22,8 @@ pub mod binary_to_list_1;
 pub mod binary_to_list_3;
 #[path = "erlang/binary_to_term_1.rs"]
 pub mod binary_to_term_1;
+#[path = "erlang/binary_to_term_2.rs"]
+pub mod binary_to_term_2;
 #[path = "erlang/display_1.rs"]
 pub mod display_1;
 #[path = "erlang/or_2.rs"]

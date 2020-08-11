@@ -43,6 +43,13 @@ impl ReceiveTimeout {
         }
     }
 
+    pub fn monotonic(&self) -> Option<Monotonic> {
+        match self {
+            Self::Absolute(monotonic) => Some(*monotonic),
+            _ => None,
+        }
+    }
+
     pub fn is_timed_out(&self, time: Monotonic) -> bool {
         match self {
             Self::Immediate => true,

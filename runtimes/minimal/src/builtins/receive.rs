@@ -1,7 +1,10 @@
+use std::convert::TryInto;
 use std::panic;
 use std::ptr;
+use std::sync::Arc;
 
 use liblumen_alloc::erts::message::MessageType;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::timeout::{ReceiveTimeout, Timeout};
 
@@ -15,6 +18,7 @@ extern "C" {
 }
 
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReceiveState {
     // Indicates to the caller that an unrecoverable error occurred
     Error = 0,
@@ -24,6 +28,8 @@ pub enum ReceiveState {
     Received = 2,
     // Indicates to the caller that the receive timed out
     Timeout = 3,
+    // Indicates that a StopWaiting timer was started
+    Waiting = 4,
 }
 
 /// This structure manages the context for a single receive operation,
@@ -37,6 +43,7 @@ pub struct ReceiveContext {
     timeout: ReceiveTimeout,
     message: Term,
     message_needs_move: bool,
+    timer_reference: Term,
     state: ReceiveState,
 }
 impl ReceiveContext {
@@ -48,23 +55,15 @@ impl ReceiveContext {
             state: ReceiveState::Ready,
             message_needs_move: false,
             message: Term::NONE,
+            timer_reference: Term::NONE,
             timeout,
-        }
-    }
-
-    #[allow(dead_code)]
-    #[inline]
-    fn failed() -> Self {
-        Self {
-            state: ReceiveState::Error,
-            message_needs_move: false,
-            message: Term::NONE,
-            timeout: Default::default(),
         }
     }
 
     #[inline]
     fn with_message(&mut self, message: Term, message_type: MessageType) {
+        self.cancel_timer();
+
         self.state = ReceiveState::Received;
         self.message = message;
         if message_type == MessageType::HeapFragment {
@@ -72,8 +71,35 @@ impl ReceiveContext {
         }
     }
 
+    fn wait(&mut self, arc_process: Arc<Process>) {
+        match self.state {
+            ReceiveState::Ready => {
+                if let Some(monotonic) = self.timeout.monotonic() {
+                    self.with_timer(
+                        timer::start(monotonic, SourceEvent::StopWaiting, arc_process.clone())
+                            .unwrap(),
+                    );
+                }
+            }
+            // Already waiting, but a new non-matching message had to be checked.
+            // The original timer continues.
+            ReceiveState::Waiting => (),
+            state => panic!("Cannot wait in receive state ({:?})", state),
+        }
+
+        arc_process.wait();
+    }
+
+    fn with_timer(&mut self, timer_reference: Term) {
+        assert_eq!(self.state, ReceiveState::Ready);
+        self.state = ReceiveState::Waiting;
+        self.timer_reference = timer_reference;
+    }
+
     #[inline]
     fn with_timeout(&mut self) {
+        self.cancel_timer();
+
         self.state = ReceiveState::Timeout;
         self.message = Term::NONE;
         self.message_needs_move = false;
@@ -83,6 +109,14 @@ impl ReceiveContext {
     fn should_time_out(&self) -> bool {
         let now = monotonic::time();
         self.timeout.is_timed_out(now)
+    }
+
+    fn cancel_timer(&mut self) {
+        if self.state == ReceiveState::Waiting {
+            let boxed_timer_reference: Boxed<Reference> = self.timer_reference.try_into().unwrap();
+            timer::cancel(&boxed_timer_reference);
+            self.timer_reference = Term::NONE;
+        }
     }
 }
 
@@ -126,11 +160,7 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState
                     context.with_timeout();
                     break ReceiveState::Timeout;
                 } else {
-                    // If there are no messages, wait and yield
-                    if let ReceiveTimeout::Absolute(monotonic) = &context.timeout {
-                        timer::start(*monotonic, SourceEvent::StopWaiting, p.clone()).unwrap();
-                    }
-                    p.wait();
+                    context.wait(p.clone());
                 }
             }
             // We put our yield here to ensure that we're not holding

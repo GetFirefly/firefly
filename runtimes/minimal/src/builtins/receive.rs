@@ -7,6 +7,7 @@ use liblumen_alloc::erts::timeout::{ReceiveTimeout, Timeout};
 
 use lumen_rt_core::process::current_process;
 use lumen_rt_core::time::monotonic;
+use lumen_rt_core::timer::{self, SourceEvent};
 
 extern "C" {
     #[link_name = "__lumen_builtin_yield"]
@@ -126,6 +127,9 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState
                     break ReceiveState::Timeout;
                 } else {
                     // If there are no messages, wait and yield
+                    if let ReceiveTimeout::Absolute(monotonic) = &context.timeout {
+                        timer::start(*monotonic, SourceEvent::StopWaiting, p.clone()).unwrap();
+                    }
                     p.wait();
                 }
             }

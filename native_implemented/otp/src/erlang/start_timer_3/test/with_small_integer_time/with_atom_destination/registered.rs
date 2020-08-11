@@ -25,7 +25,7 @@ fn with_different_process_sends_message_when_timer_expires() {
                 Ok(true.into())
             );
 
-            let start_time_in_milliseconds = freeze_timeout();
+            let start_monotonic = freeze_timeout();
 
             let result =
                 erlang::start_timer_3::result(arc_process.clone(), time, destination, message);
@@ -44,7 +44,7 @@ fn with_different_process_sends_message_when_timer_expires() {
 
             prop_assert!(!has_message(&destination_arc_process, timeout_message));
 
-            freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+            freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
             prop_assert!(has_message(&destination_arc_process, timeout_message));
 
@@ -76,7 +76,7 @@ fn with_same_process_sends_message_when_timer_expires() {
                 Ok(true.into())
             );
 
-            let start_time_in_milliseconds = freeze_timeout();
+            let start_monotonic = freeze_timeout();
 
             let result =
                 erlang::start_timer_3::result(arc_process.clone(), time, destination, message);
@@ -95,7 +95,7 @@ fn with_same_process_sends_message_when_timer_expires() {
 
             prop_assert!(!has_message(&arc_process, timeout_message));
 
-            freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+            freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
             prop_assert!(has_message(&arc_process, timeout_message));
 

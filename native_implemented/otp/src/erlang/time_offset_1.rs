@@ -12,8 +12,8 @@ use crate::runtime::time::{monotonic, system, Unit};
 #[native_implemented::function(erlang:time_offset/1)]
 pub fn result(process: &Process, unit: Term) -> exception::Result<Term> {
     let unit_unit: Unit = unit.try_into()?;
-    let system_time = system::time(unit_unit);
-    let monotonic_time = monotonic::time(unit_unit);
+    let system_time = system::time_in_unit(unit_unit);
+    let monotonic_time = monotonic::time_in_unit(unit_unit);
     let term = process.integer(system_time - monotonic_time)?;
 
     Ok(term)

@@ -17,7 +17,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             let destination = registered_name();
             let options = options(&arc_process);
 
-            let start_time_in_milliseconds = freeze_timeout();
+            let start_monotonic = freeze_timeout();
 
             let result = result(arc_process.clone(), time, destination, message, options);
 
@@ -37,9 +37,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
             prop_assert!(!has_message(&arc_process, timeout_message));
 
-            monotonic::freeze_at_time_in_milliseconds(
-                start_time_in_milliseconds + milliseconds + 1,
-            );
+            monotonic::freeze_at(start_monotonic + milliseconds + Milliseconds(1));
 
             prop_assert!(!has_message(&arc_process, timeout_message));
 

@@ -5,8 +5,8 @@ use crate::runtime::scheduler;
 #[test]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        let start_time_in_milliseconds = freeze_timeout();
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds / 2 + 1);
+        let start_monotonic = freeze_timeout();
+        freeze_at_timeout(start_monotonic + milliseconds / 2 + Milliseconds(1));
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -58,7 +58,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(second_milliseconds_remaining.is_integer());
         assert!(second_milliseconds_remaining <= first_milliseconds_remaining);
 
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+        freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
         assert_eq!(receive_message(process), Some(timeout_message));
 
@@ -76,8 +76,8 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 #[test]
 fn with_timeout_returns_false_after_timeout_message_was_sent() {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        let start_time_in_milliseconds = freeze_timeout();
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+        let start_monotonic = freeze_timeout();
+        freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -86,7 +86,7 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
             Some(timeout_message),
             "Did not receive message in process ({}) at time ({}).  Timers remaining: {:?}",
             process,
-            monotonic::time_in_milliseconds(),
+            monotonic::time(),
             scheduler::current().hierarchy()
         );
 

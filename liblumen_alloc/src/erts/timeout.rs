@@ -1,6 +1,8 @@
 use core::time::Duration;
 use thiserror::Error;
 
+use super::time::Monotonic;
+
 #[derive(Debug, Error)]
 #[error("invalid timeout value, must be `infinity` or a non-negative integer value")]
 pub struct InvalidTimeoutError;
@@ -42,23 +44,23 @@ pub enum ReceiveTimeout {
     Duration { start: Duration, duration: Duration },
 }
 impl ReceiveTimeout {
-    pub fn new(time: u64, timeout: Timeout) -> Self {
+    pub fn new(monotonic: Monotonic, timeout: Timeout) -> Self {
         match timeout {
             Timeout::Infinity => Self::Infinity,
             Timeout::Immediate => Self::Immediate,
             Timeout::Duration(duration) => {
-                let start = Duration::from_millis(time);
+                let start = Duration::from_millis(monotonic.0);
                 Self::Duration { start, duration }
             }
         }
     }
 
-    pub fn is_timed_out(&self, time: u64) -> bool {
+    pub fn is_timed_out(&self, monotonic: Monotonic) -> bool {
         match self {
             Self::Infinity => false,
             Self::Immediate => true,
             Self::Duration { start, duration } => {
-                let end = Duration::from_millis(time);
+                let end = Duration::from_millis(monotonic.0);
                 end - *start >= *duration
             }
         }

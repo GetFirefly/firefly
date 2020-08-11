@@ -3,9 +3,9 @@ use super::*;
 #[test]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        let start_time_in_milliseconds = freeze_timeout();
+        let start_monotonic = freeze_timeout();
         let half_milliseconds = milliseconds / 2;
-        freeze_at_timeout(start_time_in_milliseconds + half_milliseconds + 1);
+        freeze_at_timeout(start_monotonic + half_milliseconds + Milliseconds(1));
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -25,7 +25,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(second_milliseconds_remaining.is_integer());
         assert!(second_milliseconds_remaining <= first_milliseconds_remaining);
 
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+        freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
         assert_has_message!(process, timeout_message);
 

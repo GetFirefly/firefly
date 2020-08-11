@@ -1,6 +1,7 @@
 mod with_local_reference;
 
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::time::Milliseconds;
 
 use crate::erlang::cancel_timer_1::result;
 use crate::test::{

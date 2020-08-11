@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        let start_time_in_milliseconds = freeze_timeout();
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds / 2 + 1);
+        let start_monotonic = freeze_timeout();
+        freeze_at_timeout(start_monotonic + milliseconds / 2 + Milliseconds(1));
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -23,7 +23,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         // again before timeout
         assert_eq!(result(process, timer_reference), Ok(false.into()));
 
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+        freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
         assert!(!has_message(process, timeout_message));
 

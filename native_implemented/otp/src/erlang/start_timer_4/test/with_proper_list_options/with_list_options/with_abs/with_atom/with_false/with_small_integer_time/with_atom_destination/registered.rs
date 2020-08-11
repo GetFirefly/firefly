@@ -27,7 +27,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
 
             let options = options(&arc_process);
 
-            let start_time_in_milliseconds = freeze_timeout();
+            let start_monotonic = freeze_timeout();
 
             let result = result(arc_process.clone(), time, destination, message, options);
 
@@ -47,7 +47,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
 
             prop_assert!(!has_message(&destination_arc_process, timeout_message));
 
-            freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+            freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
             prop_assert!(has_message(&destination_arc_process, timeout_message));
 
@@ -81,7 +81,7 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
 
             let options = options(&arc_process);
 
-            let start_time_in_milliseconds = freeze_timeout();
+            let start_monotonic = freeze_timeout();
 
             let result = result(arc_process.clone(), time, destination, message, options);
 
@@ -101,7 +101,7 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
 
             prop_assert!(!has_message(&arc_process, timeout_message));
 
-            freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+            freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
             prop_assert!(has_message(&arc_process, timeout_message));
 

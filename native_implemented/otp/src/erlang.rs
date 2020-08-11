@@ -199,9 +199,10 @@ use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
 
 use crate::runtime::context::*;
-use crate::runtime::time::{monotonic, Milliseconds};
+use crate::runtime::time::monotonic;
 
 use crate::runtime;
 use crate::runtime::registry::pid_to_self_or_process;
@@ -343,21 +344,23 @@ fn start_timer(
     arc_process: Arc<Process>,
 ) -> InternalResult<Term> {
     if time.is_integer() {
-        let reference_frame_milliseconds: Milliseconds = time
-            .try_into()
-            .with_context(|| term_is_not_non_negative_integer("time", time))?;
-
-        let absolute_milliseconds = match options.reference_frame {
+        let monotonic: Monotonic = match options.reference_frame {
             ReferenceFrame::Relative => {
-                monotonic::time_in_milliseconds() + reference_frame_milliseconds
+                let milliseconds: Milliseconds = time
+                    .try_into()
+                    .with_context(|| term_is_not_non_negative_integer("time", time))?;
+
+                monotonic::time() + milliseconds
             }
-            ReferenceFrame::Absolute => reference_frame_milliseconds,
+            ReferenceFrame::Absolute => time
+                .try_into()
+                .with_context(|| term_is_not_non_negative_integer("time", time))?,
         };
 
         match destination.decode()? {
             // Registered names are looked up at time of send
             TypedTerm::Atom(destination_atom) => runtime::timer::start(
-                absolute_milliseconds,
+                monotonic,
                 Destination::Name(destination_atom),
                 timeout,
                 message,
@@ -369,7 +372,7 @@ fn start_timer(
             TypedTerm::Pid(destination_pid) => {
                 match pid_to_self_or_process(destination_pid, &arc_process) {
                     Some(pid_arc_process) => runtime::timer::start(
-                        absolute_milliseconds,
+                        monotonic,
                         Destination::Process(Arc::downgrade(&pid_arc_process)),
                         timeout,
                         message,

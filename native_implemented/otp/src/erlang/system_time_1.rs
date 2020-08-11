@@ -12,7 +12,7 @@ use crate::runtime::time::{system, Unit};
 #[native_implemented::function(erlang:system_time/1)]
 pub fn result(process: &Process, unit: Term) -> exception::Result<Term> {
     let unit_unit: Unit = unit.try_into()?;
-    let big_int = system::time(unit_unit);
+    let big_int = system::time_in_unit(unit_unit);
     let term = process.integer(big_int)?;
 
     Ok(term)

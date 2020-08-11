@@ -41,8 +41,8 @@ fn with_timer_in_same_thread_without_timeout_returns_ok_and_does_not_send_timeou
     options: fn(&Process) -> Term,
 ) {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        let start_time_in_milliseconds = freeze_timeout();
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds / 2 + 1);
+        let start_monotonic = freeze_timeout();
+        freeze_at_timeout(start_monotonic + milliseconds / 2 + Milliseconds(1));
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -59,7 +59,7 @@ fn with_timer_in_same_thread_without_timeout_returns_ok_and_does_not_send_timeou
             Ok(Atom::str_to_term("ok"))
         );
 
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+        freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
         assert!(!has_message(process, timeout_message));
 
@@ -75,8 +75,8 @@ fn with_timer_in_same_thread_with_timeout_returns_ok_after_timeout_message_was_s
     options: fn(&Process) -> Term,
 ) {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
-        let start_time_in_milliseconds = freeze_timeout();
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+        let start_monotonic = freeze_timeout();
+        freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
         let timeout_message = timeout_message(timer_reference, message, process);
 

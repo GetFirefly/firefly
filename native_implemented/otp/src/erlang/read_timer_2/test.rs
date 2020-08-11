@@ -8,6 +8,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::time::Milliseconds;
 
 use crate::erlang::read_timer_2::result;
 use crate::runtime::scheduler::SchedulerDependentAlloc;

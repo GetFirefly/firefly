@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use crate::erts::exception::InternalResult;
 
+use super::super::time::{Milliseconds, Monotonic};
 use super::arch::{arch_32, arch_64, arch_x86_64};
 use super::integer::TryIntoIntegerError;
 use super::prelude::*;
@@ -179,6 +180,26 @@ macro_rules! impl_term_conversions {
                     TypedTerm::BigInteger(big_integer) => big_integer.try_into(),
                     _ => Err(TryIntoIntegerError::Type),
                 }
+            }
+        }
+
+        impl TryInto<Milliseconds> for $raw {
+            type Error = TryIntoIntegerError;
+
+            fn try_into(self) -> Result<Milliseconds, Self::Error> {
+                let u: u64 = self.try_into()?;
+
+                Ok(Milliseconds(u))
+            }
+        }
+
+        impl TryInto<Monotonic> for $raw {
+            type Error = TryIntoIntegerError;
+
+            fn try_into(self) -> Result<Monotonic, Self::Error> {
+                let u: u64 = self.try_into()?;
+
+                Ok(Monotonic(u))
             }
         }
 

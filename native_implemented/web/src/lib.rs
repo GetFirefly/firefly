@@ -25,12 +25,12 @@ use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::time::Milliseconds;
 #[cfg(not(test))]
 use liblumen_core::entry;
 
 use crate::runtime::scheduler;
-use crate::runtime::time::monotonic::time_in_milliseconds;
-use crate::runtime::time::Milliseconds;
+use crate::runtime::time::monotonic;
 use crate::window::add_event_listener;
 
 /// Starts the scheduler loop.  It yield and reschedule itself using
@@ -43,9 +43,10 @@ pub fn start() {
 
 // Private
 
-const MILLISECONDS_PER_SECOND: u64 = 1000;
-const FRAMES_PER_SECOND: u64 = 60;
-const MILLISECONDS_PER_FRAME: Milliseconds = MILLISECONDS_PER_SECOND / FRAMES_PER_SECOND;
+const MILLISECONDS_PER_SECOND: MillisecondsPerSecond = MillisecondsPerSecond(1000);
+const FRAMES_PER_SECOND: FramesPerSecond = FramesPerSecond(60);
+const MILLISECONDS_PER_FRAME: MillisecondsPerFrame =
+    MILLISECONDS_PER_SECOND.const_div(FRAMES_PER_SECOND);
 
 fn add_event_listeners() {
     let window = web_sys::window().unwrap();
@@ -115,7 +116,7 @@ fn request_animation_frames() {
     let g = f.clone();
 
     *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-        run_for_milliseconds(MILLISECONDS_PER_FRAME);
+        run_for_milliseconds(MILLISECONDS_PER_FRAME.const_mul(Frames(1)));
 
         // Schedule ourselves for another requestAnimationFrame callback.
         request_animation_frame(f.borrow().as_ref().unwrap());
@@ -126,7 +127,27 @@ fn request_animation_frames() {
 
 fn run_for_milliseconds(duration: Milliseconds) {
     let scheduler = scheduler::current();
-    let timeout = time_in_milliseconds() + duration;
+    let timeout = monotonic::time() + duration;
 
-    while (time_in_milliseconds() < timeout) && scheduler.run_once() {}
+    while (monotonic::time() < timeout) && scheduler.run_once() {}
+}
+
+struct Frames(u64);
+
+struct FramesPerSecond(u64);
+
+struct MillisecondsPerFrame(u64);
+
+impl MillisecondsPerFrame {
+    const fn const_mul(self, rhs: Frames) -> Milliseconds {
+        Milliseconds(self.0 * rhs.0)
+    }
+}
+
+struct MillisecondsPerSecond(u64);
+
+impl MillisecondsPerSecond {
+    const fn const_div(self, rhs: FramesPerSecond) -> MillisecondsPerFrame {
+        MillisecondsPerFrame(self.0 / rhs.0)
+    }
 }

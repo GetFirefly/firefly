@@ -27,10 +27,8 @@ fn with_positive_increases_after_2_time_units() {
 
         let first = result(process, unit).unwrap();
 
-        let start_time_in_milliseconds = monotonic::freeze_time_in_milliseconds();
-        monotonic::freeze_at_time_in_milliseconds(
-            start_time_in_milliseconds + Duration::from_secs(2).as_millis() as Milliseconds,
-        );
+        let start_monotonic = monotonic::freeze();
+        monotonic::freeze_at(start_monotonic + Duration::from_secs(2));
 
         let second = result(process, unit).unwrap();
 

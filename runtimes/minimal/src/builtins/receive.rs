@@ -41,7 +41,7 @@ pub struct ReceiveContext {
 impl ReceiveContext {
     #[inline]
     fn new(timeout: Timeout) -> Self {
-        let now = monotonic::time_in_milliseconds();
+        let now = monotonic::time();
         let timeout = ReceiveTimeout::new(now, timeout);
         Self {
             state: ReceiveState::Ready,
@@ -80,7 +80,7 @@ impl ReceiveContext {
 
     #[inline]
     fn should_time_out(&self) -> bool {
-        let now = monotonic::time_in_milliseconds();
+        let now = monotonic::time();
         self.timeout.is_timed_out(now)
     }
 }

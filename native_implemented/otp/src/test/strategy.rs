@@ -8,8 +8,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-
-use crate::runtime::time::Milliseconds;
+use liblumen_alloc::erts::time::Milliseconds;
 
 use crate::test::total_byte_len;
 

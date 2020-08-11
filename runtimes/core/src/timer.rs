@@ -37,19 +37,15 @@ pub fn read(timer_reference: &Reference) -> Option<Milliseconds> {
 
 pub fn start(
     monotonic: Monotonic,
-    destination: Destination,
-    timeout: Timeout,
-    process_message: Term,
-    process: &Process,
+    event: SourceEvent,
+    arc_process: Arc<Process>,
 ) -> AllocResult<Term> {
     let arc_scheduler = scheduler::current();
 
     let result = arc_scheduler.hierarchy().write().start(
         monotonic,
-        destination,
-        timeout,
-        process_message,
-        process,
+        event,
+        arc_process,
         arc_scheduler.clone(),
     );
 
@@ -141,35 +137,50 @@ impl Hierarchy {
     pub fn start(
         &mut self,
         monotonic: Monotonic,
-        destination: Destination,
-        timeout: Timeout,
-        process_message: Term,
-        process: &Process,
+        source_event: SourceEvent,
+        arc_process: Arc<Process>,
         arc_scheduler: Arc<dyn Scheduler>,
     ) -> AllocResult<Term> {
         let reference_number = arc_scheduler.next_reference_number();
         let process_reference =
-            process.reference_from_scheduler(arc_scheduler.id(), reference_number)?;
-        let (heap_fragment_message, heap_fragment) = match timeout {
-            Timeout::Message => process_message.clone_to_fragment()?,
-            Timeout::TimeoutTuple => {
-                let tag = Atom::str_to_term("timeout");
-                let process_tuple =
-                    process.tuple_from_slice(&[tag, process_reference, process_message])?;
+            arc_process.reference_from_scheduler(arc_scheduler.id(), reference_number)?;
 
-                process_tuple.clone_to_fragment()?
+        let destination_event = match source_event {
+            SourceEvent::Message {
+                destination,
+                format,
+                term,
+            } => {
+                let (heap_fragment_message, heap_fragment) = match format {
+                    Format::Message => term.clone_to_fragment()?,
+                    Format::TimeoutTuple => {
+                        let tag = Atom::str_to_term("timeout");
+                        let process_tuple =
+                            arc_process.tuple_from_slice(&[tag, process_reference, term])?;
+
+                        process_tuple.clone_to_fragment()?
+                    }
+                };
+                let heap_fragment = Mutex::new(HeapFragment {
+                    heap_fragment,
+                    term: heap_fragment_message,
+                });
+                DestinationEvent::Message {
+                    destination,
+                    heap_fragment,
+                }
             }
+            SourceEvent::StopWaiting => DestinationEvent::StopWaiting {
+                process: Arc::downgrade(&arc_process),
+            },
         };
+
         let position = self.position(monotonic);
 
         let timer = Timer {
             reference_number,
             monotonic,
-            destination,
-            message_heap: Mutex::new(HeapFragment {
-                heap_fragment,
-                term: heap_fragment_message,
-            }),
+            event: destination_event,
             position: Mutex::new(position),
         };
 
@@ -401,11 +412,23 @@ impl Mul<Slots> for MillisecondsPerSlot {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub enum Timeout {
-    // Sends only the `Timer` `message`
+/// Event coming from source
+#[derive(Debug)]
+pub enum SourceEvent {
+    Message {
+        destination: Destination,
+        format: Format,
+        term: Term,
+    },
+    StopWaiting,
+}
+
+/// Format of `SourceEvent` `Message`
+#[derive(Debug)]
+pub enum Format {
+    /// Sends only the `Timer` `message`
     Message,
-    // Sends `{:timeout, timer_reference, message}`
+    /// Sends `{:timeout, timer_reference, message}`
     TimeoutTuple,
 }
 
@@ -414,8 +437,7 @@ struct Timer {
     // could GC the unboxed `LocalReference` `Term`.
     reference_number: ReferenceNumber,
     monotonic: Monotonic,
-    destination: Destination,
-    message_heap: Mutex<HeapFragment>,
+    event: DestinationEvent,
     position: Mutex<Position>,
 }
 
@@ -431,18 +453,43 @@ impl Timer {
     }
 
     fn timeout(self) {
-        let option_destination_arc_process = match &self.destination {
-            Destination::Name(ref name) => registry::atom_to_process(name),
-            Destination::Process(destination_process_weak) => destination_process_weak.upgrade(),
-        };
-
-        if let Some(destination_arc_process) = option_destination_arc_process {
-            let HeapFragment {
+        match self.event {
+            DestinationEvent::Message {
+                destination,
                 heap_fragment,
-                term,
-            } = self.message_heap.into_inner();
+            } => {
+                let option_destination_arc_process = match &destination {
+                    Destination::Name(ref name) => registry::atom_to_process(name),
+                    Destination::Process(destination_process_weak) => {
+                        destination_process_weak.upgrade()
+                    }
+                };
 
-            destination_arc_process.send_heap_message(heap_fragment, term);
+                if let Some(destination_arc_process) = option_destination_arc_process {
+                    let HeapFragment {
+                        heap_fragment,
+                        term,
+                    } = heap_fragment.into_inner();
+
+                    destination_arc_process.send_heap_message(heap_fragment, term);
+                    destination_arc_process.stop_waiting();
+                }
+            }
+            DestinationEvent::StopWaiting { process } => {
+                if let Some(destination_arc_process) = process.upgrade() {
+                    // `__lumen_builtin_receive_wait` will notice it has timed out, so only need to
+                    // stop waiting
+
+                    // change process status
+                    destination_arc_process.stop_waiting();
+
+                    // move to correct run_queue
+                    destination_arc_process
+                        .scheduler()
+                        .unwrap()
+                        .stop_waiting(&destination_arc_process);
+                }
+            }
         }
     }
 }
@@ -451,22 +498,37 @@ impl Debug for Timer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "  {} ", self.monotonic)?;
 
-        let HeapFragment { term, .. } = *self.message_heap.lock();
-        write!(f, "{} -> ", term)?;
+        match &self.event {
+            DestinationEvent::Message {
+                destination,
+                heap_fragment,
+            } => {
+                let HeapFragment { term, .. } = *heap_fragment.lock();
+                write!(f, "{} -> ", term)?;
 
-        match &self.destination {
-            Destination::Process(weak_process) => match weak_process.upgrade() {
-                Some(arc_process) => write!(f, "{}", arc_process)?,
-                None => write!(f, "Dead Process")?,
-            },
-            Destination::Name(name) => write!(f, "{}", name)?,
-        };
+                match destination {
+                    Destination::Process(weak_process) => fmt_weak_process(weak_process, f),
+                    Destination::Name(name) => write!(f, "{}", name),
+                }?;
+            }
+            DestinationEvent::StopWaiting { process } => {
+                fmt_weak_process(process, f)?;
+                write!(f, " stop waiting")?;
+            }
+        }
 
         if self.monotonic <= monotonic::time() {
             write!(f, " (expired)")?;
         }
 
         Ok(())
+    }
+}
+
+fn fmt_weak_process(weak_process: &Weak<Process>, f: &mut fmt::Formatter) -> fmt::Result {
+    match weak_process.upgrade() {
+        Some(arc_process) => write!(f, "{}", arc_process),
+        None => write!(f, "Dead Process"),
     }
 }
 
@@ -493,6 +555,17 @@ impl PartialOrd for Timer {
     fn partial_cmp(&self, other: &Timer) -> Option<Ordering> {
         Some(self.cmp(other))
     }
+}
+
+/// Event sent to destination
+enum DestinationEvent {
+    /// Send message in `heap_fragment` to `destination`.
+    Message {
+        destination: Destination,
+        heap_fragment: Mutex<HeapFragment>,
+    },
+    /// Stop `process` from waiting
+    StopWaiting { process: Weak<Process> },
 }
 
 #[derive(Clone, Copy)]

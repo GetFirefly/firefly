@@ -9,7 +9,7 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::erlang::start_timer;
-use crate::runtime::timer::Timeout;
+use crate::runtime::timer::Format;
 use crate::timer;
 
 #[native_implemented::function(erlang:send_after/4)]
@@ -25,7 +25,7 @@ pub fn result(
     start_timer(
         time,
         destination,
-        Timeout::Message,
+        Format::Message,
         message,
         timer_start_options,
         arc_process,

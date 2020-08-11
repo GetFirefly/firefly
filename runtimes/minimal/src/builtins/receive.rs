@@ -51,6 +51,7 @@ impl ReceiveContext {
         }
     }
 
+    #[allow(dead_code)]
     #[inline]
     fn failed() -> Self {
         Self {

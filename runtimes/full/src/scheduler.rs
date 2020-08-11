@@ -187,6 +187,7 @@ impl SchedulerTrait for Scheduler {
                     break true;
                 }
                 Run::Delayed => continue,
+                Run::Waiting => break true,
                 // TODO steal processes or sleep if nothing to steal
                 Run::None => break false,
             }

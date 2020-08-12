@@ -28,6 +28,8 @@ pub mod binary_to_term_2;
 pub mod cancel_timer_1;
 #[path = "erlang/ceil_1.rs"]
 pub mod ceil_1;
+#[path = "erlang/convert_time_unit_3.rs"]
+pub mod convert_time_unit_3;
 #[path = "erlang/display_1.rs"]
 pub mod display_1;
 #[path = "erlang/or_2.rs"]

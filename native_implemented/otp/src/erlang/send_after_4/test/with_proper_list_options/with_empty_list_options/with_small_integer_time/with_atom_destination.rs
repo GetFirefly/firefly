@@ -17,7 +17,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
                 let time = arc_process.integer(milliseconds).unwrap();
                 let destination = registered_name();
 
-                let start_time_in_milliseconds = freeze_timeout();
+                let start_monotonic = freeze_timeout();
 
                 let result = result(
                     arc_process.clone(),
@@ -38,7 +38,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
                 prop_assert!(timer_reference.is_boxed_local_reference());
                 prop_assert!(!has_message(&arc_process, message));
 
-                freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+                freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
                 prop_assert!(!has_message(&arc_process, message));
 

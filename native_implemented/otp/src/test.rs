@@ -26,10 +26,11 @@ use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
 
 use crate::erlang::{self, exit_1};
 use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
-use crate::runtime::time::{monotonic, Milliseconds};
+use crate::runtime::time::monotonic;
 use crate::runtime::timer;
 
 pub fn assert_exits<F: Fn(Option<Term>)>(
@@ -98,15 +99,15 @@ pub fn exit_when_run(process: &Process, reason: Term) {
     process.scheduler().unwrap().stop_waiting(process);
 }
 
-pub fn freeze_timeout() -> Milliseconds {
-    let frozen = monotonic::freeze_time_in_milliseconds();
+pub fn freeze_timeout() -> Monotonic {
+    let frozen = monotonic::freeze();
     timer::timeout();
 
     frozen
 }
 
-pub fn freeze_at_timeout(frozen: Milliseconds) {
-    monotonic::freeze_at_time_in_milliseconds(frozen);
+pub fn freeze_at_timeout(frozen: Monotonic) {
+    monotonic::freeze_at(frozen);
     timer::timeout();
 }
 
@@ -154,7 +155,7 @@ pub fn with_options_with_timer_in_same_thread_with_timeout_returns_false_after_t
 {
     with_timer_in_same_thread(|milliseconds, message, timer_reference, process| {
         let start_time_in_milliseconds = freeze_timeout();
-        freeze_at_timeout(start_time_in_milliseconds + milliseconds + 1);
+        freeze_at_timeout(start_time_in_milliseconds + milliseconds + Milliseconds(1));
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -183,10 +184,10 @@ pub fn with_timer_in_same_thread_with_timeout_returns_false_after_timeout_messag
 
 pub fn with_timer_in_same_thread<F>(f: F)
 where
-    F: FnOnce(u64, Term, Term, &Process) -> (),
+    F: FnOnce(Milliseconds, Term, Term, &Process) -> (),
 {
     let same_thread_process_arc = process::default();
-    let milliseconds: u64 = 100;
+    let milliseconds = Milliseconds(100);
 
     let message = Atom::str_to_term("message");
     let timer_reference = erlang::start_timer_3::result(

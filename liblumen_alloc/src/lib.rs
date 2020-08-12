@@ -2,6 +2,7 @@
 #![allow(stable_features)]
 // Support backtraces in errors
 #![feature(backtrace)]
+#![feature(const_fn)]
 // Allow use of intrinsics, e.g. unlikely/copy_nonoverlapping/etc.
 #![feature(core_intrinsics)]
 // Allocator APIs

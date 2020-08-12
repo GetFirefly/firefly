@@ -12,7 +12,7 @@ use crate::runtime::time::{system, Unit::Microsecond};
 
 #[native_implemented::function(erlang:timestamp/0)]
 pub fn result(process: &Process) -> exception::Result<Term> {
-    let big_int = system::time(Microsecond);
+    let big_int = system::time_in_unit(Microsecond);
     let erlang_timestamp = ErlangTimestamp::from_microseconds(&big_int);
 
     process

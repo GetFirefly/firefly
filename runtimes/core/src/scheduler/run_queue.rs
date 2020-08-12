@@ -39,6 +39,8 @@ impl Queues {
             self.high.dequeue()
         } else if 0 < self.normal_low.len() {
             self.normal_low.dequeue()
+        } else if 0 < self.waiting.len() {
+            Run::Waiting
         } else {
             Run::None
         }

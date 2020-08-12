@@ -9,6 +9,7 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::time::Milliseconds;
 
 use crate::runtime::time::monotonic;
 

@@ -30,7 +30,7 @@ impl Logger {
         };
         println!(
             "{} {:<5} [{}] {}",
-            system::time(Second),
+            system::time_in_unit(Second),
             level,
             record.module_path().unwrap_or_default(),
             record.args(),
@@ -40,7 +40,7 @@ impl Logger {
     fn log_plain(record: &Record) {
         println!(
             "{} {:<5} [{}] {}",
-            system::time(Second),
+            system::time_in_unit(Second),
             record.level(),
             record.module_path().unwrap_or_default(),
             record.args(),
@@ -56,7 +56,7 @@ impl Logger {
     fn log_plain(record: &Record) {
         let msg = format!(
             "{} {:<5} [{}] {}",
-            system::time(Second),
+            system::time_in_unit(Second),
             record.level(),
             record.module_path().unwrap_or_default(),
             record.args()

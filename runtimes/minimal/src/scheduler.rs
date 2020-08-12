@@ -480,7 +480,7 @@ impl Scheduler {
                         process.reduce()
                     }
 
-                    info!("exiting scheduler loop");
+                    info!("exiting scheduler loop after run");
                     // When reached, either the process scheduled is the root process,
                     // or the process is exiting and we called .reduce(); either way we're
                     // returning to the main scheduler loop to check for signals, etc.
@@ -489,6 +489,12 @@ impl Scheduler {
                 Run::Delayed => {
                     info!("found process, but it is delayed");
                     continue;
+                }
+                Run::Waiting => {
+                    info!("exiting scheduler loop because waiting");
+                    // Return to main scheduler loop to check for signals and to re-enter from
+                    // `run_once` and increment timeouts to knock out of waiting.
+                    break true;
                 }
                 Run::None if is_root => {
                     info!("no processes remaining to schedule, exiting loop");

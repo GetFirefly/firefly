@@ -77,6 +77,7 @@ pub unsafe fn panic(data: usize) -> u32 {
 }
 
 // Entry point for re-raising an exception, just delegates to the platform-specific implementation.
+#[allow(unreachable_code)]
 #[unwind(allowed)]
 #[no_mangle]
 pub unsafe fn __lumen_rethrow(ptr: *mut u8) -> ! {

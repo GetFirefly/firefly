@@ -7,8 +7,9 @@ use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::time::Milliseconds;
 
-use crate::runtime::time::{monotonic, Milliseconds};
+use crate::runtime::time::monotonic;
 
 use crate::erlang::monotonic_time_1::result;
 use crate::test::strategy;

@@ -11,11 +11,10 @@ use num_traits::Zero;
 
 use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
 use liblumen_alloc::{atom, Process};
 
-// Must be at least a `u64` because `u32` is only ~49 days (`(1 << 32)`)
-pub type Milliseconds = u64;
-pub type Source = fn() -> Milliseconds;
+pub type Source = fn() -> Monotonic;
 
 // private
 const MILLISECONDS_PER_SECOND: u64 = 1_000;

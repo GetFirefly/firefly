@@ -1,10 +1,10 @@
-use super::Milliseconds;
+use super::Monotonic;
 
-pub fn time_in_milliseconds() -> Milliseconds {
+pub fn time() -> Monotonic {
     let window = web_sys::window().expect("should have a window in this context");
     let performance = window
         .performance()
         .expect("performance should be available");
 
-    performance.now() as Milliseconds
+    Monotonic(performance.now() as u64)
 }

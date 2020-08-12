@@ -542,18 +542,7 @@ impl Process {
             }
         }
 
-        // status.write() scope
-        {
-            let mut writable_status = self.status.write();
-
-            if *writable_status == Status::Waiting {
-                *writable_status = Status::Runnable;
-
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        }
+        Ok(self.stop_waiting())
     }
 
     fn send_message(&self, message: Message) {
@@ -1102,6 +1091,19 @@ impl Process {
     pub fn wait(&self) {
         *self.status.write() = Status::Waiting;
         self.run_reductions.fetch_add(1, Ordering::AcqRel);
+    }
+
+    /// Puts the process in the runnable status if it was waiting
+    pub fn stop_waiting(&self) -> bool {
+        let mut writable_status = self.status.write();
+
+        if *writable_status == Status::Waiting {
+            *writable_status = Status::Runnable;
+
+            true
+        } else {
+            false
+        }
     }
 
     pub fn exit(&self, reason: Term, source: ArcError) {

@@ -4,6 +4,7 @@ use proptest::strategy::Just;
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::time::Milliseconds;
 
 use crate::erlang;
 use crate::erlang::start_timer_3::result;

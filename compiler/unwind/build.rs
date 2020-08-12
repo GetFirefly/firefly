@@ -53,7 +53,6 @@ fn main() {
 
 mod llvm_libunwind {
     use std::env;
-    use std::path::Path;
 
     /// Compile the libunwind C/C++ source code.
     pub fn compile() {

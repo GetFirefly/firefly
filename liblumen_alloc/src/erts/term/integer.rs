@@ -13,6 +13,7 @@ use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ops::*;
 
+use super::super::time::Milliseconds;
 use super::prelude::{Boxed, TypeError, TypedTerm};
 
 /// This error type is used to indicate that a value cannot be converted to an integer
@@ -135,6 +136,11 @@ impl From<SmallInteger> for Integer {
     #[inline]
     fn from(i: SmallInteger) -> Self {
         Self::Small(i)
+    }
+}
+impl From<Milliseconds> for Integer {
+    fn from(milliseconds: Milliseconds) -> Self {
+        milliseconds.as_u64().into()
     }
 }
 impl From<char> for Integer {

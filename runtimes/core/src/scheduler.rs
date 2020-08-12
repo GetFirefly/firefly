@@ -105,6 +105,7 @@ pub fn run_through(process: &Process) -> bool {
 }
 
 /// What to run
+#[derive(Debug)]
 pub enum Run {
     /// Run the process now
     Now(Arc<Process>),
@@ -112,6 +113,8 @@ pub enum Run {
     /// and hadn't been delayed enough yet.  Ask the `RunQueue` again for another process.
     /// -- https://github.com/erlang/otp/blob/fe2b1323a3866ed0a9712e9d12e1f8f84793ec47/erts/emulator/beam/erl_process.c#L9601-L9606
     Delayed,
+    /// There are processes in the run queue, but they are all waiting
+    Waiting,
     /// There are no processes in the run queue, do other work
     None,
 }

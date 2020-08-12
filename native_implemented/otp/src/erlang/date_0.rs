@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod test;
-
 use crate::runtime::time::datetime;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;

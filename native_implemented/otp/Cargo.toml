@@ -35,6 +35,7 @@ version = "0.3.20"
 features = ['console']
 
 [dev-dependencies]
+libc = "0.2.74"
 lumen_rt_full = { path = "../../runtimes/full" }
 lumen = { path = "../../lumen" }
 

@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, ExitStatus, Output, Stdio};
 
 #[allow(unused_macros)]
 macro_rules! test_stdout {
@@ -10,11 +10,19 @@ macro_rules! test_stdout {
 
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
+            let formatted_code = match output.status.code() {
+                Some(code) => code.to_string(),
+                None => "".to_string(),
+            };
 
             assert_eq!(
-                stdout, $expected_stdout,
-                "\nstdout = {}\nstderr = {}",
-                stdout, stderr
+                stdout,
+                $expected_stdout,
+                "\nstdout = {}\nstderr = {}\nstatus_code = {}\nsignal = {}",
+                stdout,
+                stderr,
+                formatted_code,
+                $crate::test::signal(output.status)
             );
         }
     };
@@ -75,4 +83,32 @@ pub fn output(file: &str, name: &str) -> Output {
         .stdin(Stdio::null())
         .output()
         .unwrap()
+}
+
+#[cfg(unix)]
+pub fn signal(exit_status: ExitStatus) -> String {
+    use std::os::unix::process::ExitStatusExt;
+
+    exit_status
+        .signal()
+        .map(|i| match i as libc::c_int {
+            libc::SIGHUP => "hang up".to_string(),
+            libc::SIGINT => "interrupt (Ctrl+C)".to_string(),
+            libc::SIGQUIT => "quit (Ctrl+D)".to_string(),
+            libc::SIGILL => "illegal instruction".to_string(),
+            libc::SIGABRT => "abort program".to_string(),
+            libc::SIGFPE => "floating point exception".to_string(),
+            libc::SIGKILL => "killed".to_string(),
+            libc::SIGSEGV => "segmentation fault (invalid address)".to_string(),
+            libc::SIGPIPE => "write on a pipe with no reader".to_string(),
+            libc::SIGALRM => "alarm".to_string(),
+            libc::SIGTERM => "terminated".to_string(),
+            n => n.to_string(),
+        })
+        .unwrap_or("".to_string())
+}
+
+#[cfg(not(unix))]
+pub fn signal(exit_status: ExitStatus) -> String {
+    "".to_string()
 }

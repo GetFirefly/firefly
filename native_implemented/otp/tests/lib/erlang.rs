@@ -32,6 +32,8 @@ pub mod ceil_1;
 pub mod convert_time_unit_3;
 #[path = "erlang/date_0.rs"]
 pub mod date_0;
+#[path = "erlang/demonitor_1.rs"]
+pub mod demonitor_1;
 #[path = "erlang/display_1.rs"]
 pub mod display_1;
 #[path = "erlang/or_2.rs"]

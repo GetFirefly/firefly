@@ -38,5 +38,7 @@ pub mod demonitor_1;
 pub mod demonitor_2;
 #[path = "erlang/display_1.rs"]
 pub mod display_1;
+#[path = "erlang/erase_0.rs"]
+pub mod erase_0;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;

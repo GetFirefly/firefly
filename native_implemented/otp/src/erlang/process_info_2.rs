@@ -50,8 +50,8 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
         "messages" => unimplemented!(),
         "min_heap_size" => unimplemented!(),
         "min_bin_vheap_size" => unimplemented!(),
-        "monitored_by" => unimplemented!(),
-        "monitors" => unimplemented!(),
+        "monitored_by" => monitored_by(process),
+        "monitors" => monitors(process),
         "message_queue_data" => unimplemented!(),
         "priority" => unimplemented!(),
         "reductions" => unimplemented!(),
@@ -78,15 +78,43 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
     }
 }
 
+fn monitored_by(process: &Process) -> InternalResult<Term> {
+    let tag = atom!("monitored_by");
+
+    let vec: Vec<Term> = process
+        .monitor_by_reference
+        .iter()
+        .map(|ref_multi| ref_multi.monitoring_pid().encode().unwrap())
+        .collect();
+    let value = process.list_from_slice(&vec)?;
+
+    process.tuple_from_slice(&[tag, value]).map_err(From::from)
+}
+
+fn monitors(process: &Process) -> InternalResult<Term> {
+    let monitor_type = atom!("process");
+    let mut vec = Vec::new();
+
+    for ref_multi in process.monitored_pid_by_reference.iter() {
+        let pid = ref_multi.value();
+        let monitor_value = pid.encode().unwrap();
+        let monitor = process.tuple_from_slice(&[monitor_type, monitor_value])?;
+        vec.push(monitor);
+    }
+
+    let tag = atom!("monitors");
+    let value = process.list_from_slice(&vec)?;
+
+    process.tuple_from_slice(&[tag, value]).map_err(From::from)
+}
+
 fn registered_name(process: &Process) -> InternalResult<Term> {
     match *process.registered_name.read() {
         Some(registered_name) => {
             let tag = atom!("registered_name");
             let value = registered_name.encode()?;
 
-            process
-                .tuple_from_slice(&[tag, value])
-                .map_err(|error| error.into())
+            process.tuple_from_slice(&[tag, value]).map_err(From::from)
         }
         None => Ok(Term::NIL),
     }

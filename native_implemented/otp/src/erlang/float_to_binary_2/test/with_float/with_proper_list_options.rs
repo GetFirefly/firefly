@@ -1,9 +1,7 @@
-mod with_decimals;
+// `with_decimals` in integration tests
 mod with_scientific;
 
 use super::*;
-
-use liblumen_alloc::erts::term::prelude::*;
 
 #[test]
 fn without_valid_option_errors_badarg() {

@@ -3,8 +3,6 @@ mod with_proper_list_options;
 
 use super::*;
 
-use proptest::arbitrary::any;
-
 #[test]
 fn without_proper_list_options_errors_badarg() {
     run!(

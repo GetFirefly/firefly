@@ -50,5 +50,7 @@ pub mod float_to_binary_1;
 pub mod float_to_binary_2;
 #[path = "erlang/float_to_list_1.rs"]
 pub mod float_to_list_1;
+#[path = "erlang/float_to_list_2.rs"]
+pub mod float_to_list_2;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;

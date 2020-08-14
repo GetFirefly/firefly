@@ -42,5 +42,7 @@ pub mod display_1;
 pub mod erase_0;
 #[path = "erlang/erase_1.rs"]
 pub mod erase_1;
+#[path = "erlang/float_1.rs"]
+pub mod float_1;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;

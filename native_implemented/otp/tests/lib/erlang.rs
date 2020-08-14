@@ -58,5 +58,7 @@ pub mod get_0;
 pub mod get_1;
 #[path = "erlang/get_keys_0.rs"]
 pub mod get_keys_0;
+#[path = "erlang/get_keys_1.rs"]
+pub mod get_keys_1;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;

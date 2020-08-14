@@ -3,8 +3,6 @@ mod with_proper_list_options;
 
 use super::*;
 
-use proptest::arbitrary::any;
-
 use crate::erlang::binary_to_float_1;
 
 #[test]

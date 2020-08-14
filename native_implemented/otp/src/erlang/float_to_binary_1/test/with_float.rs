@@ -2,8 +2,8 @@ use super::*;
 
 use crate::erlang::binary_to_float_1;
 
-// `with_float_returns_binary` in integration tests
-// `with_float_returns_binary` in ingegration tests
+// `returns_binary` in integration tests
+// `is_the_same_as_float_to_binary_2_with_scientific_20` in integration tests
 
 #[test]
 fn is_dual_of_binary_to_float_1() {

@@ -56,5 +56,7 @@ pub mod float_to_list_2;
 pub mod get_0;
 #[path = "erlang/get_1.rs"]
 pub mod get_1;
+#[path = "erlang/get_keys_0.rs"]
+pub mod get_keys_0;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;

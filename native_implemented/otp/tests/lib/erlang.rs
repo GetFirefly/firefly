@@ -60,5 +60,7 @@ pub mod get_1;
 pub mod get_keys_0;
 #[path = "erlang/get_keys_1.rs"]
 pub mod get_keys_1;
+#[path = "erlang/integer_to_binary_1.rs"]
+pub mod integer_to_binary_1;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;

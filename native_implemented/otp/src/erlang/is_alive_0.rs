@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod test;
-
 use liblumen_alloc::erts::term::prelude::Term;
 
 /// Distribution is not supported at this time.  Always returns `false`.

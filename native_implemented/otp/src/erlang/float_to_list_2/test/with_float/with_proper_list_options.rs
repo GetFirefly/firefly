@@ -1,4 +1,4 @@
-mod with_decimals;
+// `with_decimals` in integration tests
 mod with_scientific;
 
 use super::*;

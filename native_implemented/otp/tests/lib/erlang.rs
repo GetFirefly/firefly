@@ -66,5 +66,7 @@ pub mod integer_to_binary_1;
 pub mod integer_to_list_1;
 #[path = "erlang/is_alive_0.rs"]
 pub mod is_alive_0;
+#[path = "erlang/is_atom_1.rs"]
+pub mod is_atom_1;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;

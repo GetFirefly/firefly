@@ -139,8 +139,8 @@ impl SchedulerTrait for Scheduler {
                                     Status::SystemException(system_exception) => {
                                         match system_exception {
                                             SystemException::Alloc(_) => {
-                                                let root_set = RootSet::new(&mut []);
-                                                match arc_process.garbage_collect(0, root_set) {
+                                                let mut roots = [];
+                                                match arc_process.garbage_collect(0, &mut roots[..]) {
                                                     Ok(reductions) => {
                                                         arc_process.total_reductions.fetch_add(
                                                             reductions.try_into().unwrap(),

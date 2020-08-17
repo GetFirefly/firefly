@@ -2,7 +2,6 @@ use std::ffi::CStr;
 use std::fmt;
 use std::os;
 use std::ptr;
-use std::str::FromStr;
 
 use anyhow::anyhow;
 

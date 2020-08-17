@@ -151,40 +151,6 @@ mod tests {
     }
 
     #[test]
-    fn is_instant() {
-        assert!(RawEvent::new_instant(StringId::INVALID, StringId::INVALID, 987, 0,).is_instant());
-
-        assert!(RawEvent::new_instant(
-            StringId::INVALID,
-            StringId::INVALID,
-            987,
-            MAX_INSTANT_TIMESTAMP,
-        )
-        .is_instant());
-
-        assert!(!RawEvent::new_interval(
-            StringId::INVALID,
-            StringId::INVALID,
-            987,
-            0,
-            MAX_INTERVAL_TIMESTAMP,
-        )
-        .is_instant());
-    }
-
-    #[test]
-    #[should_panic]
-    fn invalid_instant_timestamp() {
-        let _ = RawEvent::new_instant(
-            StringId::INVALID,
-            StringId::INVALID,
-            123,
-            // timestamp too large
-            MAX_INSTANT_TIMESTAMP + 1,
-        );
-    }
-
-    #[test]
     #[should_panic]
     fn invalid_start_timestamp() {
         let _ = RawEvent::new_interval(
@@ -284,24 +250,5 @@ mod tests {
 
         assert_eq!(e.start_nanos(), 0x1234567890);
         assert_eq!(e.end_nanos(), 0x1234567890A);
-    }
-
-    #[test]
-    fn instant_timestamp_decoding() {
-        assert_eq!(
-            RawEvent::new_instant(StringId::INVALID, StringId::INVALID, 987, 0,).start_nanos(),
-            0
-        );
-
-        assert_eq!(
-            RawEvent::new_instant(
-                StringId::INVALID,
-                StringId::INVALID,
-                987,
-                MAX_INSTANT_TIMESTAMP,
-            )
-            .start_nanos(),
-            MAX_INSTANT_TIMESTAMP
-        );
     }
 }

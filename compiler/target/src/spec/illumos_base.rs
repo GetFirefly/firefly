@@ -1,6 +1,7 @@
 use crate::spec::{LinkArgs, LinkerFlavor, TargetOptions};
 use std::default::Default;
 
+#[allow(dead_code)]
 pub fn opts() -> TargetOptions {
     let mut late_link_args = LinkArgs::new();
     late_link_args.insert(

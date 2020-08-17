@@ -8,6 +8,8 @@ edition = "2018"
 [features]
 # Turns on allocation instrumentation
 instrument = []
+# Turns on/off features required for supporting lumen_rt_full
+runtime_full = []
 
 [dependencies]
 log = "0.4"

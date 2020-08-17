@@ -1,4 +1,5 @@
 pub mod alloc;
+#[cfg(not(feature = "runtime_full"))]
 pub mod ffi;
 mod flags;
 mod frame;
@@ -45,6 +46,7 @@ use super::*;
 use self::alloc::VirtualAllocator;
 use self::alloc::{Heap, HeapAlloc, TermAlloc};
 use self::alloc::{StackAlloc, StackPrimitives};
+#[cfg(not(feature = "runtime_full"))]
 use self::ffi::ProcessSignal;
 pub use self::frame::{Frame, Native};
 pub use self::frame_with_arguments::FrameWithArguments;
@@ -1132,6 +1134,7 @@ impl Process {
         *self.status.write() = Status::RuntimeException(exception);
     }
 
+    #[cfg(not(feature = "runtime_full"))]
     /// Returns `Term::NONE` to indicate a (runtime or system) exception was recorded in status
     pub fn return_status(&self, result: exception::Result<Term>) -> Term {
         match result {
@@ -1147,6 +1150,25 @@ impl Process {
                 Exception::Runtime(runtime_exception) => {
                     self::ffi::process_raise(self, runtime_exception);
                 }
+            },
+        }
+    }
+
+    #[cfg(feature = "runtime_full")]
+    pub fn return_status(&self, result: exception::Result<Term>) -> Term {
+        match result {
+            Ok(term) => term,
+            Err(exception) => {
+                *self.status.write() = match exception {
+                    Exception::System(system_exception) => {
+                        Status::SystemException(system_exception)
+                    }
+                    Exception::Runtime(runtime_exception) => {
+                        Status::RuntimeException(runtime_exception)
+                    }
+                };
+
+                Term::NONE
             },
         }
     }

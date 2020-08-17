@@ -1,6 +1,6 @@
 .PHONY: help test install build build-static rebuild clean 
 .PHONY: check clean-codegen unused-deps clippy format format-rust format-cpp
-.PHONY: liblumen_term liblumen_llvm liblumen_crt lumen_rt_core lumen_rt_minimal
+.PHONY: liblumen_alloc liblumen_term liblumen_llvm liblumen_crt lumen_rt_core lumen_rt_minimal
 
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
@@ -66,6 +66,10 @@ liblumen_crt:
 liblumen_otp:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_otp
+
+liblumen_alloc:
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
+		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_alloc 
 
 liblumen_term:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \

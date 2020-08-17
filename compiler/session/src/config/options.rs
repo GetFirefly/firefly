@@ -12,7 +12,6 @@ pub use self::option_group::{
 pub use self::option_info::OptionInfo;
 pub use self::parse::*;
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -371,7 +370,7 @@ impl Options {
     }
 
     /// Check whether this compile session and crate type use static crt.
-    pub fn crt_static(&self, project_type: Option<ProjectType>) -> bool {
+    pub fn crt_static(&self, _project_type: Option<ProjectType>) -> bool {
         if !self.target.options.crt_static_respected {
             // If the target does not opt in to crt-static support, use its default.
             return self.target.options.crt_static_default;

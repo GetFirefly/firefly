@@ -147,16 +147,14 @@ fn simple_gc_test(process: Process) {
 
     // Run garbage collection
     let mut roots = [tuple_term, list_term, closure_term];
-    let root_set = RootSet::new(&mut roots);
-    process.garbage_collect(0, root_set).unwrap();
+    process.garbage_collect(0, &mut roots[..]).unwrap();
     process.set_flags(ProcessFlags::NeedFullSweep);
     // Grab post-collection size
     let collected_size_first = process.young_heap_used();
 
     //dbg!(process.acquire_heap().heap().young_generation());
     // Run it again and make sure the heap size stays the same
-    let root_set = RootSet::new(&mut roots);
-    process.garbage_collect(0, root_set).unwrap();
+    process.garbage_collect(0, &mut roots[..]).unwrap();
     let collected_size_second = process.young_heap_used();
     assert_eq!(collected_size_first, collected_size_second);
 
@@ -300,8 +298,12 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     let peak_size = process.young_heap_used();
     // Run first garbage collection
     let mut roots = [];
+<<<<<<< HEAD
     let root_set = RootSet::new(&mut roots);
     process.garbage_collect(0, root_set).unwrap();
+=======
+    process.garbage_collect(0, &mut roots[..]).unwrap();
+>>>>>>> 3ec88ed2... fix: build of lumen_rt_full with ffi features disabled
 
     // Verify size of garbage collected meets expectation
     let collected_size = process.young_heap_used();
@@ -390,8 +392,12 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     // allocated
     let second_peak_size = process.young_heap_used();
     let mut roots = [];
+<<<<<<< HEAD
     let root_set = RootSet::new(&mut roots);
     process.garbage_collect(0, root_set).unwrap();
+=======
+    process.garbage_collect(0, &mut roots[..]).unwrap();
+>>>>>>> 3ec88ed2... fix: build of lumen_rt_full with ffi features disabled
 
     // Verify no garbage was collected, we should have just tenured some data,
     // the only data on the young heap should be a single cons cell

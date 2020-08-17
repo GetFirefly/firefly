@@ -322,7 +322,7 @@ impl LinkOutputKind {
         }
     }
 
-    pub(super) fn from_str(s: &str) -> Option<LinkOutputKind> {
+    pub fn from_str(s: &str) -> Option<LinkOutputKind> {
         Some(match s {
             "dynamic-nopic-exe" => LinkOutputKind::DynamicNoPicExe,
             "dynamic-pic-exe" => LinkOutputKind::DynamicPicExe,

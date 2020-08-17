@@ -14,14 +14,18 @@ anyhow = "1.0"
 thiserror = "1.0"
 lazy_static = "1.2"
 libc = "0.2"
-liblumen_alloc = { path = "../../liblumen_alloc" }
-liblumen_core = { path = "../../liblumen_core" }
-lumen_rt_core = { path = "../core" }
 log = "0.4"
 num-bigint = "0.2"
 num-traits = "0.2"
 num_enum = "0.4.2"
 chrono = "0.4"
+
+liblumen_core = { path = "../../liblumen_core" }
+lumen_rt_core = { path = "../core" }
+
+[dependencies.liblumen_alloc]
+features = ["runtime_full"]
+path = "../../liblumen_alloc"
 
 [dependencies.hashbrown]
 version = "0.7"

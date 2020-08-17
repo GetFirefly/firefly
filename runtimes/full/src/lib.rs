@@ -30,6 +30,8 @@
 #![feature(termination_trait_lib)]
 // `PROCESS_SIGNAL` for tests
 #![feature(thread_local)]
+// `__lumen_start_panic` for tests
+#![feature(unwind_attributes)]
 
 extern crate alloc;
 extern crate cfg_if;

@@ -23,6 +23,8 @@ use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
 
 use ::alloc::sync::Arc;
 
+use std::panic::catch_unwind;
+
 use anyhow::*;
 use dashmap::{DashMap, DashSet};
 use hashbrown::HashMap;
@@ -1195,53 +1197,63 @@ impl Process {
             arguments.push(argument);
         }
 
-        let returned = native.apply(&arguments);
+        let result = catch_unwind(|| native.apply(&arguments));
 
-        let called_current_native = if returned.is_none() {
-            match *self.status.read() {
-                Status::Unrunnable => unreachable!("Process ({}) should only be unrunnable when first created. not after calling a native function", self),
-                Status::Runnable => unreachable!("Process ({}) should remain in Running and no go to Runnable inside a native function", self),
-                // both running and waiting need to have queued up their re-entry point
-                Status::Running => {
+        match result {
+            Ok(returned) => {
+                let called_current_native = if returned.is_none() {
+                    match *self.status.read() {
+                        Status::Unrunnable => unreachable!("Process ({}) should only be unrunnable when first created. not after calling a native function", self),
+                        Status::Runnable => unreachable!("Process ({}) should remain in Running and no go to Runnable inside a native function", self),
+                        // both running and waiting need to have queued up their re-entry point
+                        Status::Running => {
+                            // remove completed frame now that it isn't needed for backtrace
+                            self.frames.lock().pop().unwrap();
+                            self.stack_popn(arity);
+
+                            self.stack_queued_frames_with_arguments();
+
+                            // unlike with non-Term::NONE `returned`, don't push `returned`
+                            CalledCurrentNative::Runnable
+                        }
+                        Status::Waiting => {
+                            // remove completed frame now that it isn't needed for backtrace
+                            self.frames.lock().pop().unwrap();
+                            self.stack_popn(arity);
+
+                            self.stack_queued_frames_with_arguments();
+
+                            // unlike with non-Term::NONE `returned`, don't push `returned`
+                            CalledCurrentNative::Waiting
+                        },
+                        Status::RuntimeException(_) => CalledCurrentNative::RuntimeException,
+                        Status::SystemException(_) => CalledCurrentNative::SystemException
+                    }
+                } else {
+                    assert_eq!(*self.status.read(), Status::Running);
                     // remove completed frame now that it isn't needed for backtrace
                     self.frames.lock().pop().unwrap();
                     self.stack_popn(arity);
 
                     self.stack_queued_frames_with_arguments();
 
-                    // unlike with non-Term::NONE `returned`, don't push `returned`
-                    CalledCurrentNative::Runnable
-                }
-                Status::Waiting => {
-                    // remove completed frame now that it isn't needed for backtrace
-                    self.frames.lock().pop().unwrap();
-                    self.stack_popn(arity);
+                    match self.stack_push(returned) {
+                        Ok(()) => CalledCurrentNative::Runnable,
+                        Err(_) => {
+                            unimplemented!("Stack over flow");
+                        }
+                    }
+                };
 
-                    self.stack_queued_frames_with_arguments();
-
-                    // unlike with non-Term::NONE `returned`, don't push `returned`
-                    CalledCurrentNative::Waiting
-                },
-                Status::RuntimeException(_) => CalledCurrentNative::RuntimeException,
-                Status::SystemException(_) => CalledCurrentNative::SystemException
+                called_current_native
             }
-        } else {
-            assert_eq!(*self.status.read(), Status::Running);
-            // remove completed frame now that it isn't needed for backtrace
-            self.frames.lock().pop().unwrap();
-            self.stack_popn(arity);
+            Err(error) => {
+                let runtime_exception = error.downcast_ref::<RuntimeException>().unwrap();
+                *self.status.write() = Status::RuntimeException(runtime_exception.clone());
 
-            self.stack_queued_frames_with_arguments();
-
-            match self.stack_push(returned) {
-                Ok(()) => CalledCurrentNative::Runnable,
-                Err(_) => {
-                    unimplemented!("Stack over flow");
-                }
+                CalledCurrentNative::RuntimeException
             }
-        };
-
-        called_current_native
+        }
     }
 
     pub fn stack_queued_frames_with_arguments(&self) {

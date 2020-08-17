@@ -56,6 +56,7 @@ impl Context {
                 context,
                 target_machine,
                 opt,
+                size,
                 enable_timing,
                 enable_statistics,
             )
@@ -156,6 +157,7 @@ extern "C" {
         context: ContextRef,
         target_machine: TargetMachineRef,
         opt: CodeGenOptLevel,
+        size_opt: CodeGenOptSize,
         enable_timing: bool,
         enable_statistics: bool,
     ) -> PassManagerRef;

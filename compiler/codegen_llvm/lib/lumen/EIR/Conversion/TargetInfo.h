@@ -112,8 +112,12 @@ class TargetInfo {
   mlir::LLVM::LLVMType getExceptionType() { return impl->exceptionTy; }
 
   uint8_t immediateBits() { return impl->immediateBits; }
-  bool isValidImmediateValue(llvm::APInt &value) { return value.isIntN(impl->immediateBits); }
-  bool isValidHeaderValue(llvm::APInt &value) { return impl->headerMask.maxAllowedValue >= value.getLimitedValue(); }
+  bool isValidImmediateValue(llvm::APInt &value) {
+    return value.isIntN(impl->immediateBits);
+  }
+  bool isValidHeaderValue(llvm::APInt &value) {
+    return impl->headerMask.maxAllowedValue >= value.getLimitedValue();
+  }
 
   llvm::APInt encodeImmediate(uint32_t type, uint64_t value);
   llvm::APInt encodeHeader(uint32_t type, uint64_t arity);

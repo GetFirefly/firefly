@@ -219,7 +219,8 @@ struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
     auto termTy = ctx.getUsizeType();
     auto value = attr.getValue();
     if (ctx.targetInfo.isValidImmediateValue(value)) {
-      auto taggedInt = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, value.getLimitedValue());
+      auto taggedInt = ctx.targetInfo.encodeImmediate(TypeKind::Fixnum,
+                                                      value.getLimitedValue());
       auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedInt));
 
       rewriter.replaceOp(op, {val});
@@ -367,7 +368,6 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
     return success();
   }
 };
-
 
 template <typename Op>
 static Value lowerElementValue(RewritePatternContext<Op> &ctx,

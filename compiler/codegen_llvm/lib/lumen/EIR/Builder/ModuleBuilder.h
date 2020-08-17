@@ -67,8 +67,9 @@ class ModuleBuilder {
   void build_unreachable(Location loc);
   void build_return(Location loc, Value value);
 
-  bool maybe_build_intrinsic(Location loc, StringRef target, ArrayRef<Value> args,
-                             bool isTail, Block *ok, ArrayRef<Value> okArgs);
+  bool maybe_build_intrinsic(Location loc, StringRef target,
+                             ArrayRef<Value> args, bool isTail, Block *ok,
+                             ArrayRef<Value> okArgs);
   void build_static_invoke(Location loc, StringRef target, ArrayRef<Value> args,
                            bool isTail, Block *ok, ArrayRef<Value> okArgs,
                            Block *err, ArrayRef<Value> errArgs);

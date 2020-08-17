@@ -63,11 +63,9 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
 
     // Add tail call markers where present
     auto mustTail = op.getAttrOfType<mlir::UnitAttr>("musttail");
-    if (mustTail)
-      callOp.setAttr("musttail", rewriter.getUnitAttr());
+    if (mustTail) callOp.setAttr("musttail", rewriter.getUnitAttr());
     auto tail = op.getAttrOfType<mlir::UnitAttr>("tail");
-    if (tail)
-      callOp.setAttr("tail", rewriter.getUnitAttr());
+    if (tail) callOp.setAttr("tail", rewriter.getUnitAttr());
 
     rewriter.replaceOp(op, callOp.getResults());
     return success();
@@ -146,7 +144,9 @@ struct InvokeOpConversion : public EIROpConversion<InvokeOp> {
     LLVMType resultType;
     SmallVector<Type, 1> resultTypes;
     if (!ok->args_empty()) {
-      resultType = ctx.typeConverter.convertType(*ok->getArgumentTypes().begin()).cast<LLVMType>();
+      resultType =
+          ctx.typeConverter.convertType(*ok->getArgumentTypes().begin())
+              .cast<LLVMType>();
       assert(resultType && "unable to convert result type");
       resultTypes.push_back(resultType);
     }
@@ -163,8 +163,9 @@ struct InvokeOpConversion : public EIROpConversion<InvokeOp> {
     ValueRange errArgs = op.errDestOperands();
     auto calleeSymbol =
         FlatSymbolRefAttr::get(calleeName, callee->getContext());
-    auto callOp = rewriter.create<LLVM::InvokeOp>(
-      op.getLoc(), ArrayRef<Type>{}, calleeSymbol, args, ok, okArgs, err, errArgs);
+    auto callOp = rewriter.create<LLVM::InvokeOp>(op.getLoc(), ArrayRef<Type>{},
+                                                  calleeSymbol, args, ok,
+                                                  okArgs, err, errArgs);
     for (auto attr : attrs) {
       callOp.setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
     }

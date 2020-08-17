@@ -140,7 +140,8 @@ impl SchedulerTrait for Scheduler {
                                         match system_exception {
                                             SystemException::Alloc(_) => {
                                                 let mut roots = [];
-                                                match arc_process.garbage_collect(0, &mut roots[..]) {
+                                                match arc_process.garbage_collect(0, &mut roots[..])
+                                                {
                                                     Ok(reductions) => {
                                                         arc_process.total_reductions.fetch_add(
                                                             reductions.try_into().unwrap(),

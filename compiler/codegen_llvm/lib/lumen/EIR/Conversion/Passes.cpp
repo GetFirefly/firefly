@@ -40,12 +40,9 @@ void buildEIRTransformPassPipeline(mlir::OpPassManager &passManager,
 }  // namespace eir
 }  // namespace lumen
 
-extern "C" MLIRPassManagerRef MLIRCreatePassManager(MLIRContextRef context,
-                                                    LLVMTargetMachineRef tm,
-                                                    OptLevel opt,
-                                                    SizeLevel sizeOpt,
-                                                    bool enableTiming,
-                                                    bool enableStatistics) {
+extern "C" MLIRPassManagerRef MLIRCreatePassManager(
+    MLIRContextRef context, LLVMTargetMachineRef tm, OptLevel opt,
+    SizeLevel sizeOpt, bool enableTiming, bool enableStatistics) {
   MLIRContext *ctx = unwrap(context);
   TargetMachine *targetMachine = unwrap(tm);
   CodeGenOptLevel optLevel = toLLVM(opt);
@@ -67,17 +64,17 @@ extern "C" MLIRPassManagerRef MLIRCreatePassManager(MLIRContextRef context,
   if (enableOpt) {
     // When optimizing for size, avoid aggressive inlining
     if (sizeLevel == 0) {
-      //pm->addPass(mlir::createInlinerPass());
+      // pm->addPass(mlir::createInlinerPass());
     }
 
     OpPassManager &optPM = pm->nest<::mlir::LLVM::LLVMFuncOp>();
     optPM.addPass(mlir::createCanonicalizerPass());
     // Sparse conditional constant propagation
-    //optPM.addPass(mlir::createSCCPPass());
+    // optPM.addPass(mlir::createSCCPPass());
     // Common sub-expression elimination
-    //optPM.addPass(mlir::createCSEPass());
+    // optPM.addPass(mlir::createCSEPass());
     // Remove dead/unreachable symbols
-    //pm->addPass(mlir::createSymbolDCEPass());
+    // pm->addPass(mlir::createSymbolDCEPass());
   }
 
   return wrap(pm);

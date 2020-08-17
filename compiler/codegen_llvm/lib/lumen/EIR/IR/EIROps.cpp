@@ -42,14 +42,14 @@ static ParseResult parseFuncOp(OpAsmParser &parser, OperationState &result) {
                           std::string &) {
     return builder.getFunctionType(argTypes, results);
   };
-  return mlir::impl::parseFunctionLikeOp(parser, result, /*allowVariadic=*/false,
-                                   buildFuncType);
+  return mlir::impl::parseFunctionLikeOp(
+      parser, result, /*allowVariadic=*/false, buildFuncType);
 }
 
 static void print(OpAsmPrinter &p, FuncOp &op) {
   FunctionType fnType = op.getType();
-  mlir::impl::printFunctionLikeOp(p, op, fnType.getInputs(), /*isVariadic=*/false,
-                            fnType.getResults());
+  mlir::impl::printFunctionLikeOp(p, op, fnType.getInputs(),
+                                  /*isVariadic=*/false, fnType.getResults());
 }
 
 FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
@@ -235,7 +235,8 @@ struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
-  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(context);
+  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(
+      context);
 }
 
 Optional<MutableOperandRange> BranchOp::getMutableSuccessorOperands(
@@ -355,8 +356,7 @@ struct SimplifyCondBranchIdenticalSuccessors
   }
 };
 
-struct SimplifyCondBranchToUnreachable
-    : public OpRewritePattern<CondBranchOp> {
+struct SimplifyCondBranchToUnreachable : public OpRewritePattern<CondBranchOp> {
   using OpRewritePattern<CondBranchOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(CondBranchOp condbr,
@@ -368,8 +368,7 @@ struct SimplifyCondBranchToUnreachable
     bool trueIsCandidate = std::next(trueDest->begin()) == trueDest->end();
     bool falseIsCandidate = std::next(falseDest->begin()) == falseDest->end();
     // If neither are candidates for this transformation, we're done
-    if (!trueIsCandidate && !falseIsCandidate)
-      return failure();
+    if (!trueIsCandidate && !falseIsCandidate) return failure();
 
     // Determine if either branch contains an unreachable
     // Check that the terminator is an unconditional branch.
@@ -380,8 +379,7 @@ struct SimplifyCondBranchToUnreachable
     UnreachableOp trueUnreachable = dyn_cast<UnreachableOp>(trueOp);
     UnreachableOp falseUnreachable = dyn_cast<UnreachableOp>(falseOp);
     // If neither terminator are unreachables, there is nothing to do
-    if (!trueUnreachable && !falseUnreachable)
-      return failure();
+    if (!trueUnreachable && !falseUnreachable) return failure();
 
     // If both blocks are unreachable, then we can replace this
     // branch operation with an unreachable as well
@@ -393,9 +391,10 @@ struct SimplifyCondBranchToUnreachable
     Block *unreachable;
     Block *reachable;
     Operation *reachableOp;
-    OperandRange reachableOperands = trueUnreachable ? condbr.getFalseOperands() : condbr.getTrueOperands();
+    OperandRange reachableOperands =
+        trueUnreachable ? condbr.getFalseOperands() : condbr.getTrueOperands();
     Block *opParent = condbr.getOperation()->getBlock();
-    
+
     if (trueUnreachable) {
       unreachable = trueDest;
       reachable = falseDest;
@@ -425,7 +424,8 @@ struct SimplifyCondBranchToUnreachable
           if (argOperand && argOperand.getOwner() == reachable) {
             // The operand is a block argument in the reachable block,
             // remap it to the successor operand we have in this block
-            destOperandStorage.push_back(reachableOperands[argOperand.getArgNumber()]);
+            destOperandStorage.push_back(
+                reachableOperands[argOperand.getArgNumber()]);
           } else if (operand.getParentBlock() == reachable) {
             // The operand is constructed in the reachable block,
             // so we can't proceed without cloning the block into
@@ -957,7 +957,8 @@ OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
 
 /// Matches a ConstantIntOp
 
-/// The matcher that matches a constant numeric operation and binds the constant value.
+/// The matcher that matches a constant numeric operation and binds the constant
+/// value.
 struct constant_apint_op_binder {
   APIntAttr::ValueType *bind_value;
 
@@ -972,11 +973,13 @@ struct constant_apint_op_binder {
 
     if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
       if (opaque.isFixnum())
-        return mlir::detail::attr_value_binder<APIntAttr>(bind_value).match(attr);
+        return mlir::detail::attr_value_binder<APIntAttr>(bind_value)
+            .match(attr);
       if (opaque.isBox()) {
         auto box = type.cast<BoxType>();
         if (box.getBoxedType().isInteger())
-          return mlir::detail::attr_value_binder<APIntAttr>(bind_value).match(attr);
+          return mlir::detail::attr_value_binder<APIntAttr>(bind_value)
+              .match(attr);
       }
     }
 
@@ -984,7 +987,8 @@ struct constant_apint_op_binder {
   }
 };
 
-/// The matcher that matches a constant numeric operation and binds the constant value.
+/// The matcher that matches a constant numeric operation and binds the constant
+/// value.
 struct constant_apfloat_op_binder {
   APFloatAttr::ValueType *bind_value;
 
@@ -999,7 +1003,8 @@ struct constant_apfloat_op_binder {
 
     if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
       if (opaque.isFloat())
-        return mlir::detail::attr_value_binder<APFloatAttr>(bind_value).match(attr);
+        return mlir::detail::attr_value_binder<APFloatAttr>(bind_value)
+            .match(attr);
     }
 
     return false;
@@ -1010,7 +1015,8 @@ inline constant_apint_op_binder m_ConstInt(APIntAttr::ValueType *bind_value) {
   return constant_apint_op_binder(bind_value);
 }
 
-inline constant_apfloat_op_binder m_ConstFloat(APFloatAttr::ValueType *bind_value) {
+inline constant_apfloat_op_binder m_ConstFloat(
+    APFloatAttr::ValueType *bind_value) {
   return constant_apfloat_op_binder(bind_value);
 }
 
@@ -1019,7 +1025,8 @@ namespace {
 struct ApplyConstantNegations : public OpRewritePattern<NegOp> {
   using OpRewritePattern<NegOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(NegOp op, PatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(NegOp op,
+                                PatternRewriter &rewriter) const override {
     auto rhs = op.rhs();
 
     APInt intVal;
@@ -1051,13 +1058,12 @@ struct ApplyConstantNegations : public OpRewritePattern<NegOp> {
     return failure();
   }
 };
-} // end anonymous namespace
+}  // end anonymous namespace
 
 void NegOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context) {
+                                        MLIRContext *context) {
   results.insert<ApplyConstantNegations>(context);
 }
-
 
 //===----------------------------------------------------------------------===//
 // MallocOp

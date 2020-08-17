@@ -1169,7 +1169,7 @@ impl Process {
                 };
 
                 Term::NONE
-            },
+            }
         }
     }
 

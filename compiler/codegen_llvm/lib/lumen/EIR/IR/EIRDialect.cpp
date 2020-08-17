@@ -14,8 +14,8 @@ using namespace lumen::eir;
 
 using ::llvm::SmallString;
 using ::mlir::Attribute;
-using ::mlir::DialectAsmPrinter;
 using ::mlir::DialectAsmParser;
+using ::mlir::DialectAsmPrinter;
 
 /// Create an instance of the EIR dialect, owned by the context.
 ///

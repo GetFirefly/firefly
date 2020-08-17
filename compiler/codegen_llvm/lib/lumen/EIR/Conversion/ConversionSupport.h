@@ -16,21 +16,21 @@
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Module.h"
-#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-using ::llvm::TargetMachine;
 using ::llvm::SmallVectorImpl;
+using ::llvm::TargetMachine;
 using ::mlir::ConversionPatternRewriter;
 using ::mlir::LLVMTypeConverter;
 using ::mlir::LogicalResult;
+using ::mlir::PatternRewriter;
 using ::mlir::success;
 using ::mlir::SymbolTable;
-using ::mlir::PatternRewriter;
 using ::mlir::edsc::OperationBuilder;
-using ::mlir::edsc::ValueBuilder;
 using ::mlir::edsc::ScopedContext;
+using ::mlir::edsc::ValueBuilder;
 using ::mlir::LLVM::LLVMDialect;
 using ::mlir::LLVM::LLVMType;
 
@@ -94,14 +94,13 @@ struct EirTypeConverter : public mlir::TypeConverter {
   static Optional<Value> materializeCast(PatternRewriter &rewriter,
                                          Type resultType, ValueRange inputs,
                                          Location loc) {
-    if (inputs.size() != 1)
-      return llvm::None;
+    if (inputs.size() != 1) return llvm::None;
     return rewriter.create<CastOp>(loc, inputs[0], resultType).getResult();
   }
 
   LLVMDialect *getDialect() { return typeConverter.getDialect(); }
 
-private:
+ private:
   LLVMTypeConverter &typeConverter;
 };
 

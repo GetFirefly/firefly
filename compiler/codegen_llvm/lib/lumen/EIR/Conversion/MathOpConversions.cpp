@@ -3,7 +3,8 @@
 namespace lumen {
 namespace eir {
 template <typename Op, typename T>
-static Value specializeIntegerMathOp(Location loc, RewritePatternContext<Op> &ctx, Value lhs,
+static Value specializeIntegerMathOp(Location loc,
+                                     RewritePatternContext<Op> &ctx, Value lhs,
                                      Value rhs) {
   Value lhsInt = ctx.decodeImmediate(lhs);
   Value rhsInt = ctx.decodeImmediate(rhs);
@@ -12,8 +13,8 @@ static Value specializeIntegerMathOp(Location loc, RewritePatternContext<Op> &ct
 }
 
 template <typename Op, typename T>
-static Value specializeFloatMathOp(Location loc, RewritePatternContext<Op> &ctx, Value lhs,
-                                   Value rhs) {
+static Value specializeFloatMathOp(Location loc, RewritePatternContext<Op> &ctx,
+                                   Value lhs, Value rhs) {
   auto fpTy = LLVMType::getDoubleTy(ctx.dialect);
   Value l = eir_cast(lhs, fpTy);
   Value r = eir_cast(rhs, fpTy);
@@ -22,7 +23,9 @@ static Value specializeFloatMathOp(Location loc, RewritePatternContext<Op> &ctx,
 }
 
 template <typename Op, typename T>
-static Value specializeUnaryFloatMathOp(Location loc, RewritePatternContext<Op> &ctx, Value rhs) {
+static Value specializeUnaryFloatMathOp(Location loc,
+                                        RewritePatternContext<Op> &ctx,
+                                        Value rhs) {
   auto fpTy = LLVMType::getDoubleTy(ctx.dialect);
   Value r = eir_cast(rhs, fpTy);
   auto fpOp = ctx.rewriter.template create<T>(loc, r);
@@ -103,7 +106,8 @@ struct NegOpConversion : public EIROpConversion<NegOp> {
       return success();
     }
     if (rhsTy.isa<FloatType>()) {
-      auto newOp = specializeUnaryFloatMathOp<NegOp, LLVM::FNegOp>(loc, ctx, rhs);
+      auto newOp =
+          specializeUnaryFloatMathOp<NegOp, LLVM::FNegOp>(loc, ctx, rhs);
       rewriter.replaceOp(op, newOp);
       return success();
     }
@@ -111,8 +115,7 @@ struct NegOpConversion : public EIROpConversion<NegOp> {
     // Call builtin function
     StringRef builtinSymbol("erlang:-/1");
     auto termTy = ctx.getUsizeType();
-    auto callee =
-        ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy});
+    auto callee = ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy});
 
     ArrayRef<Value> args({rhs});
     auto calleeSymbol =
@@ -270,11 +273,11 @@ void populateMathOpConversionPatterns(OwningRewritePatternList &patterns,
                                       MLIRContext *context,
                                       EirTypeConverter &converter,
                                       TargetInfo &targetInfo) {
-  patterns.insert<AddOpConversion, SubOpConversion, NegOpConversion, MulOpConversion,
-                  DivOpConversion, FDivOpConversion, RemOpConversion,
-                  BslOpConversion, BsrOpConversion, BandOpConversion,
-                  BorOpConversion, BxorOpConversion>(context, converter,
-                                                     targetInfo);
+  patterns.insert<AddOpConversion, SubOpConversion, NegOpConversion,
+                  MulOpConversion, DivOpConversion, FDivOpConversion,
+                  RemOpConversion, BslOpConversion, BsrOpConversion,
+                  BandOpConversion, BorOpConversion, BxorOpConversion>(
+      context, converter, targetInfo);
 }
 
 }  // namespace eir

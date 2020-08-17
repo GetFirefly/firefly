@@ -465,6 +465,8 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     let test_string = unsafe { &*(test_string_term_ptr as *mut HeapBin) };
     assert_eq!("test", test_string.as_str());
     */
+    }
+    }
 }
 
 fn verify_tuple_root(tuple_root: Term, tuple_ptr: *mut Term) {

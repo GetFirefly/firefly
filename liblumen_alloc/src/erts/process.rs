@@ -1136,18 +1136,18 @@ impl Process {
     pub fn return_status(&self, result: exception::Result<Term>) -> Term {
         match result {
             Ok(term) => term,
-            Err(exception) => {
-                *self.status.write() = match exception {
-                    Exception::System(system_exception) => {
-                        Status::SystemException(system_exception)
-                    }
-                    Exception::Runtime(runtime_exception) => {
-                        Status::RuntimeException(runtime_exception)
-                    }
-                };
-
-                Term::NONE
-            }
+            Err(exception) => match exception {
+                Exception::System(SystemException::Alloc(_)) => {
+                    self::ffi::set_process_signal(ProcessSignal::GarbageCollect);
+                    Term::NONE
+                }
+                Exception::System(system_exception) => {
+                    panic!("{}", &system_exception);
+                }
+                Exception::Runtime(runtime_exception) => {
+                    self::ffi::process_raise(self, runtime_exception);
+                }
+            },
         }
     }
 

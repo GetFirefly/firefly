@@ -8,6 +8,7 @@ members = [
   "compiler/mlir",
   "compiler/profiling",
   "compiler/session",
+  "compiler/stackmaps",
   "compiler/target",
   "compiler/term",
   "liblumen_alloc",

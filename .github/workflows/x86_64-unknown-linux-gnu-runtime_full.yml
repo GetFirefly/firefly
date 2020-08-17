@@ -24,8 +24,8 @@ jobs:
         with:
           path: target
           key: ${{ github.workflow }}-${{ github.job }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      - name: Build TableGen
-        run: make lumen-tblgen
+      - name: Make Build
+        run: make build
       - name: Test lumen_rt_full
         run: cargo test --package lumen_rt_full
       - name: Test liblumen_otp with runtime_full

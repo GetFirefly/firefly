@@ -50,7 +50,6 @@ default-members = [
   "native_implemented/otp",
   "native_implemented/web",
   "runtimes/crt",
-  "runtimes/full",
 ]
 
 exclude = [

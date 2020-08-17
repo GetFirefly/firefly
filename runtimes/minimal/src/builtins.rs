@@ -1,3 +1,4 @@
+pub mod gc;
 pub mod receive;
 
 use std::convert::TryInto;

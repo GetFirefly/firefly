@@ -115,6 +115,14 @@ pub fn generate(
     builder.set_linkage(reduction_count_global, Linkage::External);
     builder.set_alignment(reduction_count_global, 8);
 
+    // Generate thread local variable for process signal
+    let process_signal_init = builder.build_constant_uint(i8_type, 0);
+    let process_signal_global =
+        builder.build_global(i8_type, "__lumen_process_signal", Some(process_signal_init));
+    builder.set_thread_local_mode(process_signal_global, ThreadLocalMode::LocalExec);
+    builder.set_linkage(process_signal_global, Linkage::External);
+    builder.set_alignment(process_signal_global, 8);
+
     // We have to build a shim for the Rust libstd `lang_start_internal`
     // function to start the Rust runtime. Since that symbol is internal,
     // we locate the mangled symbol name at build time and build a shim

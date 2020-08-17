@@ -4,6 +4,7 @@
 #![feature(termination_trait_lib)]
 #![feature(thread_local)]
 #![feature(crate_visibility_modifier)]
+#![feature(core_intrinsics)]
 
 #[cfg(not(all(unix, target_arch = "x86_64")))]
 compile_error!("lumen_rt_minimal does not currently support this architecture!");

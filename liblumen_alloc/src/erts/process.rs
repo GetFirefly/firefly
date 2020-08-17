@@ -45,6 +45,7 @@ use super::*;
 use self::alloc::VirtualAllocator;
 use self::alloc::{Heap, HeapAlloc, TermAlloc};
 use self::alloc::{StackAlloc, StackPrimitives};
+use self::ffi::ProcessSignal;
 pub use self::frame::{Frame, Native};
 pub use self::frame_with_arguments::FrameWithArguments;
 pub use self::frames::{Frames, StackTrace};
@@ -972,11 +973,15 @@ impl Process {
     ///
     /// `need` is specified in words.
     #[inline]
-    pub fn garbage_collect(&self, need: usize, roots: &mut [Term]) -> Result<usize, GcError> {
+    pub fn garbage_collect(
+        &self,
+        need: usize,
+        roots: impl Into<RootSet>,
+    ) -> Result<usize, GcError> {
         let mut heap = self.heap.lock();
-        // The roots passed in here are pointers to the native stack/registers, all other roots
+        // The roots passed in here are pointers to the native stack, all other roots
         // we are able to pick up from the current process context
-        let mut rootset = RootSet::new(roots);
+        let mut rootset = roots.into();
         self.base_root_set(&mut rootset);
         // Initialize the collector with the given root set
         heap.garbage_collect(self, need, rootset)
@@ -1262,7 +1267,7 @@ impl Process {
                             .flat_map(|frame_with_arguments| frame_with_arguments.arguments.iter()),
                     );
 
-                    match self.garbage_collect(roots.len(), &mut roots) {
+                    match self.garbage_collect(roots.len(), roots.as_mut_slice()) {
                         Ok(reductions) => {
                             let mut updated_arguments = roots.drain(..);
                             self.run_reductions

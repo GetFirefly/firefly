@@ -69,6 +69,18 @@ impl RootSet {
         self.0.as_slice().iter()
     }
 }
+impl From<Vec<Boxed<Term>>> for RootSet {
+    #[inline]
+    fn from(roots: Vec<Boxed<Term>>) -> Self {
+        Self(roots)
+    }
+}
+// NOTE: This is for legacy code that should probably be removed
+impl From<&mut [Term]> for RootSet {
+    fn from(roots: &mut [Term]) -> Self {
+        Self::new(roots)
+    }
+}
 impl Default for RootSet {
     fn default() -> Self {
         Self::empty()

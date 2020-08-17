@@ -10,6 +10,7 @@ use std::sync::Arc;
 use liblumen_core::locks::RwLock;
 
 use liblumen_alloc::erts::exception::SystemException;
+use liblumen_alloc::erts::process::gc::RootSet;
 use liblumen_alloc::erts::process::{Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
@@ -138,7 +139,8 @@ impl SchedulerTrait for Scheduler {
                                     Status::SystemException(system_exception) => {
                                         match system_exception {
                                             SystemException::Alloc(_) => {
-                                                match arc_process.garbage_collect(0, &mut []) {
+                                                let root_set = RootSet::new(&mut []);
+                                                match arc_process.garbage_collect(0, root_set) {
                                                     Ok(reductions) => {
                                                         arc_process.total_reductions.fetch_add(
                                                             reductions.try_into().unwrap(),

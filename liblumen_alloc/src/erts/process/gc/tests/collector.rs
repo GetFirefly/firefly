@@ -298,12 +298,7 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     let peak_size = process.young_heap_used();
     // Run first garbage collection
     let mut roots = [];
-<<<<<<< HEAD
-    let root_set = RootSet::new(&mut roots);
-    process.garbage_collect(0, root_set).unwrap();
-=======
     process.garbage_collect(0, &mut roots[..]).unwrap();
->>>>>>> 3ec88ed2... fix: build of lumen_rt_full with ffi features disabled
 
     // Verify size of garbage collected meets expectation
     let collected_size = process.young_heap_used();
@@ -392,12 +387,7 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     // allocated
     let second_peak_size = process.young_heap_used();
     let mut roots = [];
-<<<<<<< HEAD
-    let root_set = RootSet::new(&mut roots);
-    process.garbage_collect(0, root_set).unwrap();
-=======
     process.garbage_collect(0, &mut roots[..]).unwrap();
->>>>>>> 3ec88ed2... fix: build of lumen_rt_full with ffi features disabled
 
     // Verify no garbage was collected, we should have just tenured some data,
     // the only data on the young heap should be a single cons cell
@@ -465,8 +455,6 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     let test_string = unsafe { &*(test_string_term_ptr as *mut HeapBin) };
     assert_eq!("test", test_string.as_str());
     */
-    }
-    }
 }
 
 fn verify_tuple_root(tuple_root: Term, tuple_ptr: *mut Term) {

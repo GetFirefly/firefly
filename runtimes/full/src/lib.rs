@@ -28,6 +28,8 @@
 // Layout helpers
 #![feature(alloc_layout_extra)]
 #![feature(termination_trait_lib)]
+// `PROCESS_SIGNAL` for tests
+#![feature(thread_local)]
 
 extern crate alloc;
 extern crate cfg_if;

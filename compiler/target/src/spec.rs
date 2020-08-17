@@ -157,8 +157,18 @@ pub enum RelocModel {
     Static,
     PIC,
     DynamicNoPic,
+    /// Read-Only Position Independence
+    ///
+    /// Code and read-only data is accessed PC-relative
+    /// The offsets between all code and RO data sections are known at static link time
     ROPI,
+    /// Read-Write Position Indepdendence
+    ///
+    /// Read-write data is accessed relative to the static base register.
+    /// The offsets between all writeable data sections are known at static
+    /// link time. This does not affect read-only data.
     RWPI,
+    /// A combination of both of the above
     #[allow(non_camel_case_types)]
     ROPI_RWPI,
 }

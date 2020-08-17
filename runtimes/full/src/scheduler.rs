@@ -10,7 +10,6 @@ use std::sync::Arc;
 use liblumen_core::locks::RwLock;
 
 use liblumen_alloc::erts::exception::SystemException;
-use liblumen_alloc::erts::process::gc::RootSet;
 use liblumen_alloc::erts::process::{Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;

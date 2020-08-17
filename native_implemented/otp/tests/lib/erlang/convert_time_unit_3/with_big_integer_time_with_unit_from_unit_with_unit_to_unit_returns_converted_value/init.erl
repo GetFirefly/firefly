@@ -47,6 +47,7 @@ start() ->
   display(convert_time_unit(Time, perf_counter, ToHertz)),
   display(convert_time_unit(Time, perf_counter, second)),
   display(convert_time_unit(Time, perf_counter, millisecond)),
-  display(convert_time_unit(Time, perf_counter, nanosecond)),
-  display(convert_time_unit(Time, perf_counter, native)),
-  display(convert_time_unit(Time, perf_counter, perf_counter)).
+  display(convert_time_unit(Time, perf_counter, nanosecond)).
+%% FIXME https://github.com/lumen/lumen/issues/536
+%%  display(convert_time_unit(Time, perf_counter, native)),
+%%  display(convert_time_unit(Time, perf_counter, perf_counter)).

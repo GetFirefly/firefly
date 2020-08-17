@@ -36,7 +36,19 @@ struct AtomAttributeStorage : public AttributeStorage {
   bool operator==(const KeyTy &key) const {
     auto keyType = std::get<Type>(key);
     auto keyId = std::get<APInt>(key);
-    return keyType == getType() && keyId == id;
+    auto idBits = id.getBitWidth();
+    auto keyIdBits = keyId.getBitWidth();
+    if (idBits == keyIdBits) {
+      return keyType == getType() && keyId == id;
+    } else if (idBits < keyIdBits) {
+      APInt temp(id);
+      temp.zext(keyIdBits);
+      return keyType == getType() && keyId == temp;
+    } else {
+      APInt temp(keyId);
+      temp.zext(idBits);
+      return keyType == getType() && id == temp;
+    }
   }
 
   static unsigned hashKey(const KeyTy &key) {
@@ -87,7 +99,19 @@ struct APIntAttributeStorage : public AttributeStorage {
   bool operator==(const KeyTy &key) const {
     auto keyType = std::get<Type>(key);
     auto keyValue = std::get<APInt>(key);
-    return keyType == getType() && keyValue == value;
+    auto valueBits = value.getBitWidth();
+    auto keyValueBits = keyValue.getBitWidth();
+    if (valueBits == keyValueBits) {
+      return keyType == getType() && keyValue == value;
+    } else if (valueBits < keyValueBits) {
+      APInt temp(value);
+      temp.sext(keyValueBits);
+      return keyType == getType() && keyValue == temp;
+    } else {
+      APInt temp(keyValue);
+      temp.sext(valueBits);
+      return keyType == getType() && value == temp;
+    }
   }
 
   static unsigned hashKey(const KeyTy &key) {

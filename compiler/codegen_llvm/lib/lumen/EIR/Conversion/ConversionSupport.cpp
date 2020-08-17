@@ -13,7 +13,7 @@ static bool isa_std_type(Type t) {
                   Type::Kind::LAST_STANDARD_TYPE);
 }
 
-Optional<Type> convertType(Type type, LLVMTypeConverter &converter,
+Optional<Type> convertType(Type type, EirTypeConverter &converter,
                            TargetInfo &targetInfo) {
   if (!isa_eir_type(type)) return Optional<Type>();
 

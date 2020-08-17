@@ -566,7 +566,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
     pub fn get_block_by_value(&self, ir_value: ir::Value) -> Block {
         self.eir
             .value_block(ir_value)
-            .map(|b| self.get_block(b))
+            .and_then(|b| self.get_block_opt(b))
             .expect(&format!(
                 "the given value is not a known block: {:?} ({:?})",
                 ir_value,
@@ -584,6 +584,11 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             .get(ir_block)
             .copied()
             .unwrap_or_else(|| panic!("eir block has no corresponding mlir block{:?}", ir_block))
+    }
+
+    /// Same as get_block, but safe
+    pub fn get_block_opt(&self, ir_block: ir::Block) -> Option<Block> {
+        self.func.block_mapping.get(ir_block).copied()
     }
 
     /// Registers an EIR value with the MLIR value that corresponds to it
@@ -1167,8 +1172,14 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 // binary_construct_finish(cont: fn(result), bin_ref)
                 if let Some(_) = dyn_op.downcast_ref::<binary_construct::BinaryConstructFinish>() {
                     debug_in!(self, "block contains binary finish operation");
-                    let cont = self.get_block_by_value(reads[0]);
+                    let ir_cont = reads[0];
+                    let is_return = self.func.is_return_ir(ir_cont);
                     let bin = self.build_value(reads[1])?;
+                    let cont = if is_return {
+                        None
+                    } else {
+                        Some(self.get_block_by_value(ir_cont))
+                    };
                     return OpBuilder::build_void_result(
                         self,
                         OpKind::BinaryFinish(BinaryFinish { loc, cont, bin }),

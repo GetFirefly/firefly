@@ -82,10 +82,10 @@ def eir_ClosureOp : eir_Op<"closure", []> {
 
   let arguments = (ins
     FlatSymbolRefAttr:$callee,
-    Variadic<eir_AnyType>:$operands
+    Variadic<AnyType>:$operands
   );
   let results = (outs
-    Variadic<eir_AnyType>:$results
+    Variadic<AnyType>:$results
   );
 
   let assemblyFormat = [{
@@ -117,12 +117,12 @@ def eir_ClosureOp : eir_Op<"closure", []> {
   let verifier = ?;
 
   let extraClassDeclaration = [{
-    IntegerAttr arityAttr() { return getAttrOfType<IntegerAttr>("arity"); }
+    mlir::IntegerAttr arityAttr() { return getAttrOfType<mlir::IntegerAttr>("arity"); }
     AtomAttr module() { return getAttrOfType<AtomAttr>("module"); }
-    IntegerAttr envLenAttr() { return getAttrOfType<IntegerAttr>("env_len"); }
-    IntegerAttr indexAttr() { return getAttrOfType<IntegerAttr>("index"); }
-    IntegerAttr oldUniqueAttr() { return getAttrOfType<IntegerAttr>("old_unique"); }
-    StringAttr uniqueAttr() { return getAttrOfType<StringAttr>("unique"); }
+    mlir::IntegerAttr envLenAttr() { return getAttrOfType<mlir::IntegerAttr>("env_len"); }
+    mlir::IntegerAttr indexAttr() { return getAttrOfType<mlir::IntegerAttr>("index"); }
+    mlir::IntegerAttr oldUniqueAttr() { return getAttrOfType<mlir::IntegerAttr>("old_unique"); }
+    mlir::StringAttr uniqueAttr() { return getAttrOfType<mlir::StringAttr>("unique"); }
 
     unsigned arity() { return arityAttr().getValue().getLimitedValue(); }
     unsigned envLen() { return envLenAttr().getValue().getLimitedValue(); }
@@ -158,7 +158,7 @@ def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
   let verifier = ?;
 
   let extraClassDeclaration = [{
-    unsigned envIndex() { return getAttrOfType<IntegerAttr>("index").getValue().getLimitedValue(); }
+    unsigned envIndex() { return getAttrOfType<mlir::IntegerAttr>("index").getValue().getLimitedValue(); }
   }];
 }
 
@@ -477,7 +477,7 @@ def eir_BranchOp : eir_Op<"br",
    ```
   }];
 
-  let arguments = (ins Variadic<eir_AnyType>:$destOperands);
+  let arguments = (ins Variadic<AnyType>:$destOperands);
   let successors = (successor AnySuccessor:$dest);
 
   let builders = [
@@ -642,9 +642,105 @@ class eir_CallBaseOp<string mnemonic, list<OpTrait> traits = []> :
   }];
 }
 
+def eir_CallOp : eir_CallBaseOp<"call"> {
+  let summary = [{call operation}];
+  let description = [{
+    Calls a function with the given arguments.
+  }];
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$callee,
+    Variadic<AnyType>:$operands
+  );
+  let results = (outs Variadic<AnyType>:$result);
+
+  let assemblyFormat = [{
+    $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<[{
+      OpBuilder &builder, OperationState &result, eir::FuncOp callee,
+      ValueRange operands, ArrayRef<NamedAttribute> attrs = {}
+    }], [{
+      result.addOperands(operands);
+      result.addAttribute("callee", builder.getSymbolRefAttr(callee));
+      result.addAttributes(attrs);
+      result.addTypes(callee.getType().getResults());
+    }]>,
+    OpBuilder<[{
+      OpBuilder &builder, OperationState &result, FlatSymbolRefAttr callee,
+      ArrayRef<Type> resultTypes, ValueRange operands, ArrayRef<NamedAttribute> attrs = {}
+    }], [{
+      result.addOperands(operands);
+      result.addAttribute("callee", callee);
+      result.addAttributes(attrs);
+      result.addTypes(resultTypes);
+    }]>,
+    OpBuilder<[{
+      OpBuilder &builder, OperationState &result, StringRef callee,
+      ArrayRef<Type> resultTypes, ValueRange operands, ArrayRef<NamedAttribute> attrs = {}
+    }], [{
+      build(builder, result, builder.getSymbolRefAttr(callee),
+            resultTypes, operands, attrs);
+    }]>,
+  ];
+
+  let verifier = [{ /*TODO*/return success(); }];
+
+  //let hasCanonicalizer = 1;
+}
+
+def CallIndirectOp : eir_Op<"call_indirect", [CallOpInterface]> {
+  let summary = "indirect call operation";
+  let description = [{
+    The "call_indirect" operation represents an indirect call to a value of
+    function type.  Functions are first class types in MLIR, and may be passed
+    as arguments and merged together with block arguments.  The operands
+    and result types of the call must match the specified function type.
+
+      %3 = eir.call_indirect %2(%0, %1) : (f32, f32) -> f32
+  }];
+
+  let arguments = (ins FunctionType:$callee, Variadic<AnyType>:$operands);
+  let results = (outs Variadic<AnyType>:$results);
+
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value callee,"
+    "ValueRange operands = {}", [{
+      result.operands.push_back(callee);
+      result.addOperands(operands);
+      FunctionType fnTy = callee.getType().cast<FunctionType>();
+      result.addTypes(fnTy.getResults());
+  }]>];
+
+  let extraClassDeclaration = [{
+    Value getCallee() { return getOperand(0); }
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return ++operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of this operation.
+    CallInterfaceCallable getCallableForCallee() { return getCallee(); }
+  }];
+
+  let verifier = ?;
+  let hasCanonicalizer = 1;
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
 class eir_InvokeBaseOp<string mnemonic, list<OpTrait> traits = []> :
     eir_Op<mnemonic, !listconcat(traits,
-      [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface, ["getSuccessorForOperands"]>,
+      [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
        Terminator])> {
   let successors = (successor AnySuccessor:$okDest, AnySuccessor:$errDest);
 
@@ -721,103 +817,7 @@ class eir_InvokeBaseOp<string mnemonic, list<OpTrait> traits = []> :
   }] # extraExtraClassDeclaration;
 }
 
-def eir_CallOp : eir_CallBaseOp<"call"> {
-  let summary = [{call operation}];
-  let description = [{
-    Calls a function with the given arguments.
-  }];
-
-  let arguments = (ins
-    FlatSymbolRefAttr:$callee,
-    Variadic<eir_AnyType>:$operands
-  );
-  let results = (outs
-    Variadic<eir_AnyType>:$results
-  );
-
-  let assemblyFormat = [{
-    $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];
-
-  let skipDefaultBuilders = 1;
-  let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, eir::FuncOp callee,
-      ValueRange operands = {}
-    }], [{
-      result.addOperands(operands);
-      result.addAttribute("callee", builder.getSymbolRefAttr(callee));
-      result.addTypes(callee.getType().getResults());
-    }]>,
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, FlatSymbolRefAttr callee,
-      ArrayRef<Type> resultTypes, ValueRange operands = {}
-    }], [{
-      result.addOperands(operands);
-      result.addAttribute("callee", callee);
-      result.addTypes(resultTypes);
-    }]>,
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, StringRef callee,
-      ArrayRef<Type> resultTypes, ValueRange operands = {}
-    }], [{
-      build(builder, result, builder.getSymbolRefAttr(callee),
-            resultTypes, operands);
-    }]>,
-  ];
-
-  let verifier = [{ /*TODO*/return success(); }];
-
-  //let hasCanonicalizer = 1;
-}
-
-def CallIndirectOp : eir_Op<"call_indirect", [CallOpInterface]> {
-  let summary = "indirect call operation";
-  let description = [{
-    The "call_indirect" operation represents an indirect call to a value of
-    function type.  Functions are first class types in MLIR, and may be passed
-    as arguments and merged together with block arguments.  The operands
-    and result types of the call must match the specified function type.
-
-      %3 = eir.call_indirect %2(%0, %1) : (f32, f32) -> f32
-  }];
-
-  let arguments = (ins FunctionType:$callee, Variadic<eir_AnyType>:$operands);
-  let results = (outs Variadic<eir_AnyType>:$results);
-
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value callee,"
-    "ValueRange operands = {}", [{
-      result.operands.push_back(callee);
-      result.addOperands(operands);
-      FunctionType fnTy = callee.getType().cast<FunctionType>();
-      result.addTypes(fnTy.getResults());
-  }]>];
-
-  let extraClassDeclaration = [{
-    Value getCallee() { return getOperand(0); }
-
-    /// Get the argument operands to the called function.
-    operand_range getArgOperands() {
-      return {arg_operand_begin(), arg_operand_end()};
-    }
-
-    operand_iterator arg_operand_begin() { return ++operand_begin(); }
-    operand_iterator arg_operand_end() { return operand_end(); }
-
-    /// Return the callee of this operation.
-    CallInterfaceCallable getCallableForCallee() { return getCallee(); }
-  }];
-
-  let verifier = ?;
-  let hasCanonicalizer = 1;
-
-  let assemblyFormat = [{
-    `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];
-}
-
-def eir_InvokeOp : eir_InvokeBaseOp<"invoke", [CallOpInterface]> {
+def eir_InvokeOp : eir_InvokeBaseOp<"invoke", []> {
   let summary = "call operation for targets that may raise exceptions";
   let description = [{
     Calls a function with the given arguments, uses the provided ok/err blocks
@@ -827,47 +827,45 @@ def eir_InvokeOp : eir_InvokeBaseOp<"invoke", [CallOpInterface]> {
 
   let arguments = (ins
     FlatSymbolRefAttr:$callee,
-    Variadic<eir_AnyType>:$operands,
-    Variadic<eir_AnyType>:$okDestOperands,
-    Variadic<eir_AnyType>:$errDestOperands
+    Variadic<AnyType>:$operands,
+    Variadic<AnyType>:$okDestOperands,
+    Variadic<AnyType>:$errDestOperands
   );
-  let results = (outs
-    Variadic<eir_AnyType>:$results
-  );
+  let results = (outs);
 
   let assemblyFormat = [{
     $callee (`(` $operands^ `:` type($operands) `)`)? `to`
       $okDest (`(` $okDestOperands^ `:` type($okDestOperands) `)`)? `unwind`
       $errDest (`(` $errDestOperands^ `:` type($errDestOperands) `)`)?
-      attr-dict `:` type(results)
+      attr-dict
   }];
 
   let builders = [
     OpBuilder<[{
-      OpBuilder &builder, OperationState &result, eir::FuncOp callee,
-      ValueRange operands,
+      OpBuilder &builder, OperationState &result,
+      eir::FuncOp callee, ValueRange operands,
       Block *okDest, ValueRange okDestOperands,
       Block *errDest, ValueRange errDestOperands
     }], [{
-      build(builder, result, callee.getCallableResults(), builder.getSymbolRefAttr(callee),
+      build(builder, result, builder.getSymbolRefAttr(callee),
             operands, okDestOperands, errDestOperands, okDest, errDest);
     }]>,
     OpBuilder<[{
-      OpBuilder &builder, OperationState &result, FlatSymbolRefAttr callee,
-      ArrayRef<Type> resultTypes, ValueRange operands,
+      OpBuilder &builder, OperationState &result,
+      FlatSymbolRefAttr callee, ValueRange operands,
       Block *okDest, ValueRange okDestOperands,
       Block *errDest, ValueRange errDestOperands
     }], [{
-      build(builder, result, resultTypes, callee,
+      build(builder, result, callee,
             operands, okDestOperands, errDestOperands, okDest, errDest);
     }]>,
     OpBuilder<[{
-      OpBuilder &builder, OperationState &result, StringRef callee,
-      ArrayRef<Type> resultTypes, ValueRange operands,
+      OpBuilder &builder, OperationState &result,
+      StringRef callee, ValueRange operands,
       Block *okDest, ValueRange okOperands,
       Block *errDest, ValueRange errOperands
     }], [{
-      build(builder, result, resultTypes, builder.getSymbolRefAttr(callee),
+      build(builder, result, builder.getSymbolRefAttr(callee),
             operands, okOperands, errOperands, okDest, errDest);
     }]>,
   ];
@@ -913,11 +911,18 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
   let verifier = ?;
 
   //let hasCanonicalizer = 1;
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange catchClauses", [{
-      Type termTy = builder.getType<TermType>();
-      build(builder, result, ArrayRef<Type>{termTy, termTy, termTy}, catchClauses);
-  }]>];
+  let builders = [
+    OpBuilder<
+        "OpBuilder &builder, OperationState &result, ValueRange catchClauses", [{
+        Type termTy = builder.getType<TermType>();
+        build(builder, result, ArrayRef<Type>{termTy, termTy, termTy}, catchClauses);
+    }]>,
+    OpBuilder<
+        "OpBuilder &builder, OperationState &result, Value catchClause", [{
+        Type termTy = builder.getType<TermType>();
+        build(builder, result, ArrayRef<Type>{termTy, termTy, termTy}, ValueRange{catchClause});
+    }]>,
+  ];
 }
 
 def ApplyOp : eir_Op<"apply", []> {
@@ -1012,8 +1017,8 @@ def eir_InvokeClosureOp : eir_InvokeBaseOp<"invoke_closure", []> {
   let arguments = (ins
     eir_BoxType:$callee,
     Variadic<eir_AnyType>:$operands,
-    Variadic<eir_AnyType>:$okDestOperands,
-    Variadic<eir_AnyType>:$errDestOperands
+    Variadic<AnyType>:$okDestOperands,
+    Variadic<AnyType>:$errDestOperands
   );
   let results = (outs eir_AnyType:$result);
 
@@ -1070,9 +1075,14 @@ def eir_ReturnOp : eir_Op<"return", [NoSideEffect, Terminator]> {
 
   let arguments = (ins Variadic<AnyType>:$operands);
 
-  let builders = [OpBuilder<
-    "OpBuilder &b, OperationState &result", [{ build(b, result, llvm::None); }]
-  >];
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<[{
+      OpBuilder &builder, OperationState &result, ValueRange operands = ValueRange()
+    }], [{
+      result.addOperands(operands);
+    }]>
+  ];
 
   let assemblyFormat = [{
     attr-dict ($operands^ `:` type($operands))?
@@ -1255,6 +1265,7 @@ def eir_CastOp : eir_Op<"cast", []> {
   let arguments = (ins eir_AnyType:$input);
   let results = (outs eir_AnyType:$output);
 
+  let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<"OpBuilder &builder, OperationState &result, Value source, Type destType",
     [{
@@ -1266,7 +1277,7 @@ def eir_CastOp : eir_Op<"cast", []> {
   ];
 
   let assemblyFormat = [{
-    $input `:` type($input) `to` type($output) attr-dict
+    $input `from` type($input) `to` type($output) attr-dict
   }];
 
   let extraClassDeclaration = [{
@@ -1306,7 +1317,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
 
   let builders = [
     OpBuilder<"OpBuilder &builder, OperationState &result, BoxType boxType, "
-              "IntegerAttr alignment = IntegerAttr()",
+              "mlir::IntegerAttr alignment = mlir::IntegerAttr()",
     [{
        result.addAttribute("type", TypeAttr::get(boxType.getBoxedType()));
        result.types.push_back(boxType);
@@ -1314,7 +1325,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
          result.addAttribute(getAlignmentAttrName(), alignment);
     }]>,
     OpBuilder<"OpBuilder &builder, OperationState &result, BoxType boxType, "
-              "ArrayRef<Value> operands, IntegerAttr alignment = IntegerAttr()",
+              "ArrayRef<Value> operands, mlir::IntegerAttr alignment = mlir::IntegerAttr()",
     [{
        result.addAttribute("type", TypeAttr::get(boxType.getBoxedType()));
        result.types.push_back(boxType);
@@ -1446,7 +1457,7 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", []> {
     Type getType() { return getResult().getType().cast<RefType>().getInnerType(); }
 
     uint64_t getIndex() {
-        return getAttrOfType<IntegerAttr>("index").getValue().getLimitedValue();
+        return getAttrOfType<mlir::IntegerAttr>("index").getValue().getLimitedValue();
     }
   }];
 
@@ -1670,7 +1681,7 @@ def eir_ConstantNilOp : eir_ConstantOp<eir_NilType, "constant.nil", [ConstantLik
   let hasFolder = 1;
 }
 
-def eir_ConstantNoneOp : eir_ConstantOp<eir_NoneType, "constant.none", [ConstantLike]> {
+def eir_ConstantNoneOp : eir_ConstantOp<eir_AnyTerm, "constant.none", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1679,11 +1690,16 @@ def eir_ConstantNoneOp : eir_ConstantOp<eir_NoneType, "constant.none", [Constant
       result.addTypes(type);
     }]>,
     OpBuilder<
+    "OpBuilder &builder, OperationState &result, Type type",
+    [{
+      auto attr = TypeAttr::get(type);
+      build(builder, result, type, attr);
+    }]>,
+    OpBuilder<
     "OpBuilder &builder, OperationState &result",
     [{
       auto type = builder.getType<eir::NoneType>();
-      auto attr = TypeAttr::get(type);
-      build(builder, result, type, attr);
+      build(builder, result, type);
     }]>
   ];
 
@@ -1785,7 +1801,7 @@ def eir_ConsOp : eir_Op<"cons"> {
   }];
 
   let extraClassDeclaration = [{
-      bool useAlloca() { return getAttrOfType<BoolAttr>("alloca").getValue(); }
+      bool useAlloca() { return getAttrOfType<mlir::BoolAttr>("alloca").getValue(); }
   }];
 }
 
@@ -1819,7 +1835,7 @@ def eir_TupleOp : eir_Op<"tuple"> {
   }];
 
   let extraClassDeclaration = [{
-      bool useAlloca() { return getAttrOfType<BoolAttr>("alloca").getValue(); }
+      bool useAlloca() { return getAttrOfType<mlir::BoolAttr>("alloca").getValue(); }
   }];
 }
 
@@ -1853,12 +1869,20 @@ def eir_TraceConstructOp : eir_Op<"trace_construct"> {
         %0 = eir.trace_construct
   }];
 
-  let arguments = (ins);
-  let results = (outs eir_AnyTerm:$trace);
+  let arguments = (ins eir_AnyTerm:$traceRef);
+  let results = (outs eir_BoxType:$trace);
 
   let verifier = ?;
 
-  let assemblyFormat = [{ attr-dict `:` type($trace) }];
+  let assemblyFormat = [{ `(` operands `)` `:` functional-type(operands, results) attr-dict }];
+
+  let builders = [
+    OpBuilder<"OpBuilder &builder, OperationState &result, Value traceRef",
+    [{
+      result.addOperands(traceRef);
+      result.addTypes(BoxType::get(builder.getType<ConsType>()));
+    }]>
+  ];
 }
 
 def eir_ConstructMapOp : eir_Op<"map.new"> {
@@ -2095,9 +2119,9 @@ class eir_BinaryMatchOp<string mnemonic, list<OpTrait> traits = []>
   let verifier = ?;
 
   let extraClassDeclaration = "static StringRef builtinSymbol() { return \"" # builtinSymbol # "\"; }"
-    "IntegerAttr unitAttr() { return getAttrOfType<IntegerAttr>(\"unit\"); }"
-    "IntegerAttr endiannessAttr() { return getAttrOfType<IntegerAttr>(\"endianness\"); }"
-    "BoolAttr isSignedAttr() { return getAttrOfType<BoolAttr>(\"signed\"); }";
+    "mlir::IntegerAttr unitAttr() { return getAttrOfType<mlir::IntegerAttr>(\"unit\"); }"
+    "mlir::IntegerAttr endiannessAttr() { return getAttrOfType<mlir::IntegerAttr>(\"endianness\"); }"
+    "mlir::BoolAttr isSignedAttr() { return getAttrOfType<mlir::BoolAttr>(\"signed\"); }";
 }
 
 def eir_BinaryMatchRawOp : eir_BinaryMatchOp<"binary_match.raw", []> {

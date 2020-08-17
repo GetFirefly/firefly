@@ -192,22 +192,25 @@ struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
       TraceConstructOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
+    TraceConstructOpAdaptor adaptor(operands);
+
+    Value traceRef = adaptor.traceRef();
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_trace_construct");
-    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
+    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy});
 
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
-                                              operands);
+                                              ValueRange(traceRef));
     return success();
   }
 };
 
 void populateBuiltinOpConversionPatterns(OwningRewritePatternList &patterns,
                                          MLIRContext *context,
-                                         LLVMTypeConverter &converter,
+                                         EirTypeConverter &converter,
                                          TargetInfo &targetInfo) {
   patterns.insert<IncrementReductionsOpConversion, IsTypeOpConversion,
                   PrintOpConversion, MallocOpConversion,

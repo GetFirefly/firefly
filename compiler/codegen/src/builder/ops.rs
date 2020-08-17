@@ -313,7 +313,7 @@ pub struct BinaryPush {
 #[derive(Debug, Clone)]
 pub struct BinaryFinish {
     pub loc: LocationRef,
-    pub cont: Block,
+    pub cont: Option<Block>,
     pub bin: Value,
 }
 

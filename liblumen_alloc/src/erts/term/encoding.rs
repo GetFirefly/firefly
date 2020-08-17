@@ -699,6 +699,9 @@ impl CloneToProcess for Term {
     }
 
     fn size_in_words(&self) -> usize {
+        if self.is_none() {
+            return 1;
+        }
         let tt = self.decode().unwrap();
         tt.size_in_words()
     }

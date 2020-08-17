@@ -219,11 +219,25 @@ integer_math_builtin!("__lumen_builtin_math.band", builtin_math_band, bitand);
 integer_math_builtin!("__lumen_builtin_math.bor", builtin_math_bor, bitor);
 integer_math_builtin!("__lumen_builtin_math.bxor", builtin_math_bxor, bitxor);
 
-/// Capture the current stack trace
+/// Capture the data needed to construct a stack trace later
 #[export_name = "__lumen_builtin_trace_capture"]
 pub extern "C" fn builtin_trace_capture() -> Term {
-    // TODO:
+    // HACK(pauls): For now our reference is just nil
     Term::NIL
+}
+
+/// Construct or return the stack trace for the given reference
+#[export_name = "__lumen_builtin_trace_construct"]
+pub extern "C" fn builtin_trace_construct(_trace_ref: Term) -> Term {
+    // HACK(pauls): For now we just return an empty list
+    Term::NIL
+}
+
+#[export_name = "__lumen_builtin_fatal_error"]
+pub extern "C" fn builtin_fatal_error() -> ! {
+    unsafe {
+        core::intrinsics::abort();
+    }
 }
 
 /// Binary Construction

@@ -84,7 +84,7 @@ struct TupleOpConversion : public EIROpConversion<TupleOp> {
 
 void populateAggregateOpConversionPatterns(OwningRewritePatternList &patterns,
                                            MLIRContext *context,
-                                           LLVMTypeConverter &converter,
+                                           EirTypeConverter &converter,
                                            TargetInfo &targetInfo) {
   patterns.insert<ConsOpConversion, TupleOpConversion>(context, converter,
                                                        targetInfo);

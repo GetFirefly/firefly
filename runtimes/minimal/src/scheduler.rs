@@ -64,13 +64,11 @@ struct StackPointer(*mut u64);
 
 #[export_name = "__lumen_builtin_yield"]
 pub unsafe extern "C" fn process_yield() -> bool {
-    // NOTE: We always set root=false here because the root
-    // process never invokes this function
     scheduler::current()
         .as_any()
         .downcast_ref::<Scheduler>()
         .unwrap()
-        .process_yield(/* is_root= */ false)
+        .process_yield()
 }
 
 #[export_name = "__lumen_builtin_exit"]
@@ -83,9 +81,7 @@ pub unsafe extern "C" fn process_exit(reason: Term) {
     scheduler
         .current
         .exit(reason, anyhow!("process exit").into());
-    // NOTE: We always set root=false here because the root
-    // process never invokes this function
-    scheduler.process_yield(/* root= */ false);
+    scheduler.process_yield();
 }
 
 #[naked]
@@ -211,11 +207,7 @@ fn do_process_return(scheduler: &Scheduler, exit_value: Term) -> bool {
         } else {
             current.exit(exit_value, anyhow!("process exit").into());
         }
-        // NOTE: We always set root=false here, even though this can
-        // be called from the root process, since returning from the
-        // root process exits the scheduler loop anyway, so no stack
-        // swapping can occur
-        scheduler.process_yield(/* root= */ false)
+        scheduler.process_yield()
     } else {
         true
     }
@@ -340,9 +332,8 @@ impl SchedulerTrait for Scheduler {
     }
 
     fn run_once(&self) -> bool {
-        // We always set root=true here, since calling this function is always done
-        // from the scheduler loop, and only ever from the root context
-        self.process_yield(/* is_root= */ true)
+        // The scheduler will yield to a process to execute
+        self.scheduler_yield()
     }
 
     fn run_queue_len(&self, priority: Priority) -> usize {
@@ -442,6 +433,20 @@ impl SchedulerTrait for Scheduler {
 }
 
 impl Scheduler {
+    fn process_yield(&self) -> bool {
+        // Swap back to the scheduler, which will look like
+        // a return from `swap_stack`. This function will
+        // appear to return if the process that yielded is
+        // rescheduled
+
+        let scheduler_ctx = &self.root.registers as *const _ as *mut _;
+        let process_ctx = &self.current.registers as *const _ as *mut _;
+        unsafe {
+            swap_stack(process_ctx, scheduler_ctx);
+        }
+        true
+    }
+
     /// This function performs two roles, albeit virtually identical:
     ///
     /// First, this function is called by the scheduler to resume execution
@@ -453,8 +458,9 @@ impl Scheduler {
     /// process is swapped in, so the scheduler has a chance to do its
     /// auxilary tasks, after which the scheduler will call it again to
     /// swap in a new process.
-    fn process_yield(&self, is_root: bool) -> bool {
+    fn scheduler_yield(&self) -> bool {
         info!("entering core scheduler loop");
+
         self.hierarchy.write().timeout();
 
         loop {
@@ -471,9 +477,46 @@ impl Scheduler {
                     // Without this check, a process.exit() from outside the process during WAITING
                     // will return to the Frame that called `process.wait()`
                     if !process.is_exiting() {
-                        info!("swapping into process (is_root = {})", is_root);
+                        info!("swapping into process");
+                        // The swap takes care of setting up the to-be-scheduled process
+                        // as the current process, and swaps to its stack. The code below
+                        // is executed when that process has yielded and we're resetting
+                        // the state of the scheduler such that the "current process" is
+                        // the scheduler itself
                         unsafe {
-                            self.swap_process(process, is_root);
+                            self.swap_process(process);
+                        }
+
+                        // When we reach here, the process has yielded
+                        // back to the scheduler, and is still marked
+                        // as the current process. We need to handle
+                        // swapping it out with the scheduler process
+                        // and handling its exit, if exiting
+                        let _ = CURRENT_PROCESS.with(|cp| cp.replace(Some(self.root.clone())));
+                        let prev = unsafe { self.current.replace(self.root.clone()) };
+
+                        // Increment reduction count if not the root process
+                        let prev_reductions = reset_reduction_counter();
+                        prev.total_reductions
+                            .fetch_add(prev_reductions as u64, Ordering::Relaxed);
+
+                        // Change the previous process status to Runnable
+                        {
+                            let mut prev_status = prev.status.write();
+                            if Status::Running == *prev_status {
+                                *prev_status = Status::Runnable
+                            }
+                        }
+
+                        // Try to schedule it for the future
+                        // If the process is exiting, then handle the exit
+                        if let Some(exiting) = self.run_queues.write().requeue(prev) {
+                            if let Status::RuntimeException(ref ex) = *exiting.status.read() {
+                                log_exit(&exiting, ex);
+                                propagate_exit(&exiting, ex);
+                            } else {
+                                unreachable!()
+                            }
                         }
                     } else {
                         info!("process is exiting");
@@ -496,7 +539,7 @@ impl Scheduler {
                     // `run_once` and increment timeouts to knock out of waiting.
                     break true;
                 }
-                Run::None if is_root => {
+                Run::None if self.current.pid() == self.root.pid() => {
                     info!("no processes remaining to schedule, exiting loop");
                     // If no processes are available, then the scheduler should steal,
                     // but if it can't/doesn't, then it must terminate, as there is
@@ -520,11 +563,7 @@ impl Scheduler {
         if self.current.pid() != self.root.pid() {
             self.current
                 .exit(atom!("normal"), anyhow!("Out of code").into());
-            // NOTE: We always set root=false here, even though this can
-            // be called from the root process, since returning from the
-            // root process exits the scheduler loop anyway, so no stack
-            // swapping can occur
-            self.process_yield(/* root= */ false)
+            self.process_yield()
         } else {
             true
         }
@@ -541,7 +580,7 @@ impl Scheduler {
     /// Once that is complete, it swaps to the new process stack via `swap_stack`,
     /// at which point execution resumes where the newly scheduled process left
     /// off previously, or in its init function.
-    unsafe fn swap_process(&self, new: Arc<Process>, is_root: bool) {
+    unsafe fn swap_process(&self, new: Arc<Process>) {
         // Mark the new process as Running
         let new_ctx = &new.registers as *const _;
         {
@@ -552,13 +591,6 @@ impl Scheduler {
         // Replace the previous process with the new as the currently scheduled process
         let _ = CURRENT_PROCESS.with(|cp| cp.replace(Some(new.clone())));
         let prev = self.current.replace(new.clone());
-
-        // Increment reduction count if not the root process
-        if !is_root {
-            let prev_reductions = reset_reduction_counter();
-            prev.total_reductions
-                .fetch_add(prev_reductions as u64, Ordering::Relaxed);
-        }
 
         // Change the previous process status to Runnable
         {
@@ -571,21 +603,9 @@ impl Scheduler {
         // Save the previous process registers for the stack swap
         let prev_ctx = &prev.registers as *const _ as *mut _;
 
-        // Then try to schedule it for the future
-        // If the process is exiting, then handle the exit, otherwise
-        // proceed to the stack swap
-        if let Some(exiting) = self.run_queues.write().requeue(prev) {
-            if let Status::RuntimeException(ref ex) = *exiting.status.read() {
-                log_exit(&exiting, ex);
-                propagate_exit(&exiting, ex);
-            } else {
-                unreachable!()
-            }
-        }
-
         // Execute the swap
         //
-        // When swapping to the root process, we return here, which
+        // When swapping to the root process, we effectively return from here, which
         // will unwind back to the main scheduler loop in `lib.rs`.
         //
         // When swapping to a newly spawned process, we return "into"
@@ -596,10 +616,9 @@ impl Scheduler {
         // that stack traces link the new stack to the frame in which execution
         // started
         //
-        // When swapping to a previously spawned process, we return here,
-        // since the process called `process_yield`. From here we unwind back
-        // to the call to `process_yield` and resume execution from the point
-        // where it was called.
+        // When swapping to a previously spawned process, we return to the end
+        // of `process_yield`, which is what the process last called before the
+        // scheduler was swapped in.
         swap_stack(prev_ctx, new_ctx);
     }
 
@@ -634,6 +653,11 @@ impl Scheduler {
         process.schedule_with(id);
 
         *process.status.write() = Status::Running;
+
+        let r13 = &process.registers.r13 as *const u64 as *mut _;
+        unsafe {
+            ptr::write(r13, 0x0 as u64);
+        }
 
         Ok(())
     }
@@ -819,6 +843,3 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
     : "volatile", "alignstack"
     );
 }
-
-#[cfg(not(all(unix, target_arch = "x86_64")))]
-compile_error!("lumen_rt_minimal does not currently support this architecture!");

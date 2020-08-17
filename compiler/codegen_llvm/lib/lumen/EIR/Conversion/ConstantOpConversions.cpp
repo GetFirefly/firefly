@@ -3,13 +3,6 @@
 namespace lumen {
 namespace eir {
 
-#if false
-template <typename Op>
-static LLVM::GlobalOp buildConstantCons(RewritePatternContext<Op> &ctx,
-                                        ArrayRef<Attribute> values,
-                                        Operation *insertAfter = nullptr);
-#endif
-
 template <typename Op>
 static Value lowerElementValue(RewritePatternContext<Op> &ctx,
                                Attribute elementAttr);
@@ -291,12 +284,10 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
     }
 
     // Lower to single cons cell if it fits
-    if (numElements <= 2) {
+    if (numElements < 2) {
       Value head = lowerElementValue(ctx, elements[0]);
       assert(head && "unsupported element type in cons cell");
-      Value tail = lowerElementValue(ctx, elements[1]);
-      assert(tail && "unsupported element type in cons cell");
-      Value list = eir_cons(head, tail);
+      Value list = eir_cons(head, eir_nil());
       rewriter.replaceOp(op, list);
       return success();
     }
@@ -323,91 +314,6 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
     return success();
   }
 };
-
-#if false
-struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
-  using EIROpConversion::EIROpConversion;
-
-  LogicalResult matchAndRewrite(
-      ConstantListOp op, ArrayRef<mlir::Value> operands,
-      ConversionPatternRewriter &rewriter) const override {
-    auto ctx = getRewriteContext(op, rewriter);
-
-    auto attr = op.getValue().cast<SeqAttr>();
-    auto elements = attr.getValue();
-    auto numElements = elements.size();
-    auto termTy = ctx.getUsizeType();
-
-    size_t hash = llvm::hash_combine(
-        numElements,
-        llvm::hash_combine_range(elements.begin(), elements.end()));
-    auto globalName = std::string("list_") + std::to_string(hash);
-    ModuleOp mod = ctx.getModule();
-    LLVM::GlobalOp listConst = mod.lookupSymbol<LLVM::GlobalOp>(globalName);
-    if (listConst) {
-      auto ptr = llvm_addressof(listConst);
-      auto val = llvm_load(ptr);
-      rewriter.replaceOp(op, {val});
-      return success();
-    }
-
-    // Lower to nil if empty list
-    if (numElements == 0) {
-      auto val = llvm_constant(termTy, ctx.getIntegerAttr(ctx.getNilValue()));
-      rewriter.replaceOp(op, {val});
-      return success();
-    }
-
-    // Lower to single cons cell if it fits
-    if (numElements <= 2) {
-      auto cell = buildConstantCons(ctx, elements);
-      auto ptr = llvm_addressof(cell);
-      auto boxed = ctx.encodeList(ptr, /*literal=*/true);
-      rewriter.replaceOp(op, boxed);
-      return success();
-    }
-
-    // Otherwise, we need to lower multiple cons cells, boxing those
-    // that are not the head element
-    unsigned cellsRequired = numElements;
-    unsigned currentIndex = numElements;
-
-    LLVM::GlobalOp prevGlobal;
-    bool hasPrev = false;
-    for (auto i = cellsRequired; i > 1; --i) {
-      auto head = elements[--currentIndex];
-      if (!hasPrev) {
-        prevGlobal = buildConstantCons(ctx, {head});
-        hasPrev = true;
-      } else {
-        auto prevName = prevGlobal.getName();
-        auto prevSym = FlatSymbolRefAttr::get(prevName, prevGlobal.getContext());
-        prevGlobal = buildConstantCons(ctx, {head, prevSym}, prevGlobal);
-      }
-    }
-
-    auto savePoint = rewriter.saveInsertionPoint();
-    rewriter.setInsertionPointAfter(prevGlobal);
-
-    listConst = ctx.getOrInsertGlobalConstantOp(globalName, termTy);
-
-    {
-      auto &initRegion = listConst.getInitializerRegion();
-      auto *initBlock = rewriter.createBlock(&initRegion);
-
-      auto ptr = llvm_addressof(prevGlobal);
-      auto boxed = ctx.encodeList(ptr, /*literal=*/true);
-      rewriter.create<mlir::ReturnOp>(ctx.getLoc(), boxed);
-    }
-
-    rewriter.restoreInsertionPoint(savePoint);
-
-    Value list = llvm_load(llvm_addressof(listConst));
-    rewriter.replaceOp(op, list);
-    return success();
-  }
-};
-#endif
 
 struct ConstantMapOpConversion : public EIROpConversion<ConstantMapOp> {
   using EIROpConversion::EIROpConversion;
@@ -462,151 +368,6 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
   }
 };
 
-#if false
-struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
-  using EIROpConversion::EIROpConversion;
-
-  LogicalResult matchAndRewrite(
-      ConstantTupleOp op, ArrayRef<Value> operands,
-      ConversionPatternRewriter &rewriter) const override {
-    auto ctx = getRewriteContext(op, rewriter);
-
-    auto termTy = ctx.getUsizeType();
-    auto attr = op.getValue().cast<SeqAttr>();
-    auto elements = attr.getValue();
-    auto numElements = elements.size();
-
-    size_t hash = llvm::hash_combine(
-        numElements,
-        llvm::hash_combine_range(elements.begin(), elements.end()));
-    auto globalName = std::string("tuple_") + std::to_string(hash);
-    ModuleOp mod = ctx.getModule();
-    LLVM::GlobalOp tupleConst = mod.lookupSymbol<LLVM::GlobalOp>(globalName);
-    if (tupleConst) {
-      auto ptr = llvm_addressof(tupleConst);
-      auto val = llvm_load(ptr);
-      rewriter.replaceOp(op, {val});
-      return success();
-    }
-
-    SmallVector<Value, 2> elementValues;
-    for (auto element : elements) {
-      auto elementValue = lowerElementValue(ctx, element);
-      assert(elementValue && "invalid element type in tuple constant");
-      elementValues.push_back(elementValue);
-    }
-
-    // Construct tuple header
-    auto tupleTy = ctx.getTupleType(numElements);
-    auto tuplePtrTy = tupleTy.getPointerTo();
-
-    auto savePoint = rewriter.saveInsertionPoint();
-    rewriter.setInsertionPointToStart(mod.getBody());
-
-    LLVM::GlobalOp tupleHeader =
-        ctx.getOrInsertGlobalConstantOp(std::to_string(hash), tupleTy);
-    {
-      auto &initRegion = tupleHeader.getInitializerRegion();
-      auto *initBlock = rewriter.createBlock(&initRegion);
-
-      auto headerRaw =
-          ctx.targetInfo.encodeHeader(TypeKind::Tuple, numElements);
-      Value headerTerm = llvm_constant(termTy, ctx.getIntegerAttr(headerRaw));
-
-      Value header = llvm_undef(tupleTy);
-      header =
-          llvm_insertvalue(tupleTy, header, headerTerm, ctx.getI64ArrayAttr(0));
-      for (auto i = 0; i < numElements; i++) {
-        auto val = elementValues[i];
-        header =
-            llvm_insertvalue(tupleTy, header, val, ctx.getI64ArrayAttr(i + 1));
-      }
-      rewriter.create<mlir::ReturnOp>(ctx.getLoc(), header);
-    }
-
-    rewriter.setInsertionPointAfter(tupleHeader);
-
-    tupleConst = ctx.getOrInsertGlobalConstantOp(globalName, termTy);
-    {
-      auto &initRegion = tupleConst.getInitializerRegion();
-      auto *initBlock = rewriter.createBlock(&initRegion);
-
-      auto ptr = llvm_addressof(tupleHeader);
-      auto boxed = ctx.encodeBox(ptr);
-      rewriter.create<mlir::ReturnOp>(ctx.getLoc(), boxed);
-    }
-
-    rewriter.restoreInsertionPoint(savePoint);
-
-    Value tuple = llvm_load(llvm_addressof(tupleConst));
-    rewriter.replaceOp(op, tuple);
-    return success();
-  }
-};
-#endif
-
-// Shared conversion helpers
-
-#if false
-template <typename Op>
-static LLVM::GlobalOp buildConstantCons(RewritePatternContext<Op> &ctx,
-                                        ArrayRef<Attribute> values,
-                                        Operation *insertAfter) {
-  auto numValues = values.size();
-  assert(numValues < 3 &&
-         "expected no more than one value as tail of cons cell");
-  assert(numValues > 0 && "expected at least one value to construct cons cell");
-
-  Attribute headAttr = values[0];
-  Attribute tailAttr = nullptr;
-  if (numValues > 1) {
-    tailAttr = values[1];
-  }
-
-  size_t hash = llvm::hash_combine(numValues, headAttr, tailAttr);
-  auto headerName = std::string("cons_") + std::to_string(hash);
-
-  ModuleOp mod = ctx.getModule();
-  LLVM::GlobalOp headerConst = mod.lookupSymbol<LLVM::GlobalOp>(headerName);
-  if (!headerConst) {
-    auto i64Ty = LLVMType::getInt64Ty(ctx.dialect);
-    auto f64Ty = LLVMType::getDoubleTy(ctx.dialect);
-    auto i8Ty = ctx.getI8Type();
-    auto i8PtrTy = i8Ty.getPointerTo();
-    auto consTy = ctx.targetInfo.getConsType();
-    auto termTy = ctx.getUsizeType();
-
-    auto savePoint = ctx.rewriter.saveInsertionPoint();
-    if (insertAfter) {
-      ctx.rewriter.setInsertionPointAfter(insertAfter);
-    } else {
-      ctx.rewriter.setInsertionPointToStart(mod.getBody());
-    }
-    headerConst = ctx.getOrInsertGlobalConstantOp(headerName, consTy);
-
-    auto &initRegion = headerConst.getInitializerRegion();
-    auto *initBlock = ctx.rewriter.createBlock(&initRegion);
-
-    Value cell = llvm_undef(consTy);
-    auto head = lowerElementValue(ctx, headAttr);
-    assert(head && "unsupported element type in cons cell");
-    cell = llvm_insertvalue(consTy, cell, head, ctx.getI64ArrayAttr(0));
-    if (!tailAttr) {
-      auto nil = llvm_constant(termTy, ctx.getIntegerAttr(ctx.getNilValue()));
-      cell = llvm_insertvalue(consTy, cell, nil, ctx.getI64ArrayAttr(1));
-    } else {
-      auto tail = lowerElementValue(ctx, tailAttr);
-      assert(tail && "unsupported element type in cons cell");
-      cell = llvm_insertvalue(consTy, cell, tail, ctx.getI64ArrayAttr(1));
-    }
-    ctx.rewriter.template create<mlir::ReturnOp>(ctx.getLoc(), cell);
-
-    ctx.rewriter.restoreInsertionPoint(savePoint);
-  }
-
-  return headerConst;
-}
-#endif
 
 template <typename Op>
 static Value lowerElementValue(RewritePatternContext<Op> &ctx,
@@ -630,11 +391,6 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
       if (symName.startswith("binary_")) {
         return ctx.encodeLiteral(ptr);
       }
-#ifdef false
-      if (symName.startswith("cons_")) {
-        return ctx.encodeList(ptr, /*literal=*/true);
-      }
-#endif
       if (symName.startswith("float_")) {
         return ctx.encodeLiteral(ptr);
       }
@@ -730,12 +486,10 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
       }
 
       // Lower to single cons cell if it fits
-      if (numElements <= 2) {
+      if (numElements < 2) {
         Value head = lowerElementValue(ctx, elementAttrs[0]);
         assert(head && "unsupported element type in cons cell");
-        Value tail = lowerElementValue(ctx, elementAttrs[1]);
-        assert(tail && "unsupported element type in cons cell");
-        return eir_cast(eir_cons(head, tail), eirTermType);
+        return eir_cast(eir_cons(head, eir_nil()), eirTermType);
       }
 
       unsigned cellsRequired = numElements;
@@ -765,7 +519,7 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
 
 void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,
-                                          LLVMTypeConverter &converter,
+                                          EirTypeConverter &converter,
                                           TargetInfo &targetInfo) {
   patterns.insert<ConstantAtomOpConversion, ConstantBigIntOpConversion,
                   ConstantBinaryOpConversion, ConstantFloatOpConversion,

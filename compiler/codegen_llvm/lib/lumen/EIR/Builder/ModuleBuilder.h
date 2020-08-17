@@ -67,16 +67,20 @@ class ModuleBuilder {
   void build_unreachable(Location loc);
   void build_return(Location loc, Value value);
 
+  bool maybe_build_intrinsic(Location loc, StringRef target, ArrayRef<Value> args,
+                             bool isTail, Block *ok, ArrayRef<Value> okArgs);
+  void build_static_invoke(Location loc, StringRef target, ArrayRef<Value> args,
+                           bool isTail, Block *ok, ArrayRef<Value> okArgs,
+                           Block *err, ArrayRef<Value> errArgs);
+
   void build_static_call(Location loc, StringRef target, ArrayRef<Value> args,
-                         bool isTail, Block *ok, ArrayRef<Value> okArgs,
-                         Block *err, ArrayRef<Value> errArgs);
+                         bool isTail, Block *ok, ArrayRef<Value> okArgs);
 
   void build_closure_call(Location loc, Value closure, ArrayRef<Value> args,
                           bool isTail, Block *ok, ArrayRef<Value> okArgs,
                           Block *err, ArrayRef<Value> errArgs);
 
-  Block *build_landing_pad(Location loc, ArrayRef<Value> catchClauses,
-                           Block *err);
+  Block *build_landing_pad(Location loc, Block *err);
 
   //===----------------------------------------------------------------------===//
   // Operations
@@ -111,6 +115,7 @@ class ModuleBuilder {
 
   void build_trace_capture_op(Location loc, Block *dest,
                               ArrayRef<MLIRValueRef> destArgs = {});
+  Value build_trace_construct_op(Location loc, Value trace);
 
   //===----------------------------------------------------------------------===//
   // Constants

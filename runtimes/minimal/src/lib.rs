@@ -5,8 +5,8 @@
 #![feature(thread_local)]
 #![feature(crate_visibility_modifier)]
 
-#[cfg(not(unix))]
-compile_error!("lumen_rt_minimal is only supported on unix targets!");
+#[cfg(not(all(unix, target_arch = "x86_64")))]
+compile_error!("lumen_rt_minimal does not currently support this architecture!");
 
 extern crate liblumen_crt;
 extern crate panic;

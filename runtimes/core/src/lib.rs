@@ -3,6 +3,7 @@
 #![feature(backtrace)]
 #![feature(option_unwrap_none)]
 #![feature(trait_alias)]
+#![feature(core_intrinsics)]
 
 pub mod binary_to_string;
 pub mod builtins;

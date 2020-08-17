@@ -229,7 +229,7 @@ template <typename Op, typename OperandAdaptor>
 class BinaryMatchOpConversion : public EIROpConversion<Op> {
  public:
   explicit BinaryMatchOpConversion(MLIRContext *context,
-                                   LLVMTypeConverter &converter,
+                                   EirTypeConverter &converter,
                                    TargetInfo &targetInfo,
                                    mlir::PatternBenefit benefit = 1)
       : EIROpConversion<Op>::EIROpConversion(context, converter, targetInfo,
@@ -443,7 +443,7 @@ struct BinaryMatchUtf32OpConversion
 
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,
-                                        LLVMTypeConverter &converter,
+                                        EirTypeConverter &converter,
                                         TargetInfo &targetInfo) {
   patterns.insert<BinaryStartOpConversion, BinaryFinishOpConversion,
                   BinaryPushOpConversion, BinaryMatchRawOpConversion,

@@ -21,7 +21,6 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
   LogicalResult matchAndRewrite(
       eir::FuncOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    edsc::ScopedContext scope(rewriter, op.getLoc());
     auto ctx = getRewriteContext(op, rewriter);
 
     auto i32Ty = ctx.getI32Type();
@@ -262,7 +261,7 @@ struct UnpackEnvOpConversion : public EIROpConversion<UnpackEnvOp> {
 
 void populateFuncLikeOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,
-                                          LLVMTypeConverter &converter,
+                                          EirTypeConverter &converter,
                                           TargetInfo &targetInfo) {
   patterns.insert<FuncOpConversion, ClosureOpConversion, UnpackEnvOpConversion>(
       context, converter, targetInfo);

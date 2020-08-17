@@ -48,9 +48,6 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
           ctx.typeConverter.convertType(opResultTypes.front()).cast<LLVMType>();
       assert(resultType && "unable to convert result type");
       resultTypes.push_back(resultType);
-    } else {
-      assert((opResultTypes.size() < 2) &&
-             "expected call to have no more than 1 result");
     }
 
     // Always increment reduction count when performing a call
@@ -63,7 +60,15 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
         FlatSymbolRefAttr::get(calleeName, callee->getContext());
     auto callOp = rewriter.create<mlir::CallOp>(
         op.getLoc(), calleeSymbol, resultTypes, adaptor.operands());
-    callOp.setAttr("tail", rewriter.getUnitAttr());
+
+    // Add tail call markers where present
+    auto mustTail = op.getAttrOfType<mlir::UnitAttr>("musttail");
+    if (mustTail)
+      callOp.setAttr("musttail", rewriter.getUnitAttr());
+    auto tail = op.getAttrOfType<mlir::UnitAttr>("tail");
+    if (tail)
+      callOp.setAttr("tail", rewriter.getUnitAttr());
+
     rewriter.replaceOp(op, callOp.getResults());
     return success();
   }
@@ -129,23 +134,21 @@ struct InvokeOpConversion : public EIROpConversion<InvokeOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
+    ValueRange args = op.operands();
     SmallVector<LLVMType, 2> argTypes;
-    for (auto operand : op.operands()) {
+    for (auto arg : args) {
       auto argType =
-          ctx.typeConverter.convertType(operand.getType()).cast<LLVMType>();
+          ctx.typeConverter.convertType(arg.getType()).cast<LLVMType>();
       argTypes.push_back(argType);
     }
-    auto opResultTypes = op.getResultTypes();
-    SmallVector<Type, 2> resultTypes;
+    auto ok = op.okDest();
+    auto okBlockArgs = ok->getArguments();
     LLVMType resultType;
-    if (opResultTypes.size() == 1) {
-      resultType =
-          ctx.typeConverter.convertType(opResultTypes.front()).cast<LLVMType>();
+    SmallVector<Type, 1> resultTypes;
+    if (!ok->args_empty()) {
+      resultType = ctx.typeConverter.convertType(*ok->getArgumentTypes().begin()).cast<LLVMType>();
       assert(resultType && "unable to convert result type");
       resultTypes.push_back(resultType);
-    } else {
-      assert((opResultTypes.size() < 2) &&
-             "expected call to have no more than 1 result");
     }
 
     // Always increment reduction count when performing a call
@@ -155,20 +158,18 @@ struct InvokeOpConversion : public EIROpConversion<InvokeOp> {
     auto callee = ctx.getOrInsertFunction(calleeName, resultType, argTypes);
 
     auto attrs = op.getAttrs();
-    auto args = op.operands();
-    auto ok = op.okDest();
     ValueRange okArgs = op.okDestOperands();
     auto err = op.errDest();
     ValueRange errArgs = op.errDestOperands();
     auto calleeSymbol =
         FlatSymbolRefAttr::get(calleeName, callee->getContext());
     auto callOp = rewriter.create<LLVM::InvokeOp>(
-        op.getLoc(), resultTypes, calleeSymbol, args, ok, okArgs, err, errArgs);
+      op.getLoc(), ArrayRef<Type>{}, calleeSymbol, args, ok, okArgs, err, errArgs);
     for (auto attr : attrs) {
       callOp.setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
     }
 
-    rewriter.replaceOp(op, callOp.getResults());
+    rewriter.eraseOp(op);
     return success();
   }
 };
@@ -225,19 +226,10 @@ struct InvokeClosureOpConversion : public EIROpConversion<InvokeClosureOp> {
     auto errArgs = op.errDestOperands();
     auto callOp = rewriter.create<LLVM::InvokeOp>(
         op.getLoc(), resultTypes, args, ok, okArgs, err, errArgs);
-    // HACK(pauls): Same deal as InvokeOp, see note there
-    auto numResults = callOp.getNumResults();
-    assert(numResults < 2 &&
-           "support for multi-value returns is not implemented");
-    if (numResults == 1 && ok->getNumArguments() > 0) {
-      auto result = callOp.getResult(0);
-      auto arg = ok->getArgument(0);
-      rewriter.replaceUsesOfBlockArgument(arg, result);
-      ok->eraseArgument(0);
-      rewriter.replaceOp(op, result);
-    } else {
-      rewriter.replaceOp(op, callOp.getResults());
+    for (auto attr : attrs) {
+      callOp.setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
     }
+    rewriter.eraseOp(op);
     return success();
   }
 };
@@ -328,7 +320,7 @@ struct ReturnOpConversion : public EIROpConversion<ReturnOp> {
   LogicalResult matchAndRewrite(
       ReturnOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<mlir::ReturnOp>(op, operands);
+    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, operands);
     return success();
   }
 };
@@ -548,7 +540,7 @@ struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
 
 void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
                                              MLIRContext *context,
-                                             LLVMTypeConverter &converter,
+                                             EirTypeConverter &converter,
                                              TargetInfo &targetInfo) {
   patterns.insert<
       /*ApplyOpConversion,*/ BranchOpConversion, CondBranchOpConversion,

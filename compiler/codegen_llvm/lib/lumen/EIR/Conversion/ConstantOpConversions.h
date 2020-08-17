@@ -20,7 +20,7 @@ class ConstantTupleOpConversion;
 
 void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,
-                                          LLVMTypeConverter &converter,
+                                          EirTypeConverter &converter,
                                           TargetInfo &targetInfo);
 }  // namespace eir
 }  // namespace lumen

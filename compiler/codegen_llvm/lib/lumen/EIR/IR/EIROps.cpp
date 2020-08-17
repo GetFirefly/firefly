@@ -38,17 +38,17 @@ namespace eir {
 
 static ParseResult parseFuncOp(OpAsmParser &parser, OperationState &result) {
   auto buildFuncType = [](Builder &builder, ArrayRef<Type> argTypes,
-                          ArrayRef<Type> results, impl::VariadicFlag,
+                          ArrayRef<Type> results, mlir::impl::VariadicFlag,
                           std::string &) {
     return builder.getFunctionType(argTypes, results);
   };
-  return impl::parseFunctionLikeOp(parser, result, /*allowVariadic=*/false,
+  return mlir::impl::parseFunctionLikeOp(parser, result, /*allowVariadic=*/false,
                                    buildFuncType);
 }
 
 static void print(OpAsmPrinter &p, FuncOp &op) {
   FunctionType fnType = op.getType();
-  impl::printFunctionLikeOp(p, op, fnType.getInputs(), /*isVariadic=*/false,
+  mlir::impl::printFunctionLikeOp(p, op, fnType.getInputs(), /*isVariadic=*/false,
                             fnType.getResults());
 }
 
@@ -185,6 +185,8 @@ static LogicalResult collapseBranch(Block *&successor,
 }
 
 namespace {
+/// Simplify a branch to a block that has a single predecessor. This effectively
+/// merges the two blocks.
 struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
   using OpRewritePattern<BranchOp>::OpRewritePattern;
 
@@ -233,8 +235,7 @@ struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
-  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(
-      context);
+  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(context);
 }
 
 Optional<MutableOperandRange> BranchOp::getMutableSuccessorOperands(
@@ -258,12 +259,12 @@ struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
 
   LogicalResult matchAndRewrite(CondBranchOp condbr,
                                 PatternRewriter &rewriter) const override {
-    if (matchPattern(condbr.getCondition(), m_NonZero())) {
+    if (matchPattern(condbr.getCondition(), mlir::m_NonZero())) {
       // True branch taken.
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
                                             condbr.getTrueOperands());
       return success();
-    } else if (matchPattern(condbr.getCondition(), m_Zero())) {
+    } else if (matchPattern(condbr.getCondition(), mlir::m_Zero())) {
       // False branch taken.
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getFalseDest(),
                                             condbr.getFalseOperands());
@@ -353,12 +354,106 @@ struct SimplifyCondBranchIdenticalSuccessors
     return success();
   }
 };
+
+struct SimplifyCondBranchToUnreachable
+    : public OpRewritePattern<CondBranchOp> {
+  using OpRewritePattern<CondBranchOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CondBranchOp condbr,
+                                PatternRewriter &rewriter) const override {
+    Block *trueDest = condbr.trueDest();
+    Block *falseDest = condbr.falseDest();
+
+    // Determine if either branch goes to a block with a single operation
+    bool trueIsCandidate = std::next(trueDest->begin()) == trueDest->end();
+    bool falseIsCandidate = std::next(falseDest->begin()) == falseDest->end();
+    // If neither are candidates for this transformation, we're done
+    if (!trueIsCandidate && !falseIsCandidate)
+      return failure();
+
+    // Determine if either branch contains an unreachable
+    // Check that the terminator is an unconditional branch.
+    Operation *trueOp = trueDest->getTerminator();
+    assert(trueOp && "expected terminator");
+    Operation *falseOp = falseDest->getTerminator();
+    assert(falseOp && "expected terminator");
+    UnreachableOp trueUnreachable = dyn_cast<UnreachableOp>(trueOp);
+    UnreachableOp falseUnreachable = dyn_cast<UnreachableOp>(falseOp);
+    // If neither terminator are unreachables, there is nothing to do
+    if (!trueUnreachable && !falseUnreachable)
+      return failure();
+
+    // If both blocks are unreachable, then we can replace this
+    // branch operation with an unreachable as well
+    if (trueUnreachable && falseUnreachable) {
+      rewriter.replaceOpWithNewOp<UnreachableOp>(condbr);
+      return success();
+    }
+
+    Block *unreachable;
+    Block *reachable;
+    Operation *reachableOp;
+    OperandRange reachableOperands = trueUnreachable ? condbr.getFalseOperands() : condbr.getTrueOperands();
+    Block *opParent = condbr.getOperation()->getBlock();
+    
+    if (trueUnreachable) {
+      unreachable = trueDest;
+      reachable = falseDest;
+      reachableOp = falseOp;
+    } else {
+      unreachable = falseDest;
+      reachable = trueDest;
+      reachableOp = trueOp;
+    }
+
+    // If the reachable block is a return, we can collapse this operation
+    // to a return rather than a branch
+    if (auto ret = dyn_cast<ReturnOp>(reachableOp)) {
+      if (reachable->getUniquePredecessor() == opParent) {
+        // If the reachable block is only reachable from here, merge the blocks
+        rewriter.eraseOp(condbr);
+        rewriter.mergeBlocks(reachable, opParent, reachableOperands);
+        return success();
+      } else {
+        // If the reachable block has multiple predecessors, but the
+        // return only references operands reachable from this block,
+        // then replace the condbr with a copy of the return
+        SmallVector<Value, 4> destOperandStorage;
+        auto retOperands = ret.operands();
+        for (Value operand : retOperands) {
+          BlockArgument argOperand = operand.dyn_cast<BlockArgument>();
+          if (argOperand && argOperand.getOwner() == reachable) {
+            // The operand is a block argument in the reachable block,
+            // remap it to the successor operand we have in this block
+            destOperandStorage.push_back(reachableOperands[argOperand.getArgNumber()]);
+          } else if (operand.getParentBlock() == reachable) {
+            // The operand is constructed in the reachable block,
+            // so we can't proceed without cloning the block into
+            // this block
+            return failure();
+          } else {
+            // The operand is from parent scope, we can safely reference it
+            destOperandStorage.push_back(operand);
+          }
+        }
+        rewriter.replaceOpWithNewOp<ReturnOp>(condbr, destOperandStorage);
+        return success();
+      }
+    }
+
+    // The reachable block doesn't contain a return, so instead replace
+    // the condbr with an unconditional branch
+    rewriter.replaceOpWithNewOp<BranchOp>(condbr, reachable, reachableOperands);
+    return success();
+  }
+};
 }  // end anonymous namespace.
 
 void CondBranchOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<SimplifyConstCondBranchPred, SimplifyPassThroughCondBranch,
-                 SimplifyCondBranchIdenticalSuccessors>(context);
+                 SimplifyCondBranchIdenticalSuccessors,
+                 SimplifyCondBranchToUnreachable>(context);
 }
 
 Optional<MutableOperandRange> CondBranchOp::getMutableSuccessorOperands(
@@ -928,7 +1023,7 @@ struct ApplyConstantNegations : public OpRewritePattern<NegOp> {
     auto rhs = op.rhs();
 
     APInt intVal;
-    auto intPattern = m_Op<CastOp>(m_ConstInt(&intVal));
+    auto intPattern = mlir::m_Op<CastOp>(m_ConstInt(&intVal));
     if (matchPattern(rhs, intPattern)) {
       auto castOp = dyn_cast<CastOp>(rhs.getDefiningOp());
       auto castType = castOp.getType();
@@ -944,7 +1039,7 @@ struct ApplyConstantNegations : public OpRewritePattern<NegOp> {
     }
 
     APFloat fltVal(0.0);
-    auto floatPattern = m_Op<CastOp>(m_ConstFloat(&fltVal));
+    auto floatPattern = mlir::m_Op<CastOp>(m_ConstFloat(&fltVal));
     if (matchPattern(rhs, floatPattern)) {
       auto castType = dyn_cast<CastOp>(rhs.getDefiningOp()).getType();
       APFloat newFltVal = -fltVal;
@@ -1073,13 +1168,7 @@ int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {
 Optional<MutableOperandRange> InvokeOp::getMutableSuccessorOperands(
     unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
-  return index == okIndex ? okDestOperandsMutable() : errDestOperandsMutable();
-}
-
-Block *InvokeOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
-  if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
-    return condAttr.getValue().isOneValue() ? okDest() : errDest();
-  return nullptr;
+  return index == okIndex ? llvm::None : Optional(errDestOperandsMutable());
 }
 
 //===----------------------------------------------------------------------===//
@@ -1090,12 +1179,6 @@ Optional<MutableOperandRange> InvokeClosureOp::getMutableSuccessorOperands(
     unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
   return index == okIndex ? okDestOperandsMutable() : errDestOperandsMutable();
-}
-
-Block *InvokeClosureOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
-  if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
-    return condAttr.getValue().isOneValue() ? okDest() : errDest();
-  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//

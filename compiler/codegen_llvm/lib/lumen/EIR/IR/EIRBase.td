@@ -89,6 +89,14 @@ def eir_RS_Ready    : eir_ReceiveStatus<"Ready", 1>;
 def eir_RS_Received : eir_ReceiveStatus<"Received", 2>;
 def eir_RS_Timeout  : eir_ReceiveStatus<"Timeout", 3>;
 
+class eir_ProcessSignal<string name, int kind> : IntEnumAttrCaseBase<I8, name, name, kind>;
+
+def eir_PS_None           : eir_ProcessSignal<"None", 0>;
+def eir_PS_Yield          : eir_ProcessSignal<"Yield", 1>;
+def eir_PS_GarbageCollect : eir_ProcessSignal<"GarbageCollect", 2>;
+def eir_PS_Error          : eir_ProcessSignal<"Error", 3>;
+def eir_PS_Exit           : eir_ProcessSignal<"Exit", 4>;
+
 def eir_ReceiveStatusAttr : IntEnumAttr<I8, "ReceiveStatus", "receive wait status", [
   eir_RS_Error,
   eir_RS_Ready,

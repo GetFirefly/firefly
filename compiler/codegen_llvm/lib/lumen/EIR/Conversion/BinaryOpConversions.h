@@ -17,7 +17,7 @@ class BinaryMatchUtf32OpConversion;
 
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,
-                                        LLVMTypeConverter &converter,
+                                        EirTypeConverter &converter,
                                         TargetInfo &targetInfo);
 }  // namespace eir
 }  // namespace lumen

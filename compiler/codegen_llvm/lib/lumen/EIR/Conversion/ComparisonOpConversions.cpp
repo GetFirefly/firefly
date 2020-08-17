@@ -7,7 +7,7 @@ template <typename Op, typename OperandAdaptor>
 class ComparisonOpConversion : public EIROpConversion<Op> {
  public:
   explicit ComparisonOpConversion(MLIRContext *context,
-                                  LLVMTypeConverter &converter_,
+                                  EirTypeConverter &converter_,
                                   TargetInfo &targetInfo_,
                                   mlir::PatternBenefit benefit = 1)
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
@@ -69,7 +69,7 @@ struct CmpGteOpConversion
 
 void populateComparisonOpConversionPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *context,
-                                            LLVMTypeConverter &converter,
+                                            EirTypeConverter &converter,
                                             TargetInfo &targetInfo) {
   patterns.insert<CmpEqOpConversion, CmpNeqOpConversion, CmpLtOpConversion,
                   CmpLteOpConversion, CmpGtOpConversion, CmpGteOpConversion>(

@@ -33,7 +33,7 @@ template <typename Op, typename OperandAdaptor, typename IntOp,
           typename FloatOp>
 class MathOpConversion : public EIROpConversion<Op> {
  public:
-  explicit MathOpConversion(MLIRContext *context, LLVMTypeConverter &converter_,
+  explicit MathOpConversion(MLIRContext *context, EirTypeConverter &converter_,
                             TargetInfo &targetInfo_,
                             mlir::PatternBenefit benefit = 1)
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
@@ -141,7 +141,7 @@ template <typename Op, typename OperandAdaptor, typename IntOp>
 class IntegerMathOpConversion : public EIROpConversion<Op> {
  public:
   explicit IntegerMathOpConversion(MLIRContext *context,
-                                   LLVMTypeConverter &converter_,
+                                   EirTypeConverter &converter_,
                                    TargetInfo &targetInfo_,
                                    mlir::PatternBenefit benefit = 1)
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
@@ -217,7 +217,7 @@ template <typename Op, typename OperandAdaptor, typename FloatOp>
 class FloatMathOpConversion : public EIROpConversion<Op> {
  public:
   explicit FloatMathOpConversion(MLIRContext *context,
-                                 LLVMTypeConverter &converter_,
+                                 EirTypeConverter &converter_,
                                  TargetInfo &targetInfo_,
                                  mlir::PatternBenefit benefit = 1)
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
@@ -268,7 +268,7 @@ struct FDivOpConversion
 
 void populateMathOpConversionPatterns(OwningRewritePatternList &patterns,
                                       MLIRContext *context,
-                                      LLVMTypeConverter &converter,
+                                      EirTypeConverter &converter,
                                       TargetInfo &targetInfo) {
   patterns.insert<AddOpConversion, SubOpConversion, NegOpConversion, MulOpConversion,
                   DivOpConversion, FDivOpConversion, RemOpConversion,

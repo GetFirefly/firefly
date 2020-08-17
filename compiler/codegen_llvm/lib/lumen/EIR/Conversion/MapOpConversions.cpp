@@ -167,7 +167,7 @@ struct MapGetKeyOpConversion : public EIROpConversion<MapGetKeyOp> {
 
 void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,
-                                     LLVMTypeConverter &converter,
+                                     EirTypeConverter &converter,
                                      TargetInfo &targetInfo) {
   patterns.insert<ConstructMapOpConversion, MapInsertOpConversion,
                   MapUpdateOpConversion, MapIsKeyOpConversion,

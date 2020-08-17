@@ -20,6 +20,7 @@ using ::llvm::TargetMachine;
 using ::llvm::unwrap;
 using ::lumen::CodeGenOptLevel;
 using ::lumen::OptLevel;
+using ::lumen::SizeLevel;
 using ::mlir::MLIRContext;
 using ::mlir::ModuleOp;
 using ::mlir::OpPassManager;
@@ -34,9 +35,6 @@ void buildEIRTransformPassPipeline(mlir::OpPassManager &passManager,
   passManager.addPass(createConvertEIRToLLVMPass(targetMachine));
   OpPassManager &optPM = passManager.nest<::mlir::LLVM::LLVMFuncOp>();
   optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createCSEPass());
-  // passManager.addPass(createGlobalInitializationPass());
-  // TODO: run symbol DCE pass.
 }
 
 }  // namespace eir
@@ -45,37 +43,41 @@ void buildEIRTransformPassPipeline(mlir::OpPassManager &passManager,
 extern "C" MLIRPassManagerRef MLIRCreatePassManager(MLIRContextRef context,
                                                     LLVMTargetMachineRef tm,
                                                     OptLevel opt,
+                                                    SizeLevel sizeOpt,
                                                     bool enableTiming,
                                                     bool enableStatistics) {
   MLIRContext *ctx = unwrap(context);
   TargetMachine *targetMachine = unwrap(tm);
   CodeGenOptLevel optLevel = toLLVM(opt);
+  unsigned sizeLevel = toLLVM(opt);
 
   auto pm = new PassManager(ctx);
-  mlir::applyPassManagerCLOptions(*pm);
   if (enableTiming) pm->enableTiming();
   if (enableStatistics) pm->enableStatistics();
+  mlir::applyPassManagerCLOptions(*pm);
 
-  bool enableOpt = optLevel >= CodeGenOptLevel::None;
+  bool enableOpt = optLevel > CodeGenOptLevel::None;
 
-  if (enableOpt) {
-    // Perform high-level inlining
-    // pm.addPass(mlir::createInlinerPass());
-
-    OpPassManager &optPM = pm->nest<::lumen::eir::FuncOp>();
-    optPM.addPass(mlir::createCanonicalizerPass());
-    optPM.addPass(mlir::createCSEPass());
-  }
+  OpPassManager &eirFuncOpt = pm->nest<::lumen::eir::FuncOp>();
+  eirFuncOpt.addPass(mlir::createCanonicalizerPass());
 
   lumen::eir::buildEIRTransformPassPipeline(*pm, targetMachine);
 
   // Add optimizations if enabled
   if (enableOpt) {
+    // When optimizing for size, avoid aggressive inlining
+    if (sizeLevel == 0) {
+      //pm->addPass(mlir::createInlinerPass());
+    }
+
     OpPassManager &optPM = pm->nest<::mlir::LLVM::LLVMFuncOp>();
-    optPM.addPass(mlir::createLoopFusionPass());
-    optPM.addPass(mlir::createMemRefDataFlowOptPass());
     optPM.addPass(mlir::createCanonicalizerPass());
-    optPM.addPass(mlir::createCSEPass());
+    // Sparse conditional constant propagation
+    //optPM.addPass(mlir::createSCCPPass());
+    // Common sub-expression elimination
+    //optPM.addPass(mlir::createCSEPass());
+    // Remove dead/unreachable symbols
+    //pm->addPass(mlir::createSymbolDCEPass());
   }
 
   return wrap(pm);

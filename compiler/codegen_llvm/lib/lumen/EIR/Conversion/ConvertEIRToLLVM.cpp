@@ -17,30 +17,38 @@ namespace eir {
 
 // A pass converting the EIR dialect into the Standard dialect.
 class ConvertEIRToLLVMPass
-    : public mlir::PassWrapper<ConvertEIRToLLVMPass, OperationPass<ModuleOp>> {
+    : public mlir::PassWrapper<ConvertEIRToLLVMPass, mlir::OperationPass<ModuleOp>> {
  public:
   ConvertEIRToLLVMPass(TargetMachine *targetMachine_)
       : targetMachine(targetMachine_),
-        mlir::PassWrapper<ConvertEIRToLLVMPass, OperationPass<ModuleOp>>() {}
+        mlir::PassWrapper<ConvertEIRToLLVMPass, mlir::OperationPass<ModuleOp>>() {}
 
   ConvertEIRToLLVMPass(const ConvertEIRToLLVMPass &other)
       : targetMachine(other.targetMachine),
-        mlir::PassWrapper<ConvertEIRToLLVMPass, OperationPass<ModuleOp>>() {}
+        mlir::PassWrapper<ConvertEIRToLLVMPass, mlir::OperationPass<ModuleOp>>() {}
 
   void runOnOperation() final {
-    // Create the type converter for lowering types to Standard/LLVM IR types
+    // Create the LLVM type converter for lowering types to Standard/LLVM IR types
     auto &context = getContext();
-    LLVMTypeConverter converter(&context);
-
+    auto llvmOpts = mlir::LowerToLLVMOptions::getDefaultOptions();
+    LLVMTypeConverter llvmConverter(&context, llvmOpts);
+    EirTypeConverter converter(llvmConverter);
     // Initialize target-specific type information, using
     // the LLVMDialect contained in the type converter to
     // create named types
     auto targetInfo = TargetInfo(targetMachine, *converter.getDialect());
+    converter.addConversion([&](Type type) { return convertType(type, converter, targetInfo); });
+    converter.addConversion([](LLVMType type) { return type; });
 
     // Populate conversion patterns
     OwningRewritePatternList patterns;
-    auto llvmOpts = mlir::LowerToLLVMOptions::getDefaultOptions();
-    mlir::populateStdToLLVMConversionPatterns(converter, patterns, llvmOpts);
+
+    // Add conversions from Standard to LLVM
+    LLVMTypeConverter stdTypeConverter(&context, llvmOpts);
+    stdTypeConverter.addConversion([&](Type type) { return convertType(type, converter, targetInfo); });
+    mlir::populateStdToLLVMConversionPatterns(stdTypeConverter, patterns, llvmOpts);
+
+    // Add conversions from EIR to LLVM
     populateAggregateOpConversionPatterns(patterns, &context, converter,
                                           targetInfo);
     populateBinaryOpConversionPatterns(patterns, &context, converter,
@@ -60,17 +68,13 @@ class ConvertEIRToLLVMPass
     populateMemoryOpConversionPatterns(patterns, &context, converter,
                                        targetInfo);
 
-    // Populate the type conversions for EIR types.
-    converter.addConversion(
-        [&](Type type) { return convertType(type, converter, targetInfo); });
-
     // Define the legality of the operations we're converting to
     mlir::ConversionTarget conversionTarget(context);
     conversionTarget.addLegalDialect<mlir::LLVM::LLVMDialect>();
     conversionTarget.addDynamicallyLegalOp<mlir::FuncOp>([&](mlir::FuncOp op) {
       return converter.isSignatureLegal(op.getType());
     });
-    conversionTarget.addLegalOp<ModuleOp, ModuleTerminatorOp>();
+    conversionTarget.addLegalOp<ModuleOp, mlir::ModuleTerminatorOp>();
 
     mlir::ModuleOp moduleOp = getOperation();
     if (failed(applyFullConversion(moduleOp, conversionTarget, patterns))) {

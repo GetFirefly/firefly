@@ -163,7 +163,7 @@ struct LoadOpConversion : public EIROpConversion<LoadOp> {
   LogicalResult matchAndRewrite(
       LoadOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    edsc::ScopedContext context(rewriter, op.getLoc());
+    auto ctx = getRewriteContext(op, rewriter);
     LoadOpAdaptor adaptor(operands);
 
     Value ptr = adaptor.ref();
@@ -176,7 +176,7 @@ struct LoadOpConversion : public EIROpConversion<LoadOp> {
 
 void populateMemoryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,
-                                        LLVMTypeConverter &converter,
+                                        EirTypeConverter &converter,
                                         TargetInfo &targetInfo) {
   patterns
       .insert<CastOpConversion, GetElementPtrOpConversion, LoadOpConversion>(

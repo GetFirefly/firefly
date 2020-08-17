@@ -46,7 +46,7 @@ impl BinaryFinishBuilder {
         builder: &mut ScopedFunctionBuilder<'f, 'o>,
         op: BinaryFinish,
     ) -> Result<Option<Value>> {
-        let cont = builder.block_ref(op.cont);
+        let cont = op.cont.map(|b| builder.block_ref(b)).unwrap_or_default();
         let bin = builder.value_ref(op.bin);
 
         unsafe {

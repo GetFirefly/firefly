@@ -17,15 +17,20 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 using ::llvm::TargetMachine;
+using ::llvm::SmallVectorImpl;
 using ::mlir::ConversionPatternRewriter;
 using ::mlir::LLVMTypeConverter;
 using ::mlir::LogicalResult;
 using ::mlir::success;
+using ::mlir::SymbolTable;
+using ::mlir::PatternRewriter;
 using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ValueBuilder;
+using ::mlir::edsc::ScopedContext;
 using ::mlir::LLVM::LLVMDialect;
 using ::mlir::LLVM::LLVMType;
 
@@ -79,12 +84,33 @@ using eir_constant_list = ValueBuilder<::lumen::eir::ConstantListOp>;
 namespace lumen {
 namespace eir {
 
-Optional<Type> convertType(Type type, LLVMTypeConverter &converter,
+struct EirTypeConverter : public mlir::TypeConverter {
+  using TypeConverter::TypeConverter;
+
+  EirTypeConverter(LLVMTypeConverter &tc) : typeConverter(tc) {
+    addMaterialization(materializeCast);
+  }
+
+  static Optional<Value> materializeCast(PatternRewriter &rewriter,
+                                         Type resultType, ValueRange inputs,
+                                         Location loc) {
+    if (inputs.size() != 1)
+      return llvm::None;
+    return rewriter.create<CastOp>(loc, inputs[0], resultType).getResult();
+  }
+
+  LLVMDialect *getDialect() { return typeConverter.getDialect(); }
+
+private:
+  LLVMTypeConverter &typeConverter;
+};
+
+Optional<Type> convertType(Type type, EirTypeConverter &converter,
                            TargetInfo &targetInfo);
 
 class ConversionContext {
  public:
-  explicit ConversionContext(MLIRContext *ctx, LLVMTypeConverter &tc,
+  explicit ConversionContext(MLIRContext *ctx, EirTypeConverter &tc,
                              TargetInfo &ti)
       : dialect(tc.getDialect()),
         targetInfo(ti),
@@ -99,7 +125,7 @@ class ConversionContext {
 
   LLVMDialect *dialect;
   TargetInfo &targetInfo;
-  LLVMTypeConverter &typeConverter;
+  EirTypeConverter &typeConverter;
   MLIRContext *context;
 
   LLVMType getUsizeType() const { return targetInfo.getUsizeType(); }
@@ -291,7 +317,7 @@ class RewritePatternContext : public OpConversionContext {
 
   Op &op;
   ModuleOp parentModule;
-  edsc::ScopedContext scope;
+  ScopedContext scope;
 
   using OpConversionContext::context;
   using OpConversionContext::decodeBox;
@@ -406,7 +432,7 @@ class RewritePatternContext : public OpConversionContext {
 template <typename Op>
 class EIROpConversion : public mlir::OpConversionPattern<Op> {
  public:
-  explicit EIROpConversion(MLIRContext *context, LLVMTypeConverter &tc,
+  explicit EIROpConversion(MLIRContext *context, EirTypeConverter &tc,
                            TargetInfo &ti, mlir::PatternBenefit benefit = 1)
       : mlir::OpConversionPattern<Op>::OpConversionPattern(context, benefit),
         ctx(context, tc, ti) {}

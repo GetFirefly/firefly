@@ -47,8 +47,7 @@ fn approximately_system_time_minus_monotonic_time_in_unit(unit_str: &str) {
             subtract_2::result(process, system_time, monotonic_time).unwrap();
         let time_offset_delta =
             subtract_2::result(process, expected_time_offset, time_offset).unwrap();
-        let time_offset_delta_limit_seconds =
-            process.integer(TIME_OFFSET_DELTA_LIMIT_SECONDS).unwrap();
+        let time_offset_delta_limit_seconds = process.integer(TIME_OFFSET_DELTA_LIMIT_SECONDS);
         let time_offset_delta_limit = convert_time_unit_3::result(
             process,
             time_offset_delta_limit_seconds,

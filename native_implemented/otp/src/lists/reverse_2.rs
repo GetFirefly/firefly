@@ -17,7 +17,7 @@ pub fn result(process: &Process, list: Term, tail: Term) -> exception::Result<Te
             for result in cons.into_iter() {
                 match result {
                     Ok(element) => {
-                        reversed = process.cons(element, reversed)?;
+                        reversed = process.cons(element, reversed);
                     }
                     Err(_) => {
                         return Err(ImproperListError)

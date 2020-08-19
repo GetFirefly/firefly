@@ -26,9 +26,12 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                     (
                         arc_process.clone(),
-                        arc_process
-                            .export_closure(module, function, arity, NonNull::new(native as _))
-                            .unwrap(),
+                        arc_process.export_closure(
+                            module,
+                            function,
+                            arity,
+                            NonNull::new(native as _),
+                        ),
                     )
                 }),
             |(parent_arc_process, function)| {
@@ -86,15 +89,13 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                 prop_assert!(has_message(
                     &parent_arc_process,
-                    parent_arc_process
-                        .tuple_from_slice(&[
-                            tag,
-                            monitor_reference,
-                            Atom::str_to_term("process"),
-                            child_pid_term,
-                            reason
-                        ])
-                        .unwrap()
+                    parent_arc_process.tuple_from_slice(&[
+                        tag,
+                        monitor_reference,
+                        Atom::str_to_term("process"),
+                        child_pid_term,
+                        reason
+                    ])
                 ));
 
                 Ok(())
@@ -128,9 +129,12 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                     (
                         arc_process.clone(),
-                        arc_process
-                            .export_closure(module, function, arity, NonNull::new(native as _))
-                            .unwrap(),
+                        arc_process.export_closure(
+                            module,
+                            function,
+                            arity,
+                            NonNull::new(native as _),
+                        ),
                     )
                 }),
             |(parent_arc_process, function)| {
@@ -179,15 +183,13 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                 prop_assert!(has_message(
                     &parent_arc_process,
-                    parent_arc_process
-                        .tuple_from_slice(&[
-                            tag,
-                            monitor_reference,
-                            Atom::str_to_term("process"),
-                            child_pid_term,
-                            reason
-                        ])
-                        .unwrap()
+                    parent_arc_process.tuple_from_slice(&[
+                        tag,
+                        monitor_reference,
+                        Atom::str_to_term("process"),
+                        child_pid_term,
+                        reason
+                    ])
                 ));
 
                 Ok(())

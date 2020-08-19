@@ -17,14 +17,14 @@ fn with_heap_binary_is_byte_count() {
                 (
                     arc_process.clone(),
                     byte_vec.len(),
-                    arc_process.binary_from_bytes(&byte_vec).unwrap(),
+                    arc_process.binary_from_bytes(&byte_vec),
                 )
             })
         },
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
                 result(&arc_process, bitstring),
-                Ok(arc_process.integer(byte_count).unwrap())
+                Ok(arc_process.integer(byte_count))
             );
 
             Ok(())
@@ -52,7 +52,7 @@ fn with_subbinary_without_bit_count_is_byte_count() {
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
                 result(&arc_process, bitstring),
-                Ok(arc_process.integer(byte_count).unwrap())
+                Ok(arc_process.integer(byte_count))
             );
 
             Ok(())
@@ -85,7 +85,7 @@ fn with_subbinary_with_bit_count_is_byte_count_plus_one() {
         |(arc_process, byte_count, bitstring)| {
             prop_assert_eq!(
                 result(&arc_process, bitstring),
-                Ok(arc_process.integer(byte_count + 1).unwrap())
+                Ok(arc_process.integer(byte_count + 1))
             );
 
             Ok(())

@@ -11,7 +11,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
 
             let destination_arc_process = test::process::child(&arc_process);
             let destination = registered_name();
@@ -39,9 +39,11 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
 
             prop_assert!(timer_reference.is_boxed_local_reference());
 
-            let timeout_message = arc_process
-                .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
-                .unwrap();
+            let timeout_message = arc_process.tuple_from_slice(&[
+                Atom::str_to_term("timeout"),
+                timer_reference,
+                message,
+            ]);
 
             prop_assert!(!has_message(&destination_arc_process, timeout_message));
 
@@ -69,7 +71,7 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = arc_process.integer(milliseconds).unwrap();
+                let time = arc_process.integer(milliseconds);
                 let destination = registered_name();
 
                 prop_assert_eq!(
@@ -95,9 +97,11 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
 
                 prop_assert!(timer_reference.is_boxed_local_reference());
 
-                let timeout_message = arc_process
-                    .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
-                    .unwrap();
+                let timeout_message = arc_process.tuple_from_slice(&[
+                    Atom::str_to_term("timeout"),
+                    timer_reference,
+                    message,
+                ]);
 
                 prop_assert!(!has_message(&arc_process, timeout_message));
 

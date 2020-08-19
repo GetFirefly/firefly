@@ -50,8 +50,8 @@ fn with_same_value_map_right_returns_true() {
                 let entry_vec: Vec<(Term, Term)> = hash_map.drain().collect();
 
                 (
-                    arc_process.map_from_slice(&entry_vec).unwrap(),
-                    arc_process.map_from_slice(&entry_vec).unwrap(),
+                    arc_process.map_from_slice(&entry_vec),
+                    arc_process.map_from_slice(&entry_vec),
                 )
             })
         },

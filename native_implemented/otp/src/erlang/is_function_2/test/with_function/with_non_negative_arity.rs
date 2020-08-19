@@ -18,7 +18,7 @@ fn without_function_arity_returns_false() {
                                 "Guard arity must be different than function arity",
                                 |(_, guard_arity_u8, arity_u8)| guard_arity_u8 != arity_u8,
                             )
-                            .prop_map(|(arc_process, u, _)| arc_process.integer(u).unwrap()),
+                            .prop_map(|(arc_process, u, _)| arc_process.integer(u)),
                     )
                 })
         },
@@ -44,7 +44,7 @@ fn with_function_arity_returns_true() {
                             arc_process.clone(),
                             arity_usize as u8,
                         ),
-                        Just(arc_process.integer(arity_usize).unwrap()),
+                        Just(arc_process.integer(arity_usize)),
                     )
                 })
         },

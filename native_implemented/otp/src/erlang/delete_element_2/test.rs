@@ -66,7 +66,7 @@ fn with_tuple_with_integer_between_1_and_the_length_inclusive_returns_tuple_with
 
             prop_assert_eq!(
                 result(&arc_process, index, tuple),
-                Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
+                Ok(arc_process.tuple_from_slice(&element_vec))
             );
 
             Ok(())

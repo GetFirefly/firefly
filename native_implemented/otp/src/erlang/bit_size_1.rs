@@ -19,7 +19,7 @@ pub fn result(process: &Process, bitstring: Term) -> exception::Result<Term> {
     };
 
     match option_total_bit_len {
-        Some(total_bit_len) => Ok(process.integer(total_bit_len)?),
+        Some(total_bit_len) => Ok(process.integer(total_bit_len)),
         None => Err(TypeError)
             .context(format!("bitstring ({}) is not a bitstring", bitstring))
             .map_err(From::from),

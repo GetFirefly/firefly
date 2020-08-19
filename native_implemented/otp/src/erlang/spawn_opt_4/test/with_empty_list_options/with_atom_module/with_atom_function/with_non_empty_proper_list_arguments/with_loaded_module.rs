@@ -15,9 +15,7 @@ fn without_exported_function_when_run_exits_undef_and_parent_does_not_exit() {
     // Rust name instead of Erlang name
     let function = atom!("number_or_badarith_1");
 
-    let arguments = parent_arc_process
-        .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
-        .unwrap();
+    let arguments = parent_arc_process.cons(parent_arc_process.integer(0), Term::NIL);
 
     let result = result(
         &parent_arc_process,

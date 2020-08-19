@@ -1,7 +1,11 @@
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 
-use liblumen_alloc::Process;
+use panic_control::chain_hook_ignoring;
 
+use liblumen_alloc::erts::exception::RuntimeException;
+use liblumen_alloc::erts::process::Process;
+
+use crate::runtime::process::set_log_exit;
 use crate::runtime::process::spawn::options::Options;
 use crate::runtime::scheduler::{self, Spawned};
 use crate::{erlang, runtime};
@@ -22,6 +26,15 @@ pub fn init() -> Arc<Process> {
         super::anonymous_1::function_symbol(),
         super::init::start_0::function_symbol(),
     ]);
+
+    set_log_exit(false);
+
+    ONCE.call_once(|| {
+        // Ignore panics created by full runtime's `__lumen_start_panic`.  `catch_unwind` although
+        // it stops the panic does not suppress the printing of the panic message and stack
+        // backtrace without this.
+        chain_hook_ignoring::<RuntimeException>();
+    });
 
     // During test allow multiple unregistered init processes because in tests, the `Scheduler`s
     // keep getting `Drop`ed as threads end.
@@ -61,3 +74,5 @@ pub fn child(parent_process: &Process) -> Arc<Process> {
 
     child_arc_process
 }
+
+static ONCE: Once = Once::new();

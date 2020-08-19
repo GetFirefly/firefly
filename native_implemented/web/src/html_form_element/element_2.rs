@@ -25,14 +25,14 @@ fn result(process: &Process, html_form_element_term: Term, name: Term) -> except
     let object = html_form_element_term.get_with_name(&name_string).unwrap();
     let result_html_input_element: Result<HtmlInputElement, _> = object.dyn_into();
 
-    match result_html_input_element {
+    let final_term = match result_html_input_element {
         Ok(html_input_element) => {
-            let html_input_element_resource_reference = process.resource(html_input_element)?;
+            let html_input_element_resource_reference = process.resource(html_input_element);
 
-            process
-                .tuple_from_slice(&[atom!("ok"), html_input_element_resource_reference])
-                .map_err(|error| error.into())
+            process.tuple_from_slice(&[atom!("ok"), html_input_element_resource_reference])
         }
-        Err(_) => Ok(atom!("error")),
-    }
+        Err(_) => atom!("error"),
+    };
+
+    Ok(final_term)
 }

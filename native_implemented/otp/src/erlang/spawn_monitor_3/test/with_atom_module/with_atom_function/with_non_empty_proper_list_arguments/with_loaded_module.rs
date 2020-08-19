@@ -15,9 +15,7 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
     // Rust name instead of Erlang name
     let function = atom!("number_or_badarith_1");
 
-    let arguments = parent_arc_process
-        .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
-        .unwrap();
+    let arguments = parent_arc_process.cons(parent_arc_process.integer(0), Term::NIL);
 
     let result = result(&parent_arc_process, module, function, arguments);
 
@@ -68,14 +66,12 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
 
     assert_has_message!(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                atom!("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            atom!("process"),
+            child_pid_term,
+            reason
+        ])
     );
 }

@@ -64,15 +64,13 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
 
                 prop_assert!(has_message(
                     &parent_arc_process,
-                    parent_arc_process
-                        .tuple_from_slice(&[
-                            tag,
-                            monitor_reference,
-                            atom!("process"),
-                            child_pid_term,
-                            reason
-                        ])
-                        .unwrap()
+                    parent_arc_process.tuple_from_slice(&[
+                        tag,
+                        monitor_reference,
+                        atom!("process"),
+                        child_pid_term,
+                        reason
+                    ])
                 ));
 
                 Ok(())
@@ -86,5 +84,5 @@ fn option() -> Term {
 }
 
 fn options(process: &Process) -> Term {
-    process.list_from_slice(&[option()]).unwrap()
+    process.list_from_slice(&[option()])
 }

@@ -81,5 +81,5 @@ fn iolist_or_binary_size(process: &Process, iolist_or_binary: Term) -> exception
         }
     }
 
-    process.integer(size).map_err(From::from)
+    Ok(process.integer(size))
 }

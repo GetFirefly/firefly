@@ -50,12 +50,12 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
         "messages" => unimplemented!(),
         "min_heap_size" => unimplemented!(),
         "min_bin_vheap_size" => unimplemented!(),
-        "monitored_by" => monitored_by(process),
-        "monitors" => monitors(process),
+        "monitored_by" => Ok(monitored_by(process)),
+        "monitors" => Ok(monitors(process)),
         "message_queue_data" => unimplemented!(),
         "priority" => unimplemented!(),
         "reductions" => unimplemented!(),
-        "registered_name" => registered_name(process),
+        "registered_name" => Ok(registered_name(process)),
         "sequential_trace_token" => unimplemented!(),
         "stack_size" => unimplemented!(),
         "status" => unimplemented!(),
@@ -78,7 +78,7 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
     }
 }
 
-fn monitored_by(process: &Process) -> InternalResult<Term> {
+fn monitored_by(process: &Process) -> Term {
     let tag = atom!("monitored_by");
 
     let vec: Vec<Term> = process
@@ -86,36 +86,36 @@ fn monitored_by(process: &Process) -> InternalResult<Term> {
         .iter()
         .map(|ref_multi| ref_multi.monitoring_pid().encode().unwrap())
         .collect();
-    let value = process.list_from_slice(&vec)?;
+    let value = process.list_from_slice(&vec);
 
-    process.tuple_from_slice(&[tag, value]).map_err(From::from)
+    process.tuple_from_slice(&[tag, value])
 }
 
-fn monitors(process: &Process) -> InternalResult<Term> {
+fn monitors(process: &Process) -> Term {
     let monitor_type = atom!("process");
     let mut vec = Vec::new();
 
     for ref_multi in process.monitored_pid_by_reference.iter() {
         let pid = ref_multi.value();
         let monitor_value = pid.encode().unwrap();
-        let monitor = process.tuple_from_slice(&[monitor_type, monitor_value])?;
+        let monitor = process.tuple_from_slice(&[monitor_type, monitor_value]);
         vec.push(monitor);
     }
 
     let tag = atom!("monitors");
-    let value = process.list_from_slice(&vec)?;
+    let value = process.list_from_slice(&vec);
 
-    process.tuple_from_slice(&[tag, value]).map_err(From::from)
+    process.tuple_from_slice(&[tag, value])
 }
 
-fn registered_name(process: &Process) -> InternalResult<Term> {
+fn registered_name(process: &Process) -> Term {
     match *process.registered_name.read() {
         Some(registered_name) => {
             let tag = atom!("registered_name");
-            let value = registered_name.encode()?;
+            let value = registered_name.encode().unwrap();
 
-            process.tuple_from_slice(&[tag, value]).map_err(From::from)
+            process.tuple_from_slice(&[tag, value])
         }
-        None => Ok(Term::NIL),
+        None => Term::NIL,
     }
 }

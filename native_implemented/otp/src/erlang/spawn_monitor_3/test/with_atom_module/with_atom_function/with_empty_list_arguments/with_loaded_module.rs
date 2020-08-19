@@ -70,14 +70,12 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
 
     assert_has_message!(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                atom!("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            atom!("process"),
+            child_pid_term,
+            reason
+        ])
     );
 }

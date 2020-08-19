@@ -45,11 +45,7 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn connect(
-        &self,
-        parent_process: Option<&Process>,
-        child_process: &Process,
-    ) -> Result<Connection, Alloc> {
+    pub fn connect(&self, parent_process: Option<&Process>, child_process: &Process) -> Connection {
         let linked = if self.link {
             parent_process.unwrap().link(child_process);
 
@@ -59,17 +55,17 @@ impl Options {
         };
 
         let monitor_reference = if self.monitor {
-            let reference = process::monitor(parent_process.unwrap(), child_process)?;
+            let reference = process::monitor(parent_process.unwrap(), child_process);
 
             Some(reference)
         } else {
             None
         };
 
-        Ok(Connection {
+        Connection {
             linked,
             monitor_reference,
-        })
+        }
     }
 
     /// Creates a new process with the memory and priority options.

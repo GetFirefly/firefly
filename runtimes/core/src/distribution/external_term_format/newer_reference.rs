@@ -26,8 +26,7 @@ pub fn decode<'a>(
             let (scheduler_id_u32, after_scheduler_id_bytes) = u32::decode(id_bytes)?;
             let (number_u64, _) = u64::decode(after_scheduler_id_bytes)?;
 
-            let reference =
-                process.reference_from_scheduler(scheduler_id_u32.into(), number_u64)?;
+            let reference = process.reference_from_scheduler(scheduler_id_u32.into(), number_u64);
 
             Ok((reference, after_id_bytes))
         } else {

@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 /// `--/2`
 #[native_implemented::function(erlang:--/2)]
 pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::Result<Term> {
-    match minuend.decode()? {
+    match minuend.decode().unwrap() {
         TypedTerm::Nil => match subtrahend.decode()? {
             TypedTerm::Nil => Ok(minuend),
             TypedTerm::List(subtrahend_cons) => {
@@ -51,9 +51,7 @@ pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::
                             };
                         }
 
-                        process
-                            .list_from_slice(&minuend_vec)
-                            .map_err(|error| error.into())
+                        Ok(process.list_from_slice(&minuend_vec))
                     }
                     Err(ImproperList { .. }) => {
                         Err(ImproperListError).context(is_not_a_proper_list("minuend", minuend))
@@ -62,7 +60,7 @@ pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::
             }
             _ => Err(TypeError).context(is_not_a_proper_list("subtrahend", subtrahend)),
         },
-        _ => match subtrahend.decode()? {
+        _ => match subtrahend.decode().unwrap() {
             TypedTerm::Nil | TypedTerm::List(_) => {
                 Err(TypeError).context(is_not_a_proper_list("minuend", minuend))
             }

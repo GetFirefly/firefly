@@ -16,9 +16,7 @@ pub fn without_valid_option_errors_badarg(
                     Just(arc_process.clone()),
                     is_not_option(arc_process.clone()),
                 )
-                    .prop_map(|(arc_process, option)| {
-                        arc_process.list_from_slice(&[option]).unwrap()
-                    }),
+                    .prop_map(|(arc_process, option)| arc_process.list_from_slice(&[option])),
             )
         },
         |(arc_process, float, options)| {

@@ -15,9 +15,7 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
 
     let function = atom!("+");
 
-    let arguments = parent_arc_process
-        .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
-        .unwrap();
+    let arguments = parent_arc_process.cons(parent_arc_process.integer(0), Term::NIL);
 
     let result = result(&parent_arc_process, module, function, arguments);
 
@@ -69,14 +67,12 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
 
     assert_has_message!(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                atom!("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            atom!("process"),
+            child_pid_term,
+            reason
+        ])
     );
 }

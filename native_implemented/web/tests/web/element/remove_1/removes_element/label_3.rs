@@ -33,7 +33,7 @@ fn result(process: &Process, ok_body: Term, document: Term) -> exception::Result
 
     assert!(document.is_boxed_resource_reference());
 
-    let child_tag = process.binary_from_str("table")?;
+    let child_tag = process.binary_from_str("table");
     process.queue_frame_with_arguments(
         liblumen_web::document::create_element_2::frame()
             .with_arguments(false, &[document, child_tag]),

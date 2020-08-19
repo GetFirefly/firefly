@@ -105,7 +105,7 @@ pub fn spawn<'a>(
     unsafe { runnable(&child_process, frames_with_arguments_fn) }?;
 
     // Connect after placing frame, so that any logging can show the `Frame`s when connections occur
-    let connection = options.connect(parent_process, &child_process)?;
+    let connection = options.connect(parent_process, &child_process);
 
     Ok(Spawned {
         process: child_process,

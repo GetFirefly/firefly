@@ -10,7 +10,7 @@ use crate::erlang::integer_to_string::decimal_integer_to_string;
 #[native_implemented::function(erlang:integer_to_list/1)]
 pub fn result(process: &Process, integer: Term) -> exception::Result<Term> {
     let string = decimal_integer_to_string(integer)?;
-    let charlist = process.charlist_from_str(&string)?;
+    let charlist = process.charlist_from_str(&string);
 
     Ok(charlist)
 }

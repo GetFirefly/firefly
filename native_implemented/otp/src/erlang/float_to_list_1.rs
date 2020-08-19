@@ -11,9 +11,5 @@ use crate::erlang::float_to_string::float_to_string;
 pub fn result(process: &Process, float: Term) -> exception::Result<Term> {
     float_to_string(float, Default::default())
         .map_err(|error| error.into())
-        .and_then(|string| {
-            process
-                .charlist_from_str(&string)
-                .map_err(|alloc| alloc.into())
-        })
+        .map(|string| process.charlist_from_str(&string))
 }

@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn with_lesser_small_integer_second_returns_first() {
-    max(|_, process| process.integer(0).unwrap(), First)
+    max(|_, process| process.integer(0), First)
 }
 
 #[test]
 fn with_greater_small_integer_second_returns_second() {
     super::max(
-        |process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
-        |_, process| process.integer(SmallInteger::MIN_VALUE).unwrap(),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.integer(SmallInteger::MIN_VALUE),
         Second,
     );
 }
@@ -17,7 +17,7 @@ fn with_greater_small_integer_second_returns_second() {
 #[test]
 fn with_lesser_big_integer_second_returns_first() {
     max(
-        |_, process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
         First,
     )
 }
@@ -30,7 +30,7 @@ fn with_same_big_integer_second_returns_first() {
 #[test]
 fn with_same_value_big_integer_second_returns_first() {
     max(
-        |_, process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
         First,
     )
 }
@@ -38,21 +38,21 @@ fn with_same_value_big_integer_second_returns_first() {
 #[test]
 fn with_greater_big_integer_second_returns_second() {
     max(
-        |_, process| process.integer(SmallInteger::MAX_VALUE + 2).unwrap(),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 2),
         Second,
     )
 }
 
 #[test]
 fn with_lesser_float_second_returns_first() {
-    max(|_, process| process.float(1.0).unwrap(), First)
+    max(|_, process| process.float(1.0), First)
 }
 
 #[test]
 fn with_greater_float_second_returns_second() {
     super::max(
-        |process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
-        |_, process| process.float(1.0).unwrap(),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.float(1.0),
         Second,
     );
 }
@@ -79,7 +79,7 @@ where
     R: FnOnce(Term, &Process) -> Term,
 {
     super::max(
-        |process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
+        |process| process.integer(SmallInteger::MAX_VALUE + 1),
         second,
         which,
     );

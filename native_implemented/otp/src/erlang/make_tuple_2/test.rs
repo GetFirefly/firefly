@@ -37,7 +37,7 @@ fn with_arity_returns_tuple_with_arity_copies_of_initial_value() {
             )
         },
         |(arc_process, arity_usize, initial_value)| {
-            let arity = arc_process.integer(arity_usize).unwrap();
+            let arity = arc_process.integer(arity_usize);
 
             let result = result(&arc_process, arity, initial_value);
 

@@ -20,8 +20,8 @@ fn with_base_base_returns_list() {
             )
         },
         |(arc_process, integer_isize, base_u8)| {
-            let integer = arc_process.integer(integer_isize).unwrap();
-            let base = arc_process.integer(base_u8).unwrap();
+            let integer = arc_process.integer(integer_isize);
+            let base = arc_process.integer(base_u8);
 
             let result = result(&arc_process, integer, base);
 
@@ -54,18 +54,16 @@ fn with_negative_integer_returns_list_in_base_with_negative_sign_in_front_of_non
                 })
         },
         |(arc_process, negative_isize, base_u8)| {
-            let base = arc_process.integer(base_u8).unwrap();
+            let base = arc_process.integer(base_u8);
 
             let positive_isize = -1 * negative_isize;
-            let positive_integer = arc_process.integer(positive_isize).unwrap();
+            let positive_integer = arc_process.integer(positive_isize);
             let positive_list = result(&arc_process, positive_integer, base).unwrap();
             let positive_string: String = list_to_string(positive_list).unwrap();
             let expected_negative_string = format!("-{}", positive_string);
-            let expected_negative_list = arc_process
-                .charlist_from_str(&expected_negative_string)
-                .unwrap();
+            let expected_negative_list = arc_process.charlist_from_str(&expected_negative_string);
 
-            let negative_integer = arc_process.integer(negative_isize).unwrap();
+            let negative_integer = arc_process.integer(negative_isize);
 
             let result = result(&arc_process, negative_integer, base);
 

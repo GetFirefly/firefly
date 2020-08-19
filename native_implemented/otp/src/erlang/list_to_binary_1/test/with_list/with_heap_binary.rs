@@ -10,11 +10,7 @@ fn with_integer_without_byte_errors_badarg() {
                 is_integer_is_not_byte(arc_process.clone()),
             )
                 .prop_map(|(arc_process, head, tail)| {
-                    (
-                        arc_process.clone(),
-                        arc_process.cons(head, tail).unwrap(),
-                        tail,
-                    )
+                    (arc_process.clone(), arc_process.cons(head, tail), tail)
                 })
         },
         |(arc_process, iolist, element)| {
@@ -42,7 +38,7 @@ fn with_empty_list_returns_binary() {
                 .prop_map(|(arc_process, binary)| {
                     (
                         arc_process.clone(),
-                        arc_process.cons(binary, Term::NIL).unwrap(),
+                        arc_process.cons(binary, Term::NIL),
                         binary,
                     )
                 })
@@ -65,11 +61,7 @@ fn with_byte_errors_badarg() {
                 byte(arc_process.clone()),
             )
                 .prop_map(|(arc_process, head, tail)| {
-                    (
-                        arc_process.clone(),
-                        arc_process.cons(head, tail).unwrap(),
-                        tail,
-                    )
+                    (arc_process.clone(), arc_process.cons(head, tail), tail)
                 })
         },
         |(arc_process, iolist, tail)| {
@@ -87,14 +79,14 @@ fn with_byte_errors_badarg() {
 fn with_list_without_byte_tail_returns_binary() {
     with(|head, process| {
         let tail_head_byte = 3;
-        let tail_head = process.integer(tail_head_byte).unwrap();
+        let tail_head = process.integer(tail_head_byte);
         let tail_tail = Term::NIL;
-        let tail = process.cons(tail_head, tail_tail).unwrap();
-        let iolist = process.cons(head, tail).unwrap();
+        let tail = process.cons(tail_head, tail_tail);
+        let iolist = process.cons(head, tail);
 
         assert_eq!(
             result(process, iolist),
-            Ok(process.binary_from_bytes(&[0, 1, tail_head_byte]).unwrap())
+            Ok(process.binary_from_bytes(&[0, 1, tail_head_byte]))
         );
     })
 }
@@ -102,13 +94,13 @@ fn with_list_without_byte_tail_returns_binary() {
 #[test]
 fn with_heap_binary_returns_binary() {
     with(|head, process| {
-        let tail = process.binary_from_bytes(&[2, 3]).unwrap();
+        let tail = process.binary_from_bytes(&[2, 3]);
 
-        let iolist = process.cons(head, tail).unwrap();
+        let iolist = process.cons(head, tail);
 
         assert_eq!(
             result(process, iolist),
-            Ok(process.binary_from_bytes(&[0, 1, 2, 3]).unwrap())
+            Ok(process.binary_from_bytes(&[0, 1, 2, 3]))
         );
     })
 }
@@ -116,18 +108,14 @@ fn with_heap_binary_returns_binary() {
 #[test]
 fn with_subbinary_without_bitcount_returns_binary() {
     with(|head, process| {
-        let original = process
-            .binary_from_bytes(&[0b0111_1111, 0b1000_0000])
-            .unwrap();
-        let tail = process
-            .subbinary_from_original(original, 0, 1, 1, 0)
-            .unwrap();
+        let original = process.binary_from_bytes(&[0b0111_1111, 0b1000_0000]);
+        let tail = process.subbinary_from_original(original, 0, 1, 1, 0);
 
-        let iolist = process.cons(head, tail).unwrap();
+        let iolist = process.cons(head, tail);
 
         assert_eq!(
             result(process, iolist),
-            Ok(process.binary_from_bytes(&[0, 1, 255]).unwrap())
+            Ok(process.binary_from_bytes(&[0, 1, 255]))
         );
     })
 }
@@ -137,7 +125,7 @@ where
     F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
-        let head = process.binary_from_bytes(&[0, 1]).unwrap();
+        let head = process.binary_from_bytes(&[0, 1]);
 
         f(head, &process);
     })

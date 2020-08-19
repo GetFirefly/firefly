@@ -4,24 +4,21 @@ mod test;
 use num_bigint::{BigInt, ToBigInt};
 use num_traits::cast::ToPrimitive;
 
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::time::{system, Unit::Microsecond};
 
 #[native_implemented::function(erlang:timestamp/0)]
-pub fn result(process: &Process) -> exception::Result<Term> {
+pub fn result(process: &Process) -> Term {
     let big_int = system::time_in_unit(Microsecond);
     let erlang_timestamp = ErlangTimestamp::from_microseconds(&big_int);
 
-    process
-        .tuple_from_slice(&[
-            process.integer(erlang_timestamp.megaseconds as usize)?,
-            process.integer(erlang_timestamp.seconds as usize)?,
-            process.integer(erlang_timestamp.microseconds as usize)?,
-        ])
-        .map_err(|error| error.into())
+    process.tuple_from_slice(&[
+        process.integer(erlang_timestamp.megaseconds as usize),
+        process.integer(erlang_timestamp.seconds as usize),
+        process.integer(erlang_timestamp.microseconds as usize),
+    ])
 }
 
 struct ErlangTimestamp {

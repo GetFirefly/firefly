@@ -32,20 +32,17 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_first(
 
 #[test]
 fn with_prefix_heap_binary_second_returns_first() {
-    max(|_, process| process.binary_from_bytes(&[1]).unwrap(), First);
+    max(|_, process| process.binary_from_bytes(&[1]), First);
 }
 
 #[test]
 fn with_same_length_heap_binary_with_lesser_byte_second_returns_first() {
-    max(|_, process| process.binary_from_bytes(&[0]).unwrap(), First);
+    max(|_, process| process.binary_from_bytes(&[0]), First);
 }
 
 #[test]
 fn with_longer_heap_binary_with_lesser_byte_second_returns_first() {
-    max(
-        |_, process| process.binary_from_bytes(&[0, 1, 2]).unwrap(),
-        First,
-    );
+    max(|_, process| process.binary_from_bytes(&[0, 1, 2]), First);
 }
 
 #[test]
@@ -55,44 +52,30 @@ fn with_same_heap_binary_second_returns_first() {
 
 #[test]
 fn with_same_value_heap_binary_second_returns_first() {
-    max(
-        |_, process| process.binary_from_bytes(&[1, 1]).unwrap(),
-        First,
-    )
+    max(|_, process| process.binary_from_bytes(&[1, 1]), First)
 }
 
 #[test]
 fn with_shorter_heap_binary_with_greater_byte_second_returns_second() {
-    max(
-        |_, process| process.binary_from_bytes(&[2]).unwrap(),
-        Second,
-    );
+    max(|_, process| process.binary_from_bytes(&[2]), Second);
 }
 
 #[test]
 fn with_heap_binary_with_greater_byte_second_returns_second() {
-    max(
-        |_, process| process.binary_from_bytes(&[2, 1]).unwrap(),
-        Second,
-    );
+    max(|_, process| process.binary_from_bytes(&[2, 1]), Second);
 }
 
 #[test]
 fn with_heap_binary_with_different_greater_byte_second_returns_second() {
-    max(
-        |_, process| process.binary_from_bytes(&[1, 2]).unwrap(),
-        Second,
-    );
+    max(|_, process| process.binary_from_bytes(&[1, 2]), Second);
 }
 
 #[test]
 fn with_prefix_subbinary_second_returns_first() {
     max(
         |_, process| {
-            let original = process.binary_from_bytes(&[1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 1, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[1]);
+            process.subbinary_from_original(original, 0, 0, 1, 0)
         },
         First,
     );
@@ -102,10 +85,8 @@ fn with_prefix_subbinary_second_returns_first() {
 fn with_same_length_subbinary_with_lesser_byte_second_returns_first() {
     max(
         |_, process| {
-            let original = process.binary_from_bytes(&[0, 1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[0, 1]);
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         First,
     );
@@ -125,10 +106,8 @@ fn with_same_subbinary_second_returns_first() {
 fn with_same_value_subbinary_second_returns_first() {
     max(
         |_, process| {
-            let original = process.binary_from_bytes(&[1, 1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[1, 1]);
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         First,
     )
@@ -138,10 +117,8 @@ fn with_same_value_subbinary_second_returns_first() {
 fn with_shorter_subbinary_with_greater_byte_second_returns_second() {
     max(
         |_, process| {
-            let original = process.binary_from_bytes(&[2]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 1, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[2]);
+            process.subbinary_from_original(original, 0, 0, 1, 0)
         },
         Second,
     );
@@ -151,10 +128,8 @@ fn with_shorter_subbinary_with_greater_byte_second_returns_second() {
 fn with_subbinary_with_greater_byte_second_returns_second() {
     max(
         |_, process| {
-            let original = process.binary_from_bytes(&[2, 1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[2, 1]);
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         Second,
     );
@@ -164,10 +139,8 @@ fn with_subbinary_with_greater_byte_second_returns_second() {
 fn with_subbinary_with_different_greater_byte_second_returns_second() {
     max(
         |_, process| {
-            let original = process.binary_from_bytes(&[1, 2]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[1, 2]);
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         Second,
     );
@@ -182,9 +155,5 @@ fn max<R>(second: R, which: FirstSecond)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::max(
-        |process| process.binary_from_bytes(&[1, 1]).unwrap(),
-        second,
-        which,
-    );
+    super::max(|process| process.binary_from_bytes(&[1, 1]), second, which);
 }

@@ -20,7 +20,7 @@ pub(in crate::erlang) fn result(
     let args = arguments.decode()?;
     if args.is_proper_list() {
         runtime::process::spawn::apply_3(process, options, module_atom, function_atom, arguments)
-            .and_then(|spawned| spawned.schedule_with_parent(process).to_term(process))
+            .map(|spawned| spawned.schedule_with_parent(process).to_term(process))
             .map_err(|e| e.into())
     } else {
         Err(TypeError)

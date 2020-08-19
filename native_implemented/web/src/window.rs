@@ -35,15 +35,13 @@ pub fn add_event_listener<F>(
         wait::with_return_0::spawn(options, |child_process| {
             // put reference to this closure into process dictionary so that it can't be GC'd until
             // `child_process` exits and is `Drop`'d.
-            let event_listener_resource_reference = child_process.resource(f.clone())?;
-            child_process
-                .put(
-                    Atom::str_to_term("Elixir.Lumen.Web.Window.event_listener"),
-                    event_listener_resource_reference,
-                )
-                .unwrap();
+            let event_listener_resource_reference = child_process.resource(f.clone());
+            child_process.put(
+                Atom::str_to_term("Elixir.Lumen.Web.Window.event_listener"),
+                event_listener_resource_reference,
+            );
 
-            let event_resource_reference = child_process.resource(event.clone())?;
+            let event_resource_reference = child_process.resource(event.clone());
 
             frames_with_arguments_fn(child_process, event_resource_reference)
         })

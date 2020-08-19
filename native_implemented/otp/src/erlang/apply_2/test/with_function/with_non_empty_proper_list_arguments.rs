@@ -12,9 +12,7 @@ fn without_arity_errors_badarg() {
                 .prop_map(|(arc_process, first_argument, second_argument)| {
                     (
                         arc_process.clone(),
-                        arc_process
-                            .list_from_slice(&[first_argument, second_argument])
-                            .unwrap(),
+                        arc_process.list_from_slice(&[first_argument, second_argument]),
                     )
                 })
         },
@@ -52,7 +50,7 @@ fn with_arity_returns_function_return() {
             )
         },
         |(arc_process, argument)| {
-            let arguments = arc_process.list_from_slice(&[argument]).unwrap();
+            let arguments = arc_process.list_from_slice(&[argument]);
             let function = return_from_fn_1::export_closure(&arc_process);
 
             let Ready {

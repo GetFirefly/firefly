@@ -27,7 +27,7 @@ fn with_invalid_option_errors_badarg() {
         },
         |(arc_process, message, option)| {
             let destination = arc_process.pid_term();
-            let options = arc_process.list_from_slice(&[option]).unwrap();
+            let options = arc_process.list_from_slice(&[option]);
 
             prop_assert_badarg!(
                 result(&arc_process, destination, message, options),

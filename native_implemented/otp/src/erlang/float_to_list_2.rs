@@ -15,9 +15,5 @@ pub fn result(process: &Process, float: Term, options: Term) -> exception::Resul
 
     float_to_string(float, options_options)
         .map_err(|error| error.into())
-        .and_then(|string| {
-            process
-                .charlist_from_str(&string)
-                .map_err(|alloc| alloc.into())
-        })
+        .map(|string| process.charlist_from_str(&string))
 }

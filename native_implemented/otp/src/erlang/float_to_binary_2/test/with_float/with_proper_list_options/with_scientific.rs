@@ -70,7 +70,7 @@ fn exponent_is_at_least_2_digits() {
 
 fn digits(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (Just(arc_process.clone()), 0..=249)
-        .prop_map(|(arc_process, u)| arc_process.integer(u).unwrap())
+        .prop_map(|(arc_process, u)| arc_process.integer(u))
         .boxed()
 }
 
@@ -80,9 +80,7 @@ fn strategy(arc_process: Arc<Process>) -> impl Strategy<Value = (Arc<Process>, T
         super::strategy::term::float(arc_process.clone()),
         (Just(arc_process.clone()), digits(arc_process.clone())).prop_map(
             |(arc_process, digits)| {
-                arc_process
-                    .list_from_slice(&[arc_process.tuple_from_slice(&[tag(), digits]).unwrap()])
-                    .unwrap()
+                arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[tag(), digits])])
             },
         ),
     )

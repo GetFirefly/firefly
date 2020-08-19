@@ -5,7 +5,5 @@ mod with_info_true;
 mod without_info;
 
 fn options(process: &Process) -> Term {
-    process
-        .cons(async_option(false, process), Term::NIL)
-        .unwrap()
+    process.cons(async_option(false, process), Term::NIL)
 }

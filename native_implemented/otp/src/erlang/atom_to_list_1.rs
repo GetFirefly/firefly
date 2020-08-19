@@ -9,7 +9,7 @@ use liblumen_alloc::erts::term::prelude::*;
 pub fn result(process: &Process, atom: Term) -> exception::Result<Term> {
     let atom_atom = term_try_into_atom!(atom)?;
     let chars = atom_atom.name().chars();
-    let list = process.list_from_chars(chars)?;
+    let list = process.list_from_chars(chars);
 
     Ok(list)
 }

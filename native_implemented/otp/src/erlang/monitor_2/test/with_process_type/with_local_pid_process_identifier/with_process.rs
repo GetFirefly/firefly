@@ -104,27 +104,23 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
 
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[
-                    tag,
-                    first_monitor_reference,
-                    r#type(),
-                    monitored_arc_process.pid_term(),
-                    reason
-                ])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                first_monitor_reference,
+                r#type(),
+                monitored_arc_process.pid_term(),
+                reason
+            ])
         );
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[
-                    tag,
-                    second_monitor_reference,
-                    r#type(),
-                    monitored_arc_process.pid_term(),
-                    reason
-                ])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                second_monitor_reference,
+                r#type(),
+                monitored_arc_process.pid_term(),
+                reason
+            ])
         );
     });
 }

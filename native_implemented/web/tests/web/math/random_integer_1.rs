@@ -25,7 +25,7 @@ fn returns_integer_between_0_inclusive_and_max_exclusive() -> impl Future<Item =
             // # returns: {:ok, document}
             // ```
             liblumen_web::math::random_integer_1::frame()
-                .with_arguments(false, &[child_process.integer(exclusive_max).unwrap()]),
+                .with_arguments(false, &[child_process.integer(exclusive_max)]),
         ])
     })
     .unwrap();

@@ -37,13 +37,9 @@ fn valid_options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
     prop_oneof![
         Just(Term::NIL),
-        Just(arc_process.list_from_slice(&[noconnect]).unwrap()),
-        Just(arc_process.list_from_slice(&[nosuspend]).unwrap()),
-        Just(
-            arc_process
-                .list_from_slice(&[noconnect, nosuspend])
-                .unwrap()
-        )
+        Just(arc_process.list_from_slice(&[noconnect])),
+        Just(arc_process.list_from_slice(&[nosuspend])),
+        Just(arc_process.list_from_slice(&[noconnect, nosuspend]))
     ]
     .boxed()
 }

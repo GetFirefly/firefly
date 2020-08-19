@@ -7,7 +7,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
         arc_process.reduce();
 
         fn result(process: &Process, first: Term, second: Term) -> exception::Result<Term> {
-            let reason = process.list_from_slice(&[first, second])?;
+            let reason = process.list_from_slice(&[first, second]);
 
             Err(exit!(reason, anyhow!("Test").into()).into())
         }
@@ -23,18 +23,16 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
     let arity = 0;
     let creator = parent_arc_process.pid().into();
 
-    let function = parent_arc_process
-        .anonymous_closure_with_env_from_slice(
-            module,
-            index,
-            old_unique,
-            unique,
-            arity,
-            NonNull::new(native as _),
-            creator,
-            &[Atom::str_to_term("first"), Atom::str_to_term("second")],
-        )
-        .unwrap();
+    let function = parent_arc_process.anonymous_closure_with_env_from_slice(
+        module,
+        index,
+        old_unique,
+        unique,
+        arity,
+        NonNull::new(native as _),
+        creator,
+        &[Atom::str_to_term("first"), Atom::str_to_term("second")],
+    );
     let result = result(&parent_arc_process, function, options(&parent_arc_process));
 
     assert!(result.is_ok());
@@ -64,8 +62,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
     assert!(scheduler.run_once());
 
     let reason = child_arc_process
-        .list_from_slice(&[Atom::str_to_term("first"), Atom::str_to_term("second")])
-        .unwrap();
+        .list_from_slice(&[Atom::str_to_term("first"), Atom::str_to_term("second")]);
 
     match *child_arc_process.status.read() {
         Status::RuntimeException(ref exception) => {
@@ -79,9 +76,10 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
             assert_eq!(
                 exception,
                 &exit!(
-                    child_arc_process
-                        .list_from_slice(&[Atom::str_to_term("first"), Atom::str_to_term("second")])
-                        .unwrap(),
+                    child_arc_process.list_from_slice(&[
+                        Atom::str_to_term("first"),
+                        Atom::str_to_term("second")
+                    ]),
                     anyhow!("Test").into()
                 )
             );
@@ -93,15 +91,13 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
     assert!(has_message(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                Atom::str_to_term("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            Atom::str_to_term("process"),
+            child_pid_term,
+            reason
+        ])
     ));
 }
 
@@ -112,7 +108,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
         arc_process.reduce();
 
         fn result(process: &Process, first: Term, second: Term) -> exception::Result<Term> {
-            let reason = process.tuple_from_slice(&[first, second])?;
+            let reason = process.tuple_from_slice(&[first, second]);
 
             Err(exit!(reason, anyhow!("Test").into()).into())
         }
@@ -128,21 +124,19 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
     let arity = 0;
     let creator = parent_arc_process.pid().into();
 
-    let function = parent_arc_process
-        .anonymous_closure_with_env_from_slice(
-            module,
-            index,
-            old_unique,
-            unique,
-            arity,
-            NonNull::new(native as _),
-            creator,
-            &[
-                Atom::str_to_term("shutdown"),
-                Atom::str_to_term("shutdown_reason"),
-            ],
-        )
-        .unwrap();
+    let function = parent_arc_process.anonymous_closure_with_env_from_slice(
+        module,
+        index,
+        old_unique,
+        unique,
+        arity,
+        NonNull::new(native as _),
+        creator,
+        &[
+            Atom::str_to_term("shutdown"),
+            Atom::str_to_term("shutdown_reason"),
+        ],
+    );
     let result = result(&parent_arc_process, function, options(&parent_arc_process));
 
     assert!(result.is_ok());
@@ -167,12 +161,10 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
     assert!(monitor_reference.is_reference());
     assert!(scheduler::run_through(&child_arc_process));
 
-    let reason = child_arc_process
-        .tuple_from_slice(&[
-            Atom::str_to_term("shutdown"),
-            Atom::str_to_term("shutdown_reason"),
-        ])
-        .unwrap();
+    let reason = child_arc_process.tuple_from_slice(&[
+        Atom::str_to_term("shutdown"),
+        Atom::str_to_term("shutdown_reason"),
+    ]);
 
     match *child_arc_process.status.read() {
         Status::RuntimeException(ref exception) => {
@@ -187,14 +179,12 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
 
     assert!(has_message(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                Atom::str_to_term("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            Atom::str_to_term("process"),
+            child_pid_term,
+            reason
+        ])
     ));
 }

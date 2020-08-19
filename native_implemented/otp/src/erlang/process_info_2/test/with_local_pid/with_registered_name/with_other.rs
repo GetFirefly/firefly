@@ -34,9 +34,7 @@ fn with_registered_returns_empty_list() {
                 registered_process_arc.pid_term(),
                 item()
             ),
-            Ok(parent_process_arc
-                .tuple_from_slice(&[item(), registered_name])
-                .unwrap())
+            Ok(parent_process_arc.tuple_from_slice(&[item(), registered_name]))
         );
     });
 }

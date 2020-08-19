@@ -14,7 +14,7 @@ pub fn result(process: &Process, unit: Term) -> exception::Result<Term> {
     let unit_unit: Unit = unit.try_into()?;
     let system_time = system::time_in_unit(unit_unit);
     let monotonic_time = monotonic::time_in_unit(unit_unit);
-    let term = process.integer(system_time - monotonic_time)?;
+    let term = process.integer(system_time - monotonic_time);
 
     Ok(term)
 }

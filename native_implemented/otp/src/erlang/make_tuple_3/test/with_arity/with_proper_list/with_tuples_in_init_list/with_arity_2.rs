@@ -18,9 +18,9 @@ fn without_positive_index_errors_badarg_because_indexes_are_one_based() {
             )
         },
         |(arc_process, arity_usize, default_value, position, element)| {
-            let arity = arc_process.integer(arity_usize).unwrap();
-            let init = arc_process.tuple_from_slice(&[position, element]).unwrap();
-            let init_list = arc_process.list_from_slice(&[init]).unwrap();
+            let arity = arc_process.integer(arity_usize);
+            let init = arc_process.tuple_from_slice(&[position, element]);
+            let init_list = arc_process.list_from_slice(&[init]);
 
             let r = result(&arc_process, arity, default_value, init_list);
 

@@ -57,9 +57,9 @@ fn with_small_integer_returns_small_integer() {
 #[test]
 fn with_small_integer_inverts_bits() {
     with_process(|process| {
-        let integer = process.integer(0b10).unwrap();
+        let integer = process.integer(0b10);
 
-        assert_eq!(result(&process, integer), Ok(process.integer(-3).unwrap()))
+        assert_eq!(result(&process, integer), Ok(process.integer(-3)))
     });
 }
 
@@ -71,15 +71,14 @@ fn with_big_integer_inverts_bits() {
             2,
         )
         .unwrap();
-        let integer = process.integer(integer_big_int).unwrap();
+        let integer = process.integer(integer_big_int);
 
         assert!(integer.is_boxed_bigint());
 
         assert_eq!(
             result(&process, integer),
             Ok(process
-                .integer(<BigInt as Num>::from_str_radix("-12297829382473034411", 10,).unwrap())
-                .unwrap())
+                .integer(<BigInt as Num>::from_str_radix("-12297829382473034411", 10,).unwrap()))
         );
     });
 }

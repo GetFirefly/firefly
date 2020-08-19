@@ -20,10 +20,10 @@ fn reverses_order_of_elements_of_list() {
             .run(
                 &proptest::collection::vec(strategy::term(arc_process.clone()), size_range),
                 |vec| {
-                    let list = arc_process.list_from_slice(&vec).unwrap();
+                    let list = arc_process.list_from_slice(&vec);
 
                     let reversed_vec: Vec<Term> = vec.iter().rev().copied().collect();
-                    let reversed = arc_process.list_from_slice(&reversed_vec).unwrap();
+                    let reversed = arc_process.list_from_slice(&reversed_vec);
 
                     prop_assert_eq!(result(&arc_process, list), Ok(reversed));
 

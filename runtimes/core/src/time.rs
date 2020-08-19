@@ -9,7 +9,6 @@ use anyhow::*;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
 use liblumen_alloc::{atom, Process};
@@ -87,15 +86,15 @@ impl Unit {
         }
     }
 
-    pub fn to_term(&self, process: &Process) -> AllocResult<Term> {
+    pub fn to_term(&self, process: &Process) -> Term {
         match self {
             Unit::Hertz(hertz) => process.integer(*hertz),
-            Unit::Second => Ok(atom!("second")),
-            Unit::Millisecond => Ok(atom!("millisecond")),
-            Unit::Microsecond => Ok(atom!("microsecond")),
-            Unit::Nanosecond => Ok(atom!("nanosecond")),
-            Unit::Native => Ok(atom!("native")),
-            Unit::PerformanceCounter => Ok(atom!("perf_counter")),
+            Unit::Second => atom!("second"),
+            Unit::Millisecond => atom!("millisecond"),
+            Unit::Microsecond => atom!("microsecond"),
+            Unit::Nanosecond => atom!("nanosecond"),
+            Unit::Native => atom!("native"),
+            Unit::PerformanceCounter => atom!("perf_counter"),
         }
     }
 }

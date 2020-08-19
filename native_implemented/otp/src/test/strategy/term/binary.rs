@@ -15,7 +15,7 @@ pub mod sub;
 
 pub fn containing_bytes(byte_vec: Vec<u8>, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
-        Just(arc_process.binary_from_bytes(&byte_vec).unwrap()),
+        Just(arc_process.binary_from_bytes(&byte_vec)),
         sub::containing_bytes(byte_vec, arc_process.clone())
     ]
     .boxed()

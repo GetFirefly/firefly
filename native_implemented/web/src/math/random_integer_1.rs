@@ -20,5 +20,5 @@ fn result(process: &Process, exclusive_max: Term) -> exception::Result<Term> {
     let exclusive_max_f64 = exclusive_max_usize as f64;
     let random_usize = (js_sys::Math::random() * exclusive_max_f64).trunc() as usize;
 
-    process.integer(random_usize).map_err(|error| error.into())
+    Ok(process.integer(random_usize))
 }

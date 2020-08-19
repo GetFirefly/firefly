@@ -19,8 +19,8 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
     let function_atom = erlang::number_or_badarith_1::function();
     let function: Term = function_atom.encode().unwrap();
 
-    let number = parent_arc_process.integer(0).unwrap();
-    let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
+    let number = parent_arc_process.integer(0);
+    let arguments = parent_arc_process.cons(number, Term::NIL);
 
     let result = result(&parent_arc_process, module, function, arguments);
 
@@ -67,15 +67,13 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 
     assert_has_message!(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                atom!("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            atom!("process"),
+            child_pid_term,
+            reason
+        ])
     );
 }
 
@@ -95,7 +93,7 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
 
     // not a number
     let number = atom!("zero");
-    let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
+    let arguments = parent_arc_process.cons(number, Term::NIL);
 
     let result = result(&parent_arc_process, module, function, arguments);
 
@@ -147,14 +145,12 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
 
     assert_has_message!(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                atom!("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            atom!("process"),
+            child_pid_term,
+            reason
+        ])
     );
 }

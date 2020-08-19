@@ -37,9 +37,8 @@ fn with_same_float_returns_false() {
 fn with_same_value_float_right_returns_false() {
     run!(
         |arc_process| {
-            (Just(arc_process.clone()), any::<f64>()).prop_map(|(arc_process, f)| {
-                (arc_process.float(f).unwrap(), arc_process.float(f).unwrap())
-            })
+            (Just(arc_process.clone()), any::<f64>())
+                .prop_map(|(arc_process, f)| (arc_process.float(f), arc_process.float(f)))
         },
         |(left, right)| {
             prop_assert_eq!(result(left.into(), right.into()), false.into());
@@ -77,12 +76,7 @@ fn with_same_value_small_integer_right_returns_false() {
                 Just(arc_process.clone()),
                 strategy::term::small_integer_float_integral_i64(),
             )
-                .prop_map(|(arc_process, i)| {
-                    (
-                        arc_process.float(i as f64).unwrap(),
-                        arc_process.integer(i).unwrap(),
-                    )
-                })
+                .prop_map(|(arc_process, i)| (arc_process.float(i as f64), arc_process.integer(i)))
         },
         |(left, right)| {
             prop_assert_eq!(result(left.into(), right), false.into());
@@ -101,10 +95,7 @@ fn with_different_value_small_integer_right_returns_true() {
                 strategy::term::small_integer_float_integral_i64(),
             )
                 .prop_map(|(arc_process, i)| {
-                    (
-                        arc_process.float(i as f64).unwrap(),
-                        arc_process.integer(i + 1).unwrap(),
-                    )
+                    (arc_process.float(i as f64), arc_process.integer(i + 1))
                 })
         },
         |(left, right)| {
@@ -122,10 +113,7 @@ fn with_same_value_big_integer_right_returns_false() {
             run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
-                        (
-                            arc_process.float(i as f64).unwrap(),
-                            arc_process.integer(i).unwrap(),
-                        )
+                        (arc_process.float(i as f64), arc_process.integer(i))
                     })
                 },
                 |(left, right)| {
@@ -146,10 +134,7 @@ fn with_different_value_big_integer_right_returns_true() {
             run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
-                        (
-                            arc_process.float(i as f64).unwrap(),
-                            arc_process.integer(i + 1).unwrap(),
-                        )
+                        (arc_process.float(i as f64), arc_process.integer(i + 1))
                     })
                 },
                 |(left, right)| {

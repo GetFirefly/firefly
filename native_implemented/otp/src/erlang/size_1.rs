@@ -18,7 +18,7 @@ pub fn result(process: &Process, binary_or_tuple: Term) -> exception::Result<Ter
     };
 
     match option_size {
-        Some(size) => Ok(process.integer(size)?),
+        Some(size) => Ok(process.integer(size)),
         None => Err(TypeError)
             .context(format!(
                 "binary_or_tuple ({}) is neither a binary nor a tuple",

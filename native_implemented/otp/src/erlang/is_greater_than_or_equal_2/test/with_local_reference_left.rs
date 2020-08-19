@@ -19,17 +19,17 @@ fn with_number_or_atom_returns_true() {
 
 #[test]
 fn with_greater_local_reference_right_returns_true() {
-    is_greater_than_or_equal(|_, process| process.reference(0).unwrap(), true);
+    is_greater_than_or_equal(|_, process| process.reference(0), true);
 }
 
 #[test]
 fn with_same_value_local_reference_right_returns_true() {
-    is_greater_than_or_equal(|_, process| process.reference(1).unwrap(), true);
+    is_greater_than_or_equal(|_, process| process.reference(1), true);
 }
 
 #[test]
 fn with_greater_local_reference_right_returns_false() {
-    is_greater_than_or_equal(|_, process| process.reference(2).unwrap(), false);
+    is_greater_than_or_equal(|_, process| process.reference(2), false);
 }
 
 #[test]
@@ -53,5 +53,5 @@ fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::is_greater_than_or_equal(|process| process.reference(1).unwrap(), right, expected);
+    super::is_greater_than_or_equal(|process| process.reference(1), right, expected);
 }

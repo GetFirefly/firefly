@@ -9,7 +9,7 @@ use liblumen_alloc::exit;
 #[test]
 fn without_environment_runs_function_in_child_process() {
     let arc_process = process::default();
-    let function = anonymous_0::anonymous_closure(&arc_process).unwrap();
+    let function = anonymous_0::anonymous_closure(&arc_process);
     let result = result(&arc_process, function);
 
     assert!(result.is_ok());
@@ -56,7 +56,7 @@ fn with_environment_runs_function_in_child_process() {
                         second_environment: Term,
                     ) -> exception::Result<Term> {
                         let reason =
-                            process.list_from_slice(&[first_environment, second_environment])?;
+                            process.list_from_slice(&[first_environment, second_environment]);
 
                         Err(exit!(reason, anyhow!("Test").into()).into())
                     }
@@ -77,18 +77,16 @@ fn with_environment_runs_function_in_child_process() {
 
                     (
                         arc_process.clone(),
-                        arc_process
-                            .anonymous_closure_with_env_from_slice(
-                                module,
-                                index,
-                                old_unique,
-                                unique,
-                                arity,
-                                NonNull::new(native as _),
-                                creator,
-                                &[Atom::str_to_term("first"), Atom::str_to_term("second")],
-                            )
-                            .unwrap(),
+                        arc_process.anonymous_closure_with_env_from_slice(
+                            module,
+                            index,
+                            old_unique,
+                            unique,
+                            arity,
+                            NonNull::new(native as _),
+                            creator,
+                            &[Atom::str_to_term("first"), Atom::str_to_term("second")],
+                        ),
                     )
                 })
         },
@@ -111,12 +109,10 @@ fn with_environment_runs_function_in_child_process() {
                     prop_assert_eq!(
                         exception,
                         &exit!(
-                            child_arc_process
-                                .list_from_slice(&[
-                                    Atom::str_to_term("first"),
-                                    Atom::str_to_term("second")
-                                ])
-                                .unwrap(),
+                            child_arc_process.list_from_slice(&[
+                                Atom::str_to_term("first"),
+                                Atom::str_to_term("second")
+                            ]),
                             anyhow!("Test").into()
                         )
                     );

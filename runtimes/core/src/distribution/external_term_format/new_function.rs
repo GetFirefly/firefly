@@ -68,7 +68,7 @@ pub fn decode<'a>(
         option_native,
         creator.into(),
         &env_vec,
-    )?;
+    );
 
     Ok((closure, after_vec_term_bytes))
 }

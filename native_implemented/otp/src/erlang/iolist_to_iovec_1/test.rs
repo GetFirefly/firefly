@@ -67,13 +67,11 @@ fn is_idempotent() {
 #[test]
 fn with_binary_returns_binary_in_list() {
     with_process(|process| {
-        let bin = process.binary_from_bytes(&[1, 2, 3]).unwrap();
+        let bin = process.binary_from_bytes(&[1, 2, 3]);
 
         assert_eq!(
             result(process, bin),
-            Ok(process
-                .list_from_slice(&[process.binary_from_bytes(&[1, 2, 3]).unwrap()])
-                .unwrap())
+            Ok(process.list_from_slice(&[process.binary_from_bytes(&[1, 2, 3])]))
         )
     });
 }
@@ -82,16 +80,14 @@ fn with_binary_returns_binary_in_list() {
 fn with_procbin_in_list_returns_list() {
     with_process(|process| {
         let bytes = [7; 65];
-        let procbin = process.binary_from_bytes(&bytes).unwrap();
+        let procbin = process.binary_from_bytes(&bytes);
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let iolist = process.list_from_slice(&[procbin]).unwrap();
+        let iolist = process.list_from_slice(&[procbin]);
 
         assert_eq!(
             result(process, iolist),
-            Ok(process
-                .list_from_slice(&[process.binary_from_bytes(&bytes).unwrap()])
-                .unwrap())
+            Ok(process.list_from_slice(&[process.binary_from_bytes(&bytes)]))
         )
     });
 }
@@ -99,23 +95,17 @@ fn with_procbin_in_list_returns_list() {
 #[test]
 fn with_subbinary_in_list_returns_list() {
     with_process(|process| {
-        let iolist = process
-            .list_from_slice(&[process
-                .subbinary_from_original(
-                    process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
-                    1,
-                    0,
-                    3,
-                    0,
-                )
-                .unwrap()])
-            .unwrap();
+        let iolist = process.list_from_slice(&[process.subbinary_from_original(
+            process.binary_from_bytes(&[1, 2, 3, 4, 5]),
+            1,
+            0,
+            3,
+            0,
+        )]);
 
         assert_eq!(
             result(process, iolist),
-            Ok(process
-                .list_from_slice(&[process.binary_from_bytes(&[2, 3, 4]).unwrap()])
-                .unwrap())
+            Ok(process.list_from_slice(&[process.binary_from_bytes(&[2, 3, 4])]))
         )
     });
 }
@@ -123,21 +113,17 @@ fn with_subbinary_in_list_returns_list() {
 #[test]
 fn with_subbinary_returns_list() {
     with_process(|process| {
-        let iolist = process
-            .subbinary_from_original(
-                process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
-                1,
-                0,
-                3,
-                0,
-            )
-            .unwrap();
+        let iolist = process.subbinary_from_original(
+            process.binary_from_bytes(&[1, 2, 3, 4, 5]),
+            1,
+            0,
+            3,
+            0,
+        );
 
         assert_eq!(
             result(process, iolist),
-            Ok(process
-                .list_from_slice(&[process.binary_from_bytes(&[2, 3, 4]).unwrap()])
-                .unwrap())
+            Ok(process.list_from_slice(&[process.binary_from_bytes(&[2, 3, 4])]))
         )
     });
 }
@@ -145,10 +131,9 @@ fn with_subbinary_returns_list() {
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
-        let tail = process.integer(42).unwrap();
-        let iolist_or_binary = process
-            .improper_list_from_slice(&[process.binary_from_bytes(&[1, 2, 3]).unwrap()], tail)
-            .unwrap();
+        let tail = process.integer(42);
+        let iolist_or_binary =
+            process.improper_list_from_slice(&[process.binary_from_bytes(&[1, 2, 3])], tail);
 
         assert_badarg!(
             result(process, iolist_or_binary),
@@ -165,7 +150,7 @@ fn with_improper_list_smallint_tail_errors_badarg() {
 fn with_atom_in_iolist_errors_badarg() {
     with_process(|process| {
         let element = Atom::str_to_term("foo");
-        let iolist_or_binary = process.list_from_slice(&[element]).unwrap();
+        let iolist_or_binary = process.list_from_slice(&[element]);
 
         assert_badarg!(
             result(process, iolist_or_binary),

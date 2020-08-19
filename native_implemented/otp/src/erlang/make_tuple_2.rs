@@ -14,10 +14,8 @@ pub fn result(process: &Process, arity: Term, initial_value: Term) -> exception:
     // ... everything else uses `usize`, so cast it back up
     let arity_usize: usize = arity_u8 as usize;
 
-    process
-        .tuple_from_iter(
-            std::iter::repeat(initial_value).take(arity_usize),
-            arity_usize,
-        )
-        .map_err(|alloc| alloc.into())
+    Ok(process.tuple_from_iter(
+        std::iter::repeat(initial_value).take(arity_usize),
+        arity_usize,
+    ))
 }

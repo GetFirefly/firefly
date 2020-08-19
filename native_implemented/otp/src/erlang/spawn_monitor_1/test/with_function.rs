@@ -5,71 +5,58 @@ use super::*;
 #[test]
 fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and_sends_exit_message_to_parent(
 ) {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &strategy::term::export_closure_non_zero_arity_range_inclusive(),
-            |arity| {
-                let parent_arc_process = test::process::init();
-                let module = Atom::from_str("module");
-                let function = Atom::from_str("function");
-                let function =
-                    strategy::term::export_closure(&parent_arc_process, module, function, arity);
+    let parent_arc_process = test::process::init();
+    let module = Atom::from_str("module");
+    let function = Atom::from_str("function");
+    let arity = 1;
 
-                let result = result(&parent_arc_process, function);
+    assert_ne!(arity, 0);
 
-                prop_assert!(result.is_ok());
+    let function = parent_arc_process.export_closure(module, function, arity, None);
 
-                let result_boxed_tuple: Result<Boxed<Tuple>, _> = result.unwrap().try_into();
+    let result = result(&parent_arc_process, function);
 
-                prop_assert!(result_boxed_tuple.is_ok());
+    assert!(result.is_ok());
 
-                let boxed_tuple = result_boxed_tuple.unwrap();
+    let result_boxed_tuple: Result<Boxed<Tuple>, _> = result.unwrap().try_into();
 
-                prop_assert_eq!(boxed_tuple.len(), 2);
+    assert!(result_boxed_tuple.is_ok());
 
-                let child_pid_term = boxed_tuple[0];
+    let boxed_tuple = result_boxed_tuple.unwrap();
 
-                prop_assert!(child_pid_term.is_pid());
+    assert_eq!(boxed_tuple.len(), 2);
 
-                let child_pid: Pid = child_pid_term.try_into().unwrap();
-                let child_arc_process = pid_to_process(&child_pid).unwrap();
+    let child_pid_term = boxed_tuple[0];
 
-                let monitor_reference = boxed_tuple[1];
+    assert!(child_pid_term.is_pid());
 
-                prop_assert!(monitor_reference.is_reference());
+    let child_pid: Pid = child_pid_term.try_into().unwrap();
+    let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-                let scheduler = scheduler::current();
+    let monitor_reference = boxed_tuple[1];
 
-                prop_assert!(scheduler.run_once());
-                prop_assert!(scheduler.run_once());
+    assert!(monitor_reference.is_reference());
 
-                let args = Term::NIL;
-                let source_substring = format!(
-                    "arguments ([]) length (0) does not match arity ({}) of function ({})",
-                    arity, function
-                );
-                prop_assert_exits_badarity(&child_arc_process, function, args, &source_substring)?;
+    let scheduler = scheduler::current();
 
-                prop_assert!(!parent_arc_process.is_exiting());
+    assert!(scheduler.run_once());
+    assert!(scheduler.run_once());
 
-                let tag = atom!("DOWN");
-                let reason = badarity_reason(&parent_arc_process, function, args);
+    assert_exits_badarity(&child_arc_process, function, arity, Term::NIL);
 
-                prop_assert!(has_message(
-                    &parent_arc_process,
-                    parent_arc_process
-                        .tuple_from_slice(&[
-                            tag,
-                            monitor_reference,
-                            atom!("process"),
-                            child_pid_term,
-                            reason
-                        ])
-                        .unwrap()
-                ));
+    assert!(!parent_arc_process.is_exiting());
 
-                Ok(())
-            },
-        )
-        .unwrap();
+    let tag = atom!("DOWN");
+    let reason = badarity_reason(&parent_arc_process, function, Term::NIL);
+
+    assert!(has_message(
+        &parent_arc_process,
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            atom!("process"),
+            child_pid_term,
+            reason
+        ])
+    ));
 }

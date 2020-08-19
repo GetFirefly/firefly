@@ -20,11 +20,7 @@ fn with_number_atom_reference_function_port_pid_or_tuple_second_returns_second()
 #[test]
 fn with_smaller_map_second_returns_second() {
     min(
-        |_, process| {
-            process
-                .map_from_slice(&[(Atom::str_to_term("a"), process.integer(1).unwrap())])
-                .unwrap()
-        },
+        |_, process| process.map_from_slice(&[(Atom::str_to_term("a"), process.integer(1))]),
         Second,
     );
 }
@@ -33,12 +29,10 @@ fn with_smaller_map_second_returns_second() {
 fn with_same_size_map_with_lesser_keys_returns_second() {
     min(
         |_, process| {
-            process
-                .map_from_slice(&[
-                    (Atom::str_to_term("a"), process.integer(2).unwrap()),
-                    (Atom::str_to_term("b"), process.integer(3).unwrap()),
-                ])
-                .unwrap()
+            process.map_from_slice(&[
+                (Atom::str_to_term("a"), process.integer(2)),
+                (Atom::str_to_term("b"), process.integer(3)),
+            ])
         },
         Second,
     );
@@ -48,12 +42,10 @@ fn with_same_size_map_with_lesser_keys_returns_second() {
 fn with_same_size_map_with_same_keys_with_lesser_values_returns_second() {
     min(
         |_, process| {
-            process
-                .map_from_slice(&[
-                    (Atom::str_to_term("b"), process.integer(2).unwrap()),
-                    (Atom::str_to_term("c"), process.integer(2).unwrap()),
-                ])
-                .unwrap()
+            process.map_from_slice(&[
+                (Atom::str_to_term("b"), process.integer(2)),
+                (Atom::str_to_term("c"), process.integer(2)),
+            ])
         },
         Second,
     );
@@ -68,12 +60,10 @@ fn with_same_map_returns_first() {
 fn with_same_value_map_returns_first() {
     min(
         |_, process| {
-            process
-                .map_from_slice(&[
-                    (Atom::str_to_term("b"), process.integer(2).unwrap()),
-                    (Atom::str_to_term("c"), process.integer(3).unwrap()),
-                ])
-                .unwrap()
+            process.map_from_slice(&[
+                (Atom::str_to_term("b"), process.integer(2)),
+                (Atom::str_to_term("c"), process.integer(3)),
+            ])
         },
         First,
     );
@@ -83,12 +73,10 @@ fn with_same_value_map_returns_first() {
 fn with_same_size_map_with_same_keys_with_greater_values_returns_first() {
     min(
         |_, process| {
-            process
-                .map_from_slice(&[
-                    (Atom::str_to_term("b"), process.integer(3).unwrap()),
-                    (Atom::str_to_term("c"), process.integer(4).unwrap()),
-                ])
-                .unwrap()
+            process.map_from_slice(&[
+                (Atom::str_to_term("b"), process.integer(3)),
+                (Atom::str_to_term("c"), process.integer(4)),
+            ])
         },
         First,
     );
@@ -98,12 +86,10 @@ fn with_same_size_map_with_same_keys_with_greater_values_returns_first() {
 fn with_same_size_map_with_greater_keys_returns_first() {
     min(
         |_, process| {
-            process
-                .map_from_slice(&[
-                    (Atom::str_to_term("c"), process.integer(2).unwrap()),
-                    (Atom::str_to_term("d"), process.integer(3).unwrap()),
-                ])
-                .unwrap()
+            process.map_from_slice(&[
+                (Atom::str_to_term("c"), process.integer(2)),
+                (Atom::str_to_term("d"), process.integer(3)),
+            ])
         },
         First,
     );
@@ -113,13 +99,11 @@ fn with_same_size_map_with_greater_keys_returns_first() {
 fn with_greater_size_map_returns_first() {
     min(
         |_, process| {
-            process
-                .map_from_slice(&[
-                    (Atom::str_to_term("a"), process.integer(1).unwrap()),
-                    (Atom::str_to_term("b"), process.integer(2).unwrap()),
-                    (Atom::str_to_term("c"), process.integer(3).unwrap()),
-                ])
-                .unwrap()
+            process.map_from_slice(&[
+                (Atom::str_to_term("a"), process.integer(1)),
+                (Atom::str_to_term("b"), process.integer(2)),
+                (Atom::str_to_term("c"), process.integer(3)),
+            ])
         },
         First,
     );
@@ -148,12 +132,10 @@ where
 {
     super::min(
         |process| {
-            process
-                .map_from_slice(&[
-                    (Atom::str_to_term("b"), process.integer(2).unwrap()),
-                    (Atom::str_to_term("c"), process.integer(3).unwrap()),
-                ])
-                .unwrap()
+            process.map_from_slice(&[
+                (Atom::str_to_term("b"), process.integer(2)),
+                (Atom::str_to_term("c"), process.integer(3)),
+            ])
         },
         second,
         which,

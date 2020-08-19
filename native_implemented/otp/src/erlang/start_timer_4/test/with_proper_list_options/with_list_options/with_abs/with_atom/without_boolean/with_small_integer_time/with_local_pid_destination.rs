@@ -12,7 +12,7 @@ fn with_different_process_errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message, abs_value)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
 
             let destination_arc_process = test::process::child(&arc_process);
             let destination = destination_arc_process.pid_term();
@@ -42,7 +42,7 @@ fn with_same_process_errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message, abs_value)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
             let destination = arc_process.pid_term();
             let options = options(abs_value, &arc_process);
 
@@ -69,7 +69,7 @@ fn without_process_errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message, abs_value)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
             let destination = Pid::next_term();
             let options = options(abs_value, &arc_process);
 

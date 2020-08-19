@@ -286,12 +286,10 @@ macro_rules! prop_assert_badarity {
         prop_assert_error!(
             $actual,
             "badarity",
-            process
-                .tuple_from_slice(&[
-                    liblumen_alloc::atom!("badarity"),
-                    process.tuple_from_slice(&[$fun, $args]).unwrap()
-                ])
-                .unwrap(),
+            process.tuple_from_slice(&[
+                liblumen_alloc::atom!("badarity"),
+                process.tuple_from_slice(&[$fun, $args])
+            ]),
             $expected_substring
         )
     }};
@@ -303,9 +301,7 @@ macro_rules! prop_assert_badkey {
         prop_assert_error!(
             $actual,
             "badkey",
-            $process
-                .tuple_from_slice(&[liblumen_alloc::atom!("badkey"), $expected_key])
-                .unwrap(),
+            $process.tuple_from_slice(&[liblumen_alloc::atom!("badkey"), $expected_key]),
             $expected_substring,
         )
     }};
@@ -329,9 +325,7 @@ macro_rules! prop_assert_badmap {
         prop_assert_error!(
             $actual,
             "badmap",
-            $process
-                .tuple_from_slice(&[liblumen_alloc::atom!("badmap"), $expected_map])
-                .unwrap(),
+            $process.tuple_from_slice(&[liblumen_alloc::atom!("badmap"), $expected_map]),
             $expected_substring,
         )
     }};

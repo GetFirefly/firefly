@@ -30,6 +30,6 @@ pub(in crate::erlang) fn result(
         arguments,
         apply_2::NATIVE,
     )
-    .and_then(|spawned| spawned.schedule_with_parent(process).to_term(process))
+    .map(|spawned| spawned.schedule_with_parent(process).to_term(process))
     .map_err(|e| e.into())
 }

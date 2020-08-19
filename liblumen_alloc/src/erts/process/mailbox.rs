@@ -6,6 +6,7 @@ use alloc::collections::VecDeque;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::message::{self, Message, MessageType};
+use crate::erts::process::ffi::{set_process_signal, ProcessSignal};
 use crate::erts::process::Process;
 use crate::erts::term::prelude::Term;
 
@@ -18,7 +19,8 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    // Start receive implementation for the eir interpreter
+    // Start receive implementation for the eir interpreter / minimal runtime
+
     pub fn recv_start(&self) {
         debug_assert!(self.cursor == 0);
     }
@@ -54,11 +56,20 @@ impl Mailbox {
     pub fn recv_increment(&mut self) {
         self.cursor += 1;
     }
-    pub fn recv_finish(&mut self, proc: &Process) {
-        self.remove(self.cursor - 1, proc);
+    pub fn recv_received(&mut self) {
+        let message = self.messages.remove(self.cursor - 1).unwrap();
+
+        if let Message::HeapFragment(_) = message {
+            set_process_signal(ProcessSignal::GarbageCollect);
+        }
+
         self.cursor = 0;
     }
-    // End receive implementation for the eir interpreter
+    pub fn recv_timeout(&mut self) {
+        self.cursor = 0;
+    }
+
+    // End receive implementation for the eir interpreter / minimal interpreter
 
     pub fn flush<F>(&mut self, predicate: F, process: &Process) -> bool
     where
@@ -104,7 +115,7 @@ impl Mailbox {
     }
 
     /// Pops the `message` out of the mailbox from the front of the queue AND clones it into
-    /// `heap_guard` heap.
+    /// `process` heap.
     pub fn receive(&mut self, process: &Process) -> Option<AllocResult<Term>> {
         self.messages.pop_front().map(|message| match message {
             Message::Process(message::Process { data }) => {

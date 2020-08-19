@@ -31,49 +31,49 @@ fn without_list_errors_badarg() {
 #[test]
 fn with_list_encoding_local_pid() {
     with_process(|process| {
-        let string = process.charlist_from_str("<").unwrap();
+        let string = process.charlist_from_str("<");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing 'node.number.serial>'", string)
         );
 
-        let string = process.charlist_from_str("<0").unwrap();
+        let string = process.charlist_from_str("<0");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing '.number.serial>'", string)
         );
 
-        let string = process.charlist_from_str("<0.").unwrap();
+        let string = process.charlist_from_str("<0.");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing 'number.serial>'", string)
         );
 
-        let string = process.charlist_from_str("<0.1").unwrap();
+        let string = process.charlist_from_str("<0.1");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing '.serial>", string)
         );
 
-        let string = process.charlist_from_str("<0.1.").unwrap();
+        let string = process.charlist_from_str("<0.1.");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing 'serial>", string)
         );
 
-        let string = process.charlist_from_str("<0.1.2").unwrap();
+        let string = process.charlist_from_str("<0.1.2");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing '>'", string)
         );
 
         assert_eq!(
-            result(&process, process.charlist_from_str("<0.1.2>").unwrap()),
+            result(&process, process.charlist_from_str("<0.1.2>")),
             Ok(Pid::make_term(1, 2).unwrap())
         );
 
         assert_badarg!(
-            result(&process, process.charlist_from_str("<0.1.2>?").unwrap()),
+            result(&process, process.charlist_from_str("<0.1.2>?")),
             "extra characters (\"?\") beyond end of formatted pid"
         );
     })
@@ -82,37 +82,37 @@ fn with_list_encoding_local_pid() {
 #[test]
 fn with_list_encoding_external_pid_without_known_node_errors_badarg() {
     with_process(|process| {
-        let string = process.charlist_from_str("<").unwrap();
+        let string = process.charlist_from_str("<");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing 'node.number.serial>'", string)
         );
 
-        let string = process.charlist_from_str("<2").unwrap();
+        let string = process.charlist_from_str("<2");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing '.number.serial>'", string)
         );
 
-        let string = process.charlist_from_str("<2.").unwrap();
+        let string = process.charlist_from_str("<2.");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing 'number.serial>'", string)
         );
 
-        let string = process.charlist_from_str("<2.3").unwrap();
+        let string = process.charlist_from_str("<2.3");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing '.serial>", string)
         );
 
-        let string = process.charlist_from_str("<2.3.").unwrap();
+        let string = process.charlist_from_str("<2.3.");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing 'serial>", string)
         );
 
-        let string = process.charlist_from_str("<2.3.").unwrap();
+        let string = process.charlist_from_str("<2.3.");
         assert_badarg!(
             result(&process, string),
             format!("string ({}) is missing 'serial>", string)
@@ -122,19 +122,19 @@ fn with_list_encoding_external_pid_without_known_node_errors_badarg() {
         let arc_node = Arc::new(Node::new(2, Atom::try_from_str("2@external").unwrap(), 0));
 
         assert_badarg!(
-            result(&process, process.charlist_from_str("<2.3.4>").unwrap()),
+            result(&process, process.charlist_from_str("<2.3.4>")),
             "No node with id (2)"
         );
 
         nodes::insert(arc_node.clone());
 
         assert_eq!(
-            result(&process, process.charlist_from_str("<2.3.4>").unwrap()),
+            result(&process, process.charlist_from_str("<2.3.4>")),
             Ok(process.external_pid(arc_node, 3, 4).unwrap())
         );
 
         assert_badarg!(
-            result(&process, process.charlist_from_str("<2.3.4>?").unwrap()),
+            result(&process, process.charlist_from_str("<2.3.4>?")),
             "extra characters (\"?\") beyond end of formatted pid"
         );
     });

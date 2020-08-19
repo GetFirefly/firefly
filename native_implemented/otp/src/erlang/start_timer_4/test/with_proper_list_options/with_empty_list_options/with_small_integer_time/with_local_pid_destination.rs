@@ -11,7 +11,7 @@ fn with_different_process_sends_message_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
 
             let destination_arc_process = test::process::child(&arc_process);
             let destination = destination_arc_process.pid_term();
@@ -36,9 +36,11 @@ fn with_different_process_sends_message_when_timer_expires() {
 
             prop_assert!(timer_reference.is_boxed_local_reference());
 
-            let timeout_message = arc_process
-                .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
-                .unwrap();
+            let timeout_message = arc_process.tuple_from_slice(&[
+                Atom::str_to_term("timeout"),
+                timer_reference,
+                message,
+            ]);
 
             prop_assert!(!has_message(&destination_arc_process, timeout_message));
 
@@ -62,7 +64,7 @@ fn with_same_process_sends_message_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
             let destination = arc_process.pid_term();
 
             let start_monotonic = freeze_timeout();
@@ -85,9 +87,11 @@ fn with_same_process_sends_message_when_timer_expires() {
 
             prop_assert!(timer_reference.is_boxed_local_reference());
 
-            let timeout_message = arc_process
-                .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
-                .unwrap();
+            let timeout_message = arc_process.tuple_from_slice(&[
+                Atom::str_to_term("timeout"),
+                timer_reference,
+                message,
+            ]);
 
             prop_assert!(!has_message(&arc_process, timeout_message));
 
@@ -112,7 +116,7 @@ fn without_process_sends_nothing_when_timer_expires() {
         },
         |(arc_process, milliseconds, message)| {
             let destination = Pid::next_term();
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
 
             let start_monotonic = freeze_timeout();
 
@@ -136,9 +140,11 @@ fn without_process_sends_nothing_when_timer_expires() {
 
             freeze_at_timeout(start_monotonic + milliseconds + Milliseconds(1));
 
-            let timeout_message = arc_process
-                .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
-                .unwrap();
+            let timeout_message = arc_process.tuple_from_slice(&[
+                Atom::str_to_term("timeout"),
+                timer_reference,
+                message,
+            ]);
 
             // does not send to original process either
             prop_assert!(!has_message(&arc_process, timeout_message));

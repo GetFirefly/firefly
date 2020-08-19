@@ -408,7 +408,7 @@ impl SchedulerTrait for Scheduler {
         );
         let pid = process.pid();
 
-        let closure = process.copy_closure(closure)?;
+        let closure = process.copy_closure(closure);
         Self::spawn_closure_internal(process, closure, self.id, &self.run_queues);
 
         Ok(pid)

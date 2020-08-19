@@ -30,14 +30,10 @@ fn without_proper_list_options_errors_badarg() {
                     strategy::term::is_not_list(arc_process.clone()),
                 )
                     .prop_map(|(arc_process, tail)| {
-                        arc_process
-                            .cons(
-                                arc_process
-                                    .tuple_from_slice(&[atom!("abs"), false.into()])
-                                    .unwrap(),
-                                tail,
-                            )
-                            .unwrap()
+                        arc_process.cons(
+                            arc_process.tuple_from_slice(&[atom!("abs"), false.into()]),
+                            tail,
+                        )
                     }),
             )
         },

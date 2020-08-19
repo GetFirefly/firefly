@@ -8,7 +8,7 @@ use crate::runtime::scheduler::SchedulerDependentAlloc;
 #[test]
 fn without_monitor_returns_true() {
     with_process_arc(|monitoring_arc_process| {
-        let reference = monitoring_arc_process.next_reference().unwrap();
+        let reference = monitoring_arc_process.next_reference();
 
         assert_eq!(
             result(
@@ -22,7 +22,5 @@ fn without_monitor_returns_true() {
 }
 
 fn options(process: &Process) -> Term {
-    process
-        .list_from_slice(&[Atom::str_to_term("flush")])
-        .unwrap()
+    process.list_from_slice(&[Atom::str_to_term("flush")])
 }

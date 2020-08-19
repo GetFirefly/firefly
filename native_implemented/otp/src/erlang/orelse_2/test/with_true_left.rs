@@ -17,7 +17,7 @@ fn with_true_right_returns_true() {
 
 #[test]
 fn with_local_reference_right_returns_true() {
-    with_right_returns_true(|process| process.next_reference().unwrap());
+    with_right_returns_true(|process| process.next_reference());
 }
 
 #[test]
@@ -27,26 +27,22 @@ fn with_empty_list_right_returns_true() {
 
 #[test]
 fn with_list_right_returns_true() {
-    with_right_returns_true(|process| {
-        process
-            .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
-            .unwrap()
-    });
+    with_right_returns_true(|process| process.cons(process.integer(0), process.integer(1)));
 }
 
 #[test]
 fn with_small_integer_right_returns_true() {
-    with_right_returns_true(|process| process.integer(1).unwrap())
+    with_right_returns_true(|process| process.integer(1))
 }
 
 #[test]
 fn with_big_integer_right_returns_true() {
-    with_right_returns_true(|process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap())
+    with_right_returns_true(|process| process.integer(SmallInteger::MAX_VALUE + 1))
 }
 
 #[test]
 fn with_float_right_returns_true() {
-    with_right_returns_true(|process| process.float(1.0).unwrap());
+    with_right_returns_true(|process| process.float(1.0));
 }
 
 #[test]
@@ -61,17 +57,17 @@ fn with_external_pid_right_returns_true() {
 
 #[test]
 fn with_tuple_right_returns_true() {
-    with_right_returns_true(|process| process.tuple_from_slice(&[]).unwrap());
+    with_right_returns_true(|process| process.tuple_from_slice(&[]));
 }
 
 #[test]
 fn with_map_is_right_returns_true() {
-    with_right_returns_true(|process| process.map_from_slice(&[]).unwrap());
+    with_right_returns_true(|process| process.map_from_slice(&[]));
 }
 
 #[test]
 fn with_heap_binary_right_returns_true() {
-    with_right_returns_true(|process| process.binary_from_bytes(&[]).unwrap());
+    with_right_returns_true(|process| process.binary_from_bytes(&[]));
 }
 
 #[test]

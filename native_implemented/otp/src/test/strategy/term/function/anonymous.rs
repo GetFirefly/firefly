@@ -42,12 +42,12 @@ pub fn unique() -> BoxedStrategy<[u8; 16]> {
 pub fn with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
     match arity {
         0 => prop_oneof![
-            Just(test::anonymous_0::anonymous_closure(&arc_process).unwrap()),
+            Just(test::anonymous_0::anonymous_closure(&arc_process)),
             without_native::with_arity(arc_process, arity)
         ]
         .boxed(),
         1 => prop_oneof![
-            Just(test::anonymous_1::anonymous_closure(&arc_process).unwrap()),
+            Just(test::anonymous_1::anonymous_closure(&arc_process)),
             without_native::with_arity(arc_process, arity)
         ]
         .boxed(),
@@ -65,18 +65,16 @@ pub fn without_native(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         creator(),
     )
         .prop_map(move |(module, index, old_unique, unique, arity, creator)| {
-            arc_process
-                .anonymous_closure_with_env_from_slice(
-                    module,
-                    index,
-                    old_unique,
-                    unique,
-                    arity,
-                    None,
-                    creator,
-                    &[],
-                )
-                .unwrap()
+            arc_process.anonymous_closure_with_env_from_slice(
+                module,
+                index,
+                old_unique,
+                unique,
+                arity,
+                None,
+                creator,
+                &[],
+            )
         })
         .boxed()
 }
@@ -87,8 +85,8 @@ pub fn with_native(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
             // MUST be functions in symbol table passed to `runtime::test::once` in
             // `test::process::init`.
             match arity {
-                0 => test::anonymous_0::anonymous_closure(&arc_process).unwrap(),
-                1 => test::anonymous_1::anonymous_closure(&arc_process).unwrap(),
+                0 => test::anonymous_0::anonymous_closure(&arc_process),
+                1 => test::anonymous_1::anonymous_closure(&arc_process),
                 _ => unreachable!("arity {}", arity),
             }
         })

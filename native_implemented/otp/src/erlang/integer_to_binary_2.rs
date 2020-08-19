@@ -10,7 +10,7 @@ use crate::erlang::integer_to_string::base_integer_to_string;
 #[native_implemented::function(erlang:integer_to_binary/2)]
 pub fn result(process: &Process, integer: Term, base: Term) -> exception::Result<Term> {
     let string = base_integer_to_string(base, integer)?;
-    let binary = process.binary_from_str(&string)?;
+    let binary = process.binary_from_str(&string);
 
     Ok(binary)
 }

@@ -121,8 +121,8 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
                     (
                         arc_process.clone(),
                         binary,
-                        arc_process.integer(start).unwrap(),
-                        arc_process.integer(length).unwrap(),
+                        arc_process.integer(start),
+                        arc_process.integer(length),
                         end,
                     )
                 })

@@ -22,8 +22,8 @@ fn in_same_thread_without_timeout_returns_milliseconds_remaining_and_does_not_se
         let milliseconds_remaining = first_result.unwrap();
 
         assert!(milliseconds_remaining.is_integer());
-        assert!(process.integer(0).unwrap() < milliseconds_remaining);
-        assert!(milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
+        assert!(process.integer(0) < milliseconds_remaining);
+        assert!(milliseconds_remaining <= process.integer(milliseconds / 2));
 
         // again before timeout
         assert_eq!(

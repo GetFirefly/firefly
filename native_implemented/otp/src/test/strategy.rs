@@ -93,7 +93,7 @@ pub fn with_negative_start_with_valid_length(
                 Just(binary),
                 Just(start),
                 (Just(arc_process.clone()), 0..=total_byte_len(binary))
-                    .prop_map(|(arc_process, length)| arc_process.integer(length).unwrap()),
+                    .prop_map(|(arc_process, length)| arc_process.integer(length)),
             )
         })
 }
@@ -125,9 +125,9 @@ pub fn with_start_greater_than_size_with_non_negative_length(
             (
                 Just(arc_process.clone()),
                 Just(binary),
-                Just(arc_process.integer(total_byte_len(binary) + 1).unwrap()),
+                Just(arc_process.integer(total_byte_len(binary) + 1)),
                 (Just(arc_process.clone()), 0..=total_byte_len(binary))
-                    .prop_map(|(arc_process, length)| arc_process.integer(length).unwrap()),
+                    .prop_map(|(arc_process, length)| arc_process.integer(length)),
             )
         })
 }
@@ -156,8 +156,8 @@ pub fn with_start_less_than_size_with_negative_length_past_start(
             (
                 arc_process.clone(),
                 binary,
-                arc_process.integer(start).unwrap(),
-                arc_process.integer(length).unwrap(),
+                arc_process.integer(start),
+                arc_process.integer(length),
                 end,
             )
         })

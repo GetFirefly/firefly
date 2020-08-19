@@ -35,7 +35,7 @@ pub fn result(process: &Process, index: Term, tuple: Term) -> exception::Result<
                             Some(*old_term)
                         }
                     });
-            let smaller_tuple = process.tuple_from_iter(smaller_element_iterator, smaller_len)?;
+            let smaller_tuple = process.tuple_from_iter(smaller_element_iterator, smaller_len);
 
             Ok(smaller_tuple)
         } else {

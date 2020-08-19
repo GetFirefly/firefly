@@ -14,9 +14,7 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
     let module = atom!("erlan");
     let function = atom!("+");
 
-    let arguments = parent_arc_process
-        .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
-        .unwrap();
+    let arguments = parent_arc_process.cons(parent_arc_process.integer(0), Term::NIL);
 
     let result = result(
         &parent_arc_process,

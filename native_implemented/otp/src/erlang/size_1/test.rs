@@ -49,10 +49,7 @@ fn with_tuple_returns_arity() {
             })
         },
         |(arc_process, size, term)| {
-            prop_assert_eq!(
-                result(&arc_process, term),
-                Ok(arc_process.integer(size).unwrap())
-            );
+            prop_assert_eq!(result(&arc_process, term), Ok(arc_process.integer(size)));
 
             Ok(())
         },
@@ -77,7 +74,7 @@ fn with_bitstring_is_byte_len() {
 
             prop_assert_eq!(
                 result(&arc_process, term),
-                Ok(arc_process.integer(full_byte_len).unwrap())
+                Ok(arc_process.integer(full_byte_len))
             );
 
             Ok(())

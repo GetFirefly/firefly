@@ -43,11 +43,15 @@ pub fn containing_bytes(byte_vec: Vec<u8>, arc_process: Arc<Process>) -> BoxedSt
             move |(byte_offset, bit_offset, byte_vec, mut original_byte_vec)| {
                 write_bytes(&mut original_byte_vec, byte_offset, bit_offset, &byte_vec);
 
-                let original = arc_process.binary_from_bytes(&original_byte_vec).unwrap();
+                let original = arc_process.binary_from_bytes(&original_byte_vec);
 
-                arc_process
-                    .subbinary_from_original(original, byte_offset, bit_offset, byte_vec.len(), 0)
-                    .unwrap()
+                arc_process.subbinary_from_original(
+                    original,
+                    byte_offset,
+                    bit_offset,
+                    byte_vec.len(),
+                    0,
+                )
             },
         )
         .boxed()
@@ -117,15 +121,13 @@ pub fn with_size_range(
         })
         .prop_map(
             move |(byte_offset, bit_offset, byte_count, bit_count, original)| {
-                subbinary_arc_process
-                    .subbinary_from_original(
-                        original,
-                        byte_offset,
-                        bit_offset,
-                        byte_count,
-                        bit_count,
-                    )
-                    .unwrap()
+                subbinary_arc_process.subbinary_from_original(
+                    original,
+                    byte_offset,
+                    bit_offset,
+                    byte_count,
+                    bit_count,
+                )
             },
         )
         .boxed()

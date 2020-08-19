@@ -1,5 +1,4 @@
 pub mod alloc;
-#[cfg(not(feature = "runtime_full"))]
 pub mod ffi;
 mod flags;
 mod frame;
@@ -14,7 +13,7 @@ pub mod priority;
 use core::cell::RefCell;
 use core::convert::TryInto;
 use core::ffi::c_void;
-use core::fmt;
+use core::fmt::{self, Debug};
 use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ops::DerefMut;
@@ -23,6 +22,8 @@ use core::str::Chars;
 use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
 
 use ::alloc::sync::Arc;
+
+use std::panic::catch_unwind;
 
 use anyhow::*;
 use dashmap::{DashMap, DashSet};
@@ -46,8 +47,7 @@ use super::*;
 use self::alloc::VirtualAllocator;
 use self::alloc::{Heap, HeapAlloc, TermAlloc};
 use self::alloc::{StackAlloc, StackPrimitives};
-#[cfg(not(feature = "runtime_full"))]
-use self::ffi::ProcessSignal;
+use self::ffi::{set_process_signal, ProcessSignal};
 pub use self::frame::{Frame, Native};
 pub use self::frame_with_arguments::FrameWithArguments;
 pub use self::frames::{Frames, StackTrace};
@@ -318,6 +318,21 @@ impl Process {
         Ok(data)
     }
 
+    pub fn attach_fragment_or_panic<T>(
+        &self,
+        alloc_result: AllocResult<(T, NonNull<HeapFragment>)>,
+    ) -> T {
+        match alloc_result {
+            Ok((t, mut non_null_heap_fragment)) => {
+                self.attach_fragment(unsafe { non_null_heap_fragment.as_mut() });
+                set_process_signal(ProcessSignal::GarbageCollect);
+
+                t
+            }
+            Err(alloc) => panic!(alloc),
+        }
+    }
+
     /// Attaches a `HeapFragment` to this processes' off-heap fragment list
     #[inline]
     pub fn attach_fragment(&self, fragment: &mut HeapFragment) {
@@ -554,12 +569,18 @@ impl Process {
 
     // Terms
 
-    pub fn binary_from_bytes(&self, bytes: &[u8]) -> AllocResult<Term> {
-        self.acquire_heap().binary_from_bytes(bytes)
+    pub fn binary_from_bytes(&self, bytes: &[u8]) -> Term {
+        match self.acquire_heap().binary_from_bytes(bytes) {
+            Ok(term) => term,
+            Err(_) => self.attach_fragment_or_panic(HeapFragment::new_binary_from_bytes(bytes)),
+        }
     }
 
-    pub fn binary_from_str(&self, s: &str) -> AllocResult<Term> {
-        self.acquire_heap().binary_from_str(s)
+    pub fn binary_from_str(&self, s: &str) -> Term {
+        match self.acquire_heap().binary_from_str(s) {
+            Ok(term) => term,
+            Err(_) => self.attach_fragment_or_panic(HeapFragment::new_binary_from_str(s)),
+        }
     }
 
     pub fn bytes_from_binary<'process>(
@@ -574,15 +595,20 @@ impl Process {
         heap.bytes_from_binary(binary)
     }
 
-    pub fn charlist_from_str(&self, s: &str) -> AllocResult<Term> {
-        self.acquire_heap()
-            .charlist_from_str(s)
-            .map(|list| list.into())
+    pub fn charlist_from_str(&self, s: &str) -> Term {
+        match self.acquire_heap().charlist_from_str(s) {
+            Ok(list) => list,
+            Err(_) => self.attach_fragment_or_panic(HeapFragment::new_charlist_from_str(s)),
+        }
+        .into()
     }
 
     #[inline]
-    pub fn copy_closure(&self, closure: Boxed<Closure>) -> AllocResult<Boxed<Closure>> {
-        self.acquire_heap().copy_closure(closure)
+    pub fn copy_closure(&self, closure: Boxed<Closure>) -> Boxed<Closure> {
+        match self.acquire_heap().copy_closure(closure) {
+            Ok(boxed_closure) => boxed_closure,
+            Err(_) => self.attach_fragment_or_panic(HeapFragment::new_copy_closure(closure)),
+        }
     }
 
     pub fn anonymous_closure_with_env_from_slice(
@@ -595,12 +621,26 @@ impl Process {
         native: Option<NonNull<c_void>>,
         creator: Creator,
         slice: &[Term],
-    ) -> AllocResult<Term> {
-        self.acquire_heap()
-            .anonymous_closure_with_env_from_slice(
-                module, index, old_unique, unique, arity, native, creator, slice,
-            )
-            .map(|term_ptr| term_ptr.into())
+    ) -> Term {
+        let boxed_closure = match self.acquire_heap().anonymous_closure_with_env_from_slice(
+            module,
+            index,
+            old_unique,
+            unique,
+            arity,
+            native,
+            creator.clone(),
+            slice,
+        ) {
+            Ok(boxed_closure) => boxed_closure,
+            Err(_) => self.attach_fragment_or_panic(
+                HeapFragment::new_anonymous_closure_with_env_from_slice(
+                    module, index, old_unique, unique, arity, native, creator, slice,
+                ),
+            ),
+        };
+
+        boxed_closure.into()
     }
 
     pub fn export_closure(
@@ -609,17 +649,23 @@ impl Process {
         function: Atom,
         arity: u8,
         native: Option<NonNull<c_void>>,
-    ) -> AllocResult<Term> {
+    ) -> Term {
         self.acquire_heap()
             .export_closure(module, function, arity, native)
-            .map(|term_ptr| term_ptr.into())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_export_closure(
+                    module, function, arity, native,
+                ))
+            })
+            .into()
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
-    pub fn cons(&self, head: Term, tail: Term) -> AllocResult<Term> {
+    pub fn cons(&self, head: Term, tail: Term) -> Term {
         self.acquire_heap()
             .cons(head, tail)
-            .map(|boxed| boxed.into())
+            .unwrap_or_else(|_| self.attach_fragment_or_panic(HeapFragment::new_cons(head, tail)))
+            .into()
     }
 
     pub fn external_pid(
@@ -633,48 +679,84 @@ impl Process {
             .map(|pid| pid.into())
     }
 
-    pub fn float(&self, f: f64) -> AllocResult<Term> {
-        self.acquire_heap().float(f).map(|f| f.into())
-    }
-
-    pub fn integer<I: Into<Integer>>(&self, i: I) -> AllocResult<Term> {
-        self.acquire_heap().integer(i)
-    }
-
-    pub fn list_from_chars(&self, chars: Chars) -> AllocResult<Term> {
+    pub fn float(&self, f: f64) -> Term {
         self.acquire_heap()
-            .list_from_chars(chars)
-            .map(Self::optional_cons_to_term)
+            .float(f)
+            .unwrap_or_else(|_| self.attach_fragment_or_panic(HeapFragment::new_float(f)))
+            .into()
     }
 
-    pub fn list_from_iter<I>(&self, iter: I) -> AllocResult<Term>
+    pub fn integer<I: Clone + Into<Integer>>(&self, i: I) -> Term {
+        match self.acquire_heap().integer(i.clone()) {
+            Ok(term) => term,
+            Err(_) => match i.into() {
+                Integer::Small(small) => small.into(),
+                Integer::Big(big) => self.attach_fragment_or_panic(big.clone_to_fragment()),
+            },
+        }
+    }
+
+    pub fn list_from_chars(&self, chars: Chars) -> Term {
+        let optional_cons = self
+            .acquire_heap()
+            .list_from_chars(chars.clone())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_list_from_chars(chars))
+            });
+
+        Self::optional_cons_to_term(optional_cons)
+    }
+
+    pub fn list_from_iter<I>(&self, iter: I) -> Term
     where
-        I: DoubleEndedIterator + Iterator<Item = Term>,
+        I: Clone + Debug + DoubleEndedIterator + Iterator<Item = Term>,
     {
-        self.acquire_heap()
-            .list_from_iter(iter)
-            .map(Self::optional_cons_to_term)
+        let optional_cons = self
+            .acquire_heap()
+            .list_from_iter(iter.clone())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_list_from_iter(iter))
+            });
+
+        Self::optional_cons_to_term(optional_cons)
     }
 
-    pub fn list_from_slice(&self, slice: &[Term]) -> AllocResult<Term> {
-        self.acquire_heap()
+    pub fn list_from_slice(&self, slice: &[Term]) -> Term {
+        let optional_cons = self
+            .acquire_heap()
             .list_from_slice(slice)
-            .map(Self::optional_cons_to_term)
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_list_from_slice(slice))
+            });
+
+        Self::optional_cons_to_term(optional_cons)
     }
 
-    pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> AllocResult<Term>
+    pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> Term
     where
-        I: DoubleEndedIterator + Iterator<Item = Term>,
+        I: Clone + Debug + DoubleEndedIterator + Iterator<Item = Term>,
     {
-        self.acquire_heap()
-            .improper_list_from_iter(iter, last)
-            .map(Self::optional_cons_to_term)
+        let optional_cons = self
+            .acquire_heap()
+            .improper_list_from_iter(iter.clone(), last)
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_improper_list_from_iter(iter, last))
+            });
+
+        Self::optional_cons_to_term(optional_cons)
     }
 
-    pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> AllocResult<Term> {
-        self.acquire_heap()
+    pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> Term {
+        let optional_cons = self
+            .acquire_heap()
             .improper_list_from_slice(slice, tail)
-            .map(Self::optional_cons_to_term)
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_improper_list_from_slice(
+                    slice, tail,
+                ))
+            });
+
+        Self::optional_cons_to_term(optional_cons)
     }
 
     #[inline]
@@ -685,19 +767,26 @@ impl Process {
         }
     }
 
-    pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> AllocResult<Term> {
+    pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> Term {
         self.acquire_heap()
-            .map_from_hash_map(hash_map)
-            .map(|map| map.into())
+            .map_from_hash_map(hash_map.clone())
+            .map(|boxed_map| boxed_map.into())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_map_from_hash_map(hash_map))
+            })
+            .into()
     }
 
-    pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> AllocResult<Term> {
+    pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> Term {
         self.acquire_heap()
             .map_from_slice(slice)
-            .map(|map| map.into())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_map_from_slice(slice))
+            })
+            .into()
     }
 
-    pub fn reference(&self, number: ReferenceNumber) -> AllocResult<Term> {
+    pub fn reference(&self, number: ReferenceNumber) -> Term {
         self.reference_from_scheduler(self.scheduler_id.lock().unwrap(), number)
     }
 
@@ -705,14 +794,20 @@ impl Process {
         &self,
         scheduler_id: scheduler::ID,
         number: ReferenceNumber,
-    ) -> AllocResult<Term> {
+    ) -> Term {
         self.acquire_heap()
             .reference(scheduler_id, number)
-            .map(|ref_ptr| ref_ptr.into())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_reference(scheduler_id, number))
+            })
+            .into()
     }
 
-    pub fn resource<V: 'static>(&self, value: V) -> AllocResult<Term> {
-        self.acquire_heap().resource(value).map(|r| r.into())
+    pub fn resource<V: Clone + 'static>(&self, value: V) -> Term {
+        self.acquire_heap()
+            .resource(value.clone())
+            .unwrap_or_else(|_| self.attach_fragment_or_panic(HeapFragment::new_resource(value)))
+            .into()
     }
 
     pub fn subbinary_from_original(
@@ -722,7 +817,7 @@ impl Process {
         bit_offset: u8,
         full_byte_len: usize,
         partial_byte_bit_len: u8,
-    ) -> AllocResult<Term> {
+    ) -> Term {
         self.acquire_heap()
             .subbinary_from_original(
                 original,
@@ -731,57 +826,64 @@ impl Process {
                 full_byte_len,
                 partial_byte_bit_len,
             )
-            .map(|sub_ptr| sub_ptr.into())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_subbinary_from_original(
+                    original,
+                    byte_offset,
+                    bit_offset,
+                    full_byte_len,
+                    partial_byte_bit_len,
+                ))
+            })
+            .into()
     }
 
-    pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> AllocResult<Term>
+    pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> Term
     where
-        I: Iterator<Item = Term>,
+        I: Clone + Iterator<Item = Term>,
     {
         self.acquire_heap()
-            .tuple_from_iter(iterator, len)
-            .map(|tup_ptr| tup_ptr.into())
+            .tuple_from_iter(iterator.clone(), len)
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_tuple_from_iter(iterator, len))
+            })
+            .into()
     }
 
-    pub fn tuple_from_slice(&self, slice: &[Term]) -> AllocResult<Term> {
+    pub fn tuple_from_slice(&self, slice: &[Term]) -> Term {
         self.acquire_heap()
             .tuple_from_slice(slice)
-            .map(|tup_ptr| tup_ptr.into())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_tuple_from_slice(slice))
+            })
+            .into()
     }
 
-    pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> AllocResult<Term> {
+    pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> Term {
         self.acquire_heap()
             .tuple_from_slices(slices)
-            .map(|tup_ptr| tup_ptr.into())
+            .unwrap_or_else(|_| {
+                self.attach_fragment_or_panic(HeapFragment::new_tuple_from_slices(slices))
+            })
+            .into()
     }
 
     // Process Dictionary
 
     /// Puts a new value under the given key in the process dictionary
-    pub fn put(&self, key: Term, value: Term) -> exception::Result<Term> {
+    pub fn put(&self, key: Term, value: Term) -> Term {
         assert!(key.is_valid(), "invalid key term for process dictionary");
         assert!(
             value.is_valid(),
             "invalid value term for process dictionary"
         );
 
-        // hold heap lock before dictionary lock
-        let mut heap = self.acquire_heap();
+        let process_key = key.clone_to_process(self);
+        let process_value = value.clone_to_process(self);
 
-        let heap_key = if key.is_immediate() {
-            key
-        } else {
-            key.clone_to_heap(&mut heap)?
-        };
-        let heap_value = if value.is_immediate() {
-            value
-        } else {
-            value.clone_to_heap(&mut heap)?
-        };
-
-        match self.dictionary.insert(heap_key, heap_value) {
-            None => Ok(atom!("undefined")),
-            Some(old_value) => Ok(old_value),
+        match self.dictionary.insert(process_key, process_value) {
+            None => atom!("undefined"),
+            Some(old_value) => old_value,
         }
     }
 
@@ -799,57 +901,29 @@ impl Process {
     }
 
     /// Returns all key/value pairs from process dictionary
-    pub fn get_entries(&self) -> AllocResult<Term> {
-        let mut heap = self.heap.lock();
+    pub fn get_entries(&self) -> Term {
+        let entry_vec: Vec<Term> = self
+            .dictionary
+            .iter()
+            .map(|entry| {
+                let key = entry.key();
+                let value = entry.value();
+                self.tuple_from_slice(&[*key, *value])
+            })
+            .collect();
 
-        let len = self.dictionary.len();
-        let entry_need = Tuple::layout_for_len(2);
-        let entry_need_in_words = erts::to_word_size(entry_need.size());
-        let need_in_words = Cons::need_in_words_from_len(len) + len * entry_need_in_words;
-
-        if need_in_words <= heap.heap_available() {
-            let entry_vec: Vec<Term> = self
-                .dictionary
-                .iter()
-                .map(|entry| {
-                    let key = entry.key();
-                    let value = entry.value();
-                    heap.tuple_from_slice(&[*key, *value]).unwrap().into()
-                })
-                .collect();
-
-            Ok(heap
-                .list_from_slice(&entry_vec)
-                .map(|list| list.into())
-                .unwrap())
-        } else {
-            Err(alloc!())
-        }
+        self.list_from_slice(&entry_vec).into()
     }
 
     /// Returns list of all keys from the process dictionary.
-    pub fn get_keys(&self) -> AllocResult<Term> {
-        let mut heap = self.heap.lock();
+    pub fn get_keys(&self) -> Term {
+        let entry_vec: Vec<Term> = self.dictionary.iter().map(|entry| *entry.key()).collect();
 
-        let len = self.dictionary.len();
-        let need_in_words = Cons::need_in_words_from_len(len);
-
-        if need_in_words <= heap.heap_available() {
-            let entry_vec: Vec<Term> = self.dictionary.iter().map(|entry| *entry.key()).collect();
-
-            Ok(heap
-                .list_from_slice(&entry_vec)
-                .map(|list| list.into())
-                .unwrap())
-        } else {
-            Err(alloc!())
-        }
+        self.list_from_slice(&entry_vec)
     }
 
     /// Returns list of all keys from the process dictionary that have `value`.
-    pub fn get_keys_from_value(&self, value: Term) -> AllocResult<Term> {
-        let mut heap = self.heap.lock();
-
+    pub fn get_keys_from_value(&self, value: Term) -> Term {
         let key_vec: Vec<Term> = self
             .dictionary
             .iter()
@@ -864,37 +938,15 @@ impl Process {
             })
             .collect();
 
-        heap.list_from_slice(&key_vec).map(|list| list.into())
+        self.list_from_slice(&key_vec)
     }
 
     /// Removes all key/value pairs from process dictionary and returns list of the entries.
-    pub fn erase_entries(&self) -> AllocResult<Term> {
-        let mut heap = self.heap.lock();
+    pub fn erase_entries(&self) -> Term {
+        let entries = self.get_entries();
+        self.dictionary.clear();
 
-        let len = self.dictionary.len();
-        let entry_need = Tuple::layout_for_len(2);
-        let entry_need_in_words = erts::to_word_size(entry_need.size());
-        let need_in_words = Cons::need_in_words_from_len(len) + len * entry_need_in_words;
-
-        if need_in_words <= heap.heap_available() {
-            let entry_vec: Vec<Term> = self
-                .dictionary
-                .iter()
-                .map(|entry| {
-                    let key = entry.key();
-                    let value = entry.value();
-                    heap.tuple_from_slice(&[*key, *value]).unwrap().into()
-                })
-                .collect();
-            self.dictionary.clear();
-
-            Ok(heap
-                .list_from_slice(&entry_vec)
-                .map(|list| list.into())
-                .unwrap())
-        } else {
-            Err(alloc!())
-        }
+        entries
     }
 
     /// Removes key/value pair from process dictionary and returns value for `key`.  If `key` is not
@@ -1134,16 +1186,11 @@ impl Process {
         *self.status.write() = Status::RuntimeException(exception);
     }
 
-    #[cfg(not(feature = "runtime_full"))]
     /// Returns `Term::NONE` to indicate a (runtime or system) exception was recorded in status
     pub fn return_status(&self, result: exception::Result<Term>) -> Term {
         match result {
             Ok(term) => term,
             Err(exception) => match exception {
-                Exception::System(SystemException::Alloc(_)) => {
-                    self::ffi::set_process_signal(ProcessSignal::GarbageCollect);
-                    Term::NONE
-                }
                 Exception::System(system_exception) => {
                     panic!("{}", &system_exception);
                 }
@@ -1151,25 +1198,6 @@ impl Process {
                     self::ffi::process_raise(self, runtime_exception);
                 }
             },
-        }
-    }
-
-    #[cfg(feature = "runtime_full")]
-    pub fn return_status(&self, result: exception::Result<Term>) -> Term {
-        match result {
-            Ok(term) => term,
-            Err(exception) => {
-                *self.status.write() = match exception {
-                    Exception::System(system_exception) => {
-                        Status::SystemException(system_exception)
-                    }
-                    Exception::Runtime(runtime_exception) => {
-                        Status::RuntimeException(runtime_exception)
-                    }
-                };
-
-                Term::NONE
-            }
         }
     }
 
@@ -1217,53 +1245,63 @@ impl Process {
             arguments.push(argument);
         }
 
-        let returned = native.apply(&arguments);
+        let result = catch_unwind(|| native.apply(&arguments));
 
-        let called_current_native = if returned.is_none() {
-            match *self.status.read() {
-                Status::Unrunnable => unreachable!("Process ({}) should only be unrunnable when first created. not after calling a native function", self),
-                Status::Runnable => unreachable!("Process ({}) should remain in Running and no go to Runnable inside a native function", self),
-                // both running and waiting need to have queued up their re-entry point
-                Status::Running => {
+        match result {
+            Ok(returned) => {
+                let called_current_native = if returned.is_none() {
+                    match *self.status.read() {
+                        Status::Unrunnable => unreachable!("Process ({}) should only be unrunnable when first created. not after calling a native function", self),
+                        Status::Runnable => unreachable!("Process ({}) should remain in Running and no go to Runnable inside a native function", self),
+                        // both running and waiting need to have queued up their re-entry point
+                        Status::Running => {
+                            // remove completed frame now that it isn't needed for backtrace
+                            self.frames.lock().pop().unwrap();
+                            self.stack_popn(arity);
+
+                            self.stack_queued_frames_with_arguments();
+
+                            // unlike with non-Term::NONE `returned`, don't push `returned`
+                            CalledCurrentNative::Runnable
+                        }
+                        Status::Waiting => {
+                            // remove completed frame now that it isn't needed for backtrace
+                            self.frames.lock().pop().unwrap();
+                            self.stack_popn(arity);
+
+                            self.stack_queued_frames_with_arguments();
+
+                            // unlike with non-Term::NONE `returned`, don't push `returned`
+                            CalledCurrentNative::Waiting
+                        },
+                        Status::RuntimeException(_) => CalledCurrentNative::RuntimeException,
+                        Status::SystemException(_) => CalledCurrentNative::SystemException
+                    }
+                } else {
+                    assert_eq!(*self.status.read(), Status::Running);
                     // remove completed frame now that it isn't needed for backtrace
                     self.frames.lock().pop().unwrap();
                     self.stack_popn(arity);
 
                     self.stack_queued_frames_with_arguments();
 
-                    // unlike with non-Term::NONE `returned`, don't push `returned`
-                    CalledCurrentNative::Runnable
-                }
-                Status::Waiting => {
-                    // remove completed frame now that it isn't needed for backtrace
-                    self.frames.lock().pop().unwrap();
-                    self.stack_popn(arity);
+                    match self.stack_push(returned) {
+                        Ok(()) => CalledCurrentNative::Runnable,
+                        Err(_) => {
+                            unimplemented!("Stack over flow");
+                        }
+                    }
+                };
 
-                    self.stack_queued_frames_with_arguments();
-
-                    // unlike with non-Term::NONE `returned`, don't push `returned`
-                    CalledCurrentNative::Waiting
-                },
-                Status::RuntimeException(_) => CalledCurrentNative::RuntimeException,
-                Status::SystemException(_) => CalledCurrentNative::SystemException
+                called_current_native
             }
-        } else {
-            assert_eq!(*self.status.read(), Status::Running);
-            // remove completed frame now that it isn't needed for backtrace
-            self.frames.lock().pop().unwrap();
-            self.stack_popn(arity);
+            Err(error) => {
+                let runtime_exception = error.downcast_ref::<RuntimeException>().unwrap();
+                *self.status.write() = Status::RuntimeException(runtime_exception.clone());
 
-            self.stack_queued_frames_with_arguments();
-
-            match self.stack_push(returned) {
-                Ok(()) => CalledCurrentNative::Runnable,
-                Err(_) => {
-                    unimplemented!("Stack over flow");
-                }
+                CalledCurrentNative::RuntimeException
             }
-        };
-
-        called_current_native
+        }
     }
 
     pub fn stack_queued_frames_with_arguments(&self) {

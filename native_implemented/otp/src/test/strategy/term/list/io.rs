@@ -28,9 +28,7 @@ pub fn recursive_element(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
                     tail(arc_process.clone()),
                 )
                     .prop_map(|(arc_process, elements, tail)| {
-                        arc_process
-                            .improper_list_from_slice(&elements, tail)
-                            .unwrap()
+                        arc_process.improper_list_from_slice(&elements, tail)
                     })
                     .boxed()
             },
@@ -49,9 +47,7 @@ pub fn root(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         tail(arc_process),
     )
         .prop_map(|(arc_process, elements, tail)| {
-            arc_process
-                .improper_list_from_slice(&elements, tail)
-                .unwrap()
+            arc_process.improper_list_from_slice(&elements, tail)
         })
         .boxed()
 }

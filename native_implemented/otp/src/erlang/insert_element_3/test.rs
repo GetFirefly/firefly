@@ -89,8 +89,8 @@ fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tup
                         arc_process.clone(),
                         element_vec.clone(),
                         zero_based_index,
-                        arc_process.tuple_from_slice(&element_vec).unwrap(),
-                        arc_process.integer(zero_based_index + 1).unwrap(),
+                        arc_process.tuple_from_slice(&element_vec),
+                        arc_process.integer(zero_based_index + 1),
                         element,
                     )
                 })
@@ -100,7 +100,7 @@ fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tup
 
             prop_assert_eq!(
                 result(&arc_process, index, tuple, element),
-                Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
+                Ok(arc_process.tuple_from_slice(&element_vec))
             );
 
             Ok(())

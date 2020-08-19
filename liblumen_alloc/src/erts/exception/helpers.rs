@@ -14,40 +14,32 @@ pub fn badarith(source: ArcError) -> RuntimeException {
 }
 
 pub fn badarity(process: &Process, fun: Term, args: Term, source: ArcError) -> Exception {
-    match process.tuple_from_slice(&[fun, args]) {
-        Ok(fun_args) => {
-            let tag = atom("badarity");
-            match process.tuple_from_slice(&[tag, fun_args]) {
-                Ok(reason) => Exception::Runtime(self::error(reason, None, None, source)),
-                Err(err) => err.into(),
-            }
-        }
-        Err(err) => err.into(),
-    }
+    let fun_args = process.tuple_from_slice(&[fun, args]);
+    let tag = atom("badarity");
+    let reason = process.tuple_from_slice(&[tag, fun_args]);
+
+    Exception::Runtime(self::error(reason, None, None, source))
 }
 
 pub fn badfun(process: &Process, fun: Term, source: ArcError) -> Exception {
     let tag = atom("badfun");
-    match process.tuple_from_slice(&[tag, fun]) {
-        Ok(reason) => Exception::Runtime(self::error(reason, None, None, source)),
-        Err(err) => err.into(),
-    }
+    let reason = process.tuple_from_slice(&[tag, fun]);
+
+    Exception::Runtime(self::error(reason, None, None, source))
 }
 
 pub fn badkey(process: &Process, key: Term, source: ArcError) -> Exception {
     let tag = atom("badkey");
-    match process.tuple_from_slice(&[tag, key]) {
-        Ok(reason) => Exception::Runtime(self::error(reason, None, None, source)),
-        Err(err) => err.into(),
-    }
+    let reason = process.tuple_from_slice(&[tag, key]);
+
+    Exception::Runtime(self::error(reason, None, None, source))
 }
 
 pub fn badmap(process: &Process, map: Term, source: ArcError) -> Exception {
     let tag = atom("badmap");
-    match process.tuple_from_slice(&[tag, map]) {
-        Ok(reason) => Exception::Runtime(self::error(reason, None, None, source)),
-        Err(err) => err.into(),
-    }
+    let reason = process.tuple_from_slice(&[tag, map]);
+
+    Exception::Runtime(self::error(reason, None, None, source))
 }
 
 pub fn undef(
@@ -60,13 +52,10 @@ pub fn undef(
 ) -> Exception {
     let reason = atom("undef");
     // TODO empty list should be the location `[file: charlist(), line: integer()]`
-    match process.tuple_from_slice(&[m, f, a, Term::NIL]) {
-        Ok(top) => match process.cons(top, stacktrace_tail) {
-            Ok(stacktrace) => Exception::Runtime(self::exit(reason, Some(stacktrace), source)),
-            Err(err) => err.into(),
-        },
-        Err(err) => err.into(),
-    }
+    let top = process.tuple_from_slice(&[m, f, a, Term::NIL]);
+    let stacktrace = process.cons(top, stacktrace_tail);
+
+    Exception::Runtime(self::exit(reason, Some(stacktrace), source))
 }
 
 #[inline]

@@ -11,7 +11,7 @@ use lazy_static::lazy_static;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
-use liblumen_alloc::erts::exception::{self, AllocResult, SystemException};
+use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::Process;
 pub use liblumen_alloc::erts::scheduler::id::ID;
 use liblumen_alloc::erts::term::prelude::*;
@@ -174,11 +174,11 @@ pub trait Scheduler: Debug + Send + Sync {
 }
 
 pub trait SchedulerDependentAlloc {
-    fn next_reference(&self) -> AllocResult<Term>;
+    fn next_reference(&self) -> Term;
 }
 
 impl SchedulerDependentAlloc for Process {
-    fn next_reference(&self) -> AllocResult<Term> {
+    fn next_reference(&self) -> Term {
         let scheduler_id = self.scheduler_id().unwrap();
         let arc_scheduler = from_id(&scheduler_id).unwrap();
         let number = arc_scheduler.next_reference_number();
@@ -194,14 +194,12 @@ pub struct Spawned {
 }
 
 impl Spawned {
-    pub fn to_term(&self, process: &Process) -> exception::Result<Term> {
+    pub fn to_term(&self, process: &Process) -> Term {
         let pid_term = self.arc_process.pid_term();
 
         match self.connection.monitor_reference {
-            Some(monitor_reference) => process
-                .tuple_from_slice(&[pid_term, monitor_reference])
-                .map_err(|alloc| alloc.into()),
-            None => Ok(pid_term),
+            Some(monitor_reference) => process.tuple_from_slice(&[pid_term, monitor_reference]),
+            None => pid_term,
         }
     }
 }

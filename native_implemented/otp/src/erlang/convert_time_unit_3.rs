@@ -25,7 +25,7 @@ pub fn result(
     let from_unit_unit = term_try_into_time_unit!(from_unit)?;
     let to_unit_unit = term_try_into_time_unit!(to_unit)?;
     let converted_big_int = time::convert(time_big_int, from_unit_unit, to_unit_unit);
-    let converted_term = process.integer(converted_big_int)?;
+    let converted_term = process.integer(converted_big_int);
 
     Ok(converted_term)
 }

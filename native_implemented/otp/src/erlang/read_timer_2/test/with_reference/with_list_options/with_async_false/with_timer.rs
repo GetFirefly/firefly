@@ -18,8 +18,8 @@ fn without_timeout_returns_milliseconds() {
         let first_milliseconds_remaining = first_result.unwrap();
 
         assert!(first_milliseconds_remaining.is_integer());
-        assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
-        assert!(first_milliseconds_remaining <= process.integer(half_milliseconds).unwrap());
+        assert!(process.integer(0) < first_milliseconds_remaining);
+        assert!(first_milliseconds_remaining <= process.integer(half_milliseconds));
 
         // again before timeout
         let second_milliseconds_remaining =

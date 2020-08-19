@@ -32,59 +32,45 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_second_returns
 
 #[test]
 fn with_prefix_heap_binary_second_returns_second() {
-    min(
-        |_, process| process.binary_from_bytes(&[1]).unwrap(),
-        Second,
-    );
+    min(|_, process| process.binary_from_bytes(&[1]), Second);
 }
 
 #[test]
 fn with_same_length_heap_binary_with_lesser_byte_second_returns_second() {
-    min(
-        |_, process| process.binary_from_bytes(&[0]).unwrap(),
-        Second,
-    );
+    min(|_, process| process.binary_from_bytes(&[0]), Second);
 }
 
 #[test]
 fn with_longer_heap_binary_with_lesser_byte_second_returns_second() {
-    min(
-        |_, process| process.binary_from_bytes(&[0, 1, 2]).unwrap(),
-        Second,
-    );
+    min(|_, process| process.binary_from_bytes(&[0, 1, 2]), Second);
 }
 
 #[test]
 fn with_same_value_heap_binary_second_returns_first() {
     super::min(
         |process| {
-            let original = process.binary_from_bytes(&[1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 1, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[1]);
+            process.subbinary_from_original(original, 0, 0, 1, 0)
         },
-        |_, process| process.binary_from_bytes(&[1]).unwrap(),
+        |_, process| process.binary_from_bytes(&[1]),
         First,
     )
 }
 
 #[test]
 fn with_shorter_heap_binary_with_greater_byte_second_returns_first() {
-    min(|_, process| process.binary_from_bytes(&[2]).unwrap(), First);
+    min(|_, process| process.binary_from_bytes(&[2]), First);
 }
 
 #[test]
 fn with_heap_binary_with_greater_byte_second_returns_first() {
-    min(
-        |_, process| process.binary_from_bytes(&[2, 1]).unwrap(),
-        First,
-    );
+    min(|_, process| process.binary_from_bytes(&[2, 1]), First);
 }
 
 #[test]
 fn with_heap_binary_with_greater_byte_than_bits_second_returns_first() {
     min(
-        |_, process| process.binary_from_bytes(&[1, 0b1000_0000]).unwrap(),
+        |_, process| process.binary_from_bytes(&[1, 0b1000_0000]),
         First,
     );
 }
@@ -93,10 +79,8 @@ fn with_heap_binary_with_greater_byte_than_bits_second_returns_first() {
 fn with_prefix_subbinary_second_returns_second() {
     min(
         |_, process| {
-            let original = process.binary_from_bytes(&[1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 1, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[1]);
+            process.subbinary_from_original(original, 0, 0, 1, 0)
         },
         Second,
     );
@@ -106,10 +90,8 @@ fn with_prefix_subbinary_second_returns_second() {
 fn with_same_length_subbinary_with_lesser_byte_second_returns_second() {
     min(
         |_, process| {
-            let original = process.binary_from_bytes(&[0, 1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[0, 1]);
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         Second,
     );
@@ -134,10 +116,8 @@ fn with_same_value_subbinary_second_returns_first() {
 fn with_shorter_subbinary_with_greater_byte_second_returns_first() {
     min(
         |_, process| {
-            let original = process.binary_from_bytes(&[2]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 1, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[2]);
+            process.subbinary_from_original(original, 0, 0, 1, 0)
         },
         First,
     );
@@ -147,10 +127,8 @@ fn with_shorter_subbinary_with_greater_byte_second_returns_first() {
 fn with_subbinary_with_greater_byte_second_returns_first() {
     min(
         |_, process| {
-            let original = process.binary_from_bytes(&[2, 1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[2, 1]);
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         First,
     );
@@ -160,10 +138,8 @@ fn with_subbinary_with_greater_byte_second_returns_first() {
 fn with_subbinary_with_different_greater_byte_second_returns_first() {
     min(
         |_, process| {
-            let original = process.binary_from_bytes(&[1, 2]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[1, 2]);
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         First,
     );

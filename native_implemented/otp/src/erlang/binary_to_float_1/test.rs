@@ -50,10 +50,7 @@ fn with_binary_with_f64_returns_floats() {
             })
         },
         |(arc_process, f, binary)| {
-            prop_assert_eq!(
-                result(&arc_process, binary),
-                Ok(arc_process.float(f).unwrap())
-            );
+            prop_assert_eq!(result(&arc_process, binary), Ok(arc_process.float(f)));
 
             Ok(())
         },

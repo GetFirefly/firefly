@@ -24,7 +24,7 @@ pub fn result(process: &Process, dividend: Term, divisor: Term) -> exception::Re
         Err(badarith(anyhow!("divisor ({}) cannot be zero", divisor).into()).into())
     } else {
         let quotient_f64 = dividend_f64 / divisor_f64;
-        let quotient_term = process.float(quotient_f64)?;
+        let quotient_term = process.float(quotient_f64);
 
         Ok(quotient_term)
     }

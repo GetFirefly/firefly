@@ -58,7 +58,7 @@ mod integer {
     fn with_negative_can_convert_back_to_isize() {
         let process = process();
         let i: isize = -1;
-        let negative = process.integer(i).unwrap();
+        let negative = process.integer(i);
 
         let negative_isize: isize = negative.try_into().unwrap();
 

@@ -9,8 +9,8 @@ fn with_invalid_option() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |option| {
-                let timer_reference = arc_process.next_reference().unwrap();
-                let options = arc_process.cons(option, Term::NIL).unwrap();
+                let timer_reference = arc_process.next_reference();
+                let options = arc_process.cons(option, Term::NIL);
 
                 prop_assert_badarg!(
                     result(&arc_process, timer_reference, options),
@@ -32,9 +32,7 @@ fn info_option(value: bool, process: &Process) -> Term {
 }
 
 fn option(key: &str, value: bool, process: &Process) -> Term {
-    process
-        .tuple_from_slice(&[Atom::str_to_term(key), value.into()])
-        .unwrap()
+    process.tuple_from_slice(&[Atom::str_to_term(key), value.into()])
 }
 
 fn with_timer_in_same_thread_without_timeout_returns_ok_and_does_not_send_timeout_message(
@@ -97,7 +95,7 @@ fn with_timer_in_same_thread_with_timeout_returns_ok_after_timeout_message_was_s
 
 fn with_info_false_without_timer_returns_ok(options: fn(&Process) -> Term) {
     with_process(|process| {
-        let timer_reference = process.next_reference().unwrap();
+        let timer_reference = process.next_reference();
 
         assert_eq!(
             result(process, timer_reference, options(process)),
@@ -134,7 +132,7 @@ fn without_info_without_local_reference_errors_badarg(
 
 fn returns_false(options: fn(&Process) -> Term) {
     with_process(|process| {
-        let timer_reference = process.next_reference().unwrap();
+        let timer_reference = process.next_reference();
 
         assert_eq!(
             result(process, timer_reference, options(process)),

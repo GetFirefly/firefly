@@ -16,7 +16,7 @@ fn with_small_integer_returns_small_integer() {
                     (
                         arc_process.clone(),
                         integer,
-                        arc_process.charlist_from_str(&integer.to_string()).unwrap(),
+                        arc_process.charlist_from_str(&integer.to_string()),
                     )
                 })
         },
@@ -53,7 +53,7 @@ fn with_big_integer_returns_big_integer() {
                     (
                         arc_process.clone(),
                         integer,
-                        arc_process.charlist_from_str(&integer.to_string()).unwrap(),
+                        arc_process.charlist_from_str(&integer.to_string()),
                     )
                 })
         },
@@ -65,7 +65,7 @@ fn with_big_integer_returns_big_integer() {
             let term = result.unwrap();
 
             prop_assert!(term.is_boxed_bigint());
-            prop_assert_eq!(term, arc_process.integer(integer).unwrap());
+            prop_assert_eq!(term, arc_process.integer(integer));
 
             Ok(())
         },
@@ -76,7 +76,7 @@ fn with_big_integer_returns_big_integer() {
 fn with_non_decimal_errors_badarg() {
     with_process_arc(|arc_process| {
         let string = "FF";
-        let list = arc_process.charlist_from_str(&string).unwrap();
+        let list = arc_process.charlist_from_str(&string);
 
         assert_badarg!(
             result(&arc_process, list),

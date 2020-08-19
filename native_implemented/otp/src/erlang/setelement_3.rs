@@ -21,7 +21,7 @@ pub fn result(process: &Process, index: Term, tuple: Term, value: Term) -> excep
         .with_context(|| term_is_not_in_one_based_range(index, length))?;
 
     if index_zero_based < length {
-        if index_zero_based == 0 {
+        let final_tuple = if index_zero_based == 0 {
             if 1 < length {
                 process.tuple_from_slices(&[&[value], &initial_inner_tuple[1..]])
             } else {
@@ -35,8 +35,9 @@ pub fn result(process: &Process, index: Term, tuple: Term, value: Term) -> excep
             ])
         } else {
             process.tuple_from_slices(&[&initial_inner_tuple[..index_zero_based], &[value]])
-        }
-        .map_err(|error| error.into())
+        };
+
+        Ok(final_tuple)
     } else {
         Err(TryIntoIntegerError::OutOfRange)
             .with_context(|| term_is_not_in_one_based_range(index, length))

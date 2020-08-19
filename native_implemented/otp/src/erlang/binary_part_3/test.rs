@@ -23,8 +23,8 @@ fn without_bitstring_errors_badarg() {
             )
         },
         |(arc_process, binary)| {
-            let start = arc_process.integer(0).unwrap();
-            let length = arc_process.integer(0).unwrap();
+            let start = arc_process.integer(0);
+            let length = arc_process.integer(0);
 
             prop_assert_badarg!(
                 result(&arc_process, binary, start, length),

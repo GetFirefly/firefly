@@ -13,5 +13,5 @@ use crate::erlang::unique_integer::{unique_integer, Options};
 pub fn result(process: &Process, options: Term) -> exception::Result<Term> {
     let options_options: Options = options.try_into()?;
 
-    unique_integer(process, options_options)
+    Ok(unique_integer(process, options_options))
 }

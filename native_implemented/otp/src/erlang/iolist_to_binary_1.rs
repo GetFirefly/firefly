@@ -13,7 +13,7 @@ pub fn result(process: &Process, iolist_or_binary: Term) -> exception::Result<Te
     erlang::list_to_binary_1::result(
         process,
         if iolist_or_binary.is_binary() {
-            process.list_from_slice(&[iolist_or_binary]).unwrap()
+            process.list_from_slice(&[iolist_or_binary])
         } else {
             iolist_or_binary
         },

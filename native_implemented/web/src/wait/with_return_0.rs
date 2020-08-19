@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::convert::TryInto;
 use std::str;
+use std::sync::Arc;
 
 use wasm_bindgen::JsValue;
 
@@ -64,7 +65,7 @@ const NATIVE: Native = Native::Two(native);
 extern "C" fn native(return_term: Term, executor_term: Term) -> Term {
     let executor_resource_boxed: Boxed<Resource> = executor_term.try_into().unwrap();
     let executor_resource: Resource = executor_resource_boxed.into();
-    let executor_mutex: &Mutex<Executor> = executor_resource.downcast_ref().unwrap();
+    let executor_mutex: &Arc<Mutex<Executor>> = executor_resource.downcast_ref().unwrap();
     executor_mutex.lock().resolve(return_term);
 
     Term::NONE
@@ -172,7 +173,8 @@ where
                 .borrow_mut()
                 .replace(executor.promise());
 
-            let executor_resource_reference = child_process.resource(Mutex::new(executor))?;
+            let executor_resource_reference =
+                child_process.resource(Arc::new(Mutex::new(executor)));
             let frame_with_arguments = frame.with_arguments(true, &[executor_resource_reference]);
 
             frames_with_arguments.push(frame_with_arguments);

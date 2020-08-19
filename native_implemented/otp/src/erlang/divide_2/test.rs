@@ -120,9 +120,5 @@ fn number_is_not_zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 fn zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    prop_oneof![
-        Just(arc_process.integer(0).unwrap()),
-        Just(arc_process.float(0.0).unwrap())
-    ]
-    .boxed()
+    prop_oneof![Just(arc_process.integer(0)), Just(arc_process.float(0.0))].boxed()
 }

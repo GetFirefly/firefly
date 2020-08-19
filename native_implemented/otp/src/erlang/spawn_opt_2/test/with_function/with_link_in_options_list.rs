@@ -50,5 +50,5 @@ fn option() -> Term {
 }
 
 fn options(process: &Process) -> Term {
-    process.list_from_slice(&[option()]).unwrap()
+    process.list_from_slice(&[option()])
 }

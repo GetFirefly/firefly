@@ -18,9 +18,7 @@ fn without_environment_runs_function_in_child_process() {
         arc_process.return_status(native_result())
     }
 
-    let function = arc_process
-        .export_closure(module, function, arity, NonNull::new(native as _))
-        .unwrap();
+    let function = arc_process.export_closure(module, function, arity, NonNull::new(native as _));
     let result = result(&arc_process, function, options(&arc_process));
 
     assert!(result.is_ok());
@@ -60,7 +58,7 @@ fn with_environment_runs_function_in_child_process() {
     let arity = 0;
 
     fn native_result(process: &Process, first: Term, second: Term) -> exception::Result<Term> {
-        let reason = process.list_from_slice(&[first, second])?;
+        let reason = process.list_from_slice(&[first, second]);
 
         Err(exit!(reason, anyhow!("Test").into()).into())
     }
@@ -72,18 +70,16 @@ fn with_environment_runs_function_in_child_process() {
         arc_process.return_status(native_result(&arc_process, first, second))
     }
 
-    let function = arc_process
-        .anonymous_closure_with_env_from_slice(
-            module,
-            index,
-            old_unique,
-            unique,
-            arity,
-            NonNull::new(native as _),
-            creator,
-            &[Atom::str_to_term("first"), Atom::str_to_term("second")],
-        )
-        .unwrap();
+    let function = arc_process.anonymous_closure_with_env_from_slice(
+        module,
+        index,
+        old_unique,
+        unique,
+        arity,
+        NonNull::new(native as _),
+        creator,
+        &[Atom::str_to_term("first"), Atom::str_to_term("second")],
+    );
     let result = result(&arc_process, function, options(&arc_process));
 
     assert!(result.is_ok());
@@ -103,9 +99,10 @@ fn with_environment_runs_function_in_child_process() {
             assert_eq!(
                 exception,
                 &exit!(
-                    child_arc_process
-                        .list_from_slice(&[Atom::str_to_term("first"), Atom::str_to_term("second")])
-                        .unwrap(),
+                    child_arc_process.list_from_slice(&[
+                        Atom::str_to_term("first"),
+                        Atom::str_to_term("second")
+                    ]),
                     anyhow!("Test").into()
                 )
             );

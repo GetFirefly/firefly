@@ -16,9 +16,7 @@ fn without_proper_list_options_errors_badarg() {
             )
         },
         |(arc_process, float, tail)| {
-            let options = arc_process
-                .improper_list_from_slice(&[atom!("compact")], tail)
-                .unwrap();
+            let options = arc_process.improper_list_from_slice(&[atom!("compact")], tail);
 
             prop_assert_badarg!(result(&arc_process, float, options), "improper list");
 

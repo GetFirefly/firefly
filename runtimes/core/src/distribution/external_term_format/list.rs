@@ -14,7 +14,7 @@ pub fn decode<'a>(
         decode_vec_term(process, safe, after_len_bytes, len_32 as usize)?;
     let (tail, after_tail_bytes) = term::decode_tagged(process, safe, after_elements_bytes)?;
 
-    let list = process.improper_list_from_slice(&element_vec, tail)?;
+    let list = process.improper_list_from_slice(&element_vec, tail);
 
     Ok((list, after_tail_bytes))
 }

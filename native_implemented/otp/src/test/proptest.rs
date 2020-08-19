@@ -19,11 +19,8 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{exception, Node};
 
-use crate::runtime;
-use crate::runtime::process::spawn::options::Options;
-use crate::runtime::scheduler::{self, Spawned};
+use crate::runtime::scheduler;
 
-use crate::test::loop_0;
 use crate::test::strategy::term::binary;
 use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
 
@@ -67,8 +64,8 @@ pub fn arc_process_to_arc_process_subbinary_zero_start_byte_count_length(
             (
                 arc_process.clone(),
                 binary,
-                arc_process.integer(0).unwrap(),
-                arc_process.integer(subbinary.full_byte_len()).unwrap(),
+                arc_process.integer(0),
+                arc_process.integer(subbinary.full_byte_len()),
             )
         })
 }
@@ -184,24 +181,6 @@ pub fn number_to_integer_with_float(
     );
 }
 
-pub fn process(parent_process: &Process, options: Options) -> Spawned {
-    let module = loop_0::module();
-    let function = loop_0::function();
-    let arguments = &[];
-    let native = loop_0::NATIVE;
-
-    runtime::process::spawn::native(
-        Some(parent_process),
-        options,
-        module,
-        function,
-        arguments,
-        native,
-    )
-    .map(|spawned| spawned.schedule_with_parent(parent_process))
-    .unwrap()
-}
-
 pub fn prop_assert_exits<
     F: Fn(Option<Term>) -> proptest::test_runner::TestCaseResult,
     S: AsRef<str>,
@@ -244,8 +223,8 @@ pub fn prop_assert_exits_badarity<S: AsRef<str>>(
     source_substring: S,
 ) -> proptest::test_runner::TestCaseResult {
     let tag = atom!("badarity");
-    let fun_args = process.tuple_from_slice(&[fun, args]).unwrap();
-    let reason = process.tuple_from_slice(&[tag, fun_args]).unwrap();
+    let fun_args = process.tuple_from_slice(&[fun, args]);
+    let reason = process.tuple_from_slice(&[tag, fun_args]);
 
     prop_assert_exits(process, reason, |_| Ok(()), source_substring)
 }
@@ -286,9 +265,7 @@ pub fn timeout_message(timer_reference: Term, message: Term, process: &Process) 
 }
 
 pub fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
-    process
-        .tuple_from_slice(&[Atom::str_to_term(tag), timer_reference, message])
-        .unwrap()
+    process.tuple_from_slice(&[Atom::str_to_term(tag), timer_reference, message])
 }
 
 pub fn total_byte_len(term: Term) -> usize {
@@ -686,7 +663,7 @@ pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
             (
                 Just(arc_process.clone()),
                 strategy::term::is_integer(arc_process.clone()),
-                Just(arc_process.integer(0).unwrap()),
+                Just(arc_process.integer(0)),
             )
         },
         |(arc_process, dividend, divisor)| {

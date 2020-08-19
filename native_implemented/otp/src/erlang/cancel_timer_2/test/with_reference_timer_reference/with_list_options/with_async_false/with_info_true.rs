@@ -8,7 +8,5 @@ fn without_local_reference_errors_badarg() {
 }
 
 fn options(process: &Process) -> Term {
-    process
-        .cons(info_option(true, process), super::options(process))
-        .unwrap()
+    process.cons(info_option(true, process), super::options(process))
 }

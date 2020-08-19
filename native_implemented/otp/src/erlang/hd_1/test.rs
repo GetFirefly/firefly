@@ -36,7 +36,7 @@ fn with_list_returns_head() {
             )
         },
         |(arc_process, head, tail)| {
-            let list = arc_process.cons(head, tail).unwrap();
+            let list = arc_process.cons(head, tail);
 
             prop_assert_eq!(result(list), Ok(head));
 

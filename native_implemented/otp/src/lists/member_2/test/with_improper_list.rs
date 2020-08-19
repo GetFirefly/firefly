@@ -7,7 +7,7 @@ fn without_found_errors_badarg() {
         let not_element = Atom::str_to_term("not_element");
         let slice = &[not_element];
         let tail = Atom::str_to_term("tail");
-        let list = arc_process.improper_list_from_slice(slice, tail).unwrap();
+        let list = arc_process.improper_list_from_slice(slice, tail);
 
         assert_badarg!(
             result(element, list),
@@ -22,7 +22,7 @@ fn with_found_returns_true() {
         let element = Atom::str_to_term("found");
         let slice = &[element];
         let tail = Atom::str_to_term("tail");
-        let list = arc_process.improper_list_from_slice(slice, tail).unwrap();
+        let list = arc_process.improper_list_from_slice(slice, tail);
 
         assert_eq!(result(element, list), Ok(true.into()));
     });

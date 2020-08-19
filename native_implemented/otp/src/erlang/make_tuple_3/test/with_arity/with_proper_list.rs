@@ -14,8 +14,8 @@ fn without_tuple_in_init_list_errors_badarg() {
             )
         },
         |(arc_process, arity_usize, default_value, element)| {
-            let arity = arc_process.integer(arity_usize).unwrap();
-            let init_list = arc_process.list_from_slice(&[element]).unwrap();
+            let arity = arc_process.integer(arity_usize);
+            let init_list = arc_process.list_from_slice(&[element]);
 
             prop_assert_badarg!(
                 result(&arc_process, arity, default_value, init_list),

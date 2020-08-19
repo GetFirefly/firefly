@@ -3,7 +3,6 @@ pub mod anonymous_1;
 mod init;
 pub mod loop_0;
 pub mod process;
-pub mod process_dictionary;
 pub mod return_from_fn_0;
 pub mod return_from_fn_1;
 
@@ -22,11 +21,11 @@ pub use self::proptest::*;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
+use liblumen_alloc::{atom, Arity};
 
 use crate::erlang::{self, exit_1};
 use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
@@ -61,6 +60,18 @@ pub fn assert_exits_badarith(process: &Process, source_substring: &str) {
     assert_exits(process, atom!("badarith"), |_| {}, source_substring)
 }
 
+pub fn assert_exits_badarity(process: &Process, function: Term, arity: Arity, args: Term) {
+    let source_substring = format!(
+        "arguments ({}) length (0) does not match arity ({}) of function ({})",
+        args, arity, function
+    );
+    let fun_args = process.tuple_from_slice(&[function, args]);
+    let tag = atom!("badarity");
+    let expected_reason = process.tuple_from_slice(&[tag, fun_args]);
+
+    assert_exits(&process, expected_reason, |_| {}, &source_substring);
+}
+
 pub fn assert_exits_undef(
     process: &Process,
     module: Term,
@@ -77,9 +88,7 @@ pub fn assert_exits_undef(
 
             assert_eq!(
                 head,
-                process
-                    .tuple_from_slice(&[module, function, arguments, Term::NIL])
-                    .unwrap()
+                process.tuple_from_slice(&[module, function, arguments, Term::NIL])
             );
         },
         source_substring,
@@ -88,9 +97,9 @@ pub fn assert_exits_undef(
 
 pub fn badarity_reason(process: &Process, function: Term, args: Term) -> Term {
     let tag = atom!("badarity");
-    let fun_args = process.tuple_from_slice(&[function, args]).unwrap();
+    let fun_args = process.tuple_from_slice(&[function, args]);
 
-    process.tuple_from_slice(&[tag, fun_args]).unwrap()
+    process.tuple_from_slice(&[tag, fun_args])
 }
 
 pub fn exit_when_run(process: &Process, reason: Term) {
@@ -121,7 +130,7 @@ pub fn module_id() -> usize {
 
 pub fn with_big_int(f: fn(&Process, Term) -> ()) {
     with_process(|process| {
-        let big_int: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
+        let big_int: Term = process.integer(SmallInteger::MAX_VALUE + 1);
 
         assert!(big_int.is_boxed_bigint());
 
@@ -192,7 +201,7 @@ where
     let message = Atom::str_to_term("message");
     let timer_reference = erlang::start_timer_3::result(
         same_thread_process_arc.clone(),
-        same_thread_process_arc.integer(milliseconds).unwrap(),
+        same_thread_process_arc.integer(milliseconds),
         same_thread_process_arc.pid().into(),
         message,
     )
@@ -208,7 +217,7 @@ where
 
 pub fn without_timer_returns_false(result: fn(&Process, Term) -> exception::Result<Term>) {
     with_process(|process| {
-        let timer_reference = process.next_reference().unwrap();
+        let timer_reference = process.next_reference();
 
         assert_eq!(result(process, timer_reference), Ok(false.into()));
     });

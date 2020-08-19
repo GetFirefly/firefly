@@ -30,10 +30,7 @@ fn with_list_with_integer_errors_badarg() {
             (Just(arc_process.clone()), any::<isize>()).prop_map(|(arc_process, integer)| {
                 let string = integer.to_string();
 
-                (
-                    arc_process.clone(),
-                    arc_process.charlist_from_str(&string).unwrap(),
-                )
+                (arc_process.clone(), arc_process.charlist_from_str(&string))
             })
         },
         |(arc_process, list)| {
@@ -55,14 +52,11 @@ fn with_list_with_f64_returns_floats() {
                 (
                     arc_process.clone(),
                     f,
-                    arc_process.charlist_from_str(&format!("{:?}", f)).unwrap(),
+                    arc_process.charlist_from_str(&format!("{:?}", f)),
                 )
             }),
             |(arc_process, f, list)| {
-                prop_assert_eq!(
-                    result(&arc_process, list),
-                    Ok(arc_process.float(f).unwrap())
-                );
+                prop_assert_eq!(result(&arc_process, list), Ok(arc_process.float(f)));
 
                 Ok(())
             },
@@ -73,7 +67,7 @@ fn with_list_with_f64_returns_floats() {
 #[test]
 fn with_list_with_less_than_min_f64_errors_badarg() {
     with_process_arc(|arc_process| {
-        let list = arc_process.charlist_from_str("-1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0").unwrap();
+        let list = arc_process.charlist_from_str("-1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0");
 
         assert_badarg!(
             result(&arc_process, list),
@@ -85,7 +79,7 @@ fn with_list_with_less_than_min_f64_errors_badarg() {
 #[test]
 fn with_list_with_greater_than_max_f64_errors_badarg() {
     with_process_arc(|arc_process| {
-        let list = arc_process.charlist_from_str("1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0").unwrap();
+        let list = arc_process.charlist_from_str("1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0");
 
         assert_badarg!(
             result(&arc_process, list),

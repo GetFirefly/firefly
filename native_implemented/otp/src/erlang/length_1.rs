@@ -12,7 +12,7 @@ pub fn result(process: &Process, list: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(0.into()),
         TypedTerm::List(cons) => match cons.count() {
-            Some(count) => Ok(process.integer(count)?),
+            Some(count) => Ok(process.integer(count)),
             None => Err(ImproperListError).context(format!("list ({}) is improper", list)),
         },
         _ => Err(TypeError).context(format!("list ({}) is not a list", list)),

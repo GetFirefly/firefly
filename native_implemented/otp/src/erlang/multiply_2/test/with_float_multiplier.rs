@@ -51,11 +51,11 @@ fn with_number_multiplicand_returns_float() {
 #[test]
 fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(3.0).unwrap();
+        let multiplicand = process.float(3.0);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(6.0).unwrap())
+            Ok(process.float(6.0))
         );
     })
 }
@@ -63,11 +63,11 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 #[test]
 fn with_float_multiplicand_with_underflow_returns_min_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(std::f64::MIN).unwrap();
+        let multiplicand = process.float(std::f64::MIN);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(std::f64::MIN).unwrap())
+            Ok(process.float(std::f64::MIN))
         );
     })
 }
@@ -75,11 +75,11 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
 #[test]
 fn with_float_multiplicand_with_overflow_returns_max_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(std::f64::MAX).unwrap();
+        let multiplicand = process.float(std::f64::MAX);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(std::f64::MAX).unwrap())
+            Ok(process.float(std::f64::MAX))
         );
     })
 }
@@ -89,7 +89,7 @@ where
     F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
-        let multiplier = process.float(2.0).unwrap();
+        let multiplier = process.float(2.0);
 
         f(multiplier, &process)
     })

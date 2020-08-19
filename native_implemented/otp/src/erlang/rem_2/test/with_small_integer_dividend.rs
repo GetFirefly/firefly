@@ -17,10 +17,10 @@ fn with_small_integer_divisor_returns_small_integer() {
             prop_assert_eq!(
                 result(
                     &arc_process,
-                    arc_process.integer(dividend).unwrap(),
-                    arc_process.integer(divisor).unwrap(),
+                    arc_process.integer(dividend),
+                    arc_process.integer(divisor),
                 ),
-                Ok(arc_process.integer(dividend % divisor).unwrap())
+                Ok(arc_process.integer(dividend % divisor))
             );
 
             Ok(())

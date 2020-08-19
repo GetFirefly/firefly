@@ -109,15 +109,19 @@ pub fn result(process: &Process, bitstring_list: Term) -> exception::Result<Term
             }
 
             if partial_byte_bit_count == 0 {
-                Ok(process.binary_from_bytes(byte_vec.as_slice()).unwrap())
+                Ok(process.binary_from_bytes(byte_vec.as_slice()))
             } else {
                 let full_byte_len = byte_vec.len();
                 byte_vec.push(partial_byte);
-                let original = process.binary_from_bytes(byte_vec.as_slice()).unwrap();
+                let original = process.binary_from_bytes(byte_vec.as_slice());
 
-                Ok(process
-                    .subbinary_from_original(original, 0, 0, full_byte_len, partial_byte_bit_count)
-                    .unwrap())
+                Ok(process.subbinary_from_original(
+                    original,
+                    0,
+                    0,
+                    full_byte_len,
+                    partial_byte_bit_count,
+                ))
             }
         }
         _ => Err(TypeError)

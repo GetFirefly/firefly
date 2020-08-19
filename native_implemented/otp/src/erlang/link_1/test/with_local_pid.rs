@@ -125,9 +125,7 @@ fn when_a_linked_process_exits_with_shutdown_tuple_the_process_does_not_exit() {
 
         let tag = Atom::str_to_term("shutdown");
         let shutdown_reason = Atom::str_to_term("test");
-        let reason = other_arc_process
-            .tuple_from_slice(&[tag, shutdown_reason])
-            .unwrap();
+        let reason = other_arc_process.tuple_from_slice(&[tag, shutdown_reason]);
         exit_when_run(&other_arc_process, reason);
 
         assert!(scheduler::run_through(&other_arc_process));

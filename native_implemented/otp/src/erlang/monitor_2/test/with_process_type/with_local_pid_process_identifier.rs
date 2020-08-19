@@ -20,9 +20,13 @@ fn without_process_returns_reference_but_immediate_sends_noproc_message() {
 
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid, reason])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                monitor_reference,
+                r#type(),
+                monitored_pid,
+                reason
+            ])
         );
     });
 }

@@ -14,5 +14,5 @@ pub fn result(process: &Process, binary: Term) -> exception::Result<Term> {
         .with_context(|| format!("binary ({})", binary))?;
     let byte_terms = bytes.iter().map(|byte| (*byte).into());
 
-    process.list_from_iter(byte_terms).map_err(From::from)
+    Ok(process.list_from_iter(byte_terms))
 }

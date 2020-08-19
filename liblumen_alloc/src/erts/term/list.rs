@@ -313,7 +313,8 @@ impl CloneToProcess for Cons {
         }
 
         heap.improper_list_from_slice(&vec, tail)
-            .map(|list| list.into())
+            .map_err(From::from)
+            .map(From::from)
     }
 
     fn size_in_words(&self) -> usize {

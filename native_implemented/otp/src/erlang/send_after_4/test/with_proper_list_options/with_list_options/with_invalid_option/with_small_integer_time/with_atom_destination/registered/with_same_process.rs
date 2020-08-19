@@ -12,7 +12,7 @@ fn errors_badarg() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = arc_process.integer(milliseconds).unwrap();
+                let time = arc_process.integer(milliseconds);
                 let destination = registered_name();
 
                 prop_assert_eq!(

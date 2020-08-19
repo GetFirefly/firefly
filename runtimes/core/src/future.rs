@@ -164,7 +164,7 @@ fn spawn(
             let mut frames_with_arguments = frames_with_arguments_fn(child_process)?;
             vec.append(&mut frames_with_arguments);
 
-            let future_resource = child_process.resource(child_arc_mutex_future)?;
+            let future_resource = child_process.resource(child_arc_mutex_future);
             vec.push(frame().with_arguments(true, &[future_resource]));
 
             Ok(vec)

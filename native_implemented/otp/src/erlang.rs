@@ -240,16 +240,13 @@ fn cancel_timer(
 
     let term = if options.info {
         let canceled_term = match canceled {
-            Some(milliseconds_remaining) => process.integer(milliseconds_remaining)?,
+            Some(milliseconds_remaining) => process.integer(milliseconds_remaining),
             None => false.into(),
         };
 
         if options.r#async {
-            let cancel_timer_message = process.tuple_from_slice(&[
-                atom!("cancel_timer"),
-                timer_reference,
-                canceled_term,
-            ])?;
+            let cancel_timer_message =
+                process.tuple_from_slice(&[atom!("cancel_timer"), timer_reference, canceled_term]);
             process.send_from_self(cancel_timer_message);
 
             atom!("ok")
@@ -319,13 +316,13 @@ fn read_timer(
     let read = runtime::timer::read(&local_reference);
 
     let read_term = match read {
-        Some(milliseconds_remaining) => process.integer(milliseconds_remaining)?,
+        Some(milliseconds_remaining) => process.integer(milliseconds_remaining),
         None => false.into(),
     };
 
     let term = if options.r#async {
         let read_timer_message =
-            process.tuple_from_slice(&[atom!("read_timer"), timer_reference, read_term])?;
+            process.tuple_from_slice(&[atom!("read_timer"), timer_reference, read_term]);
         process.send_from_self(read_timer_message);
 
         atom!("ok")
@@ -383,7 +380,7 @@ fn start_timer(
                         },
                         arc_process,
                     ),
-                    None => arc_process.next_reference(),
+                    None => Ok(arc_process.next_reference()),
                 }
                 .map_err(From::from)
             }

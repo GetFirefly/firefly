@@ -13,7 +13,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
             let destination = registered_name();
             let options = options(&arc_process);
 

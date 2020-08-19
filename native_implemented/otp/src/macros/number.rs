@@ -70,13 +70,13 @@ macro_rules! number_infix_operator {
             Bad => Err(badarith(anyhow!("{} ({}) and {} ({}) aren't both numbers", stringify!($left), $left, stringify!($right), $right).into()).into()),
             ISizes(left_isize, right_isize) => {
                 match left_isize.$checked(right_isize) {
-                    Some(sum_isize) => Ok($process.integer(sum_isize)?),
+                    Some(sum_isize) => Ok($process.integer(sum_isize)),
                     None => {
                         let left_big_int: BigInt = left_isize.into();
                         let right_big_int: BigInt = right_isize.into();
 
                         let sum_big_int = left_big_int $infix right_big_int;
-                        let sum_term = $process.integer(sum_big_int)?;
+                        let sum_term = $process.integer(sum_big_int);
 
                         Ok(sum_term)
                     }
@@ -84,13 +84,13 @@ macro_rules! number_infix_operator {
             }
             Floats(left, right) => {
                 let output = left $infix right;
-                let output_term = $process.float(output)?;
+                let output_term = $process.float(output);
 
                 Ok(output_term)
             }
             BigInts(left, right) => {
                 let output = left $infix right;
-                let output_term = $process.integer(output)?;
+                let output_term = $process.integer(output);
 
                 Ok(output_term)
             }
@@ -115,7 +115,7 @@ macro_rules! number_to_integer {
                 NumberToInteger::F64(f) => {
                     let ceiling = f.$f();
 
-                    f64_to_integer(process, ceiling)
+                    Ok(f64_to_integer(process, ceiling))
                 }
                 NumberToInteger::NotANumber => Err(TypeError)
                     .context(term_is_not_number!(number))

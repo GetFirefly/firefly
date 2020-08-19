@@ -16,7 +16,7 @@ pub fn intermediate(
     arc_process: Arc<Process>,
 ) -> BoxedStrategy<Term> {
     proptest::collection::vec(element, size_range)
-        .prop_map(move |vec| arc_process.tuple_from_slice(&vec).unwrap())
+        .prop_map(move |vec| arc_process.tuple_from_slice(&vec))
         .boxed()
 }
 
@@ -33,8 +33,8 @@ pub fn with_index(arc_process: Arc<Process>) -> BoxedStrategy<(Vec<Term>, usize,
             (
                 element_vec.clone(),
                 zero_based_index,
-                arc_process.tuple_from_slice(&element_vec).unwrap(),
-                arc_process.integer(zero_based_index + 1).unwrap(),
+                arc_process.tuple_from_slice(&element_vec),
+                arc_process.integer(zero_based_index + 1),
             )
         })
         .boxed()

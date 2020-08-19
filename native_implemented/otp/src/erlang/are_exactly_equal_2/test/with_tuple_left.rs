@@ -40,8 +40,8 @@ fn with_same_value_tuple_right_returns_true() {
             proptest::collection::vec(strategy::term(arc_process.clone()), strategy::size_range())
                 .prop_map(move |vec| {
                     (
-                        arc_process.tuple_from_slice(&vec).unwrap(),
-                        arc_process.tuple_from_slice(&vec).unwrap(),
+                        arc_process.tuple_from_slice(&vec),
+                        arc_process.tuple_from_slice(&vec),
                     )
                 })
         },

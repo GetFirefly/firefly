@@ -15,10 +15,7 @@ fn without_key_returns_equivalent_map() {
                     .prop_map(|(key, non_key)| {
                         let value = atom!("value");
 
-                        (
-                            non_key,
-                            arc_process.map_from_slice(&[(key, value)]).unwrap(),
-                        )
+                        (non_key, arc_process.map_from_slice(&[(key, value)]))
                     }),
                 |(key, map)| {
                     prop_assert_eq!(result(&arc_process, key, map), Ok(map.into()));
@@ -38,10 +35,10 @@ fn with_key_returns_new_map() {
                 &strategy::term(arc_process.clone()).prop_map(|key| {
                     let value = atom!("value");
 
-                    (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
+                    (key, arc_process.map_from_slice(&[(key, value)]))
                 }),
                 |(key, map)| {
-                    let empty_map = arc_process.map_from_slice(&[]).unwrap();
+                    let empty_map = arc_process.map_from_slice(&[]);
 
                     prop_assert_eq!(result(&arc_process, key, map), Ok(empty_map.into()));
 

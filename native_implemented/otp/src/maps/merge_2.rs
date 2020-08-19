@@ -23,5 +23,5 @@ pub fn result(process: &Process, map1: Term, map2: Term) -> exception::Result<Te
         merged.insert(*key, *value);
     }
 
-    process.map_from_hash_map(merged).map_err(From::from)
+    Ok(process.map_from_hash_map(merged))
 }

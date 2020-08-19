@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use num_bigint::{BigInt, Sign};
 
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::closure::{Creator, Definition};
 use liblumen_alloc::erts::term::prelude::*;
@@ -19,12 +18,10 @@ use crate::runtime::distribution::external_term_format::{version, Tag};
 
 use options::*;
 
-pub fn term_to_binary(process: &Process, term: Term, options: Options) -> exception::Result<Term> {
+pub fn term_to_binary(process: &Process, term: Term, options: Options) -> Term {
     let byte_vec = term_to_byte_vec(process, &options, term);
 
-    process
-        .binary_from_bytes(&byte_vec)
-        .map_err(|alloc| alloc.into())
+    process.binary_from_bytes(&byte_vec)
 }
 
 // Private

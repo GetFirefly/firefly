@@ -15,10 +15,7 @@ fn without_key_returns_default() {
                     .prop_map(|(key, non_key)| {
                         let value = atom!("value");
 
-                        (
-                            non_key,
-                            arc_process.map_from_slice(&[(key, value)]).unwrap(),
-                        )
+                        (non_key, arc_process.map_from_slice(&[(key, value)]))
                     }),
                 |(key, map)| {
                     let default = atom!("default");
@@ -39,7 +36,7 @@ fn with_key_returns_value() {
                 &strategy::term(arc_process.clone()).prop_map(|key| {
                     let value = atom!("value");
 
-                    (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
+                    (key, arc_process.map_from_slice(&[(key, value)]))
                 }),
                 |(key, map)| {
                     let default = atom!("default");

@@ -31,59 +31,45 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_false(
 
 #[test]
 fn with_prefix_heap_binary_right_returns_false() {
-    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[1]).unwrap(), false);
+    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[1]), false);
 }
 
 #[test]
 fn with_same_length_heap_binary_with_lesser_byte_right_returns_false() {
-    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[0]).unwrap(), false);
+    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[0]), false);
 }
 
 #[test]
 fn with_longer_heap_binary_with_lesser_byte_right_returns_false() {
-    is_equal_or_less_than(
-        |_, process| process.binary_from_bytes(&[0, 1, 2]).unwrap(),
-        false,
-    );
+    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[0, 1, 2]), false);
 }
 
 #[test]
 fn with_same_value_heap_binary_right_returns_true() {
-    is_equal_or_less_than(
-        |_, process| process.binary_from_bytes(&[1, 1]).unwrap(),
-        true,
-    )
+    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[1, 1]), true)
 }
 
 #[test]
 fn with_shorter_heap_binary_with_greater_byte_right_returns_true() {
-    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[2]).unwrap(), true);
+    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[2]), true);
 }
 
 #[test]
 fn with_heap_binary_with_greater_byte_right_returns_true() {
-    is_equal_or_less_than(
-        |_, process| process.binary_from_bytes(&[2, 1]).unwrap(),
-        true,
-    );
+    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[2, 1]), true);
 }
 
 #[test]
 fn with_heap_binary_with_different_greater_byte_right_returns_true() {
-    is_equal_or_less_than(
-        |_, process| process.binary_from_bytes(&[1, 2]).unwrap(),
-        true,
-    );
+    is_equal_or_less_than(|_, process| process.binary_from_bytes(&[1, 2]), true);
 }
 
 #[test]
 fn with_prefix_subbinary_right_returns_false() {
     is_equal_or_less_than(
         |_, process| {
-            let original = process.binary_from_bytes(&[1]).unwrap();
-            process
-                .subbinary_from_original(original, 0, 0, 1, 0)
-                .unwrap()
+            let original = process.binary_from_bytes(&[1]);
+            process.subbinary_from_original(original, 0, 0, 1, 0)
         },
         false,
     );
@@ -93,11 +79,9 @@ fn with_prefix_subbinary_right_returns_false() {
 fn with_same_length_subbinary_with_lesser_byte_right_returns_false() {
     is_equal_or_less_than(
         |_, process| {
-            let original = process.binary_from_bytes(&[0, 1]).unwrap();
+            let original = process.binary_from_bytes(&[0, 1]);
 
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         false,
     );
@@ -117,11 +101,9 @@ fn with_same_subbinary_right_returns_true() {
 fn with_same_value_subbinary_right_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            let original = process.binary_from_bytes(&[1, 1]).unwrap();
+            let original = process.binary_from_bytes(&[1, 1]);
 
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         true,
     )
@@ -131,11 +113,9 @@ fn with_same_value_subbinary_right_returns_true() {
 fn with_shorter_subbinary_with_greater_byte_right_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            let original = process.binary_from_bytes(&[2]).unwrap();
+            let original = process.binary_from_bytes(&[2]);
 
-            process
-                .subbinary_from_original(original, 0, 0, 1, 0)
-                .unwrap()
+            process.subbinary_from_original(original, 0, 0, 1, 0)
         },
         true,
     );
@@ -145,11 +125,9 @@ fn with_shorter_subbinary_with_greater_byte_right_returns_true() {
 fn with_subbinary_with_greater_byte_right_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            let original = process.binary_from_bytes(&[2, 1]).unwrap();
+            let original = process.binary_from_bytes(&[2, 1]);
 
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         true,
     );
@@ -159,11 +137,9 @@ fn with_subbinary_with_greater_byte_right_returns_true() {
 fn with_subbinary_with_different_greater_byte_right_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            let original = process.binary_from_bytes(&[1, 2]).unwrap();
+            let original = process.binary_from_bytes(&[1, 2]);
 
-            process
-                .subbinary_from_original(original, 0, 0, 2, 0)
-                .unwrap()
+            process.subbinary_from_original(original, 0, 0, 2, 0)
         },
         true,
     );
@@ -179,7 +155,7 @@ where
     R: FnOnce(Term, &Process) -> Term,
 {
     super::is_equal_or_less_than(
-        |process| process.binary_from_bytes(&[1, 1]).unwrap(),
+        |process| process.binary_from_bytes(&[1, 1]),
         right,
         expected,
     );

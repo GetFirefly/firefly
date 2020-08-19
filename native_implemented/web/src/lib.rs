@@ -22,7 +22,6 @@ use wasm_bindgen::JsCast;
 use web_sys::{DomException, Window};
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::erts::time::Milliseconds;
@@ -66,15 +65,15 @@ fn add_submit_listener(window: &Window) {
     );
 }
 
-fn error_tuple(process: &Process, js_value: JsValue) -> AllocResult<Term> {
+fn error_tuple(process: &Process, js_value: JsValue) -> Term {
     let error = atom!("error");
     let dom_exception = js_value.dyn_ref::<DomException>().unwrap();
 
     match dom_exception.name().as_ref() {
         "SyntaxError" => {
             let tag = atom!("syntax");
-            let message = process.binary_from_str(&dom_exception.message())?;
-            let reason = process.tuple_from_slice(&[tag, message])?;
+            let message = process.binary_from_str(&dom_exception.message());
+            let reason = process.tuple_from_slice(&[tag, message]);
 
             process.tuple_from_slice(&[error, reason])
         }
@@ -86,20 +85,17 @@ fn error_tuple(process: &Process, js_value: JsValue) -> AllocResult<Term> {
     }
 }
 
-fn ok_tuple<V: 'static>(process: &Process, value: V) -> AllocResult<Term> {
+fn ok_tuple<V: Clone + 'static>(process: &Process, value: V) -> Term {
     let ok = atom!("ok");
-    let resource_term = process.resource(value)?;
+    let resource_term = process.resource(value);
 
     process.tuple_from_slice(&[ok, resource_term])
 }
 
-fn option_to_ok_tuple_or_error<V: 'static>(
-    process: &Process,
-    option: Option<V>,
-) -> AllocResult<Term> {
+fn option_to_ok_tuple_or_error<V: Clone + 'static>(process: &Process, option: Option<V>) -> Term {
     match option {
         Some(value) => ok_tuple(process, value),
-        None => Ok(atom!("error")),
+        None => atom!("error"),
     }
 }
 

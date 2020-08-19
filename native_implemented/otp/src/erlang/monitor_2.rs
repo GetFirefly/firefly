@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use anyhow::*;
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::exception::{self, AllocResult};
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -38,8 +38,12 @@ fn monitor_process_identifier(
     process_identifier: Term,
 ) -> exception::Result<Term> {
     match process_identifier.decode()? {
-        TypedTerm::Atom(atom) => monitor_process_registered_name(process, process_identifier, atom),
-        TypedTerm::Pid(pid) => monitor_process_pid(process, process_identifier, pid),
+        TypedTerm::Atom(atom) => Ok(monitor_process_registered_name(
+            process,
+            process_identifier,
+            atom,
+        )),
+        TypedTerm::Pid(pid) => Ok(monitor_process_pid(process, process_identifier, pid)),
         TypedTerm::ExternalPid(_) => unimplemented!(),
         TypedTerm::Tuple(tuple) => monitor_process_tuple(process, process_identifier, &tuple),
         _ => Err(TypeError)
@@ -48,26 +52,17 @@ fn monitor_process_identifier(
     }
 }
 
-fn monitor_process_identifier_noproc(
-    process: &Process,
-    identifier: Term,
-) -> exception::Result<Term> {
-    let monitor_reference = process.next_reference()?;
-    let noproc_message = noproc_message(process, monitor_reference, identifier)?;
+fn monitor_process_identifier_noproc(process: &Process, identifier: Term) -> Term {
+    let monitor_reference = process.next_reference();
+    let noproc_message = noproc_message(process, monitor_reference, identifier);
     process.send_from_self(noproc_message);
 
-    Ok(monitor_reference)
+    monitor_reference
 }
 
-fn monitor_process_pid(
-    process: &Process,
-    process_identifier: Term,
-    pid: Pid,
-) -> exception::Result<Term> {
+fn monitor_process_pid(process: &Process, process_identifier: Term, pid: Pid) -> Term {
     match registry::pid_to_process(&pid) {
-        Some(monitored_arc_process) => {
-            process::monitor(process, &monitored_arc_process).map_err(|alloc| alloc.into())
-        }
+        Some(monitored_arc_process) => process::monitor(process, &monitored_arc_process),
         None => monitor_process_identifier_noproc(process, process_identifier),
     }
 }
@@ -76,12 +71,12 @@ fn monitor_process_registered_name(
     process: &Process,
     process_identifier: Term,
     atom: Atom,
-) -> exception::Result<Term> {
+) -> Term {
     match registry::atom_to_process(&atom) {
         Some(monitored_arc_process) => {
-            let reference = process.next_reference()?;
+            let reference = process.next_reference();
 
-            let reference_reference: Boxed<Reference> = reference.try_into().expect("fail here");
+            let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
             let monitor = Monitor::Name {
                 monitoring_pid: process.pid(),
                 monitored_name: atom,
@@ -92,10 +87,10 @@ fn monitor_process_registered_name(
             );
             monitored_arc_process.monitored(reference_reference.as_ref().clone(), monitor);
 
-            Ok(reference)
+            reference
         }
         None => {
-            let identifier = process.tuple_from_slice(&[process_identifier, node_0::result()])?;
+            let identifier = process.tuple_from_slice(&[process_identifier, node_0::result()]);
 
             monitor_process_identifier_noproc(process, identifier)
         }
@@ -117,7 +112,11 @@ fn monitor_process_tuple(
         let node = tuple[1];
 
         if node == node_0::result() {
-            monitor_process_registered_name(process, registered_name, registered_name_atom)
+            Ok(monitor_process_registered_name(
+                process,
+                registered_name,
+                registered_name_atom,
+            ))
         } else {
             let _: Atom = term_try_into_atom!(node)?;
 
@@ -132,18 +131,13 @@ fn monitor_process_tuple(
     }
 }
 
-fn noproc_message(process: &Process, reference: Term, identifier: Term) -> AllocResult<Term> {
+fn noproc_message(process: &Process, reference: Term, identifier: Term) -> Term {
     let noproc = atom!("noproc");
 
     down_message(process, reference, identifier, noproc)
 }
 
-fn down_message(
-    process: &Process,
-    reference: Term,
-    identifier: Term,
-    info: Term,
-) -> AllocResult<Term> {
+fn down_message(process: &Process, reference: Term, identifier: Term, info: Term) -> Term {
     let down = atom!("DOWN");
     let r#type = atom!("process");
 

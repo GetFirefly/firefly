@@ -15,9 +15,7 @@ fn without_atom_name_errors_badarg() {
             )
         },
         |(arc_process, name, message)| {
-            let destination = arc_process
-                .tuple_from_slice(&[name, erlang::node_0::result()])
-                .unwrap();
+            let destination = arc_process.tuple_from_slice(&[name, erlang::node_0::result()]);
 
             prop_assert_badarg!(
                         result(&arc_process, destination, message),
@@ -31,7 +29,7 @@ fn without_atom_name_errors_badarg() {
 
 #[test]
 fn with_local_reference_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.next_reference().unwrap());
+    with_name_errors_badarg(|process| process.next_reference());
 }
 
 #[test]
@@ -41,26 +39,22 @@ fn with_empty_list_name_errors_badarg() {
 
 #[test]
 fn with_list_name_errors_badarg() {
-    with_name_errors_badarg(|process| {
-        process
-            .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
-            .unwrap()
-    });
+    with_name_errors_badarg(|process| process.cons(process.integer(0), process.integer(1)));
 }
 
 #[test]
 fn with_small_integer_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.integer(0).unwrap());
+    with_name_errors_badarg(|process| process.integer(0));
 }
 
 #[test]
 fn with_big_integer_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap());
+    with_name_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1));
 }
 
 #[test]
 fn with_float_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.float(1.0).unwrap());
+    with_name_errors_badarg(|process| process.float(1.0));
 }
 
 #[test]
@@ -75,17 +69,17 @@ fn with_external_pid_name_errors_badarg() {
 
 #[test]
 fn with_tuple_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.tuple_from_slice(&[]).unwrap());
+    with_name_errors_badarg(|process| process.tuple_from_slice(&[]));
 }
 
 #[test]
 fn with_map_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.map_from_slice(&[]).unwrap());
+    with_name_errors_badarg(|process| process.map_from_slice(&[]));
 }
 
 #[test]
 fn with_heap_binary_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.binary_from_bytes(&[]).unwrap());
+    with_name_errors_badarg(|process| process.binary_from_bytes(&[]));
 }
 
 #[test]
@@ -98,9 +92,7 @@ where
     N: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
-        let destination = process
-            .tuple_from_slice(&[name(process), erlang::node_0::result()])
-            .unwrap();
+        let destination = process.tuple_from_slice(&[name(process), erlang::node_0::result()]);
         let message = Atom::str_to_term("message");
 
         assert_badarg!(

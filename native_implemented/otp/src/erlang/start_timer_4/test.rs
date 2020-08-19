@@ -32,12 +32,8 @@ fn without_proper_list_options_errors_badarg() {
         },
         |(arc_process, time, message, tail)| {
             let destination = arc_process.pid_term();
-            let option = arc_process
-                .tuple_from_slice(&[atom!("abs"), true.into()])
-                .unwrap();
-            let options = arc_process
-                .improper_list_from_slice(&[option], tail)
-                .unwrap();
+            let option = arc_process.tuple_from_slice(&[atom!("abs"), true.into()]);
+            let options = arc_process.improper_list_from_slice(&[option], tail);
 
             prop_assert_badarg!(
                 result(arc_process.clone(), time, destination, message, options),

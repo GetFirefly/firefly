@@ -32,9 +32,7 @@ fn with_improper_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |tail| {
-                let list = arc_process
-                    .cons(arc_process.integer('c').unwrap(), tail)
-                    .unwrap();
+                let list = arc_process.cons(arc_process.integer('c'), tail);
 
                 prop_assert_badarg!(result(list), format!("list ({}) is improper", list));
 
@@ -49,11 +47,9 @@ fn with_non_empty_proper_list_returns_atom() {
     run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, string)| {
-                let codepoint_terms: Vec<Term> = string
-                    .chars()
-                    .map(|c| arc_process.integer(c).unwrap())
-                    .collect();
-                let list = arc_process.list_from_slice(&codepoint_terms).unwrap();
+                let codepoint_terms: Vec<Term> =
+                    string.chars().map(|c| arc_process.integer(c)).collect();
+                let list = arc_process.list_from_slice(&codepoint_terms);
 
                 (list, string)
             })

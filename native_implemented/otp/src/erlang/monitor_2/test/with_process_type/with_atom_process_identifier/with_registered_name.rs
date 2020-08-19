@@ -117,31 +117,24 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
 
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[
-                    tag,
-                    first_monitor_reference,
-                    r#type(),
-                    monitoring_arc_process
-                        .tuple_from_slice(&[first_registered_name, node_0::result()])
-                        .unwrap(),
-                    reason
-                ])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                first_monitor_reference,
+                r#type(),
+                monitoring_arc_process.tuple_from_slice(&[first_registered_name, node_0::result()]),
+                reason
+            ])
         );
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[
-                    tag,
-                    second_monitor_reference,
-                    r#type(),
-                    monitoring_arc_process
-                        .tuple_from_slice(&[second_registered_name, node_0::result()])
-                        .unwrap(),
-                    reason
-                ])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                second_monitor_reference,
+                r#type(),
+                monitoring_arc_process
+                    .tuple_from_slice(&[second_registered_name, node_0::result()]),
+                reason
+            ])
         );
     });
 }

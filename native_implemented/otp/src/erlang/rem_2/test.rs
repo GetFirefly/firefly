@@ -35,7 +35,7 @@ fn with_atom_dividend_errors_badarith() {
 
 #[test]
 fn with_local_reference_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| process.next_reference().unwrap());
+    with_dividend_errors_badarith(|process| process.next_reference());
 }
 
 #[test]
@@ -45,11 +45,7 @@ fn with_empty_list_dividend_errors_badarith() {
 
 #[test]
 fn with_list_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| {
-        process
-            .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
-            .unwrap()
-    });
+    with_dividend_errors_badarith(|process| process.cons(process.integer(0), process.integer(1)));
 }
 
 #[test]
@@ -66,28 +62,24 @@ fn with_external_pid_dividend_errors_badarith() {
 
 #[test]
 fn with_tuple_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| process.tuple_from_slice(&[]).unwrap());
+    with_dividend_errors_badarith(|process| process.tuple_from_slice(&[]));
 }
 
 #[test]
 fn with_map_is_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| process.map_from_slice(&[]).unwrap());
+    with_dividend_errors_badarith(|process| process.map_from_slice(&[]));
 }
 
 #[test]
 fn with_heap_binary_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| process.binary_from_bytes(&[]).unwrap());
+    with_dividend_errors_badarith(|process| process.binary_from_bytes(&[]));
 }
 
 #[test]
 fn with_subbinary_dividend_errors_badarith() {
     with_dividend_errors_badarith(|process| {
-        let original = process
-            .binary_from_bytes(&[0b0000_00001, 0b1111_1110, 0b1010_1011])
-            .unwrap();
-        process
-            .subbinary_from_original(original, 0, 7, 2, 1)
-            .unwrap()
+        let original = process.binary_from_bytes(&[0b0000_00001, 0b1111_1110, 0b1010_1011]);
+        process.subbinary_from_original(original, 0, 7, 2, 1)
     });
 }
 
@@ -97,7 +89,7 @@ where
 {
     errors_badarith(|process| {
         let dividend = dividend(&process);
-        let divisor = process.integer(0).unwrap();
+        let divisor = process.integer(0);
 
         result(&process, dividend, divisor)
     });

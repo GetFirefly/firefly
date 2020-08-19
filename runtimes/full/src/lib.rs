@@ -28,6 +28,10 @@
 // Layout helpers
 #![feature(alloc_layout_extra)]
 #![feature(termination_trait_lib)]
+// `PROCESS_SIGNAL`
+#![feature(thread_local)]
+// `__lumen_start_panic`
+#![feature(unwind_attributes)]
 
 extern crate alloc;
 extern crate cfg_if;

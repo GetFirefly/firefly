@@ -85,9 +85,7 @@ fn with_subbinary_right_with_same_bytes_returns_true() {
                     let subbinary: Boxed<SubBinary> = subbinary_term.try_into().unwrap();
                     let heap_binary_byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
-                    let heap_binary = arc_process
-                        .binary_from_bytes(&heap_binary_byte_vec)
-                        .unwrap();
+                    let heap_binary = arc_process.binary_from_bytes(&heap_binary_byte_vec);
                     (heap_binary, subbinary_term)
                 })
         },
@@ -113,9 +111,7 @@ fn with_subbinary_right_with_different_bytes_returns_false() {
                     let heap_binary_byte_vec: Vec<u8> =
                         subbinary.full_byte_iter().map(|b| !b).collect();
 
-                    let heap_binary = arc_process
-                        .binary_from_bytes(&heap_binary_byte_vec)
-                        .unwrap();
+                    let heap_binary = arc_process.binary_from_bytes(&heap_binary_byte_vec);
                     (heap_binary, subbinary_term)
                 })
         },

@@ -18,9 +18,10 @@ use crate::{error_tuple, ok_tuple};
 pub fn result(process: &Process, url: Term) -> exception::Result<Term> {
     let url_string = binary_to_string(url)?;
 
-    match WebSocket::new(&url_string) {
+    let result_tuple = match WebSocket::new(&url_string) {
         Ok(web_socket) => ok_tuple(process, web_socket),
         Err(js_value) => error_tuple(process, js_value),
-    }
-    .map_err(|e| e.into())
+    };
+
+    Ok(result_tuple)
 }

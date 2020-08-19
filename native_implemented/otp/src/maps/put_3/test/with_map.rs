@@ -13,8 +13,8 @@ fn without_key_puts_new_value() {
             )
         },
         |(arc_process, key, value)| {
-            let empty_map = arc_process.map_from_slice(&[]).unwrap();
-            let updated_map = arc_process.map_from_slice(&[(key, value)]).unwrap();
+            let empty_map = arc_process.map_from_slice(&[]);
+            let updated_map = arc_process.map_from_slice(&[(key, value)]);
             prop_assert_eq!(
                 result(&arc_process, key, value, empty_map),
                 Ok(updated_map.into())
@@ -33,11 +33,11 @@ fn with_key_puts_replacement_value() {
                 &strategy::term(arc_process.clone()).prop_map(|key| {
                     let value = atom!("value");
 
-                    (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
+                    (key, arc_process.map_from_slice(&[(key, value)]))
                 }),
                 |(key, map)| {
                     let value2 = atom!("value2");
-                    let updated_map = arc_process.map_from_slice(&[(key, value2)]).unwrap();
+                    let updated_map = arc_process.map_from_slice(&[(key, value2)]);
                     prop_assert_eq!(
                         result(&arc_process, key, value2, map),
                         Ok(updated_map.into())

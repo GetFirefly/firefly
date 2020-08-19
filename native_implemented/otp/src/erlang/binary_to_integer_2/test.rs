@@ -62,7 +62,7 @@ fn with_binary_without_integer_in_base_errors_badarg() {
                     (
                         Just(arc_process.clone()),
                         strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                        Just(arc_process.integer(base).unwrap()),
+                        Just(arc_process.integer(base)),
                     )
                 },
             )

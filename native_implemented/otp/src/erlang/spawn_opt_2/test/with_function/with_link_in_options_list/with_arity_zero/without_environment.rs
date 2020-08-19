@@ -25,9 +25,12 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
 
                     (
                         arc_process.clone(),
-                        arc_process
-                            .export_closure(module, function, arity, NonNull::new(native as _))
-                            .unwrap(),
+                        arc_process.export_closure(
+                            module,
+                            function,
+                            arity,
+                            NonNull::new(native as _),
+                        ),
                     )
                 }),
             |(parent_arc_process, function)| {
@@ -109,9 +112,12 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
 
                     (
                         arc_process.clone(),
-                        arc_process
-                            .export_closure(module, function, arity, NonNull::new(native as _))
-                            .unwrap(),
+                        arc_process.export_closure(
+                            module,
+                            function,
+                            arity,
+                            NonNull::new(native as _),
+                        ),
                     )
                 }),
             |(parent_arc_process, function)| {

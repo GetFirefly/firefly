@@ -27,8 +27,8 @@ pub fn result(process: &Process, binary: Term, start: Term, stop: Term) -> excep
 
         binary::bin_to_list(
             binary,
-            process.integer(zero_based_start_usize)?,
-            process.integer(length_usize)?,
+            process.integer(zero_based_start_usize),
+            process.integer(length_usize),
             process,
         )
     } else {

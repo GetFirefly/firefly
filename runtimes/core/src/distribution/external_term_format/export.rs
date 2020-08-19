@@ -30,7 +30,7 @@ pub fn decode<'a>(
         NonNull::new_unchecked(ptr)
     });
 
-    let closure = process.export_closure(module, function, arity, option_native)?;
+    let closure = process.export_closure(module, function, arity, option_native);
 
     Ok((closure, after_arity_bytes))
 }

@@ -2,9 +2,16 @@ mod init;
 mod out_of_code;
 
 use liblumen_alloc::erts::exception::AllocResult;
+use liblumen_alloc::erts::process::ffi::{process_error, ProcessSignal};
 use liblumen_alloc::erts::process::{self, Frame, FrameWithArguments, Process};
 
-pub use lumen_rt_core::process::{current_process, monitor, spawn};
+pub use lumen_rt_core::process::{current_process, monitor, set_log_exit, spawn};
+
+#[unwind(allowed)]
+#[no_mangle]
+pub unsafe extern "C" fn __lumen_start_panic(_payload: usize) {
+    panic!(process_error().unwrap());
+}
 
 #[export_name = "lumen_rt_process_runnable"]
 pub fn runnable<'a>(
@@ -55,3 +62,7 @@ pub fn init(minimum_heap_size: usize) -> AllocResult<Process> {
 
     Ok(process)
 }
+
+#[export_name = "__lumen_process_signal"]
+#[thread_local]
+static mut PROCESS_SIGNAL: ProcessSignal = ProcessSignal::None;

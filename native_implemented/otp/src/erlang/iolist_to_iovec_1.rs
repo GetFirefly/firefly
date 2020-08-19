@@ -19,5 +19,5 @@ pub fn iolist_or_binary_to_iovec(
 ) -> exception::Result<Term> {
     let binary = iolist_or_binary::to_binary(process, "iolist_or_binary", iolist_or_binary)?;
 
-    process.list_from_slice(&[binary]).map_err(From::from)
+    Ok(process.list_from_slice(&[binary]))
 }

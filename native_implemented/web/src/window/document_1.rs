@@ -27,5 +27,5 @@ pub fn result(process: &Process, window: Term) -> exception::Result<Term> {
         .with_context(|| format!("window ({}) is a resource, but not a window", window))?;
     let option_document = window_window.document();
 
-    option_to_ok_tuple_or_error(process, option_document).map_err(|error| error.into())
+    Ok(option_to_ok_tuple_or_error(process, option_document))
 }

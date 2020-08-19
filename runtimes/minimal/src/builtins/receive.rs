@@ -42,7 +42,6 @@ pub enum ReceiveState {
 pub struct ReceiveContext {
     timeout: ReceiveTimeout,
     message: Term,
-    message_needs_move: bool,
     timer_reference: Term,
     state: ReceiveState,
 }
@@ -53,7 +52,6 @@ impl ReceiveContext {
         let timeout = ReceiveTimeout::new(now, timeout);
         Self {
             state: ReceiveState::Ready,
-            message_needs_move: false,
             message: Term::NONE,
             timer_reference: Term::NONE,
             timeout,
@@ -61,14 +59,11 @@ impl ReceiveContext {
     }
 
     #[inline]
-    fn with_message(&mut self, message: Term, message_type: MessageType) {
+    fn with_message(&mut self, message: Term) {
         self.cancel_timer();
 
         self.state = ReceiveState::Received;
         self.message = message;
-        if message_type == MessageType::HeapFragment {
-            self.message_needs_move = true;
-        }
     }
 
     fn wait(&mut self, arc_process: Arc<Process>) {
@@ -102,7 +97,6 @@ impl ReceiveContext {
 
         self.state = ReceiveState::Timeout;
         self.message = Term::NONE;
-        self.message_needs_move = false;
     }
 
     #[inline]
@@ -154,7 +148,7 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState
                 let mut mbox = mbox_lock.borrow_mut();
                 if let Some((msg, msg_type)) = mbox.recv_peek_with_type() {
                     mbox.recv_increment();
-                    context.with_message(msg, msg_type);
+                    context.with_message(msg);
                     break ReceiveState::Received;
                 } else if context.should_time_out() {
                     context.with_timeout();
@@ -193,18 +187,18 @@ pub extern "C" fn builtin_receive_done(ctx: *mut ReceiveContext) -> bool {
         let mut mbox = mbox_lock.borrow_mut();
 
         match context.state {
-            ReceiveState::Received if context.message_needs_move => {
-                // Copy to process heap
-                unimplemented!();
+            ReceiveState::Received => {
+                mbox.recv_received();
             }
-            ReceiveState::Received | ReceiveState::Timeout => {
-                mbox.recv_finish(&p);
-                true
+            ReceiveState::Timeout => {
+                mbox.recv_timeout();
             }
             _ => {
                 unreachable!();
             }
         }
+
+        true
     });
     result.is_ok()
 }

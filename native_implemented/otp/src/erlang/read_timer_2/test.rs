@@ -66,9 +66,7 @@ fn with_reference_without_list_options_errors_badarg() {
 fn async_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term::is_boolean()
         .prop_map(move |async_value| {
-            arc_process
-                .tuple_from_slice(&[Atom::str_to_term("async"), async_value])
-                .unwrap()
+            arc_process.tuple_from_slice(&[Atom::str_to_term("async"), async_value])
         })
         .boxed()
 }
@@ -76,9 +74,8 @@ fn async_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         Just(Term::NIL),
-        async_option(arc_process.clone()).prop_map(move |async_option| {
-            arc_process.list_from_slice(&[async_option]).unwrap()
-        })
+        async_option(arc_process.clone())
+            .prop_map(move |async_option| { arc_process.list_from_slice(&[async_option]) })
     ]
     .boxed()
 }

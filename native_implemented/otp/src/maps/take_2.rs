@@ -12,8 +12,8 @@ pub fn result(process: &Process, key: Term, map: Term) -> exception::Result<Term
 
     let result = match boxed_map.take(key) {
         Some((value, hash_map)) => {
-            let map = process.map_from_hash_map(hash_map)?;
-            process.tuple_from_slice(&[value, map])?
+            let map = process.map_from_hash_map(hash_map);
+            process.tuple_from_slice(&[value, map])
         }
         None => atom!("error"),
     };

@@ -5,7 +5,6 @@ use core::ops::Deref;
 use core::ptr::NonNull;
 
 use crate::erts::process::alloc::TermAlloc;
-use crate::erts::process::gc::RootSet;
 use crate::erts::process::test::process;
 use crate::erts::term::closure::*;
 use crate::erts::term::prelude::*;
@@ -65,14 +64,14 @@ fn simple_gc_test(process: Process) {
     // but as in our test here, when boxed terms are involved, doesn't fully
     // contain everything.
     let elements = [ok, greeting_term];
-    let tuple_term = process.tuple_from_slice(&elements).unwrap();
+    let tuple_term = process.tuple_from_slice(&elements);
     assert!(tuple_term.is_boxed());
     let tuple_ptr: *mut Term = tuple_term.dyn_cast();
 
     // Allocate the list `[101, "test"]`
-    let num = process.integer(101usize).unwrap();
+    let num = process.integer(101usize);
     let string = "test";
-    let string_term = process.binary_from_str(string).unwrap();
+    let string_term = process.binary_from_str(string);
 
     assert!(string_term.is_boxed());
     let string_term_ptr: *mut Term = string_term.dyn_cast();
@@ -96,7 +95,7 @@ fn simple_gc_test(process: Process) {
     // Allocate a closure with an environment [999, "this is a binary"]
     let closure_num = fixnum!(999);
     let closure_string = "this is a binary";
-    let closure_string_term = process.binary_from_str(closure_string).unwrap();
+    let closure_string_term = process.binary_from_str(closure_string);
 
     let creator = Pid::new(1, 0).unwrap();
     let module = atom_from_str!("module");
@@ -132,7 +131,7 @@ fn simple_gc_test(process: Process) {
 
     // Now, we will simulate updating the greeting of the above tuple with a new one,
     // leaving the original greeting dead, and a target for collection
-    let new_greeting_term = process.binary_from_str("goodbye!").unwrap();
+    let new_greeting_term = process.binary_from_str("goodbye!");
 
     // Update second element of the tuple above
     let tuple_unwrapped = unsafe { &*tuple_ptr };
@@ -223,10 +222,10 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     // requires space to be allocated for the header as well as the contents,
     // then have both written to the heap
     let greeting = "hello world";
-    let greeting_term = process.binary_from_str(greeting).unwrap();
+    let greeting_term = process.binary_from_str(greeting);
     // Construct tuple containing the atom and string
     let elements = [ok, greeting_term];
-    let tuple_term = process.tuple_from_slice(&elements).unwrap();
+    let tuple_term = process.tuple_from_slice(&elements);
     // Verify that the resulting tuple is valid
     assert!(tuple_term.is_boxed());
     let tuple_ptr: *mut Term = tuple_term.dyn_cast();
@@ -248,7 +247,7 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     // Allocate a list `[101, "this is a list"]`
     let num = fixnum!(101);
     let string = "this is a list";
-    let string_term = process.binary_from_str(string).unwrap();
+    let string_term = process.binary_from_str(string);
     let list = ListBuilder::new(&mut process.acquire_heap())
         .push(num)
         .push(string_term)
@@ -280,7 +279,7 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     // Now, we will simulate updating the greeting of the above tuple with a new one,
     // leaving the original greeting dead, and a target for collection
     let new_greeting = "goodbye world!";
-    let new_greeting_term = process.binary_from_str(new_greeting).unwrap();
+    let new_greeting_term = process.binary_from_str(new_greeting);
 
     // Update second element of the tuple above
     tup.set_element(1, new_greeting_term).unwrap();

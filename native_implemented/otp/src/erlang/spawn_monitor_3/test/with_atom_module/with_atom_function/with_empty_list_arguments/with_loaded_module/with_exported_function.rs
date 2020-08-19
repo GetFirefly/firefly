@@ -62,15 +62,13 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
 
     assert_has_message!(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                atom!("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            atom!("process"),
+            child_pid_term,
+            reason
+        ])
     );
 }
 
@@ -137,14 +135,12 @@ fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
 
     assert_has_message!(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                atom!("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            atom!("process"),
+            child_pid_term,
+            reason
+        ])
     );
 }

@@ -8,7 +8,7 @@ use liblumen_alloc::erts::term::prelude::*;
 #[native_implemented::function(erlang:append_element/2)]
 fn result(process: &Process, tuple: Term, element: Term) -> exception::Result<Term> {
     let internal = term_try_into_tuple!(tuple)?;
-    let new_tuple = process.tuple_from_slices(&[&internal[..], &[element]])?;
+    let new_tuple = process.tuple_from_slices(&[&internal[..], &[element]]);
 
     Ok(new_tuple)
 }

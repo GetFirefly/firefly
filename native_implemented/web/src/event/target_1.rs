@@ -15,14 +15,14 @@ use crate::event;
 fn result(process: &Process, event_term: Term) -> exception::Result<Term> {
     let event = event::from_term(event_term)?;
 
-    match event.target() {
+    let final_term = match event.target() {
         Some(event_target) => {
-            let event_target_resource_reference = process.resource(event_target)?;
+            let event_target_resource_reference = process.resource(event_target);
 
-            process
-                .tuple_from_slice(&[atom!("ok"), event_target_resource_reference])
-                .map_err(|error| error.into())
+            process.tuple_from_slice(&[atom!("ok"), event_target_resource_reference])
         }
-        None => Ok(atom!("error")),
-    }
+        None => atom!("error"),
+    };
+
+    Ok(final_term)
 }

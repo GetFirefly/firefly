@@ -48,7 +48,7 @@ fn result(window: Term, event: Term, module: Term, function: Term) -> exception:
         event_atom.name(),
         options,
         move |child_process, event_resource_reference| {
-            let arguments = child_process.list_from_slice(&[event_resource_reference])?;
+            let arguments = child_process.list_from_slice(&[event_resource_reference]);
 
             let frame_with_argument =
                 erlang::apply_3::frame_with_arguments(module, function, arguments);

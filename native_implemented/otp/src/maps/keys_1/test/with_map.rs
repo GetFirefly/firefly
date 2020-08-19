@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn returns_empty_list_of_keys() {
     with_process_arc(|arc_process| {
-        let empty_map = arc_process.map_from_slice(&[]).unwrap();
+        let empty_map = arc_process.map_from_slice(&[]);
 
         assert_eq!(result(&arc_process, empty_map), Ok(Term::NIL));
     });
@@ -18,8 +18,8 @@ fn returns_list_of_keys() {
                     let value = atom!("value");
 
                     (
-                        arc_process.list_from_slice(&[key]).unwrap(),
-                        arc_process.map_from_slice(&[(key, value)]).unwrap(),
+                        arc_process.list_from_slice(&[key]),
+                        arc_process.map_from_slice(&[(key, value)]),
                     )
                 }),
                 |(keys, map)| {

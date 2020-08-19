@@ -1,11 +1,11 @@
 pub mod monitor;
 pub mod spawn;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::{self, AllocResult, ArcError, RuntimeException};
+use liblumen_alloc::erts::exception::{self, ArcError, RuntimeException};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
@@ -60,7 +60,7 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
             let reason = exception.reason();
 
             if !is_expected_exit_reason(reason) {
-                sys::io::puts(&format!(
+                puts_exit(&format!(
                     "** (EXIT from {}) exited with reason: {}\n\nSource: {:?}",
                     process,
                     reason,
@@ -68,7 +68,7 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
                 ));
             }
         }
-        Class::Error { .. } => sys::io::puts(&format!(
+        Class::Error { .. } => puts_exit(&format!(
             "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {:?}\n{}",
             process,
             exception.reason(),
@@ -79,8 +79,22 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
     }
 }
 
-pub fn monitor(process: &Process, monitored_process: &Process) -> AllocResult<Term> {
-    let reference = process.next_reference()?;
+pub fn get_log_exit() -> bool {
+    LOG_EXIT.with(|log_exit| log_exit.get())
+}
+
+pub fn set_log_exit(value: bool) {
+    LOG_EXIT.with(|log_exit| log_exit.set(value));
+}
+
+fn puts_exit(s: &str) {
+    if get_log_exit() {
+        sys::io::puts(s)
+    }
+}
+
+pub fn monitor(process: &Process, monitored_process: &Process) -> Term {
+    let reference = process.next_reference();
 
     let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
     let monitor = Monitor::Pid {
@@ -92,7 +106,7 @@ pub fn monitor(process: &Process, monitored_process: &Process) -> AllocResult<Te
     );
     monitored_process.monitored(reference_reference.as_ref().clone(), monitor);
 
-    Ok(reference)
+    reference
 }
 
 pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
@@ -200,4 +214,8 @@ fn exit_in_heap_fragment(process: &Process, reason: Term, source: ArcError) {
 
     process.attach_fragment(unsafe { heap_fragment.as_mut() });
     process.exit(heap_fragment_data, source);
+}
+
+thread_local! {
+   static LOG_EXIT: Cell<bool> = Cell::new(true);
 }

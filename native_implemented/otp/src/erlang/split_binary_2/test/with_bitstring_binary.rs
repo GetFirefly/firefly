@@ -27,7 +27,7 @@ fn without_non_negative_integer_position_errors_badarg() {
 #[test]
 fn with_zero_position_returns_empty_prefix_and_binary() {
     with_process_arc(|arc_process| {
-        let position = arc_process.integer(0).unwrap();
+        let position = arc_process.integer(0);
 
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -36,11 +36,7 @@ fn with_zero_position_returns_empty_prefix_and_binary() {
                     prop_assert_eq!(
                         result(&arc_process, binary, position),
                         Ok(arc_process
-                            .tuple_from_slice(&[
-                                arc_process.binary_from_bytes(&[]).unwrap(),
-                                binary
-                            ],)
-                            .unwrap())
+                            .tuple_from_slice(&[arc_process.binary_from_bytes(&[]), binary],))
                     );
 
                     Ok(())

@@ -34,9 +34,7 @@ pub fn anonymous(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 pub fn arity(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    arity_u8()
-        .prop_map(move |u| arc_process.integer(u).unwrap())
-        .boxed()
+    arity_u8().prop_map(move |u| arc_process.integer(u)).boxed()
 }
 
 pub fn arity_or_arguments(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

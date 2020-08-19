@@ -12,7 +12,7 @@ use super::*;
 
 pub fn is_one_based(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (1_usize..std::usize::MAX)
-        .prop_map(move |u| arc_process.integer(u).unwrap())
+        .prop_map(move |u| arc_process.integer(u))
         .boxed()
 }
 

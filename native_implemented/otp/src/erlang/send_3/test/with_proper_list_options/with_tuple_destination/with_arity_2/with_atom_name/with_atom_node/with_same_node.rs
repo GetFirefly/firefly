@@ -14,9 +14,7 @@ fn unregistered_errors_badarg() {
         },
         |(arc_process, message, options)| {
             let name = registered_name();
-            let destination = arc_process
-                .tuple_from_slice(&[name, erlang::node_0::result()])
-                .unwrap();
+            let destination = arc_process.tuple_from_slice(&[name, erlang::node_0::result()]);
 
             prop_assert_badarg!(
                 result(&arc_process, destination, message, options),

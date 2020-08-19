@@ -10,7 +10,5 @@ fn async_option(value: bool, process: &Process) -> Term {
 }
 
 fn option(key: &str, value: bool, process: &Process) -> Term {
-    process
-        .tuple_from_slice(&[Atom::str_to_term(key), value.into()])
-        .unwrap()
+    process.tuple_from_slice(&[Atom::str_to_term(key), value.into()])
 }

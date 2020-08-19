@@ -118,9 +118,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_with_
 
         let tag = Atom::str_to_term("shutdown");
         let shutdown_reason = Atom::str_to_term("shutdown_reason");
-        let reason = other_arc_process
-            .tuple_from_slice(&[tag, shutdown_reason])
-            .unwrap();
+        let reason = other_arc_process.tuple_from_slice(&[tag, shutdown_reason]);
 
         exit_when_run(&other_arc_process, reason);
 
@@ -157,7 +155,7 @@ fn with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linke
 
         let tag = Atom::str_to_term("EXIT");
         let from = other_arc_process.pid_term();
-        let exit_message = process.tuple_from_slice(&[tag, from, reason]).unwrap();
+        let exit_message = process.tuple_from_slice(&[tag, from, reason]);
 
         assert_has_message!(process, exit_message);
     });

@@ -20,7 +20,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                         first: Term,
                         second: Term,
                     ) -> exception::Result<Term> {
-                        let reason = process.list_from_slice(&[first, second])?;
+                        let reason = process.list_from_slice(&[first, second]);
 
                         Err(exit!(reason, anyhow!("Test").into()).into())
                     }
@@ -34,18 +34,16 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
 
                     (
                         arc_process.clone(),
-                        arc_process
-                            .anonymous_closure_with_env_from_slice(
-                                module,
-                                index,
-                                old_unique,
-                                unique,
-                                arity,
-                                NonNull::new(native as _),
-                                creator,
-                                &[Atom::str_to_term("first"), Atom::str_to_term("second")],
-                            )
-                            .unwrap(),
+                        arc_process.anonymous_closure_with_env_from_slice(
+                            module,
+                            index,
+                            old_unique,
+                            unique,
+                            arity,
+                            NonNull::new(native as _),
+                            creator,
+                            &[Atom::str_to_term("first"), Atom::str_to_term("second")],
+                        ),
                     )
                 }),
             |(parent_arc_process, function)| {
@@ -71,12 +69,10 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                         prop_assert_eq!(
                             exception,
                             &exit!(
-                                child_arc_process
-                                    .list_from_slice(&[
-                                        Atom::str_to_term("first"),
-                                        Atom::str_to_term("second")
-                                    ])
-                                    .unwrap(),
+                                child_arc_process.list_from_slice(&[
+                                    Atom::str_to_term("first"),
+                                    Atom::str_to_term("second")
+                                ]),
                                 anyhow!("Test").into()
                             )
                         );
@@ -94,12 +90,10 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                         prop_assert_eq!(
                             exception,
                             &exit!(
-                                child_arc_process
-                                    .list_from_slice(&[
-                                        Atom::str_to_term("first"),
-                                        Atom::str_to_term("second")
-                                    ])
-                                    .unwrap(),
+                                child_arc_process.list_from_slice(&[
+                                    Atom::str_to_term("first"),
+                                    Atom::str_to_term("second")
+                                ]),
                                 anyhow!("Test").into()
                             )
                         );
@@ -138,7 +132,7 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
                         first: Term,
                         second: Term,
                     ) -> exception::Result<Term> {
-                        let reason = process.tuple_from_slice(&[first, second])?;
+                        let reason = process.tuple_from_slice(&[first, second]);
 
                         Err(exit!(reason, anyhow!("Test").into()).into())
                     }
@@ -152,21 +146,19 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
 
                     (
                         arc_process.clone(),
-                        arc_process
-                            .anonymous_closure_with_env_from_slice(
-                                module,
-                                index,
-                                old_unique,
-                                unique,
-                                arity,
-                                NonNull::new(native as _),
-                                creator,
-                                &[
-                                    Atom::str_to_term("shutdown"),
-                                    Atom::str_to_term("shutdown_reason"),
-                                ],
-                            )
-                            .unwrap(),
+                        arc_process.anonymous_closure_with_env_from_slice(
+                            module,
+                            index,
+                            old_unique,
+                            unique,
+                            arity,
+                            NonNull::new(native as _),
+                            creator,
+                            &[
+                                Atom::str_to_term("shutdown"),
+                                Atom::str_to_term("shutdown_reason"),
+                            ],
+                        ),
                     )
                 }),
             |(parent_arc_process, function)| {
@@ -192,12 +184,10 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
                         prop_assert_eq!(
                             exception,
                             &exit!(
-                                child_arc_process
-                                    .tuple_from_slice(&[
-                                        Atom::str_to_term("shutdown"),
-                                        Atom::str_to_term("shutdown_reason")
-                                    ])
-                                    .unwrap(),
+                                child_arc_process.tuple_from_slice(&[
+                                    Atom::str_to_term("shutdown"),
+                                    Atom::str_to_term("shutdown_reason")
+                                ]),
                                 anyhow!("Test").into()
                             )
                         );

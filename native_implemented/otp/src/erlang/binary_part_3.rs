@@ -32,13 +32,13 @@ pub fn result(
                 byte_len,
             } = start_length_to_part_range(start_usize, length_isize, available_byte_count)?;
 
-            if (byte_offset == 0) && (byte_len == available_byte_count) {
-                Ok(binary)
+            let binary_part = if (byte_offset == 0) && (byte_len == available_byte_count) {
+                binary
             } else {
-                process
-                    .subbinary_from_original(binary, byte_offset, 0, byte_len, 0)
-                    .map_err(|error| error.into())
-            }
+                process.subbinary_from_original(binary, byte_offset, 0, byte_len, 0)
+            };
+
+            Ok(binary_part)
         }
         TypedTerm::ProcBin(process_binary) => {
             let available_byte_count = process_binary.full_byte_len();
@@ -47,13 +47,13 @@ pub fn result(
                 byte_len,
             } = start_length_to_part_range(start_usize, length_isize, available_byte_count)?;
 
-            if (byte_offset == 0) && (byte_len == available_byte_count) {
-                Ok(binary)
+            let binary_part = if (byte_offset == 0) && (byte_len == available_byte_count) {
+                binary
             } else {
-                process
-                    .subbinary_from_original(binary, byte_offset, 0, byte_len, 0)
-                    .map_err(|error| error.into())
-            }
+                process.subbinary_from_original(binary, byte_offset, 0, byte_len, 0)
+            };
+
+            Ok(binary_part)
         }
         TypedTerm::SubBinary(subbinary) => {
             let PartRange {
@@ -62,22 +62,22 @@ pub fn result(
             } = start_length_to_part_range(start_usize, length_isize, subbinary.full_byte_len())?;
 
             // new subbinary is entire subbinary
-            if (subbinary.is_binary())
+            let binary_part = if (subbinary.is_binary())
                 && (byte_offset == 0)
                 && (byte_len == subbinary.full_byte_len())
             {
-                Ok(binary)
+                binary
             } else {
-                process
-                    .subbinary_from_original(
-                        subbinary.original(),
-                        subbinary.byte_offset() + byte_offset,
-                        subbinary.bit_offset(),
-                        byte_len,
-                        0,
-                    )
-                    .map_err(|error| error.into())
-            }
+                process.subbinary_from_original(
+                    subbinary.original(),
+                    subbinary.byte_offset() + byte_offset,
+                    subbinary.bit_offset(),
+                    byte_len,
+                    0,
+                )
+            };
+
+            Ok(binary_part)
         }
         _ => Err(TypeError)
             .context(format!(

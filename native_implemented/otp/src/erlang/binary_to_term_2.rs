@@ -67,14 +67,14 @@ fn versioned_tagged_bytes_try_into_term(
     let (term, after_term_bytes) =
         term::decode_tagged(process, options.existing, after_version_bytes)?;
 
-    if options.used {
+    let final_term = if options.used {
         let used_byte_len = bytes.len() - after_term_bytes.len();
-        let used = process.integer(used_byte_len)?;
+        let used = process.integer(used_byte_len);
 
-        process
-            .tuple_from_slice(&[term, used])
-            .map_err(|alloc| alloc.into())
+        process.tuple_from_slice(&[term, used])
     } else {
-        Ok(term)
-    }
+        term
+    };
+
+    Ok(final_term)
 }

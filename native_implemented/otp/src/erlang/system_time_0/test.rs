@@ -7,11 +7,11 @@ use crate::test::with_process;
 #[test]
 fn increases_after_2_native_time_units() {
     with_process(|process| {
-        let first = result(process).unwrap();
+        let first = result(process);
 
         thread::sleep(Duration::from_millis(2));
 
-        let second = result(process).unwrap();
+        let second = result(process);
 
         assert!(first < second);
     });

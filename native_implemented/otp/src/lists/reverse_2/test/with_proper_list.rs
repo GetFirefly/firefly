@@ -29,12 +29,11 @@ fn reverses_order_of_elements_of_list_and_concatenate_tail() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(vec, tail)| {
-                    let list = arc_process.list_from_slice(&vec).unwrap();
+                    let list = arc_process.list_from_slice(&vec);
 
                     let reversed_vec: Vec<Term> = vec.iter().rev().copied().collect();
-                    let reversed_with_tail = arc_process
-                        .improper_list_from_slice(&reversed_vec, tail)
-                        .unwrap();
+                    let reversed_with_tail =
+                        arc_process.improper_list_from_slice(&reversed_vec, tail);
 
                     prop_assert_eq!(result(&arc_process, list, tail), Ok(reversed_with_tail));
 

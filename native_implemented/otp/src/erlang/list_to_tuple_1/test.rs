@@ -30,10 +30,7 @@ fn with_empty_list_returns_empty_tuple() {
     with_process(|process| {
         let list = Term::NIL;
 
-        assert_eq!(
-            result(process, list),
-            Ok(process.tuple_from_slice(&[]).unwrap())
-        );
+        assert_eq!(result(process, list), Ok(process.tuple_from_slice(&[])));
     });
 }
 
@@ -46,8 +43,8 @@ fn with_non_empty_proper_list_returns_tuple() {
             .run(
                 &proptest::collection::vec(strategy::term(arc_process.clone()), size_range)
                     .prop_map(|vec| {
-                        let list = arc_process.list_from_slice(&vec).unwrap();
-                        let tuple = arc_process.tuple_from_slice(&vec).unwrap();
+                        let list = arc_process.list_from_slice(&vec);
+                        let tuple = arc_process.tuple_from_slice(&vec);
 
                         (list, tuple)
                     }),
@@ -88,30 +85,19 @@ fn with_nested_list_returns_tuple_with_list_element() {
         let first_element = Atom::str_to_term("share");
 
         let (second_element, list) = {
-            let second_element = process
-                .cons(
-                    Atom::str_to_term("Ericsson_B"),
-                    process
-                        .cons(process.integer(163).unwrap(), Term::NIL)
-                        .unwrap(),
-                )
-                .unwrap();
+            let second_element = process.cons(
+                Atom::str_to_term("Ericsson_B"),
+                process.cons(process.integer(163), Term::NIL),
+            );
 
-            let list = process
-                .cons(
-                    first_element,
-                    process.cons(second_element, Term::NIL).unwrap(),
-                )
-                .unwrap();
+            let list = process.cons(first_element, process.cons(second_element, Term::NIL));
 
             (second_element, list)
         };
 
         assert_eq!(
             result(process, list),
-            Ok(process
-                .tuple_from_slice(&[first_element, second_element],)
-                .unwrap())
+            Ok(process.tuple_from_slice(&[first_element, second_element],))
         );
     });
 }

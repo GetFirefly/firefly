@@ -18,9 +18,8 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
         arc_process.return_status(result())
     }
 
-    let function = parent_arc_process
-        .export_closure(module, function, arity, NonNull::new(native as _))
-        .unwrap();
+    let function =
+        parent_arc_process.export_closure(module, function, arity, NonNull::new(native as _));
     let result = result(&parent_arc_process, function);
 
     assert!(result.is_ok());
@@ -67,15 +66,13 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
     assert!(has_message(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                Atom::str_to_term("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            Atom::str_to_term("process"),
+            child_pid_term,
+            reason
+        ])
     ));
 }
 
@@ -96,9 +93,8 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
     let module = Atom::from_str("module");
     let function = Atom::from_str("function");
     let arity = 0;
-    let function = parent_arc_process
-        .export_closure(module, function, arity, NonNull::new(native as _))
-        .unwrap();
+    let function =
+        parent_arc_process.export_closure(module, function, arity, NonNull::new(native as _));
     let result = result(&parent_arc_process, function);
 
     assert!(result.is_ok());
@@ -138,14 +134,12 @@ fn with_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
     assert!(has_message(
         &parent_arc_process,
-        parent_arc_process
-            .tuple_from_slice(&[
-                tag,
-                monitor_reference,
-                Atom::str_to_term("process"),
-                child_pid_term,
-                reason
-            ])
-            .unwrap()
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            Atom::str_to_term("process"),
+            child_pid_term,
+            reason
+        ])
     ));
 }

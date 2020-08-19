@@ -97,11 +97,11 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments)| {
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments])
-                    .unwrap()])
-                .unwrap();
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+            ])]);
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
@@ -127,11 +127,11 @@ fn with_class_with_stacktrace_with_atom_module_without_atom_function_errors_bada
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments)| {
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments])
-                    .unwrap()])
-                .unwrap();
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+            ])]);
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
@@ -158,11 +158,11 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments)| {
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments])
-                    .unwrap()])
-                .unwrap();
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+            ])]);
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
@@ -191,15 +191,13 @@ fn with_class_with_stacktrace_with_mfa_with_file_without_charlist_errors_badarg(
         |(arc_process, class, reason, module, function, arity_or_arguments, file_value)| {
             let file_key = atom!("file");
             let location = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[file_key, file_value])
-                    .unwrap()])
-                .unwrap();
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments, location])
-                    .unwrap()])
-                .unwrap();
+                .list_from_slice(&[arc_process.tuple_from_slice(&[file_key, file_value])]);
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+                location,
+            ])]);
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
@@ -228,15 +226,13 @@ fn with_class_with_stacktrace_with_mfa_with_non_positive_line_with_errors_badarg
         |(arc_process, class, reason, module, function, arity_or_arguments, line_value)| {
             let line_key = atom!("line");
             let location = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[line_key, line_value])
-                    .unwrap()])
-                .unwrap();
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments, location])
-                    .unwrap()])
-                .unwrap();
+                .list_from_slice(&[arc_process.tuple_from_slice(&[line_key, line_value])]);
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+                location,
+            ])]);
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
@@ -271,14 +267,14 @@ fn with_class_with_stacktrace_with_mfa_with_invalid_location_errors_badarg() {
             )
         },
         |(arc_process, class, reason, module, function, arity_or_arguments, key, value)| {
-            let location = arc_process
-                .list_from_slice(&[arc_process.tuple_from_slice(&[key, value]).unwrap()])
-                .unwrap();
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments, location])
-                    .unwrap()])
-                .unwrap();
+            let location =
+                arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[key, value])]);
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+                location,
+            ])]);
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
@@ -305,10 +301,7 @@ fn with_atom_module_with_atom_function_with_arity_raises() {
         },
         |(arc_process, (class_variant, class), reason, module, function, arity)| {
             let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity])
-                    .unwrap()])
-                .unwrap();
+                .list_from_slice(&[arc_process.tuple_from_slice(&[module, function, arity])]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },
@@ -330,10 +323,7 @@ fn with_atom_module_with_atom_function_with_arguments_raises() {
         },
         |(arc_process, (class_variant, class), reason, module, function, arguments)| {
             let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arguments])
-                    .unwrap()])
-                .unwrap();
+                .list_from_slice(&[arc_process.tuple_from_slice(&[module, function, arguments])]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },
@@ -355,11 +345,12 @@ fn with_mfa_with_empty_location_raises() {
         },
         |(arc_process, (class_variant, class), reason, module, function, arity_or_arguments)| {
             let location = Term::NIL;
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments, location])
-                    .unwrap()])
-                .unwrap();
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+                location,
+            ])]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },
@@ -383,15 +374,10 @@ fn with_mfa_with_file_raises() {
         |(arc_process, (class_variant, class), reason, module, function, arity, file_value)| {
             let file_key = atom!("file");
             let location = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[file_key, file_value])
-                    .unwrap()])
-                .unwrap();
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity, location])
-                    .unwrap()])
-                .unwrap();
+                .list_from_slice(&[arc_process.tuple_from_slice(&[file_key, file_value])]);
+            let stacktrace = arc_process.list_from_slice(&[
+                arc_process.tuple_from_slice(&[module, function, arity, location])
+            ]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },
@@ -423,15 +409,13 @@ fn with_mfa_with_positive_line_raises() {
         )| {
             let line_key = atom!("line");
             let location = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[line_key, line_value])
-                    .unwrap()])
-                .unwrap();
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments, location])
-                    .unwrap()])
-                .unwrap();
+                .list_from_slice(&[arc_process.tuple_from_slice(&[line_key, line_value])]);
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+                location,
+            ])]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },
@@ -465,21 +449,16 @@ fn with_mfa_with_file_and_line_raises() {
         )| {
             let file_key = atom!("file");
             let line_key = atom!("line");
-            let location = arc_process
-                .list_from_slice(&[
-                    arc_process
-                        .tuple_from_slice(&[file_key, file_value])
-                        .unwrap(),
-                    arc_process
-                        .tuple_from_slice(&[line_key, line_value])
-                        .unwrap(),
-                ])
-                .unwrap();
-            let stacktrace = arc_process
-                .list_from_slice(&[arc_process
-                    .tuple_from_slice(&[module, function, arity_or_arguments, location])
-                    .unwrap()])
-                .unwrap();
+            let location = arc_process.list_from_slice(&[
+                arc_process.tuple_from_slice(&[file_key, file_value]),
+                arc_process.tuple_from_slice(&[line_key, line_value]),
+            ]);
+            let stacktrace = arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
+                module,
+                function,
+                arity_or_arguments,
+                location,
+            ])]);
 
             prop_assert_raises(class_variant, class, reason, stacktrace)
         },

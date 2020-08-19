@@ -65,7 +65,7 @@ fn with_integer_integer_with_zero_shift_returns_same_integer() {
             )
         },
         |(arc_process, integer)| {
-            let shift = arc_process.integer(0).unwrap();
+            let shift = arc_process.integer(0);
 
             prop_assert_eq!(result(&arc_process, integer, shift), Ok(integer));
 
@@ -88,15 +88,11 @@ fn with_integer_integer_with_integer_shift_is_the_same_as_bsr_with_negated_shift
             let negated_shift = -1 * shift;
 
             prop_assert_eq!(
-                result(
-                    &arc_process,
-                    integer,
-                    arc_process.integer(shift as isize).unwrap(),
-                ),
+                result(&arc_process, integer, arc_process.integer(shift as isize),),
                 erlang::bsr_2::result(
                     &arc_process,
                     integer,
-                    arc_process.integer(negated_shift as isize).unwrap(),
+                    arc_process.integer(negated_shift as isize),
                 )
             );
 

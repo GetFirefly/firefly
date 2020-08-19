@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 pub fn result(process: &Process, atom: Term, encoding: Term) -> exception::Result<Term> {
     let atom_atom = term_try_into_atom!(atom)?;
     let _: Encoding = encoding.try_into()?;
-    let binary = process.binary_from_str(atom_atom.name())?;
+    let binary = process.binary_from_str(atom_atom.name());
 
     Ok(binary)
 }

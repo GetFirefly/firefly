@@ -11,18 +11,18 @@ pub fn decode<'a>(process: &Process, bytes: &'a [u8]) -> InternalResult<(Term, &
     let (partial_byte_bit_len, after_partial_byte_bit_len_bytes) = u8::decode(after_len_bytes)?;
     assert!(0 < partial_byte_bit_len);
 
-    try_split_at(after_partial_byte_bit_len_bytes, len_usize).and_then(
+    try_split_at(after_partial_byte_bit_len_bytes, len_usize).map(
         |(data_bytes, after_data_bytes)| {
-            let original = process.binary_from_bytes(data_bytes)?;
+            let original = process.binary_from_bytes(data_bytes);
             let subbinary = process.subbinary_from_original(
                 original,
                 0,
                 0,
                 len_usize - 1,
                 partial_byte_bit_len,
-            )?;
+            );
 
-            Ok((subbinary, after_data_bytes))
+            (subbinary, after_data_bytes)
         },
     )
 }

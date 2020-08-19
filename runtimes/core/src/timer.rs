@@ -143,7 +143,7 @@ impl Hierarchy {
     ) -> AllocResult<Term> {
         let reference_number = arc_scheduler.next_reference_number();
         let process_reference =
-            arc_process.reference_from_scheduler(arc_scheduler.id(), reference_number)?;
+            arc_process.reference_from_scheduler(arc_scheduler.id(), reference_number);
 
         let destination_event = match source_event {
             SourceEvent::Message {
@@ -156,7 +156,7 @@ impl Hierarchy {
                     Format::TimeoutTuple => {
                         let tag = Atom::str_to_term("timeout");
                         let process_tuple =
-                            arc_process.tuple_from_slice(&[tag, process_reference, term])?;
+                            arc_process.tuple_from_slice(&[tag, process_reference, term]);
 
                         process_tuple.clone_to_fragment()?
                     }

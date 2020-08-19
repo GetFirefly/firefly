@@ -17,16 +17,16 @@ fn with_positive_index_greater_than_length_errors_badarg() {
                             arc_process.clone(),
                             len,
                             default_value,
-                            arc_process.integer(len + index_offset).unwrap(),
+                            arc_process.integer(len + index_offset),
                             index_element,
                         )
                     },
                 )
         },
         |(arc_process, arity_usize, default_value, position, element)| {
-            let arity = arc_process.integer(arity_usize).unwrap();
-            let init = arc_process.tuple_from_slice(&[position, element]).unwrap();
-            let init_list = arc_process.list_from_slice(&[init]).unwrap();
+            let arity = arc_process.integer(arity_usize);
+            let init = arc_process.tuple_from_slice(&[position, element]);
+            let init_list = arc_process.list_from_slice(&[init]);
 
             prop_assert_badarg!(
                 result(&arc_process, arity, default_value, init_list),
@@ -61,13 +61,11 @@ fn with_positive_index_less_than_or_equal_to_length_replaces_default_value_at_in
                     )
                 }),
             |(arc_process, arity_usize, default_value, zero_based_index, init_list_element)| {
-                let arity = arc_process.integer(arity_usize).unwrap();
-                let one_based_index = arc_process.integer(zero_based_index + 1).unwrap();
-                let init_list = arc_process
-                    .list_from_slice(&[arc_process
-                        .tuple_from_slice(&[one_based_index, init_list_element])
-                        .unwrap()])
-                    .unwrap();
+                let arity = arc_process.integer(arity_usize);
+                let one_based_index = arc_process.integer(zero_based_index + 1);
+                let init_list = arc_process.list_from_slice(&[
+                    arc_process.tuple_from_slice(&[one_based_index, init_list_element])
+                ]);
 
                 let result = result(&arc_process, arity, default_value, init_list);
 
@@ -131,22 +129,14 @@ fn with_multiple_values_at_same_index_then_last_value_is_used() {
                 init_list_ignored_element,
                 init_list_used_element,
             )| {
-                let arity = arc_process.integer(arity_usize).unwrap();
-                let init_list_one_base_index =
-                    arc_process.integer(init_list_zero_based_index + 1).unwrap();
-                let init_list = arc_process
-                    .list_from_slice(&[
-                        arc_process
-                            .tuple_from_slice(&[
-                                init_list_one_base_index,
-                                init_list_ignored_element,
-                            ])
-                            .unwrap(),
-                        arc_process
-                            .tuple_from_slice(&[init_list_one_base_index, init_list_used_element])
-                            .unwrap(),
-                    ])
-                    .unwrap();
+                let arity = arc_process.integer(arity_usize);
+                let init_list_one_base_index = arc_process.integer(init_list_zero_based_index + 1);
+                let init_list = arc_process.list_from_slice(&[
+                    arc_process
+                        .tuple_from_slice(&[init_list_one_base_index, init_list_ignored_element]),
+                    arc_process
+                        .tuple_from_slice(&[init_list_one_base_index, init_list_used_element]),
+                ]);
 
                 let result = result(&arc_process, arity, default_value, init_list);
 

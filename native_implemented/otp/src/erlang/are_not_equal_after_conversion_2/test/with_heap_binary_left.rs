@@ -38,8 +38,8 @@ fn with_same_value_heap_binary_right_returns_false() {
         |arc_process| {
             (Just(arc_process.clone()), strategy::byte_vec()).prop_map(|(arc_process, byte_vec)| {
                 (
-                    arc_process.binary_from_bytes(&byte_vec).unwrap(),
-                    arc_process.binary_from_bytes(&byte_vec).unwrap(),
+                    arc_process.binary_from_bytes(&byte_vec),
+                    arc_process.binary_from_bytes(&byte_vec),
                 )
             })
         },
@@ -83,9 +83,7 @@ fn with_subbinary_right_with_same_bytes_returns_false() {
                     let subbinary: Boxed<SubBinary> = subbinary_term.try_into().unwrap();
                     let heap_binary_byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
-                    let heap_binary = arc_process
-                        .binary_from_bytes(&heap_binary_byte_vec)
-                        .unwrap();
+                    let heap_binary = arc_process.binary_from_bytes(&heap_binary_byte_vec);
                     (heap_binary, subbinary_term)
                 })
         },
@@ -111,9 +109,7 @@ fn with_subbinary_right_with_different_bytes_returns_true() {
                     let heap_binary_byte_vec: Vec<u8> =
                         subbinary.full_byte_iter().map(|b| !b).collect();
 
-                    let heap_binary = arc_process
-                        .binary_from_bytes(&heap_binary_byte_vec)
-                        .unwrap();
+                    let heap_binary = arc_process.binary_from_bytes(&heap_binary_byte_vec);
                     (heap_binary, subbinary_term)
                 })
         },

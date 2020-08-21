@@ -6,30 +6,22 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::{self, apply_2};
-use crate::runtime;
 use crate::runtime::process::spawn::options::Options;
+use crate::runtime::scheduler::Scheduled;
 
 pub(in crate::erlang) fn result(
     process: &Process,
-    options: Options,
+    _options: Options,
     function: Term,
 ) -> exception::Result<Term> {
-    let _: Boxed<Closure> = function
+    let boxed_closure: Boxed<Closure> = function
         .try_into()
         .with_context(|| format!("function ({}) is not a function", function))?;
-    let arguments = &[function, Term::NIL];
 
-    // The :badarity error is raised in the child process and not in the parent process, so the
-    // child process must be running the equivalent of `apply(function, [])`.
-    runtime::process::spawn::native(
-        Some(process),
-        options,
-        erlang::module(),
-        apply_2::function(),
-        arguments,
-        apply_2::NATIVE,
-    )
-    .map(|spawned| spawned.schedule_with_parent(process).to_term(process))
-    .map_err(|e| e.into())
+    let child_pid = process
+        .scheduler()
+        .unwrap()
+        .spawn_closure(Some(process), boxed_closure)?;
+
+    Ok(child_pid.into())
 }

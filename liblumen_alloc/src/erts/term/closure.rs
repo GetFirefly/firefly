@@ -314,7 +314,7 @@ impl Closure {
 
     #[inline]
     pub fn arity(&self) -> Arity {
-        self.arity as u8
+        self.arity as Arity
     }
 
     #[inline]
@@ -337,12 +337,13 @@ impl Closure {
         })
     }
 
-    /// The `native` function needs to accept both the explicit arguments of `arity`, but also the
-    /// implicit arguments of the captured environment.
+    /// The `native` function needs takes the following arguments
+    /// 0   - This closure itself as a term, so that it can unpack the environment
+    /// 1.. - Any explicit arguments for its `arity`.
     ///
-    /// FIXME(pauls): The above is not true for generated code, so this requires review
+    /// This means the native arity ends up being `1 + arity()`.
     pub fn native_arity(&self) -> Arity {
-        (self.arity as u8 + self.env_len() as u8) as Arity
+        (1 + self.arity) as Arity
     }
 
     pub fn frame(&self) -> Frame {

@@ -2,6 +2,7 @@
 
 use std::alloc::Layout;
 use std::any::Any;
+use std::ffi::c_void;
 use std::fmt::{self, Debug};
 use std::mem;
 use std::ops::Deref;
@@ -51,6 +52,12 @@ extern "C" {
 
     #[link_name = "__lumen_trap_exceptions"]
     fn trap_exceptions_impl() -> bool;
+}
+
+// External functions defined in OTP
+extern "C" {
+    #[link_name = "lumen:apply_apply_2/1"]
+    fn apply_apply_2() -> usize;
 }
 
 crate fn stop_waiting(process: &Process) {
@@ -670,10 +677,12 @@ impl Scheduler {
     ) {
         process.schedule_with(id);
 
-        let init_fn = closure.callee().unwrap();
-        let env: Term = closure.into();
+        let init_fn = unsafe { mem::transmute::<_, DynamicCallee>(apply_apply_2 as *const c_void) };
+        let function = closure.into();
+        let arguments = Term::NIL;
+        let env = Some(process.list_from_slice(&[function, arguments]));
 
-        Self::spawn_internal_impl(process, init_fn, Some(env), id, run_queues)
+        Self::spawn_internal_impl(process, init_fn, env, id, run_queues)
     }
 
     fn spawn_internal(process: Arc<Process>, id: id::ID, run_queues: &RwLock<run_queue::Queues>) {

@@ -70,3 +70,5 @@ pub mod is_alive_0;
 pub mod is_atom_1;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;
+#[path = "erlang/spawn_1.rs"]
+pub mod spawn_1;

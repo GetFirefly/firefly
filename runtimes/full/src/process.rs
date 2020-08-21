@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::ffi::{process_error, ProcessSignal};
 use liblumen_alloc::erts::process::{self, Frame, FrameWithArguments, Process};
 
-pub use lumen_rt_core::process::{current_process, monitor, set_log_exit, spawn};
+pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set_log_exit, spawn};
 
 #[unwind(allowed)]
 #[no_mangle]

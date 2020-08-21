@@ -9,42 +9,37 @@ use liblumen_alloc::erts::exception::{self, badarity};
 use liblumen_alloc::erts::process::{FrameWithArguments, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
+extern "Rust" {
+    #[link_name = "lumen_rt_apply_2"]
+    fn runtime_apply_2(function_boxed_closure: Boxed<Closure>, arguments: Vec<Term>) -> Term;
+}
+
 #[native_implemented::function(erlang:apply/2)]
 fn result(process: &Process, function: Term, arguments: Term) -> exception::Result<Term> {
-    let function_result_boxed_closure: Result<Boxed<Closure>, _> = function.try_into();
+    let function_boxed_closure: Boxed<Closure> = function
+        .try_into()
+        .with_context(|| format!("function ({}) is not a function", function))?;
 
-    match function_result_boxed_closure {
-        Ok(function_boxed_closure) => {
-            let argument_vec = argument_list_to_vec(arguments)?;
+    let argument_vec = argument_list_to_vec(arguments)?;
+    let arguments_len = argument_vec.len();
+    let arity = function_boxed_closure.arity() as usize;
 
-            let arguments_len = argument_vec.len();
-            let arity = function_boxed_closure.arity() as usize;
-
-            if arguments_len == arity {
-                let frame_with_arguments =
-                    function_boxed_closure.frame_with_arguments(false, argument_vec);
-                process.queue_frame_with_arguments(frame_with_arguments);
-
-                Ok(Term::NONE)
-            } else {
-                Err(badarity(
-                    process,
-                    function,
-                    arguments,
-                    anyhow!(
-                        "arguments ({}) length ({}) does not match arity ({}) of function ({})",
-                        arguments,
-                        arguments_len,
-                        arity,
-                        function
-                    )
-                    .into(),
-                ))
-            }
-        }
-        Err(_) => Err(anyhow!(TypeError)
-            .context(format!("function ({}) is not a function", function))
-            .into()),
+    if arguments_len == arity {
+        Ok(unsafe { runtime_apply_2(function_boxed_closure, argument_vec) })
+    } else {
+        Err(badarity(
+            process,
+            function,
+            arguments,
+            anyhow!(
+                "arguments ({}) length ({}) does not match arity ({}) of function ({})",
+                arguments,
+                arguments_len,
+                arity,
+                function
+            )
+            .into(),
+        ))
     }
 }
 

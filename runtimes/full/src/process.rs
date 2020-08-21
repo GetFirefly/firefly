@@ -4,6 +4,7 @@ mod out_of_code;
 use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::ffi::{process_error, ProcessSignal};
 use liblumen_alloc::erts::process::{self, Frame, FrameWithArguments, Process};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set_log_exit, spawn};
 
@@ -11,6 +12,14 @@ pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set
 #[no_mangle]
 pub unsafe extern "C" fn __lumen_start_panic(_payload: usize) {
     panic!(process_error().unwrap());
+}
+
+#[export_name = "lumen_rt_apply_2"]
+pub fn apply_2(function_boxed_closure: Boxed<Closure>, arguments: Vec<Term>) -> Term {
+    let frame_with_arguments = function_boxed_closure.frame_with_arguments(false, arguments);
+    current_process().queue_frame_with_arguments(frame_with_arguments);
+
+    Term::NONE
 }
 
 #[export_name = "lumen_rt_process_runnable"]

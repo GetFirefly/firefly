@@ -100,6 +100,7 @@ pub fn signal(exit_status: ExitStatus) -> String {
             libc::SIGFPE => "floating point exception".to_string(),
             libc::SIGKILL => "killed".to_string(),
             libc::SIGSEGV => "segmentation fault (invalid address)".to_string(),
+            libc::SIGBUS => "bus error (stack may not have enough pages)".to_string(),
             libc::SIGPIPE => "write on a pipe with no reader".to_string(),
             libc::SIGALRM => "alarm".to_string(),
             libc::SIGTERM => "terminated".to_string(),

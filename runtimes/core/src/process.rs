@@ -83,6 +83,10 @@ pub fn get_log_exit() -> bool {
     LOG_EXIT.with(|log_exit| log_exit.get())
 }
 
+pub fn replace_log_exit(value: bool) -> bool {
+    LOG_EXIT.with(|log_exit| log_exit.replace(value))
+}
+
 pub fn set_log_exit(value: bool) {
     LOG_EXIT.with(|log_exit| log_exit.set(value));
 }

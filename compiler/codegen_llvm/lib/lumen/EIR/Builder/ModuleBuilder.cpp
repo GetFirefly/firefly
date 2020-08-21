@@ -1022,20 +1022,6 @@ static Optional<Value> buildIntrinsicCmpNeqStrictOp(ModuleBuilder *modBuilder,
   return op.getResult();
 }
 
-static Optional<Value> buildIntrinsicSpawn1Op(ModuleBuilder *modBuilder,
-                                              Location loc,
-                                              ArrayRef<Value> args) {
-  auto builder = modBuilder->getBuilder();
-  assert(args.size() == 1 && "expected spawn/1 to receive one operand");
-  auto calleeSymbol =
-      FlatSymbolRefAttr::get("__lumen_builtin_spawn/1", builder.getContext());
-  auto termTy = builder.getType<TermType>();
-  SmallVector<Type, 1> resultTypes{termTy};
-  auto op = builder.create<CallOp>(loc, calleeSymbol, resultTypes, args);
-  op.setAttr("tail", builder.getUnitAttr());
-  return op.getResult(0);
-}
-
 static Optional<Value> buildIntrinsicFailOp(ModuleBuilder *modBuilder,
                                             Location loc,
                                             ArrayRef<Value> args) {
@@ -1061,7 +1047,6 @@ static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
                    .Case("erlang:throw/1", buildIntrinsicThrowOp)
                    .Case("erlang:raise/3", buildIntrinsicRaiseOp)
                    .Case("erlang:print/1", buildIntrinsicPrintOp)
-                   .Case("erlang:spawn/1", buildIntrinsicSpawn1Op)
                    .Case("erlang:fail/1", buildIntrinsicFailOp)
                    .Case("erlang:+/2", buildIntrinsicAddOp)
                    .Case("erlang:-/1", buildIntrinsicNegOp)

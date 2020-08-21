@@ -49,28 +49,6 @@ pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
     }
 }
 
-#[export_name = "__lumen_builtin_spawn/1"]
-pub extern "C" fn builtin_spawn(closure: Term) -> Term {
-    let result = panic::catch_unwind(|| {
-        let decoded_result: Result<Boxed<Closure>, _> = closure.decode().unwrap().try_into();
-        if let Ok(fun) = decoded_result {
-            let p = current_process();
-            let id = p.scheduler_id().unwrap();
-            let scheduler = from_id(&id).unwrap();
-            let pid = scheduler.spawn_closure(Some(&p), fun).unwrap();
-            pid.into()
-        } else {
-            panic!("invalid closure: {:?}", closure);
-        }
-    });
-
-    if let Ok(res) = result {
-        res
-    } else {
-        panic!("spawn failed");
-    }
-}
-
 #[export_name = "__lumen_builtin_fail/1"]
 pub extern "C" fn builtin_fail(reason: Term) -> Term {
     use liblumen_alloc::erts::exception::{self, ArcError, RuntimeException};

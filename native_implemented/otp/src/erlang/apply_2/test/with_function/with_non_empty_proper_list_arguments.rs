@@ -39,30 +39,4 @@ fn without_arity_errors_badarg() {
     );
 }
 
-#[test]
-fn with_arity_returns_function_return() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                // FIXME subbinaries break this during stack_pop
-                strategy::term::is_not_bitstring(arc_process.clone()),
-            )
-        },
-        |(arc_process, argument)| {
-            let arguments = arc_process.list_from_slice(&[argument]);
-            let function = return_from_fn_1::export_closure(&arc_process);
-
-            let Ready {
-                arc_process: child_arc_process,
-                result,
-            } = run_until_ready(function, arguments);
-
-            prop_assert_eq!(result, Ok(argument));
-
-            mem::drop(child_arc_process);
-
-            Ok(())
-        },
-    );
-}
+// `with_arity_returns_function_return` in integration tests

@@ -5,7 +5,7 @@ use alloc::collections::VecDeque;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
-use crate::erts::message::{self, Message, MessageType};
+use crate::erts::message::{self, Message};
 use crate::erts::process::ffi::{set_process_signal, ProcessSignal};
 use crate::erts::process::Process;
 use crate::erts::term::prelude::Term;
@@ -32,18 +32,6 @@ impl Mailbox {
             None => None,
             Some(Message::Process(message::Process { data })) => Some(*data),
             Some(Message::HeapFragment(message::HeapFragment { data, .. })) => Some(*data),
-        }
-    }
-
-    pub fn recv_peek_with_type(&self) -> Option<(Term, MessageType)> {
-        match self.messages.get(self.cursor) {
-            None => None,
-            Some(Message::Process(message::Process { data })) => {
-                Some((*data, MessageType::Process))
-            }
-            Some(Message::HeapFragment(message::HeapFragment { data, .. })) => {
-                Some((*data, MessageType::HeapFragment))
-            }
         }
     }
 

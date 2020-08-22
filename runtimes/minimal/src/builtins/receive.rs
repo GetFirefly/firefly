@@ -3,7 +3,6 @@ use std::panic;
 use std::ptr;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::message::MessageType;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::timeout::{ReceiveTimeout, Timeout};
@@ -146,7 +145,7 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState
                 let p = current_process();
                 let mbox_lock = p.mailbox.lock();
                 let mut mbox = mbox_lock.borrow_mut();
-                if let Some((msg, msg_type)) = mbox.recv_peek_with_type() {
+                if let Some(msg) = mbox.recv_peek() {
                     mbox.recv_increment();
                     context.with_message(msg);
                     break ReceiveState::Received;

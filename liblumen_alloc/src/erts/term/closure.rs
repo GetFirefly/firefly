@@ -338,12 +338,17 @@ impl Closure {
     }
 
     /// The `native` function needs takes the following arguments
-    /// 0   - This closure itself as a term, so that it can unpack the environment
-    /// 1.. - Any explicit arguments for its `arity`.
     ///
-    /// This means the native arity ends up being `1 + arity()`.
+    /// If `env_len() == 0`, then this `Closure` is not passed
+    /// 0.. - Any explicit arguments for its `arity`.
+    ///
+    /// If the `env_len() > 0`, then this `Closure` is passed
+    /// 0 - Closure `Term`, so native code can extract the `env_slice()`
+    /// 1.. - Any explicit arguments for its `arity`.
     pub fn native_arity(&self) -> Arity {
-        (1 + self.arity) as Arity
+        let closure_term_arity = if self.env_len() > 0 { 1 } else { 0 };
+
+        (closure_term_arity + self.arity) as Arity
     }
 
     pub fn frame(&self) -> Frame {

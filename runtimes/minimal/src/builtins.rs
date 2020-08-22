@@ -11,7 +11,6 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_core::process::current_process;
 use lumen_rt_core::registry;
-use lumen_rt_core::scheduler::from_id;
 
 #[export_name = "erlang:!/2"]
 pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {

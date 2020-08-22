@@ -368,9 +368,9 @@ impl Closure {
         uses_returned: bool,
         arguments: Vec<Term>,
     ) -> FrameWithArguments {
-        let mut full_arguments = Vec::with_capacity(arguments.len() + self.env_len());
+        let mut full_arguments = Vec::with_capacity(self.native_arity() as usize);
+        full_arguments.push(self.encode().unwrap());
         full_arguments.extend_from_slice(&arguments);
-        full_arguments.extend_from_slice(self.env_slice());
 
         self.frame().with_arguments(uses_returned, &full_arguments)
     }

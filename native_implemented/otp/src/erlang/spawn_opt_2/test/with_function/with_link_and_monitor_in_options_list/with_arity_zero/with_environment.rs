@@ -2,17 +2,18 @@ use super::*;
 
 #[test]
 fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
-    extern "C" fn native(first: Term, second: Term) -> Term {
+    extern "C" fn native(function: Term) -> Term {
         let arc_process = current_process();
         arc_process.reduce();
 
-        fn result(process: &Process, first: Term, second: Term) -> exception::Result<Term> {
-            let reason = process.list_from_slice(&[first, second]);
+        fn result(process: &Process, function: Term) -> exception::Result<Term> {
+            let function_boxed_closure: Boxed<Closure> = function.try_into().unwrap();
+            let reason = process.list_from_slice(function_boxed_closure.env_slice());
 
             Err(exit!(reason, anyhow!("Test").into()).into())
         }
 
-        arc_process.return_status(result(&arc_process, first, second))
+        arc_process.return_status(result(&arc_process, function))
     }
 
     let parent_arc_process = test::process::init();
@@ -103,17 +104,18 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
 #[test]
 fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
-    extern "C" fn native(first: Term, second: Term) -> Term {
+    extern "C" fn native(function: Term) -> Term {
         let arc_process = current_process();
         arc_process.reduce();
 
-        fn result(process: &Process, first: Term, second: Term) -> exception::Result<Term> {
-            let reason = process.tuple_from_slice(&[first, second]);
+        fn result(process: &Process, function: Term) -> exception::Result<Term> {
+            let function_boxed_closure: Boxed<Closure> = function.try_into().unwrap();
+            let reason = process.tuple_from_slice(function_boxed_closure.env_slice());
 
             Err(exit!(reason, anyhow!("Test").into()).into())
         }
 
-        arc_process.return_status(result(&arc_process, first, second))
+        arc_process.return_status(result(&arc_process, function))
     }
 
     let parent_arc_process = test::process::init();
@@ -137,6 +139,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
             Atom::str_to_term("shutdown_reason"),
         ],
     );
+
     let result = result(&parent_arc_process, function, options(&parent_arc_process));
 
     assert!(result.is_ok());

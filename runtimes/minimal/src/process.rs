@@ -1,5 +1,4 @@
-use liblumen_alloc::erts::exception::{self, AllocResult};
-use liblumen_alloc::erts::process::{FrameWithArguments, Native, Process};
+use liblumen_alloc::erts::process::Native;
 use liblumen_alloc::erts::term::prelude::*;
 
 pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set_log_exit, spawn};
@@ -48,12 +47,4 @@ pub fn apply_2(function_boxed_closure: Boxed<Closure>, arguments: Vec<Term>) -> 
         ),
         _ => unimplemented!("apply/2 for arity ({})", arity),
     }
-}
-
-#[export_name = "lumen_rt_process_runnable"]
-pub fn runnable<'a>(
-    process: &Process,
-    _frames_with_arguments_fn: Box<dyn Fn(&Process) -> AllocResult<Vec<FrameWithArguments>> + 'a>,
-) -> AllocResult<()> {
-    process.runnable(move |_process| Ok(()))
 }

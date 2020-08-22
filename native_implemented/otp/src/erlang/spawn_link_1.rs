@@ -12,10 +12,10 @@ use crate::runtime::process::spawn::options::Options;
 pub fn result(process: &Process, function: Term) -> exception::Result<Term> {
     spawn_apply_1::result(
         process,
+        function,
         Options {
             link: true,
             ..Default::default()
         },
-        function,
     )
 }

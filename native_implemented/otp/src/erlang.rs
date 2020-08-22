@@ -5,6 +5,7 @@ pub mod add_2;
 pub mod and_2;
 pub mod andalso_2;
 pub mod append_element_2;
+pub mod apply;
 pub mod apply_2;
 pub mod apply_3;
 pub mod are_equal_after_conversion_2;

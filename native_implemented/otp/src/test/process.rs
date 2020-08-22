@@ -6,8 +6,8 @@ use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::Process;
 
 use crate::runtime::process::set_log_exit;
-use crate::runtime::process::spawn::options::Options;
-use crate::runtime::scheduler::{self, Spawned};
+use crate::runtime::process::spawn::Options;
+use crate::runtime::scheduler::{self, Scheduled, Spawned};
 use crate::{erlang, runtime};
 
 use super::loop_0;
@@ -25,6 +25,7 @@ pub fn init() -> Arc<Process> {
         super::anonymous_0::function_symbol(),
         super::anonymous_1::function_symbol(),
         super::init::start_0::function_symbol(),
+        loop_0::function_symbol(),
     ]);
 
     set_log_exit(false);
@@ -49,26 +50,21 @@ pub fn init() -> Arc<Process> {
 }
 
 pub fn child(parent_process: &Process) -> Arc<Process> {
-    let mut options: Options = Default::default();
-    options.min_heap_size = Some(16_000);
     let module = loop_0::module();
     let function = loop_0::function();
-    let arguments = &[];
-    let native = loop_0::NATIVE;
+    let arguments = vec![];
+    let mut options: Options = Default::default();
+    options.min_heap_size = Some(16_000);
 
     let Spawned {
         arc_process: child_arc_process,
         connection,
-    } = runtime::process::spawn::native(
-        Some(parent_process),
-        options,
-        module,
-        function,
-        arguments,
-        native,
-    )
-    .map(|spawned| spawned.schedule_with_parent(parent_process))
-    .unwrap();
+    } = parent_process
+        .scheduler()
+        .unwrap()
+        .spawn_module_function_arguments(Some(parent_process), module, function, arguments, options)
+        .unwrap();
+
     assert!(!connection.linked);
     assert!(connection.monitor_reference.is_none());
 

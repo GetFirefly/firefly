@@ -1,49 +1,36 @@
-#![allow(unused)]
-
 use std::alloc::Layout;
 use std::any::Any;
 use std::ffi::c_void;
 use std::fmt::{self, Debug};
 use std::mem;
-use std::ops::Deref;
 use std::ptr;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
-use hashbrown::HashMap;
-
-use anyhow::{anyhow, Error};
-use lazy_static::lazy_static;
+use anyhow::anyhow;
 
 use log::info;
 
-use liblumen_core::locks::{Mutex, RwLock};
+use liblumen_core::locks::RwLock;
 use liblumen_core::sys::dynamic_call::DynamicCallee;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 
-use liblumen_alloc::atom;
-use liblumen_alloc::erts::apply;
-use liblumen_alloc::erts::exception::{AllocResult, SystemException};
-use liblumen_alloc::erts::process::alloc;
-use liblumen_alloc::erts::process::{CalleeSavedRegisters, Priority, Process, Status};
+use liblumen_alloc::erts::process::{self, CalleeSavedRegisters, Priority, Process, Status};
+use liblumen_alloc::{atom, Arity, CloneToProcess};
 
 use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use lumen_rt_core as rt_core;
+use lumen_rt_core::process::spawn::options::Options;
 use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
-use lumen_rt_core::registry;
+use lumen_rt_core::registry::put_pid_to_process;
 use lumen_rt_core::scheduler::Scheduler as SchedulerTrait;
 use lumen_rt_core::scheduler::{self, run_queue, unregister, Run};
 pub use lumen_rt_core::scheduler::{
     current, from_id, run_through, Scheduled, SchedulerDependentAlloc, Spawned,
 };
 use lumen_rt_core::timer::Hierarchy;
-
-use crate::process;
-
-const MAX_REDUCTION_COUNT: u32 = 20;
 
 // External thread locals owned by the generated code
 extern "C" {
@@ -58,6 +45,9 @@ extern "C" {
 extern "C" {
     #[link_name = "lumen:apply_apply_2/1"]
     fn apply_apply_2() -> usize;
+
+    #[link_name = "lumen:apply_apply_3/1"]
+    fn apply_apply_3() -> usize;
 }
 
 crate fn stop_waiting(process: &Process) {
@@ -159,7 +149,6 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
     use core::convert::TryInto;
     use liblumen_alloc::erts::term::closure::ClosureLayout;
     use liblumen_alloc::erts::term::prelude::*;
-    use liblumen_core::alloc::Layout;
     use liblumen_term::TermKind;
 
     let arc_dyn_scheduler = scheduler::current();
@@ -205,8 +194,6 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
 /// returned all the way to its entry function. This marks the process
 /// as exiting (if it wasn't already), and then yields to the scheduler
 fn do_process_return(scheduler: &Scheduler, exit_value: Term) -> bool {
-    use liblumen_alloc::erts::process;
-    use liblumen_alloc::erts::term::prelude::*;
     let current = &scheduler.current;
     if current.pid() != scheduler.root.pid() {
         if let Some(err) = process::ffi::process_error() {
@@ -363,37 +350,34 @@ impl SchedulerTrait for Scheduler {
 
         let arc_process = Arc::new(process);
 
-        let mut rq = self.run_queues.write();
-        rq.enqueue(Arc::clone(&arc_process));
+        self.run_queues.write().enqueue(arc_process.clone());
+        put_pid_to_process(&arc_process);
 
         arc_process
     }
 
-    fn spawn_init(&self, minimum_heap_size: usize) -> Result<Arc<Process>, SystemException> {
+    fn spawn_init(&self, minimum_heap_size: usize) -> anyhow::Result<Arc<Process>> {
         // The init process is the actual "root" Erlang process, it acts
         // as the entry point for the program from Erlang's perspective,
         // and is responsible for starting/stopping the system in Erlang.
         //
         // If this process exits, the scheduler terminates
-        let init_heap_size = alloc::next_heap_size(minimum_heap_size);
-        let init_heap = alloc::heap(init_heap_size)?;
-        let init = Arc::new(Process::new_with_stack(
-            Priority::Normal,
-            None,
-            ModuleFunctionArity {
-                module: Atom::from_str("init"),
-                function: Atom::from_str("start"),
-                arity: 0,
-            },
-            init_heap,
-            init_heap_size,
-        )?);
-        unsafe {
-            self.init.set(init.clone());
-        }
-        Scheduler::spawn_internal(init.clone(), self.id, &self.run_queues);
+        let mut options: Options = Default::default();
+        options.min_heap_size = Some(minimum_heap_size);
 
-        Ok(init)
+        let Spawned { arc_process, .. } = self.spawn_module_function_arguments(
+            None,
+            Atom::from_str("init"),
+            Atom::from_str("start"),
+            vec![],
+            options,
+        )?;
+
+        unsafe {
+            self.init.set(arc_process.clone());
+        }
+
+        Ok(arc_process)
     }
 
     /// Spawns a new process from the given parent, using the given closure as its entry
@@ -401,24 +385,73 @@ impl SchedulerTrait for Scheduler {
         &self,
         parent: Option<&Process>,
         closure: Boxed<Closure>,
-    ) -> anyhow::Result<Pid> {
-        let (heap, heap_size) = alloc::default_heap()?;
-        let process = Arc::new(
-            Process::new_with_stack(
-                Priority::Normal,
-                parent,
-                closure.module_function_arity(),
-                heap,
-                heap_size,
-            )
-            .unwrap(),
-        );
-        let pid = process.pid();
+        options: Options,
+    ) -> anyhow::Result<Spawned> {
+        let (heap, heap_size) = options.sized_heap()?;
+        let priority = options.cascaded_priority(parent);
+        let initial_module_function_arity = closure.module_function_arity();
+        let process = Process::new_with_stack(
+            priority,
+            parent,
+            initial_module_function_arity,
+            heap,
+            heap_size,
+        )?;
 
-        let closure = process.copy_closure(closure);
-        Self::spawn_closure_internal(process, closure, self.id, &self.run_queues);
+        let (init_fn, env) = Self::spawn_closure_init_env(&process, closure);
+        Self::runnable(&process, init_fn, env);
 
-        Ok(pid)
+        let connection = options.connect(parent, &process);
+
+        let arc_process = match parent {
+            Some(parent) => parent.scheduler().unwrap().schedule(process),
+            None => self.schedule(process),
+        };
+
+        Ok(Spawned {
+            arc_process,
+            connection,
+        })
+    }
+
+    fn spawn_module_function_arguments(
+        &self,
+        parent: Option<&Process>,
+        module: Atom,
+        function: Atom,
+        arguments: Vec<Term>,
+        options: Options,
+    ) -> anyhow::Result<Spawned> {
+        let (heap, heap_size) = options.sized_heap()?;
+        let priority = options.cascaded_priority(parent);
+
+        let initial_module_function_arity = ModuleFunctionArity {
+            module,
+            function,
+            arity: arguments.len() as Arity,
+        };
+        let process = Process::new_with_stack(
+            priority,
+            parent,
+            initial_module_function_arity,
+            heap,
+            heap_size,
+        )?;
+        let (init_fn, env) =
+            Self::spawn_module_function_arguments_init_env(&process, module, function, arguments);
+        Self::runnable(&process, init_fn, env);
+
+        let connection = options.connect(parent, &process);
+
+        let arc_process = match parent {
+            Some(parent) => parent.scheduler().unwrap().schedule(process),
+            None => self.schedule(process),
+        };
+
+        Ok(Spawned {
+            arc_process,
+            connection,
+        })
     }
 
     // TODO: Request application master termination for controlled shutdown
@@ -566,7 +599,6 @@ impl Scheduler {
     /// returned all the way to its entry function. This marks the process
     /// as exiting (if it wasn't already), and then yields to the scheduler
     pub fn process_return(&self) -> bool {
-        use liblumen_alloc::erts::term::prelude::*;
         if self.current.pid() != self.root.pid() {
             self.current
                 .exit(atom!("normal"), anyhow!("Out of code").into());
@@ -629,26 +661,6 @@ impl Scheduler {
         swap_stack(prev_ctx, new_ctx);
     }
 
-    /// Schedules the given process for execution
-    pub fn schedule(&mut self, process: Arc<Process>) {
-        debug_assert_ne!(
-            Some(self.id),
-            process.scheduler_id(),
-            "process is already scheduled here!"
-        );
-
-        process.schedule_with(self.id);
-
-        let mut rq = self.run_queues.write();
-        rq.enqueue(process);
-    }
-
-    /// Spawns the given process
-    #[inline]
-    pub fn spawn(&mut self, process: Arc<Process>) -> anyhow::Result<()> {
-        Self::spawn_internal(process, self.id, &self.run_queues);
-        Ok(())
-    }
     // Root process uses the original thread stack, no initialization required.
     //
     // It also starts "running", so we don't put it on the run queue
@@ -669,103 +681,92 @@ impl Scheduler {
         Ok(())
     }
 
-    fn spawn_closure_internal(
-        process: Arc<Process>,
+    fn spawn_closure_init_env(
+        process: &Process,
         closure: Boxed<Closure>,
-        id: id::ID,
-        run_queues: &RwLock<run_queue::Queues>,
-    ) {
-        process.schedule_with(id);
-
+    ) -> (DynamicCallee, Option<Term>) {
         let init_fn = unsafe { mem::transmute::<_, DynamicCallee>(apply_apply_2 as *const c_void) };
-        let function = closure.into();
+        let function = closure.clone_to_process(process);
         let arguments = Term::NIL;
         let env = Some(process.list_from_slice(&[function, arguments]));
 
-        Self::spawn_internal_impl(process, init_fn, env, id, run_queues)
+        (init_fn, env)
     }
 
-    fn spawn_internal(process: Arc<Process>, id: id::ID, run_queues: &RwLock<run_queue::Queues>) {
-        process.schedule_with(id);
+    fn spawn_module_function_arguments_init_env(
+        process: &Process,
+        module: Atom,
+        function: Atom,
+        arguments: Vec<Term>,
+    ) -> (DynamicCallee, Option<Term>) {
+        let init_fn = unsafe { mem::transmute::<_, DynamicCallee>(apply_apply_3 as *const c_void) };
 
-        let mfa = &process.initial_module_function_arity;
-        let init_fn_result = apply::find_symbol(&mfa);
-        if init_fn_result.is_none() {
-            panic!(
-                "invalid mfa ({}) provided for process: no such SYMBOL FOUND",
-                &mfa
-            );
-        }
-        let init_fn = init_fn_result.unwrap();
+        let process_module = module.encode().unwrap();
+        let process_function = function.encode().unwrap();
+        let process_argument_vec: Vec<Term> = arguments
+            .iter()
+            .map(|argument| argument.clone_to_process(process))
+            .collect();
+        let process_arguments = process.list_from_slice(&process_argument_vec);
+        let env =
+            Some(process.list_from_slice(&[process_module, process_function, process_arguments]));
 
-        Self::spawn_internal_impl(process, init_fn, None, id, run_queues);
+        (init_fn, env)
     }
 
-    fn spawn_internal_impl(
-        process: Arc<Process>,
-        init_fn: DynamicCallee,
-        env: Option<Term>,
-        id: id::ID,
-        run_queues: &RwLock<run_queue::Queues>,
-    ) {
-        #[inline(always)]
-        unsafe fn push(sp: &mut StackPointer, value: u64) {
-            sp.0 = sp.0.offset(-1);
-            ptr::write(sp.0, value);
-        }
+    fn runnable(process: &Process, init_fn: DynamicCallee, env: Option<Term>) {
+        process.runnable(|| {
+            #[inline(always)]
+            unsafe fn push(sp: &mut StackPointer, value: u64) {
+                sp.0 = sp.0.offset(-1);
+                ptr::write(sp.0, value);
+            }
 
-        // Write the return function and init function to the end of the stack,
-        // when execution resumes, the pointer before the stack pointer will be
-        // used as the return address - the first time that will be the init function.
-        //
-        // When execution returns from the init function, then it will return via
-        // `process_return`, which will return to the scheduler and indicate that
-        // the process exited. The nature of the exit is indicated by error state
-        // in the process itself
-        unsafe {
-            let stack = process.stack.lock();
-            let mut sp = StackPointer(stack.top as *mut u64);
-            // This empty slot will hold the return address of the swap_stack function,
-            // which will be used to allow the unwinder to unwind back to the scheduler
-            // properly
-            push(&mut sp, 0);
-            // Function that will be called when returning from trap_exceptions
-            push(&mut sp, process_return_continuation as u64);
-            // Function that traps any unhandled exceptions in the spawned process
-            // and converts them to exits
-            push(&mut sp, trap_exceptions as u64);
-            // Update process stack pointer
-            let s_top = &stack.top as *const _ as *mut _;
-            ptr::write(s_top, sp.0 as *const u8);
-            // Update rsp/rbp
-            let rsp = &process.registers.rsp as *const u64 as *mut _;
-            ptr::write(rsp, sp.0 as u64);
-            let rbp = &process.registers.rbp as *const u64 as *mut _;
-            ptr::write(rbp, sp.0 as u64);
-            // If this init function has a closure env, place it in
-            // r12, which will be moved to %rsi by trap_exceptions,
-            // and moved to %rdi by trap_exceptions_impl
-            let r12 = &process.registers.r12 as *const _ as *mut Term;
-            ptr::write(r12, env.unwrap_or(Term::NONE));
-            // This is used to indicate to swap_stack that this process
-            // is being swapped to for the first time, so that its CFA
-            // can be linked to the parent stack
-            let r13 = &process.registers.r13 as *const u64 as *mut _;
-            ptr::write(r13, 0xdeadbeef as u64);
-            // Set up the function pointers for trap_exceptions
-            let r14 = &process.registers.r14 as *const u64 as *mut _;
-            ptr::write(r14, init_fn as u64);
-            let r15 = &process.registers.r15 as *const u64 as *mut _;
-            ptr::write(r15, trap_exceptions_impl as u64);
-        }
-
-        *process.status.write() = Status::Runnable;
-
-        // Ensure pid is recorded in the registry
-        registry::put_pid_to_process(&process);
-
-        let mut rq = run_queues.write();
-        rq.enqueue(process);
+            // Write the return function and init function to the end of the stack,
+            // when execution resumes, the pointer before the stack pointer will be
+            // used as the return address - the first time that will be the init function.
+            //
+            // When execution returns from the init function, then it will return via
+            // `process_return`, which will return to the scheduler and indicate that
+            // the process exited. The nature of the exit is indicated by error state
+            // in the process itself
+            unsafe {
+                let stack = process.stack.lock();
+                let mut sp = StackPointer(stack.top as *mut u64);
+                // This empty slot will hold the return address of the swap_stack function,
+                // which will be used to allow the unwinder to unwind back to the scheduler
+                // properly
+                push(&mut sp, 0);
+                // Function that will be called when returning from trap_exceptions
+                push(&mut sp, process_return_continuation as u64);
+                // Function that traps any unhandled exceptions in the spawned process
+                // and converts them to exits
+                push(&mut sp, trap_exceptions as u64);
+                // Update process stack pointer
+                let s_top = &stack.top as *const _ as *mut _;
+                ptr::write(s_top, sp.0 as *const u8);
+                // Update rsp/rbp
+                let rsp = &process.registers.rsp as *const u64 as *mut _;
+                ptr::write(rsp, sp.0 as u64);
+                let rbp = &process.registers.rbp as *const u64 as *mut _;
+                ptr::write(rbp, sp.0 as u64);
+                // If this init function has a closure env, place it in
+                // r12, which will be moved to %rsi by trap_exceptions,
+                // and moved to %rdi by trap_exceptions_impl
+                let r12 = &process.registers.r12 as *const _ as *mut Term;
+                ptr::write(r12, env.unwrap_or(Term::NONE));
+                // This is used to indicate to swap_stack that this process
+                // is being swapped to for the first time, so that its CFA
+                // can be linked to the parent stack
+                let r13 = &process.registers.r13 as *const u64 as *mut _;
+                ptr::write(r13, 0xdeadbeef as u64);
+                // Set up the function pointers for trap_exceptions
+                let r14 = &process.registers.r14 as *const u64 as *mut _;
+                ptr::write(r14, init_fn as u64);
+                let r15 = &process.registers.r15 as *const u64 as *mut _;
+                ptr::write(r15, trap_exceptions_impl as u64);
+            }
+        })
     }
 }
 

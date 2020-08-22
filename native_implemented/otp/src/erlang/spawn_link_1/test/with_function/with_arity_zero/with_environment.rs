@@ -2,216 +2,140 @@ use super::*;
 
 #[test]
 fn without_expected_exit_in_child_process_exits_linked_parent_process() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &(
-                strategy::module_function_arity::module(),
-                function::anonymous::index(),
-                function::anonymous::old_unique(),
-                function::anonymous::unique(),
-            )
-                .prop_map(|(module, index, old_unique, unique)| {
-                    let arc_process = test::process::init();
-                    let creator = arc_process.pid().into();
-                    let arity = 0;
+    let parent_arc_process = test::process::init();
 
-                    fn result(
-                        process: &Process,
-                        first: Term,
-                        second: Term,
-                    ) -> exception::Result<Term> {
-                        let reason = process.list_from_slice(&[first, second]);
+    let creator = parent_arc_process.pid().into();
+    let arity = 0;
+    let function = parent_arc_process.anonymous_closure_with_env_from_slice(
+        Atom::from_str("without_expected_exit_in_child_process_exits_linked_parent_process"),
+        Default::default(),
+        Default::default(),
+        Default::default(),
+        arity,
+        NonNull::new(native as _),
+        creator,
+        &[Atom::str_to_term("first"), Atom::str_to_term("second")],
+    );
 
-                        Err(exit!(reason, anyhow!("Test").into()).into())
-                    }
+    let result = result(&parent_arc_process, function);
 
-                    extern "C" fn native(first: Term, second: Term) -> Term {
-                        let arc_process = current_process();
-                        arc_process.reduce();
+    assert!(result.is_ok());
 
-                        arc_process.return_status(result(&arc_process, first, second))
-                    }
+    let child_pid_term = result.unwrap();
 
-                    (
-                        arc_process.clone(),
-                        arc_process.anonymous_closure_with_env_from_slice(
-                            module,
-                            index,
-                            old_unique,
-                            unique,
-                            arity,
-                            NonNull::new(native as _),
-                            creator,
-                            &[Atom::str_to_term("first"), Atom::str_to_term("second")],
-                        ),
-                    )
-                }),
-            |(parent_arc_process, function)| {
-                let result = result(&parent_arc_process, function);
+    assert!(child_pid_term.is_pid());
 
-                prop_assert!(result.is_ok());
+    let child_pid: Pid = child_pid_term.try_into().unwrap();
 
-                let child_pid_term = result.unwrap();
+    let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-                prop_assert!(child_pid_term.is_pid());
+    let scheduler = scheduler::current();
 
-                let child_pid: Pid = child_pid_term.try_into().unwrap();
+    assert!(scheduler.run_once());
+    assert!(scheduler.run_once());
 
-                let child_arc_process = pid_to_process(&child_pid).unwrap();
+    match *child_arc_process.status.read() {
+        Status::RuntimeException(ref exception) => {
+            assert_eq!(
+                exception,
+                &exit!(
+                    child_arc_process.tuple_from_slice(&[
+                        Atom::str_to_term("first"),
+                        Atom::str_to_term("second")
+                    ]),
+                    anyhow!("Test").into()
+                )
+            );
+        }
+        ref status => panic!("Child process did not exit.  Status is {:?}", status),
+    }
 
-                let scheduler = scheduler::current();
-
-                prop_assert!(scheduler.run_once());
-                prop_assert!(scheduler.run_once());
-
-                match *child_arc_process.status.read() {
-                    Status::RuntimeException(ref exception) => {
-                        prop_assert_eq!(
-                            exception,
-                            &exit!(
-                                child_arc_process.list_from_slice(&[
-                                    Atom::str_to_term("first"),
-                                    Atom::str_to_term("second")
-                                ]),
-                                anyhow!("Test").into()
-                            )
-                        );
-                    }
-                    ref status => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Child process did not exit.  Status is {:?}",
-                            status
-                        )))
-                    }
-                }
-
-                match *parent_arc_process.status.read() {
-                    Status::RuntimeException(ref exception) => {
-                        prop_assert_eq!(
-                            exception,
-                            &exit!(
-                                child_arc_process.list_from_slice(&[
-                                    Atom::str_to_term("first"),
-                                    Atom::str_to_term("second")
-                                ]),
-                                anyhow!("Test").into()
-                            )
-                        );
-                    }
-                    ref status => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Parent process did not exit.  Status is {:?}",
-                            status
-                        )))
-                    }
-                }
-
-                Ok(())
-            },
-        )
-        .unwrap();
+    match *parent_arc_process.status.read() {
+        Status::RuntimeException(ref exception) => {
+            assert_eq!(
+                exception,
+                &exit!(
+                    child_arc_process.tuple_from_slice(&[
+                        Atom::str_to_term("first"),
+                        Atom::str_to_term("second")
+                    ]),
+                    anyhow!("Test").into()
+                )
+            );
+        }
+        ref status => panic!("Parent process did not exit.  Status is {:?}", status),
+    };
 }
 
 #[test]
 fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &(
-                strategy::module_function_arity::module(),
-                function::anonymous::index(),
-                function::anonymous::old_unique(),
-                function::anonymous::unique(),
-            )
-                .prop_map(|(module, index, old_unique, unique)| {
-                    let arc_process = test::process::init();
-                    let creator = arc_process.pid().into();
-                    let arity = 0;
+    let parent_arc_process = test::process::init();
 
-                    fn result(
-                        process: &Process,
-                        first: Term,
-                        second: Term,
-                    ) -> exception::Result<Term> {
-                        let reason = process.tuple_from_slice(&[first, second]);
+    let creator = parent_arc_process.pid().into();
+    let arity = 0;
+    let function = parent_arc_process.anonymous_closure_with_env_from_slice(
+        Atom::from_str("with_expected_exit_in_child_process_does_not_exit_linked_parent_process"),
+        Default::default(),
+        Default::default(),
+        Default::default(),
+        arity,
+        NonNull::new(native as _),
+        creator,
+        &[
+            Atom::str_to_term("shutdown"),
+            Atom::str_to_term("shutdown_reason"),
+        ],
+    );
 
-                        Err(exit!(reason, anyhow!("Test").into()).into())
-                    }
+    let result = result(&parent_arc_process, function);
 
-                    extern "C" fn native(first: Term, second: Term) -> Term {
-                        let arc_process = current_process();
-                        arc_process.reduce();
+    assert!(result.is_ok());
 
-                        arc_process.return_status(result(&arc_process, first, second))
-                    }
+    let child_pid_term = result.unwrap();
 
-                    (
-                        arc_process.clone(),
-                        arc_process.anonymous_closure_with_env_from_slice(
-                            module,
-                            index,
-                            old_unique,
-                            unique,
-                            arity,
-                            NonNull::new(native as _),
-                            creator,
-                            &[
-                                Atom::str_to_term("shutdown"),
-                                Atom::str_to_term("shutdown_reason"),
-                            ],
-                        ),
-                    )
-                }),
-            |(parent_arc_process, function)| {
-                let result = result(&parent_arc_process, function);
+    assert!(child_pid_term.is_pid());
 
-                prop_assert!(result.is_ok());
+    let child_pid: Pid = child_pid_term.try_into().unwrap();
 
-                let child_pid_term = result.unwrap();
+    let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-                prop_assert!(child_pid_term.is_pid());
+    let scheduler = scheduler::current();
 
-                let child_pid: Pid = child_pid_term.try_into().unwrap();
+    assert!(scheduler.run_once());
+    assert!(scheduler.run_once());
 
-                let child_arc_process = pid_to_process(&child_pid).unwrap();
+    match *child_arc_process.status.read() {
+        Status::RuntimeException(ref exception) => {
+            assert_eq!(
+                exception,
+                &exit!(
+                    child_arc_process.tuple_from_slice(&[
+                        Atom::str_to_term("shutdown"),
+                        Atom::str_to_term("shutdown_reason")
+                    ]),
+                    anyhow!("Test").into()
+                )
+            );
+        }
+        ref status => panic!("Child process did not exit.  Status is {:?}", status),
+    }
 
-                let scheduler = scheduler::current();
+    match *parent_arc_process.status.read() {
+        Status::RuntimeException(ref exception) => panic!("Parent process exited {:?}", exception),
+        _ => (),
+    };
+}
 
-                prop_assert!(scheduler.run_once());
-                prop_assert!(scheduler.run_once());
+extern "C" fn native(function: Term) -> Term {
+    let arc_process = current_process();
+    arc_process.reduce();
 
-                match *child_arc_process.status.read() {
-                    Status::RuntimeException(ref exception) => {
-                        prop_assert_eq!(
-                            exception,
-                            &exit!(
-                                child_arc_process.tuple_from_slice(&[
-                                    Atom::str_to_term("shutdown"),
-                                    Atom::str_to_term("shutdown_reason")
-                                ]),
-                                anyhow!("Test").into()
-                            )
-                        );
-                    }
-                    ref status => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Child process did not exit.  Status is {:?}",
-                            status
-                        )))
-                    }
-                }
+    fn result(process: &Process, function: Term) -> exception::Result<Term> {
+        let function_boxed_closure: Boxed<Closure> = function.try_into().unwrap();
+        let reason = process.tuple_from_slice(function_boxed_closure.env_slice());
 
-                match *parent_arc_process.status.read() {
-                    Status::RuntimeException(ref exception) => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Parent process exited {:?}",
-                            exception
-                        )))
-                    }
-                    _ => (),
-                }
+        Err(exit!(reason, anyhow!("Test").into()).into())
+    }
 
-                Ok(())
-            },
-        )
-        .unwrap();
+    arc_process.return_status(result(&arc_process, function))
 }

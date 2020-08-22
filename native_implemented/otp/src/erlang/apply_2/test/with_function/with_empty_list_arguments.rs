@@ -32,17 +32,4 @@ fn without_arity_errors_badarity() {
     );
 }
 
-#[test]
-fn with_arity_returns_function_return() {
-    let arc_process = test::process::default();
-    let function = return_from_fn_0::export_closure(&arc_process);
-
-    let Ready {
-        arc_process: child_arc_process,
-        result,
-    } = run_until_ready(function, Term::NIL);
-
-    assert_eq!(result, Ok(return_from_fn_0::returned()));
-
-    mem::drop(child_arc_process);
-}
+// `with_arity_returns_function_return` in integration tests

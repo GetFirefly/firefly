@@ -1,6 +1,5 @@
 //! This is used as the `init_fn` for `Scheduler::spawn_closure`, as the spawning code can only
-//! pass at most 1 argument, the closure itself to the `init_fn`'s native code and `erlang:apply/2`
-//! takes two arguments
+//! pass at most 1 argument and `erlang:apply/2` takes two arguments
 
 use anyhow::*;
 
@@ -24,21 +23,17 @@ fn result(process: &Process, arguments: Term) -> exception::Result<Term> {
         // shows `erlang:apply/2`.
         Ok(erlang::apply_2::native(apply_2_function, apply_2_arguments))
     } else {
-        let function = process.anonymous_closure_with_env_from_slice(
-            super::module(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            0,
-            CLOSURE_NATIVE,
-            process.pid().into(),
-            &argument_vec,
+        let function = process.export_closure(
+            erlang::module(),
+            erlang::apply_2::function(),
+            erlang::apply_2::ARITY,
+            erlang::apply_2::CLOSURE_NATIVE,
         );
 
         Err(badarity(
             process,
             function,
-            Term::NIL,
+            arguments,
             anyhow!(
                 "function arguments {} is {} term(s), but should be {}",
                 arguments,

@@ -1,10 +1,11 @@
 use liblumen_alloc::erts::process::Native;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::ModuleFunctionArity;
 
 pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set_log_exit, spawn};
 
 #[export_name = "lumen_rt_apply_2"]
-pub fn apply_2(function_boxed_closure: Boxed<Closure>, arguments: Vec<Term>) -> Term {
+pub fn apply_2(function_boxed_closure: Boxed<Closure>, mut arguments: Vec<Term>) -> Term {
     let arity = function_boxed_closure.arity();
     let arguments_len = arguments.len();
 
@@ -22,29 +23,39 @@ pub fn apply_2(function_boxed_closure: Boxed<Closure>, arguments: Vec<Term>) -> 
         );
     }
 
-    let native = unsafe {
-        Native::from_ptr(
-            function_boxed_closure.native().as_ptr(),
-            function_boxed_closure.native_arity(),
-        )
+    let native_arity = function_boxed_closure.native_arity();
+
+    let native =
+        unsafe { Native::from_ptr(function_boxed_closure.native().as_ptr(), native_arity) };
+
+    let native_arguments = if function_boxed_closure.env_len() == 0 {
+        // without captured environment variables, the closure passing is optimized out and so
+        // should not be passed.
+        arguments
+    } else {
+        // codegen'd closures extract their environment from themselves, so it is passed as the
+        // first argument.
+        let function = function_boxed_closure.into();
+
+        let mut native_arguments = Vec::with_capacity(native_arity as usize);
+        native_arguments.push(function);
+        native_arguments.append(&mut arguments);
+
+        native_arguments
     };
 
-    // codegen'd closures extract their environment from themselves, so it is passed as the first
-    // argument.
-    let function = function_boxed_closure.into();
+    apply_3(
+        function_boxed_closure.module_function_arity(),
+        native,
+        native_arguments,
+    )
+}
 
-    match native {
-        Native::One(one) => one(function),
-        Native::Two(two) => two(function, arguments[0]),
-        Native::Three(three) => three(function, arguments[0], arguments[1]),
-        Native::Four(four) => four(function, arguments[0], arguments[1], arguments[2]),
-        Native::Five(five) => five(
-            function,
-            arguments[0],
-            arguments[1],
-            arguments[2],
-            arguments[3],
-        ),
-        _ => unimplemented!("apply/2 for arity ({})", arity),
-    }
+#[export_name = "lumen_rt_apply_3"]
+pub fn apply_3(
+    _module_function_arity: ModuleFunctionArity,
+    native: Native,
+    arguments: Vec<Term>,
+) -> Term {
+    native.apply(&arguments)
 }

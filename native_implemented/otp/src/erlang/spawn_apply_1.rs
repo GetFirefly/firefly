@@ -11,17 +11,17 @@ use crate::runtime::scheduler::Scheduled;
 
 pub(in crate::erlang) fn result(
     process: &Process,
-    _options: Options,
     function: Term,
+    options: Options,
 ) -> exception::Result<Term> {
     let boxed_closure: Boxed<Closure> = function
         .try_into()
         .with_context(|| format!("function ({}) is not a function", function))?;
 
-    let child_pid = process
+    process
         .scheduler()
         .unwrap()
-        .spawn_closure(Some(process), boxed_closure)?;
-
-    Ok(child_pid.into())
+        .spawn_closure(Some(process), boxed_closure, options)
+        .map(|spawned| spawned.to_term(process))
+        .map_err(From::from)
 }

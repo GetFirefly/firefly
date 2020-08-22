@@ -23,7 +23,7 @@ fn without_proper_list_arguments_errors_badarg() {
                     arguments,
                     options(&arc_process)
                 ),
-                format!("arguments ({}) must be a proper list", arguments)
+                format!("arguments ({}) is not a proper list", arguments)
             );
 
             Ok(())

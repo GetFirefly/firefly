@@ -11,13 +11,12 @@ use lazy_static::lazy_static;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
-use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::Process;
 pub use liblumen_alloc::erts::scheduler::id::ID;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Priority;
 
-use crate::process::spawn::options::Connection;
+use crate::process::spawn::options::{Connection, Options};
 use crate::timer::Hierarchy;
 
 extern "Rust" {
@@ -166,9 +165,35 @@ pub trait Scheduler: Debug + Send + Sync {
     fn schedule(&self, process: Process) -> Arc<Process>;
     /// Spawns the init process, should be called immediately after
     /// (primary) scheduler creation.
-    fn spawn_init(&self, minimum_heap_size: usize) -> Result<Arc<Process>, SystemException>;
-    /// Spawns a new process from the given parent, using the given closure as its entry
-    fn spawn_closure(&self, parent: Option<&Process>, fun: Boxed<Closure>) -> anyhow::Result<Pid>;
+    fn spawn_init(&self, minimum_heap_size: usize) -> anyhow::Result<Arc<Process>>;
+    /// Spawns a new process from the given `parent`, using the given `closure` as its entry with
+    /// `options`.
+    ///
+    /// ## Error handling
+    /// The `closure` having the wrong arity (that is, not 0-arity) should cause the spawned process
+    /// to exit `badarity`.
+    fn spawn_closure(
+        &self,
+        parent: Option<&Process>,
+        closure: Boxed<Closure>,
+        options: Options,
+    ) -> anyhow::Result<Spawned>;
+    /// Spawns a new process from the given `parent`, using the given `module`, `function`, and
+    /// `arguments` with `options`.
+    ///
+    /// ## Error handling
+    /// The symbol for the `module`, `function` and arity of the `arguments` should only be looked
+    /// up in the child process.
+    ///
+    /// If the function does not exist with arity arguments it is an `undef` error, not `badarity`.
+    fn spawn_module_function_arguments(
+        &self,
+        parent: Option<&Process>,
+        module: Atom,
+        function: Atom,
+        arguments: Vec<Term>,
+        options: Options,
+    ) -> anyhow::Result<Spawned>;
     fn shutdown(&self) -> anyhow::Result<()>;
     fn stop_waiting(&self, process: &Process);
 }

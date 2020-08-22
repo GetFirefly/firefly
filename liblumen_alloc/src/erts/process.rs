@@ -1097,9 +1097,9 @@ impl Process {
         MAX_REDUCTIONS_PER_RUN <= self.run_reductions.load(Ordering::SeqCst)
     }
 
-    pub fn runnable<F>(&self, before_runnable: F) -> AllocResult<()>
+    pub fn runnable<F>(&self, before_runnable: F)
     where
-        F: FnOnce(&Process) -> AllocResult<()>,
+        F: FnOnce(),
     {
         let mut writable_status = self.status.write();
 
@@ -1110,11 +1110,9 @@ impl Process {
             self
         );
 
-        before_runnable(self)?;
+        before_runnable();
 
         *writable_status = Status::Runnable;
-
-        Ok(())
     }
 
     /// Run process until `reductions` exceeds `MAX_REDUCTIONS` or process exits

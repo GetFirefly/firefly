@@ -21,7 +21,6 @@ use crate::runtime::scheduler;
 use crate::test;
 use crate::test::prop_assert_exits_badarity;
 use crate::test::strategy;
-use crate::test::strategy::term::function;
 
 #[test]
 fn without_function_errors_badarg() {

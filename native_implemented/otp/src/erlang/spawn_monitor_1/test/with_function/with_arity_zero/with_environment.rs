@@ -6,22 +6,24 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
     let creator = arc_process.pid().into();
     let arity = 0;
 
-    fn native(first: Term, second: Term) -> Term {
+    fn native(function: Term) -> Term {
         let arc_process = current_process();
         arc_process.reduce();
 
-        fn result(process: &Process, first: Term, second: Term) -> exception::Result<Term> {
-            let reason = process.list_from_slice(&[first, second]);
+        fn result(process: &Process, function: Term) -> exception::Result<Term> {
+            let function_boxed_closure: Boxed<Closure> = function.try_into().unwrap();
+            let reason = process.list_from_slice(function_boxed_closure.env_slice());
 
             Err(exit!(reason, anyhow!("Test").into()).into())
         }
 
-        arc_process.return_status(result(&arc_process, first, second))
+        arc_process.return_status(result(&arc_process, function))
     }
 
     let parent_arc_process = arc_process.clone();
 
-    let module = Atom::from_str("module");
+    let module =
+        Atom::from_str("without_expected_exit_in_child_process_sends_exit_message_to_parent");
     let index = Default::default();
     let old_unique = Default::default();
     let unique = Default::default();
@@ -91,116 +93,90 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
 #[test]
 fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
-    TestRunner::new(Config::with_source_file(file!()))
-        .run(
-            &(
-                strategy::module_function_arity::module(),
-                function::anonymous::index(),
-                function::anonymous::old_unique(),
-                function::anonymous::unique(),
-            )
-                .prop_map(|(module, index, old_unique, unique)| {
-                    let arc_process = test::process::init();
-                    let creator = arc_process.pid().into();
-                    let arity = 0;
+    extern "C" fn native(function: Term) -> Term {
+        let arc_process = current_process();
+        arc_process.reduce();
 
-                    fn result(
-                        process: &Process,
-                        first: Term,
-                        second: Term,
-                    ) -> exception::Result<Term> {
-                        let reason = process.tuple_from_slice(&[first, second]);
+        fn result(process: &Process, function: Term) -> exception::Result<Term> {
+            let function_boxed_closure: Boxed<Closure> = function.try_into().unwrap();
+            let reason = process.tuple_from_slice(function_boxed_closure.env_slice());
 
-                        Err(exit!(reason, anyhow!("Test").into()).into())
-                    }
+            Err(exit!(reason, anyhow!("Test").into()).into())
+        }
 
-                    extern "C" fn native(first: Term, second: Term) -> Term {
-                        let arc_process = current_process();
-                        arc_process.reduce();
+        arc_process.return_status(result(&arc_process, function))
+    }
 
-                        arc_process.return_status(result(&arc_process, first, second))
-                    }
+    let parent_arc_process = test::process::init();
+    let arity = 0;
+    let creator = parent_arc_process.pid().into();
 
-                    (
-                        arc_process.clone(),
-                        arc_process.anonymous_closure_with_env_from_slice(
-                            module,
-                            index,
-                            old_unique,
-                            unique,
-                            arity,
-                            NonNull::new(native as _),
-                            creator,
-                            &[
-                                Atom::str_to_term("shutdown"),
-                                Atom::str_to_term("shutdown_reason"),
-                            ],
-                        ),
-                    )
-                }),
-            |(parent_arc_process, function)| {
-                let result = result(&parent_arc_process, function);
+    let function = parent_arc_process.anonymous_closure_with_env_from_slice(
+        Atom::from_str("with_expected_exit_in_child_process_send_exit_message_to_parent"),
+        Default::default(),
+        Default::default(),
+        Default::default(),
+        arity,
+        NonNull::new(native as _),
+        creator,
+        &[
+            Atom::str_to_term("shutdown"),
+            Atom::str_to_term("shutdown_reason"),
+        ],
+    );
 
-                prop_assert!(result.is_ok());
+    let result = result(&parent_arc_process, function);
 
-                let result_boxed_tuple: Result<Boxed<Tuple>, _> = result.unwrap().try_into();
+    assert!(result.is_ok());
 
-                prop_assert!(result_boxed_tuple.is_ok());
+    let result_boxed_tuple: Result<Boxed<Tuple>, _> = result.unwrap().try_into();
 
-                let boxed_tuple = result_boxed_tuple.unwrap();
+    assert!(result_boxed_tuple.is_ok());
 
-                prop_assert_eq!(boxed_tuple.len(), 2);
+    let boxed_tuple = result_boxed_tuple.unwrap();
 
-                let child_pid_term = boxed_tuple[0];
+    assert_eq!(boxed_tuple.len(), 2);
 
-                prop_assert!(child_pid_term.is_pid());
+    let child_pid_term = boxed_tuple[0];
 
-                let child_pid: Pid = child_pid_term.try_into().unwrap();
-                let child_arc_process = pid_to_process(&child_pid).unwrap();
+    assert!(child_pid_term.is_pid());
 
-                let monitor_reference = boxed_tuple[1];
+    let child_pid: Pid = child_pid_term.try_into().unwrap();
+    let child_arc_process = pid_to_process(&child_pid).unwrap();
 
-                prop_assert!(monitor_reference.is_reference());
+    let monitor_reference = boxed_tuple[1];
 
-                let scheduler = scheduler::current();
+    assert!(monitor_reference.is_reference());
 
-                prop_assert!(scheduler.run_once());
-                prop_assert!(scheduler.run_once());
+    let scheduler = scheduler::current();
 
-                let reason = child_arc_process.tuple_from_slice(&[
-                    Atom::str_to_term("shutdown"),
-                    Atom::str_to_term("shutdown_reason"),
-                ]);
+    assert!(scheduler.run_once());
+    assert!(scheduler.run_once());
 
-                match *child_arc_process.status.read() {
-                    Status::RuntimeException(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
-                    }
-                    ref status => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Child process did not exit.  Status is {:?}",
-                            status
-                        )))
-                    }
-                }
+    let reason = child_arc_process.tuple_from_slice(&[
+        Atom::str_to_term("shutdown"),
+        Atom::str_to_term("shutdown_reason"),
+    ]);
 
-                prop_assert!(!parent_arc_process.is_exiting());
+    match *child_arc_process.status.read() {
+        Status::RuntimeException(ref exception) => {
+            assert_eq!(exception, &exit!(reason, anyhow!("Test").into()));
+        }
+        ref status => panic!("Child process did not exit.  Status is {:?}", status),
+    }
 
-                let tag = Atom::str_to_term("DOWN");
+    assert!(!parent_arc_process.is_exiting());
 
-                prop_assert!(has_message(
-                    &parent_arc_process,
-                    parent_arc_process.tuple_from_slice(&[
-                        tag,
-                        monitor_reference,
-                        Atom::str_to_term("process"),
-                        child_pid_term,
-                        reason
-                    ])
-                ));
+    let tag = Atom::str_to_term("DOWN");
 
-                Ok(())
-            },
-        )
-        .unwrap();
+    assert!(has_message(
+        &parent_arc_process,
+        parent_arc_process.tuple_from_slice(&[
+            tag,
+            monitor_reference,
+            Atom::str_to_term("process"),
+            child_pid_term,
+            reason
+        ])
+    ));
 }

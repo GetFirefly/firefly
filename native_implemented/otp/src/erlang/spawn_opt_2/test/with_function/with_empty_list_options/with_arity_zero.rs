@@ -41,36 +41,35 @@ fn without_environment_runs_function_in_child_process() {
             );
         }
         ref status => panic!("Child process did not exit.  Status is {:?}", status),
-    }
-
-    std::mem::drop(child_arc_process);
+    };
 }
 
 #[test]
 fn with_environment_runs_function_in_child_process() {
-    let module = Atom::from_str("module");
+    extern "C" fn native(function: Term) -> Term {
+        let arc_process = current_process();
+        arc_process.reduce();
+
+        fn result(process: &Process, function: Term) -> exception::Result<Term> {
+            let function_boxed_closure: Boxed<Closure> = function.try_into().unwrap();
+            let reason = process.list_from_slice(function_boxed_closure.env_slice());
+
+            Err(exit!(reason, anyhow!("Test").into()).into())
+        }
+
+        arc_process.return_status(result(&arc_process, function))
+    }
+
+    let module = Atom::from_str("with_environment_runs_function_in_child_process");
     let index = Default::default();
     let old_unique = Default::default();
     let unique = Default::default();
 
-    let arc_process = process::default();
-    let creator = arc_process.pid().into();
+    let parent_arc_process = process::default();
+    let creator = parent_arc_process.pid().into();
     let arity = 0;
 
-    fn native_result(process: &Process, first: Term, second: Term) -> exception::Result<Term> {
-        let reason = process.list_from_slice(&[first, second]);
-
-        Err(exit!(reason, anyhow!("Test").into()).into())
-    }
-
-    extern "C" fn native(first: Term, second: Term) -> Term {
-        let arc_process = current_process();
-        arc_process.reduce();
-
-        arc_process.return_status(native_result(&arc_process, first, second))
-    }
-
-    let function = arc_process.anonymous_closure_with_env_from_slice(
+    let function = parent_arc_process.anonymous_closure_with_env_from_slice(
         module,
         index,
         old_unique,
@@ -80,7 +79,8 @@ fn with_environment_runs_function_in_child_process() {
         creator,
         &[Atom::str_to_term("first"), Atom::str_to_term("second")],
     );
-    let result = result(&arc_process, function, options(&arc_process));
+
+    let result = result(&parent_arc_process, function, options(&parent_arc_process));
 
     assert!(result.is_ok());
 
@@ -108,7 +108,5 @@ fn with_environment_runs_function_in_child_process() {
             );
         }
         ref status => panic!("Child process did not exit.  Status is {:?}", status),
-    }
-
-    std::mem::drop(child_arc_process);
+    };
 }

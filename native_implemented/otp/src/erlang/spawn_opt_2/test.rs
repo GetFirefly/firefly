@@ -19,7 +19,6 @@ use crate::runtime::process::current_process;
 use crate::runtime::registry::pid_to_process;
 use crate::runtime::scheduler;
 use crate::test;
-use crate::test::strategy::term::function;
 use crate::test::*;
 
 #[test]

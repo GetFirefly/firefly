@@ -472,7 +472,11 @@ impl Timer {
                     } = heap_fragment.into_inner();
 
                     destination_arc_process.send_heap_message(heap_fragment, term);
-                    destination_arc_process.stop_waiting();
+
+                    destination_arc_process
+                        .scheduler()
+                        .unwrap()
+                        .stop_waiting(&destination_arc_process);
                 }
             }
             DestinationEvent::StopWaiting { process } => {
@@ -480,10 +484,6 @@ impl Timer {
                     // `__lumen_builtin_receive_wait` will notice it has timed out, so only need to
                     // stop waiting
 
-                    // change process status
-                    destination_arc_process.stop_waiting();
-
-                    // move to correct run_queue
                     destination_arc_process
                         .scheduler()
                         .unwrap()

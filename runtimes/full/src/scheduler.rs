@@ -389,6 +389,7 @@ impl SchedulerTrait for Scheduler {
     }
 
     fn stop_waiting(&self, process: &Process) {
+        process.stop_waiting();
         self.run_queues.write().stop_waiting(process);
     }
 }

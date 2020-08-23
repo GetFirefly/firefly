@@ -24,17 +24,11 @@ pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
                 return msg;
             } else {
                 if let Some(ref to_proc) = registry::pid_to_process(&to) {
-                    if let Ok(resume) = to_proc.send_from_other(msg) {
-                        if resume {
-                            crate::scheduler::stop_waiting(to_proc);
-                        }
-                        return msg;
-                    } else {
-                        panic!("error during send");
-                    }
-                } else {
-                    return msg;
+                    to_proc.send_from_other(msg);
+                    crate::scheduler::stop_waiting(to_proc);
                 }
+
+                return msg;
             }
         } else {
             // TODO: badarg

@@ -539,7 +539,7 @@ impl Process {
     }
 
     /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
-    pub fn send_from_other(&self, data: Term) -> AllocResult<bool> {
+    pub fn send_from_other(&self, data: Term) {
         match self.heap.try_lock() {
             Some(ref mut destination_heap) => match data.clone_to_heap(destination_heap) {
                 Ok(destination_data) => {
@@ -548,19 +548,17 @@ impl Process {
                     }));
                 }
                 Err(_) => {
-                    let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
+                    let (heap_fragment_data, heap_fragment) = data.clone_to_fragment().unwrap();
 
                     self.send_heap_message(heap_fragment, heap_fragment_data);
                 }
             },
             None => {
-                let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
+                let (heap_fragment_data, heap_fragment) = data.clone_to_fragment().unwrap();
 
                 self.send_heap_message(heap_fragment, heap_fragment_data);
             }
         }
-
-        Ok(self.stop_waiting())
     }
 
     fn send_message(&self, message: Message) {

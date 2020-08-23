@@ -468,6 +468,7 @@ impl SchedulerTrait for Scheduler {
     }
 
     fn stop_waiting(&self, process: &Process) {
+        process.stop_waiting();
         self.run_queues.write().stop_waiting(process);
     }
 }
@@ -549,8 +550,14 @@ impl Scheduler {
                         }
 
                         // Try to schedule it for the future
+                        // Don't `if let` or `match` on the return from `requeue` as it will keep
+                        // the lock on the `run_queue`, causing a dead lock
+                        // when `propagate_exit` calls `Scheduler::
+                        // stop_waiting` for any linked or monitoring process.
+                        let option_exiting = self.run_queues.write().requeue(prev);
+
                         // If the process is exiting, then handle the exit
-                        if let Some(exiting) = self.run_queues.write().requeue(prev) {
+                        if let Some(exiting) = option_exiting {
                             if let Status::RuntimeException(ref ex) = *exiting.status.read() {
                                 log_exit(&exiting, ex);
                                 propagate_exit(&exiting, ex);

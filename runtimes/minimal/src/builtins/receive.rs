@@ -63,16 +63,12 @@ impl ReceiveContext {
 
     #[inline]
     fn with_message(&mut self, message: Term) {
-        self.cancel_timer();
-
         self.state = ReceiveState::Received;
         self.message = message;
     }
 
     #[inline]
     fn with_timeout(&mut self) {
-        self.cancel_timer();
-
         self.state = ReceiveState::Timeout;
         self.message = Term::NONE;
     }
@@ -158,11 +154,13 @@ pub extern "C" fn builtin_receive_message(ctx: *mut ReceiveContext) -> Term {
 
 #[export_name = "__lumen_builtin_receive_done"]
 pub extern "C" fn builtin_receive_done(ctx: *mut ReceiveContext) -> bool {
-    let context = unsafe { Box::from_raw(ctx) };
+    let mut context = unsafe { Box::from_raw(ctx) };
     let result = panic::catch_unwind(|| {
         let p = current_process();
         let mbox_lock = p.mailbox.lock();
         let mut mbox = mbox_lock.borrow_mut();
+
+        context.cancel_timer();
 
         match context.state {
             ReceiveState::Received => {

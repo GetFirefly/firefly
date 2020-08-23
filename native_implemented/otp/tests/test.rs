@@ -37,7 +37,7 @@ fn work_around497(file: &str, name: &str) -> PathBuf {
         match compile(file, name) {
             Ok(path_buf) => break path_buf,
             Err(output) => {
-                tries +=1;
+                tries += 1;
 
                 if tries == MAX_TRIES {
                     assert!(

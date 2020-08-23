@@ -122,7 +122,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
 
     auto envLen = op.envLen();
     LLVMType opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
-    LLVMType closureTy = ctx.targetInfo.makeClosureType(ctx.dialect, envLen);
+    LLVMType closureTy = ctx.targetInfo.makeClosureType(envLen);
     LLVMType uniqueTy = ctx.targetInfo.getClosureUniqueType();
     LLVMType uniquePtrTy = uniqueTy.getPointerTo();
     LLVMType defTy = ctx.targetInfo.getClosureDefinitionType();

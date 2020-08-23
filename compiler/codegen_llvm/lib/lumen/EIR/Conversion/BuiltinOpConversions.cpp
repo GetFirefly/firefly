@@ -81,7 +81,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
       }
 
       // For all other boxed types, the check is performed via builtin
-      auto matchKind = boxedType.getForeignKind();
+      auto matchKind = boxedType.getTypeKind().getValue();
       Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(matchKind));
       StringRef symbolName("__lumen_builtin_is_boxed_type");
       auto callee =
@@ -100,7 +100,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
     // TODO: With some additional foundation-laying, we could lower
     // these checks to precise bit masking/shift operations, rather
     // than a function call
-    auto matchKind = matchType.getForeignKind();
+    auto matchKind = matchType.getTypeKind().getValue();
     Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(matchKind));
     StringRef symbolName("__lumen_builtin_is_type");
     auto callee =
@@ -127,11 +127,13 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
     auto ty = ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
 
     if (innerTy.hasDynamicExtent()) {
-      Value allocPtr = ctx.buildMalloc(ty, innerTy.getKind(), adaptor.arity());
+      Value allocPtr = ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(),
+                                       adaptor.arity());
       rewriter.replaceOp(op, allocPtr);
     } else {
       Value zero = llvm_constant(ctx.getUsizeType(), ctx.getIntegerAttr(0));
-      Value allocPtr = ctx.buildMalloc(ty, innerTy.getKind(), zero);
+      Value allocPtr =
+          ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(), zero);
       rewriter.replaceOp(op, allocPtr);
     }
 

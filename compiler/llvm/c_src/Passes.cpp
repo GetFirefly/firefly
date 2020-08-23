@@ -126,10 +126,10 @@ std::string getWrappedIRName(const llvm::Any &wrappedIR) {
 }
 
 void LLVMSelfProfileInitializeCallbacks(
-    PassInstrumentationCallbacks& pic, void* selfProfiler,
+    PassInstrumentationCallbacks* pic, void* selfProfiler,
     LLVMLumenSelfProfileBeforePassCallback beforePassCallback,
     LLVMLumenSelfProfileAfterPassCallback afterPassCallback) {
-  pic.registerBeforePassCallback([selfProfiler, beforePassCallback](
+  pic->registerBeforePassCallback([selfProfiler, beforePassCallback](
                                      StringRef pass, llvm::Any ir) {
     std::string passName = pass.str();
     std::string irName = getWrappedIRName(ir);
@@ -137,24 +137,24 @@ void LLVMSelfProfileInitializeCallbacks(
     return true;
   });
 
-  pic.registerAfterPassCallback(
-      [selfProfiler, afterPassCallback](StringRef pass, llvm::Any ir) {
+  pic->registerAfterPassCallback(
+      [selfProfiler, afterPassCallback](StringRef pass, llvm::Any ir, const llvm::PreservedAnalyses &) {
         afterPassCallback(selfProfiler);
       });
 
-  pic.registerAfterPassInvalidatedCallback(
-      [selfProfiler, afterPassCallback](StringRef pass) {
+  pic->registerAfterPassInvalidatedCallback(
+      [selfProfiler, afterPassCallback](StringRef pass, const llvm::PreservedAnalyses &) {
         afterPassCallback(selfProfiler);
       });
 
-  pic.registerBeforeAnalysisCallback([selfProfiler, beforePassCallback](
+  pic->registerBeforeAnalysisCallback([selfProfiler, beforePassCallback](
                                          StringRef pass, llvm::Any ir) {
     std::string passName = pass.str();
     std::string irName = getWrappedIRName(ir);
     beforePassCallback(selfProfiler, passName.c_str(), irName.c_str());
   });
 
-  pic.registerAfterAnalysisCallback(
+  pic->registerAfterAnalysisCallback(
       [selfProfiler, afterPassCallback](StringRef pass, llvm::Any ir) {
         afterPassCallback(selfProfiler);
       });
@@ -250,18 +250,19 @@ LLVMLumenOptimize(LLVMModuleRef m,
   bool debug = config.debug;
   bool verify = config.verify;
 
-  llvm::PassInstrumentationCallbacks pic;
+  auto pic = std::make_unique<llvm::PassInstrumentationCallbacks>();
+  // Populate the analysis managers with their respective passes
+  PassBuilder pb(targetMachine, tuningOpts, llvm::None, pic.get());
+
   // Enable standard instrumentation callbacks
   llvm::StandardInstrumentations si(debug);
-  si.registerCallbacks(pic);
+  llvm::PassInstrumentationCallbacks &passCallbacks = *pb.getPassInstrumentationCallbacks();
+  si.registerCallbacks(passCallbacks);
 
   auto *profiler = config.profiler;
   if (profiler) {
-    LLVMSelfProfileInitializeCallbacks(pic, profiler, config.beforePass, config.afterPass);
+    LLVMSelfProfileInitializeCallbacks(&passCallbacks, profiler, config.beforePass, config.afterPass);
   }
-
-  // Populate the analysis managers with their respective passes
-  PassBuilder pb(targetMachine, tuningOpts, llvm::None, &pic);
 
   LoopAnalysisManager lam(debug);
   FunctionAnalysisManager fam(debug);

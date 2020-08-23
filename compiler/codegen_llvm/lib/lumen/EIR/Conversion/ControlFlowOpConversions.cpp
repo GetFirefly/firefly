@@ -82,7 +82,7 @@ struct CallClosureOpConversion : public EIROpConversion<CallClosureOp> {
     auto ctx = getRewriteContext(op, rewriter);
 
     auto opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
-    auto closureTy = ctx.targetInfo.makeClosureType(ctx.dialect, 1);
+    auto closureTy = ctx.targetInfo.makeClosureType(1);
     auto termTy = ctx.getUsizeType();
     auto i32Ty = ctx.getI32Type();
 
@@ -184,7 +184,7 @@ struct InvokeClosureOpConversion : public EIROpConversion<InvokeClosureOp> {
     auto ctx = getRewriteContext(op, rewriter);
 
     auto opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
-    auto closureTy = ctx.targetInfo.makeClosureType(ctx.dialect, 1);
+    auto closureTy = ctx.targetInfo.makeClosureType(1);
     auto termTy = ctx.getUsizeType();
     auto i32Ty = ctx.getI32Type();
 
@@ -255,13 +255,13 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
     //       exception type matched. Like Rust, we ignore this
     auto i8PtrTy = ctx.targetInfo.getI8Type().getPointerTo();
     auto i8PtrPtrTy = i8PtrTy.getPointerTo();
-    auto i64Ty = LLVMType::getInt64Ty(ctx.dialect);
+    auto i64Ty = ctx.getI64Type();
     auto i32Ty = ctx.getI32Type();
     auto termTy = ctx.getUsizeType();
     auto termPtrTy = termTy.getPointerTo();
-    auto tupleTy = ctx.getTupleType(3);
     auto exceptionTy = ctx.targetInfo.getExceptionType();
-    auto voidTy = LLVMType::getVoidTy(ctx.dialect);
+    auto voidTy = LLVMType::getVoidTy(ctx.context);
+    auto tupleTy = ctx.getTupleType({termTy, termTy, termPtrTy});
 
     // Make sure we're starting in the landing pad block
     rewriter.setInsertionPointToEnd(landingPadBlock);
@@ -338,6 +338,7 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
     auto termTy = ctx.getUsizeType();
     auto termPtrTy = termTy.getPointerTo();
     auto i32Ty = ctx.getI32Type();
+    auto voidTy = LLVMType::getVoidTy(ctx.context);
 
     Value kind = adaptor.kind();
     Value reason = adaptor.reason();
@@ -371,7 +372,6 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
     auto boxed = ctx.encodeBox(tuplePtr);
     Value exception = llvm_bitcast(termTy, boxed);
 
-    auto voidTy = LLVMType::getVoidTy(ctx.dialect);
     const char *symbolName = "__lumen_start_panic";
     ArrayRef<NamedAttribute> calleeAttrs = {
         rewriter.getNamedAttr("noreturn", rewriter.getUnitAttr()),
@@ -407,7 +407,7 @@ struct YieldOpConversion : public EIROpConversion<YieldOp> {
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto voidTy = LLVMType::getVoidTy(ctx.dialect);
+    auto voidTy = LLVMType::getVoidTy(ctx.context);
     const char *symbolName = "__lumen_builtin_yield";
     auto callee = ctx.getOrInsertFunction(symbolName, voidTy, {});
 
@@ -524,7 +524,7 @@ struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
     ReceiveDoneOpAdaptor adaptor(operands);
 
     auto recvRefTy = ctx.targetInfo.getReceiveRefType();
-    auto voidTy = LLVMType::getVoidTy(ctx.dialect);
+    auto voidTy = LLVMType::getVoidTy(ctx.context);
 
     StringRef symbolName("__lumen_builtin_receive_done");
 

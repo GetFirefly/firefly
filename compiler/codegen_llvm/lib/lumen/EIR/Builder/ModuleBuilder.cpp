@@ -14,6 +14,8 @@
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
 #include "lumen/term/Encoding.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Verifier.h"
@@ -29,8 +31,12 @@ using ::mlir::edsc::createBlock;
 using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ScopedContext;
 using ::mlir::edsc::ValueBuilder;
-using ::mlir::LLVM::LLVMDialect;
+using ::mlir::LLVM::LLVMIntegerType;
+using ::mlir::LLVM::LLVMStructType;
+using ::mlir::LLVM::LLVMType;
 using namespace ::mlir::edsc::intrinsics;
+
+namespace LLVM = ::mlir::LLVM;
 
 using std_cmpi = ValueBuilder<::mlir::CmpIOp>;
 using llvm_addressof = ValueBuilder<LLVM::AddressOfOp>;
@@ -189,11 +195,10 @@ ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
                              unsigned immediateBits)
     : builder(&context),
       targetMachine(targetMachine),
-      llvmDialect(context.getRegisteredDialect<LLVMDialect>()),
       immediateBitWidth(immediateBits) {
   // Create an empty module into which we can codegen functions
-  theModule = mlir::ModuleOp::create(loc, name);
-  assert(isa<mlir::ModuleOp>(theModule) && "expected moduleop");
+  theModule = builder.create<mlir::ModuleOp>(loc, name);
+  assert(theModule != nullptr);
 }
 
 extern "C" void MLIRDumpModule(MLIRModuleBuilderRef b) {
@@ -1366,7 +1371,7 @@ Block *ModuleBuilder::build_landing_pad(Location loc, Block *err) {
   // ensure that exception unwinding is handled properly
   Block *unwind = builder.createBlock(err);
 
-  LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
+  LLVMType i8Ty = builder.getType<LLVMIntegerType>(8);
   LLVMType i8PtrTy = i8Ty.getPointerTo();
 
   // Obtain catch type value from entry block
@@ -1395,7 +1400,7 @@ Block *ModuleBuilder::build_landing_pad(Location loc, Block *err) {
         // type_name = lumen_panic\0
         LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
         LLVMType typeInfoTy = LLVMType::createStructTy(
-            llvmDialect,
+            builder.getContext(),
             ArrayRef<LLVMType>{i8PtrTy, i8PtrTy, typeNameTy.getPointerTo()},
             StringRef("type_info"));
         Value catchTypeGlobal =

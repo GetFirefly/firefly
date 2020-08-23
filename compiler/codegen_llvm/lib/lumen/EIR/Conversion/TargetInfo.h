@@ -4,7 +4,8 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Triple.h"
 #include "lumen/term/Encoding.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/IR/MLIRContext.h"
 
 using ::mlir::LLVM::LLVMType;
 
@@ -52,8 +53,8 @@ struct TargetInfoImpl {
 
   Encoding encoding;
 
-  LLVMType pointerWidthIntTy, i1Ty, i8Ty, i32Ty;
-  LLVMType bigIntTy, floatTy;
+  LLVMType pointerWidthIntTy, i1Ty, i8Ty, i32Ty, i64Ty;
+  LLVMType bigIntTy, floatTy, doubleTy;
   LLVMType binaryTy, binPushResultTy;
   LLVMType matchResultTy;
   LLVMType recvContextTy;
@@ -72,11 +73,13 @@ struct TargetInfoImpl {
   MaskInfo immediateMask;
   MaskInfo headerMask;
   uint8_t immediateBits;
+
+  mlir::MLIRContext *context;
 };
 
 class TargetInfo {
  public:
-  explicit TargetInfo(llvm::TargetMachine *, mlir::LLVM::LLVMDialect &);
+  explicit TargetInfo(llvm::TargetMachine *, mlir::MLIRContext *);
   explicit TargetInfo(const TargetInfo &other);
 
   bool is_x86_64() const { return archType == llvm::Triple::ArchType::x86_64; }
@@ -85,17 +88,17 @@ class TargetInfo {
 
   mlir::LLVM::LLVMType getConsType();
   mlir::LLVM::LLVMType getFloatType();
+  mlir::LLVM::LLVMType getDoubleType() { return impl->doubleTy; };
   mlir::LLVM::LLVMType getBinaryType();
-  mlir::LLVM::LLVMType makeClosureType(mlir::LLVM::LLVMDialect *,
-                                       unsigned size);
-  mlir::LLVM::LLVMType makeTupleType(mlir::LLVM::LLVMDialect *, unsigned arity);
-  mlir::LLVM::LLVMType makeTupleType(mlir::LLVM::LLVMDialect *,
-                                     llvm::ArrayRef<mlir::LLVM::LLVMType>);
+  mlir::LLVM::LLVMType makeClosureType(unsigned size);
+  mlir::LLVM::LLVMType makeTupleType(unsigned arity);
+  mlir::LLVM::LLVMType makeTupleType(llvm::ArrayRef<mlir::LLVM::LLVMType>);
 
   mlir::LLVM::LLVMType getUsizeType();
   mlir::LLVM::LLVMType getI1Type();
   mlir::LLVM::LLVMType getI8Type();
   mlir::LLVM::LLVMType getI32Type();
+  mlir::LLVM::LLVMType getI64Type();
   mlir::LLVM::LLVMType getOpaqueFnType();
 
   mlir::LLVM::LLVMType getBinaryPushResultType() {

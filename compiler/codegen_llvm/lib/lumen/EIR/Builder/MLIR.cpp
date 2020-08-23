@@ -1,27 +1,19 @@
 #include "lumen/mlir/MLIR.h"
 
-#include "llvm/IR/LLVMContext.h"
 #include "lumen/EIR/IR/EIRDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 
-using ::llvm::LLVMContext;
 using ::llvm::unwrap;
 using ::mlir::MLIRContext;
 
-extern "C" void MLIRRegisterDialects(MLIRContextRef mlirCtx,
-                                     LLVMContextRef llvmCtx) {
-  MLIRContext *mlirContext = unwrap(mlirCtx);
-  LLVMContext *llvmContext = unwrap(llvmCtx);
+extern "C" void MLIRRegisterDialects(MLIRContextRef context) {
+  MLIRContext *ctx = unwrap(context);
 
-  // Register the LLVM and EIR dialects with MLIR, providing them
-  // with the current thread's LLVMContext.
-  //
-  // NOTE: The dialect constructors internally call registerDialect,
-  // which moves ownership of the dialect objects to the MLIRContext,
-  // so we don't have to manage them ourselves.
-  auto *stdDialect = new mlir::StandardOpsDialect(mlirContext);
-  auto *llvmDialect = new mlir::LLVM::LLVMDialect(mlirContext, llvmContext);
-  auto *eirDialect = new lumen::eir::eirDialect(mlirContext);
+  // Register the LLVM and EIR dialects with MLIR
+  ctx->getOrLoadDialect<mlir::StandardOpsDialect>();
+  ctx->getOrLoadDialect<mlir::LLVM::LLVMDialect>();
+  ctx->getOrLoadDialect<lumen::eir::eirDialect>();
 }

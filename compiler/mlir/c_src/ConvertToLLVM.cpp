@@ -60,7 +60,7 @@ extern "C" LowerResult MLIRLowerModule(MLIRContextRef context,
   OwningModuleRef ownedMod(*mod);
   if (mlir::failed(pm->run(*ownedMod))) {
     MLIRModuleRef ptr = wrap(new ModuleOp(ownedMod.release()));
-
+    
     result = {.module = (void *)(ptr), .success = false};
     return result;
   }

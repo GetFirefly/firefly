@@ -18,6 +18,7 @@ using ::llvm::APInt;
 using ::llvm::ArrayRef;
 using ::llvm::StringRef;
 using ::mlir::Attribute;
+using ::mlir::Location;
 using ::mlir::MLIRContext;
 using ::mlir::Type;
 
@@ -34,7 +35,7 @@ struct SeqAttributeStorage;
 
 namespace AttributeKind {
 enum Kind {
-  Atom = Attribute::FIRST_EIR_ATTR,
+  Atom,
   Int,
   Float,
   Binary,
@@ -49,16 +50,12 @@ class AtomAttr : public Attribute::AttrBase<AtomAttr, Attribute,
   using ValueType = APInt;
 
   static AtomAttr get(MLIRContext *context, APInt id, StringRef value = "");
+  static AtomAttr getChecked(APInt id, StringRef value, Location loc);
 
   static StringRef getAttrName() { return "atom"; }
 
   APInt &getValue() const;
   StringRef getStringValue() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == static_cast<unsigned>(AttributeKind::Atom);
-  }
 };
 
 class APIntAttr : public Attribute::AttrBase<APIntAttr, Attribute,
@@ -71,16 +68,15 @@ class APIntAttr : public Attribute::AttrBase<APIntAttr, Attribute,
   static APIntAttr get(MLIRContext *context, Type type, APInt value);
   static APIntAttr get(MLIRContext *context, StringRef value, unsigned numBits);
 
+  static APIntAttr getChecked(APInt value, Location loc);
+  static APIntAttr getChecked(Type type, APInt value, Location loc);
+  static APIntAttr getChecked(StringRef value, unsigned numBits, Location loc);
+
   static StringRef getAttrName() { return "int"; }
 
   APInt &getValue() const;
   std::string getValueAsString() const;
   std::string getHash() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == static_cast<unsigned>(AttributeKind::Int);
-  }
 };
 
 class APFloatAttr
@@ -91,15 +87,11 @@ class APFloatAttr
   using ValueType = APFloat;
 
   static APFloatAttr get(MLIRContext *context, APFloat value);
+  static APFloatAttr getChecked(APFloat value, Location loc);
 
   static StringRef getAttrName() { return "float"; }
 
   APFloat &getValue() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == static_cast<unsigned>(AttributeKind::Float);
-  }
 };
 
 class BinaryAttr : public Attribute::AttrBase<BinaryAttr, Attribute,
@@ -117,16 +109,16 @@ class BinaryAttr : public Attribute::AttrBase<BinaryAttr, Attribute,
   static BinaryAttr get(Type type, StringRef bytes, uint64_t header,
                         uint64_t flags);
 
+  static BinaryAttr getChecked(StringRef bytes, uint64_t header, uint64_t flags,
+                               Location loc);
+  static BinaryAttr getChecked(Type type, StringRef bytes, uint64_t header,
+                               uint64_t flags, Location loc);
+
   StringRef getValue() const;
   std::string getHash() const;
   APInt &getHeader() const;
   APInt &getFlags() const;
   bool isPrintable() const;
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == static_cast<unsigned>(AttributeKind::Binary);
-  }
 };
 
 /// Seq attributes are lists of other attributes. Used to represent
@@ -140,6 +132,7 @@ class SeqAttr : public Attribute::AttrBase<SeqAttr, Attribute,
 
   static StringRef getAttrName() { return "seq"; }
   static SeqAttr get(Type type, ArrayRef<Attribute> value);
+  static SeqAttr getChecked(Type type, ArrayRef<Attribute> value, Location loc);
 
   ArrayRef<Attribute> &getValue() const;
 
@@ -151,11 +144,6 @@ class SeqAttr : public Attribute::AttrBase<SeqAttr, Attribute,
   reverse_iterator rbegin() const { return getValue().rbegin(); }
   reverse_iterator rend() const { return getValue().rend(); }
   size_t size() const { return getValue().size(); }
-
-  /// Methods for support type inquiry through isa, cast, and dyn_cast.
-  static bool kindof(unsigned kind) {
-    return kind == static_cast<unsigned>(AttributeKind::Seq);
-  }
 };
 
 }  // namespace eir

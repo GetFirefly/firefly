@@ -28,6 +28,7 @@ using namespace lumen::eir;
 using ::llvm::ArrayRef;
 using ::llvm::SmallVector;
 using ::llvm::StringRef;
+using ::mlir::OpOperand;
 
 namespace lumen {
 namespace eir {

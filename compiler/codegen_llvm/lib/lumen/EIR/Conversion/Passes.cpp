@@ -1,4 +1,4 @@
-#include "lumen/EIR/Conversion/Passes.h"
+#include "mlir/Transforms/Passes.h"
 
 #include <memory>
 
@@ -14,7 +14,6 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
-#include "mlir/Transforms/Passes.h"
 
 using ::llvm::TargetMachine;
 using ::llvm::unwrap;
@@ -24,49 +23,81 @@ using ::lumen::SizeLevel;
 using ::mlir::MLIRContext;
 using ::mlir::ModuleOp;
 using ::mlir::OpPassManager;
+using ::mlir::OpPrintingFlags;
 using ::mlir::OwningModuleRef;
+using ::mlir::Pass;
+using ::mlir::PassDisplayMode;
 using ::mlir::PassManager;
 
-namespace lumen {
-namespace eir {
-
-void buildEIRTransformPassPipeline(mlir::OpPassManager &passManager,
-                                   llvm::TargetMachine *targetMachine) {
-  passManager.addPass(createConvertEIRToLLVMPass(targetMachine));
-  OpPassManager &optPM = passManager.nest<::mlir::LLVM::LLVMFuncOp>();
-  optPM.addPass(mlir::createCanonicalizerPass());
+extern "C" {
+struct PassManagerOptions {
+  OptLevel optLevel;
+  SizeLevel sizeLevel;
+  bool enableTiming;
+  bool enableStatistics;
+  bool printBeforePass;
+  bool printAfterPass;
+  bool printModuleScopeAlways;
+  bool printAfterOnlyOnChange;
+};
 }
 
-}  // namespace eir
-}  // namespace lumen
-
 extern "C" MLIRPassManagerRef MLIRCreatePassManager(
-    MLIRContextRef context, LLVMTargetMachineRef tm, OptLevel opt,
-    SizeLevel sizeOpt, bool enableTiming, bool enableStatistics) {
+    MLIRContextRef context, LLVMTargetMachineRef tm,
+    PassManagerOptions *options) {
   MLIRContext *ctx = unwrap(context);
   TargetMachine *targetMachine = unwrap(tm);
-  CodeGenOptLevel optLevel = toLLVM(opt);
-  unsigned sizeLevel = toLLVM(opt);
+  CodeGenOptLevel optLevel = toLLVM(options->optLevel);
+  unsigned sizeLevel = toLLVM(options->sizeLevel);
+  bool printBeforePass = options->printBeforePass;
+  bool printAfterPass = options->printAfterPass;
 
-  auto pm = new PassManager(ctx);
-  if (enableTiming) pm->enableTiming();
-  if (enableStatistics) pm->enableStatistics();
+  auto pm = new PassManager(ctx, /*verifyPasses=*/true);
+
+  // Configure IR printing
+  OpPrintingFlags printerFlags;
+  printerFlags.enableDebugInfo(/*pretty=*/true);
+  printerFlags.useLocalScope();
+  pm->enableIRPrinting(
+      /*shouldPrintBefore=*/[printBeforePass](
+                                Pass *,
+                                Operation *) { return printBeforePass; },
+      /*shouldPrintAfter=*/
+      [printAfterPass](Pass *, Operation *) { return printAfterPass; },
+      /*printModuleScopeAlways=*/options->printModuleScopeAlways,
+      /*printAfterOnlyOnChange=*/options->printAfterOnlyOnChange, llvm::errs(),
+      printerFlags);
+
+  // Configure Pass Timing
+  if (options->enableTiming) {
+    auto config =
+        std::make_unique<PassManager::PassTimingConfig>(PassDisplayMode::List);
+    pm->enableTiming(std::move(config));
+  }
+  if (options->enableStatistics) {
+    pm->enableStatistics(PassDisplayMode::List);
+  }
+
+  // Allow command-line options to override the default configuration
   mlir::applyPassManagerCLOptions(*pm);
 
-  bool enableOpt = optLevel > CodeGenOptLevel::None;
+  // TODO: Hook driver into instrumentation
+  // pm.addInstrumentation(...);
 
-  OpPassManager &eirFuncOpt = pm->nest<::lumen::eir::FuncOp>();
-  eirFuncOpt.addPass(mlir::createCanonicalizerPass());
+  // Canonicalize generated EIR
+  pm->addNestedPass<::lumen::eir::FuncOp>(mlir::createCanonicalizerPass());
 
-  lumen::eir::buildEIRTransformPassPipeline(*pm, targetMachine);
+  // Convert EIR to LLVM dialect
+  pm->addPass(::lumen::eir::createConvertEIRToLLVMPass(targetMachine));
 
   // Add optimizations if enabled
-  if (enableOpt) {
+  if (optLevel > CodeGenOptLevel::None) {
     // When optimizing for size, avoid aggressive inlining
     if (sizeLevel == 0) {
       // pm->addPass(mlir::createInlinerPass());
     }
 
+    // Canonicalize generated LLVM dialect, and perform optimizations
     OpPassManager &optPM = pm->nest<::mlir::LLVM::LLVMFuncOp>();
     optPM.addPass(mlir::createCanonicalizerPass());
     // Sparse conditional constant propagation

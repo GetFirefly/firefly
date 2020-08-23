@@ -12,6 +12,7 @@ use liblumen_core::alloc::Layout;
 
 use crate::distribution::nodes::node;
 use crate::registry::pid_to_process;
+use crate::scheduler::Scheduled;
 
 pub fn is_down(message: &Message, reference: &Reference) -> bool {
     let message_data = message.data();
@@ -72,6 +73,11 @@ pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
                     );
                 }
             }
+
+            monitoring_pid_arc_process
+                .scheduler()
+                .unwrap()
+                .stop_waiting(&monitoring_pid_arc_process);
         }
     }
 }

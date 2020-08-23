@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
 use crate::registry::*;
-use crate::scheduler::SchedulerDependentAlloc;
+use crate::scheduler::{Scheduled, SchedulerDependentAlloc};
 use crate::sys;
 
 thread_local! {
@@ -37,18 +37,7 @@ pub fn is_expected_exception(exception: &RuntimeException) -> bool {
 
 fn is_expected_exit_reason(reason: Term) -> bool {
     match reason.decode().unwrap() {
-        TypedTerm::Atom(atom) => match atom.name() {
-            "normal" | "shutdown" => true,
-            _ => false,
-        },
-        TypedTerm::Tuple(tuple) => {
-            tuple.len() == 2 && {
-                match tuple[0].decode().unwrap() {
-                    TypedTerm::Atom(atom) => atom.name() == "shutdown",
-                    _ => false,
-                }
-            }
-        }
+        TypedTerm::Atom(atom) => atom == "normal",
         _ => false,
     }
 }
@@ -177,6 +166,11 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
                         }
                     }
                 }
+
+                linked_pid_arc_process
+                    .scheduler()
+                    .unwrap()
+                    .stop_waiting(&linked_pid_arc_process);
             }
         }
     }

@@ -516,8 +516,8 @@ impl Scheduler {
                     // Don't allow exiting processes to run again.
                     //
                     // Without this check, a process.exit() from outside the process during WAITING
-                    // will return to the Frame that called `process.wait()`
-                    if !process.is_exiting() {
+                    // will return to code that called `process.wait()`
+                    let requeue_arc_process = if !process.is_exiting() {
                         info!("swapping into process");
                         // The swap takes care of setting up the to-be-scheduled process
                         // as the current process, and swaps to its stack. The code below
@@ -549,25 +549,30 @@ impl Scheduler {
                             }
                         }
 
-                        // Try to schedule it for the future
-                        // Don't `if let` or `match` on the return from `requeue` as it will keep
-                        // the lock on the `run_queue`, causing a dead lock
-                        // when `propagate_exit` calls `Scheduler::
-                        // stop_waiting` for any linked or monitoring process.
-                        let option_exiting = self.run_queues.write().requeue(prev);
-
-                        // If the process is exiting, then handle the exit
-                        if let Some(exiting) = option_exiting {
-                            if let Status::RuntimeException(ref ex) = *exiting.status.read() {
-                                log_exit(&exiting, ex);
-                                propagate_exit(&exiting, ex);
-                            } else {
-                                unreachable!()
-                            }
-                        }
+                        prev
                     } else {
                         info!("process is exiting");
-                        process.reduce()
+                        process.reduce();
+
+                        process
+                    };
+
+                    // Try to schedule it for the future
+                    //
+                    // Don't `if let` or `match` on the return from `requeue` as it will keep the
+                    // lock on the `run_queue`, causing a dead lock when `propagate_exit` calls
+                    // `Scheduler::stop_waiting` for any linked or monitoring process.
+                    let option_exiting_arc_process =
+                        self.run_queues.write().requeue(requeue_arc_process);
+
+                    // If the process is exiting, then handle the exit
+                    if let Some(exiting_arc_process) = option_exiting_arc_process {
+                        if let Status::RuntimeException(ref exception) = *exiting_arc_process.status.read() {
+                            log_exit(&exiting_arc_process, exception);
+                            propagate_exit(&exiting_arc_process, exception);
+                        } else {
+                            unreachable!()
+                        }
                     }
 
                     info!("exiting scheduler loop after run");

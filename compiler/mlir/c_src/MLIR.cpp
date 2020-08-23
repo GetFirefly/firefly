@@ -4,12 +4,20 @@
 #include "mlir/IR/AsmState.h"
 #include "mlir/Pass/PassManager.h"
 
+extern "C" {
+  struct ContextOptions {
+    bool printOpOnDiagnostic;
+    bool printStackTraceOnDiagnostic;
+    bool enableMultithreading;
+  };
+}
+
 extern "C"
-MLIRContextRef MLIRCreateContext() {
-  auto *ctx = new mlir::MLIRContext();
-  ctx->printOpOnDiagnostic(true);
-  ctx->printStackTraceOnDiagnostic(true);
-  ctx->disableMultithreading();
+MLIRContextRef MLIRCreateContext(ContextOptions *opts) {
+  auto *ctx = new mlir::MLIRContext(/*loadAllDialects=*/false);
+  ctx->printOpOnDiagnostic(opts->printOpOnDiagnostic);
+  ctx->printStackTraceOnDiagnostic(opts->printStackTraceOnDiagnostic);
+  ctx->enableMultithreading(opts->enableMultithreading);
   
   return wrap(ctx);
 }

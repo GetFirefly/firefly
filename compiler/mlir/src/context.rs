@@ -11,8 +11,9 @@ use liblumen_llvm::enums::{CodeGenOptLevel, CodeGenOptSize};
 use liblumen_llvm::target::{TargetMachine, TargetMachineRef};
 use liblumen_llvm::utils::{MemoryBuffer, MemoryBufferRef};
 use liblumen_session::{Options, OutputType};
+use liblumen_util::diagnostics::DiagnosticsHandler;
 
-use crate::{Dialect, Module, ModuleRef};
+use crate::{diagnostics, Dialect, Module, ModuleRef};
 
 mod ffi {
     use liblumen_compiler_macros::foreign_struct;
@@ -26,6 +27,22 @@ mod ffi {
 
 pub use self::ffi::{ContextRef, PassManagerRef};
 
+#[repr(C)]
+pub struct ContextOptions {
+    print_op_on_diagnostic: bool,
+    print_stacktrace_on_diagnostic: bool,
+    enable_multithreading: bool,
+}
+impl ContextOptions {
+    fn new(options: &Options) -> Self {
+        Self {
+            print_op_on_diagnostic: options.debugging_opts.print_mlir_op_on_diagnostic,
+            print_stacktrace_on_diagnostic: options.debugging_opts.print_mlir_trace_on_diagnostic,
+            enable_multithreading: false,
+        }
+    }
+}
+
 pub struct Context {
     thread_id: ThreadId,
     context: ContextRef,
@@ -33,6 +50,7 @@ pub struct Context {
     target_machine: TargetMachineRef,
     opt: CodeGenOptLevel,
     size: CodeGenOptSize,
+    context_options: ContextOptions,
 }
 unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
@@ -40,27 +58,36 @@ impl Context {
     pub fn new(
         thread_id: ThreadId,
         options: &Options,
-        llvm_context: &llvm::Context,
+        diagnostics: &DiagnosticsHandler,
         target_machine: &TargetMachine,
     ) -> Self {
         let target_machine = target_machine.as_ref();
         let (opt, size) = llvm::enums::to_llvm_opt_settings(options.opt_level);
-        let context = unsafe { MLIRCreateContext() };
-        unsafe {
-            MLIRRegisterDialects(context, llvm_context.as_ref());
-        }
-        let enable_timing = options.debugging_opts.time_passes;
-        let enable_statistics = options.debugging_opts.perf_stats;
-        let pass_manager = unsafe {
-            MLIRCreatePassManager(
+        let context_options = ContextOptions::new(options);
+        let context = unsafe {
+            let context = MLIRCreateContext(&context_options);
+            // Register the MLIR dialects we use
+            MLIRRegisterDialects(context);
+            // The diagnostics callback expects a reference to our global diagnostics handler
+            let handler = diagnostics as *const DiagnosticsHandler;
+            diagnostics::MLIRRegisterDiagnosticHandler(
                 context,
-                target_machine,
-                opt,
-                size,
-                enable_timing,
-                enable_statistics,
-            )
+                handler,
+                diagnostics::on_diagnostic,
+            );
+            context
         };
+        let pass_options = PassManagerOptions {
+            opt,
+            size_opt: size,
+            enable_timing: options.debugging_opts.time_passes,
+            enable_statistics: options.debugging_opts.perf_stats,
+            print_before_pass: options.debugging_opts.print_passes_before,
+            print_after_pass: options.debugging_opts.print_passes_after,
+            print_module_scope_always: options.debugging_opts.print_mlir_module_scope_always,
+            print_after_only_on_change: options.debugging_opts.print_passes_on_change,
+        };
+        let pass_manager = unsafe { MLIRCreatePassManager(context, target_machine, &pass_options) };
         Self {
             thread_id,
             context,
@@ -68,6 +95,7 @@ impl Context {
             target_machine,
             opt,
             size,
+            context_options,
         }
     }
 
@@ -148,18 +176,41 @@ impl PartialEq for Context {
     }
 }
 
-extern "C" {
-    pub fn MLIRCreateContext() -> ContextRef;
+#[repr(C)]
+pub struct PassManagerOptions {
+    opt: CodeGenOptLevel,
+    size_opt: CodeGenOptSize,
+    enable_timing: bool,
+    enable_statistics: bool,
+    print_before_pass: bool,
+    print_after_pass: bool,
+    print_module_scope_always: bool,
+    print_after_only_on_change: bool,
+}
+impl Default for PassManagerOptions {
+    fn default() -> Self {
+        Self {
+            opt: CodeGenOptLevel::Default,
+            size_opt: CodeGenOptSize::Default,
+            enable_timing: false,
+            enable_statistics: false,
+            print_before_pass: false,
+            print_after_pass: false,
+            print_module_scope_always: false,
+            print_after_only_on_change: true,
+        }
+    }
+}
 
-    pub fn MLIRRegisterDialects(context: ContextRef, llvm_context: llvm::ContextRef);
+extern "C" {
+    pub fn MLIRCreateContext(options: &ContextOptions) -> ContextRef;
+
+    pub fn MLIRRegisterDialects(context: ContextRef);
 
     pub fn MLIRCreatePassManager(
         context: ContextRef,
         target_machine: TargetMachineRef,
-        opt: CodeGenOptLevel,
-        size_opt: CodeGenOptSize,
-        enable_timing: bool,
-        enable_statistics: bool,
+        options: &PassManagerOptions,
     ) -> PassManagerRef;
 
     pub fn MLIRParseFile(context: ContextRef, filename: *const libc::c_char) -> ModuleRef;

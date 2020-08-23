@@ -7,8 +7,12 @@
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/Casting.h"
 
 using namespace lumen;
+
+using llvm::dyn_cast_or_null;
+using llvm::isa;
 
 typedef struct LLVMOpaqueSMDiagnostic *LLVMSMDiagnosticRef;
 
@@ -92,23 +96,35 @@ LLVMLumenIsVerboseOptimizationDiagnostic(LLVMDiagnosticInfoRef di) {
 
 extern "C" void 
 LLVMLumenUnpackOptimizationDiagnostic(LLVMDiagnosticInfoRef di, RustStringRef passNameOut,
+                                      RustStringRef remarkNameOut,
                                       LLVMValueRef *functionOut, 
-                                      unsigned *line, unsigned *column,
+                                      LLVMValueRef *codeRegionOut,
+                                      unsigned *line, unsigned *column, bool *isVerbose,
                                       RustStringRef filenameOut, 
                                       RustStringRef messageOut) {
   // Undefined to call this not on an optimization diagnostic!
   llvm::DiagnosticInfoOptimizationBase *opt =
       static_cast<llvm::DiagnosticInfoOptimizationBase *>(unwrap(di));
 
+  *isVerbose = opt->isVerbose();
+
   RawRustStringOstream passNameOS(passNameOut);
   passNameOS << opt->getPassName();
-  *functionOut = wrap(&opt->getFunction());
 
-  RawRustStringOstream filenameOS(filenameOut);
-  llvm::DiagnosticLocation loc = opt->getLocation();
-  if (loc.isValid()) {
+  RawRustStringOstream remarkNameOS(remarkNameOut);
+  remarkNameOS << opt->getRemarkName();
+
+  *functionOut = wrap(&opt->getFunction());
+  *codeRegionOut = nullptr;
+  if (auto irOpt = dyn_cast_or_null<llvm::DiagnosticInfoIROptimization>(opt)) {
+      *codeRegionOut = wrap(irOpt->getCodeRegion());
+  }
+
+  if (opt->isLocationAvailable()) {
+    llvm::DiagnosticLocation loc = opt->getLocation();
     *line = loc.getLine();
     *column = loc.getColumn();
+    RawRustStringOstream filenameOS(filenameOut);
     filenameOS << loc.getAbsolutePath();
   }
 

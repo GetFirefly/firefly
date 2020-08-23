@@ -213,12 +213,6 @@ extern "C" MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
   ModuleBuilder *builder = unwrap(b);
   auto finished = builder->finish();
   delete builder;
-  if (failed(mlir::verify(finished))) {
-    finished.dump();
-    llvm::outs() << "\n";
-    finished.emitError("module verification error");
-    return nullptr;
-  }
 
   // Move to the heap
   return wrap(new mlir::ModuleOp(finished));

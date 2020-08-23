@@ -157,14 +157,10 @@ impl<'m> ModuleBuilder<'m> {
         debug!("finished building {}, finalizing..", self.module.name());
 
         let result = unsafe { MLIRFinalizeModuleBuilder(self.builder) };
-        if result.is_null() {
-            return Err(anyhow!(
-                "unexpected error occurred when lowering EIR module"
-            ));
-        }
+        let module = Module::new(result, Dialect::EIR);
 
         Ok(GeneratedModule {
-            module: Module::new(result, Dialect::EIR),
+            module,
             atoms: self.atoms.into_inner(),
             symbols: self.symbols.into_inner(),
         })

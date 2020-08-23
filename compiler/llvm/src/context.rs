@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 
+use liblumen_session::Options;
 use liblumen_util::diagnostics::DiagnosticsHandler;
 
 use crate::module::{Module, ModuleImpl};
@@ -21,13 +22,17 @@ pub struct Context {
     context: ContextRef,
 }
 impl Context {
-    pub fn new(diagnostics: Arc<DiagnosticsHandler>) -> Self {
+    pub fn new(options: Arc<Options>, diagnostics: Arc<DiagnosticsHandler>) -> Self {
         use crate::diagnostics;
         use crate::sys::core::LLVMContextSetDiagnosticHandler;
 
         let context = unsafe { crate::sys::core::LLVMContextCreate() };
         unsafe {
-            let data = Box::new((context, Arc::downgrade(&diagnostics)));
+            let data = Box::new((
+                context,
+                Arc::downgrade(&options),
+                Arc::downgrade(&diagnostics),
+            ));
             let data = Box::into_raw(data);
             LLVMContextSetDiagnosticHandler(
                 context,

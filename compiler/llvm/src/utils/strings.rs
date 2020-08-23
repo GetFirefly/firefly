@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::ffi::CStr;
 use std::fmt;
@@ -9,19 +10,16 @@ extern "C" {
     pub type Twine;
 }
 
-pub fn build_string(f: impl FnOnce(&RustString)) -> Result<String, FromUtf8Error> {
+pub fn build_string<'a>(f: impl FnOnce(&RustString)) -> String {
     let rs = RustString {
         bytes: RefCell::new(Vec::new()),
     };
     f(&rs);
-    String::from_utf8(rs.bytes.into_inner())
+    String::from_utf8_lossy(&rs.bytes.into_inner()).into_owned()
 }
 
 pub fn twine_to_string(twine: &Twine) -> String {
-    unsafe {
-        build_string(|s| LLVMLumenWriteTwineToString(twine, s))
-            .expect("got a non-UTF8 Twine from LLVM")
-    }
+    build_string(|s| unsafe { LLVMLumenWriteTwineToString(twine, s) })
 }
 
 #[repr(C)]

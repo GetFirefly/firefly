@@ -28,7 +28,31 @@ macro_rules! test_stdout {
     };
 }
 
-fn compile(file: &str, name: &str) -> PathBuf {
+// FIXME https://github.com/lumen/lumen/issues/497
+fn work_around497(file: &str, name: &str) -> PathBuf {
+    let mut tries = 0;
+    const MAX_TRIES: u8 = 3;
+
+    loop {
+        match compile(file, name) {
+            Ok(path_buf) => break path_buf,
+            Err(output) => {
+                tries +=1;
+
+                if tries == MAX_TRIES {
+                    assert!(
+                        output.status.success(),
+                        "stdout = {}\nstderr = {}",
+                        String::from_utf8_lossy(&output.stdout),
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn compile(file: &str, name: &str) -> Result<PathBuf, Output> {
     // `file!()` starts with path relative to workspace root, but the `current_dir` will be inside
     // the crate root, so need to strip the relative crate root.
     let file_path = Path::new(file);
@@ -66,18 +90,15 @@ fn compile(file: &str, name: &str) -> PathBuf {
         .output()
         .unwrap();
 
-    assert!(
-        compile_output.status.success(),
-        "stdout = {}\nstderr = {}",
-        String::from_utf8_lossy(&compile_output.stdout),
-        String::from_utf8_lossy(&compile_output.stderr)
-    );
-
-    output_path_buf
+    if compile_output.status.success() {
+        Ok(output_path_buf)
+    } else {
+        Err(compile_output)
+    }
 }
 
 pub fn output(file: &str, name: &str) -> Output {
-    let bin_path_buf = compile(file, name);
+    let bin_path_buf = work_around497(file, name);
 
     Command::new(bin_path_buf)
         .stdin(Stdio::null())

@@ -958,21 +958,6 @@ static Optional<Value> buildIntrinsicError2Op(ModuleBuilder *modBuilder,
   return llvm::None;
 }
 
-static Optional<Value> buildIntrinsicExit1Op(ModuleBuilder *modBuilder,
-                                             Location loc,
-                                             ArrayRef<Value> args) {
-  auto builder = modBuilder->getBuilder();
-  APInt id(modBuilder->immediateBitWidth, ERROR_SYMBOL, /*signed=*/false);
-  auto aExit = builder.create<ConstantAtomOp>(loc, id, "exit");
-  Value kind = aExit.getResult();
-  Value reason = args.front();
-  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
-  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
-  builder.create<ThrowOp>(loc, kind, reason, trace);
-
-  return llvm::None;
-}
-
 static Optional<Value> buildIntrinsicThrowOp(ModuleBuilder *modBuilder,
                                              Location loc,
                                              ArrayRef<Value> args) {
@@ -1043,7 +1028,6 @@ static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
   auto fnPtr = StringSwitch<BuildIntrinsicFnT>(target)
                    .Case("erlang:error/1", buildIntrinsicError1Op)
                    .Case("erlang:error/2", buildIntrinsicError2Op)
-                   .Case("erlang:exit/1", buildIntrinsicExit1Op)
                    .Case("erlang:throw/1", buildIntrinsicThrowOp)
                    .Case("erlang:raise/3", buildIntrinsicRaiseOp)
                    .Case("erlang:print/1", buildIntrinsicPrintOp)

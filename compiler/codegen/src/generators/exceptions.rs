@@ -109,6 +109,9 @@ fn generate_standard(
     let exit_fun_ty =
         builder.get_function_type(void_type, &[usize_type], /* variadic */ false);
     let exit_fun = builder.build_function_with_attrs(
+        // This cannot be `erlang:exit/1` because this exit is called once the `process_raise`
+        // exception has been caught, so it does `Process::exit` directly and yields to the
+        // scheduler instead.
         "__lumen_builtin_exit",
         exit_fun_ty,
         Linkage::External,
@@ -382,6 +385,9 @@ fn generate_wasm32(
     let exit_fun_ty =
         builder.get_function_type(void_type, &[usize_type], /* variadic */ false);
     let exit_fun = builder.build_function_with_attrs(
+        // This cannot be `erlang:exit/1` because this exit is called once the `process_raise`
+        // exception has been caught, so it does `Process::exit` directly and yields to the
+        // scheduler instead.
         "__lumen_builtin_exit",
         exit_fun_ty,
         Linkage::External,

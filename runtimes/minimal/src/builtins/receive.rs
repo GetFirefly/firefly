@@ -69,6 +69,7 @@ impl ReceiveContext {
 
     #[inline]
     fn with_timeout(&mut self) {
+        self.cancel_timer();
         self.state = ReceiveState::Timeout;
         self.message = Term::NONE;
     }
@@ -125,6 +126,7 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState
                     context.with_message(msg);
                     break ReceiveState::Received;
                 } else if context.should_time_out() {
+                    mbox.recv_timeout();
                     context.with_timeout();
                     break ReceiveState::Timeout;
                 } else {
@@ -154,23 +156,23 @@ pub extern "C" fn builtin_receive_message(ctx: *mut ReceiveContext) -> Term {
 
 #[export_name = "__lumen_builtin_receive_done"]
 pub extern "C" fn builtin_receive_done(ctx: *mut ReceiveContext) -> bool {
-    let mut context = unsafe { Box::from_raw(ctx) };
     let result = panic::catch_unwind(|| {
         let p = current_process();
         let mbox_lock = p.mailbox.lock();
         let mut mbox = mbox_lock.borrow_mut();
 
+        let mut context = unsafe { Box::from_raw(ctx) };
         context.cancel_timer();
 
         match context.state {
             ReceiveState::Received => {
                 mbox.recv_received();
             }
-            ReceiveState::Timeout => {
-                mbox.recv_timeout();
-            }
-            _ => {
-                unreachable!();
+            receive_state => {
+                unreachable!(
+                    "__lumen_builtin_receive_done should not be called with {:?}",
+                    receive_state
+                );
             }
         }
 

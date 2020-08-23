@@ -238,16 +238,20 @@ impl SchedulerTrait for Scheduler {
                         arc_process.reduce()
                     }
 
-                    match self.run_queues.write().requeue(arc_process) {
-                        Some(exiting_arc_process) => match *exiting_arc_process.status.read() {
+                    // Don't `if let` or `match` on the return from `requeue` as it will keep the
+                    // lock on the `run_queue`, causing a dead lock when `propagate_exit` calls
+                    // `Scheduler::stop_waiting` for any linked or monitoring process.
+                    let option_exiting_arc_process = self.run_queues.write().requeue(arc_process);
+
+                    if let Some(exiting_arc_process) = option_exiting_arc_process {
+                        match *exiting_arc_process.status.read() {
                             Status::RuntimeException(ref exception) => {
                                 log_exit(&exiting_arc_process, exception);
                                 propagate_exit(&exiting_arc_process, exception);
                             }
                             _ => unreachable!(),
-                        },
-                        None => (),
-                    };
+                        }
+                    }
 
                     CURRENT_PROCESS.with(|current_process| current_process.replace(None));
 

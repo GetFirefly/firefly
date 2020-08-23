@@ -27,8 +27,6 @@ pub enum ReceiveState {
     Received = 2,
     // Indicates to the caller that the receive timed out
     Timeout = 3,
-    // Indicates that a StopWaiting timer was started
-    Waiting = 4,
 }
 
 /// This structure manages the context for a single receive operation,
@@ -46,13 +44,19 @@ pub struct ReceiveContext {
 }
 impl ReceiveContext {
     #[inline]
-    fn new(timeout: Timeout) -> Self {
+    fn new(arc_process: Arc<Process>, timeout: Timeout) -> Self {
         let now = monotonic::time();
         let timeout = ReceiveTimeout::new(now, timeout);
+        let timer_reference = if let Some(monotonic) = timeout.monotonic() {
+            timer::start(monotonic, SourceEvent::StopWaiting, arc_process).unwrap()
+        } else {
+            Term::NONE
+        };
+
         Self {
             state: ReceiveState::Ready,
             message: Term::NONE,
-            timer_reference: Term::NONE,
+            timer_reference,
             timeout,
         }
     }
@@ -63,31 +67,6 @@ impl ReceiveContext {
 
         self.state = ReceiveState::Received;
         self.message = message;
-    }
-
-    fn wait(&mut self, arc_process: Arc<Process>) {
-        match self.state {
-            ReceiveState::Ready => {
-                if let Some(monotonic) = self.timeout.monotonic() {
-                    self.with_timer(
-                        timer::start(monotonic, SourceEvent::StopWaiting, arc_process.clone())
-                            .unwrap(),
-                    );
-                }
-            }
-            // Already waiting, but a new non-matching message had to be checked.
-            // The original timer continues.
-            ReceiveState::Waiting => (),
-            state => panic!("Cannot wait in receive state ({:?})", state),
-        }
-
-        arc_process.wait();
-    }
-
-    fn with_timer(&mut self, timer_reference: Term) {
-        assert_eq!(self.state, ReceiveState::Ready);
-        self.state = ReceiveState::Waiting;
-        self.timer_reference = timer_reference;
     }
 
     #[inline]
@@ -105,7 +84,7 @@ impl ReceiveContext {
     }
 
     fn cancel_timer(&mut self) {
-        if self.state == ReceiveState::Waiting {
+        if self.timer_reference != Term::NONE {
             let boxed_timer_reference: Boxed<Reference> = self.timer_reference.try_into().unwrap();
             timer::cancel(&boxed_timer_reference);
             self.timer_reference = Term::NONE;
@@ -123,8 +102,8 @@ pub extern "C" fn builtin_receive_start(timeout: Term) -> *mut ReceiveContext {
         };
         // TODO: It would be best if ReceiveContext was repr(C) so we
         // could keep it on the stack rather than heap allocate here
-        let context = Box::new(ReceiveContext::new(to));
         let p = current_process();
+        let context = Box::new(ReceiveContext::new(p.clone(), to));
         let mbox = p.mailbox.lock();
         mbox.borrow().recv_start();
         Box::into_raw(context)
@@ -153,7 +132,7 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState
                     context.with_timeout();
                     break ReceiveState::Timeout;
                 } else {
-                    context.wait(p.clone());
+                    p.wait();
                 }
             }
             // We put our yield here to ensure that we're not holding

@@ -74,3 +74,5 @@ pub mod is_atom_1;
 pub mod or_2;
 #[path = "erlang/spawn_1.rs"]
 pub mod spawn_1;
+#[path = "erlang/spawn_link_1.rs"]
+pub mod spawn_link_1;

@@ -567,7 +567,9 @@ impl Scheduler {
 
                     // If the process is exiting, then handle the exit
                     if let Some(exiting_arc_process) = option_exiting_arc_process {
-                        if let Status::RuntimeException(ref exception) = *exiting_arc_process.status.read() {
+                        if let Status::RuntimeException(ref exception) =
+                            *exiting_arc_process.status.read()
+                        {
                             log_exit(&exiting_arc_process, exception);
                             propagate_exit(&exiting_arc_process, exception);
                         } else {

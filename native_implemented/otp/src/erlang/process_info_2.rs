@@ -62,7 +62,7 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
         "suspending" => unimplemented!(),
         "total_heap_size" => unimplemented!(),
         "trace" => unimplemented!(),
-        "trap_exit" => unimplemented!(),
+        "trap_exit" => Ok(trap_exit(process)),
         name => Err(TryAtomFromTermError(name))
             .context(
                 "supported items are backtrace, binary, catchlevel, current_function, \
@@ -131,4 +131,11 @@ fn registered_name(process: &Process) -> Term {
         }
         None => Term::NIL,
     }
+}
+
+fn trap_exit(process: &Process) -> Term {
+    let tag = atom!("trap_exit");
+    let value = process.traps_exit().into();
+
+    process.tuple_from_slice(&[tag, value])
 }

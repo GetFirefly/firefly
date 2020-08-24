@@ -29,15 +29,13 @@ start() ->
       ChildMonitorReference = monitor(process, ChildPid),
       shutdown_child(ParentPid),
       receive
-      %% FIXME https://github.com/lumen/lumen/issues/546
-        {'DOWN', ParentMonitorReference, process, _, {exit, Reason1}} ->
+        {'DOWN', ParentMonitorReference, process, _, Reason1} ->
           display({parent, exited, Reason1})
       after 10 ->
         display({parent, alive, is_process_alive(ParentPid)})
       end,
       receive
-      %% FIXME https://github.com/lumen/lumen/issues/546
-        {'DOWN', ChildMonitorReference, process, _, {exit, Reason2}} ->
+        {'DOWN', ChildMonitorReference, process, _, Reason2} ->
           display({child, exited, Reason2})
       after 10 ->
         display({child, alive, is_process_alive(ChildPid)})

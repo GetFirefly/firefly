@@ -6,11 +6,11 @@ test_stdout!(
 );
 test_stdout!(
     with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_normal,
-    "{trap_exit, true}\n{parent, alive, true}\n{child, alive, false}\n"
+    "{trap_exit, true}\n{parent, alive, true}\n{child, exited, normal}\n"
 );
 test_stdout!(
     with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linked_process_does_not_exit_normal,
-    "{trap_exit, true}\n{parent, sees, child, exit, due, to, abnormal}\n{parent, alive, true}\n{child, exited, abnormal}\n"
+    "{trap_exit, true}\n{parent, alive, true}\n{child, exited, abnormal}\n{parent, sees, child, alive, false}\n"
 );
 test_stdout!(
     with_true_value_then_false_value_exits_when_linked_process_does_not_exit_normal,

@@ -22,8 +22,7 @@ start() ->
     ok
   end),
   receive
-    %% FIXME https://github.com/lumen/lumen/issues/546
-    {'DOWN', ParentMonitorReference, process, _, {exit, Reason}} ->
+    {'DOWN', ParentMonitorReference, process, _, Reason} ->
       display({parent, Reason})
   after
     100 ->

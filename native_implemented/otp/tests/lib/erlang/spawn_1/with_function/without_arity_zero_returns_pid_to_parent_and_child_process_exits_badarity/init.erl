@@ -12,7 +12,8 @@ start() ->
   receive
     {'DOWN', MonitorRef, process, _, Info} ->
       case Info of
-        {error, {Reason, _Stacktrace}} -> display(Reason);
+        %% FIXME https://github.com/lumen/lumen/issues/548
+        {Reason, FunArgs} -> display(Reason);
         Other -> display(Other)
       end
     after 20 ->

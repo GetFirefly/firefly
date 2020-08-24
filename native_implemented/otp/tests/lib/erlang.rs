@@ -80,3 +80,5 @@ pub mod process_flag_2;
 pub mod spawn_1;
 #[path = "erlang/spawn_link_1.rs"]
 pub mod spawn_link_1;
+#[path = "erlang/spawn_monitor_1.rs"]
+pub mod spawn_monitor_1;

@@ -22,8 +22,7 @@ start() ->
     ok
   end),
   receive
-    %% FIXME https://github.com/lumen/lumen/issues/546
-    {'DOWN', ParentMonitorReference, process, _, {error, Info}} ->
+    {'DOWN', ParentMonitorReference, process, _, Info} ->
       case Info of
         {badarity = Reason, FunArgs} ->
           display({parent, Reason});

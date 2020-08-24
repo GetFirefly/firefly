@@ -75,10 +75,38 @@ pub unsafe extern "C" fn process_exit(reason: Term) {
         .as_any()
         .downcast_ref::<Scheduler>()
         .unwrap();
+    // FIXME https://github.com/lumen/lumen/issues/546
+    let exit_reason = work_around546(reason);
+
     scheduler
         .current
-        .exit(reason, anyhow!("process exit").into());
+        .exit(exit_reason, anyhow!("process exit").into());
     scheduler.process_yield();
+}
+
+// Work-around:  Unwrap `{class, reason}`, but it means that processes can't exit with a reason
+// that looks like `{class, reason}.
+fn work_around546(reason: Term) -> Term {
+    match reason.decode().unwrap() {
+        TypedTerm::Tuple(boxed_tuple) => {
+            let elements = boxed_tuple.elements();
+
+            if elements.len() == 2 {
+                let class = elements[0];
+
+                match class.decode().unwrap() {
+                    TypedTerm::Atom(class_atom) => match class_atom.name() {
+                        "error" | "exit" => elements[1],
+                        _ => reason,
+                    },
+                    _ => reason,
+                }
+            } else {
+                reason
+            }
+        }
+        _ => reason,
+    }
 }
 
 #[naked]

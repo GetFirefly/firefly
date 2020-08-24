@@ -9,8 +9,7 @@ start() ->
     exit(abnormal)
   end),
   receive
-    %% FIXME https://github.com/lumen/lumen/issues/546
-    {'DOWN', ChildMonitorReference, process, _, {exit, Reason}} ->
+    {'DOWN', ChildMonitorReference, process, _, Reason} ->
       display({child, exited, Reason})
     after 10 ->
       display(timeout)

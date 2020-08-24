@@ -9,8 +9,7 @@ start() ->
     display(A)
   end),
   receive
-    %% FIXME https://github.com/lumen/lumen/issues/546
-    {'DOWN', ChildMonitorReference, process, _, {error, {Reason, Details}}} ->
+    {'DOWN', ChildMonitorReference, process, _, {Reason, Details}} ->
       display({child, exited, Reason})
     after 10 ->
       display(timeout)

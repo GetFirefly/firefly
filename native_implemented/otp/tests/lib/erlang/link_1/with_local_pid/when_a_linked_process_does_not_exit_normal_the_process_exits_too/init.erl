@@ -20,8 +20,7 @@ start() ->
     end
   end),
   receive
-    %% FIXME https://github.com/lumen/lumen/issues/546
-    {'DOWN', ParentMonitorReference, process, _, {exit, Reason}} ->
+    {'DOWN', ParentMonitorReference, process, _, Reason} ->
       display({parent, exited, Reason});
     10 ->
       display({parent, alive, is_process_alive(ParentPid)})

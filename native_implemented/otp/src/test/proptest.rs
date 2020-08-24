@@ -13,13 +13,10 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestCaseResult, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::atom;
 use liblumen_alloc::erts::message::{self, Message};
-use liblumen_alloc::erts::process::{Process, Status};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{exception, Node};
-
-use crate::runtime::scheduler;
 
 use crate::test::strategy::term::binary;
 use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
@@ -175,54 +172,6 @@ pub fn number_to_integer_with_float(
             }
         },
     );
-}
-
-pub fn prop_assert_exits<
-    F: Fn(Option<Term>) -> proptest::test_runner::TestCaseResult,
-    S: AsRef<str>,
->(
-    process: &Process,
-    expected_reason: Term,
-    prop_assert_stacktrace: F,
-    source_substring: S,
-) -> proptest::test_runner::TestCaseResult {
-    match *process.status.read() {
-        Status::RuntimeException(ref runtime_exception) => {
-            prop_assert_eq!(runtime_exception.reason(), expected_reason);
-            prop_assert_stacktrace(runtime_exception.stacktrace())?;
-
-            let source_string = format!("{:?}", runtime_exception.source());
-
-            let source_substring: &str = source_substring.as_ref();
-
-            prop_assert!(
-                source_string.contains(source_substring),
-                "source ({}) does not contain `{}`",
-                source_string,
-                source_substring
-            );
-
-            Ok(())
-        }
-        ref status => Err(proptest::test_runner::TestCaseError::fail(format!(
-            "Child process did not exit.  Status is {:?}. Scheduler is {:?}",
-            status,
-            scheduler::current()
-        ))),
-    }
-}
-
-pub fn prop_assert_exits_badarity<S: AsRef<str>>(
-    process: &Process,
-    fun: Term,
-    args: Term,
-    source_substring: S,
-) -> proptest::test_runner::TestCaseResult {
-    let tag = atom!("badarity");
-    let fun_args = process.tuple_from_slice(&[fun, args]);
-    let reason = process.tuple_from_slice(&[tag, fun_args]);
-
-    prop_assert_exits(process, reason, |_| Ok(()), source_substring)
 }
 
 pub fn receive_message(process: &Process) -> Option<Term> {

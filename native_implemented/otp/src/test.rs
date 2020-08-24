@@ -21,11 +21,11 @@ pub use self::proptest::*;
 use std::convert::TryInto;
 use std::sync::Arc;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
-use liblumen_alloc::atom;
 
 use crate::erlang::{self, exit_1};
 use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
@@ -81,13 +81,6 @@ pub fn assert_exits_undef(
         },
         source_substring,
     );
-}
-
-pub fn badarity_reason(process: &Process, function: Term, args: Term) -> Term {
-    let tag = atom!("badarity");
-    let fun_args = process.tuple_from_slice(&[function, args]);
-
-    process.tuple_from_slice(&[tag, fun_args])
 }
 
 pub fn exit_when_run(process: &Process, reason: Term) {

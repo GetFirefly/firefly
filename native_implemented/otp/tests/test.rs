@@ -31,7 +31,7 @@ macro_rules! test_stdout {
 // FIXME https://github.com/lumen/lumen/issues/497
 fn work_around497(file: &str, name: &str) -> PathBuf {
     let mut tries = 0;
-    const MAX_TRIES: u8 = 4;
+    const MAX_TRIES: u8 = 7;
 
     loop {
         match compile(file, name) {

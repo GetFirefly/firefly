@@ -43,7 +43,7 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
         "group_leader" => unimplemented!(),
         "heap_size" => unimplemented!(),
         "initial_call" => unimplemented!(),
-        "links" => unimplemented!(),
+        "links" => Ok(links(process)),
         "last_calls" => unimplemented!(),
         "memory" => unimplemented!(),
         "message_queue_len" => unimplemented!(),
@@ -76,6 +76,19 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
             )
             .map_err(From::from),
     }
+}
+
+fn links(process: &Process) -> Term {
+    let tag = atom!("links");
+
+    let vec: Vec<Term> = process
+        .linked_pid_set
+        .iter()
+        .map(|ref_multi| ref_multi.encode().unwrap())
+        .collect();
+    let value = process.list_from_slice(&vec);
+
+    process.tuple_from_slice(&[tag, value])
 }
 
 fn monitored_by(process: &Process) -> Term {

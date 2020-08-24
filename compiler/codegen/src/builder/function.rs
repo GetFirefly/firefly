@@ -1438,8 +1438,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::PrimOpKind::CaptureFunction => {
                 debug_in!(self, "primop is function capture");
                 assert_eq!(
-                    num_reads, 4,
-                    "expected capture function primop to have four operands"
+                    num_reads, 3,
+                    "expected capture function primop to have three operands"
                 );
                 let callee = Callee::new(self, ir_value)?;
                 OpKind::FunctionRef(FunctionRef { loc, callee })

@@ -25,7 +25,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
-use liblumen_alloc::{atom, Arity};
+use liblumen_alloc::atom;
 
 use crate::erlang::{self, exit_1};
 use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
@@ -58,18 +58,6 @@ pub fn assert_exits<F: Fn(Option<Term>)>(
 
 pub fn assert_exits_badarith(process: &Process, source_substring: &str) {
     assert_exits(process, atom!("badarith"), |_| {}, source_substring)
-}
-
-pub fn assert_exits_badarity(process: &Process, function: Term, arity: Arity, args: Term) {
-    let source_substring = format!(
-        "arguments ({}) length (0) does not match arity ({}) of function ({})",
-        args, arity, function
-    );
-    let fun_args = process.tuple_from_slice(&[function, args]);
-    let tag = atom!("badarity");
-    let expected_reason = process.tuple_from_slice(&[tag, fun_args]);
-
-    assert_exits(&process, expected_reason, |_| {}, &source_substring);
 }
 
 pub fn assert_exits_undef(

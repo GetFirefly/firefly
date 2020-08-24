@@ -1,7 +1,7 @@
-mod with_empty_list_options;
-mod with_link_and_monitor_in_options_list;
-mod with_link_in_options_list;
-mod with_monitor_in_options_list;
+// `with_empty_list_options` in integration tests
+// `with_link_and_monitor_in_options_list` in integration tests
+// `with_link_in_options_list` in integration tests
+// `with_monitor_in_options_list` in integration tests
 
 use super::*;
 

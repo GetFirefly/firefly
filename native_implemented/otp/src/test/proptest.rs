@@ -90,10 +90,6 @@ pub fn external_arc_node() -> Arc<Node> {
     ))
 }
 
-pub fn has_no_message(process: &Process) -> bool {
-    process.mailbox.lock().borrow().len() == 0
-}
-
 pub fn has_message(process: &Process, data: Term) -> bool {
     process.mailbox.lock().borrow().iter().any(|message| {
         &data

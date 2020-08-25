@@ -1395,7 +1395,7 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::PrimOpKind::Tuple => {
                 debug_in!(self, "primop is tuple constructor");
                 assert!(
-                    num_reads > 1,
+                    num_reads >= 1,
                     "expected tuple primop to have at least one operand"
                 );
                 let mut elements = Vec::with_capacity(num_reads);

@@ -6,32 +6,31 @@ use wasm_bindgen::JsCast;
 
 use web_sys::WebSocket;
 
+use liblumen_alloc::erts::fragment::HeapFragment;
+
 use liblumen_web::web_socket;
 
 #[wasm_bindgen_test(async)]
 fn with_valid_url_returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> {
     start_once();
 
+    let (url, url_non_null_heap_fragment) =
+        HeapFragment::new_binary_from_str("wss://echo.websocket.org").unwrap();
     let options: Options = Default::default();
 
     // ```elixir
     // web_socket_tuple = Lumen.Web.WebSocket.new(url)
     // Lumen.Web.Wait.with_return(web_socket_tuple)
     // ```
-    let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # pushed to stack ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns {:ok, web_socket} | {:error, reason}
-        // ```
-        let url = child_process.binary_from_str("wss://echo.websocket.org");
-
-        Ok(vec![
-            web_socket::new_1::frame().with_arguments(false, &[url])
-        ])
-    })
+    let promise = r#async::apply_3::promise(
+        web_socket::module(),
+        web_socket::new_1::function(),
+        vec![url],
+        options,
+    )
     .unwrap();
+
+    std::mem::drop(url_non_null_heap_fragment);
 
     JsFuture::from(promise)
         .map(move |resolved| {
@@ -55,26 +54,23 @@ fn with_valid_url_returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> 
 fn without_valid_url_returns_error_tuple() -> impl Future<Item = (), Error = JsValue> {
     start_once();
 
+    let (url, url_non_null_heap_fragment) =
+        HeapFragment::new_binary_from_str("invalid_url").unwrap();
     let options: Options = Default::default();
 
     // ```elixir
     // web_socket_tuple = Lumen.Web.WebSocket.new(url)
     // Lumen.Web.Wait.with_return(web_socket_tuple)
     // ```
-    let promise = wait::with_return_0::spawn(options, |child_process| {
-        // ```elixir
-        // # pushed to stack ()
-        // # returned from call: N/A
-        // # full stack: ()
-        // # returns {:ok, web_socket} | {:error, reason}
-        // ```
-        let url = child_process.binary_from_str("invalid_url");
-
-        Ok(vec![
-            web_socket::new_1::frame().with_arguments(false, &[url])
-        ])
-    })
+    let promise = r#async::apply_3::promise(
+        web_socket::module(),
+        web_socket::new_1::function(),
+        vec![url],
+        options,
+    )
     .unwrap();
+
+    std::mem::drop(url_non_null_heap_fragment);
 
     JsFuture::from(promise)
         .map(move |resolved| {

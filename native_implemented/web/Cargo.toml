@@ -16,6 +16,7 @@ liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
 liblumen_otp = { path = "../otp" }
 lumen_rt_full = { path = "../../runtimes/full" }
+panic-control = "0.1.4"
 native_implemented = { path = "../macro" }
 
 [dependencies.lumen_rt_core]

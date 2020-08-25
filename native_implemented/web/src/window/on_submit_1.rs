@@ -39,9 +39,8 @@ fn result(process: &Process, event: Term) -> Term {
                                 let function = Atom::str_to_term(&lumen_submit_function_string);
                                 let arguments = process.list_from_slice(&[event]);
 
-                                let frame_with_arguments = erlang::apply_3::frame_with_arguments(
-                                    module, function, arguments,
-                                );
+                                let frame_with_arguments = erlang::apply_3::frame()
+                                    .with_arguments(false, &[module, function, arguments]);
                                 process.queue_frame_with_arguments(frame_with_arguments);
 
                                 Term::NONE

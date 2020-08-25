@@ -15,6 +15,13 @@ use crate::erts::process::alloc::{StackAlloc, TermAlloc};
 use crate::erts::term::prelude::*;
 use crate::erts::to_word_size;
 
+pub fn optional_cons_to_term(cons: Option<Boxed<Cons>>) -> Term {
+    match cons {
+        None => Term::NIL,
+        Some(boxed) => boxed.into(),
+    }
+}
+
 pub enum List {
     Empty,
     NonEmpty(Boxed<Cons>),

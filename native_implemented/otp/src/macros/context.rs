@@ -4,6 +4,7 @@ macro_rules! term_is_not_number {
     };
 }
 
+#[macro_export]
 macro_rules! term_try_into_atom {
     ($name:ident) => {
         crate::runtime::context::term_try_into_atom(stringify!($name), $name)

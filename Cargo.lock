@@ -1474,6 +1474,7 @@ dependencies = [
  "lumen_rt_core",
  "lumen_rt_full",
  "native_implemented",
+ "panic-control",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

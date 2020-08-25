@@ -348,7 +348,7 @@ impl Encoding for Encoding32 {
 
     #[inline]
     fn is_header(value: u32) -> bool {
-        value & MASK_PRIMARY == Self::TAG_HEADER && value != Self::NONE
+        value & MASK_PRIMARY == Self::TAG_HEADER && value != Self::NONE && value != Self::NIL
     }
 
     #[inline]

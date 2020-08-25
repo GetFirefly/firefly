@@ -1,8 +1,7 @@
 #[path = "body_1/without_body.rs"]
-mod without_body;
-
+pub mod without_body;
 #[path = "body_1/with_body.rs"]
-mod with_body;
+pub mod with_body;
 
 use super::*;
 
@@ -10,44 +9,18 @@ use js_sys::{Reflect, Symbol};
 
 use wasm_bindgen::JsCast;
 
-use liblumen_alloc::erts::process::{Frame, Native};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::{Arity, ModuleFunctionArity};
-
-use liblumen_web::{document, window};
 
 #[wasm_bindgen_test(async)]
 fn without_body() -> impl Future<Item = (), Error = JsValue> {
     start_once();
 
-    let options: Options = Default::default();
-
-    // ```elixir
-    // {:ok, document} = Lumen.Web.Document.new()
-    // body_tuple = Lumen.Web.Document.body(document)
-    // Lumen.Web.Wait.with_return(body_tuple)
-    // ```
-    let promise = wait::with_return_0::spawn(options, |_| {
-        Ok(vec![
-            // ```elixir
-            // # pushed to stack: ()
-            // # returned from call: N/A
-            // # full stack: ()
-            // # returns: {:ok, document}
-            // ```
-            document::new_0::frame().with_arguments(false, &[]),
-            // ```elixir
-            // # label 1
-            // # pushed to stack: ()
-            // # returned from call: {:ok, document}
-            // # full stack: ({:ok, document})
-            // # returns: {:ok, body} | :error
-            // body_tuple = Lumen.Web.Document.body(document)
-            // Lumen.Web.Wait.with_return(body_tuple)
-            // ```
-            without_body::label_1::frame().with_arguments(true, &[]),
-        ])
-    })
+    let promise = r#async::apply_3::promise(
+        module(),
+        without_body::function(),
+        vec![],
+        Default::default(),
+    )
     .unwrap();
 
     JsFuture::from(promise)
@@ -63,36 +36,9 @@ fn without_body() -> impl Future<Item = (), Error = JsValue> {
 fn with_body() -> impl Future<Item = (), Error = JsValue> {
     start_once();
 
-    let options: Options = Default::default();
-
-    // ```elixir
-    // {:ok, document} = Lumen.Web.Document.new()
-    // body_tuple = Lumen.Web.Document.body(document)
-    // Lumen.Web.Wait.with_return(body_tuple)
-    // ```
-    let promise = wait::with_return_0::spawn(options, |_| {
-        Ok(vec![
-            // ```elixir
-            // # pushed to stack: ()
-            // # returned from call: N/A
-            // # full stack: ()
-            // # returns: {:ok, window}
-            // ```
-            window::window_0::frame().with_arguments(false, &[]),
-            // ```elixir
-            // # label 1
-            // # pushed to stack: ()
-            // # returned from call: {:ok, window}
-            // # full stack: ({:ok, window})
-            // # returns: {:ok, document}
-            // {:ok, document} = Lumen.Web.Window.document(window)
-            // body_tuple = Lumen.Web.Document.body(document)
-            // Lumen.Web.Wait.with_return(body_tuple)
-            // ```
-            with_body::label_1::frame().with_arguments(true, &[]),
-        ])
-    })
-    .unwrap();
+    let promise =
+        r#async::apply_3::promise(module(), with_body::function(), vec![], Default::default())
+            .unwrap();
 
     JsFuture::from(promise)
         .map(move |resolved| {
@@ -117,4 +63,10 @@ fn with_body() -> impl Future<Item = (), Error = JsValue> {
         .map_err(|_| unreachable!())
 }
 
-const ARITY: Arity = 1;
+fn module() -> Atom {
+    Atom::from_str("Elixir.Lumen.Web.Document.Body1")
+}
+
+fn module_id() -> usize {
+    module().id()
+}

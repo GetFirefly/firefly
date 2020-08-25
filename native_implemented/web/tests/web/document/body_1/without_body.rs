@@ -1,20 +1,36 @@
+//! ```elixir
+//! {:ok, document} = Lumen.Web.Document.new()
+//! body_tuple = Lumen.Web.Document.body(document)
+//! Lumen.Web.Wait.with_return(body_tuple)
+//! ```
+
 #[path = "without_body/label_1.rs"]
 pub mod label_1;
 
-use super::*;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::prelude::*;
 
-fn frame_for_native(native: Native) -> Frame {
-    Frame::new(module_function_arity(), native)
-}
+use liblumen_web::document;
 
-fn function() -> Atom {
-    Atom::from_str("body_1_without_body")
-}
+#[native_implemented::function(Elixir.Lumen.Web.Document.Body1:without_body/0)]
+fn result(process: &Process) -> Term {
+    // ```elixir
+    // # pushed to stack: ()
+    // # returned from call: N/A
+    // # full stack: ()
+    // # returns: {:ok, document}
+    // ```
+    process.queue_frame_with_arguments(document::new_0::frame().with_arguments(false, &[]));
+    // ```elixir
+    // # label 1
+    // # pushed to stack: ()
+    // # returned from call: {:ok, document}
+    // # full stack: ({:ok, document})
+    // # returns: {:ok, body} | :error
+    // body_tuple = Lumen.Web.Document.body(document)
+    // Lumen.Web.Wait.with_return(body_tuple)
+    // ```
+    process.queue_frame_with_arguments(label_1::frame().with_arguments(true, &[]));
 
-fn module_function_arity() -> ModuleFunctionArity {
-    ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: super::ARITY,
-    }
+    Term::NONE
 }

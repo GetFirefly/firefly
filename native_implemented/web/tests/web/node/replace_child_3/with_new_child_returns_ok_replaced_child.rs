@@ -1,3 +1,12 @@
+//! ```elixir
+//! {:ok, document} = Lumen.Web.Document.new()
+//! {:ok, old_child} = Lumen.Web.Document.create_element(document, "table")
+//! {:ok, parent} = Lumen.Web.Document.create_element(parent_document, "div")
+//! :ok = Lumen.Web.Node.append_child(parent, old_child)
+//! {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
+//! {:ok, replaced_child} = Lumen.Web.replace_child(parent, new_child, old_child)
+//! ```
+
 #[path = "with_new_child_returns_ok_replaced_child/label_1.rs"]
 pub mod label_1;
 #[path = "with_new_child_returns_ok_replaced_child/label_2.rs"]
@@ -9,28 +18,33 @@ pub mod label_4;
 #[path = "with_new_child_returns_ok_replaced_child/label_5.rs"]
 pub mod label_5;
 
-use liblumen_alloc::erts::process::{Frame, Native};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{Arity, ModuleFunctionArity};
 
-const ARITY: Arity = 0;
+use liblumen_web::document;
 
-fn frame_for_native(native: Native) -> Frame {
-    Frame::new(module_function_arity(), native)
-}
+#[native_implemented::function(Elixir.Lumen.Web.Node.ReplaceChild3:with_new_child_returns_ok_replaced_child/0)]
+pub fn result(process: &Process) -> Term {
+    // ```elixir
+    // # pushed to stack: ()
+    // # returned from call: N/A
+    // # full stack: ()
+    // # returns: {:ok, parent_document}
+    // ```
+    process.queue_frame_with_arguments(document::new_0::frame().with_arguments(false, &[]));
+    // ```elixir
+    // # label 1
+    // # pushed to stack: ()
+    // # returned form call: {:ok, document}
+    // # full stack: ({:ok, document})
+    // # returns: {:ok parent}
+    // {:ok, old_child} = Lumen.Web.Document.create_element(document, "table")
+    // {:ok, parent} = Lumen.Web.Document.create_element(parent_document, "div")
+    // :ok = Lumen.Web.Node.append_child(parent, old_child)
+    // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
+    // {:ok, replaced_child} = Lumen.Web.replace_child(parent, new_child, old_child)
+    // ```
+    process.queue_frame_with_arguments(label_1::frame().with_arguments(true, &[]));
 
-fn function() -> Atom {
-    Atom::from_str("replace_child_3_with_new_child_returns_ok_replaced_child")
-}
-
-fn module() -> Atom {
-    Atom::from_str("Lumen.Web.NodeTest")
-}
-
-fn module_function_arity() -> ModuleFunctionArity {
-    ModuleFunctionArity {
-        module: module(),
-        function: function(),
-        arity: ARITY,
-    }
+    Term::NONE
 }

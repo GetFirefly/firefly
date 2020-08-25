@@ -26,18 +26,44 @@ use wasm_bindgen_futures::JsFuture;
 
 use wasm_bindgen_test::*;
 
+use liblumen_alloc::erts::apply::InitializeLumenDispatchTable;
 use liblumen_alloc::erts::term::prelude::*;
 
+use liblumen_web::r#async;
 use liblumen_web::runtime;
 use liblumen_web::runtime::process::spawn::options::Options;
-use liblumen_web::wait;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
 static START: Once = Once::new();
 
+fn initialize_dispatch_table() {
+    let function_symbols = vec![
+        // Library
+        liblumen_web::document::new_0::function_symbol(),
+        liblumen_web::executor::apply_4::function_symbol(),
+        liblumen_web::web_socket::new_1::function_symbol(),
+
+        // Test
+        document::body_1::with_body::function_symbol(),
+        document::body_1::without_body::function_symbol(),
+        element::class_name_1::test_0::function_symbol(),
+        element::remove_1::removes_element::function_symbol(),
+        math::random_integer_1::returns_integer_between_0_inclusive_and_max_exclusive::function_symbol(),
+        node::insert_before_3::with_nil_reference_child_appends_new_child::function_symbol(),
+        node::insert_before_3::with_reference_child_inserts_before_reference_child::function_symbol(),
+        node::replace_child_3::with_new_child_is_parent_returns_error_hierarchy_request::function_symbol(),
+        node::replace_child_3::with_new_child_returns_ok_replaced_child::function_symbol()
+    ];
+
+    unsafe {
+        InitializeLumenDispatchTable(function_symbols.as_ptr(), function_symbols.len());
+    }
+}
+
 fn start_once() {
     START.call_once(|| {
+        initialize_dispatch_table();
         liblumen_web::start();
     })
 }

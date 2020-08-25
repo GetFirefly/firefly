@@ -40,6 +40,7 @@ use crate::erts::exception::{
 };
 use crate::erts::module_function_arity::Arity;
 use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
+use crate::erts::term::list::optional_cons_to_term;
 use crate::erts::term::prelude::*;
 
 use super::*;
@@ -702,7 +703,7 @@ impl Process {
                 self.attach_fragment_or_panic(HeapFragment::new_list_from_chars(chars))
             });
 
-        Self::optional_cons_to_term(optional_cons)
+        optional_cons_to_term(optional_cons)
     }
 
     pub fn list_from_iter<I>(&self, iter: I) -> Term
@@ -716,7 +717,7 @@ impl Process {
                 self.attach_fragment_or_panic(HeapFragment::new_list_from_iter(iter))
             });
 
-        Self::optional_cons_to_term(optional_cons)
+        optional_cons_to_term(optional_cons)
     }
 
     pub fn list_from_slice(&self, slice: &[Term]) -> Term {
@@ -727,7 +728,7 @@ impl Process {
                 self.attach_fragment_or_panic(HeapFragment::new_list_from_slice(slice))
             });
 
-        Self::optional_cons_to_term(optional_cons)
+        optional_cons_to_term(optional_cons)
     }
 
     pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> Term
@@ -741,7 +742,7 @@ impl Process {
                 self.attach_fragment_or_panic(HeapFragment::new_improper_list_from_iter(iter, last))
             });
 
-        Self::optional_cons_to_term(optional_cons)
+        optional_cons_to_term(optional_cons)
     }
 
     pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> Term {
@@ -754,15 +755,7 @@ impl Process {
                 ))
             });
 
-        Self::optional_cons_to_term(optional_cons)
-    }
-
-    #[inline]
-    fn optional_cons_to_term(cons: Option<Boxed<Cons>>) -> Term {
-        match cons {
-            None => Term::NIL,
-            Some(boxed) => boxed.into(),
-        }
+        optional_cons_to_term(optional_cons)
     }
 
     pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> Term {

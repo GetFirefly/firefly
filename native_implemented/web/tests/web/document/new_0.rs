@@ -12,23 +12,16 @@ use liblumen_web::document;
 fn returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> {
     start_once();
 
-    let options: Options = Default::default();
-
     // ```elixir
     // document_tuple = Lumen.Web.Document.new()
     // Lumen.Web.Wait.with_return(document_tuple)
     // ```
-    let promise = wait::with_return_0::spawn(options, |_| {
-        Ok(vec![
-            // ```elixir
-            // # pushed to stack: ()
-            // # returned from call: N/A
-            // # full stack: ()
-            // # returns: {:ok, document} | :error
-            // ```
-            document::new_0::frame().with_arguments(false, &[]),
-        ])
-    })
+    let promise = r#async::apply_3::promise(
+        document::module(),
+        document::new_0::function(),
+        vec![],
+        Default::default(),
+    )
     .unwrap();
 
     JsFuture::from(promise)

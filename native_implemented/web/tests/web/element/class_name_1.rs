@@ -5,8 +5,8 @@ use super::*;
 
 use liblumen_alloc::erts::term::prelude::Atom;
 
-#[wasm_bindgen_test(async)]
-fn with_class_name_returns_class_name() -> impl Future<Item = (), Error = JsValue> {
+#[wasm_bindgen_test]
+async fn with_class_name_returns_class_name() {
     start_once();
 
     let body = web_sys::window()
@@ -19,19 +19,15 @@ fn with_class_name_returns_class_name() -> impl Future<Item = (), Error = JsValu
     body.set_class_name(class_name);
 
     let promise = promise();
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            let class_name_js_string: JsValue = class_name.into();
+    let class_name_js_string: JsValue = class_name.into();
 
-            assert_eq!(resolved, class_name_js_string);
-        })
-        .map_err(|_| unreachable!())
+    assert_eq!(resolved, class_name_js_string);
 }
 
-#[wasm_bindgen_test(async)]
-fn with_class_names_returns_space_separateed_class_names() -> impl Future<Item = (), Error = JsValue>
-{
+#[wasm_bindgen_test]
+async fn with_class_names_returns_space_separateed_class_names() {
     start_once();
 
     let body = web_sys::window()
@@ -44,29 +40,23 @@ fn with_class_names_returns_space_separateed_class_names() -> impl Future<Item =
     body.set_class_name(class_name);
 
     let promise = promise();
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            let class_name_js_string: JsValue = class_name.into();
+    let class_name_js_string: JsValue = class_name.into();
 
-            assert_eq!(resolved, class_name_js_string);
-        })
-        .map_err(|_| unreachable!())
+    assert_eq!(resolved, class_name_js_string);
 }
 
-#[wasm_bindgen_test(async)]
-fn without_class_returns_empty_list() -> impl Future<Item = (), Error = JsValue> {
+#[wasm_bindgen_test]
+async fn without_class_returns_empty_list() {
     start_once();
 
     let promise = promise();
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            let empty_js_string: JsValue = "".into();
+    let empty_js_string: JsValue = "".into();
 
-            assert_eq!(resolved, empty_js_string);
-        })
-        .map_err(|_| unreachable!())
+    assert_eq!(resolved, empty_js_string);
 }
 
 fn module() -> Atom {

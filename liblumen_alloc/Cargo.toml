@@ -39,7 +39,7 @@ version = "0.8"
 features = ["nightly"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen-test = "0.2"
+wasm-bindgen-test = "0.3.17"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
 version = "0.2.48"

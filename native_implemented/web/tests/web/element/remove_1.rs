@@ -5,8 +5,8 @@ use super::*;
 
 use js_sys::Symbol;
 
-#[wasm_bindgen_test(async)]
-fn removes_element() -> impl Future<Item = (), Error = JsValue> {
+#[wasm_bindgen_test]
+async fn removes_element() {
     start_once();
 
     let promise = r#async::apply_3::promise(
@@ -16,14 +16,11 @@ fn removes_element() -> impl Future<Item = (), Error = JsValue> {
         Default::default(),
     )
     .unwrap();
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            let ok: JsValue = Symbol::for_("ok").into();
+    let ok: JsValue = Symbol::for_("ok").into();
 
-            assert_eq!(resolved, ok);
-        })
-        .map_err(|_| unreachable!())
+    assert_eq!(resolved, ok);
 }
 
 fn module() -> Atom {

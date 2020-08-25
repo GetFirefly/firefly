@@ -18,8 +18,6 @@ extern crate wasm_bindgen_test;
 
 use std::sync::Once;
 
-use futures::future::Future;
-
 use wasm_bindgen::JsValue;
 
 use wasm_bindgen_futures::JsFuture;

@@ -4,9 +4,8 @@ pub mod returns_integer_between_0_inclusive_and_max_exclusive;
 use self::returns_integer_between_0_inclusive_and_max_exclusive::EXCLUSIVE_MAX;
 use super::*;
 
-#[wasm_bindgen_test(async)]
-fn returns_integer_between_0_inclusive_and_max_exclusive() -> impl Future<Item = (), Error = JsValue>
-{
+#[wasm_bindgen_test]
+async fn returns_integer_between_0_inclusive_and_max_exclusive() {
     start_once();
 
     let promise = r#async::apply_3::promise(
@@ -16,20 +15,17 @@ fn returns_integer_between_0_inclusive_and_max_exclusive() -> impl Future<Item =
         Default::default(),
     )
     .unwrap();
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            assert!(
-                js_sys::Number::is_integer(&resolved),
-                "{:?} is not an integer",
-                resolved
-            );
+    assert!(
+        js_sys::Number::is_integer(&resolved),
+        "{:?} is not an integer",
+        resolved
+    );
 
-            let resolved_usize = resolved.as_f64().unwrap() as usize;
+    let resolved_usize = resolved.as_f64().unwrap() as usize;
 
-            assert!(resolved_usize < EXCLUSIVE_MAX);
-        })
-        .map_err(|_| unreachable!())
+    assert!(resolved_usize < EXCLUSIVE_MAX);
 }
 
 fn module() -> Atom {

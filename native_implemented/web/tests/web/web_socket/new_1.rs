@@ -10,8 +10,8 @@ use liblumen_alloc::erts::fragment::HeapFragment;
 
 use liblumen_web::web_socket;
 
-#[wasm_bindgen_test(async)]
-fn with_valid_url_returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> {
+#[wasm_bindgen_test]
+async fn with_valid_url_returns_ok_tuple() {
     start_once();
 
     let (url, url_non_null_heap_fragment) =
@@ -32,26 +32,24 @@ fn with_valid_url_returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> 
 
     std::mem::drop(url_non_null_heap_fragment);
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            assert!(js_sys::Array::is_array(&resolved));
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-            let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
+    assert!(js_sys::Array::is_array(&resolved));
 
-            assert_eq!(resolved_array.length(), 2);
+    let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
 
-            let ok: JsValue = Symbol::for_("ok").into();
-            assert_eq!(Reflect::get(&resolved_array, &0.into()).unwrap(), ok);
+    assert_eq!(resolved_array.length(), 2);
 
-            assert!(Reflect::get(&resolved_array, &1.into())
-                .unwrap()
-                .has_type::<WebSocket>());
-        })
-        .map_err(|_| unreachable!())
+    let ok: JsValue = Symbol::for_("ok").into();
+    assert_eq!(Reflect::get(&resolved_array, &0.into()).unwrap(), ok);
+
+    assert!(Reflect::get(&resolved_array, &1.into())
+        .unwrap()
+        .has_type::<WebSocket>());
 }
 
-#[wasm_bindgen_test(async)]
-fn without_valid_url_returns_error_tuple() -> impl Future<Item = (), Error = JsValue> {
+#[wasm_bindgen_test]
+async fn without_valid_url_returns_error_tuple() {
     start_once();
 
     let (url, url_non_null_heap_fragment) =
@@ -72,26 +70,24 @@ fn without_valid_url_returns_error_tuple() -> impl Future<Item = (), Error = JsV
 
     std::mem::drop(url_non_null_heap_fragment);
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            assert!(js_sys::Array::is_array(&resolved));
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-            let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
+    assert!(js_sys::Array::is_array(&resolved));
 
-            assert_eq!(resolved_array.length(), 2);
+    let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
 
-            let error: JsValue = Symbol::for_("error").into();
-            assert_eq!(Reflect::get(&resolved_array, &0.into()).unwrap(), error);
+    assert_eq!(resolved_array.length(), 2);
 
-            let reason = Reflect::get(&resolved_array, &1.into()).unwrap();
+    let error: JsValue = Symbol::for_("error").into();
+    assert_eq!(Reflect::get(&resolved_array, &0.into()).unwrap(), error);
 
-            let reason_array: js_sys::Array = reason.dyn_into().unwrap();
+    let reason = Reflect::get(&resolved_array, &1.into()).unwrap();
 
-            assert_eq!(reason_array.length(), 2);
+    let reason_array: js_sys::Array = reason.dyn_into().unwrap();
 
-            let tag: JsValue = Symbol::for_("syntax").into();
-            assert_eq!(Reflect::get(&reason_array, &0.into()).unwrap(), tag);
-            assert!(Reflect::get(&reason_array, &1.into()).unwrap().is_string());
-        })
-        .map_err(|_| unreachable!())
+    assert_eq!(reason_array.length(), 2);
+
+    let tag: JsValue = Symbol::for_("syntax").into();
+    assert_eq!(Reflect::get(&reason_array, &0.into()).unwrap(), tag);
+    assert!(Reflect::get(&reason_array, &1.into()).unwrap().is_string());
 }

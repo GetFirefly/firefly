@@ -49,8 +49,8 @@ version = "0.3.20"
 features = ['console']
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen = "0.2.48"
-wasm-bindgen-test = "0.2.48"
+wasm-bindgen = "0.2.67"
+wasm-bindgen-test = "0.3.17"
 
 [features]
 time_web_sys = ["lumen_rt_core/time_web_sys"]

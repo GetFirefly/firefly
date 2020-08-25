@@ -34,6 +34,5 @@ features = ["Document", "DomException", "Element", "Event", "EventListener", "Ev
             "WebSocket", "Window"]
 
 [dev-dependencies]
-futures = "0.1.28"
-wasm-bindgen-futures = "0.3.26"
-wasm-bindgen-test = "0.2"
+wasm-bindgen-futures = "0.4.17"
+wasm-bindgen-test = "0.3.17"

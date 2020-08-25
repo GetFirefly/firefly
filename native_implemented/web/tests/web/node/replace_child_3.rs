@@ -11,9 +11,8 @@ use js_sys::{Reflect, Symbol};
 
 use web_sys::Element;
 
-#[wasm_bindgen_test(async)]
-fn with_new_child_is_parent_returns_error_hierarchy_request(
-) -> impl Future<Item = (), Error = JsValue> {
+#[wasm_bindgen_test]
+async fn with_new_child_is_parent_returns_error_hierarchy_request() {
     start_once();
 
     let promise = r#async::apply_3::promise(
@@ -23,33 +22,30 @@ fn with_new_child_is_parent_returns_error_hierarchy_request(
         Default::default(),
     )
     .unwrap();
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            assert!(
-                js_sys::Array::is_array(&resolved),
-                "{:?} is not an array",
-                resolved
-            );
+    assert!(
+        js_sys::Array::is_array(&resolved),
+        "{:?} is not an array",
+        resolved
+    );
 
-            let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
+    let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
 
-            assert_eq!(resolved_array.length(), 2);
+    assert_eq!(resolved_array.length(), 2);
 
-            let error: JsValue = Symbol::for_("error").into();
-            assert_eq!(Reflect::get(&resolved_array, &0.into()).unwrap(), error);
+    let error: JsValue = Symbol::for_("error").into();
+    assert_eq!(Reflect::get(&resolved_array, &0.into()).unwrap(), error);
 
-            let hierarchy_request: JsValue = Symbol::for_("hierarchy_request").into();
-            assert_eq!(
-                Reflect::get(&resolved_array, &1.into()).unwrap(),
-                hierarchy_request
-            );
-        })
-        .map_err(|_| unreachable!())
+    let hierarchy_request: JsValue = Symbol::for_("hierarchy_request").into();
+    assert_eq!(
+        Reflect::get(&resolved_array, &1.into()).unwrap(),
+        hierarchy_request
+    );
 }
 
-#[wasm_bindgen_test(async)]
-fn with_new_child_returns_ok_replaced_child() -> impl Future<Item = (), Error = JsValue> {
+#[wasm_bindgen_test]
+async fn with_new_child_returns_ok_replaced_child() {
     start_once();
 
     let promise = r#async::apply_3::promise(
@@ -59,31 +55,28 @@ fn with_new_child_returns_ok_replaced_child() -> impl Future<Item = (), Error = 
         Default::default(),
     )
     .unwrap();
+    let resolved = JsFuture::from(promise).await.unwrap();
 
-    JsFuture::from(promise)
-        .map(move |resolved| {
-            assert!(
-                js_sys::Array::is_array(&resolved),
-                "{:?} is not an array",
-                resolved
-            );
+    assert!(
+        js_sys::Array::is_array(&resolved),
+        "{:?} is not an array",
+        resolved
+    );
 
-            let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
+    let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
 
-            assert_eq!(resolved_array.length(), 2);
+    assert_eq!(resolved_array.length(), 2);
 
-            let ok: JsValue = Symbol::for_("ok").into();
-            assert_eq!(Reflect::get(&resolved_array, &0.into()).unwrap(), ok);
+    let ok: JsValue = Symbol::for_("ok").into();
+    assert_eq!(Reflect::get(&resolved_array, &0.into()).unwrap(), ok);
 
-            let replaced_child = Reflect::get(&resolved_array, &1.into()).unwrap();
+    let replaced_child = Reflect::get(&resolved_array, &1.into()).unwrap();
 
-            assert!(replaced_child.has_type::<Element>());
+    assert!(replaced_child.has_type::<Element>());
 
-            let replaced_element: Element = replaced_child.dyn_into().unwrap();
+    let replaced_element: Element = replaced_child.dyn_into().unwrap();
 
-            assert_eq!(replaced_element.tag_name(), "table");
-        })
-        .map_err(|_| unreachable!())
+    assert_eq!(replaced_element.tag_name(), "table");
 }
 
 fn module() -> Atom {

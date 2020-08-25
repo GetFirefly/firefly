@@ -10,6 +10,7 @@ mod heap;
 mod mailbox;
 mod monitor;
 pub mod priority;
+pub mod trace;
 
 use core::cell::RefCell;
 use core::convert::TryInto;
@@ -210,7 +211,7 @@ impl Process {
             heap,
             heap_size,
         );
-        p.stack = Mutex::new(self::alloc::stack(4)?);
+        p.stack = Mutex::new(self::alloc::stack(16)?);
         Ok(p)
     }
 
@@ -1113,13 +1114,23 @@ impl Process {
         }
     }
 
-    pub fn exit(&self, reason: Term, source: ArcError) {
+    pub fn exit(&self, reason: Term, trace: Arc<trace::Trace>) {
         self.reduce();
-        self.exception(exit!(reason, source));
+        self.exception(exit!(reason, trace));
+    }
+
+    pub fn exit_with_source(&self, reason: Term, source: ArcError) {
+        self.reduce();
+        self.exception(exit_with_source!(reason, source));
+    }
+
+    pub fn exit_with_exception(&self, exception: RuntimeException) {
+        self.reduce();
+        self.exception(exception);
     }
 
     pub fn exit_normal(&self, source: ArcError) {
-        self.exit(atom!("normal"), source);
+        self.exit_with_source(atom!("normal"), source);
     }
 
     pub fn is_exiting(&self) -> bool {

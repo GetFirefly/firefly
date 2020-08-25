@@ -15,10 +15,9 @@ pub fn result(class: Term, reason: Term, stacktrace: Term) -> exception::Result<
     let class_class: exception::Class = class.try_into()?;
 
     if stacktrace::is(stacktrace) {
-        Err(raise(
+        Err(raise_with_source(
             class_class,
             reason,
-            Some(stacktrace),
             anyhow!("explicit raise from Erlang").into(),
         )
         .into())

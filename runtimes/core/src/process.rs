@@ -108,9 +108,6 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
         let reason_word_size = reason.size_in_words();
         let exit_message_elements: &[Term] = &[tag, from, reason];
         let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);
-        let source: ArcError = exception
-            .source()
-            .context(format!("propagating exit from {}", process));
 
         for linked_pid in process.linked_pid_set.iter() {
             if let Some(linked_pid_arc_process) = pid_to_process(linked_pid.key()) {
@@ -144,18 +141,22 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
                                     &linked_pid_arc_process,
                                     linked_pid_heap,
                                     reason,
-                                    source.clone(),
+                                    exception.clone(),
                                 );
                             } else {
                                 exit_in_heap_fragment(
                                     &linked_pid_arc_process,
                                     reason,
-                                    source.clone(),
+                                    exception.clone(),
                                 );
                             }
                         }
                         None => {
-                            exit_in_heap_fragment(&linked_pid_arc_process, reason, source.clone());
+                            exit_in_heap_fragment(
+                                &linked_pid_arc_process,
+                                reason,
+                                exception.clone(),
+                            );
                         }
                     }
                 }
@@ -189,15 +190,30 @@ fn send_heap_exit_message(process: &Process, exit_message_elements: &[Term]) {
     process.send_heap_message(heap_fragment, ptr.into());
 }
 
-fn exit_in_heap(process: &Process, heap: &mut ProcessHeap, reason: Term, source: ArcError) {
+fn exit_in_heap(
+    process: &Process,
+    heap: &mut ProcessHeap,
+    reason: Term,
+    exception: RuntimeException,
+) {
     let data = reason.clone_to_heap(heap).unwrap();
 
-    process.exit(data, source);
+    if let Some(trace) = exception.stacktrace() {
+        process.exit(data, trace);
+        return;
+    }
+
+    process.exit_with_source(data, exception.source().unwrap());
 }
 
-fn exit_in_heap_fragment(process: &Process, reason: Term, source: ArcError) {
+fn exit_in_heap_fragment(process: &Process, reason: Term, exception: RuntimeException) {
     let (heap_fragment_data, mut heap_fragment) = reason.clone_to_fragment().unwrap();
 
     process.attach_fragment(unsafe { heap_fragment.as_mut() });
-    process.exit(heap_fragment_data, source);
+    if let Some(trace) = exception.stacktrace() {
+        process.exit(heap_fragment_data, trace);
+        return;
+    }
+
+    process.exit_with_source(heap_fragment_data, exception.source().unwrap());
 }

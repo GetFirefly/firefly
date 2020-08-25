@@ -145,17 +145,24 @@ impl Into<isize> for SmallInteger {
         self.0
     }
 }
-#[cfg(target_pointer_width = "64")]
+#[cfg(target_pointer_width = "32")]
 impl Into<i32> for SmallInteger {
     fn into(self) -> i32 {
         self.0 as i32
     }
 }
-#[cfg(target_pointer_width = "32")]
+#[cfg(target_pointer_width = "64")]
 impl TryInto<i32> for SmallInteger {
     type Error = TryFromIntError;
 
     fn try_into(self) -> Result<i32, Self::Error> {
+        self.0.try_into().map_err(|_| TryFromIntError)
+    }
+}
+impl TryInto<u32> for SmallInteger {
+    type Error = TryFromIntError;
+
+    fn try_into(self) -> Result<u32, Self::Error> {
         self.0.try_into().map_err(|_| TryFromIntError)
     }
 }

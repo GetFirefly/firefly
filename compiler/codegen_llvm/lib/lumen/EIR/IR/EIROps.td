@@ -902,7 +902,7 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
   }];
 
   let arguments = (ins Variadic<AnyType>:$catchClauses);
-  let results = (outs eir_AnyType:$kind, eir_AnyType:$reason, eir_AnyType:$trace);
+  let results = (outs eir_AnyType:$kind, eir_AnyType:$reason, eir_TraceRefType:$trace);
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -910,17 +910,19 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
 
   let verifier = ?;
 
-  //let hasCanonicalizer = 1;
+  let hasCanonicalizer = 1;
   let builders = [
     OpBuilder<
         "OpBuilder &builder, OperationState &result, ValueRange catchClauses", [{
         Type termTy = builder.getType<TermType>();
-        build(builder, result, ArrayRef<Type>{termTy, termTy, termTy}, catchClauses);
+        Type traceTy = builder.getType<TraceRefType>();
+        build(builder, result, ArrayRef<Type>{termTy, termTy, traceTy}, catchClauses);
     }]>,
     OpBuilder<
         "OpBuilder &builder, OperationState &result, Value catchClause", [{
         Type termTy = builder.getType<TermType>();
-        build(builder, result, ArrayRef<Type>{termTy, termTy, termTy}, ValueRange{catchClause});
+        Type traceTy = builder.getType<TraceRefType>();
+        build(builder, result, ArrayRef<Type>{termTy, termTy, traceTy}, ValueRange{catchClause});
     }]>,
   ];
 }
@@ -1228,7 +1230,7 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
   let arguments = (ins
     eir_AnyType:$kind,
     eir_AnyType:$reason,
-    eir_AnyType:$trace
+    eir_TraceRefType:$trace
   );
 
   let verifier = ?;
@@ -1851,11 +1853,23 @@ def eir_TraceCaptureOp : eir_Op<"trace_capture"> {
   }];
 
   let arguments = (ins);
-  let results = (outs eir_AnyTerm:$capture);
+  let results = (outs eir_TraceRefType:$capture);
 
   let verifier = ?;
 
   let assemblyFormat = [{ attr-dict `:` type($capture) }];
+}
+
+def eir_TracePrintOp : eir_Op<"trace_print"> {
+  let summary = "Prints a captured stack trace";
+  let description = [{a debugging tool for internal use}];
+
+  let arguments = (ins eir_AnyTerm:$kind, eir_AnyTerm:$reason, eir_TraceRefType:$traceRef);
+  let results = (outs);
+
+  let verifier = ?;
+
+  let assemblyFormat = [{ `(` operands `)` `:` functional-type(operands, results) attr-dict }];
 }
 
 def eir_TraceConstructOp : eir_Op<"trace_construct"> {
@@ -1869,7 +1883,7 @@ def eir_TraceConstructOp : eir_Op<"trace_construct"> {
         %0 = eir.trace_construct
   }];
 
-  let arguments = (ins eir_AnyTerm:$traceRef);
+  let arguments = (ins eir_TraceRefType:$traceRef);
   let results = (outs eir_BoxType:$trace);
 
   let verifier = ?;

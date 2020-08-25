@@ -419,6 +419,8 @@ Type eirDialect::parseType(mlir::DialectAsmParser &parser) const {
   if (typeNameLit == "tuple") return parseTuple(context, parser);
   // `box` `<` type `>`
   if (typeNameLit == "box") return parseTypeSingleton<BoxType>(context, parser);
+  // `trace_ref`
+  if (typeNameLit == "trace_ref") return TraceRefType::get(context);
   // `receive_ref`
   if (typeNameLit == "receive_ref") return ReceiveRefType::get(context);
 

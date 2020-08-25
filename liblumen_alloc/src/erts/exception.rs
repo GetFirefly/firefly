@@ -95,7 +95,7 @@ impl From<InternalException> for Exception {
     fn from(err: InternalException) -> Self {
         match err {
             InternalException::System(err) => Self::System(err),
-            InternalException::Internal(err) => Self::Runtime(badarg!(err)),
+            InternalException::Internal(err) => Self::Runtime(badarg_with_source!(err)),
         }
     }
 }

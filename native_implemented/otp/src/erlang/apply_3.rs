@@ -2,7 +2,6 @@ use std::convert::TryInto;
 use std::ffi::c_void;
 use std::mem::transmute;
 
-use anyhow::*;
 use lazy_static::lazy_static;
 
 use liblumen_core::locks::RwLock;
@@ -10,7 +9,8 @@ use liblumen_core::symbols::FunctionSymbol;
 use liblumen_core::sys::dynamic_call::DynamicCallee;
 
 use liblumen_alloc::erts::apply::find_symbol;
-use liblumen_alloc::erts::exception::{self, ArcError};
+use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::{Frame, FrameWithArguments, Native};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{Arity, ModuleFunctionArity};
@@ -107,18 +107,7 @@ pub extern "C" fn native(module: Term, function: Term, argument_list: Term) -> T
 
             Term::NONE
         }
-        None => undef(
-            module,
-            function,
-            argument_list,
-            anyhow!(
-                ":{}.{}/{} is not exported",
-                module_atom.name(),
-                function_atom.name(),
-                arity
-            )
-            .into(),
-        ),
+        None => undef(module_function_arity, &argument_vec).into(),
     }
 }
 
@@ -138,18 +127,14 @@ pub(crate) fn module_function_arity() -> ModuleFunctionArity {
     }
 }
 
-fn undef(module: Term, function: Term, arguments: Term, source: ArcError) -> Term {
+fn undef(mfa: ModuleFunctionArity, args: &[Term]) -> Term {
     let arc_process = current_process();
     arc_process.reduce();
 
-    let exception_result = Err(exception::undef(
-        &arc_process,
-        module,
-        function,
-        arguments,
-        Term::NIL,
-        source,
-    ));
+    let trace = Trace::capture();
+    trace.set_top_frame(&mfa, args);
+
+    let exception_result = Err(exception::undef(trace));
 
     arc_process.return_status(exception_result)
 }

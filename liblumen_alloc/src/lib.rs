@@ -18,6 +18,7 @@
 #![feature(raw_vec_internals)]
 // Support external thread locals
 #![feature(thread_local)]
+#![feature(weak_into_raw)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

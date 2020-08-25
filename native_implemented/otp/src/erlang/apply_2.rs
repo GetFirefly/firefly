@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::{self, badarity};
-use liblumen_alloc::erts::process::{FrameWithArguments, Process};
+use liblumen_alloc::erts::process::{trace::Trace, FrameWithArguments, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 #[native_implemented::function(erlang:apply/2)]
@@ -27,19 +27,10 @@ fn result(process: &Process, function: Term, arguments: Term) -> exception::Resu
 
                 Ok(Term::NONE)
             } else {
-                Err(badarity(
-                    process,
-                    function,
-                    arguments,
-                    anyhow!(
-                        "arguments ({}) length ({}) does not match arity ({}) of function ({})",
-                        arguments,
-                        arguments_len,
-                        arity,
-                        function
-                    )
-                    .into(),
-                ))
+                let mfa = function_boxed_closure.module_function_arity();
+                let trace = Trace::capture();
+                trace.set_top_frame(&mfa, argument_vec.as_slice());
+                Err(badarity(trace).into())
             }
         }
         Err(_) => Err(anyhow!(TypeError)

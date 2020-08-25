@@ -3,7 +3,7 @@ mod test;
 
 use anyhow::*;
 
-use liblumen_alloc::error;
+use liblumen_alloc::error_with_source;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -23,7 +23,7 @@ fn result(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
 
                         Ok(true.into())
                     }
-                    None => Err(error!(
+                    None => Err(error_with_source!(
                         Atom::str_to_term("noproc"),
                         anyhow!("pid ({}) doesn't refer to an alive local process", pid).into()
                     )

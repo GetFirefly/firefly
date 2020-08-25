@@ -932,8 +932,8 @@ static Optional<Value> buildIntrinsicError1Op(ModuleBuilder *modBuilder,
   auto aError = builder.create<ConstantAtomOp>(loc, id, "error");
   Value kind = aError.getResult();
   Value reason = args.front();
-  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
-  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  Type traceTy = builder.getType<TraceRefType>();
+  Value trace = builder.create<TraceCaptureOp>(loc, traceTy);
   builder.create<ThrowOp>(loc, kind, reason, trace);
 
   return llvm::None;
@@ -950,8 +950,8 @@ static Optional<Value> buildIntrinsicError2Op(ModuleBuilder *modBuilder,
   Value where = args[1];
   auto tuple = builder.create<TupleOp>(loc, ArrayRef<Value>{reason, where});
   Value errorReason = tuple.getResult();
-  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
-  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  Type traceTy = builder.getType<TraceRefType>();
+  Value trace = builder.create<TraceCaptureOp>(loc, traceTy);
   builder.create<ThrowOp>(loc, kind, errorReason, trace);
 
   return llvm::None;
@@ -965,8 +965,8 @@ static Optional<Value> buildIntrinsicExit1Op(ModuleBuilder *modBuilder,
   auto aExit = builder.create<ConstantAtomOp>(loc, id, "exit");
   Value kind = aExit.getResult();
   Value reason = args.front();
-  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
-  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  Type traceTy = builder.getType<TraceRefType>();
+  Value trace = builder.create<TraceCaptureOp>(loc, traceTy);
   builder.create<ThrowOp>(loc, kind, reason, trace);
 
   return llvm::None;
@@ -980,8 +980,8 @@ static Optional<Value> buildIntrinsicThrowOp(ModuleBuilder *modBuilder,
   auto aThrow = builder.create<ConstantAtomOp>(loc, id, "throw");
   Value kind = aThrow.getResult();
   Value reason = args.front();
-  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
-  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  Type traceTy = builder.getType<TraceRefType>();
+  Value trace = builder.create<TraceCaptureOp>(loc, traceTy);
   builder.create<ThrowOp>(loc, kind, reason, trace);
 
   return llvm::None;
@@ -1149,7 +1149,8 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
                      .Case("erlang:raise/3", true)
                      .Default(false);
 
-  assert(resultOpt.hasValue());
+  if (isThrow) return true;
+
   auto termTy = builder.getType<TermType>();
   // Tail calls directly return to caller
   if (isTail) {
@@ -1185,13 +1186,7 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
 
   // If the call has no result and isn't an error intrinsic,
   // then branch to the next block directly
-  if (!isThrow) {
-    eir_br(ok, ValueRange());
-    return true;
-  }
-
-  // Throws should be followed directly by a return
-  eir_return();
+  eir_br(ok, ValueRange());
   return true;
 }
 
@@ -1427,6 +1422,9 @@ Block *ModuleBuilder::build_landing_pad(Location loc, Block *err) {
 
   Operation *lp = eir_landingpad(catchType);
   eir_br(err, lp->getResults());
+
+  Type traceTy = TraceRefType::get(builder.getContext());
+  err->getArgument(2).setType(traceTy);
 
   // Restore original insertion point
   builder.restoreInsertionPoint(ip);

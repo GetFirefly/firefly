@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use liblumen_core::locks::RwLock;
 
-use liblumen_alloc::badarg;
+use liblumen_alloc::badarg_with_source;
 use liblumen_alloc::erts::exception::{ArcError, Exception, InternalException, RuntimeException};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
@@ -95,7 +95,7 @@ impl From<NodeNotFound> for InternalException {
 }
 impl From<NodeNotFound> for RuntimeException {
     fn from(node_not_found: NodeNotFound) -> Self {
-        badarg!(ArcError::from_err(node_not_found))
+        badarg_with_source!(ArcError::from_err(node_not_found))
     }
 }
 

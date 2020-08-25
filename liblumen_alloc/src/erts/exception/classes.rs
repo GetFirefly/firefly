@@ -1,10 +1,12 @@
-use core::convert::{TryFrom, TryInto};
-use core::fmt;
+use std::convert::{TryFrom, TryInto};
+use std::fmt;
+use std::sync::Arc;
 
 use anyhow::*;
 use thiserror::Error;
 
 use crate::erts::process::alloc::TermAlloc;
+use crate::erts::process::trace::Trace;
 use crate::erts::term::prelude::*;
 
 use super::ArcError;
@@ -12,18 +14,22 @@ use super::ArcError;
 #[derive(Error, Clone)]
 pub struct Throw {
     reason: Term,
-    stacktrace: Option<Term>,
-    source: ArcError,
+    stacktrace: Option<Arc<Trace>>,
+    source: Option<ArcError>,
 }
 impl Throw {
     pub fn new(reason: Term, source: ArcError) -> Self {
-        Self::new_with_trace(reason, None, source)
-    }
-    pub fn new_with_trace(reason: Term, trace: Option<Term>, source: ArcError) -> Self {
         Self {
             reason,
-            stacktrace: trace,
-            source,
+            stacktrace: None,
+            source: Some(source),
+        }
+    }
+    pub fn new_with_trace(reason: Term, trace: Arc<Trace>) -> Self {
+        Self {
+            reason,
+            stacktrace: Some(trace),
+            source: None,
         }
     }
     pub fn as_error_tuple<A>(&self, heap: &mut A) -> super::AllocResult<Term>
@@ -31,7 +37,11 @@ impl Throw {
         A: TermAlloc,
     {
         let class = Atom::THROW.as_term();
-        let trace = self.stacktrace.unwrap_or(Term::NIL);
+        let trace = if let Some(ref trace) = self.stacktrace {
+            trace.as_term()?
+        } else {
+            Term::NIL
+        };
         heap.tuple_from_slice(&[class, self.reason, trace])
             .map(|t| t.into())
     }
@@ -41,37 +51,44 @@ impl Throw {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Option<Term> {
-        self.stacktrace
+    pub fn stacktrace(&self) -> Option<Arc<Trace>> {
+        self.stacktrace.clone()
     }
-    pub fn source(&self) -> ArcError {
+    pub fn source(&self) -> Option<ArcError> {
         self.source.clone()
     }
 }
 impl PartialEq for Throw {
     fn eq(&self, other: &Self) -> bool {
-        self.reason == other.reason && self.stacktrace == other.stacktrace
+        self.reason == other.reason
     }
 }
 impl fmt::Debug for Throw {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Throw")
             .field("reason", &self.reason.decode())
-            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("has_stacktrace", &self.stacktrace.is_some())
             .field("source", &self.source)
             .finish()
     }
 }
 impl fmt::Display for Throw {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "** throw: {}\n", self.reason)?;
+        if let Some(ref trace) = self.stacktrace {
+            trace
+                .format(f, Atom::str_to_term("throw"), self.reason)
+                .map_err(|_| fmt::Error)?;
+        } else {
+            // Fallback display
+            write!(f, "** throw: {}\n", self.reason)?;
 
-        if let Some(stacktrace) = self.stacktrace {
-            write!(f, "{}", stacktrace)?;
+            // use Debug format for source, so that backtrace is included
+            if let Some(ref source) = self.source {
+                write!(f, "{:?}", source)?;
+            }
         }
 
-        // use Debug format for source, so that backtrace is included
-        write!(f, "{:?}", self.source)
+        Ok(())
     }
 }
 
@@ -79,24 +96,24 @@ impl fmt::Display for Throw {
 pub struct Error {
     reason: Term,
     arguments: Option<Term>,
-    stacktrace: Option<Term>,
-    source: ArcError,
+    stacktrace: Option<Arc<Trace>>,
+    source: Option<ArcError>,
 }
 impl Error {
     pub fn new(reason: Term, arguments: Option<Term>, source: ArcError) -> Self {
-        Self::new_with_trace(reason, arguments, None, source)
-    }
-    pub fn new_with_trace(
-        reason: Term,
-        arguments: Option<Term>,
-        trace: Option<Term>,
-        source: ArcError,
-    ) -> Self {
         Self {
             reason,
             arguments,
-            stacktrace: trace,
-            source,
+            stacktrace: None,
+            source: Some(source),
+        }
+    }
+    pub fn new_with_trace(reason: Term, arguments: Option<Term>, trace: Arc<Trace>) -> Self {
+        Self {
+            reason,
+            arguments,
+            stacktrace: Some(trace),
+            source: None,
         }
     }
     pub fn as_error_tuple<A>(&self, heap: &mut A) -> super::AllocResult<Term>
@@ -104,7 +121,11 @@ impl Error {
         A: TermAlloc,
     {
         let class = Atom::ERROR.as_term();
-        let trace = self.stacktrace.unwrap_or(Term::NIL);
+        let trace = if let Some(ref trace) = self.stacktrace {
+            trace.as_term()?
+        } else {
+            Term::NIL
+        };
         heap.tuple_from_slice(&[class, self.reason, trace])
             .map(|t| t.into())
     }
@@ -119,16 +140,16 @@ impl Error {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Option<Term> {
-        self.stacktrace
+    pub fn stacktrace(&self) -> Option<Arc<Trace>> {
+        self.stacktrace.clone()
     }
-    pub fn source(&self) -> ArcError {
+    pub fn source(&self) -> Option<ArcError> {
         self.source.clone()
     }
 }
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
-        self.reason == other.reason && self.stacktrace == other.stacktrace
+        self.reason == other.reason
     }
 }
 impl fmt::Debug for Error {
@@ -136,39 +157,50 @@ impl fmt::Debug for Error {
         f.debug_struct("Error")
             .field("reason", &self.reason.decode())
             .field("arguments", &self.arguments.map(|t| t.decode()))
-            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("has_stacktrace", &self.stacktrace.is_some())
             .field("source", &self.source)
             .finish()
     }
 }
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "** error: {}", self.reason)?;
+        if let Some(ref trace) = self.stacktrace {
+            trace
+                .format(f, Atom::str_to_term("throw"), self.reason)
+                .map_err(|_| fmt::Error)?;
+        } else {
+            // Fallback display
+            write!(f, "** error: {}\n", self.reason)?;
 
-        if let Some(stacktrace) = self.stacktrace {
-            write!(f, "{}", stacktrace)?;
+            // use Debug format for source, so that backtrace is included
+            if let Some(ref source) = self.source {
+                write!(f, "{:?}", source)?;
+            }
         }
 
-        // use Debug format for source, so that backtrace is included
-        write!(f, "{:?}", self.source)
+        Ok(())
     }
 }
 
 #[derive(Error, Clone)]
 pub struct Exit {
     reason: Term,
-    stacktrace: Option<Term>,
-    source: ArcError,
+    stacktrace: Option<Arc<Trace>>,
+    source: Option<ArcError>,
 }
 impl Exit {
     pub fn new(reason: Term, source: ArcError) -> Self {
-        Self::new_with_trace(reason, None, source)
-    }
-    pub fn new_with_trace(reason: Term, trace: Option<Term>, source: ArcError) -> Self {
         Self {
             reason,
-            stacktrace: trace,
-            source,
+            stacktrace: None,
+            source: Some(source),
+        }
+    }
+    pub fn new_with_trace(reason: Term, trace: Arc<Trace>) -> Self {
+        Self {
+            reason,
+            stacktrace: Some(trace),
+            source: None,
         }
     }
     pub fn as_error_tuple<A>(&self, heap: &mut A) -> super::AllocResult<Term>
@@ -176,7 +208,11 @@ impl Exit {
         A: TermAlloc,
     {
         let class = Atom::EXIT.as_term();
-        let trace = self.stacktrace.unwrap_or(Term::NIL);
+        let trace = if let Some(ref trace) = self.stacktrace {
+            trace.as_term()?
+        } else {
+            Term::NIL
+        };
         heap.tuple_from_slice(&[class, self.reason, trace])
             .map(|t| t.into())
     }
@@ -186,37 +222,44 @@ impl Exit {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Option<Term> {
-        self.stacktrace
+    pub fn stacktrace(&self) -> Option<Arc<Trace>> {
+        self.stacktrace.clone()
     }
-    pub fn source(&self) -> ArcError {
+    pub fn source(&self) -> Option<ArcError> {
         self.source.clone()
     }
 }
 impl PartialEq for Exit {
     fn eq(&self, other: &Self) -> bool {
-        self.reason == other.reason && self.stacktrace == other.stacktrace
+        self.reason == other.reason
     }
 }
 impl fmt::Debug for Exit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Exit")
             .field("reason", &self.reason.decode())
-            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("has_stacktrace", &self.stacktrace.is_some())
             .field("source", &self.source)
             .finish()
     }
 }
 impl fmt::Display for Exit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "** exit: {}\n", self.reason)?;
+        if let Some(ref trace) = self.stacktrace {
+            trace
+                .format(f, Atom::str_to_term("throw"), self.reason)
+                .map_err(|_| fmt::Error)?;
+        } else {
+            // Fallback display
+            write!(f, "** exit: {}\n", self.reason)?;
 
-        if let Some(stacktrace) = self.stacktrace {
-            write!(f, "{}", stacktrace)?;
+            // use Debug format for source, so that backtrace is included
+            if let Some(ref source) = self.source {
+                write!(f, "{:?}", source)?;
+            }
         }
 
-        // use Debug format for source, so that backtrace is included
-        write!(f, "{:?}", self.source)
+        Ok(())
     }
 }
 

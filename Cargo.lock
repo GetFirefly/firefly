@@ -1207,6 +1207,7 @@ dependencies = [
  "once_cell",
  "pretty_assertions",
  "static_assertions",
+ "termcolor 1.1.0",
  "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-test",
@@ -1613,7 +1614,6 @@ dependencies = [
  "panic",
  "parking_lot_core 0.7.2",
  "signal-hook",
- "stackmaps",
  "thiserror",
 ]
 

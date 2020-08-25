@@ -80,6 +80,7 @@ using eir_constant_float = ValueBuilder<::lumen::eir::ConstantFloatOp>;
 using eir_constant_binary = ValueBuilder<::lumen::eir::ConstantBinaryOp>;
 using eir_constant_tuple = ValueBuilder<::lumen::eir::ConstantTupleOp>;
 using eir_constant_list = ValueBuilder<::lumen::eir::ConstantListOp>;
+using eir_trace_construct = ValueBuilder<::lumen::eir::TraceConstructOp>;
 
 namespace lumen {
 namespace eir {

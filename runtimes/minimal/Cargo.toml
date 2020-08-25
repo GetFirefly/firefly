@@ -27,7 +27,7 @@ liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_crt = { path = "../crt" }
 lumen_rt_core = { path = "../core" }
 panic = { path = "../../compiler/panic" }
-stackmaps = { path = "../../compiler/stackmaps" }
+#stackmaps = { path = "../../compiler/stackmaps" }
 
 [dependencies.hashbrown]
 version = "0.7"

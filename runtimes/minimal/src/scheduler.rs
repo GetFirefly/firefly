@@ -80,7 +80,7 @@ pub unsafe extern "C" fn process_exit(reason: Term) {
         .unwrap();
     scheduler
         .current
-        .exit(reason, anyhow!("process exit").into());
+        .exit_with_source(reason, anyhow!("process exit").into());
     scheduler.process_yield();
 }
 
@@ -205,7 +205,7 @@ fn do_process_return(scheduler: &Scheduler, exit_value: Term) -> bool {
         if let Some(err) = process::ffi::process_error() {
             current.exception(err);
         } else {
-            current.exit(exit_value, anyhow!("process exit").into());
+            current.exit_with_source(exit_value, anyhow!("process exit").into());
         }
         scheduler.process_yield()
     } else {
@@ -562,7 +562,7 @@ impl Scheduler {
         use liblumen_alloc::erts::term::prelude::*;
         if self.current.pid() != self.root.pid() {
             self.current
-                .exit(atom!("normal"), anyhow!("Out of code").into());
+                .exit_with_source(atom!("normal"), anyhow!("Out of code").into());
             self.process_yield()
         } else {
             true

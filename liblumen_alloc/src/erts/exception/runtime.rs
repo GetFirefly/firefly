@@ -1,8 +1,10 @@
-use core::convert::TryFrom;
+use std::convert::TryFrom;
+use std::sync::Arc;
 
 use thiserror::Error;
 
 use crate::erts::process::alloc::TermAlloc;
+use crate::erts::process::trace::Trace;
 use crate::erts::term::prelude::*;
 
 use super::{ArcError, Exception, SystemException, UnexpectedExceptionError};
@@ -45,7 +47,7 @@ impl RuntimeException {
         }
     }
 
-    pub fn stacktrace(&self) -> Option<Term> {
+    pub fn stacktrace(&self) -> Option<Arc<Trace>> {
         match self {
             RuntimeException::Throw(e) => e.stacktrace(),
             RuntimeException::Exit(e) => e.stacktrace(),
@@ -65,7 +67,7 @@ impl RuntimeException {
         }
     }
 
-    pub fn source(&self) -> ArcError {
+    pub fn source(&self) -> Option<ArcError> {
         match self {
             RuntimeException::Throw(e) => e.source(),
             RuntimeException::Exit(e) => e.source(),
@@ -76,7 +78,7 @@ impl RuntimeException {
 
 impl From<anyhow::Error> for RuntimeException {
     fn from(err: anyhow::Error) -> Self {
-        badarg!(ArcError::new(err))
+        badarg_with_source!(ArcError::new(err))
     }
 }
 

@@ -306,8 +306,15 @@ class PtrType : public Type::TypeBase<PtrType, Type, detail::PtrTypeStorage> {
   static PtrType get(MLIRContext *context);
 
   Type getInnerType() const;
+};
 
-  static bool kindof(unsigned kind) { return kind == TypeKind::Ptr; }
+/// Used to represent the raw stacktrace capture used in exception handling
+class TraceRefType
+    : public Type::TypeBase<TraceRefType, Type, mlir::TypeStorage> {
+ public:
+  using Base::Base;
+
+  static TraceRefType get(mlir::MLIRContext *context);
 };
 
 /// Used to represent the opaque handle for a receive construct

@@ -306,8 +306,8 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
         llvm_gep(termPtrTy, tuplePtr, ArrayRef<Value>{zero, reasonIdx});
     Value reason = llvm_load(reasonPtr);
     auto traceIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
-    auto tracePtr =
-        llvm_gep(termPtrTy, tuplePtr, ArrayRef<Value>{zero, traceIdx});
+    auto tracePtr = llvm_gep(termPtrTy.getPointerTo(), tuplePtr,
+                             ArrayRef<Value>{zero, traceIdx});
     Value trace = llvm_load(tracePtr);
 
     rewriter.replaceOp(op, {kind, reason, trace});
@@ -347,7 +347,7 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
     // Allocate tuple and write values to it
     ArrayRef<Value> elements{kind, reason, trace};
     auto numElements = elements.size();
-    auto tupleTy = ctx.getTupleType(numElements);
+    auto tupleTy = ctx.getTupleType({termTy, termTy, termPtrTy});
 
     Value arity = llvm_constant(termTy, ctx.getIntegerAttr(numElements));
     Value tuplePtr = ctx.buildMalloc(tupleTy, TypeKind::Tuple, arity);

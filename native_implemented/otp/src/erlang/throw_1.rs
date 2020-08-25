@@ -8,5 +8,5 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 #[native_implemented::function(erlang:throw/1)]
 pub fn result(reason: Term) -> exception::Result<Term> {
-    Err(throw(reason, None, anyhow!("explicit throw from Erlang").into()).into())
+    Err(throw_with_source(reason, anyhow!("explicit throw from Erlang").into()).into())
 }

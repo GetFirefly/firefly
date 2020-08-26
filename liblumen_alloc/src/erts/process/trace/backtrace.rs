@@ -160,9 +160,6 @@ impl Iterator for SymbolIter<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         use std::convert::TryInto;
 
-        println!("{:?}", &self.pos);
-        println!("{:?}", &self.top);
-
         if self.pos.is_none() {
             self.pos = Some(0);
         }

@@ -16,26 +16,15 @@ use crate::runtime::context::*;
 pub fn result(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
     let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let length = initial_inner_tuple.len();
-    let index_zero_based: OneBasedIndex = index
+    let index_one_based: OneBasedIndex = index
         .try_into()
         .with_context(|| term_is_not_in_one_based_range(index, length))?;
+    let index_zero_based: usize = index_one_based.into();
 
     if index_zero_based < length {
-        let final_tuple = if index_zero_based == 0 {
-            if 1 < length {
-                process.tuple_from_slices(&[&[value], &initial_inner_tuple[1..]])
-            } else {
-                process.tuple_from_slice(&[value])
-            }
-        } else if index_zero_based < (length - 1) {
-            process.tuple_from_slices(&[
-                &initial_inner_tuple[..index_zero_based],
-                &[value],
-                &initial_inner_tuple[(index_zero_based + 1)..],
-            ])
-        } else {
-            process.tuple_from_slices(&[&initial_inner_tuple[..index_zero_based], &[value]])
-        };
+        let mut final_element_vec = initial_inner_tuple[..].to_vec();
+        final_element_vec[index_zero_based] = value;
+        let final_tuple = process.tuple_from_slice(&final_element_vec);
 
         Ok(final_tuple)
     } else {

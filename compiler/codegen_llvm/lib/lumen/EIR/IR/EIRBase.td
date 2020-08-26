@@ -112,7 +112,7 @@ def eir_NoneType : eir_TermType<eir_TK_None, "none">;
 def eir_AtomType : eir_TermType<eir_TK_Atom, "atom">;
 def eir_BoolType : eir_TermType<eir_TK_Boolean, "bool">;
 def eir_FixnumType : eir_TermType<eir_TK_Fixnum, "fixnum">;
-def eir_BigIntType : eir_TermType<eir_TK_BigInt, "bixint">;
+def eir_BigIntType : eir_TermType<eir_TK_BigInt, "bigint">;
 def eir_NumberType : eir_TermType<eir_TK_Number, "number">;
 def eir_IntegerType : eir_TermType<eir_TK_Integer, "integer">;
 def eir_FloatType : eir_TermType<eir_TK_Float, "float">;

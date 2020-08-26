@@ -80,6 +80,7 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, Output> {
         // Turn off optimizations as work-around for debug info bug in EIR
         .arg("-O0")
         .arg("-lc")
+        .arg("-lm")
         .arg("--emit=all");
 
     let erlang_path = directory_path.join(file_stem).join(name).join("init.erl");

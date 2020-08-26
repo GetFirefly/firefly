@@ -374,7 +374,11 @@ impl Closure {
         arguments: Vec<Term>,
     ) -> FrameWithArguments {
         let mut full_arguments = Vec::with_capacity(self.native_arity() as usize);
-        full_arguments.push(self.encode().unwrap());
+
+        if self.env_len() > 0 {
+            full_arguments.push(self.encode().unwrap());
+        }
+
         full_arguments.extend_from_slice(&arguments);
 
         self.frame().with_arguments(uses_returned, &full_arguments)

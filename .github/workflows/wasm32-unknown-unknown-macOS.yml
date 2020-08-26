@@ -37,10 +37,10 @@ jobs:
           chromedriver --version
       - name: Install Gecko Driver
         run: |
-          wget https://github.com/mozilla/geckodriver/releases/download/v0.26.0/geckodriver-v0.26.0-macos.tar.gz
-          tar xvfz geckodriver-v0.26.0-macos.tar.gz
+          wget https://github.com/mozilla/geckodriver/releases/download/v0.27.0/geckodriver-v0.27.0-macos.tar.gz
+          tar xvfz geckodriver-v0.27.0-macos.tar.gz
           mv geckodriver /usr/local/bin/
-          rm geckodriver-v0.26.0-macos.tar.gz
+          rm geckodriver-v0.27.0-macos.tar.gz
           geckodriver --version
       - name: Enable Safari Driver
         run: sudo safaridriver --enable

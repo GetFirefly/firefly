@@ -47,7 +47,7 @@ jobs:
       - name: Build TableGen
         run: make lumen-tblgen
       - name: Lumen Web Test
-        run: wasm-pack test --headless --chrome --firefox --safari native_implemented/web
+        run: wasm-pack test --headless --chrome --safari native_implemented/web
       - name: Interpreter Checkout
         run: git clone --depth 1 https://github.com/lumen/interpreter interpreter
       - name: Examples Checkout
@@ -55,4 +55,4 @@ jobs:
       - name: Spawn Chain Build
         run: wasm-pack build examples/spawn-chain
       - name: Spawn Chain Test
-        run: wasm-pack test --headless --chrome --firefox --safari examples/spawn-chain
+        run: wasm-pack test --headless --chrome --safari examples/spawn-chain

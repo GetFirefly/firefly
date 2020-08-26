@@ -479,10 +479,6 @@ pub trait TermAlloc: Heap {
 
     /// Constructs a `Tuple` from a slice of `Term`
     ///
-    /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
-    /// it is expected that the slice provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
-    ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
     /// a slice passed to `tuple_from_slice` to produce nested tuples.
     fn tuple_from_slice(&mut self, elements: &[Term]) -> AllocResult<Boxed<Tuple>> {

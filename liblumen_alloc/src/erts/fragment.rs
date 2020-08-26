@@ -386,13 +386,21 @@ impl HeapFragment {
     }
 
     pub fn new_tuple_from_slice(slice: &[Term]) -> AllocResult<(Boxed<Tuple>, NonNull<Self>)> {
-        let layout = Tuple::layout_for_len(slice.len());
+        let layout = Tuple::recursive_layout_for(slice);
+
         let mut non_null_heap_fragment = Self::new(layout)?;
         let heap_fragment = unsafe { non_null_heap_fragment.as_mut() };
 
-        heap_fragment
-            .tuple_from_slice(slice)
-            .map(|boxed_tuple| (boxed_tuple, non_null_heap_fragment))
+        match heap_fragment
+            .tuple_from_slice(slice) {
+            Ok(boxed_tuple) => Ok((boxed_tuple, non_null_heap_fragment)),
+            Err(_) => {
+                let formatted_element_vec: Vec<String> = slice.iter().map(|term| term.to_string()).collect();
+                let formatted_elements = formatted_element_vec.join(", ");
+                let formatted_slice = format!("[{}]", formatted_elements);
+                panic!("Heap fragment ({:?}) could not allocate a tuple with {} elements ({})", unsafe { non_null_heap_fragment.as_mut() }, slice.len(), formatted_slice)
+            }
+        }
     }
 
     pub fn new_tuple_from_slices(slices: &[&[Term]]) -> AllocResult<(Boxed<Tuple>, NonNull<Self>)> {

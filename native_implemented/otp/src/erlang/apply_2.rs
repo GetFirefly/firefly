@@ -30,7 +30,7 @@ fn result(process: &Process, function: Term, arguments: Term) -> exception::Resu
         let mfa = function_boxed_closure.module_function_arity();
         let trace = Trace::capture();
         trace.set_top_frame(&mfa, argument_vec.as_slice());
-        Err(badarity(trace).into())
+        Err(badarity(process, function, arguments, trace).into())
     }
 }
 

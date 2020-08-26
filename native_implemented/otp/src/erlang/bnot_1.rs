@@ -1,10 +1,10 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use anyhow::*;
 use num_bigint::BigInt;
 
 use liblumen_alloc::erts::exception::{self, *};
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -26,6 +26,6 @@ pub fn result(process: &Process, integer: Term) -> exception::Result<Term> {
 
             Ok(output_term)
         }
-        _ => Err(badarith(anyhow!("integer ({}) is not an integer", integer).into()).into()),
+        _ => Err(badarith(Trace::capture()).into()),
     }
 }

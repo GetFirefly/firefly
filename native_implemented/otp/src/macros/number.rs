@@ -1,6 +1,5 @@
 macro_rules! number_infix_operator {
     ($left:ident, $right:ident, $process:ident, $checked:ident, $infix:tt) => {{
-        use anyhow::*;
         use num_bigint::BigInt;
 
         use liblumen_alloc::erts::exception::*;
@@ -67,7 +66,7 @@ macro_rules! number_infix_operator {
         };
 
         match operands {
-            Bad => Err(badarith(anyhow!("{} ({}) and {} ({}) aren't both numbers", stringify!($left), $left, stringify!($right), $right).into()).into()),
+            Bad => Err(badarith(liblumen_alloc::erts::process::trace::Trace::capture()).into()),
             ISizes(left_isize, right_isize) => {
                 match left_isize.$checked(right_isize) {
                     Some(sum_isize) => Ok($process.integer(sum_isize)),
@@ -101,7 +100,6 @@ macro_rules! number_infix_operator {
 macro_rules! number_to_integer {
     ($f:ident) => {
         use anyhow::*;
-
         use liblumen_alloc::erts::exception;
         use liblumen_alloc::erts::process::Process;
         use liblumen_alloc::erts::term::prelude::*;

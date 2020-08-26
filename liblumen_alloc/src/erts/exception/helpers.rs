@@ -31,26 +31,20 @@ pub fn badarity(process: &Process, fun: Term, args: Term, trace: Arc<Trace>) -> 
 
 pub fn badfun(process: &Process, fun: Term, source: ArcError) -> Exception {
     let tag = atom("badfun");
-    match process.tuple_from_slice(&[tag, fun]) {
-        Ok(reason) => Exception::Runtime(self::error_with_source(reason, None, source)),
-        Err(err) => err.into(),
-    }
+    let reason = process.tuple_from_slice(&[tag, fun]);
+    Exception::Runtime(self::error_with_source(reason, None, source))
 }
 
 pub fn badkey(process: &Process, key: Term, source: ArcError) -> Exception {
     let tag = atom("badkey");
-    match process.tuple_from_slice(&[tag, key]) {
-        Ok(reason) => Exception::Runtime(self::error_with_source(reason, None, source)),
-        Err(err) => err.into(),
-    }
+    let reason = process.tuple_from_slice(&[tag, key]);
+    Exception::Runtime(self::error_with_source(reason, None, source))
 }
 
 pub fn badmap(process: &Process, map: Term, source: ArcError) -> Exception {
     let tag = atom("badmap");
-    match process.tuple_from_slice(&[tag, map]) {
-        Ok(reason) => Exception::Runtime(self::error_with_source(reason, None, source)),
-        Err(err) => err.into(),
-    }
+    let reason = process.tuple_from_slice(&[tag, map]);
+    Exception::Runtime(self::error_with_source(reason, None, source))
 }
 
 #[inline]

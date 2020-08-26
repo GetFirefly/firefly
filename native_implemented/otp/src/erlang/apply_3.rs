@@ -23,7 +23,7 @@ extern "Rust" {
 
 #[native_implemented::function(erlang:apply/3)]
 fn result(
-    process: &Process,
+    _process: &Process,
     module: Term,
     function: Term,
     arguments: Term,
@@ -49,6 +49,10 @@ fn result(
 
             Ok(unsafe { runtime_apply_3(module_function_arity, native, argument_vec) })
         }
-        None => undef(module_function_arity, argument_vec.as_slice()).into(),
+        None => {
+            let trace = Trace::capture();
+            trace.set_top_frame(&module_function_arity, argument_vec.as_slice());
+            Err(exception::undef(trace).into())
+        }
     }
 }

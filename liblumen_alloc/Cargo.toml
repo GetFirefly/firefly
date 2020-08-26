@@ -8,8 +8,6 @@ edition = "2018"
 [features]
 # Turns on allocation instrumentation
 instrument = []
-# Turns on/off features required for supporting lumen_rt_full
-runtime_full = []
 
 [dependencies]
 log = "0.4"
@@ -45,7 +43,7 @@ features = ["nightly"]
 backtrace = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen-test = "0.2"
+wasm-bindgen-test = "0.3.17"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
 version = "0.2.48"

@@ -13,17 +13,11 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestCaseResult, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::atom;
 use liblumen_alloc::erts::message::{self, Message};
-use liblumen_alloc::erts::process::{Process, Status};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{exception, Node};
 
-use crate::runtime;
-use crate::runtime::process::spawn::options::Options;
-use crate::runtime::scheduler::{self, Spawned};
-
-use crate::test::loop_0;
 use crate::test::strategy::term::binary;
 use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
 
@@ -67,8 +61,8 @@ pub fn arc_process_to_arc_process_subbinary_zero_start_byte_count_length(
             (
                 arc_process.clone(),
                 binary,
-                arc_process.integer(0).unwrap(),
-                arc_process.integer(subbinary.full_byte_len()).unwrap(),
+                arc_process.integer(0),
+                arc_process.integer(subbinary.full_byte_len()),
             )
         })
 }
@@ -91,10 +85,6 @@ pub fn external_arc_node() -> Arc<Node> {
         Atom::try_from_str("node@external").unwrap(),
         0,
     ))
-}
-
-pub fn has_no_message(process: &Process) -> bool {
-    process.mailbox.lock().borrow().len() == 0
 }
 
 pub fn has_message(process: &Process, data: Term) -> bool {
@@ -184,72 +174,6 @@ pub fn number_to_integer_with_float(
     );
 }
 
-pub fn process(parent_process: &Process, options: Options) -> Spawned {
-    let module = loop_0::module();
-    let function = loop_0::function();
-    let arguments = &[];
-    let native = loop_0::NATIVE;
-
-    runtime::process::spawn::native(
-        Some(parent_process),
-        options,
-        module,
-        function,
-        arguments,
-        native,
-    )
-    .map(|spawned| spawned.schedule_with_parent(parent_process))
-    .unwrap()
-}
-
-pub fn prop_assert_exits<
-    F: Fn(Option<Term>) -> proptest::test_runner::TestCaseResult,
-    S: AsRef<str>,
->(
-    process: &Process,
-    expected_reason: Term,
-    prop_assert_stacktrace: F,
-    source_substring: S,
-) -> proptest::test_runner::TestCaseResult {
-    match *process.status.read() {
-        Status::RuntimeException(ref runtime_exception) => {
-            prop_assert_eq!(runtime_exception.reason(), expected_reason);
-            prop_assert_stacktrace(runtime_exception.stacktrace())?;
-
-            let source_string = format!("{:?}", runtime_exception.source());
-
-            let source_substring: &str = source_substring.as_ref();
-
-            prop_assert!(
-                source_string.contains(source_substring),
-                "source ({}) does not contain `{}`",
-                source_string,
-                source_substring
-            );
-
-            Ok(())
-        }
-        ref status => Err(proptest::test_runner::TestCaseError::fail(format!(
-            "Child process did not exit.  Status is {:?}. Scheduler is {:?}",
-            status,
-            scheduler::current()
-        ))),
-    }
-}
-
-pub fn prop_assert_exits_badarity<S: AsRef<str>>(
-    process: &Process,
-    fun: Term,
-    args: Term,
-    source_substring: S,
-) -> proptest::test_runner::TestCaseResult {
-    let tag = atom!("badarity");
-    let fun_args = process.tuple_from_slice(&[fun, args]).unwrap();
-    let reason = process.tuple_from_slice(&[tag, fun_args]).unwrap();
-
-    prop_assert_exits(process, reason, |_| Ok(()), source_substring)
-}
-
 pub fn receive_message(process: &Process) -> Option<Term> {
     process
         .mailbox
@@ -286,9 +210,7 @@ pub fn timeout_message(timer_reference: Term, message: Term, process: &Process) 
 }
 
 pub fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
-    process
-        .tuple_from_slice(&[Atom::str_to_term(tag), timer_reference, message])
-        .unwrap()
+    process.tuple_from_slice(&[Atom::str_to_term(tag), timer_reference, message])
 }
 
 pub fn total_byte_len(term: Term) -> usize {
@@ -686,7 +608,7 @@ pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
             (
                 Just(arc_process.clone()),
                 strategy::term::is_integer(arc_process.clone()),
-                Just(arc_process.integer(0).unwrap()),
+                Just(arc_process.integer(0)),
             )
         },
         |(arc_process, dividend, divisor)| {

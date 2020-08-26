@@ -53,7 +53,7 @@ fn with_integer_multiplicand_returns_big_integer() {
 #[test]
 fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
     with_big_int(|process, multiplier| {
-        let multiplicand = process.float(3.0).unwrap();
+        let multiplicand = process.float(3.0);
 
         let result = result(process, multiplier, multiplicand);
 
@@ -68,11 +68,11 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 #[test]
 fn with_float_multiplicand_with_underflow_returns_min_float() {
     with_big_int(|process, multiplier| {
-        let multiplicand = process.float(std::f64::MIN).unwrap();
+        let multiplicand = process.float(std::f64::MIN);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(std::f64::MIN).unwrap())
+            Ok(process.float(std::f64::MIN))
         );
     })
 }
@@ -80,11 +80,11 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
 #[test]
 fn with_float_multiplicand_with_overflow_returns_max_float() {
     with_big_int(|process, multiplier| {
-        let multiplicand = process.float(std::f64::MAX).unwrap();
+        let multiplicand = process.float(std::f64::MAX);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(std::f64::MAX).unwrap())
+            Ok(process.float(std::f64::MAX))
         );
     })
 }

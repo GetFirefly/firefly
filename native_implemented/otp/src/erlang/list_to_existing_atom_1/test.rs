@@ -37,11 +37,7 @@ fn with_improper_list_errors_badarg() {
                 Just(arc_process.clone()),
                 strategy::term::is_not_list(arc_process.clone()),
             )
-                .prop_map(|(arc_process, tail)| {
-                    arc_process
-                        .cons(arc_process.integer('a').unwrap(), tail)
-                        .unwrap()
-                })
+                .prop_map(|(arc_process, tail)| arc_process.cons(arc_process.integer('a'), tail))
         },
         |list| {
             prop_assert_badarg!(result(list), format!("list ({}) is improper", list));
@@ -57,12 +53,10 @@ fn with_list_without_existing_atom_errors_badarg() {
         |arc_process| {
             (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, suffix)| {
                 let string = strategy::term::non_existent_atom(&suffix);
-                let codepoint_terms: Vec<Term> = string
-                    .chars()
-                    .map(|c| arc_process.integer(c).unwrap())
-                    .collect();
+                let codepoint_terms: Vec<Term> =
+                    string.chars().map(|c| arc_process.integer(c)).collect();
 
-                arc_process.list_from_slice(&codepoint_terms).unwrap()
+                arc_process.list_from_slice(&codepoint_terms)
             })
         },
         |list| {
@@ -83,13 +77,11 @@ fn with_list_with_existing_atom_returns_atom() {
     run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<String>()).prop_map(|(arc_process, string)| {
-                let codepoint_terms: Vec<Term> = string
-                    .chars()
-                    .map(|c| arc_process.integer(c).unwrap())
-                    .collect();
+                let codepoint_terms: Vec<Term> =
+                    string.chars().map(|c| arc_process.integer(c)).collect();
 
                 (
-                    arc_process.list_from_slice(&codepoint_terms).unwrap(),
+                    arc_process.list_from_slice(&codepoint_terms),
                     Atom::str_to_term(&string),
                 )
             })

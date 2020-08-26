@@ -15,10 +15,7 @@ fn without_key_returns_error_atom() {
                     .prop_map(|(key, non_key)| {
                         let value = atom!("value");
 
-                        (
-                            non_key,
-                            arc_process.map_from_slice(&[(key, value)]).unwrap(),
-                        )
+                        (non_key, arc_process.map_from_slice(&[(key, value)]))
                     }),
                 |(key, map)| {
                     let error = atom!("error");
@@ -40,12 +37,12 @@ fn with_key_returns_success_tuple() {
                 &strategy::term(arc_process.clone()).prop_map(|key| {
                     let value = atom!("value");
 
-                    (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
+                    (key, arc_process.map_from_slice(&[(key, value)]))
                 }),
                 |(key, map)| {
                     let ok = atom!("ok");
                     let value = atom!("value");
-                    let success_tuple = arc_process.tuple_from_slice(&[ok, value]).unwrap();
+                    let success_tuple = arc_process.tuple_from_slice(&[ok, value]);
 
                     prop_assert_eq!(result(&arc_process, key, map), Ok(success_tuple.into()));
 

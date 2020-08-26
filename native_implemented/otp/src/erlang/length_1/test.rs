@@ -29,7 +29,7 @@ fn without_list_errors_badarg() {
 fn with_empty_list_is_zero() {
     with_process(|process| {
         let list = Term::NIL;
-        let zero_term = process.integer(0).unwrap();
+        let zero_term = process.integer(0);
 
         assert_eq!(result(process, list), Ok(zero_term));
     });
@@ -68,7 +68,7 @@ fn with_non_empty_proper_list_is_number_of_elements() {
                 .prop_map(|(arc_process, element_vec)| {
                     (
                         arc_process.clone(),
-                        arc_process.list_from_slice(&element_vec).unwrap(),
+                        arc_process.list_from_slice(&element_vec),
                         element_vec.len(),
                     )
                 })
@@ -76,7 +76,7 @@ fn with_non_empty_proper_list_is_number_of_elements() {
         |(arc_process, list, element_count)| {
             prop_assert_eq!(
                 result(&arc_process, list),
-                Ok(arc_process.integer(element_count).unwrap())
+                Ok(arc_process.integer(element_count))
             );
 
             Ok(())

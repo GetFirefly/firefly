@@ -651,12 +651,6 @@ checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 
 [[package]]
 name = "futures"
-version = "0.1.29"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b980f2816d6ee8673b6517b52cb0e808a180efc92e5c19d02cdda79066703ef"
-
-[[package]]
-name = "futures"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e05b85ec287aac0dc34db7d4a569323df697f9c55b99b15d6b4ef8cde49f613"
@@ -1280,7 +1274,7 @@ dependencies = [
  "async-task",
  "clap",
  "crossbeam",
- "futures 0.3.5",
+ "futures",
  "lazy_static 1.4.0",
  "libeir_frontend",
  "libeir_intern",
@@ -1395,6 +1389,7 @@ dependencies = [
  "native_implemented",
  "num-bigint 0.2.6",
  "num-traits",
+ "panic-control",
  "proptest",
  "radix_fmt",
  "thiserror",
@@ -1466,7 +1461,6 @@ name = "liblumen_web"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "futures 0.1.29",
  "js-sys",
  "liblumen_alloc",
  "liblumen_core",
@@ -1474,6 +1468,7 @@ dependencies = [
  "lumen_rt_core",
  "lumen_rt_full",
  "native_implemented",
+ "panic-control",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -1856,6 +1851,12 @@ dependencies = [
  "libc",
  "unwind",
 ]
+
+[[package]]
+name = "panic-control"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "159973aebc43b4640619042b3bf160e3b6348000a949e37c0806ae6acc79d6c7"
 
 [[package]]
 name = "parking_lot"
@@ -2937,12 +2938,11 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.3.27"
+version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83420b37346c311b9ed822af41ec2e82839bfe99867ec6c54e2da43b7538771c"
+checksum = "95f8d235a77f880bcef268d379810ea6c0af2eacfa90b1ad5af731776e0c4699"
 dependencies = [
  "cfg-if",
- "futures 0.1.29",
  "js-sys",
  "wasm-bindgen",
  "web-sys",
@@ -2979,12 +2979,11 @@ checksum = "93b162580e34310e5931c4b792560108b10fd14d64915d7fff8ff00180e70092"
 
 [[package]]
 name = "wasm-bindgen-test"
-version = "0.2.50"
+version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2d9693b63a742d481c7f80587e057920e568317b2806988c59cd71618bc26c1"
+checksum = "7d92df9d5715606f9e48f85df3b78cb77ae44a2ea9a5f2a785a97bd0066b9300"
 dependencies = [
  "console_error_panic_hook",
- "futures 0.1.29",
  "js-sys",
  "scoped-tls",
  "wasm-bindgen",
@@ -2994,12 +2993,12 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-test-macro"
-version = "0.2.50"
+version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0789dac148a8840bbcf9efe13905463b733fa96543bfbf263790535c11af7ba5"
+checksum = "51611ce8e84cba89379d91fc5074bacc5530f69da1c09a2853d906129d12b3b8"
 dependencies = [
- "proc-macro2 0.4.30",
- "quote 0.6.13",
+ "proc-macro2 1.0.19",
+ "quote 1.0.7",
 ]
 
 [[package]]

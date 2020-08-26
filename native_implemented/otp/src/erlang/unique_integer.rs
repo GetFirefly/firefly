@@ -4,7 +4,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use lazy_static::lazy_static;
 
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -25,7 +24,7 @@ pub use options::*;
 /// more than 584 years. That is, for the foreseeable future they are unique enough.
 ///
 /// - http://erlang.org/doc/efficiency_guide/advanced.html#unique_integers
-pub fn unique_integer(process: &Process, options: Options) -> exception::Result<Term> {
+pub fn unique_integer(process: &Process, options: Options) -> Term {
     if options.monotonic {
         let u = MONOTONIC.fetch_add(1, Ordering::SeqCst);
 
@@ -66,7 +65,6 @@ pub fn unique_integer(process: &Process, options: Options) -> exception::Result<
             process.integer(i)
         }
     }
-    .map_err(|alloc| alloc.into())
 }
 
 // have to add and then subtract to prevent overflow

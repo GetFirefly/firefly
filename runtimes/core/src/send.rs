@@ -10,7 +10,7 @@ use liblumen_alloc::Process;
 
 use crate::distribution::nodes::node;
 use crate::registry::{self, pid_to_process};
-use crate::scheduler;
+use crate::scheduler::Scheduled;
 
 pub use options::*;
 
@@ -61,11 +61,11 @@ pub fn send(
             } else {
                 match pid_to_process(&destination_pid) {
                     Some(destination_arc_process) => {
-                        if destination_arc_process.send_from_other(message)? {
-                            let scheduler_id = destination_arc_process.scheduler_id().unwrap();
-                            let arc_scheduler = scheduler::from_id(&scheduler_id).unwrap();
-                            arc_scheduler.stop_waiting(&destination_arc_process);
-                        }
+                        destination_arc_process.send_from_other(message);
+                        destination_arc_process
+                            .scheduler()
+                            .unwrap()
+                            .stop_waiting(&destination_arc_process);
 
                         Ok(Sent::Sent)
                     }
@@ -104,11 +104,11 @@ fn send_to_name(
     } else {
         match registry::atom_to_process(&destination) {
             Some(destination_arc_process) => {
-                if destination_arc_process.send_from_other(message)? {
-                    let scheduler_id = destination_arc_process.scheduler_id().unwrap();
-                    let arc_scheduler = scheduler::from_id(&scheduler_id).unwrap();
-                    arc_scheduler.stop_waiting(&destination_arc_process);
-                }
+                destination_arc_process.send_from_other(message);
+                destination_arc_process
+                    .scheduler()
+                    .unwrap()
+                    .stop_waiting(&destination_arc_process);
 
                 Ok(Sent::Sent)
             }

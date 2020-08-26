@@ -48,7 +48,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                 })
         },
         |(arc_process, binary, start, length)| {
-            let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
+            let start_length = arc_process.tuple_from_slice(&[start, length]);
 
             let result = result(&arc_process, binary.into(), start_length);
 
@@ -95,11 +95,10 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
             let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
 
             let expected_returned_binary_bytes: Vec<u8> = subbinary.full_byte_iter().collect();
-            let expected_returned_binary = arc_process
-                .binary_from_bytes(&expected_returned_binary_bytes)
-                .unwrap();
+            let expected_returned_binary =
+                arc_process.binary_from_bytes(&expected_returned_binary_bytes);
 
-            let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
+            let start_length = arc_process.tuple_from_slice(&[start, length]);
 
             prop_assert_eq!(
                 result(&arc_process, binary, start_length),
@@ -129,11 +128,10 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
         |(arc_process, binary, start, length)| {
             let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
             let expected_returned_binary_bytes: Vec<u8> = subbinary.full_byte_iter().collect();
-            let expected_returned_binary = arc_process
-                .binary_from_bytes(&expected_returned_binary_bytes)
-                .unwrap();
+            let expected_returned_binary =
+                arc_process.binary_from_bytes(&expected_returned_binary_bytes);
 
-            let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
+            let start_length = arc_process.tuple_from_slice(&[start, length]);
 
             prop_assert_eq!(
                 result(&arc_process, binary, start_length),

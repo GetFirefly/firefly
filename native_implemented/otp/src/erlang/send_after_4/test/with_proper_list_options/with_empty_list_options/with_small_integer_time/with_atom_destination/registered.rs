@@ -23,7 +23,7 @@ fn with_different_process_sends_message_when_timer_expires() {
                 Ok(true.into())
             );
 
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
 
             let start_monotonic = freeze_timeout();
 
@@ -77,7 +77,7 @@ fn with_same_process_sends_message_when_timer_expires() {
                 Ok(true.into())
             );
 
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
 
             let start_monotonic = freeze_timeout();
 

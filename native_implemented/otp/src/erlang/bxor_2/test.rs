@@ -34,7 +34,7 @@ fn with_same_integer_returns_zero() {
         |(arc_process, operand)| {
             prop_assert_eq!(
                 result(&arc_process, operand, operand),
-                Ok(arc_process.integer(0).unwrap())
+                Ok(arc_process.integer(0))
             );
 
             Ok(())

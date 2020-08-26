@@ -26,9 +26,13 @@ fn flushes_existing_message_and_returns_false() {
 
         assert_has_message!(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                monitor_reference,
+                r#type(),
+                monitored_pid_term,
+                reason
+            ])
         );
 
         assert_eq!(
@@ -42,9 +46,13 @@ fn flushes_existing_message_and_returns_false() {
 
         assert!(!has_message(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                monitor_reference,
+                r#type(),
+                monitored_pid_term,
+                reason
+            ])
         ));
     });
 }

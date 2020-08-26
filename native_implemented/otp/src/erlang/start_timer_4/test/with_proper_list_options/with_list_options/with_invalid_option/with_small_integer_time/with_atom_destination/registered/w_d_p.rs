@@ -11,7 +11,7 @@ fn errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
 
             let destination_arc_process = test::process::child(&arc_process);
             let destination = registered_name();

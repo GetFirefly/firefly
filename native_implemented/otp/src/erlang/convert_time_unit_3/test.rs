@@ -113,6 +113,6 @@ fn unit() -> BoxedStrategy<Unit> {
 
 fn unit_term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     unit()
-        .prop_map(move |unit| unit.to_term(&arc_process).unwrap())
+        .prop_map(move |unit| unit.to_term(&arc_process))
         .boxed()
 }

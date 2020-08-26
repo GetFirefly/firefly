@@ -36,12 +36,8 @@ fn with_same_small_integer_right_returns_true() {
 fn with_same_value_small_integer_right_returns_true() {
     run!(
         |arc_process| {
-            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
-                (
-                    arc_process.integer(i).unwrap(),
-                    arc_process.integer(i).unwrap(),
-                )
-            })
+            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE)
+                .prop_map(move |i| (arc_process.integer(i), arc_process.integer(i)))
         },
         |(left, right)| {
             prop_assert_eq!(result(left, right), true.into());
@@ -55,12 +51,8 @@ fn with_same_value_small_integer_right_returns_true() {
 fn with_different_small_integer_right_returns_false() {
     run!(
         |arc_process| {
-            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
-                (
-                    arc_process.integer(i).unwrap(),
-                    arc_process.integer(i + 1).unwrap(),
-                )
-            })
+            (SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE)
+                .prop_map(move |i| (arc_process.integer(i), arc_process.integer(i + 1)))
         },
         |(left, right)| {
             prop_assert_eq!(result(left, right), false.into());

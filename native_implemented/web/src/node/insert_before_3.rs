@@ -39,10 +39,9 @@ fn result(
         Some(node::from_term(reference_child)?)
     };
 
-    match parent_node.insert_before(new_child_node, option_reference_child_node) {
-        Ok(inserted_child_node) => {
-            ok_tuple(process, inserted_child_node).map_err(|error| error.into())
-        }
+    let result_tuple = match parent_node.insert_before(new_child_node, option_reference_child_node)
+    {
+        Ok(inserted_child_node) => ok_tuple(process, inserted_child_node),
         Err(js_value) => {
             let dom_exception = js_value.dyn_into::<DomException>().unwrap();
 
@@ -58,9 +57,10 @@ fn result(
                 ),
             };
             let reason = Atom::str_to_term(reason_name);
-            let error_tuple = process.tuple_from_slice(&[atom!("error"), reason])?;
 
-            Ok(error_tuple)
+            process.tuple_from_slice(&[atom!("error"), reason])
         }
-    }
+    };
+
+    Ok(result_tuple)
 }

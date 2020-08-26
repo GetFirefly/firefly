@@ -9,17 +9,23 @@ start() ->
 lists(Binary) ->
   lists(Binary, 1).
 
-lists(Binary, Start) when Start == byte_size(Binary) ->
-  lists(Binary, Start, Start);
 lists(Binary, Start) ->
-  lists(Binary, Start, Start),
-  lists(Binary, Start + 1).
+  case byte_size(Binary) of
+    Start ->
+      lists(Binary, Start, Start);
+    _ ->
+      lists(Binary, Start, Start),
+      lists(Binary, Start + 1)
+  end.
 
-lists(Binary, Start, Stop) when Stop == byte_size(Binary) ->
-  list(Binary, Start, Stop);
 lists(Binary, Start, Stop) ->
-  list(Binary, Start, Stop),
-  lists(Binary, Start, Stop + 1).
+  case byte_size(Binary) of
+    Stop ->
+      list(Binary, Start, Stop);
+    _ ->
+      list(Binary, Start, Stop),
+      lists(Binary, Start, Stop + 1)
+  end.
 
 list(Binary, Start, Stop) ->
   display(binary_to_list(Binary, Start, Stop)).

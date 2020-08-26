@@ -17,11 +17,11 @@ fn without_key_returns_undefined_for_previous_value() {
             )
         },
         |(arc_process, key, value)| {
-            arc_process.erase_entries().unwrap();
+            arc_process.erase_entries();
 
             prop_assert_eq!(
                 result(&arc_process, key, value),
-                Ok(Atom::str_to_term("undefined"))
+                Atom::str_to_term("undefined")
             );
 
             prop_assert_eq!(arc_process.get_value_from_key(key), value);
@@ -43,11 +43,11 @@ fn with_key_returns_previous_value() {
             )
         },
         |(arc_process, key, old_value, new_value)| {
-            arc_process.erase_entries().unwrap();
+            arc_process.erase_entries();
 
-            arc_process.put(key, old_value).unwrap();
+            arc_process.put(key, old_value);
 
-            prop_assert_eq!(result(&arc_process, key, new_value), Ok(old_value));
+            prop_assert_eq!(result(&arc_process, key, new_value), old_value);
 
             prop_assert_eq!(arc_process.get_value_from_key(key), new_value);
 

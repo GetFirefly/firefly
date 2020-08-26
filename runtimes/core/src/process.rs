@@ -1,18 +1,18 @@
 pub mod monitor;
 pub mod spawn;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::{self, AllocResult, ArcError, RuntimeException};
+use liblumen_alloc::erts::exception::{self, ArcError, RuntimeException};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
 use crate::registry::*;
-use crate::scheduler::SchedulerDependentAlloc;
+use crate::scheduler::{Scheduled, SchedulerDependentAlloc};
 use crate::sys;
 
 thread_local! {
@@ -37,18 +37,7 @@ pub fn is_expected_exception(exception: &RuntimeException) -> bool {
 
 fn is_expected_exit_reason(reason: Term) -> bool {
     match reason.decode().unwrap() {
-        TypedTerm::Atom(atom) => match atom.name() {
-            "normal" | "shutdown" => true,
-            _ => false,
-        },
-        TypedTerm::Tuple(tuple) => {
-            tuple.len() == 2 && {
-                match tuple[0].decode().unwrap() {
-                    TypedTerm::Atom(atom) => atom.name() == "shutdown",
-                    _ => false,
-                }
-            }
-        }
+        TypedTerm::Atom(atom) => atom == "normal",
         _ => false,
     }
 }
@@ -60,7 +49,7 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
             let reason = exception.reason();
 
             if !is_expected_exit_reason(reason) {
-                sys::io::puts(&format!(
+                puts_exit(&format!(
                     "** (EXIT from {}) exited with reason: {}\n\nSource: {:?}",
                     process,
                     reason,
@@ -68,7 +57,7 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
                 ));
             }
         }
-        Class::Error { .. } => sys::io::puts(&format!(
+        Class::Error { .. } => puts_exit(&format!(
             "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {:?}\n{}",
             process,
             exception.reason(),
@@ -79,8 +68,26 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
     }
 }
 
-pub fn monitor(process: &Process, monitored_process: &Process) -> AllocResult<Term> {
-    let reference = process.next_reference()?;
+pub fn get_log_exit() -> bool {
+    LOG_EXIT.with(|log_exit| log_exit.get())
+}
+
+pub fn replace_log_exit(value: bool) -> bool {
+    LOG_EXIT.with(|log_exit| log_exit.replace(value))
+}
+
+pub fn set_log_exit(value: bool) {
+    LOG_EXIT.with(|log_exit| log_exit.set(value));
+}
+
+fn puts_exit(s: &str) {
+    if get_log_exit() {
+        sys::io::puts(s)
+    }
+}
+
+pub fn monitor(process: &Process, monitored_process: &Process) -> Term {
+    let reference = process.next_reference();
 
     let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
     let monitor = Monitor::Pid {
@@ -92,7 +99,7 @@ pub fn monitor(process: &Process, monitored_process: &Process) -> AllocResult<Te
     );
     monitored_process.monitored(reference_reference.as_ref().clone(), monitor);
 
-    Ok(reference)
+    reference
 }
 
 pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
@@ -160,6 +167,11 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
                         }
                     }
                 }
+
+                linked_pid_arc_process
+                    .scheduler()
+                    .unwrap()
+                    .stop_waiting(&linked_pid_arc_process);
             }
         }
     }
@@ -216,4 +228,8 @@ fn exit_in_heap_fragment(process: &Process, reason: Term, exception: RuntimeExce
     }
 
     process.exit_with_source(heap_fragment_data, exception.source().unwrap());
+}
+
+thread_local! {
+   static LOG_EXIT: Cell<bool> = Cell::new(true);
 }

@@ -29,12 +29,8 @@ fn without_atom_errors_badarg() {
 }
 
 fn options(abs: Term, process: &Process) -> Term {
-    process
-        .cons(
-            process
-                .tuple_from_slice(&[Atom::str_to_term("abs"), abs])
-                .unwrap(),
-            Term::NIL,
-        )
-        .unwrap()
+    process.cons(
+        process.tuple_from_slice(&[Atom::str_to_term("abs"), abs]),
+        Term::NIL,
+    )
 }

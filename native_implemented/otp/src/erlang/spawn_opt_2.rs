@@ -14,5 +14,5 @@ use crate::runtime::process::spawn::options::Options;
 pub fn result(process: &Process, function: Term, options: Term) -> exception::Result<Term> {
     let options: Options = options.try_into()?;
 
-    spawn_apply_1::result(process, options, function)
+    spawn_apply_1::result(process, function, options)
 }

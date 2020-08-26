@@ -17,5 +17,5 @@ pub fn result(process: &Process, document: Term, data: Term) -> exception::Resul
 
     let text = document_document.create_text_node(&data_string);
 
-    process.resource(text).map_err(|error| error.into())
+    Ok(process.resource(text))
 }

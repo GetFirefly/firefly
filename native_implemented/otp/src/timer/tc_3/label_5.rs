@@ -7,15 +7,14 @@
 //! {time, value}
 //! ```
 
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 // Private
 
 #[native_implemented::label]
-fn result(process: &Process, time: Term, value: Term) -> exception::Result<Term> {
+fn result(process: &Process, time: Term, value: Term) -> Term {
     assert!(time.is_integer());
 
-    process.tuple_from_slice(&[time, value]).map_err(From::from)
+    process.tuple_from_slice(&[time, value])
 }

@@ -12,9 +12,8 @@ fn with_different_node_returns_nosuspend() {
                 Ok(true.into())
             );
 
-            let destination = arc_process
-                .tuple_from_slice(&[name, Atom::str_to_term("node@example.com")])
-                .unwrap();
+            let destination =
+                arc_process.tuple_from_slice(&[name, Atom::str_to_term("node@example.com")]);
             let options = options(&arc_process);
 
             prop_assert_eq!(

@@ -14,7 +14,7 @@ fn decode<'a>(
     len: usize,
 ) -> InternalResult<(Term, &'a [u8])> {
     let (element_vec, after_elements_vec) = decode_vec_term(process, safe, bytes, len)?;
-    let tuple = process.tuple_from_slice(&element_vec)?;
+    let tuple = process.tuple_from_slice(&element_vec);
 
     Ok((tuple, after_elements_vec))
 }

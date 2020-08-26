@@ -17,7 +17,7 @@ fn without_proper_list_arguments_errors_badarg() {
         |(arc_process, module, function, arguments)| {
             prop_assert_badarg!(
                 spawn_3::result(&arc_process, module, function, arguments),
-                format!("arguments ({}) must be a proper list", arguments)
+                format!("arguments ({}) is not a proper list", arguments)
             );
 
             Ok(())

@@ -43,6 +43,8 @@ mod sorted;
 pub mod stats;
 mod stats_alloc;
 pub mod std_alloc;
+#[cfg(test)]
+mod test;
 
 /// The system allocator. Can be used with `#[global_allocator]`, like so:
 ///

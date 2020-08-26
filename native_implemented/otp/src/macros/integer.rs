@@ -16,7 +16,7 @@ macro_rules! bitwise_infix_operator {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();
                 let output = left_isize.$infix(right_isize);
-                let output_term = $process.integer(output)?;
+                let output_term = $process.integer(output);
 
                 Ok(output_term)
             }
@@ -28,7 +28,7 @@ macro_rules! bitwise_infix_operator {
                 let right_big_int = right_big_integer.as_ref();
 
                 let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
-                let output_term = $process.integer(output_big_int)?;
+                let output_term = $process.integer(output_big_int);
 
                 Ok(output_term)
             }
@@ -40,7 +40,7 @@ macro_rules! bitwise_infix_operator {
                 let right_big_int: BigInteger = right_small_integer.into();
 
                 let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
-                let output_term = $process.integer(output_big_int)?;
+                let output_term = $process.integer(output_big_int);
 
                 Ok(output_term)
             }
@@ -49,7 +49,7 @@ macro_rules! bitwise_infix_operator {
                 let right_big_int = right_big_integer.as_ref();
 
                 let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
-                let output_term = $process.integer(output_big_int)?;
+                let output_term = $process.integer(output_big_int);
 
                 Ok(output_term)
             }
@@ -89,13 +89,13 @@ macro_rules! bitshift_infix_operator {
 
                     if shift_usize <= MAX_SHIFT {
                         let shifted = integer_isize $positive shift_usize;
-                        let shifted_term = $process.integer(shifted)?;
+                        let shifted_term = $process.integer(shifted);
 
                         Some(shifted_term)
                     } else {
                         let big_int: BigInt = integer_isize.into();
                         let shifted = big_int $positive shift_usize;
-                        let shifted_term = $process.integer(shifted)?;
+                        let shifted_term = $process.integer(shifted);
 
                         Some(shifted_term)
                     }
@@ -104,13 +104,13 @@ macro_rules! bitshift_infix_operator {
 
                     if shift_usize <= MAX_SHIFT {
                         let shifted = integer_isize $negative shift_usize;
-                        let shifted_term = $process.integer(shifted)?;
+                        let shifted_term = $process.integer(shifted);
 
                         Some(shifted_term)
                     } else {
                         let big_int: BigInt = integer_isize.into();
                         let shifted = big_int $negative shift_usize;
-                        let shifted_term = $process.integer(shifted)?;
+                        let shifted_term = $process.integer(shifted);
 
                         Some(shifted_term)
                     }
@@ -134,7 +134,7 @@ macro_rules! bitshift_infix_operator {
 
                 // Provide a chance to convert to SmallInteger if possible
                 let shifted: BigInt = shifted.into();
-                let shifted_term = $process.integer(shifted)?;
+                let shifted_term = $process.integer(shifted);
 
                 Some(shifted_term)
             }
@@ -165,7 +165,7 @@ macro_rules! integer_infix_operator {
                     Err(badarith(anyhow!("{} ({}) cannot be zero", stringify!($right), $right).into()))
                 } else {
                     let quotient = left_isize $infix right_isize;
-                    let quotient_term = $process.integer(quotient)?;
+                    let quotient_term = $process.integer(quotient);
 
                     Ok(quotient_term)
                 }
@@ -176,7 +176,7 @@ macro_rules! integer_infix_operator {
 
                 let quotient = left_big_int $infix right_big_int;
                 let quotient: BigInt = quotient.into();
-                let quotient_term = $process.integer(quotient)?;
+                let quotient_term = $process.integer(quotient);
 
                 Ok(quotient_term)
             }
@@ -191,7 +191,7 @@ macro_rules! integer_infix_operator {
 
                     let quotient = left_big_int $infix right_big_int;
                     let quotient: BigInt = quotient.into();
-                    let quotient_term = $process.integer(quotient)?;
+                    let quotient_term = $process.integer(quotient);
 
                     Ok(quotient_term)
                 }
@@ -202,7 +202,7 @@ macro_rules! integer_infix_operator {
 
                 let quotient = left_big_int $infix right_big_int;
                 let quotient: BigInt = quotient.into();
-                let quotient_term = $process.integer(quotient)?;
+                let quotient_term = $process.integer(quotient);
 
                 Ok(quotient_term)
             }

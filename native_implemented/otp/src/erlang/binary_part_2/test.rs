@@ -21,14 +21,8 @@ fn without_bitstring_errors_badarg() {
             )
         },
         |(arc_process, binary)| {
-            let start_length = {
-                arc_process
-                    .tuple_from_slice(&[
-                        arc_process.integer(0).unwrap(),
-                        arc_process.integer(0).unwrap(),
-                    ])
-                    .unwrap()
-            };
+            let start_length =
+                { arc_process.tuple_from_slice(&[arc_process.integer(0), arc_process.integer(0)]) };
 
             prop_assert_badarg!(
                 result(&arc_process, binary, start_length),

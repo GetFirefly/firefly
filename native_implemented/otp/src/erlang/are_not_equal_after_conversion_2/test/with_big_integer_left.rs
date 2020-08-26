@@ -61,10 +61,7 @@ fn with_same_value_float_right_returns_false() {
             run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
-                        (
-                            arc_process.integer(i).unwrap(),
-                            arc_process.float(i as f64).unwrap(),
-                        )
+                        (arc_process.integer(i), arc_process.float(i as f64))
                     })
                 },
                 |(left, right)| {
@@ -85,10 +82,7 @@ fn with_different_value_float_right_returns_true() {
             run!(
                 |arc_process| {
                     (Just(arc_process.clone()), strategy).prop_map(|(arc_process, i)| {
-                        (
-                            arc_process.integer(i + 1).unwrap(),
-                            arc_process.float(i as f64).unwrap(),
-                        )
+                        (arc_process.integer(i + 1), arc_process.float(i as f64))
                     })
                 },
                 |(left, right)| {

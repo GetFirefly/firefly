@@ -57,7 +57,7 @@ pub fn charlist(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
                 .map(|f| f.into())
                 .collect();
 
-            arc_process.list_from_slice(&codepoint_terms).unwrap()
+            arc_process.list_from_slice(&codepoint_terms)
         })
         .boxed()
 }
@@ -80,7 +80,7 @@ pub fn float(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .prop_filter("Negative and positive 0.0 are the same for Erlang", |f| {
             !(f.classify() == FpCategory::Zero && f.is_sign_negative())
         })
-        .prop_map(move |f| arc_process.float(f).unwrap())
+        .prop_map(move |f| arc_process.float(f))
         .boxed()
 }
 
@@ -100,7 +100,7 @@ pub fn function_port_pid_tuple_map_list_or_bitstring(
 
 pub fn is_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::base::base()
-        .prop_map(move |base| arc_process.integer(base).unwrap())
+        .prop_map(move |base| arc_process.integer(base))
         .boxed()
 }
 
@@ -122,7 +122,7 @@ pub fn is_boolean() -> BoxedStrategy<Term> {
 
 pub fn is_byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (Just(arc_process), any::<u8>())
-        .prop_map(|(arc_process, byte_u8)| arc_process.integer(byte_u8).unwrap())
+        .prop_map(|(arc_process, byte_u8)| arc_process.integer(byte_u8))
         .boxed()
 }
 
@@ -180,14 +180,12 @@ pub fn export_closure(process: &Process, module: Atom, function: Atom, arity: u8
         _ => unimplemented!("Export closure with arity {}", arity),
     };
 
-    process
-        .export_closure(module, function, arity, NonNull::new(native as _))
-        .unwrap()
+    process.export_closure(module, function, arity, NonNull::new(native as _))
 }
 
-pub fn export_closure_arity_range_inclusive() -> RangeInclusive<u8> {
-    0..=2
-}
+// pub fn export_closure_arity_range_inclusive() -> RangeInclusive<u8> {
+//     0..=2
+// }
 
 pub fn export_closure_non_zero_arity_range_inclusive() -> RangeInclusive<u8> {
     1..=2
@@ -389,7 +387,7 @@ pub fn is_not_map(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 pub fn is_not_non_negative_integer(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    let zero = arc_process.integer(0).unwrap();
+    let zero = arc_process.integer(0);
 
     super::term(arc_process)
         .prop_filter("Term must no be a non-negative integer", move |term| {
@@ -511,7 +509,7 @@ pub fn list_or_bitstring(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 pub fn local_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     proptest::prelude::any::<u64>()
-        .prop_map(move |number| arc_process.reference(number).unwrap())
+        .prop_map(move |number| arc_process.reference(number))
         .boxed()
 }
 

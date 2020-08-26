@@ -44,7 +44,7 @@ fn with_iolist_or_binary_returns_non_negative_integer() {
             let size = result.unwrap();
 
             prop_assert!(size.is_integer());
-            prop_assert!(size >= arc_process.integer(0).unwrap());
+            prop_assert!(size >= arc_process.integer(0));
 
             Ok(())
         }
@@ -56,14 +56,12 @@ fn with_iolist_or_binary_returns_non_negative_integer() {
 #[test]
 fn otp_doctest() {
     with_process(|process| {
-        let iolist = process
-            .improper_list_from_slice(
-                &[process.integer(1).unwrap(), process.integer(2).unwrap()],
-                process.binary_from_bytes(&[3, 4]).unwrap(),
-            )
-            .unwrap();
+        let iolist = process.improper_list_from_slice(
+            &[process.integer(1), process.integer(2)],
+            process.binary_from_bytes(&[3, 4]),
+        );
 
-        assert_eq!(result(process, iolist), Ok(process.integer(4).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(4)))
     });
 }
 
@@ -78,74 +76,60 @@ fn otp_doctest() {
 #[test]
 fn with_iolist_returns_size() {
     with_process(|process| {
-        let bin1 = process.binary_from_bytes(&[1, 2, 3]).unwrap();
-        let bin2 = process.binary_from_bytes(&[4, 5]).unwrap();
-        let bin3 = process.binary_from_bytes(&[6]).unwrap();
+        let bin1 = process.binary_from_bytes(&[1, 2, 3]);
+        let bin2 = process.binary_from_bytes(&[4, 5]);
+        let bin3 = process.binary_from_bytes(&[6]);
 
-        let iolist = process
-            .improper_list_from_slice(
-                &[
-                    bin1,
-                    process.integer(1).unwrap(),
-                    process
-                        .list_from_slice(&[
-                            process.integer(2).unwrap(),
-                            process.integer(3).unwrap(),
-                            bin2,
-                        ])
-                        .unwrap(),
-                    process.integer(4).unwrap(),
-                ],
-                bin3,
-            )
-            .unwrap();
+        let iolist = process.improper_list_from_slice(
+            &[
+                bin1,
+                process.integer(1),
+                process.list_from_slice(&[process.integer(2), process.integer(3), bin2]),
+                process.integer(4),
+            ],
+            bin3,
+        );
 
-        assert_eq!(result(process, iolist), Ok(process.integer(10).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(10)))
     });
 }
 
 #[test]
 fn with_binary_returns_size() {
     with_process(|process| {
-        let bin = process.binary_from_bytes(&[1, 2, 3]).unwrap();
+        let bin = process.binary_from_bytes(&[1, 2, 3]);
 
-        assert_eq!(result(process, bin), Ok(process.integer(3).unwrap()))
+        assert_eq!(result(process, bin), Ok(process.integer(3)))
     });
 }
 
 #[test]
 fn with_subbinary_in_list_returns_size() {
     with_process(|process| {
-        let iolist = process
-            .list_from_slice(&[process
-                .subbinary_from_original(
-                    process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
-                    1,
-                    0,
-                    3,
-                    0,
-                )
-                .unwrap()])
-            .unwrap();
+        let iolist = process.list_from_slice(&[process.subbinary_from_original(
+            process.binary_from_bytes(&[1, 2, 3, 4, 5]),
+            1,
+            0,
+            3,
+            0,
+        )]);
 
-        assert_eq!(result(process, iolist), Ok(process.integer(3).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(3)))
     });
 }
 
 #[test]
 fn with_subbinary_returns_size() {
     with_process(|process| {
-        let iolist = process
-            .subbinary_from_original(
-                process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
-                1,
-                0,
-                3,
-                0,
-            )
-            .unwrap();
+        let iolist = process.subbinary_from_original(
+            process.binary_from_bytes(&[1, 2, 3, 4, 5]),
+            1,
+            0,
+            3,
+            0,
+        );
 
-        assert_eq!(result(process, iolist), Ok(process.integer(3).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(3)))
     });
 }
 
@@ -153,22 +137,21 @@ fn with_subbinary_returns_size() {
 fn with_procbin_returns_size() {
     with_process(|process| {
         let bytes = [7; 65];
-        let procbin = process.binary_from_bytes(&bytes).unwrap();
+        let procbin = process.binary_from_bytes(&bytes);
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let iolist = process.list_from_slice(&[procbin]).unwrap();
+        let iolist = process.list_from_slice(&[procbin]);
 
-        assert_eq!(result(process, iolist), Ok(process.integer(65).unwrap()))
+        assert_eq!(result(process, iolist), Ok(process.integer(65)))
     });
 }
 
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
-        let tail = process.integer(42).unwrap();
-        let iolist = process
-            .improper_list_from_slice(&[process.binary_from_bytes(&[1, 2, 3]).unwrap()], tail)
-            .unwrap();
+        let tail = process.integer(42);
+        let iolist =
+            process.improper_list_from_slice(&[process.binary_from_bytes(&[1, 2, 3])], tail);
 
         assert_badarg!(
             result(process, iolist),

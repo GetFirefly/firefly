@@ -45,8 +45,8 @@ fn with_map_returns_number_of_entries() {
 
                     (
                         arc_process.clone(),
-                        arc_process.map_from_slice(&entry_vec).unwrap(),
-                        arc_process.integer(entry_vec.len()).unwrap(),
+                        arc_process.map_from_slice(&entry_vec),
+                        arc_process.integer(entry_vec.len()),
                     )
                 })
         },

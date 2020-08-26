@@ -37,17 +37,17 @@ jobs:
           chromedriver --version
       - name: Install Gecko Driver
         run: |
-          wget https://github.com/mozilla/geckodriver/releases/download/v0.26.0/geckodriver-v0.26.0-macos.tar.gz
-          tar xvfz geckodriver-v0.26.0-macos.tar.gz
+          wget https://github.com/mozilla/geckodriver/releases/download/v0.27.0/geckodriver-v0.27.0-macos.tar.gz
+          tar xvfz geckodriver-v0.27.0-macos.tar.gz
           mv geckodriver /usr/local/bin/
-          rm geckodriver-v0.26.0-macos.tar.gz
+          rm geckodriver-v0.27.0-macos.tar.gz
           geckodriver --version
       - name: Enable Safari Driver
         run: sudo safaridriver --enable
       - name: Build TableGen
         run: make lumen-tblgen
       - name: Lumen Web Test
-        run: wasm-pack test --headless --chrome --firefox --safari native_implemented/web
+        run: wasm-pack test --headless --chrome --safari native_implemented/web
       - name: Interpreter Checkout
         run: git clone --depth 1 https://github.com/lumen/interpreter interpreter
       - name: Examples Checkout
@@ -55,4 +55,4 @@ jobs:
       - name: Spawn Chain Build
         run: wasm-pack build examples/spawn-chain
       - name: Spawn Chain Test
-        run: wasm-pack test --headless --chrome --firefox --safari examples/spawn-chain
+        run: wasm-pack test --headless --chrome --safari examples/spawn-chain

@@ -18,6 +18,6 @@ pub fn result(process: &Process, number: Term) -> exception::Result<Term> {
             .try_into()
             .with_context(|| term_is_not_number!(number))?;
 
-        process.float(f).map_err(From::from)
+        Ok(process.float(f))
     }
 }

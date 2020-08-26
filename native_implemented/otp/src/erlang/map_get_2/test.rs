@@ -55,7 +55,7 @@ fn with_map_without_key_errors_badkey() {
                 .prop_map(|(arc_process, key, non_key, value)| {
                     (
                         arc_process.clone(),
-                        arc_process.map_from_slice(&[(key, value)]).unwrap(),
+                        arc_process.map_from_slice(&[(key, value)]),
                         non_key,
                     )
                 }),
@@ -85,7 +85,7 @@ fn with_map_with_key_returns_value() {
                 .prop_map(|(arc_process, key, value)| {
                     (
                         arc_process.clone(),
-                        arc_process.map_from_slice(&[(key, value)]).unwrap(),
+                        arc_process.map_from_slice(&[(key, value)]),
                         key,
                         value,
                     )

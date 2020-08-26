@@ -52,6 +52,6 @@ pub fn positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 pub fn small(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (SmallInteger::MIN_VALUE..=SmallInteger::MAX_VALUE)
-        .prop_map(move |i| arc_process.integer(i).unwrap())
+        .prop_map(move |i| arc_process.integer(i))
         .boxed()
 }

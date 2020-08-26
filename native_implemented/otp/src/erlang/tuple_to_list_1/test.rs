@@ -31,8 +31,8 @@ fn with_tuple_returns_list() {
             )
         },
         |(arc_process, element_vec)| {
-            let tuple = arc_process.tuple_from_slice(&element_vec).unwrap();
-            let list = arc_process.list_from_slice(&element_vec).unwrap();
+            let tuple = arc_process.tuple_from_slice(&element_vec);
+            let list = arc_process.list_from_slice(&element_vec);
 
             prop_assert_eq!(result(&arc_process, tuple), Ok(list));
 

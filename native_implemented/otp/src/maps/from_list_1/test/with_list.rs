@@ -14,10 +14,8 @@ fn without_proper_list_errors_badarg() {
             )
         },
         |(arc_process, key, value, tail)| {
-            let entry = arc_process.tuple_from_slice(&[key, value]).unwrap();
-            let list = arc_process
-                .improper_list_from_slice(&[entry], tail)
-                .unwrap();
+            let entry = arc_process.tuple_from_slice(&[key, value]);
+            let list = arc_process.improper_list_from_slice(&[entry], tail);
 
             prop_assert_badarg!(
                 result(&arc_process, list),
@@ -39,7 +37,7 @@ fn without_tuple_list_errors_badarg() {
             )
         },
         |(arc_process, element)| {
-            let list = arc_process.list_from_slice(&[element]).unwrap();
+            let list = arc_process.list_from_slice(&[element]);
 
             prop_assert_badarg!(
                 result(&arc_process, list),
@@ -62,9 +60,9 @@ fn with_two_element_tuple_list_returns_value() {
         },
         |(arc_process, key)| {
             let value = atom!("value");
-            let tuple = arc_process.tuple_from_slice(&[key, value]).unwrap();
-            let list = arc_process.list_from_slice(&[tuple]).unwrap();
-            let map = arc_process.map_from_slice(&[(key, value)]).unwrap();
+            let tuple = arc_process.tuple_from_slice(&[key, value]);
+            let list = arc_process.list_from_slice(&[tuple]);
+            let map = arc_process.map_from_slice(&[(key, value)]);
             prop_assert_eq!(result(&arc_process, list), Ok(map));
 
             Ok(())
@@ -84,10 +82,10 @@ fn with_duplicate_keys_preserves_last_value() {
         |(arc_process, key)| {
             let value1 = atom!("value1");
             let value2 = atom!("value2");
-            let tuple1 = arc_process.tuple_from_slice(&[key, value1]).unwrap();
-            let tuple2 = arc_process.tuple_from_slice(&[key, value2]).unwrap();
-            let list = arc_process.list_from_slice(&[tuple1, tuple2]).unwrap();
-            let map = arc_process.map_from_slice(&[(key, value2)]).unwrap();
+            let tuple1 = arc_process.tuple_from_slice(&[key, value1]);
+            let tuple2 = arc_process.tuple_from_slice(&[key, value2]);
+            let list = arc_process.list_from_slice(&[tuple1, tuple2]);
+            let map = arc_process.map_from_slice(&[(key, value2)]);
             prop_assert_eq!(result(&arc_process, list), Ok(map));
 
             Ok(())

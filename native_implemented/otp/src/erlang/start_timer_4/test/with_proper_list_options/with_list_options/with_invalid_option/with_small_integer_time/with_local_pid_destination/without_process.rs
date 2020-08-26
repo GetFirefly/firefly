@@ -11,7 +11,7 @@ fn errors_badarg() {
             )
         },
         |(arc_process, milliseconds, message)| {
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
             let destination = Pid::next_term();
             let options = options(&arc_process);
 

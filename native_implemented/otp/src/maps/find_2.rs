@@ -14,10 +14,10 @@ pub fn result(process: &Process, key: Term, map: Term) -> exception::Result<Term
         Some(term) => {
             let ok = atom!("ok");
 
-            process.tuple_from_slice(&[ok, term])?
+            process.tuple_from_slice(&[ok, term])
         }
         None => atom!("error"),
     };
 
-    Ok(result.into())
+    Ok(result)
 }

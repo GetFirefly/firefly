@@ -32,9 +32,7 @@ fn with_heap_binary_right_with_same_bytes_returns_true() {
                     let subbinary: Boxed<SubBinary> = subbinary_term.try_into().unwrap();
                     let heap_binary_byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
-                    let heap_binary = arc_process
-                        .binary_from_bytes(&heap_binary_byte_vec)
-                        .unwrap();
+                    let heap_binary = arc_process.binary_from_bytes(&heap_binary_byte_vec);
                     (subbinary_term, heap_binary)
                 })
         },
@@ -60,9 +58,7 @@ fn with_heap_binary_right_with_different_bytes_returns_false() {
                     let heap_binary_byte_vec: Vec<u8> =
                         subbinary.full_byte_iter().map(|b| !b).collect();
 
-                    let heap_binary = arc_process
-                        .binary_from_bytes(&heap_binary_byte_vec)
-                        .unwrap();
+                    let heap_binary = arc_process.binary_from_bytes(&heap_binary_byte_vec);
                     (subbinary_term, heap_binary)
                 })
         },
@@ -123,24 +119,20 @@ fn with_same_value_subbinary_right_returns_true() {
                     .prop_map(
                         move |(byte_offset, bit_offset, byte_count, bit_count, original)| {
                             (
-                                subbinary_arc_process
-                                    .subbinary_from_original(
-                                        original,
-                                        byte_offset,
-                                        bit_offset,
-                                        byte_count,
-                                        bit_count,
-                                    )
-                                    .unwrap(),
-                                subbinary_arc_process
-                                    .subbinary_from_original(
-                                        original,
-                                        byte_offset,
-                                        bit_offset,
-                                        byte_count,
-                                        bit_count,
-                                    )
-                                    .unwrap(),
+                                subbinary_arc_process.subbinary_from_original(
+                                    original,
+                                    byte_offset,
+                                    bit_offset,
+                                    byte_count,
+                                    bit_count,
+                                ),
+                                subbinary_arc_process.subbinary_from_original(
+                                    original,
+                                    byte_offset,
+                                    bit_offset,
+                                    byte_count,
+                                    bit_count,
+                                ),
                             )
                         },
                     ),

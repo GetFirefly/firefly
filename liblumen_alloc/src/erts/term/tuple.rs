@@ -103,8 +103,6 @@ impl Tuple {
     /// or boxes. You need to extend this layout with others representing more
     /// complex values like maps/lists/etc., if you want a layout that covers all
     /// the memory needed by elements of the tuple
-
-    #[inline]
     pub fn layout_for(elements: &[Term]) -> (Layout, usize) {
         let (base_layout, data_offset) = Layout::new::<Header<Tuple>>()
             .extend(Layout::for_value(elements))
@@ -115,6 +113,21 @@ impl Tuple {
         let layout = base_layout.pad_to_align();
 
         (layout, data_offset)
+    }
+
+    /// Includes the space needed for `elements` to all be `clone_to_heap` also.  This is most
+    /// useful for finding the
+    pub fn recursive_layout_for(elements: &[Term]) -> Layout {
+        let (base_layout, _) = Self::layout_for(elements);
+        let mut layout = base_layout;
+
+        for element in elements {
+            let (extended_layout, _offset) = layout.extend(element.layout()).unwrap();
+
+            layout = extended_layout;
+        }
+
+        layout
     }
 
     #[inline]

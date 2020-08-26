@@ -14,11 +14,11 @@ use web_sys::Document;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
-// Private
-
-fn module() -> Atom {
+pub fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.Document").unwrap()
 }
+
+// Private
 
 fn module_id() -> usize {
     module().id()

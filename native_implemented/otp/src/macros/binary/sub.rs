@@ -2,11 +2,9 @@
 macro_rules! bitstring {
     (@acc $bits:tt :: $bit_count:tt, $process:expr, $($byte:expr),*) => {{
         let byte_count = <[()]>::len(&[$(replace_expr!($byte, ())),*]);
-        let original = $process.binary_from_bytes(&[$( $byte, )* $bits << (8 - $bit_count)]).unwrap();
+        let original = $process.binary_from_bytes(&[$( $byte, )* $bits << (8 - $bit_count)]);
 
-        $process
-            .subbinary_from_original(original, 0, 0, byte_count, $bit_count)
-            .unwrap()
+        $process.subbinary_from_original(original, 0, 0, byte_count, $bit_count)
     }};
     (@acc $byte:expr, $($tail:tt)*) => {
         bitstring!(@acc $($tail)*, $byte)

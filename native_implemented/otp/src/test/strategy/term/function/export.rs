@@ -20,30 +20,22 @@ pub fn function() -> BoxedStrategy<Atom> {
 pub fn with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
     match arity {
         0 => prop_oneof![
-            Just(
-                arc_process
-                    .export_closure(
-                        erlang::module(),
-                        erlang::self_0::function(),
-                        erlang::self_0::ARITY,
-                        erlang::self_0::CLOSURE_NATIVE
-                    )
-                    .unwrap()
-            ),
+            Just(arc_process.export_closure(
+                erlang::module(),
+                erlang::self_0::function(),
+                erlang::self_0::ARITY,
+                erlang::self_0::CLOSURE_NATIVE
+            )),
             without_native::with_arity(arc_process, arity)
         ]
         .boxed(),
         1 => prop_oneof![
-            Just(
-                arc_process
-                    .export_closure(
-                        erlang::module(),
-                        erlang::number_or_badarith_1::function(),
-                        erlang::number_or_badarith_1::ARITY,
-                        erlang::number_or_badarith_1::CLOSURE_NATIVE
-                    )
-                    .unwrap()
-            ),
+            Just(arc_process.export_closure(
+                erlang::module(),
+                erlang::number_or_badarith_1::function(),
+                erlang::number_or_badarith_1::ARITY,
+                erlang::number_or_badarith_1::CLOSURE_NATIVE
+            )),
             without_native::with_arity(arc_process, arity)
         ]
         .boxed(),
@@ -54,9 +46,7 @@ pub fn with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
 pub fn without_native(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (module_atom(), function(), arity_u8())
         .prop_map(move |(module, function, arity)| {
-            arc_process
-                .export_closure(module, function, arity, None)
-                .unwrap()
+            arc_process.export_closure(module, function, arity, None)
         })
         .boxed()
 }
@@ -69,22 +59,18 @@ pub fn with_native(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
             // MUST be functions in symbol table passed to `runtime::test::once` in
             // `test::process::init`.
             match arity {
-                0 => arc_process
-                    .export_closure(
-                        module,
-                        erlang::self_0::function(),
-                        erlang::self_0::ARITY,
-                        erlang::self_0::CLOSURE_NATIVE,
-                    )
-                    .unwrap(),
-                1 => arc_process
-                    .export_closure(
-                        module,
-                        erlang::number_or_badarith_1::function(),
-                        erlang::number_or_badarith_1::ARITY,
-                        erlang::number_or_badarith_1::CLOSURE_NATIVE,
-                    )
-                    .unwrap(),
+                0 => arc_process.export_closure(
+                    module,
+                    erlang::self_0::function(),
+                    erlang::self_0::ARITY,
+                    erlang::self_0::CLOSURE_NATIVE,
+                ),
+                1 => arc_process.export_closure(
+                    module,
+                    erlang::number_or_badarith_1::function(),
+                    erlang::number_or_badarith_1::ARITY,
+                    erlang::number_or_badarith_1::CLOSURE_NATIVE,
+                ),
                 _ => unreachable!("arity {}", arity),
             }
         })

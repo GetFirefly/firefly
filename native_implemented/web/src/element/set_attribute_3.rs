@@ -30,13 +30,11 @@ pub fn result(
         // InvalidCharacterError JsValue
         Err(_) => {
             let name_tag = Atom::str_to_term("name");
-            let reason = process.tuple_from_slice(&[name_tag, name])?;
+            let reason = process.tuple_from_slice(&[name_tag, name]);
 
             let error = atom!("error");
 
-            process
-                .tuple_from_slice(&[error, reason])
-                .map_err(|error| error.into())
+            Ok(process.tuple_from_slice(&[error, reason]))
         }
     }
 }

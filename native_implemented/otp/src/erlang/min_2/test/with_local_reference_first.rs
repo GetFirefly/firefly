@@ -19,7 +19,7 @@ fn with_number_or_atom_second_returns_second() {
 
 #[test]
 fn with_lesser_local_reference_second_returns_second() {
-    min(|_, process| process.reference(0).unwrap(), Second);
+    min(|_, process| process.reference(0), Second);
 }
 
 #[test]
@@ -29,12 +29,12 @@ fn with_same_local_reference_second_returns_first() {
 
 #[test]
 fn with_same_value_local_reference_second_returns_first() {
-    min(|_, process| process.reference(1).unwrap(), First);
+    min(|_, process| process.reference(1), First);
 }
 
 #[test]
 fn with_greater_local_reference_second_returns_first() {
-    min(|_, process| process.reference(2).unwrap(), First);
+    min(|_, process| process.reference(2), First);
 }
 
 #[test]
@@ -58,5 +58,5 @@ fn min<R>(second: R, which: FirstSecond)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::min(|process| process.reference(1).unwrap(), second, which);
+    super::min(|process| process.reference(1), second, which);
 }

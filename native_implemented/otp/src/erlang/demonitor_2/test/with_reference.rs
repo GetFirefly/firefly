@@ -16,9 +16,7 @@ fn without_proper_list_for_options_errors_badarg() {
             )
         },
         |(arc_process, reference, tail)| {
-            let options = arc_process
-                .improper_list_from_slice(&[atom!("flush")], tail)
-                .unwrap();
+            let options = arc_process.improper_list_from_slice(&[atom!("flush")], tail);
 
             prop_assert_badarg!(result(&arc_process, reference, options), "improper list");
 
@@ -38,7 +36,7 @@ fn with_unknown_option_errors_badarg() {
             )
         },
         |(arc_process, reference, option)| {
-            let options = arc_process.list_from_slice(&[option]).unwrap();
+            let options = arc_process.list_from_slice(&[option]);
 
             prop_assert_badarg!(
                 result(&arc_process, reference, options),
@@ -63,9 +61,13 @@ fn prevents_future_messages(options: fn(&Process) -> Term) {
 
         assert!(!has_message(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                monitor_reference,
+                r#type(),
+                monitored_pid_term,
+                reason
+            ])
         ));
 
         assert_eq!(
@@ -86,9 +88,13 @@ fn prevents_future_messages(options: fn(&Process) -> Term) {
 
         assert!(!has_message(
             &monitoring_arc_process,
-            monitoring_arc_process
-                .tuple_from_slice(&[tag, monitor_reference, r#type(), monitored_pid_term, reason])
-                .unwrap()
+            monitoring_arc_process.tuple_from_slice(&[
+                tag,
+                monitor_reference,
+                r#type(),
+                monitored_pid_term,
+                reason
+            ])
         ));
     });
 }
@@ -150,7 +156,7 @@ fn with_monitor_returns_true(options: fn(&Process) -> Term) {
 
 fn with_info_option_without_monitor_returns_false(options: fn(&Process) -> Term) {
     with_process_arc(|monitoring_arc_process| {
-        let reference = monitoring_arc_process.next_reference().unwrap();
+        let reference = monitoring_arc_process.next_reference();
 
         assert_eq!(
             result(

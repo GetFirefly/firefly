@@ -14,8 +14,8 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let function_atom = erlang::number_or_badarith_1::function();
     let function: Term = function_atom.encode().unwrap();
 
-    let number = parent_arc_process.integer(0).unwrap();
-    let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
+    let number = parent_arc_process.integer(0);
+    let arguments = parent_arc_process.cons(number, Term::NIL);
 
     let result = spawn_3::result(&parent_arc_process, module, function, arguments);
 
@@ -65,7 +65,7 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
 
     // not a number
     let number = atom!("zero");
-    let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
+    let arguments = parent_arc_process.cons(number, Term::NIL);
 
     let result = spawn_3::result(&parent_arc_process, module, function, arguments);
 

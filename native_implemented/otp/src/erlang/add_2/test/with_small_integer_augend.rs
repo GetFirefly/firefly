@@ -11,8 +11,8 @@ fn without_number_addend_errors_badarith() {
 #[test]
 fn with_small_integer_addend_with_underflow_returns_big_integer() {
     with_process(|process| {
-        let augend = process.integer(-1_isize).unwrap();
-        let addend = process.integer(SmallInteger::MIN_VALUE).unwrap();
+        let augend = process.integer(-1_isize);
+        let addend = process.integer(SmallInteger::MIN_VALUE);
 
         assert!(addend.is_smallint());
 
@@ -33,12 +33,12 @@ fn with_small_integer_addend_with_underflow_returns_big_integer() {
 #[test]
 fn with_float_addend_with_underflow_returns_min_float() {
     with_process(|process| {
-        let augend = process.integer(-1).unwrap();
-        let addend = process.float(std::f64::MIN).unwrap();
+        let augend = process.integer(-1);
+        let addend = process.float(std::f64::MIN);
 
         assert_eq!(
             result(&process, augend, addend),
-            Ok(process.float(std::f64::MIN).unwrap())
+            Ok(process.float(std::f64::MIN))
         );
     })
 }

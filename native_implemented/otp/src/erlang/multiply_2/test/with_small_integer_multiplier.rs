@@ -27,11 +27,11 @@ fn without_number_multiplicand_errors_badarith() {
 #[test]
 fn with_small_integer_multiplicand_without_underflow_or_overflow_returns_small_integer() {
     with(|multiplier, process| {
-        let multiplicand = process.integer(3).unwrap();
+        let multiplicand = process.integer(3);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.integer(6).unwrap())
+            Ok(process.integer(6))
         );
     })
 }
@@ -39,7 +39,7 @@ fn with_small_integer_multiplicand_without_underflow_or_overflow_returns_small_i
 #[test]
 fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
     with(|multiplier, process| {
-        let multiplicand = process.integer(SmallInteger::MIN_VALUE).unwrap();
+        let multiplicand = process.integer(SmallInteger::MIN_VALUE);
 
         assert!(multiplicand.is_smallint());
 
@@ -56,7 +56,7 @@ fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
 #[test]
 fn with_small_integer_multiplicand_with_overflow_returns_big_integer() {
     with(|multiplier, process| {
-        let multiplicand = process.integer(SmallInteger::MAX_VALUE).unwrap();
+        let multiplicand = process.integer(SmallInteger::MAX_VALUE);
 
         assert!(multiplicand.is_smallint());
 
@@ -97,11 +97,11 @@ fn with_big_integer_multiplicand_returns_big_integer() {
 #[test]
 fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(3.0).unwrap();
+        let multiplicand = process.float(3.0);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(6.0).unwrap())
+            Ok(process.float(6.0))
         );
     })
 }
@@ -109,11 +109,11 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 #[test]
 fn with_float_multiplicand_with_underflow_returns_min_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(std::f64::MIN).unwrap();
+        let multiplicand = process.float(std::f64::MIN);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(std::f64::MIN).unwrap())
+            Ok(process.float(std::f64::MIN))
         );
     })
 }
@@ -121,11 +121,11 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
 #[test]
 fn with_float_multiplicand_with_overflow_returns_max_float() {
     with(|multiplier, process| {
-        let multiplicand = process.float(std::f64::MAX).unwrap();
+        let multiplicand = process.float(std::f64::MAX);
 
         assert_eq!(
             result(process, multiplier, multiplicand),
-            Ok(process.float(std::f64::MAX).unwrap())
+            Ok(process.float(std::f64::MAX))
         );
     })
 }
@@ -135,7 +135,7 @@ where
     F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
-        let multiplier = process.integer(2).unwrap();
+        let multiplier = process.integer(2);
 
         f(multiplier, &process)
     })

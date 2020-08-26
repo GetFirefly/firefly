@@ -82,7 +82,7 @@ impl HeapBin {
         Self::from_raw_parts(dst, len)
     }
 
-    fn layout_for(s: &[u8]) -> (Layout, usize, usize) {
+    pub fn layout_for(s: &[u8]) -> (Layout, usize, usize) {
         let (base_layout, flags_offset) = Layout::new::<Header<HeapBin>>()
             .extend(Layout::new::<BinaryFlags>())
             .unwrap();

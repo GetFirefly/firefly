@@ -16,6 +16,13 @@ use crate::erts::process::alloc::{StackAlloc, TermAlloc};
 use crate::erts::term::prelude::*;
 use crate::erts::to_word_size;
 
+pub fn optional_cons_to_term(cons: Option<Boxed<Cons>>) -> Term {
+    match cons {
+        None => Term::NIL,
+        Some(boxed) => boxed.into(),
+    }
+}
+
 pub enum List {
     Empty,
     NonEmpty(Boxed<Cons>),
@@ -200,7 +207,7 @@ impl Cons {
                 match result_char {
                     Ok(c) => {
                         // https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L132
-                        c.is_ascii_graphic()
+                        c.is_ascii_graphic() || c.is_ascii_whitespace()
                     }
                     _ => false,
                 }
@@ -325,7 +332,8 @@ impl CloneToProcess for Cons {
         }
 
         heap.improper_list_from_slice(&vec, tail)
-            .map(|list| list.into())
+            .map_err(From::from)
+            .map(From::from)
     }
 
     fn size_in_words(&self) -> usize {

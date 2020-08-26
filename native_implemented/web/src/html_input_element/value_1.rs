@@ -13,7 +13,5 @@ fn result(process: &Process, html_input_element_term: Term) -> exception::Result
     let html_input_element = html_input_element::from_term(html_input_element_term)?;
     let value_string = html_input_element.value();
 
-    process
-        .binary_from_str(&value_string)
-        .map_err(|error| error.into())
+    Ok(process.binary_from_str(&value_string))
 }

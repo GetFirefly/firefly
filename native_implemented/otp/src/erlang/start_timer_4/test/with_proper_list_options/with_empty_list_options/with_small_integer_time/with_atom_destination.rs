@@ -14,7 +14,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
         },
         |(arc_process, milliseconds, message)| {
             let destination = registered_name();
-            let time = arc_process.integer(milliseconds).unwrap();
+            let time = arc_process.integer(milliseconds);
 
             let start_monotonic = freeze_timeout();
 
@@ -36,9 +36,11 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
             prop_assert!(timer_reference.is_boxed_local_reference());
 
-            let timeout_message = arc_process
-                .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
-                .unwrap();
+            let timeout_message = arc_process.tuple_from_slice(&[
+                Atom::str_to_term("timeout"),
+                timer_reference,
+                message,
+            ]);
 
             prop_assert!(!has_message(&arc_process, timeout_message));
 

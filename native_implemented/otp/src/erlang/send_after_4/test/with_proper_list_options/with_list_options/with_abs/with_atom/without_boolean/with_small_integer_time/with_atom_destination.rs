@@ -16,7 +16,7 @@ fn unregistered_errors_badarg() {
             }),
             |(milliseconds, arc_process, message, abs_value)| {
                 let destination = registered_name();
-                let time = arc_process.integer(milliseconds).unwrap();
+                let time = arc_process.integer(milliseconds);
                 let options = options(abs_value, &arc_process);
 
                 prop_assert_is_not_boolean!(

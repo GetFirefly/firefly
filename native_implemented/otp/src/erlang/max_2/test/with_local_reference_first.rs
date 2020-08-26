@@ -19,7 +19,7 @@ fn with_number_or_atom_second_returns_first() {
 
 #[test]
 fn with_lesser_local_reference_second_returns_first() {
-    max(|_, process| process.reference(0).unwrap(), First);
+    max(|_, process| process.reference(0), First);
 }
 
 #[test]
@@ -29,12 +29,12 @@ fn with_same_local_reference_second_returns_first() {
 
 #[test]
 fn with_same_value_local_reference_second_returns_first() {
-    max(|_, process| process.reference(1).unwrap(), First);
+    max(|_, process| process.reference(1), First);
 }
 
 #[test]
 fn with_greater_local_reference_second_returns_second() {
-    max(|_, process| process.reference(2).unwrap(), Second);
+    max(|_, process| process.reference(2), Second);
 }
 
 #[test]
@@ -58,5 +58,5 @@ fn max<R>(second: R, which: FirstSecond)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::max(|process| process.reference(1).unwrap(), second, which);
+    super::max(|process| process.reference(1), second, which);
 }

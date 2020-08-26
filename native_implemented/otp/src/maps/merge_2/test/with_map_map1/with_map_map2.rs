@@ -19,8 +19,8 @@ fn with_same_key_in_map1_and_map2_uses_value_from_map2() {
             )
         },
         |(arc_process, key, value1, value2)| {
-            let map1 = arc_process.map_from_slice(&[(key, value1)]).unwrap();
-            let map2 = arc_process.map_from_slice(&[(key, value2)]).unwrap();
+            let map1 = arc_process.map_from_slice(&[(key, value1)]);
+            let map2 = arc_process.map_from_slice(&[(key, value2)]);
 
             let result_map3 = result(&arc_process, map1, map2);
 
@@ -65,8 +65,8 @@ fn with_different_keys_in_map2_and_map2_combines_keys() {
                     )
                 }),
             |(arc_process, key1, value1, key2, value2)| {
-                let map1 = arc_process.map_from_slice(&[(key1, value1)]).unwrap();
-                let map2 = arc_process.map_from_slice(&[(key2, value2)]).unwrap();
+                let map1 = arc_process.map_from_slice(&[(key1, value1)]);
+                let map2 = arc_process.map_from_slice(&[(key2, value2)]);
 
                 let result_map3 = result(&arc_process, map1, map2);
 

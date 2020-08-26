@@ -45,11 +45,17 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn connect(
-        &self,
-        parent_process: Option<&Process>,
-        child_process: &Process,
-    ) -> Result<Connection, Alloc> {
+    pub fn cascaded_priority(&self, parent_process: Option<&Process>) -> Priority {
+        match self.priority {
+            Some(priority) => priority,
+            None => match parent_process {
+                Some(process) => process.priority,
+                None => Default::default(),
+            },
+        }
+    }
+
+    pub fn connect(&self, parent_process: Option<&Process>, child_process: &Process) -> Connection {
         let linked = if self.link {
             parent_process.unwrap().link(child_process);
 
@@ -59,17 +65,24 @@ impl Options {
         };
 
         let monitor_reference = if self.monitor {
-            let reference = process::monitor(parent_process.unwrap(), child_process)?;
+            let reference = process::monitor(parent_process.unwrap(), child_process);
 
             Some(reference)
         } else {
             None
         };
 
-        Ok(Connection {
+        Connection {
             linked,
             monitor_reference,
-        })
+        }
+    }
+
+    pub fn sized_heap(&self) -> Result<(*mut Term, usize), Alloc> {
+        let heap_size = self.heap_size();
+        let heap = heap(self.heap_size())?;
+
+        Ok((heap, heap_size))
     }
 
     /// Creates a new process with the memory and priority options.
@@ -103,16 +116,6 @@ impl Options {
     }
 
     // Private
-
-    fn cascaded_priority(&self, parent_process: Option<&Process>) -> Priority {
-        match self.priority {
-            Some(priority) => priority,
-            None => match parent_process {
-                Some(process) => process.priority,
-                None => Default::default(),
-            },
-        }
-    }
 
     /// `heap` size in words.
     fn heap_size(&self) -> usize {
@@ -189,13 +192,6 @@ impl Options {
         } else {
             Err(TryPropListFromTermError::TupleNotPair.into())
         }
-    }
-
-    fn sized_heap(&self) -> Result<(*mut Term, usize), Alloc> {
-        let heap_size = self.heap_size();
-        let heap = heap(self.heap_size())?;
-
-        Ok((heap, heap_size))
     }
 }
 

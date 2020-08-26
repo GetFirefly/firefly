@@ -14,7 +14,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = arc_process.integer(milliseconds).unwrap();
+                let time = arc_process.integer(milliseconds);
                 let destination = registered_name();
 
                 let start_monotonic = freeze_timeout();

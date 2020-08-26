@@ -34,9 +34,8 @@ fn with_list_without_base_errors_badarg() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                (Just(arc_process.clone()), any::<isize>()).prop_map(|(arc_process, i)| {
-                    arc_process.charlist_from_str(&i.to_string()).unwrap()
-                }),
+                (Just(arc_process.clone()), any::<isize>())
+                    .prop_map(|(arc_process, i)| arc_process.charlist_from_str(&i.to_string())),
                 strategy::term::is_not_base(arc_process.clone()),
             )
         },
@@ -71,15 +70,15 @@ fn with_list_with_integer_in_base_returns_integers() {
                     (
                         arc_process.clone(),
                         integer,
-                        arc_process.charlist_from_str(&string).unwrap(),
-                        arc_process.integer(base).unwrap(),
+                        arc_process.charlist_from_str(&string),
+                        arc_process.integer(base),
                     )
                 })
         },
         |(arc_process, integer, list, base)| {
             prop_assert_eq!(
                 result(&arc_process, list, base),
-                Ok(arc_process.integer(integer).unwrap())
+                Ok(arc_process.integer(integer))
             );
 
             Ok(())
@@ -102,8 +101,8 @@ fn with_list_without_integer_in_base_errors_badarg() {
 
                 (
                     arc_process.clone(),
-                    arc_process.charlist_from_str(&string).unwrap(),
-                    arc_process.integer(base).unwrap(),
+                    arc_process.charlist_from_str(&string),
+                    arc_process.integer(base),
                 )
             })
         },

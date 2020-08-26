@@ -15,7 +15,7 @@ pub fn intermediate(
         .prop_map(move |mut hash_map| {
             let entry_vec: Vec<(Term, Term)> = hash_map.drain().collect();
 
-            arc_process.map_from_slice(&entry_vec).unwrap()
+            arc_process.map_from_slice(&entry_vec)
         })
         .boxed()
 }

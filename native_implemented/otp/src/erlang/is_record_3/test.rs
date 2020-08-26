@@ -56,7 +56,7 @@ fn with_empty_tuple_with_atom_without_non_negative_size_errors_badarg() {
                     .prop_filter_map(
                         "Size must not be a non-negative integer",
                         |(arc_process, size)| {
-                            if !(size.is_integer() && arc_process.integer(0).unwrap() <= size) {
+                            if !(size.is_integer() && arc_process.integer(0) <= size) {
                                 Some(size)
                             } else {
                                 None
@@ -66,7 +66,7 @@ fn with_empty_tuple_with_atom_without_non_negative_size_errors_badarg() {
             )
         },
         |(arc_process, record_tag, size)| {
-            let tuple = arc_process.tuple_from_slice(&[]).unwrap();
+            let tuple = arc_process.tuple_from_slice(&[]);
 
             prop_assert_badarg!(
                 result(tuple, record_tag, size),
@@ -89,7 +89,7 @@ fn with_empty_tuple_with_atom_with_non_negative_size_returns_false() {
             )
         },
         |(arc_process, record_tag, size)| {
-            let tuple = arc_process.tuple_from_slice(&[]).unwrap();
+            let tuple = arc_process.tuple_from_slice(&[]);
 
             prop_assert_eq!(result(tuple, record_tag, size), Ok(false.into()));
 
@@ -128,10 +128,10 @@ fn with_non_empty_tuple_without_record_tag_with_size_returns_false() {
                     |(arc_process, actual_record_tag, mut tail_element_vec, tested_record_tag)| {
                         tail_element_vec.insert(0, actual_record_tag);
 
-                        let size = arc_process.integer(tail_element_vec.len()).unwrap();
+                        let size = arc_process.integer(tail_element_vec.len());
 
                         (
-                            arc_process.tuple_from_slice(&tail_element_vec).unwrap(),
+                            arc_process.tuple_from_slice(&tail_element_vec),
                             tested_record_tag,
                             size,
                         )
@@ -160,10 +160,10 @@ fn with_non_empty_tuple_with_record_tag_without_size_returns_false() {
             )
                 .prop_flat_map(|(arc_process, record_tag, mut tail_element_vec)| {
                     tail_element_vec.insert(0, record_tag);
-                    let tuple_size = arc_process.integer(tail_element_vec.len()).unwrap();
+                    let tuple_size = arc_process.integer(tail_element_vec.len());
 
                     (
-                        Just(arc_process.tuple_from_slice(&tail_element_vec).unwrap()),
+                        Just(arc_process.tuple_from_slice(&tail_element_vec)),
                         Just(record_tag),
                         strategy::term::integer::non_negative(arc_process.clone())
                             .prop_filter("Size cannot match tuple size", move |size| {
@@ -194,10 +194,10 @@ fn with_non_empty_tuple_with_record_tag_with_size_returns_true() {
             )
                 .prop_map(|(arc_process, record_tag, mut tail_element_vec)| {
                     tail_element_vec.insert(0, record_tag);
-                    let size = arc_process.integer(tail_element_vec.len()).unwrap();
+                    let size = arc_process.integer(tail_element_vec.len());
 
                     (
-                        arc_process.tuple_from_slice(&tail_element_vec).unwrap(),
+                        arc_process.tuple_from_slice(&tail_element_vec),
                         record_tag,
                         size,
                     )

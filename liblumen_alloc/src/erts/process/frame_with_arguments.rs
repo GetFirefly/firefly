@@ -16,17 +16,24 @@ impl FrameWithArguments {
         let arguments_len = arguments.len();
         let total_arguments_len = returned_len + arguments_len;
 
-        assert_eq!(
-            frame.native().arity() as usize,
-            total_arguments_len,
-            "{} returned plus arguments ({}) length ({}) does not match arity ({}) of native ({:?}) in frame ({:?})",
-            if uses_returned { "With" } else { "Without" },
-            arguments_len,
-            total_arguments_len,
-            native_arity,
-            native,
-            frame
-        );
+        if (frame.native().arity() as usize) != total_arguments_len {
+            let joined_formatted_elements = arguments
+                .iter()
+                .map(Term::to_string)
+                .collect::<Vec<String>>()
+                .join(", ");
+            let formatted_arguments = format!("[{}]", joined_formatted_elements);
+
+            panic!(
+                "{} returned plus arguments ({}) length ({}) does not match arity ({}) of native ({:?}) in frame ({:?})",
+                if uses_returned { "With" } else { "Without" },
+                formatted_arguments,
+                total_arguments_len,
+                native_arity,
+                native,
+                frame
+            );
+        }
 
         Self {
             frame,

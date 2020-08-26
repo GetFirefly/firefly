@@ -17,13 +17,16 @@ pub fn badarg_with_source(source: ArcError) -> RuntimeException {
 }
 
 #[inline]
-pub fn badarith(source: ArcError) -> RuntimeException {
-    self::error_with_source(atom("badarith"), None, source)
+pub fn badarith(trace: Arc<Trace>) -> RuntimeException {
+    self::error(atom("badarith"), None, trace)
 }
 
-#[inline]
-pub fn badarity(trace: Arc<Trace>) -> Exception {
-    Exception::Runtime(self::error(atom("badarity"), None, trace))
+pub fn badarity(process: &Process, fun: Term, args: Term, trace: Arc<Trace>) -> Exception {
+    let fun_args = process.tuple_from_slice(&[fun, args]);
+    let tag = atom("badarity");
+    let reason = process.tuple_from_slice(&[tag, fun_args]);
+
+    Exception::Runtime(self::error(reason, None, trace))
 }
 
 pub fn badfun(process: &Process, fun: Term, source: ArcError) -> Exception {

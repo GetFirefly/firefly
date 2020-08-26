@@ -34,10 +34,8 @@ fn result(
     let old_child_node = node::from_term(old_child)?;
     let new_child_node = node::from_term(new_child)?;
 
-    match parent_node.replace_child(old_child_node, new_child_node) {
-        Ok(replaced_child_node) => {
-            ok_tuple(process, replaced_child_node).map_err(|error| error.into())
-        }
+    let result_tuple = match parent_node.replace_child(old_child_node, new_child_node) {
+        Ok(replaced_child_node) => ok_tuple(process, replaced_child_node),
         Err(js_value) => {
             let dom_exception = js_value.dyn_into::<DomException>().unwrap();
 
@@ -53,9 +51,10 @@ fn result(
                 ),
             };
             let reason = atom!(reason_name);
-            let error_tuple = process.tuple_from_slice(&[atom!("error"), reason])?;
 
-            Ok(error_tuple)
+            process.tuple_from_slice(&[atom!("error"), reason])
         }
-    }
+    };
+
+    Ok(result_tuple)
 }

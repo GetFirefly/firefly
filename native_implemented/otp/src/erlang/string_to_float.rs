@@ -27,7 +27,7 @@ pub fn string_to_float(
                         )
                         .into())
                     } else {
-                        process.float(inner).map_err(|error| error.into())
+                        Ok(process.float(inner))
                     }
                 }
                 // Erlang has no support for Nan, +inf or -inf
@@ -46,7 +46,7 @@ pub fn string_to_float(
                         // Erlang does not track the difference without +0 and -0.
                         let zero = inner.abs();
 
-                        process.float(zero).map_err(From::from)
+                        Ok(process.float(zero))
                     }
                 }
             }

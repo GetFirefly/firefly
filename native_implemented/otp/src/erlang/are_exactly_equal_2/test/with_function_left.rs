@@ -46,12 +46,18 @@ fn with_same_value_function_right_returns_true() {
                         Term::NONE
                     }
 
-                    let left_term = arc_process
-                        .export_closure(module, function, arity, NonNull::new(native as _))
-                        .unwrap();
-                    let right_term = arc_process
-                        .export_closure(module, function, arity, NonNull::new(native as _))
-                        .unwrap();
+                    let left_term = arc_process.export_closure(
+                        module,
+                        function,
+                        arity,
+                        NonNull::new(native as _),
+                    );
+                    let right_term = arc_process.export_closure(
+                        module,
+                        function,
+                        arity,
+                        NonNull::new(native as _),
+                    );
 
                     (left_term, right_term)
                 })
@@ -77,16 +83,22 @@ fn with_different_function_right_returns_false() {
                     extern "C" fn left_native() -> Term {
                         Term::NONE
                     }
-                    let left_term = arc_process
-                        .export_closure(module, function, arity, NonNull::new(left_native as _))
-                        .unwrap();
+                    let left_term = arc_process.export_closure(
+                        module,
+                        function,
+                        arity,
+                        NonNull::new(left_native as _),
+                    );
 
                     extern "C" fn right_native() -> Term {
                         Term::NONE
                     }
-                    let right_term = arc_process
-                        .export_closure(module, function, arity, NonNull::new(right_native as _))
-                        .unwrap();
+                    let right_term = arc_process.export_closure(
+                        module,
+                        function,
+                        arity,
+                        NonNull::new(right_native as _),
+                    );
 
                     (left_term, right_term)
                 })

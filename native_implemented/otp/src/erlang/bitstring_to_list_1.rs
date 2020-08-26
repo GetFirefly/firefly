@@ -12,22 +12,18 @@ use liblumen_alloc::erts::term::prelude::*;
 /// the remaining `1`-`7` bits.
 #[native_implemented::function(erlang:bitstring_to_list/1)]
 pub fn result(process: &Process, bitstring: Term) -> exception::Result<Term> {
-    match bitstring.decode()? {
+    match bitstring.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => {
             let byte_term_iter = heap_binary.as_bytes().iter().map(|byte| (*byte).into());
             let last = Term::NIL;
 
-            process
-                .improper_list_from_iter(byte_term_iter, last)
-                .map_err(|error| error.into())
+            Ok(process.improper_list_from_iter(byte_term_iter, last))
         }
         TypedTerm::ProcBin(process_binary) => {
             let byte_term_iter = process_binary.as_bytes().iter().map(|byte| (*byte).into());
             let last = Term::NIL;
 
-            process
-                .improper_list_from_iter(byte_term_iter, last)
-                .map_err(|error| error.into())
+            Ok(process.improper_list_from_iter(byte_term_iter, last))
         }
         TypedTerm::SubBinary(subbinary) => {
             let last = if subbinary.is_binary() {
@@ -39,16 +35,15 @@ pub fn result(process: &Process, bitstring: Term) -> exception::Result<Term> {
                     subbinary.bit_offset(),
                     0,
                     subbinary.partial_byte_bit_len(),
-                )?;
+                );
 
-                process.cons(partial_byte_subbinary, Term::NIL)?
+                process.cons(partial_byte_subbinary, Term::NIL)
             };
 
-            let byte_term_iter = subbinary.full_byte_iter().map(|byte| byte.into());
+            let byte_term_vec: Vec<Term> =
+                subbinary.full_byte_iter().map(|byte| byte.into()).collect();
 
-            process
-                .improper_list_from_iter(byte_term_iter, last)
-                .map_err(|error| error.into())
+            Ok(process.improper_list_from_slice(&byte_term_vec, last))
         }
         _ => Err(TypeError)
             .context(format!("bitstring ({}) is not a bitstring", bitstring))

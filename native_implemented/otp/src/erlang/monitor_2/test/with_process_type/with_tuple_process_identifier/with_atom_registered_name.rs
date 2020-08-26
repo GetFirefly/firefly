@@ -12,9 +12,7 @@ fn without_atom_node_errors_badarg() {
                     strategy::term::is_not_atom(arc_process.clone()),
                 ),
                 |(registered_name, node)| {
-                    let identifier = arc_process
-                        .tuple_from_slice(&[registered_name, node])
-                        .unwrap();
+                    let identifier = arc_process.tuple_from_slice(&[registered_name, node]);
 
                     prop_assert_is_not_atom!(result(&arc_process, r#type(), identifier), node);
 

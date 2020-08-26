@@ -41,8 +41,8 @@ fn with_different_local_reference_right_returns_false() {
             (Just(arc_process.clone()), proptest::prelude::any::<u64>()).prop_map(
                 |(arc_process, number)| {
                     (
-                        arc_process.reference(number).unwrap(),
-                        arc_process.reference(number + 1).unwrap(),
+                        arc_process.reference(number),
+                        arc_process.reference(number + 1),
                     )
                 },
             )

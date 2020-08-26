@@ -23,7 +23,7 @@ pub fn decode<'a>(
         remaining_bytes = after_value_bytes;
     }
 
-    let map = process.map_from_hash_map(hash_map)?;
+    let map = process.map_from_hash_map(hash_map);
 
     Ok((map, remaining_bytes))
 }

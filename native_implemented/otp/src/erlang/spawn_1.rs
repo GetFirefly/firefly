@@ -9,5 +9,5 @@ use crate::erlang::spawn_apply_1;
 
 #[native_implemented::function(erlang:spawn/1)]
 pub fn result(process: &Process, function: Term) -> exception::Result<Term> {
-    spawn_apply_1::result(process, Default::default(), function)
+    spawn_apply_1::result(process, function, Default::default())
 }

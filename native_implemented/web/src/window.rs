@@ -11,43 +11,53 @@ use wasm_bindgen::JsCast;
 
 use web_sys::{Event, EventTarget, Window};
 
-use liblumen_alloc::erts::exception::AllocResult;
-use liblumen_alloc::erts::process::{FrameWithArguments, Process};
+use liblumen_alloc::erts::fragment::HeapFragment;
 use liblumen_alloc::erts::term::prelude::*;
 
+use crate::event_listener;
+use crate::r#async;
 use crate::runtime::process::spawn::options::Options;
-use crate::wait;
 
-pub fn add_event_listener<F>(
+pub fn add_event_listener(
     window: &Window,
     event: &'static str,
+    module: Atom,
+    function: Atom,
     options: Options,
-    frames_with_arguments_fn: F,
-) where
-    F: Fn(&Process, Term) -> AllocResult<Vec<FrameWithArguments>> + 'static,
-{
+) {
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
 
     let event_listener = move |event: &Event| {
         event.prevent_default();
 
-        wait::with_return_0::spawn(options, |child_process| {
-            // put reference to this closure into process dictionary so that it can't be GC'd until
-            // `child_process` exits and is `Drop`'d.
-            let event_listener_resource_reference = child_process.resource(f.clone())?;
-            child_process
-                .put(
-                    Atom::str_to_term("Elixir.Lumen.Web.Window.event_listener"),
-                    event_listener_resource_reference,
-                )
-                .unwrap();
+        let promise_module = event_listener::module();
+        let promise_function = event_listener::apply_4::function();
+        let (event_listener_boxed_resource, event_listener_non_null_heap_fragment) =
+            HeapFragment::new_resource(f.clone()).unwrap();
+        let (event_boxed_resource, event_non_null_heap_fragment) =
+            HeapFragment::new_resource(event.clone()).unwrap();
+        let promise_argument_vec = vec![
+            event_listener_boxed_resource.into(),
+            event_boxed_resource.into(),
+            module.encode().unwrap(),
+            function.encode().unwrap(),
+        ];
 
-            let event_resource_reference = child_process.resource(event.clone())?;
+        let promise = r#async::apply_3::promise(
+            promise_module,
+            promise_function,
+            promise_argument_vec,
+            options,
+        )
+        .unwrap();
 
-            frames_with_arguments_fn(child_process, event_resource_reference)
-        })
-        .unwrap()
+        // drop heap fragments now that term are cloned to spawned process in
+        // reverse order
+        std::mem::drop(event_non_null_heap_fragment);
+        std::mem::drop(event_listener_non_null_heap_fragment);
+
+        promise
     };
 
     let event_listener_box: Box<dyn FnMut(&Event) -> js_sys::Promise> = Box::new(event_listener);
@@ -65,11 +75,11 @@ pub fn add_event_listener<F>(
         .unwrap();
 }
 
-// Private
-
-fn module() -> Atom {
-    Atom::try_from_str("Elixir.Lumen.Web.Window").unwrap()
+pub fn module() -> Atom {
+    Atom::from_str("Elixir.Lumen.Web.Window")
 }
+
+// Private
 
 fn module_id() -> usize {
     module().id()

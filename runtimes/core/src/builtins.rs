@@ -12,14 +12,12 @@ use crate::process::current_process;
 pub extern "C" fn builtin_bigint_from_cstr(ptr: *const u8, size: usize) -> Term {
     let bytes = unsafe { core::slice::from_raw_parts(ptr, size) };
     let value = BigInteger::from_bytes(bytes).unwrap();
-    current_process().integer(value).unwrap_or(Term::NONE)
+    current_process().integer(value)
 }
 
 #[export_name = "__lumen_builtin_map.new"]
 pub extern "C" fn builtin_map_new() -> Term {
-    current_process()
-        .map_from_hash_map(HashMap::default())
-        .unwrap_or(Term::NONE)
+    current_process().map_from_hash_map(HashMap::default())
 }
 
 #[export_name = "__lumen_builtin_map.insert"]
@@ -27,9 +25,7 @@ pub extern "C" fn builtin_map_insert(map: Term, key: Term, value: Term) -> Term 
     let decoded_map: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
     if let Ok(m) = decoded_map {
         if let Some(new_map) = m.put(key, value) {
-            current_process()
-                .map_from_hash_map(new_map)
-                .unwrap_or(Term::NONE)
+            current_process().map_from_hash_map(new_map)
         } else {
             map
         }
@@ -43,9 +39,7 @@ pub extern "C" fn builtin_map_update(map: Term, key: Term, value: Term) -> Term 
     let decoded_map: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
     if let Ok(m) = decoded_map {
         if let Some(new_map) = m.update(key, value) {
-            current_process()
-                .map_from_hash_map(new_map)
-                .unwrap_or(Term::NONE)
+            current_process().map_from_hash_map(new_map)
         } else {
             // TODO: Trigger badkey error
             Term::NONE
@@ -135,42 +129,42 @@ macro_rules! math_builtin {
                 let r = rhs.decode().unwrap();
                 match (l, r) {
                     (TypedTerm::SmallInteger(li), TypedTerm::SmallInteger(ri)) => {
-                        current_process().integer(li.$op(ri)).unwrap()
+                        current_process().integer(li.$op(ri))
                     }
                     (TypedTerm::SmallInteger(li), TypedTerm::Float(ri)) => {
                         let li: f64 = li.into();
                         let f = <f64 as $trait<f64>>::$op(li, ri.value());
-                        current_process().float(f).unwrap()
+                        current_process().float(f)
                     }
                     (TypedTerm::SmallInteger(li), TypedTerm::BigInteger(ri)) => {
                         let li: BigInteger = li.into();
-                        current_process().integer(li.$op(ri.as_ref())).unwrap()
+                        current_process().integer(li.$op(ri.as_ref()))
                     }
                     (TypedTerm::Float(li), TypedTerm::Float(ri)) => {
                         let f = <f64 as $trait<f64>>::$op(li.value(), ri.value());
-                        current_process().float(f).unwrap()
+                        current_process().float(f)
                     }
                     (TypedTerm::Float(li), TypedTerm::SmallInteger(ri)) => {
                         let ri: f64 = ri.into();
                         let f = <f64 as $trait<f64>>::$op(li.value(), ri);
-                        current_process().float(f).unwrap()
+                        current_process().float(f)
                     }
                     (TypedTerm::Float(li), TypedTerm::BigInteger(ri)) => {
                         let ri: f64 = ri.as_ref().into();
                         let f = <f64 as $trait<f64>>::$op(li.value(), ri);
-                        current_process().float(f).unwrap()
+                        current_process().float(f)
                     }
                     (TypedTerm::BigInteger(li), TypedTerm::SmallInteger(ri)) => {
                         let ri: BigInteger = ri.into();
-                        current_process().integer(li.as_ref().$op(ri)).unwrap()
+                        current_process().integer(li.as_ref().$op(ri))
                     }
                     (TypedTerm::BigInteger(li), TypedTerm::Float(ri)) => {
                         let li: f64 = li.as_ref().into();
                         let f = <f64 as $trait<f64>>::$op(li, ri.value());
-                        current_process().float(f).unwrap()
+                        current_process().float(f)
                     }
                     (TypedTerm::BigInteger(li), TypedTerm::BigInteger(ri)) => {
-                        current_process().integer(li.$op(ri)).unwrap()
+                        current_process().integer(li.$op(ri))
                     }
                     _ => panic!("expected numeric argument to builtin '{}'", $name),
                 }
@@ -195,7 +189,7 @@ macro_rules! integer_math_builtin {
                 let li: Integer = l.try_into().unwrap();
                 let ri: Integer = r.try_into().unwrap();
                 let result = li.$op(ri);
-                current_process().integer(result).unwrap()
+                current_process().integer(result)
             });
             if let Ok(res) = result {
                 res
@@ -251,10 +245,7 @@ pub extern "C" fn builtin_binary_start() -> *mut BinaryBuilder {
 pub extern "C" fn builtin_binary_finish(builder: *mut BinaryBuilder) -> Term {
     let builder = unsafe { Box::from_raw(builder) };
     let bytes = builder.finish();
-    // TODO: Need to properly handle cases where heap runs out of space
-    current_process()
-        .binary_from_bytes(bytes.as_slice())
-        .unwrap()
+    current_process().binary_from_bytes(bytes.as_slice())
 }
 
 #[export_name = "__lumen_builtin_binary_push_integer"]

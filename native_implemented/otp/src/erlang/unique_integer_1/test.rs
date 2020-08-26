@@ -62,7 +62,7 @@ fn without_options_returns_non_monotonic_negative_and_positive_integer() {
         assert!(result_first_unique_integer.is_ok());
 
         let first_unique_integer = result_first_unique_integer.unwrap();
-        let zero = process.integer(0).unwrap();
+        let zero = process.integer(0);
 
         assert!(first_unique_integer.is_integer());
         assert!(first_unique_integer <= zero);
@@ -83,14 +83,14 @@ fn without_options_returns_non_monotonic_negative_and_positive_integer() {
 #[test]
 fn with_monotonic_returns_monotonic_negative_and_positiver_integer() {
     with_process(|process| {
-        let options = process.list_from_slice(&[atom!("monotonic")]).unwrap();
+        let options = process.list_from_slice(&[atom!("monotonic")]);
 
         let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
         let first_unique_integer = result_first_unique_integer.unwrap();
-        let zero = process.integer(0).unwrap();
+        let zero = process.integer(0);
 
         assert!(first_unique_integer.is_integer());
         assert!(first_unique_integer <= zero);
@@ -111,16 +111,14 @@ fn with_monotonic_returns_monotonic_negative_and_positiver_integer() {
 #[test]
 fn with_monotonic_and_positive_returns_monotonic_positiver_integer() {
     with_process(|process| {
-        let options = process
-            .list_from_slice(&[atom!("monotonic"), atom!("positive")])
-            .unwrap();
+        let options = process.list_from_slice(&[atom!("monotonic"), atom!("positive")]);
 
         let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
         let first_unique_integer = result_first_unique_integer.unwrap();
-        let zero = process.integer(0).unwrap();
+        let zero = process.integer(0);
 
         assert!(first_unique_integer.is_integer());
         assert!(zero <= first_unique_integer);
@@ -141,14 +139,14 @@ fn with_monotonic_and_positive_returns_monotonic_positiver_integer() {
 #[test]
 fn with_positive_returns_non_monotonic_and_positive_integer() {
     with_process(|process| {
-        let options = process.list_from_slice(&[atom!("positive")]).unwrap();
+        let options = process.list_from_slice(&[atom!("positive")]);
 
         let result_first_unique_integer = result(process, options);
 
         assert!(result_first_unique_integer.is_ok());
 
         let first_unique_integer = result_first_unique_integer.unwrap();
-        let zero = process.integer(0).unwrap();
+        let zero = process.integer(0);
 
         assert!(first_unique_integer.is_integer());
         assert!(zero <= first_unique_integer);

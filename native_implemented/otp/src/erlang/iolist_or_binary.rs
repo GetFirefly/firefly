@@ -110,7 +110,7 @@ pub fn to_binary(process: &Process, name: &'static str, value: Term) -> exceptio
         }
     }
 
-    Ok(process.binary_from_bytes(byte_vec.as_slice()).unwrap())
+    Ok(process.binary_from_bytes(byte_vec.as_slice()))
 }
 
 fn element_context(name: &'static str, value: Term, element: Term) -> String {

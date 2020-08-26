@@ -32,14 +32,12 @@ fn with_subtrahend_list_returns_minuend_with_first_copy_of_each_element_in_subtr
             )
         },
         |(arc_process, element1, element2)| {
-            let minuend = arc_process
-                .list_from_slice(&[element1, element2, element1])
-                .unwrap();
-            let subtrahend = arc_process.list_from_slice(&[element1]).unwrap();
+            let minuend = arc_process.list_from_slice(&[element1, element2, element1]);
+            let subtrahend = arc_process.list_from_slice(&[element1]);
 
             prop_assert_eq!(
                 result(&arc_process, minuend, subtrahend),
-                Ok(arc_process.list_from_slice(&[element2, element1]).unwrap())
+                Ok(arc_process.list_from_slice(&[element2, element1]))
             );
 
             Ok(())

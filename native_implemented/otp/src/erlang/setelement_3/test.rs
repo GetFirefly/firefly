@@ -66,7 +66,7 @@ fn with_tuple_with_valid_index_returns_tuple_with_index_replaced() {
         },
         |(arc_process, (mut element_vec, element_vec_index, tuple, index), element)| {
             element_vec[element_vec_index] = element;
-            let new_tuple = arc_process.tuple_from_slice(&element_vec).unwrap();
+            let new_tuple = arc_process.tuple_from_slice(&element_vec);
 
             prop_assert_eq!(result(&arc_process, index, tuple, element), Ok(new_tuple));
 

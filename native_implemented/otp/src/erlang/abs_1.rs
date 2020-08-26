@@ -19,7 +19,7 @@ fn result(process: &Process, number: Term) -> exception::Result<Term> {
 
             let abs_number = if i < 0 {
                 let positive = -i;
-                process.integer(positive)?
+                process.integer(positive)
             } else {
                 number
             };
@@ -33,7 +33,7 @@ fn result(process: &Process, number: Term) -> exception::Result<Term> {
             let abs_number: Term = if big_int < zero_big_int {
                 let positive_big_int: BigInt = -1 * big_int;
 
-                process.integer(positive_big_int)?
+                process.integer(positive_big_int)
             } else {
                 number
             };
@@ -47,7 +47,7 @@ fn result(process: &Process, number: Term) -> exception::Result<Term> {
                 Ordering::Less => {
                     let positive_f = f.abs();
 
-                    process.float(positive_f).unwrap()
+                    process.float(positive_f)
                 }
                 _ => number,
             };

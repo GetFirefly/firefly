@@ -57,7 +57,7 @@ pub fn bin_to_list(
             let byte_iter = byte_slice.iter();
             let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
-            let list = process.list_from_iter(byte_term_iter)?;
+            let list = process.list_from_iter(byte_term_iter);
 
             Ok(list)
         }
@@ -70,7 +70,7 @@ pub fn bin_to_list(
             let byte_iter = byte_slice.iter();
             let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
-            let list = process.list_from_iter(byte_term_iter)?;
+            let list = process.list_from_iter(byte_term_iter);
 
             Ok(list)
         }
@@ -83,7 +83,7 @@ pub fn bin_to_list(
             let byte_iter = byte_slice.iter();
             let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
-            let list = process.list_from_iter(byte_term_iter)?;
+            let list = process.list_from_iter(byte_term_iter);
 
             Ok(list)
         }
@@ -92,7 +92,7 @@ pub fn bin_to_list(
             let part_range =
                 start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
 
-            let result = if subbinary.is_aligned() {
+            let list = if subbinary.is_aligned() {
                 let range: Range<usize> = part_range.into();
                 let byte_slice: &[u8] = &unsafe { subbinary.as_bytes_unchecked() }[range];
                 let byte_iter = byte_slice.iter();
@@ -111,15 +111,12 @@ pub fn bin_to_list(
                     byte_iter.next_back();
                 }
 
-                let byte_term_iter = byte_iter.map(|byte| byte.into());
+                let byte_term_vec: Vec<Term> = byte_iter.map(|byte| byte.into()).collect();
 
-                process.list_from_iter(byte_term_iter)
+                process.list_from_slice(&byte_term_vec)
             };
 
-            match result {
-                Ok(term) => Ok(term),
-                Err(error) => Err(error.into()),
-            }
+            Ok(list)
         }
         _ => Err(TypeError)
             .context(format!("binary ({}) must be a binary", binary))

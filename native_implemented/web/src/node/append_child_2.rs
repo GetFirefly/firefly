@@ -35,10 +35,12 @@ pub fn result(process: &Process, parent: Term, child: Term) -> exception::Result
     let parent_node = node::from_term(parent).with_context(|| format!("parent"))?;
     let child_node = node::from_term(child).with_context(|| format!("child"))?;
 
-    match parent_node.append_child(child_node) {
-        Ok(_) => Ok(atom!("ok")),
+    let final_term = match parent_node.append_child(child_node) {
+        Ok(_) => atom!("ok"),
         // JsValue(HierarchyRequestError: Failed to execute 'appendChild' on 'Node': The new child
         // element contains the parent.
-        Err(js_value) => error_tuple(process, js_value).map_err(From::from),
-    }
+        Err(js_value) => error_tuple(process, js_value),
+    };
+
+    Ok(final_term)
 }

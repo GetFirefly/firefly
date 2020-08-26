@@ -1,6 +1,5 @@
 use num_bigint::BigInt;
 
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -21,7 +20,7 @@ impl From<Term> for NumberToInteger {
     }
 }
 
-pub fn f64_to_integer(process: &Process, f: f64) -> exception::Result<Term> {
+pub fn f64_to_integer(process: &Process, f: f64) -> Term {
     // skip creating a BigInt if f64 can fit in small integer.
     if (SmallInteger::MIN_VALUE as f64).max(Float::INTEGRAL_MIN) <= f
         && f <= (SmallInteger::MAX_VALUE as f64).min(Float::INTEGRAL_MAX)
@@ -34,5 +33,4 @@ pub fn f64_to_integer(process: &Process, f: f64) -> exception::Result<Term> {
 
         process.integer(big_int)
     }
-    .map_err(|alloc| alloc.into())
 }

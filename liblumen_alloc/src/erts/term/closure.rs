@@ -314,7 +314,7 @@ impl Closure {
 
     #[inline]
     pub fn arity(&self) -> Arity {
-        self.arity as u8
+        self.arity as Arity
     }
 
     #[inline]
@@ -337,12 +337,18 @@ impl Closure {
         })
     }
 
-    /// The `native` function needs to accept both the explicit arguments of `arity`, but also the
-    /// implicit arguments of the captured environment.
+    /// The `native` function needs takes the following arguments
     ///
-    /// FIXME(pauls): The above is not true for generated code, so this requires review
+    /// If `env_len() == 0`, then this `Closure` is not passed
+    /// 0.. - Any explicit arguments for its `arity`.
+    ///
+    /// If the `env_len() > 0`, then this `Closure` is passed
+    /// 0 - Closure `Term`, so native code can extract the `env_slice()`
+    /// 1.. - Any explicit arguments for its `arity`.
     pub fn native_arity(&self) -> Arity {
-        (self.arity as u8 + self.env_len() as u8) as Arity
+        let closure_term_arity = if self.env_len() > 0 { 1 } else { 0 };
+
+        (closure_term_arity + self.arity) as Arity
     }
 
     pub fn frame(&self) -> Frame {
@@ -367,9 +373,13 @@ impl Closure {
         uses_returned: bool,
         arguments: Vec<Term>,
     ) -> FrameWithArguments {
-        let mut full_arguments = Vec::with_capacity(arguments.len() + self.env_len());
+        let mut full_arguments = Vec::with_capacity(self.native_arity() as usize);
+
+        if self.env_len() > 0 {
+            full_arguments.push(self.encode().unwrap());
+        }
+
         full_arguments.extend_from_slice(&arguments);
-        full_arguments.extend_from_slice(self.env_slice());
 
         self.frame().with_arguments(uses_returned, &full_arguments)
     }

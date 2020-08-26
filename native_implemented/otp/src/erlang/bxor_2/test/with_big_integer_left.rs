@@ -10,9 +10,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 #[test]
 fn with_small_integer_right_returns_big_integer() {
     with(|left, process| {
-        let right = process
-            .integer(0b1010_1010_1010_1010_1010_1010_1010)
-            .unwrap();
+        let right = process.integer(0b1010_1010_1010_1010_1010_1010_1010);
 
         assert!(right.is_smallint());
 
@@ -29,15 +27,13 @@ fn with_small_integer_right_returns_big_integer() {
 #[test]
 fn with_big_integer_right_returns_big_integer() {
     with(|left, process| {
-        let right = process
-            .integer(
-                <BigInt as Num>::from_str_radix(
-                    "1010".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
-                    2,
-                )
-                .unwrap(),
+        let right = process.integer(
+            <BigInt as Num>::from_str_radix(
+                "1010".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
+                2,
             )
-            .unwrap();
+            .unwrap(),
+        );
 
         assert!(right.is_boxed_bigint());
 
@@ -51,15 +47,13 @@ fn with_big_integer_right_returns_big_integer() {
 
         assert_eq!(
             output,
-            process
-                .integer(
-                    <BigInt as Num>::from_str_radix(
-                        "0110".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
-                        2
-                    )
-                    .unwrap()
+            process.integer(
+                <BigInt as Num>::from_str_radix(
+                    "0110".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
+                    2
                 )
                 .unwrap()
+            )
         );
     })
 }
@@ -69,15 +63,13 @@ where
     F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
-        let left = process
-            .integer(
-                <BigInt as Num>::from_str_radix(
-                    "1100".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
-                    2,
-                )
-                .unwrap(),
+        let left = process.integer(
+            <BigInt as Num>::from_str_radix(
+                "1100".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
+                2,
             )
-            .unwrap();
+            .unwrap(),
+        );
 
         f(left, &process)
     })

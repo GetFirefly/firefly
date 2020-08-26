@@ -1,21 +1,20 @@
-#[cfg(test)]
-pub mod test;
-
 use std::any::Any;
 use std::convert::TryInto;
+use std::ffi::c_void;
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use liblumen_core::locks::RwLock;
 
+use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::exception::SystemException;
-use liblumen_alloc::erts::process::gc::RootSet;
-use liblumen_alloc::erts::process::{Priority, Process, Status};
+use liblumen_alloc::erts::process::{Frame, FrameWithArguments, Native, Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::Ran;
+use liblumen_alloc::{Arity, ModuleFunctionArity, Ran};
 
+use lumen_rt_core::process::spawn::options::Options;
 use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
 use lumen_rt_core::registry::put_pid_to_process;
 pub use lumen_rt_core::scheduler::{
@@ -24,7 +23,16 @@ pub use lumen_rt_core::scheduler::{
 use lumen_rt_core::scheduler::{run_queue, unregister, Run, Scheduler as SchedulerTrait};
 use lumen_rt_core::timer::Hierarchy;
 
-use crate::process;
+use crate::process::out_of_code;
+
+// External functions defined in OTP
+extern "C" {
+    #[link_name = "erlang:apply/2"]
+    fn apply_2(module: Term, function: Term, arguments: Term) -> Term;
+
+    #[link_name = "erlang:apply/3"]
+    fn apply_3(module: Term, function: Term, arguments: Term) -> Term;
+}
 
 #[export_name = "lumen_rt_scheduler_unregistered"]
 fn unregistered() -> Arc<dyn lumen_rt_core::scheduler::Scheduler> {
@@ -67,6 +75,62 @@ impl Scheduler {
 
     pub fn is_run_queued(&self, value: &Arc<Process>) -> bool {
         self.run_queues.read().contains(value)
+    }
+
+    fn runnable(process: &Process, frame_with_arguments: FrameWithArguments) {
+        process.runnable(|| {
+            process.queue_frame_with_arguments(frame_with_arguments);
+            process.queue_frame_with_arguments(out_of_code::frame().with_arguments(false, &[]));
+            process.stack_queued_frames_with_arguments();
+        })
+    }
+
+    fn spawn_closure_frame_with_arguments(
+        process: &Process,
+        closure: Boxed<Closure>,
+    ) -> FrameWithArguments {
+        let module_function_arity = ModuleFunctionArity {
+            module: Atom::from_str("erlang"),
+            function: Atom::from_str("apply"),
+            arity: 2,
+        };
+        // I wish these was a safer way to say to strip "if and only if unsafe"
+        let native = unsafe { Native::from_ptr(apply_2 as *const c_void, 2) };
+        let frame = Frame::new(module_function_arity, native);
+
+        let process_closure = closure.clone_to_process(process);
+        let process_arguments = Term::NIL;
+
+        frame.with_arguments(false, &[process_closure, process_arguments])
+    }
+
+    fn spawn_module_function_arguments_frame_with_arguments(
+        process: &Process,
+        module: Atom,
+        function: Atom,
+        arguments: Vec<Term>,
+    ) -> FrameWithArguments {
+        let module_function_arity = ModuleFunctionArity {
+            module: Atom::from_str("erlang"),
+            function: Atom::from_str("apply"),
+            arity: 3,
+        };
+        // I wish these was a safer way to say to strip "if and only if unsafe"
+        let native = unsafe { Native::from_ptr(apply_3 as *const c_void, 3) };
+        let frame = Frame::new(module_function_arity, native);
+
+        let process_module = module.encode().unwrap();
+        let process_function = function.encode().unwrap();
+        let process_argument_vec: Vec<Term> = arguments
+            .iter()
+            .map(|arguments| arguments.clone_to_process(process))
+            .collect();
+        let process_arguments = process.list_from_slice(&process_argument_vec);
+
+        frame.with_arguments(
+            false,
+            &[process_module, process_function, process_arguments],
+        )
     }
 }
 
@@ -174,16 +238,20 @@ impl SchedulerTrait for Scheduler {
                         arc_process.reduce()
                     }
 
-                    match self.run_queues.write().requeue(arc_process) {
-                        Some(exiting_arc_process) => match *exiting_arc_process.status.read() {
+                    // Don't `if let` or `match` on the return from `requeue` as it will keep the
+                    // lock on the `run_queue`, causing a dead lock when `propagate_exit` calls
+                    // `Scheduler::stop_waiting` for any linked or monitoring process.
+                    let option_exiting_arc_process = self.run_queues.write().requeue(arc_process);
+
+                    if let Some(exiting_arc_process) = option_exiting_arc_process {
+                        match *exiting_arc_process.status.read() {
                             Status::RuntimeException(ref exception) => {
                                 log_exit(&exiting_arc_process, exception);
                                 propagate_exit(&exiting_arc_process, exception);
                             }
                             _ => unreachable!(),
-                        },
-                        None => (),
-                    };
+                        }
+                    }
 
                     CURRENT_PROCESS.with(|current_process| current_process.replace(None));
 
@@ -206,14 +274,19 @@ impl SchedulerTrait for Scheduler {
     }
 
     fn schedule(&self, process: Process) -> Arc<Process> {
+        debug_assert_ne!(
+            Some(self.id),
+            process.scheduler_id(),
+            "process is already scheduled here!"
+        );
         assert_eq!(*process.status.read(), Status::Runnable);
-        let mut writable_run_queues = self.run_queues.write();
 
         process.schedule_with(self.id);
 
         let arc_process = Arc::new(process);
 
-        writable_run_queues.enqueue(Arc::clone(&arc_process));
+        self.run_queues.write().enqueue(arc_process.clone());
+        put_pid_to_process(&arc_process);
 
         arc_process
     }
@@ -230,32 +303,97 @@ impl SchedulerTrait for Scheduler {
         Ok(())
     }
 
-    fn spawn_init(&self, minimum_heap_size: usize) -> Result<Arc<Process>, SystemException> {
-        let process = process::init(minimum_heap_size)?;
-        let arc_process = Arc::new(process);
-        let scheduler_arc_process = Arc::clone(&arc_process);
+    fn spawn_init(&self, minimum_heap_size: usize) -> anyhow::Result<Arc<Process>> {
+        let mut options: Options = Default::default();
+        options.min_heap_size = Some(minimum_heap_size);
 
-        // `parent_process.scheduler.lock` has to be taken first to even get the run queue in
-        // `spawn`, so copy that lock order here.
-        scheduler_arc_process.schedule_with(self.id);
-        let mut writable_run_queues = self.run_queues.write();
-
-        writable_run_queues.enqueue(Arc::clone(&arc_process));
-
-        put_pid_to_process(&arc_process);
+        let Spawned { arc_process, .. } = self.spawn_module_function_arguments(
+            None,
+            Atom::from_str("init"),
+            Atom::from_str("start"),
+            vec![],
+            options,
+        )?;
 
         Ok(arc_process)
     }
 
     fn spawn_closure(
         &self,
-        _parent: Option<&Process>,
-        _fun: Boxed<Closure>,
-    ) -> anyhow::Result<Pid> {
-        unimplemented!("spawn_closure is not implemented in lumen_rt_full");
+        parent: Option<&Process>,
+        closure: Boxed<Closure>,
+        options: Options,
+    ) -> anyhow::Result<Spawned> {
+        let (heap, heap_size) = options.sized_heap()?;
+        let priority = options.cascaded_priority(parent);
+        let initial_module_function_arity = closure.module_function_arity();
+        let process = Process::new(
+            priority,
+            parent,
+            initial_module_function_arity,
+            heap,
+            heap_size,
+        );
+
+        let frame_with_arguments = Self::spawn_closure_frame_with_arguments(&process, closure);
+        Self::runnable(&process, frame_with_arguments);
+
+        let connection = options.connect(parent, &process);
+
+        let arc_process = match parent {
+            Some(parent) => parent.scheduler().unwrap().schedule(process),
+            None => self.schedule(process),
+        };
+
+        Ok(Spawned {
+            arc_process,
+            connection,
+        })
+    }
+
+    fn spawn_module_function_arguments(
+        &self,
+        parent: Option<&Process>,
+        module: Atom,
+        function: Atom,
+        arguments: Vec<Term>,
+        options: Options,
+    ) -> anyhow::Result<Spawned> {
+        let (heap, heap_size) = options.sized_heap()?;
+        let priority = options.cascaded_priority(parent);
+        let initial_module_function_arity = ModuleFunctionArity {
+            module,
+            function,
+            arity: arguments.len() as Arity,
+        };
+        let process = Process::new(
+            priority,
+            parent,
+            initial_module_function_arity,
+            heap,
+            heap_size,
+        );
+
+        let frame_with_arguments = Self::spawn_module_function_arguments_frame_with_arguments(
+            &process, module, function, arguments,
+        );
+        Self::runnable(&process, frame_with_arguments);
+
+        let connection = options.connect(parent, &process);
+
+        let arc_process = match parent {
+            Some(parent) => parent.scheduler().unwrap().schedule(process),
+            None => self.schedule(process),
+        };
+
+        Ok(Spawned {
+            arc_process,
+            connection,
+        })
     }
 
     fn stop_waiting(&self, process: &Process) {
+        process.stop_waiting();
         self.run_queues.write().stop_waiting(process);
     }
 }

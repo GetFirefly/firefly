@@ -16,8 +16,6 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::process::spawn::options::Options;
 
-use liblumen_otp::erlang;
-
 use crate::window::add_event_listener;
 
 #[native_implemented::function(Elixir.Lumen.Web.Window:add_event_listener/4)]
@@ -33,10 +31,10 @@ fn result(window: Term, event: Term, module: Term, function: Term) -> exception:
     let event_atom: Atom = event
         .try_into()
         .with_context(|| format!("event ({}) must be an atom", event))?;
-    let _: Atom = module
+    let module_atom: Atom = module
         .try_into()
         .with_context(|| format!("module ({}) must be an atom", module))?;
-    let _: Atom = function
+    let function_atom: Atom = function
         .try_into()
         .with_context(|| format!("function ({}) must be an atom", function))?;
 
@@ -46,15 +44,9 @@ fn result(window: Term, event: Term, module: Term, function: Term) -> exception:
     add_event_listener(
         window_window,
         event_atom.name(),
+        module_atom,
+        function_atom,
         options,
-        move |child_process, event_resource_reference| {
-            let arguments = child_process.list_from_slice(&[event_resource_reference])?;
-
-            let frame_with_argument =
-                erlang::apply_3::frame_with_arguments(module, function, arguments);
-
-            Ok(vec![frame_with_argument])
-        },
     );
 
     Ok(atom!("ok"))

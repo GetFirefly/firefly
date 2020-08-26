@@ -17,6 +17,8 @@ pub fn result(process: &Process, document: Term, id: Term) -> exception::Result<
     let document_document = document::from_term(document)?;
     let id_string: String = binary_to_string(id)?;
 
-    option_to_ok_tuple_or_error(process, document_document.get_element_by_id(&id_string))
-        .map_err(|error| error.into())
+    Ok(option_to_ok_tuple_or_error(
+        process,
+        document_document.get_element_by_id(&id_string),
+    ))
 }

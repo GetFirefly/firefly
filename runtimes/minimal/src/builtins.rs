@@ -9,7 +9,6 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_core::process::current_process;
 use lumen_rt_core::registry;
-use lumen_rt_core::scheduler::from_id;
 
 #[export_name = "erlang:!/2"]
 pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
@@ -23,17 +22,11 @@ pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
                 return msg;
             } else {
                 if let Some(ref to_proc) = registry::pid_to_process(&to) {
-                    if let Ok(resume) = to_proc.send_from_other(msg) {
-                        if resume {
-                            crate::scheduler::stop_waiting(to_proc);
-                        }
-                        return msg;
-                    } else {
-                        panic!("error during send");
-                    }
-                } else {
-                    return msg;
+                    to_proc.send_from_other(msg);
+                    crate::scheduler::stop_waiting(to_proc);
                 }
+
+                return msg;
             }
         } else {
             // TODO: badarg
@@ -44,27 +37,5 @@ pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
         res
     } else {
         panic!("send failed");
-    }
-}
-
-#[export_name = "__lumen_builtin_spawn/1"]
-pub extern "C" fn builtin_spawn(closure: Term) -> Term {
-    let result = panic::catch_unwind(|| {
-        let decoded_result: Result<Boxed<Closure>, _> = closure.decode().unwrap().try_into();
-        if let Ok(fun) = decoded_result {
-            let p = current_process();
-            let id = p.scheduler_id().unwrap();
-            let scheduler = from_id(&id).unwrap();
-            let pid = scheduler.spawn_closure(Some(&p), fun).unwrap();
-            pid.into()
-        } else {
-            panic!("invalid closure: {:?}", closure);
-        }
-    });
-
-    if let Ok(res) = result {
-        res
-    } else {
-        panic!("spawn failed");
     }
 }

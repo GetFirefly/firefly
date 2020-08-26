@@ -37,9 +37,8 @@ fn with_same_float_returns_true() {
 fn with_same_value_float_right_returns_true() {
     run!(
         |arc_process| {
-            (Just(arc_process.clone()), any::<f64>()).prop_map(|(arc_process, f)| {
-                (arc_process.float(f).unwrap(), arc_process.float(f).unwrap())
-            })
+            (Just(arc_process.clone()), any::<f64>())
+                .prop_map(|(arc_process, f)| (arc_process.float(f), arc_process.float(f)))
         },
         |(left, right)| {
             prop_assert_eq!(result(left, right), true.into());
@@ -54,10 +53,7 @@ fn with_different_float_right_returns_false() {
     run!(
         |arc_process| {
             (Just(arc_process.clone()), any::<f64>()).prop_map(|(arc_process, f)| {
-                (
-                    arc_process.float(f).unwrap(),
-                    arc_process.float(f / 2.0 + 1.0).unwrap(),
-                )
+                (arc_process.float(f), arc_process.float(f / 2.0 + 1.0))
             })
         },
         |(left, right)| {

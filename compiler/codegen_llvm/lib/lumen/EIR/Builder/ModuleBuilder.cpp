@@ -643,9 +643,12 @@ extern "C" void MLIRBuildTraceCaptureOp(MLIRModuleBuilderRef b,
 
 void ModuleBuilder::build_trace_capture_op(Location loc, Block *dest,
                                            ArrayRef<MLIRValueRef> destArgs) {
-  auto termType = TermType::get(builder.getContext());
-  auto captureOp = builder.create<TraceCaptureOp>(loc, termType);
+  auto traceType = TraceRefType::get(builder.getContext());
+  auto captureOp = builder.create<TraceCaptureOp>(loc, traceType);
   auto capture = captureOp.getResult();
+
+  // Fixup type of destination block argument
+  dest->getArgument(0).setType(traceType);
 
   SmallVector<Value, 1> extendedArgs;
   extendedArgs.push_back(capture);

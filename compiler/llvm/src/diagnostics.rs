@@ -172,13 +172,13 @@ impl<'a> OptimizationDiagnostic<'a> {
         let mut column = 0;
         let mut is_verbose = false;
 
+        let mut message = String::new();
         let mut remark_name = None;
-        let mut message = None;
         let mut filename = None;
         let pass_name = strings::build_string(|pass_name| {
-            remark_name = Some(strings::build_string(|remark_name| {
-                message = Some(strings::build_string(|message| {
-                    filename = Some(strings::build_string(|filename| {
+            remark_name = strings::build_string(|remark_name| {
+                message = strings::build_string(|message| {
+                    filename = strings::build_string(|filename| {
                         LLVMLumenUnpackOptimizationDiagnostic(
                             di,
                             pass_name,
@@ -191,10 +191,12 @@ impl<'a> OptimizationDiagnostic<'a> {
                             filename,
                             message,
                         )
-                    }))
-                }))
-            }))
-        });
+                    })
+                })
+                .expect("expected diagnostic message, but got an empty string")
+            })
+        })
+        .expect("expected pass name, but got an empty string");
 
         let function = function.assume_init();
         let code_region = {
@@ -206,12 +208,7 @@ impl<'a> OptimizationDiagnostic<'a> {
             }
         };
 
-        let mut filename = filename.unwrap_or_default();
-        let loc = if filename.is_empty() {
-            None
-        } else {
-            Some(SourceLoc::new(line as u32, column as u32, filename))
-        };
+        let loc = filename.map(|f| SourceLoc::new(line as u32, column as u32, f));
 
         Self {
             kind,
@@ -220,7 +217,7 @@ impl<'a> OptimizationDiagnostic<'a> {
             function,
             code_region,
             loc,
-            message: message.unwrap_or_else(|| String::new()),
+            message,
             is_verbose,
             _marker: PhantomData,
         }
@@ -360,21 +357,24 @@ impl<'a> Diagnostic<'a> {
                 ifd.with_message("cannot link module");
                 let message = strings::build_string(|message| unsafe {
                     LLVMLumenWriteDiagnosticInfoToString(info, message);
-                });
+                })
+                .expect("expected diagnostic message, but got an empty string");
                 ifd.with_note(message);
                 true
             }
             Self::Linker(info) => {
                 let message = strings::build_string(|message| unsafe {
                     LLVMLumenWriteDiagnosticInfoToString(info, message);
-                });
+                })
+                .expect("expected diagnostic message, but got an empty string");
                 ifd.with_message(message);
                 true
             }
             Self::Unknown(info) => {
                 let message = strings::build_string(|message| unsafe {
                     LLVMLumenWriteDiagnosticInfoToString(info, message);
-                });
+                })
+                .expect("expected diagnostic message, but got an empty string");
                 ifd.with_message(message);
                 true
             }

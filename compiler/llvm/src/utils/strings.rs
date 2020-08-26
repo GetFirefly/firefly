@@ -10,15 +10,20 @@ extern "C" {
     pub type Twine;
 }
 
-pub fn build_string<'a>(f: impl FnOnce(&RustString)) -> String {
+pub fn build_string<'a>(f: impl FnOnce(&RustString)) -> Option<String> {
     let rs = RustString {
         bytes: RefCell::new(Vec::new()),
     };
     f(&rs);
-    String::from_utf8_lossy(&rs.bytes.into_inner()).into_owned()
+    let bytes = rs.bytes.into_inner();
+    if bytes.len() > 0 {
+        Some(String::from_utf8_lossy(&bytes).into_owned())
+    } else {
+        None
+    }
 }
 
-pub fn twine_to_string(twine: &Twine) -> String {
+pub fn twine_to_string(twine: &Twine) -> Option<String> {
     build_string(|s| unsafe { LLVMLumenWriteTwineToString(twine, s) })
 }
 

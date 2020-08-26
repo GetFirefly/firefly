@@ -37,6 +37,7 @@ mod ffi {
             strings::build_string(|rs| {
                 unsafe { MLIRWriteDiagnosticToString(self, rs) };
             })
+            .unwrap_or_else(|| String::new())
         }
     }
 

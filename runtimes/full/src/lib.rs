@@ -39,7 +39,8 @@ extern crate cfg_if;
 extern crate chrono;
 
 pub use lumen_rt_core::{
-    binary_to_string, context, distribution, proplist, registry, send, stacktrace, time, timer,
+    binary_to_string, context, distribution, proplist, registry, send, stacktrace, test, time,
+    timer,
 };
 
 #[cfg(not(any(test, target_arch = "wasm32")))]

@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 #[native_implemented::function(erlang:list_to_tuple/1)]
 pub fn result(process: &Process, list: Term) -> exception::Result<Term> {
     match list.decode().unwrap() {
-        TypedTerm::Nil => Ok(process.tuple_from_slices(&[])),
+        TypedTerm::Nil => Ok(process.tuple_from_slice(&[])),
         TypedTerm::List(cons) => {
             let vec: Vec<Term> = cons
                 .into_iter()

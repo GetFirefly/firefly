@@ -829,32 +829,11 @@ impl Process {
             .into()
     }
 
-    pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> Term
-    where
-        I: Clone + Iterator<Item = Term>,
-    {
-        self.acquire_heap()
-            .tuple_from_iter(iterator.clone(), len)
-            .unwrap_or_else(|_| {
-                self.attach_fragment_or_panic(HeapFragment::new_tuple_from_iter(iterator, len))
-            })
-            .into()
-    }
-
     pub fn tuple_from_slice(&self, slice: &[Term]) -> Term {
         self.acquire_heap()
             .tuple_from_slice(slice)
             .unwrap_or_else(|_| {
                 self.attach_fragment_or_panic(HeapFragment::new_tuple_from_slice(slice))
-            })
-            .into()
-    }
-
-    pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> Term {
-        self.acquire_heap()
-            .tuple_from_slices(slices)
-            .unwrap_or_else(|_| {
-                self.attach_fragment_or_panic(HeapFragment::new_tuple_from_slices(slices))
             })
             .into()
     }

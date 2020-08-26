@@ -440,78 +440,12 @@ pub trait TermAlloc: Heap {
         Tuple::new(self, len)
     }
 
-    /// Constructs a `Tuple` from an `Iterator<Item = Term>` and accompanying `len`.
-    ///
-    /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
-    /// it is expected that the `iterator` provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
-    fn tuple_from_iter<I>(&mut self, iterator: I, len: usize) -> AllocResult<Boxed<Tuple>>
-    where
-        I: Iterator<Item = Term>,
-    {
-        let mut tuple_box = Tuple::new(self, len)?;
-        let tuple_ref = tuple_box.as_mut();
-        let elements = tuple_ref.elements_mut();
-        let mut elements_ptr = elements.as_mut_ptr();
-
-        // Write each element
-        let mut count = 0;
-        for (index, element) in iterator.enumerate() {
-            assert!(
-                index < len,
-                "unexpected out of bounds access in tuple_from_iter: len = {}, index = {}",
-                len,
-                index
-            );
-            unsafe {
-                elements_ptr.write(element);
-                elements_ptr = elements_ptr.offset(1);
-            }
-            count += 1;
-        }
-        debug_assert_eq!(
-            len, count,
-            "expected number of elements in iterator to match provided length"
-        );
-
-        Ok(tuple_box)
-    }
-
     /// Constructs a `Tuple` from a slice of `Term`
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
     /// a slice passed to `tuple_from_slice` to produce nested tuples.
     fn tuple_from_slice(&mut self, elements: &[Term]) -> AllocResult<Boxed<Tuple>> {
         Tuple::from_slice(self, elements)
-    }
-
-    /// Constructs a `Tuple` from slices of `Term`
-    ///
-    /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
-    /// it is expected that the slice provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
-    ///
-    /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
-    /// a slice passed to `tuple_from_slice` to produce nested tuples.
-    fn tuple_from_slices(&mut self, slices: &[&[Term]]) -> AllocResult<Boxed<Tuple>> {
-        let len = slices.iter().map(|slice| slice.len()).sum();
-        let mut tuple_box = Tuple::new(self, len)?;
-
-        unsafe {
-            let tuple_ref = tuple_box.as_mut();
-            let elements = tuple_ref.elements_mut();
-            let mut elements_ptr = elements.as_mut_ptr();
-
-            // Write each element
-            for slice in slices {
-                for element in *slice {
-                    elements_ptr.write(*element);
-                    elements_ptr = elements_ptr.offset(1);
-                }
-            }
-        }
-
-        Ok(tuple_box)
     }
 
     /// Clones a `Closure` from an existing `Closure`

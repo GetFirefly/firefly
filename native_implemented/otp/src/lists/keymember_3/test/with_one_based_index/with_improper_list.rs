@@ -29,11 +29,12 @@ fn with_non_tuple_in_list_with_found_returns_true() {
                         let index_zero_based_usize = before_key_vec.len() + 1;
                         let index_one_based_term = arc_process.integer(index_zero_based_usize);
 
-                        let tuple_with_key = arc_process.tuple_from_slices(&[
-                            &before_key_vec,
-                            &[key],
-                            &after_key_vec,
-                        ]);
+                        let mut tuple_with_key_element_vec = Vec::new();
+                        tuple_with_key_element_vec.extend_from_slice(&before_key_vec);
+                        tuple_with_key_element_vec.push(key);
+                        tuple_with_key_element_vec.extend_from_slice(&after_key_vec);
+                        let tuple_with_key =
+                            arc_process.tuple_from_slice(&tuple_with_key_element_vec);
 
                         let tail = Atom::str_to_term("tail");
                         let tuple_list = arc_process
@@ -82,11 +83,12 @@ fn with_shorter_tuple_in_list_with_found_returns_true() {
                         let index_zero_based_usize = before_key_vec.len() + 1;
                         let index_one_based_term = arc_process.integer(index_zero_based_usize);
 
-                        let tuple_with_key = arc_process.tuple_from_slices(&[
-                            &before_key_vec,
-                            &[key],
-                            &after_key_vec,
-                        ]);
+                        let mut tuple_with_key_element_vec = Vec::new();
+                        tuple_with_key_element_vec.extend_from_slice(&before_key_vec);
+                        tuple_with_key_element_vec.push(key);
+                        tuple_with_key_element_vec.extend_from_slice(&after_key_vec);
+                        let tuple_with_key =
+                            arc_process.tuple_from_slice(&tuple_with_key_element_vec);
 
                         let tail = Atom::str_to_term("tail");
                         let tuple_list = arc_process

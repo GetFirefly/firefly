@@ -9,7 +9,7 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
-use liblumen_alloc::{atom, atom_from, exit};
+use liblumen_alloc::{atom, atom_from, exit_with_source};
 
 use crate::erlang::apply_3;
 use crate::erlang::spawn_link_3::result;

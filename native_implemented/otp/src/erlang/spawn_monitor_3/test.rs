@@ -9,14 +9,14 @@ use proptest::strategy::Just;
 use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
-use liblumen_alloc::{atom, atom_from, exit};
+use liblumen_alloc::{atom, atom_from, exit_with_source};
 
 use crate::runtime::registry::pid_to_process;
 use crate::runtime::scheduler;
 
 use crate::erlang::apply_3;
 use crate::erlang::spawn_monitor_3::result;
-use crate::test::{assert_exits_undef, has_message, strategy};
+use crate::test::{assert_exits_badarith, assert_exits_undef, has_message, strategy};
 use crate::{erlang, test};
 
 #[test]

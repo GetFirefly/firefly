@@ -13,7 +13,21 @@ jobs:
         with:
           toolchain: nightly-2020-05-13
           override: true
+      - name: Cache Cargo
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache LLVM
+        id: cache-llvm
+        uses: actions/cache@v2
+        with:
+          path: ~/.local/share/llvm/lumen
+          key: lumen-12.0.0-dev_2020-08-26-apple-darwin19.5.0
       - name: Install LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/share/llvm
           pushd ~/.local/share/llvm
@@ -22,7 +36,11 @@ jobs:
           mv clang+llvm-12.0.0-x86_64-apple-darwin19.5.0 lumen
           popd
           echo "::set-env name=LLVM_PREFIX::$HOME/.local/share/llvm/lumen"
+      - name: Install Ninja
+        run: brew install ninja
       - name: Make Build
+        env:
+          RUST_BACKTRACE: full
         run: make build-shared
       - name: Test lumen_rt_full
         run: cargo test --package lumen_rt_full

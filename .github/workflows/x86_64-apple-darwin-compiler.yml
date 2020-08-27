@@ -13,7 +13,21 @@ jobs:
         with:
           toolchain: nightly-2020-05-13
           override: true
+      - name: Cache Cargo
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache LLVM
+        id: cache-llvm
+        uses: actions/cache@v2
+        with:
+          path: ~/.local/share/llvm/lumen
+          key: lumen-12.0.0-dev_2020-08-26-apple-darwin19.5.0
       - name: Install LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/share/llvm
           pushd ~/.local/share/llvm

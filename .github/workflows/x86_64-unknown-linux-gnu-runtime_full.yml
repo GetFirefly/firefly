@@ -9,21 +9,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Cache Cargo
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Make Build
         run: make build-shared
       - name: Test lumen_rt_full

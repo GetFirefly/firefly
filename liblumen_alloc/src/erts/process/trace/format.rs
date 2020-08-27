@@ -17,7 +17,7 @@ pub fn print(trace: &Trace, kind: Term, reason: Term) -> std::io::Result<()> {
     let mut buffer = out.buffer();
 
     format_write(trace, &mut buffer, kind, reason)?;
-    out.print(&buffer);
+    out.print(&buffer)?;
 
     Ok(())
 }
@@ -40,7 +40,7 @@ impl<'f> Write for &mut FormatterWrapper<'f> {
         // to the actual output without treating them as a utf8
         // string, so this is unsafe, but not in practice
         let raw = unsafe { core::str::from_utf8_unchecked(buf) };
-        self.f.write_str(raw);
+        self.f.write_str(raw)?;
         Ok(buf.len())
     }
 
@@ -75,7 +75,7 @@ where
     let mut green = ColorSpec::new();
     green.set_fg(Some(Color::Green));
 
-    out.set_color(&bold);
+    out.set_color(&bold)?;
     writeln!(out, "Backtrace (most recent call last):")?;
 
     for symbol in trace.iter_symbols().rev() {
@@ -88,47 +88,47 @@ where
         let filename = symbol.filename();
         let line = symbol.line();
 
-        out.reset();
-        write!(out, "  File ");
+        out.reset()?;
+        write!(out, "  File ")?;
 
         match filename {
             Some(f) => {
                 let filename = trim_filename(f);
-                out.set_color(&underlined);
-                write!(out, "{}", filename);
-                out.reset();
-                write!(out, ":");
-                out.set_color(&yellow);
-                write!(out, "{}", line.unwrap_or(0));
+                out.set_color(&underlined)?;
+                write!(out, "{}", filename)?;
+                out.reset()?;
+                write!(out, ":")?;
+                out.set_color(&yellow)?;
+                write!(out, "{}", line.unwrap_or(0))?;
             }
             None => {
-                out.set_color(&underlined);
-                write!(out, "<unknown>");
+                out.set_color(&underlined)?;
+                write!(out, "<unknown>")?;
             }
         }
 
-        out.reset();
-        write!(out, ", in ");
-        out.set_color(&green);
-        writeln!(out, "{}", &mfa);
+        out.reset()?;
+        write!(out, ", in ")?;
+        out.set_color(&green)?;
+        writeln!(out, "{}", &mfa)?;
     }
 
-    out.set_color(&bold);
+    out.set_color(&bold)?;
     let kind: Result<Atom, _> = kind.decode().unwrap().try_into();
     if let Ok(kind) = kind {
         if kind == "error" {
-            writeln!(out, "\nProcess raised an error.");
+            writeln!(out, "\nProcess raised an error.")?;
         } else if kind == "exit" {
-            writeln!(out, "\nProcess exited abnormally.");
+            writeln!(out, "\nProcess exited abnormally.")?;
         } else if kind == "throw" {
-            writeln!(out, "\nProcess threw an exception.");
+            writeln!(out, "\nProcess threw an exception.")?;
         } else {
-            writeln!(out, "\nProcess crashed.");
+            writeln!(out, "\nProcess crashed.")?;
         }
     }
-    out.set_color(&yellow);
-    writeln!(out, "  {}\n", reason);
-    out.reset();
+    out.set_color(&yellow)?;
+    writeln!(out, "  {}\n", reason)?;
+    out.reset()?;
 
     Ok(())
 }

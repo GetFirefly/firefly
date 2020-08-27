@@ -76,6 +76,7 @@ fn tblgen(args: &[String]) {
             String::from_utf8(output.stderr)
                 .map(|s| println!("{}", s.trim_end()))
                 .unwrap();
+            fail("lumen-tblgen invocation failed");
         }
         Err(e) => fail(&format!("command failed: {}", e)),
     }

@@ -23,7 +23,7 @@ jobs:
           popd
           echo "::set-env name=LLVM_PREFIX::$HOME/.local/share/llvm/lumen"
       - name: Make Build
-        run: make build
+        run: make build-shared
       - name: Test lumen_rt_full
         run: cargo test --package lumen_rt_full
       - name: Test liblumen_otp with runtime_full

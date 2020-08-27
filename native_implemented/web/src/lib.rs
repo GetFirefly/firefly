@@ -31,7 +31,6 @@ use web_sys::{DomException, Window};
 use liblumen_core::entry;
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::erts::time::Milliseconds;
@@ -47,7 +46,7 @@ pub fn start() {
     // Ignore panics created by full runtime's `__lumen_start_panic`.  `catch_unwind` although
     // it stops the panic does not suppress the printing of the panic message and stack
     // backtrace without this.
-    chain_hook_ignoring::<RuntimeException>();
+    chain_hook_ignoring::<Term>();
     add_event_listeners();
     request_animation_frames();
 }

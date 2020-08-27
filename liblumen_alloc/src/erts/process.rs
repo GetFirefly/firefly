@@ -60,6 +60,7 @@ pub use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::monitor::Monitor;
 pub use self::priority::Priority;
+use crate::erts::process::ffi::process_error;
 
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
 cfg_if::cfg_if! {
@@ -1274,9 +1275,9 @@ impl Process {
 
                 called_current_native
             }
-            Err(error) => {
-                let runtime_exception = error.downcast_ref::<RuntimeException>().unwrap();
-                *self.status.write() = Status::RuntimeException(runtime_exception.clone());
+            Err(_) => {
+                let runtime_exception = process_error().unwrap();
+                *self.status.write() = Status::RuntimeException(runtime_exception);
 
                 CalledCurrentNative::RuntimeException
             }

@@ -9,8 +9,6 @@ use crate::erts::process::{AllocResult, TermAlloc};
 use crate::erts::term::prelude::*;
 use crate::erts::ModuleFunctionArity;
 
-use super::Trace;
-
 #[derive(Debug, Clone)]
 pub struct Symbolication {
     pub(super) mfa: Option<ModuleFunctionArity>,
@@ -158,7 +156,9 @@ pub const BASE_FRAME_SIZE: usize =
 ///
 /// Each (full) frame looks like so:
 ///
+/// ```ignore
 ///     [{module, function, arity, [{file, "path/to/file"}, {line, 1}]}]
+/// ```
 ///
 /// The amount allocated for a trace is calculated by taking the number of frames
 /// in the trace, multiplying that by `BASE_FRAME_SIZE`, and then adding on an extra
@@ -257,7 +257,7 @@ where
     if len > MAX_FILENAME_LEN {
         let begin = len - MAX_FILENAME_LEN;
         let trimmed = &f[begin..];
-        heap.charlist_from_str(&f[begin..]).map(|t| t.into())
+        heap.charlist_from_str(trimmed).map(|t| t.into())
     } else {
         heap.charlist_from_str(f).map(|t| t.into())
     }

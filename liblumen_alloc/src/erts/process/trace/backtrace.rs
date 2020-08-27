@@ -7,7 +7,7 @@ use std::sync::Arc;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::process::alloc::{Heap, HeapAlloc, TermAlloc};
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::{AllocResult, ModuleFunctionArity};
 use crate::erts::term::prelude::*;
 use crate::erts::HeapFragment;
@@ -50,7 +50,7 @@ impl Trace {
             // it on the trace
             //
             // All other frames can be ignored for now
-            let symbol_address = frame.symbol_address();
+            //let symbol_address = frame.symbol_address();
             //if stackmap.find_function(symbol_address).is_some() {
             depth += 1;
             trace.push_frame(frame);
@@ -242,13 +242,11 @@ impl Trace {
     /// that some amount of extra bytes is requested to fulfill auxillary requests,
     /// such as for `top`.
     fn get_or_create_fragment(&self, extra: usize) -> AllocResult<Option<NonNull<HeapFragment>>> {
-        use std::ops::Deref;
-
         if let Some(fragment) = self.fragment.as_ref() {
             Ok(Some(fragment.clone()))
         } else {
             if let Some(layout) = utils::calculate_fragment_layout(self.frames.len(), extra) {
-                let mut heap_ptr = HeapFragment::new(layout)?;
+                let heap_ptr = HeapFragment::new(layout)?;
                 unsafe {
                     self.fragment.set(Some(heap_ptr.clone()));
                 }
@@ -267,12 +265,12 @@ impl Trace {
         assert!(self.term.is_none());
 
         // Either create a heap fragment for the terms, or use the one created already
-        let mut heap_ptr = self.get_or_create_fragment(/* extra= */ 0)?;
+        let heap_ptr = self.get_or_create_fragment(/* extra= */ 0)?;
         if heap_ptr.is_none() {
             return Ok(Term::NIL);
         }
         let mut heap_ptr = heap_ptr.unwrap();
-        let mut heap = unsafe { heap_ptr.as_mut() };
+        let heap = unsafe { heap_ptr.as_mut() };
 
         // If top was set, we have an extra frame to append
         let mut erlang_frames = if self.top.is_some() {

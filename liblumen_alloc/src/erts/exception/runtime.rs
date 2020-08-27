@@ -107,7 +107,7 @@ mod tests {
         #[test]
         fn without_arguments_stores_none() {
             let reason = atom!("badarg");
-            let error = error!(reason, anyhow!("source").into());
+            let error = error_with_source!(reason, anyhow!("source").into());
 
             assert_eq!(error.reason(), reason);
             assert_eq!(error.class(), Class::Error { arguments: None });
@@ -117,7 +117,7 @@ mod tests {
         fn with_arguments_stores_some() {
             let reason = atom!("badarg");
             let arguments = Term::NIL;
-            let error = error!(reason, arguments, anyhow!("source").into());
+            let error = error_with_source!(reason, arguments, anyhow!("source").into());
 
             assert_eq!(error.reason(), reason);
             assert_eq!(

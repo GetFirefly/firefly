@@ -17,9 +17,9 @@ jobs:
         run: |
           mkdir -p ~/.local/share/llvm
           pushd ~/.local/share/llvm
-          wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-04/clang+llvm-10.0.0-x86_64-apple-darwin19.5.0.tar.gz
-          tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.5.0.tar.gz
-          mv clang+llvm-10.0.0-x86_64-apple-darwin19.5.0 lumen
+          wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-26/clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
+          tar xvfz clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
+          mv clang+llvm-12.0.0-x86_64-apple-darwin19.5.0 lumen
           popd
           echo "::set-env name=LLVM_PREFIX::$HOME/.local/share/llvm/lumen"
       - name: Make Build

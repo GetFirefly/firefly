@@ -118,3 +118,11 @@ clean: ## Clean all
 	find bin -maxdepth 1 -mindepth 1 -type d -exec rm -rf '{}' \;
 
 rebuild: clean build ## Rebuild all
+
+docker: ## Build Docker image for CI
+	cd .github/workflows/ && \
+		docker build --squash --force-rm -t kronicdeth/lumen-development:latest -f Dockerfile .
+
+docker-release: docker
+	docker push kronicdeth/lumen-development:latest
+

@@ -14,7 +14,7 @@ ENV PATH="/opt/llvm/bin:${PATH}"
 ENV LLVM_PREFIX="/opt/llvm"
 
 RUN apt-get update \
-  && apt-get install -y cmake jq libc++-dev libc++abi-dev libunwind-dev ninja-build rsync
+  && apt-get install -y cmake jq libc++-dev libc++abi-dev libunwind-dev ninja-build rsync libncurses5
 
 RUN rustup default nightly-2020-05-13
 

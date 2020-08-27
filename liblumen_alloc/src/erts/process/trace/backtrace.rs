@@ -50,7 +50,7 @@ impl Trace {
             // it on the trace
             //
             // All other frames can be ignored for now
-            let symbol_address = frame.symbol_address();
+            // let symbol_address = frame.symbol_address();
             //if stackmap.find_function(symbol_address).is_some() {
             depth += 1;
             trace.push_frame(frame);

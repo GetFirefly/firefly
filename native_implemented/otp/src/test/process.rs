@@ -2,8 +2,8 @@ use std::sync::{Arc, Once};
 
 use panic_control::chain_hook_ignoring;
 
-use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::process::set_log_exit;
 use crate::runtime::process::spawn::Options;
@@ -34,7 +34,7 @@ pub fn init() -> Arc<Process> {
         // Ignore panics created by full runtime's `__lumen_start_panic`.  `catch_unwind` although
         // it stops the panic does not suppress the printing of the panic message and stack
         // backtrace without this.
-        chain_hook_ignoring::<RuntimeException>();
+        chain_hook_ignoring::<Term>();
     });
 
     // During test allow multiple unregistered init processes because in tests, the `Scheduler`s

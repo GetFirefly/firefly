@@ -1,6 +1,6 @@
 pub mod out_of_code;
 
-use liblumen_alloc::erts::process::ffi::{process_error, ProcessSignal};
+use liblumen_alloc::erts::process::ffi::ProcessSignal;
 use liblumen_alloc::erts::process::{Frame, Native};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
@@ -9,8 +9,8 @@ pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set
 
 #[unwind(allowed)]
 #[no_mangle]
-pub unsafe extern "C" fn __lumen_start_panic(_payload: usize) {
-    panic!(process_error().unwrap());
+pub unsafe extern "C" fn __lumen_start_panic(term: Term) {
+    panic!(term);
 }
 
 #[export_name = "lumen_rt_apply_2"]

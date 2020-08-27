@@ -254,7 +254,6 @@ where
     let len = f.len();
     if len > MAX_FILENAME_LEN {
         let begin = len - MAX_FILENAME_LEN;
-        let trimmed = &f[begin..];
         heap.charlist_from_str(&f[begin..]).map(|t| t.into())
     } else {
         heap.charlist_from_str(f).map(|t| t.into())

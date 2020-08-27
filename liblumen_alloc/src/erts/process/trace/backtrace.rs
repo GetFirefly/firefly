@@ -7,7 +7,7 @@ use std::sync::Arc;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::process::alloc::{Heap, HeapAlloc, TermAlloc};
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::{AllocResult, ModuleFunctionArity};
 use crate::erts::term::prelude::*;
 use crate::erts::HeapFragment;
@@ -242,8 +242,6 @@ impl Trace {
     /// that some amount of extra bytes is requested to fulfill auxillary requests,
     /// such as for `top`.
     fn get_or_create_fragment(&self, extra: usize) -> AllocResult<Option<NonNull<HeapFragment>>> {
-        use std::ops::Deref;
-
         if let Some(fragment) = self.fragment.as_ref() {
             Ok(Some(fragment.clone()))
         } else {

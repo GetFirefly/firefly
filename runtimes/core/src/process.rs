@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::{self, ArcError, RuntimeException};
+use liblumen_alloc::erts::exception::{self, RuntimeException};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;

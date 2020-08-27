@@ -9,8 +9,6 @@ use crate::erts::process::{AllocResult, TermAlloc};
 use crate::erts::term::prelude::*;
 use crate::erts::ModuleFunctionArity;
 
-use super::Trace;
-
 #[derive(Debug, Clone)]
 pub struct Symbolication {
     pub(super) mfa: Option<ModuleFunctionArity>,

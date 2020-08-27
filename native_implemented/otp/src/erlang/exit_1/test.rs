@@ -2,7 +2,7 @@ use anyhow::*;
 
 use proptest::prop_assert_eq;
 
-use liblumen_alloc::exit;
+use liblumen_alloc::exit_with_source;
 
 use crate::erlang::exit_1;
 use crate::test::strategy;
@@ -14,7 +14,7 @@ fn exits_with_reason() {
         |reason| {
             prop_assert_eq!(
                 exit_1::result(reason),
-                Err(exit!(reason, anyhow!("explicit exit from Erlang").into()).into())
+                Err(exit_with_source!(reason, anyhow!("explicit exit from Erlang").into()).into())
             );
 
             Ok(())

@@ -7,7 +7,7 @@ fn with_non_existent_pid_errors_noproc() {
 
         assert_eq!(
             result(process, Pid::next_term()),
-            Err(error!(Atom::str_to_term("noproc"), anyhow!("Test").into()).into())
+            Err(error_with_source!(Atom::str_to_term("noproc"), anyhow!("Test").into()).into())
         );
 
         assert_eq!(link_count(process), link_count_before);

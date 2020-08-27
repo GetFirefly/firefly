@@ -1,10 +1,5 @@
 use super::*;
 
-use liblumen_alloc::erts::term::prelude::*;
-
-use crate::erlang;
-use crate::test::{assert_exits_badarith, has_message};
-
 #[test]
 fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent() {
     let parent_arc_process = test::process::init();
@@ -56,7 +51,10 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 
     match *child_arc_process.status.read() {
         Status::RuntimeException(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(reason, anyhow!("Test").into()));
+            assert_eq!(
+                runtime_exception,
+                &exit_with_source!(reason, anyhow!("Test").into())
+            );
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };

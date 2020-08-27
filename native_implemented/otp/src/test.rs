@@ -23,6 +23,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
@@ -32,7 +33,7 @@ use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
 use crate::runtime::time::monotonic;
 use crate::runtime::timer;
 
-pub fn assert_exits<F: Fn(Option<Term>)>(
+pub fn assert_exits<F: Fn(Option<Arc<Trace>>)>(
     process: &Process,
     expected_reason: Term,
     assert_stacktrace: F,
@@ -71,7 +72,8 @@ pub fn assert_exits_undef(
         process,
         atom!("undef"),
         |stacktrace| {
-            let stacktrace_boxed_cons: Boxed<Cons> = stacktrace.unwrap().try_into().unwrap();
+            let stacktrace_term = stacktrace.unwrap().as_term().unwrap();
+            let stacktrace_boxed_cons: Boxed<Cons> = stacktrace_term.try_into().unwrap();
             let head = stacktrace_boxed_cons.head;
 
             assert_eq!(

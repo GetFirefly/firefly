@@ -241,7 +241,7 @@ where
         heap.tuple_from_slice(&[file_atom, Term::NIL])?
     };
     let file = file.into();
-    let line_int: SmallInteger = line.unwrap_or_default().into();
+    let line_int: SmallInteger = line.unwrap_or_default().try_into().unwrap();
     let line = heap.tuple_from_slice(&[line_atom, line_int.into()])?.into();
 
     Ok(heap.list_from_slice(&[file, line])?.into())

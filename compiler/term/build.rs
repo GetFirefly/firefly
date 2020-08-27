@@ -67,15 +67,13 @@ fn tblgen(args: &[String]) {
     let result = Command::new("lumen-tblgen").args(args).output();
     match result {
         Ok(output) => {
-            if output.status.success() {
-                return;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            println!("{}", &stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            println!("{}", &stderr);
+            if !output.status.success() {
+                fail(&format!("command failed"));
             }
-            String::from_utf8(output.stdout)
-                .map(|s| println!("{}", s.trim_end()))
-                .unwrap();
-            String::from_utf8(output.stderr)
-                .map(|s| println!("{}", s.trim_end()))
-                .unwrap();
         }
         Err(e) => fail(&format!("command failed: {}", e)),
     }

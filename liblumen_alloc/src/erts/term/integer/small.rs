@@ -118,7 +118,6 @@ impl From<i32> for SmallInteger {
         unsafe { Self::new_unchecked(n as isize) }
     }
 }
-#[cfg(target_pointer_width = "32")]
 impl TryFrom<i32> for SmallInteger {
     type Error = TryFromIntError;
 

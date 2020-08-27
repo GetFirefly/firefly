@@ -246,7 +246,7 @@ impl Trace {
             Ok(Some(fragment.clone()))
         } else {
             if let Some(layout) = utils::calculate_fragment_layout(self.frames.len(), extra) {
-                let mut heap_ptr = HeapFragment::new(layout)?;
+                let heap_ptr = HeapFragment::new(layout)?;
                 unsafe {
                     self.fragment.set(Some(heap_ptr.clone()));
                 }
@@ -265,12 +265,12 @@ impl Trace {
         assert!(self.term.is_none());
 
         // Either create a heap fragment for the terms, or use the one created already
-        let mut heap_ptr = self.get_or_create_fragment(/* extra= */ 0)?;
+        let heap_ptr = self.get_or_create_fragment(/* extra= */ 0)?;
         if heap_ptr.is_none() {
             return Ok(Term::NIL);
         }
         let mut heap_ptr = heap_ptr.unwrap();
-        let mut heap = unsafe { heap_ptr.as_mut() };
+        let heap = unsafe { heap_ptr.as_mut() };
 
         // If top was set, we have an extra frame to append
         let mut erlang_frames = if self.top.is_some() {

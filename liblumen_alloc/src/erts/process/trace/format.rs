@@ -13,7 +13,7 @@ use super::Trace;
 pub fn print(trace: &Trace, kind: Term, reason: Term) -> std::io::Result<()> {
     use termcolor::{BufferWriter, ColorChoice};
 
-    let mut out = BufferWriter::stderr(ColorChoice::Auto);
+    let out = BufferWriter::stderr(ColorChoice::Auto);
     let mut buffer = out.buffer();
 
     format_write(trace, &mut buffer, kind, reason)?;

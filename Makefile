@@ -1,6 +1,7 @@
-.PHONY: help test install build build-static rebuild clean 
+.PHONY: help test install build build-shared build-static rebuild clean 
 .PHONY: check clean-codegen unused-deps clippy format format-rust format-cpp
 .PHONY: liblumen_alloc liblumen_term liblumen_llvm liblumen_crt lumen_rt_core lumen_rt_minimal
+.PHONY: lumen-tblgen bloat
 
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
@@ -37,7 +38,7 @@ bloat:
 
 lumen-tblgen:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --only-tblgen
+		bin/build-lumen --static --only-tblgen
 
 libunwind:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \

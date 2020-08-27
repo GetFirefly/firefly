@@ -40,7 +40,7 @@ impl<'f> Write for &mut FormatterWrapper<'f> {
         // to the actual output without treating them as a utf8
         // string, so this is unsafe, but not in practice
         let raw = unsafe { core::str::from_utf8_unchecked(buf) };
-        self.f.write_str(raw)?;
+        self.f.write_str(raw).unwrap();
         Ok(buf.len())
     }
 

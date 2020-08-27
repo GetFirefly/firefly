@@ -1,3 +1,4 @@
+#![deny(warnings)]
 // Do not fail the build when feature flags are stabilized on recent nightlies, just warn
 #![allow(stable_features)]
 // Support backtraces in errors

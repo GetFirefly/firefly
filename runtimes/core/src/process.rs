@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::{self, RuntimeException};
+use liblumen_alloc::erts::exception::{self, RuntimeException, ArcError};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
@@ -50,21 +50,28 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
 
             if !is_expected_exit_reason(reason) {
                 puts_exit(&format!(
-                    "** (EXIT from {}) exited with reason: {}\n\nSource: {:?}",
+                    "** (EXIT from {}) exited with reason: {}\n\nSource: {}",
                     process,
                     reason,
-                    exception.source()
+                    format_source(exception.source())
                 ));
             }
         }
         Class::Error { .. } => puts_exit(&format!(
-            "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {:?}\n{}",
+            "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {}\n{}",
             process,
             exception.reason(),
-            exception.source(),
+            format_source(exception.source()),
             process.stacktrace()
         )),
         _ => unimplemented!("{:?}", exception),
+    }
+}
+
+fn format_source(source: Option<ArcError>) -> String {
+    match source {
+        Some(arc_error) => format!("{:?}", arc_error),
+        None => "None".to_string()
     }
 }
 

@@ -63,6 +63,19 @@ impl Trace {
         trace_arc
     }
 
+    /// Used by `erlang:raise/3` when the caller can specify a constrained format of `Term` for
+    /// the `term` in this `Trace`.
+    pub fn from_term(term: Term) -> Arc<Self> {
+        let (fragment_term, fragment) = term.clone_to_fragment().unwrap();
+
+        Arc::new(Self {
+            frames: Default::default(),
+            fragment: ThreadLocalCell::new(Some(fragment)),
+            term: ThreadLocalCell::new(Some(fragment_term)),
+            top: Default::default()
+        })
+    }
+
     /// Returns the set of native frames in the stack trace
     #[inline]
     pub fn frames(&self) -> &[TraceFrame] {

@@ -21,8 +21,6 @@
 //! Lumen.Web.Node.append_child(element_with_id, div)
 //! ```
 
-use anyhow::*;
-
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
@@ -32,8 +30,8 @@ use crate::{error_tuple, node};
 
 #[native_implemented::function(Elixir.Lumen.Web.Node:append_child/2)]
 pub fn result(process: &Process, parent: Term, child: Term) -> exception::Result<Term> {
-    let parent_node = node::from_term(parent).with_context(|| format!("parent"))?;
-    let child_node = node::from_term(child).with_context(|| format!("child"))?;
+    let parent_node = node::from_term(parent)?;
+    let child_node = node::from_term(child)?;
 
     let final_term = match parent_node.append_child(child_node) {
         Ok(_) => atom!("ok"),

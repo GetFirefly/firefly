@@ -46,5 +46,4 @@ jobs:
       - name: Build TableGen
         run: make lumen-tblgen
       - name: Test liblumen_alloc
-        env:
         run: cargo test --package liblumen_alloc --no-fail-fast

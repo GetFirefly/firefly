@@ -213,7 +213,7 @@ impl Process {
             heap,
             heap_size,
         );
-        p.stack = Mutex::new(self::alloc::stack(16)?);
+        p.stack = Mutex::new(self::alloc::stack(32)?);
         Ok(p)
     }
 

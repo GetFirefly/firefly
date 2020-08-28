@@ -1,6 +1,7 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use anyhow::*;
 use num_bigint::BigInt;
 
 use liblumen_alloc::erts::exception::{self, *};
@@ -33,6 +34,10 @@ pub fn result(process: &Process, number: Term) -> exception::Result<Term> {
 
             Ok(negated_number)
         }
-        _ => Err(badarith(Trace::capture()).into()),
+        _ => Err(badarith(
+            Trace::capture(),
+            Some(anyhow!("number ({}) is neither an integer nor a float", number).into()),
+        )
+        .into()),
     }
 }

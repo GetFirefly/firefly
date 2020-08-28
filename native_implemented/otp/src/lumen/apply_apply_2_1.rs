@@ -1,6 +1,8 @@
 //! This is used as the `init_fn` for `Scheduler::spawn_closure`, as the spawning code can only
 //! pass at most 1 argument and `erlang:apply/2` takes two arguments
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception::{self, badarity};
 use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::Process;
@@ -29,6 +31,20 @@ fn result(process: &Process, arguments: Term) -> exception::Result<Term> {
             erlang::apply_2::CLOSURE_NATIVE,
         );
 
-        Err(badarity(process, function, arguments, Trace::capture()))
+        Err(badarity(
+            process,
+            function,
+            arguments,
+            Trace::capture(),
+            Some(
+                anyhow!(
+                    "function arguments {} is {} term(s), but should be {}",
+                    arguments,
+                    arguments_len,
+                    erlang::apply_2::ARITY
+                )
+                .into(),
+            ),
+        ))
     }
 }

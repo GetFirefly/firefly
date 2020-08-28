@@ -6,17 +6,23 @@ use std::path::Path;
 
 use termcolor::{Color, ColorSpec, WriteColor};
 
+use crate::erts::exception::ArcError;
 use crate::erts::term::prelude::*;
 
 use super::Trace;
 
-pub fn print(trace: &Trace, kind: Term, reason: Term) -> std::io::Result<()> {
+pub fn print(
+    trace: &Trace,
+    kind: Term,
+    reason: Term,
+    source: Option<ArcError>,
+) -> std::io::Result<()> {
     use termcolor::{BufferWriter, ColorChoice};
 
     let out = BufferWriter::stderr(ColorChoice::Auto);
     let mut buffer = out.buffer();
 
-    format_write(trace, &mut buffer, kind, reason)?;
+    format_write(trace, &mut buffer, kind, reason, source)?;
     out.print(&buffer)?;
 
     Ok(())
@@ -57,15 +63,22 @@ pub fn format(
     f: &mut fmt::Formatter,
     kind: Term,
     reason: Term,
+    source: Option<ArcError>,
 ) -> std::io::Result<()> {
     use termcolor::Ansi;
 
     let mut wrapper = unsafe { FormatterWrapper::new(f) };
     let mut ansi = Ansi::new(&mut wrapper);
-    format_write(trace, &mut ansi, kind, reason)
+    format_write(trace, &mut ansi, kind, reason, source)
 }
 
-fn format_write<W>(trace: &Trace, out: &mut W, kind: Term, reason: Term) -> std::io::Result<()>
+fn format_write<W>(
+    trace: &Trace,
+    out: &mut W,
+    kind: Term,
+    reason: Term,
+    source: Option<ArcError>,
+) -> std::io::Result<()>
 where
     W: WriteColor,
 {
@@ -131,6 +144,11 @@ where
     }
     out.set_color(&yellow)?;
     writeln!(out, "  {}\n", reason)?;
+
+    if let Some(source) = source {
+        writeln!(out, "  {}\n", source)?;
+    }
+
     out.reset()?;
 
     Ok(())

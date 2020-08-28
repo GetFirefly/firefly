@@ -4,7 +4,8 @@ use anyhow::*;
 
 use proptest::strategy::{Just, Strategy};
 
-use liblumen_alloc::error_with_source;
+use liblumen_alloc::erts::exception::error;
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 

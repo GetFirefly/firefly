@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::{self, ArcError, RuntimeException};
+use liblumen_alloc::erts::exception::{self, RuntimeException};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
@@ -210,24 +210,18 @@ fn exit_in_heap(
 ) {
     let data = reason.clone_to_heap(heap).unwrap();
 
-    if let Some(trace) = exception.stacktrace() {
-        process.exit(data, trace);
-        return;
-    }
-
-    process.exit_with_source(data, exception.source().unwrap());
+    process.exit(data, exception.stacktrace(), exception.source());
 }
 
 fn exit_in_heap_fragment(process: &Process, reason: Term, exception: RuntimeException) {
     let (heap_fragment_data, mut heap_fragment) = reason.clone_to_fragment().unwrap();
 
     process.attach_fragment(unsafe { heap_fragment.as_mut() });
-    if let Some(trace) = exception.stacktrace() {
-        process.exit(heap_fragment_data, trace);
-        return;
-    }
-
-    process.exit_with_source(heap_fragment_data, exception.source().unwrap());
+    process.exit(
+        heap_fragment_data,
+        exception.stacktrace(),
+        exception.source(),
+    );
 }
 
 thread_local! {

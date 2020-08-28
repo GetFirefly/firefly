@@ -39,6 +39,7 @@ use core::marker::PhantomData;
 use thiserror::Error;
 
 use super::term::prelude::*;
+use crate::erts::process::trace::Trace;
 use crate::erts::string::InvalidEncodingNameError;
 
 /// A convenience type alias for results which fail with `Exception`
@@ -95,7 +96,7 @@ impl From<InternalException> for Exception {
     fn from(err: InternalException) -> Self {
         match err {
             InternalException::System(err) => Self::System(err),
-            InternalException::Internal(err) => Self::Runtime(badarg_with_source!(err)),
+            InternalException::Internal(source) => Self::Runtime(badarg!(Trace::capture(), source)),
         }
     }
 }

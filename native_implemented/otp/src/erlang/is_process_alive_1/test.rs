@@ -6,6 +6,7 @@ use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::term::prelude::Pid;
 
 use crate::erlang::is_process_alive_1::result;

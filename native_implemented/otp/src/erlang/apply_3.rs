@@ -1,12 +1,14 @@
 use std::ffi::c_void;
 use std::mem::transmute;
 
+use anyhow::*;
+
 use liblumen_core::sys::dynamic_call::DynamicCallee;
 
 use liblumen_alloc::erts::apply::find_symbol;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::{Native, Process};
+use liblumen_alloc::erts::process::Native;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{Arity, ModuleFunctionArity};
 
@@ -22,12 +24,7 @@ extern "Rust" {
 }
 
 #[native_implemented::function(erlang:apply/3)]
-fn result(
-    _process: &Process,
-    module: Term,
-    function: Term,
-    arguments: Term,
-) -> exception::Result<Term> {
+fn result(module: Term, function: Term, arguments: Term) -> exception::Result<Term> {
     let module_atom = term_try_into_atom!(module)?;
     let function_atom = term_try_into_atom!(function)?;
     let argument_vec = arguments_term_to_vec(arguments)?;
@@ -52,7 +49,19 @@ fn result(
         None => {
             let trace = Trace::capture();
             trace.set_top_frame(&module_function_arity, argument_vec.as_slice());
-            Err(exception::undef(trace).into())
+            Err(exception::undef(
+                trace,
+                Some(
+                    anyhow!(
+                        "{}:{}/{} is not exported",
+                        module_atom.name(),
+                        function_atom.name(),
+                        arity
+                    )
+                    .into(),
+                ),
+            )
+            .into())
         }
     }
 }

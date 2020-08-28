@@ -2,6 +2,7 @@ macro_rules! bitwise_infix_operator {
     ($left:ident, $right:ident, $process:ident, $infix:ident) => {{
         use core::ops::*;
 
+        use anyhow::*;
         use num_bigint::BigInt;
 
         use liblumen_alloc::erts::exception::*;
@@ -53,13 +54,27 @@ macro_rules! bitwise_infix_operator {
 
                 Ok(output_term)
             }
-            _ => Err(badarith(Trace::capture()).into()),
+            _ => Err(badarith(
+                Trace::capture(),
+                Some(
+                    anyhow!(
+                        "{} ({}) and {} ({}) are not both integers",
+                        stringify!($left),
+                        $left,
+                        stringify!($right),
+                        $right
+                    )
+                    .into(),
+                ),
+            )
+            .into()),
         }
     }};
 }
 
 macro_rules! bitshift_infix_operator {
     ($integer:ident, $shift:ident, $process:ident, $positive:tt, $negative:tt) => {{
+        use anyhow::*;
         use num_bigint::BigInt;
 
         use liblumen_alloc::erts::exception::*;
@@ -71,7 +86,7 @@ macro_rules! bitshift_infix_operator {
         let option_shifted = match $integer.decode().unwrap() {
             TypedTerm::SmallInteger(integer_small_integer) => {
                 let integer_isize: isize = integer_small_integer.into();
-                let shift_isize: isize = term_try_into_isize!($shift).map_err(|_| badarith(Trace::capture()))?;
+                let shift_isize: isize = term_try_into_isize!($shift).map_err(ArcError::new).map_err(|source| badarith(Trace::capture(), Some(source)))?;
 
                 // Rust doesn't support negative shift, so negative left shifts need to be right shifts
                 if 0 <= shift_isize {
@@ -108,7 +123,7 @@ macro_rules! bitshift_infix_operator {
             }
             TypedTerm::BigInteger(integer_big_integer) => {
                 let big_int = integer_big_integer.as_ref();
-                let shift_isize: isize = term_try_into_isize!($shift).map_err(|_| badarith(Trace::capture()))?;
+                let shift_isize: isize = term_try_into_isize!($shift).map_err(ArcError::new).map_err(|source| badarith(Trace::capture(), Some(source)))?;
 
                 // Rust doesn't support negative shift, so negative left shifts need to be right
                 // shifts
@@ -133,13 +148,14 @@ macro_rules! bitshift_infix_operator {
 
         match option_shifted {
             Some(shifted) => Ok(shifted),
-            None => Err(badarith(Trace::capture()).into())
+            None => Err(badarith(Trace::capture(), Some(anyhow!("integer ({}) is not an integer", $integer).into())).into())
         }
     }};
 }
 
 macro_rules! integer_infix_operator {
     ($left:ident, $right:ident, $process:ident, $infix:tt) => {{
+        use anyhow::*;
         use num_bigint::BigInt;
 
         use liblumen_alloc::erts::exception::*;
@@ -152,7 +168,7 @@ macro_rules! integer_infix_operator {
                 let right_isize: isize = right_small_integer.into();
 
                 if right_isize == 0 {
-                    Err(badarith(Trace::capture()))
+                    Err(badarith(Trace::capture(), Some(anyhow!("{} ({}) cannot be zero", stringify!($right), $right).into())))
                 } else {
                     let quotient = left_isize $infix right_isize;
                     let quotient_term = $process.integer(quotient);
@@ -174,7 +190,7 @@ macro_rules! integer_infix_operator {
                 let right_isize: isize = right_small_integer.into();
 
                 if right_isize == 0 {
-                    Err(badarith(Trace::capture()))
+                    Err(badarith(Trace::capture(), Some(anyhow!("{} ({}) cannot be zero", stringify!($right), $right).into())))
                 } else {
                     let left_big_int = left_big_integer.as_ref();
                     let right_big_int: BigInteger = right_isize.into();
@@ -196,7 +212,7 @@ macro_rules! integer_infix_operator {
 
                 Ok(quotient_term)
             }
-            _ => Err(badarith(Trace::capture())),
+            _ => Err(badarith(Trace::capture(), Some(anyhow!("{} ({}) and {} ({}) are not both numbers", stringify!($left), $left, stringify!($right), $right).into()))),
         }.map_err(|error| error.into())
     }};
 }

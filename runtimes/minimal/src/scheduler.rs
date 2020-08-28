@@ -15,12 +15,12 @@ use liblumen_core::locks::RwLock;
 use liblumen_core::sys::dynamic_call::DynamicCallee;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::{self, CalleeSavedRegisters, Priority, Process, Status};
-use liblumen_alloc::{atom, Arity, CloneToProcess};
-
 use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::{atom, Arity, CloneToProcess};
 
 use lumen_rt_core::process::spawn::options::Options;
 use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
@@ -78,9 +78,11 @@ pub unsafe extern "C" fn process_exit(reason: Term) {
     // FIXME https://github.com/lumen/lumen/issues/546
     let exit_reason = work_around546(reason);
 
-    scheduler
-        .current
-        .exit_with_source(reason, anyhow!("process exit").into());
+    scheduler.current.exit(
+        exit_reason,
+        Trace::capture(),
+        Some(anyhow!("process exit").into()),
+    );
     scheduler.process_yield();
 }
 
@@ -227,7 +229,11 @@ fn do_process_return(scheduler: &Scheduler, exit_value: Term) -> bool {
         if let Some(err) = process::ffi::process_error() {
             current.exception(err);
         } else {
-            current.exit_with_source(exit_value, anyhow!("process exit").into());
+            current.exit(
+                exit_value,
+                Trace::capture(),
+                Some(anyhow!("process exit").into()),
+            );
         }
         scheduler.process_yield()
     } else {
@@ -642,8 +648,11 @@ impl Scheduler {
     /// as exiting (if it wasn't already), and then yields to the scheduler
     pub fn process_return(&self) -> bool {
         if self.current.pid() != self.root.pid() {
-            self.current
-                .exit_with_source(atom!("normal"), anyhow!("Out of code").into());
+            self.current.exit(
+                atom!("normal"),
+                Trace::capture(),
+                Some(anyhow!("Out of code").into()),
+            );
             self.process_yield()
         } else {
             true

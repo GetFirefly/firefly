@@ -4,6 +4,7 @@ mod test;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::{self, *};
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -16,6 +17,7 @@ pub fn result(process: &Process, key: Term, map: Term) -> exception::Result<Term
         None => Err(badkey(
             process,
             key,
+            Trace::capture(),
             anyhow!("map ({}) does not have key ({})", map, key).into(),
         )),
     }

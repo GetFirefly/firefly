@@ -47,7 +47,7 @@ impl RuntimeException {
         }
     }
 
-    pub fn stacktrace(&self) -> Option<Arc<Trace>> {
+    pub fn stacktrace(&self) -> Arc<Trace> {
         match self {
             RuntimeException::Throw(e) => e.stacktrace(),
             RuntimeException::Exit(e) => e.stacktrace(),
@@ -78,7 +78,7 @@ impl RuntimeException {
 
 impl From<anyhow::Error> for RuntimeException {
     fn from(err: anyhow::Error) -> Self {
-        badarg_with_source!(ArcError::new(err))
+        badarg!(Trace::capture(), ArcError::new(err))
     }
 }
 
@@ -102,12 +102,10 @@ mod tests {
     mod error {
         use super::*;
 
-        use anyhow::*;
-
         #[test]
         fn without_arguments_stores_none() {
             let reason = atom!("badarg");
-            let error = error_with_source!(reason, anyhow!("source").into());
+            let error = error!(reason, Trace::capture());
 
             assert_eq!(error.reason(), reason);
             assert_eq!(error.class(), Class::Error { arguments: None });
@@ -117,7 +115,7 @@ mod tests {
         fn with_arguments_stores_some() {
             let reason = atom!("badarg");
             let arguments = Term::NIL;
-            let error = error_with_source!(reason, arguments, anyhow!("source").into());
+            let error = error!(reason, arguments, Trace::capture());
 
             assert_eq!(error.reason(), reason);
             assert_eq!(

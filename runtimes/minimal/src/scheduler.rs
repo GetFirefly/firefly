@@ -78,11 +78,17 @@ pub unsafe extern "C" fn process_exit(reason: Term) {
     // FIXME https://github.com/lumen/lumen/issues/546
     let exit_reason = work_around546(reason);
 
-    scheduler.current.exit(
-        exit_reason,
-        Trace::capture(),
-        Some(anyhow!("process exit").into()),
-    );
+    let current = &scheduler.current;
+    if let Some(runtime_exception) = process::ffi::process_error() {
+        current.exception(runtime_exception)
+    } else {
+        scheduler.current.exit(
+            exit_reason,
+            Trace::capture(),
+            Some(anyhow!("process exit").into()),
+        );
+    }
+
     scheduler.process_yield();
 }
 

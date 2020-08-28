@@ -7,9 +7,10 @@ use anyhow::*;
 
 use proptest::strategy::Just;
 
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{atom, atom_from, exit_with_source, ModuleFunctionArity, Process};
+use liblumen_alloc::{atom, atom_from, exit, ModuleFunctionArity, Process};
 
 use crate::runtime::registry::pid_to_process;
 use crate::runtime::scheduler;

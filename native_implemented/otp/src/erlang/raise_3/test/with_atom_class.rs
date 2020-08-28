@@ -490,7 +490,10 @@ fn prop_assert_raises(
     if let Err(Exception::Runtime(ref runtime_exception)) = result(class, reason, stacktrace) {
         prop_assert_eq!(runtime_exception.class(), class_variant);
         prop_assert_eq!(runtime_exception.reason(), reason);
-        prop_assert_eq!(runtime_exception.stacktrace(), Some(stacktrace));
+        prop_assert_eq!(
+            runtime_exception.stacktrace().as_term().unwrap(),
+            stacktrace
+        );
 
         Ok(())
     } else {

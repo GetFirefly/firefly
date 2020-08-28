@@ -4,6 +4,7 @@ mod test;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::{self, *};
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -16,6 +17,7 @@ pub fn result(process: &Process, key: Term, value: Term, map: Term) -> exception
         None => Err(badkey(
             process,
             key,
+            Trace::capture(),
             anyhow!("key ({}) does not exist in map ({})", key, map).into(),
         )),
     }

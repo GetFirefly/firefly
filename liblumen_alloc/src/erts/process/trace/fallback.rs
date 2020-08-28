@@ -6,6 +6,7 @@ use std::sync::Arc;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::ArcError;
 use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::{AllocResult, ModuleFunctionArity};
 use crate::erts::term::prelude::*;
@@ -52,13 +53,13 @@ impl Trace {
     }
 
     #[inline]
-    pub fn print(&self, kind: Term, reason: Term) -> std::io::Result<()> {
-        format::print(self, kind, reason)
+    pub fn print(&self, kind: Term, reason: Term, source: Option<ArcError>) -> std::io::Result<()> {
+        format::print(self, kind, reason, source)
     }
 
     #[inline]
-    pub fn format(&self, f: &mut fmt::Formatter, kind: Term, reason: Term) -> std::io::Result<()> {
-        format::format(self, f, kind, reason)
+    pub fn format(&self, f: &mut fmt::Formatter, kind: Term, reason: Term, source: Option<ArcError>) -> std::io::Result<()> {
+        format::format(self, f, kind, reason, source)
     }
 
     #[inline]
@@ -130,7 +131,7 @@ impl Trace {
             Ok(Some(fragment.clone()))
         } else {
             if let Some(layout) = utils::calculate_fragment_layout(self.frames.len(), extra) {
-                let mut heap_ptr = HeapFragment::new(layout)?;
+                let heap_ptr = HeapFragment::new(layout)?;
                 unsafe {
                     self.fragment.set(Some(heap_ptr.clone()));
                 }
@@ -149,12 +150,12 @@ impl Trace {
         assert!(self.term.is_none());
 
         // Either create a heap fragment for the terms, or use the one created already
-        let mut heap_ptr = self.get_or_create_fragment(/* extra= */ 0)?;
+        let heap_ptr = self.get_or_create_fragment(/* extra= */ 0)?;
         if heap_ptr.is_none() {
             return Ok(Term::NIL);
         }
         let mut heap_ptr = heap_ptr.unwrap();
-        let mut heap = unsafe { heap_ptr.as_mut() };
+        let heap = unsafe { heap_ptr.as_mut() };
 
         // If top was set, we have an extra frame to append
         let mut erlang_frames = Vec::with_capacity(self.frames.len());
@@ -182,5 +183,10 @@ impl Trace {
 }
 
 pub(super) fn resolve_frame(frame: &Frame) -> Option<Symbolication> {
-    None
+    Some(
+        Symbolication {
+            mfa: Some(frame.mfa),
+            ..Default::default()
+        }
+    )
 }

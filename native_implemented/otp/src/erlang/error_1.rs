@@ -3,11 +3,17 @@ mod test;
 
 use anyhow::*;
 
-use liblumen_alloc::error_with_source;
-use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::exception::{self, error};
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::term::prelude::Term;
 
 #[native_implemented::function(erlang:error/1)]
 pub fn result(reason: Term) -> exception::Result<Term> {
-    Err(error_with_source!(reason, anyhow!("explicit error from Erlang").into()).into())
+    Err(error(
+        reason,
+        None,
+        Trace::capture(),
+        Some(anyhow!("explicit error from Erlang").into()),
+    )
+    .into())
 }

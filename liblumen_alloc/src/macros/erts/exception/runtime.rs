@@ -1,14 +1,10 @@
 #[macro_export]
 macro_rules! badarg {
     ($trace:expr) => {
-        $crate::erts::exception::badarg($trace)
+        $crate::erts::exception::badarg($trace, None)
     };
-}
-
-#[macro_export]
-macro_rules! badarg_with_source {
-    ($source:expr) => {
-        $crate::erts::exception::badarg_with_source($source)
+    ($trace:expr, $source:expr) => {
+        $crate::erts::exception::badarg($trace, Some($source))
     };
 }
 
@@ -30,34 +26,23 @@ macro_rules! raise_with_source {
 #[macro_export]
 macro_rules! error {
     ($reason:expr, $trace:expr) => {
-        $crate::erts::exception::error($reason, None, $trace)
+        $crate::erts::exception::error($reason, None, $trace, None)
     };
     ($reason:expr, $arguments:expr, $trace:expr) => {
-        $crate::erts::exception::error($reason, Some($arguments), $trace)
+        $crate::erts::exception::error($reason, Some($arguments), $trace, None)
     };
-}
-
-#[macro_export]
-macro_rules! error_with_source {
-    ($reason:expr, $source:expr) => {
-        $crate::erts::exception::error_with_source($reason, None, $source)
-    };
-    ($reason:expr, $arguments:expr, $source:expr) => {
-        $crate::erts::exception::error_with_source($reason, Some($arguments), $source)
+    ($reason:expr, $arguments:expr, $trace:expr, $source:expr) => {
+        $crate::erts::exception::error($reason, Some($arguments), $trace, Some($source))
     };
 }
 
 #[macro_export]
 macro_rules! exit {
     ($reason:expr, $trace:expr) => {
-        $crate::erts::exception::exit($reason, $trace)
+        $crate::erts::exception::exit($reason, $trace, None)
     };
-}
-
-#[macro_export]
-macro_rules! exit_with_source {
-    ($reason:expr, $source:expr) => {
-        $crate::erts::exception::exit_with_source($reason, $source)
+    ($reason:expr, $trace:expr, $source:expr) => {
+        $crate::erts::exception::exit($reason, $trace, Some($source))
     };
 }
 

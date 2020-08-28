@@ -4,10 +4,16 @@ mod test;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::term::prelude::Term;
-use liblumen_alloc::exit_with_source;
+use liblumen_alloc::exit;
 
 #[native_implemented::function(erlang:exit/1)]
 fn result(reason: Term) -> exception::Result<Term> {
-    Err(exit_with_source!(reason, anyhow!("explicit exit from Erlang").into()).into())
+    Err(exit!(
+        reason,
+        Trace::capture(),
+        anyhow!("explicit exit from Erlang").into()
+    )
+    .into())
 }

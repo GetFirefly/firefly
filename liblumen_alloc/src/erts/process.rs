@@ -1135,14 +1135,9 @@ impl Process {
         }
     }
 
-    pub fn exit(&self, reason: Term, trace: Arc<trace::Trace>) {
+    pub fn exit(&self, reason: Term, trace: Arc<trace::Trace>, source: Option<ArcError>) {
         self.reduce();
-        self.exception(exit!(reason, trace));
-    }
-
-    pub fn exit_with_source(&self, reason: Term, source: ArcError) {
-        self.reduce();
-        self.exception(exit_with_source!(reason, source));
+        self.exception(exception::exit(reason, trace, source));
     }
 
     pub fn exit_with_exception(&self, exception: RuntimeException) {
@@ -1150,8 +1145,8 @@ impl Process {
         self.exception(exception);
     }
 
-    pub fn exit_normal(&self, source: ArcError) {
-        self.exit_with_source(atom!("normal"), source);
+    pub fn exit_normal(&self, trace: Arc<trace::Trace>, source: ArcError) {
+        self.exit(atom!("normal"), trace, Some(source))
     }
 
     pub fn is_exiting(&self) -> bool {

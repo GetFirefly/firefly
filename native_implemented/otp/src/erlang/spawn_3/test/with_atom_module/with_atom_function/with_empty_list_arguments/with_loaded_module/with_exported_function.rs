@@ -39,7 +39,7 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
         Status::RuntimeException(ref runtime_exception) => {
             assert_eq!(
                 runtime_exception,
-                &exit_with_source!(atom!("normal"), anyhow!("Test").into())
+                &exit!(atom!("normal"), Trace::capture(), anyhow!("Test").into())
             );
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),

@@ -2,12 +2,17 @@ use super::*;
 
 use anyhow::*;
 
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::{atom, exit};
 
 #[test]
 fn without_stacktrace_returns_empty_list() {
     with_process(|process| {
-        process.exception(exit!(atom!("reason"), anyhow!("Test").into()));
+        process.exception(exit!(
+            atom!("reason"),
+            Trace::capture(),
+            anyhow!("Test").into()
+        ));
 
         assert_eq!(result(process), Term::NIL);
     });
@@ -16,6 +21,10 @@ fn without_stacktrace_returns_empty_list() {
 #[test]
 fn with_stacktrace_returns_stacktrace() {
     with_process(|process| {
+        let arc_trace = Trace::capture();
+
+        process.exception(exit!(atom!("reason"), arc_trace));
+
         let module = atom!("module");
         let function = atom!("function");
         let arity = 0.into();
@@ -33,8 +42,6 @@ fn with_stacktrace_returns_stacktrace() {
         let stack_item = process.tuple_from_slice(&[module, function, arity, location]);
 
         let stacktrace = process.list_from_slice(&[stack_item]);
-
-        process.exception(exit!(atom!("reason"), stacktrace, anyhow!("Test").into()));
 
         assert_eq!(result(process), stacktrace);
     })

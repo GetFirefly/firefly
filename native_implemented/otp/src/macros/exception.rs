@@ -41,11 +41,18 @@ macro_rules! assert_badarith {
 #[cfg(test)]
 macro_rules! assert_error {
     ($left:expr, $reason:expr) => {{
-        use liblumen_alloc::error_with_source;
+        use liblumen_alloc::erts::exception::error;
+        use liblumen_alloc::erts::process::trace::Trace;
 
         assert_eq!(
             $left,
-            Err(error_with_source!($reason, anyhow::anyhow!("Test").into()).into())
+            Err(error(
+                $reason,
+                None,
+                Trace::capture(),
+                Some(anyhow::anyhow!("Test").into())
+            )
+            .into())
         )
     }};
     ($left:expr, $reason:expr,) => {{

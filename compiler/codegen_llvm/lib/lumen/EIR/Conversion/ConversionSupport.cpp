@@ -31,6 +31,10 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     return boxedTy.getPointerTo();
   }
 
+  if (auto recvRef = type.dyn_cast_or_null<ReceiveRefType>()) {
+    return targetInfo.getI8Type().getPointerTo();
+  }
+
   OpaqueTermType ty = type.cast<OpaqueTermType>();
   if (ty.isOpaque() || ty.isImmediate()) return termTy;
 

@@ -56,6 +56,23 @@ impl RuntimeException {
     }
 
     #[inline]
+    pub fn layout(&self) -> std::alloc::Layout {
+        use crate::borrow::CloneToProcess;
+        use std::alloc::Layout;
+
+        // The class and trace are 1 word each and stored inline with the tuple,
+        // the reason is the only potentially dynamic sized term. Simply calculate
+        // the tuple + a block of memory capable of holding the size in words of
+        // the reason
+        let words = self.reason().size_in_words();
+        let layout = Tuple::layout_for_len(3);
+        let (layout, _) = layout
+            .extend(Layout::array::<Term>(words).unwrap())
+            .unwrap();
+        layout.pad_to_align()
+    }
+
+    #[inline]
     pub fn as_error_tuple<A>(&self, heap: &mut A) -> super::AllocResult<Term>
     where
         A: TermAlloc,

@@ -1,5 +1,6 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::mem;
 use std::sync::Arc;
 
 use anyhow::*;
@@ -29,10 +30,27 @@ impl Throw {
     where
         A: TermAlloc,
     {
+        use crate::borrow::CloneToProcess;
+
         let class = Atom::THROW.as_term();
+        // NOTE: The trace is allocated in a fragment, so this is a single word always
         let trace = self.stacktrace.as_term()?;
-        heap.tuple_from_slice(&[class, self.reason, trace])
-            .map(|t| t.into())
+        let tuple = if self.reason.is_immediate() {
+            let mut tuple = heap.mut_tuple(3)?;
+            tuple.set_element(0, class).unwrap();
+            tuple.set_element(1, self.reason).unwrap();
+            tuple.set_element(2, trace).unwrap();
+            tuple
+        } else {
+            let reason = self.reason.clone_to_heap(heap)?;
+            let mut tuple =
+                heap.mut_tuple(1 + self.reason.size_in_words() * mem::size_of::<Term>())?;
+            tuple.set_element(0, class).unwrap();
+            tuple.set_element(1, reason).unwrap();
+            tuple.set_element(2, trace).unwrap();
+            tuple
+        };
+        Ok(tuple.into())
     }
     pub fn class(&self) -> Class {
         Class::Throw
@@ -98,10 +116,27 @@ impl Error {
     where
         A: TermAlloc,
     {
+        use crate::borrow::CloneToProcess;
+
         let class = Atom::ERROR.as_term();
+        // NOTE: The trace is allocated in a fragment, so this is a single word always
         let trace = self.stacktrace.as_term()?;
-        heap.tuple_from_slice(&[class, self.reason, trace])
-            .map(|t| t.into())
+        let tuple = if self.reason.is_immediate() {
+            let mut tuple = heap.mut_tuple(3)?;
+            tuple.set_element(0, class).unwrap();
+            tuple.set_element(1, self.reason).unwrap();
+            tuple.set_element(2, trace).unwrap();
+            tuple
+        } else {
+            let reason = self.reason.clone_to_heap(heap)?;
+            let mut tuple =
+                heap.mut_tuple(1 + self.reason.size_in_words() * mem::size_of::<Term>())?;
+            tuple.set_element(0, class).unwrap();
+            tuple.set_element(1, reason).unwrap();
+            tuple.set_element(2, trace).unwrap();
+            tuple
+        };
+        Ok(tuple.into())
     }
     pub fn arguments(&self) -> Option<Term> {
         self.arguments
@@ -166,10 +201,27 @@ impl Exit {
     where
         A: TermAlloc,
     {
+        use crate::borrow::CloneToProcess;
+
         let class = Atom::EXIT.as_term();
+        // NOTE: The trace is allocated in a fragment, so this is a single word always
         let trace = self.stacktrace.as_term()?;
-        heap.tuple_from_slice(&[class, self.reason, trace])
-            .map(|t| t.into())
+        let tuple = if self.reason.is_immediate() {
+            let mut tuple = heap.mut_tuple(3)?;
+            tuple.set_element(0, class).unwrap();
+            tuple.set_element(1, self.reason).unwrap();
+            tuple.set_element(2, trace).unwrap();
+            tuple
+        } else {
+            let reason = self.reason.clone_to_heap(heap)?;
+            let mut tuple =
+                heap.mut_tuple(1 + self.reason.size_in_words() * mem::size_of::<Term>())?;
+            tuple.set_element(0, class).unwrap();
+            tuple.set_element(1, reason).unwrap();
+            tuple.set_element(2, trace).unwrap();
+            tuple
+        };
+        Ok(tuple.into())
     }
     pub fn class(&self) -> Class {
         Class::Exit

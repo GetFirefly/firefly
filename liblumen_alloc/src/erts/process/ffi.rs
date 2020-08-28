@@ -62,31 +62,25 @@ pub fn clear_process_signal() {
 }
 
 pub fn process_raise(process: &Process, err: RuntimeException) -> ! {
+    use crate::erts::process::alloc::Heap;
+
     let error_tuple = {
+        let heap_needed = err.layout();
         let mut heap = process.acquire_heap();
-        err.as_error_tuple(&mut heap)
-    };
-
-    let exception = if std::intrinsics::unlikely(error_tuple.is_err()) {
-        let layout = Tuple::layout_for_len(3);
-        let mut heap_fragment = HeapFragment::new(layout).expect("out of memory");
-        let heap_fragment_ref = unsafe { heap_fragment.as_mut() };
-
-        let tuple = err
-            .as_error_tuple(heap_fragment_ref)
-            .expect("bug: should only need 3 words for exception tuple");
-
-        process.attach_fragment(heap_fragment_ref);
-
-        tuple
-    } else {
-        error_tuple.unwrap()
+        if heap.heap_available() > heap_needed.size() {
+            err.as_error_tuple(&mut heap).unwrap()
+        } else {
+            let mut fragment = HeapFragment::new(heap_needed).expect("out of memory");
+            let heap_fragment_ref = unsafe { fragment.as_mut() };
+            process.attach_fragment(heap_fragment_ref);
+            err.as_error_tuple(heap_fragment_ref).unwrap()
+        }
     };
 
     unsafe {
         PROCESS_ERROR.with(|cell| cell.replace(Some(err)));
 
-        lumen_panic(exception);
+        lumen_panic(error_tuple);
     }
 }
 

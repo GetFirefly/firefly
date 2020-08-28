@@ -14,15 +14,12 @@ macro_rules! test_stdout {
                 Some(code) => code.to_string(),
                 None => "".to_string(),
             };
+            let formatted_signal = $crate::test::signal(output.status);
 
             assert_eq!(
-                stdout,
-                $expected_stdout,
-                "\nstdout = {}\nstderr = {}\nstatus_code = {}\nsignal = {}",
-                stdout,
-                stderr,
-                formatted_code,
-                $crate::test::signal(output.status)
+                stdout, $expected_stdout,
+                "\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                stdout, stderr, formatted_code, formatted_signal
             );
         }
     };
@@ -40,13 +37,23 @@ fn work_around497(file: &str, name: &str) -> PathBuf {
                 tries += 1;
 
                 if tries == MAX_TRIES {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    let formatted_code = match output.status.code() {
+                        Some(code) => code.to_string(),
+                        None => "".to_string(),
+                    };
+                    let formatted_signal = signal(output.status);
+
                     assert!(
                         output.status.success(),
-                        "commands:\ncd {}\n{:?}\n\nstdout = {}\nstderr = {}",
+                        "\nCommands:\ncd {}\n{:?}\n\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
                         std::env::current_dir().unwrap().to_string_lossy(),
                         command,
-                        String::from_utf8_lossy(&output.stdout),
-                        String::from_utf8_lossy(&output.stderr)
+                        stdout,
+                        stderr,
+                        formatted_code,
+                        formatted_signal
                     );
                 }
             }

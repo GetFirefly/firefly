@@ -1765,7 +1765,8 @@ extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
 
 Attribute ModuleBuilder::build_int_attr(uint64_t value) {
   APInt i(immediateBitWidth, value, /*signed=*/true);
-  return APIntAttr::get(builder.getContext(), i);
+  auto intType = builder.getType<FixnumType>();
+  return APIntAttr::get(builder.getContext(), intType, i);
 }
 
 //===----------------------------------------------------------------------===//

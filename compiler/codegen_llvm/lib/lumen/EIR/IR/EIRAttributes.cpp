@@ -30,7 +30,7 @@ struct AtomAttributeStorage : public AttributeStorage {
   using KeyTy = std::tuple<Type, APInt, StringRef>;
 
   AtomAttributeStorage(Type type, APInt id, StringRef name = "")
-      : type(type), id(std::move(id)), name(name) {}
+      : AttributeStorage(type), type(type), id(std::move(id)), name(name) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
@@ -101,7 +101,7 @@ struct APIntAttributeStorage : public AttributeStorage {
   using KeyTy = std::tuple<Type, APInt>;
 
   APIntAttributeStorage(Type type, APInt value)
-      : type(type), value(std::move(value)) {}
+      : AttributeStorage(type), type(type), value(std::move(value)) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
@@ -202,7 +202,7 @@ struct APFloatAttributeStorage : public AttributeStorage {
   using KeyTy = std::tuple<Type, APFloat>;
 
   APFloatAttributeStorage(Type type, APFloat value)
-      : type(type), value(std::move(value)) {}
+      : AttributeStorage(type), type(type), value(std::move(value)) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
@@ -257,7 +257,8 @@ struct BinaryAttributeStorage : public AttributeStorage {
   using KeyTy = std::tuple<Type, std::string, APInt, APInt>;
 
   BinaryAttributeStorage(Type type, StringRef bytes, APInt header, APInt flags)
-      : type(type),
+      : AttributeStorage(type),
+        type(type),
         value(bytes.data(), bytes.size()),
         header(std::move(header)),
         flags(std::move(flags)) {}
@@ -359,7 +360,7 @@ struct SeqAttributeStorage : public AttributeStorage {
   using KeyTy = std::pair<Type, ArrayRef<Attribute>>;
 
   SeqAttributeStorage(Type type, ArrayRef<Attribute> value)
-      : type(type), value(value) {}
+      : AttributeStorage(type), type(type), value(value) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const { return key == KeyTy(type, value); }

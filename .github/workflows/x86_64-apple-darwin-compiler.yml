@@ -44,4 +44,4 @@ jobs:
           RUST_BACKTRACE: full
         run: make build-shared
       - name: Lumen Test
-        run: cargo test --package lumen
+        run: cargo test --package lumen --no-fail-fast

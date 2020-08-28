@@ -40,11 +40,11 @@ jobs:
       - name: Install Ninja
         run: brew install ninja
       - name: Test liblumen_arena
-        run: cargo test --package liblumen_arena
+        run: cargo test --package liblumen_arena --no-fail-fast
       - name: Test liblumen_core
-        run: cargo test --package liblumen_core
+        run: cargo test --package liblumen_core --no-fail-fast
       - name: Build TableGen
         run: make lumen-tblgen
       - name: Test liblumen_alloc
         env:
-        run: cargo test --package liblumen_alloc
+        run: cargo test --package liblumen_alloc --no-fail-fast

@@ -44,6 +44,6 @@ jobs:
           RUST_BACKTRACE: full
         run: make build-shared
       - name: Test lumen_rt_full
-        run: cargo test --package lumen_rt_full
+        run: cargo test --package lumen_rt_full --no-fail-fast
       - name: Test liblumen_otp with runtime_full
-        run: cargo test --package liblumen_otp
+        run: cargo test --package liblumen_otp --no-fail-fast

@@ -14,6 +14,7 @@ using ::llvm::SmallVector;
 using ::llvm::StringRef;
 using ::mlir::MLIRContext;
 using ::mlir::LLVM::LLVMType;
+using ::mlir::LLVM::LLVMVoidType;
 
 using ::lumen::Encoding;
 using ::lumen::MaskInfo;
@@ -39,6 +40,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
   impl->encoding = Encoding{pointerSizeInBits, supportsNanboxing};
 
   // Initialize named types
+  LLVMType voidTy = LLVMType::getVoidTy(ctx);
   LLVMType intNTy = LLVMType::getIntNTy(ctx, pointerSizeInBits);
   LLVMType int1Ty = LLVMType::getInt1Ty(ctx);
   LLVMType int8Ty = LLVMType::getInt8Ty(ctx);
@@ -46,13 +48,14 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
   LLVMType int64Ty = LLVMType::getInt64Ty(ctx);
   LLVMType int8PtrTy = LLVMType::getInt8PtrTy(ctx);
   LLVMType f64Ty = LLVMType::getDoubleTy(ctx);
+  impl->voidTy = voidTy;
   impl->pointerWidthIntTy = intNTy;
   impl->i1Ty = int1Ty;
   impl->i8Ty = int8Ty;
   impl->i32Ty = int32Ty;
   impl->i64Ty = int64Ty;
   impl->doubleTy = f64Ty;
-  impl->opaqueFnTy = LLVMType::getFunctionTy(LLVMType::getVoidTy(ctx), false);
+  impl->opaqueFnTy = LLVMType::getFunctionTy(voidTy, false);
 
   // BigInt
   impl->bigIntTy = LLVMType::createStructTy(ctx, ArrayRef<LLVMType>(intNTy),
@@ -130,9 +133,6 @@ TargetInfo::TargetInfo(const TargetInfo &other)
       pointerSizeInBits(other.pointerSizeInBits),
       impl(new TargetInfoImpl(*other.impl)) {}
 
-LLVMType TargetInfo::getConsType() { return impl->consTy; }
-LLVMType TargetInfo::getFloatType() { return impl->floatTy; }
-LLVMType TargetInfo::getBinaryType() { return impl->binaryTy; }
 LLVMType TargetInfo::makeTupleType(unsigned arity) {
   auto termTy = getUsizeType();
   if (arity == 0) {
@@ -161,12 +161,6 @@ LLVMType TargetInfo::makeTupleType(ArrayRef<LLVMType> elementTypes) {
   }
   return LLVMType::getStructTy(termTy.getContext(), withHeader);
 }
-LLVMType TargetInfo::getUsizeType() { return impl->pointerWidthIntTy; }
-LLVMType TargetInfo::getI1Type() { return impl->i1Ty; }
-LLVMType TargetInfo::getI8Type() { return impl->i8Ty; }
-LLVMType TargetInfo::getI32Type() { return impl->i32Ty; }
-LLVMType TargetInfo::getI64Type() { return impl->i64Ty; }
-LLVMType TargetInfo::getOpaqueFnType() { return impl->opaqueFnTy; }
 
 /*
 #[repr(C)]
@@ -184,11 +178,11 @@ LLVMType TargetInfo::makeClosureType(unsigned size) {
   auto intNTy = impl->pointerWidthIntTy;
   auto defTy = getClosureDefinitionType();
   auto int32Ty = getI32Type();
-  auto ctx = impl->context;
-  auto voidPtrTy =
-      LLVMType::getFunctionTy(LLVMType::getVoidTy(ctx), false).getPointerTo();
+  auto voidTy = impl->voidTy;
+  auto voidFnPtrTy =
+      LLVMType::getFunctionTy(voidTy, false).getPointerTo();
   auto envTy = LLVMType::getArrayTy(intNTy, size);
-  ArrayRef<LLVMType> fields{intNTy, intNTy, defTy, int32Ty, voidPtrTy, envTy};
+  ArrayRef<LLVMType> fields{intNTy, intNTy, defTy, int32Ty, voidFnPtrTy, envTy};
 
   // Name the type based on the arity of the env, makes IR more readable
   const char *fmt = "closure%d";
@@ -197,7 +191,7 @@ LLVMType TargetInfo::makeClosureType(unsigned size) {
   std::snprintf(&buffer[0], buffer.size(), fmt, size);
   StringRef typeName(&buffer[0], buffer.size());
 
-  return LLVMType::createStructTy(ctx, fields, typeName.drop_back());
+  return LLVMType::createStructTy(intNTy.getContext(), fields, typeName.drop_back());
 }
 
 APInt TargetInfo::encodeImmediate(unsigned type, uint64_t value) {

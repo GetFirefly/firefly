@@ -33,10 +33,10 @@ jobs:
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Test liblumen_arena
-        run: cargo test --package liblumen_arena
+        run: cargo test --package liblumen_arena --no-fail-fast
       - name: Test liblumen_core
-        run: cargo test --package liblumen_core
+        run: cargo test --package liblumen_core --no-fail-fast
       - name: Build TableGen
         run: make lumen-tblgen
       - name: Test liblumen_alloc
-        run: cargo test --package liblumen_alloc
+        run: cargo test --package liblumen_alloc --no-fail-fast

@@ -36,13 +36,15 @@ fn work_around497(file: &str, name: &str) -> PathBuf {
     loop {
         match compile(file, name) {
             Ok(path_buf) => break path_buf,
-            Err(output) => {
+            Err((command, output)) => {
                 tries += 1;
 
                 if tries == MAX_TRIES {
                     assert!(
                         output.status.success(),
-                        "stdout = {}\nstderr = {}",
+                        "commands:\ncd {}\n{:?}\n\nstdout = {}\nstderr = {}",
+                        std::env::current_dir().unwrap().to_string_lossy(),
+                        command,
                         String::from_utf8_lossy(&output.stdout),
                         String::from_utf8_lossy(&output.stderr)
                     );
@@ -52,7 +54,7 @@ fn work_around497(file: &str, name: &str) -> PathBuf {
     }
 }
 
-fn compile(file: &str, name: &str) -> Result<PathBuf, Output> {
+fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
     // `file!()` starts with path relative to workspace root, but the `current_dir` will be inside
     // the crate root, so need to strip the relative crate root.
     let file_path = Path::new(file);
@@ -94,7 +96,7 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, Output> {
     if compile_output.status.success() {
         Ok(output_path_buf)
     } else {
-        Err(compile_output)
+        Err((command, compile_output))
     }
 }
 

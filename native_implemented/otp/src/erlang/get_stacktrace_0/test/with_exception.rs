@@ -21,10 +21,6 @@ fn without_stacktrace_returns_empty_list() {
 #[test]
 fn with_stacktrace_returns_stacktrace() {
     with_process(|process| {
-        let arc_trace = Trace::capture();
-
-        process.exception(exit!(atom!("reason"), arc_trace));
-
         let module = atom!("module");
         let function = atom!("function");
         let arity = 0.into();
@@ -42,6 +38,9 @@ fn with_stacktrace_returns_stacktrace() {
         let stack_item = process.tuple_from_slice(&[module, function, arity, location]);
 
         let stacktrace = process.list_from_slice(&[stack_item]);
+
+        let arc_trace = Trace::from_term(stacktrace);
+        process.exception(exit!(atom!("reason"), arc_trace));
 
         assert_eq!(result(process), stacktrace);
     })

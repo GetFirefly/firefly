@@ -84,5 +84,7 @@ pub mod spawn_3;
 pub mod spawn_link_1;
 #[path = "erlang/spawn_monitor_1.rs"]
 pub mod spawn_monitor_1;
+#[path = "erlang/spawn_monitor_3.rs"]
+pub mod spawn_monitor_3;
 #[path = "erlang/spawn_opt_2.rs"]
 pub mod spawn_opt_2;

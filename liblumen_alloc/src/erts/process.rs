@@ -2,6 +2,7 @@ pub mod alloc;
 pub mod ffi;
 mod flags;
 mod frame;
+
 mod frame_with_arguments;
 mod frames;
 pub mod gc;
@@ -1145,15 +1146,14 @@ impl Process {
         self.exception(exception);
     }
 
-    pub fn exit_normal(&self, trace: Arc<trace::Trace>, source: ArcError) {
-        self.exit(atom!("normal"), trace, Some(source))
+    pub fn exit_normal(&self) {
+        *self.status.write() = Status::Exited;
     }
 
     pub fn is_exiting(&self) -> bool {
-        if let Status::RuntimeException(_) = *self.status.read() {
-            true
-        } else {
-            false
+        match *self.status.read() {
+            Status::Exited | Status::RuntimeException(_) => true,
+            _ => false,
         }
     }
 
@@ -1170,7 +1170,7 @@ impl Process {
                     panic!("{}", &system_exception);
                 }
                 Exception::Runtime(runtime_exception) => {
-                    self::ffi::process_raise(self, runtime_exception);
+                    self::ffi::process_raise(runtime_exception);
                 }
             },
         }
@@ -1183,6 +1183,7 @@ impl Process {
             match self.call_current_native() {
                 CalledCurrentNative::Runnable => continue,
                 CalledCurrentNative::Waiting => return Ran::Waiting,
+                CalledCurrentNative::Exited => return Ran::Exited,
                 CalledCurrentNative::RuntimeException => return Ran::RuntimeException,
                 CalledCurrentNative::SystemException => return Ran::SystemException,
             }
@@ -1249,6 +1250,7 @@ impl Process {
                             // unlike with non-Term::NONE `returned`, don't push `returned`
                             CalledCurrentNative::Waiting
                         },
+                        Status::Exited => CalledCurrentNative::Exited,
                         Status::RuntimeException(_) => CalledCurrentNative::RuntimeException,
                         Status::SystemException(_) => CalledCurrentNative::SystemException
                     }
@@ -1434,6 +1436,7 @@ type Reductions = u16;
 enum CalledCurrentNative {
     Runnable,
     Waiting,
+    Exited,
     RuntimeException,
     SystemException,
 }
@@ -1441,6 +1444,7 @@ enum CalledCurrentNative {
 pub enum Ran {
     Waiting,
     Reduced,
+    Exited,
     RuntimeException,
     SystemException,
 }
@@ -1455,7 +1459,12 @@ pub enum Status {
     Runnable,
     Running,
     Waiting,
+    /// The process has exited normally
+    Exited,
+    /// The process has exited due to an internal system exception
+    /// NOTE: This should probably be deprecated, as system exceptions panic now
     SystemException(SystemException),
+    /// The process has exited due to a runtime exception (raised from Erlang)
     RuntimeException(RuntimeException),
 }
 

@@ -41,6 +41,8 @@ struct TargetInfoImpl {
         uniqueTy(other.uniqueTy),
         defTy(other.defTy),
         recvContextTy(other.recvContextTy),
+        exceptionTy(other.exceptionTy),
+        erlangErrorTy(other.erlangErrorTy),
         nil(other.nil),
         none(other.none),
         listTag(other.listTag),
@@ -63,7 +65,7 @@ struct TargetInfoImpl {
   LLVMType consTy;
   LLVMType opaqueFnTy;
   LLVMType uniqueTy, defTy;
-  LLVMType exceptionTy;
+  LLVMType exceptionTy, erlangErrorTy;
 
   llvm::APInt nil;
   llvm::APInt none;
@@ -115,6 +117,7 @@ class TargetInfo {
   mlir::LLVM::LLVMType getClosureDefinitionType() { return impl->defTy; }
 
   mlir::LLVM::LLVMType getExceptionType() { return impl->exceptionTy; }
+  mlir::LLVM::LLVMType getErlangErrorType() { return impl->erlangErrorTy; }
 
   uint8_t immediateBits() { return impl->immediateBits; }
   bool isValidImmediateValue(llvm::APInt &value) {

@@ -34,8 +34,10 @@ pub fn is_down(message: &Message, reference: &Reference) -> bool {
     }
 }
 
-pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
-    let info = exception.reason();
+pub fn propagate_exit(process: &Process, exception: Option<&RuntimeException>) {
+    let info = exception
+        .map(|e| e.reason())
+        .unwrap_or_else(|| Atom::str_to_term("normal"));
 
     for entry in process.monitor_by_reference.iter() {
         let reference = entry.key();

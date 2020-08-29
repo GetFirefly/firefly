@@ -910,7 +910,6 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
 
   let verifier = ?;
 
-  let hasCanonicalizer = 1;
   let builders = [
     OpBuilder<
         "OpBuilder &builder, OperationState &result, ValueRange catchClauses", [{

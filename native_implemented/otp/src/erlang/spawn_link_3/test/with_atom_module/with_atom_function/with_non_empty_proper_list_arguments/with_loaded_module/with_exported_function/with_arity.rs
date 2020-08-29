@@ -37,6 +37,8 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     assert!(scheduler::run_through(&arc_process));
 
     match *arc_process.status.read() {
+        Status::Exited => (),
+        // TODO: This should be removed, normal exits should never raise a RuntimeException anymore
         Status::RuntimeException(ref runtime_exception) => {
             assert_eq!(
                 runtime_exception,

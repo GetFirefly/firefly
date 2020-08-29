@@ -2,16 +2,20 @@ lumen_cc_library(
   HDRS
     "ModuleBuilder.h"
     "ModuleBuilderSupport.h"
+    "Passes.h"
   SRCS
     "MLIR.cpp"
     "ModuleBuilder.cpp"
+    "Passes.cpp"
   DEPS
     lumen::EIR::IR
     MLIRIR
+    MLIRPass
     MLIRSupport
     MLIRStandardOps
     MLIRLLVMIR
     MLIRTransforms
+    MLIRTransformUtils
   LLVM_COMPONENTS
     LLVMSupport
     LLVMTarget

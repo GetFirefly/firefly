@@ -42,12 +42,14 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
   // Initialize named types
   LLVMType voidTy = LLVMType::getVoidTy(ctx);
   LLVMType intNTy = LLVMType::getIntNTy(ctx, pointerSizeInBits);
+  LLVMType intNPtrTy = intNTy.getPointerTo();
   LLVMType int1Ty = LLVMType::getInt1Ty(ctx);
   LLVMType int8Ty = LLVMType::getInt8Ty(ctx);
   LLVMType int32Ty = LLVMType::getInt32Ty(ctx);
   LLVMType int64Ty = LLVMType::getInt64Ty(ctx);
   LLVMType int8PtrTy = LLVMType::getInt8PtrTy(ctx);
   LLVMType f64Ty = LLVMType::getDoubleTy(ctx);
+  LLVMType termTy = intNTy.getPointerTo();
   impl->voidTy = voidTy;
   impl->pointerWidthIntTy = intNTy;
   impl->i1Ty = int1Ty;
@@ -114,6 +116,10 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
   impl->exceptionTy =
       LLVMType::createStructTy(ctx, ArrayRef<LLVMType>{int8PtrTy, int32Ty},
                                StringRef("lumen.exception"));
+
+  impl->erlangErrorTy =
+    LLVMType::createStructTy(ctx, ArrayRef<LLVMType>{intNTy, intNTy, intNTy, intNPtrTy, int8PtrTy},
+                             StringRef("erlang.exception"));
 
   // Tags/boxes
   impl->listTag = lumen_list_tag(&impl->encoding);

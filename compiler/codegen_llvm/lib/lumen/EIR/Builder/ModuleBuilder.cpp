@@ -1,4 +1,8 @@
+#include "lumen/term/Encoding.h"
 #include "lumen/EIR/Builder/ModuleBuilder.h"
+#include "lumen/EIR/IR/EIROps.h"
+#include "lumen/EIR/IR/EIRTypes.h"
+#include "lumen/EIR/Builder/Passes.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -11,14 +15,14 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
-#include "lumen/EIR/IR/EIROps.h"
-#include "lumen/EIR/IR/EIRTypes.h"
-#include "lumen/term/Encoding.h"
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 
 using ::llvm::Optional;
 using ::llvm::raw_ostream;
@@ -34,6 +38,8 @@ using ::mlir::edsc::ValueBuilder;
 using ::mlir::LLVM::LLVMIntegerType;
 using ::mlir::LLVM::LLVMStructType;
 using ::mlir::LLVM::LLVMType;
+using ::mlir::PassManager;
+using ::mlir::OpPassManager;
 using namespace ::mlir::edsc::intrinsics;
 
 namespace LLVM = ::mlir::LLVM;
@@ -226,6 +232,13 @@ extern "C" MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
 mlir::ModuleOp ModuleBuilder::finish() {
   mlir::ModuleOp finished;
   std::swap(finished, theModule);
+
+  // Apply some fixup passes to the generated IR
+  auto pm = std::unique_ptr<PassManager>(new PassManager(builder.getContext(), /*verifyPasses=*/false));
+  OpPassManager &fm = pm->nest<::lumen::eir::FuncOp>();
+  fm.addPass(::lumen::eir::createInsertTraceConstructorsPass());
+  pm->run(finished);
+
   return finished;
 }
 
@@ -1044,6 +1057,7 @@ using BuildIntrinsicFnT = Optional<Value> (*)(ModuleBuilder *, Location loc,
 static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
   auto fnPtr = StringSwitch<BuildIntrinsicFnT>(target)
                    .Case("erlang:error/1", buildIntrinsicError1Op)
+                   .Case("erlang:exit/1", buildIntrinsicExit1Op)
                    .Case("erlang:error/2", buildIntrinsicError2Op)
                    .Case("erlang:throw/1", buildIntrinsicThrowOp)
                    .Case("erlang:raise/3", buildIntrinsicRaiseOp)

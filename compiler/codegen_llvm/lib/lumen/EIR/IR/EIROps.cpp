@@ -236,8 +236,8 @@ struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
-  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(
-      context);
+  results.insert<SimplifyBrToBlockWithSinglePred,
+                 SimplifyPassThroughBr>(context);
 }
 
 Optional<MutableOperandRange> BranchOp::getMutableSuccessorOperands(
@@ -471,142 +471,6 @@ Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
-// eir.landing_pad
-//===----------------------------------------------------------------------===//
-
-namespace {
-
-void forAllTraceUses(PatternRewriter &rewriter, Location loc, Value root,
-                     Value traceTerm) {
-  for (OpOperand &use : root.getUses()) {
-    // Get operation which owns the trace at this point in the control-flow
-    // graph
-    Operation *user = use.getOwner();
-    // If the trace is passed to a branch/conditional branch, then we need to
-    // follow it into the successors and update usages that we find in those
-    // blocks
-    if (auto brOp = dyn_cast_or_null<BranchOp>(user)) {
-      auto index = use.getOperandNumber();
-      auto successor = brOp.getDest();
-      BlockArgument arg = successor->getArgument(index);
-      forAllTraceUses(rewriter, loc, arg, traceTerm);
-    } else if (auto condbrOp = dyn_cast_or_null<CondBranchOp>(user)) {
-      auto index = use.getOperandNumber();
-      auto numTrueOperands = condbrOp.getNumTrueOperands();
-      if (index > numTrueOperands) {
-        auto successor = condbrOp.getFalseDest();
-        BlockArgument arg = successor->getArgument(index - numTrueOperands);
-        forAllTraceUses(rewriter, loc, arg, traceTerm);
-      } else {
-        auto successor = condbrOp.getTrueDest();
-        BlockArgument arg = successor->getArgument(index);
-        forAllTraceUses(rewriter, loc, arg, traceTerm);
-      }
-    }
-
-    // Certain operations use the trace reference directly:
-    //
-    // - ThrowOp uses it when rethrowing an exception
-    // - TracePrintOp uses it to print the stacktrace that was captured
-    //
-    // In all of the above cases, we just skip over those uses
-    if (isa<ThrowOp>(user) || isa<TracePrintOp>(user)) {
-      continue;
-    }
-
-    // At this point, we have an operation that either uses the trace as a term,
-    // and so requires construction, or is itself a trace constructor (which
-    // expects the trace reference). In both cases, if a trace term was
-    // constructed already, we need to determine if that construction dominates
-    // this use, and if so, use it instead of the raw trace ref. If it doesn't
-    // dominate this use, then we need to either insert a constructor, or leave
-    // the constructor we've encountered in place.
-    //
-    // NOTE: This is not complete, we are not doing proper dominance analysis,
-    // and I'm waiting to hit a case where we're generating code that requires
-    // it before doing something that expensive in a canonicalization pass,
-    // since we'd want to reuse the results of that analysis as much as
-    // possible. In short, if we've already constructed a trace term, I'm
-    // essentially assuming that it dominates all following uses we encounter,
-    // and this code is basically just trying to validate that.
-    bool traceTermDominatesUse = false;
-    if (traceTerm) {
-      Operation *traceTermOp = traceTerm.getDefiningOp();
-      Block *traceTermBlock = traceTermOp->getBlock();
-      Block *userBlock = user->getBlock();
-      if (traceTermBlock == userBlock) {
-        // Sanity check
-        assert(traceTermOp->isBeforeInBlock(user) &&
-               "bug in trace constructor placement");
-        traceTermDominatesUse = true;
-      } else {
-        // Otherwise, check to see if this block is preceded by the
-        // block containing the previously constructed trace term.
-        //
-        // If it is, then go ahead and replace, if it isn't, then
-        // we probably need proper dominance analysis here, so raise
-        // an assertion
-        for (Block *pred : userBlock->getPredecessors()) {
-          if (traceTermBlock == pred) {
-            traceTermDominatesUse = true;
-            break;
-          }
-        }
-        assert(traceTermDominatesUse &&
-               "expected trace constructor to dominate this use");
-      }
-    }
-
-    // If this is a trace constructor use, then based on the results of the
-    // above analysis, either replace it, or leave it in place and use the
-    // result as the trace term for subsequent users
-    if (auto traceCtor = dyn_cast_or_null<TraceConstructOp>(user)) {
-      if (traceTerm && traceTermDominatesUse) {
-        user->replaceAllUsesWith(ValueRange(traceTerm));
-        continue;
-      } else {
-        traceTerm = traceCtor.trace();
-        continue;
-      }
-    }
-
-    // This is some other operation, which will universally assume that it
-    // is a term, not a raw trace reference, so either construct the term right
-    // at the use, or use the result of a constructor that was already present
-    if (traceTerm && traceTermDominatesUse) {
-      use.set(traceTerm);
-    } else {
-      rewriter.setInsertionPoint(user);
-      traceTerm = rewriter.create<TraceConstructOp>(loc, root);
-      use.set(traceTerm);
-    }
-  }
-}
-
-struct InsertTraceConstructAtUses : public OpRewritePattern<LandingPadOp> {
-  using OpRewritePattern<LandingPadOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(LandingPadOp op,
-                                PatternRewriter &rewriter) const override {
-    Value trace = op.trace();
-
-    auto ip = rewriter.saveInsertionPoint();
-
-    forAllTraceUses(rewriter, op.getLoc(), trace, Value());
-
-    rewriter.restoreInsertionPoint(ip);
-
-    return success();
-  }
-};
-}  // namespace
-
-void LandingPadOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<InsertTraceConstructAtUses>(context);
-}
-
-//===----------------------------------------------------------------------===//
 // eir.return
 //===----------------------------------------------------------------------===//
 
@@ -785,6 +649,16 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
 
     auto dest = b.getDest();
     auto baseDestArgs = b.getDestArgs();
+    auto numBaseDestArgs = baseDestArgs.size();
+
+    // Ensure the destination block argument types are propagated
+    for (unsigned i = 0; i < baseDestArgs.size(); i++) {
+      BlockArgument arg = dest->getArgument(i);
+      auto destArg = baseDestArgs[i];
+      auto destArgTy = destArg.getType();
+      if (arg.getType() != destArgTy)
+        arg.setType(destArgTy);
+    }
 
     switch (b.getPatternType()) {
       case MatchPatternType::Any: {
@@ -822,13 +696,18 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto headPointer = getHeadOp.getResult();
         auto tailPointer = getTailOp.getResult();
         auto headLoadOp = builder.create<LoadOp>(branchLoc, headPointer);
+        auto headLoadResult = headLoadOp.getResult();
         auto tailLoadOp = builder.create<LoadOp>(branchLoc, tailPointer);
+        auto tailLoadResult = tailLoadOp.getResult();
         // 3. Unconditionally branch to the destination, with head/tail as
         // additional destArgs
+        unsigned i = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
+        dest->getArgument(i++).setType(headLoadResult.getType());
+        dest->getArgument(i).setType(tailLoadResult.getType());
         SmallVector<Value, 2> destArgs(
             {baseDestArgs.begin(), baseDestArgs.end()});
-        destArgs.push_back(headLoadOp.getResult());
-        destArgs.push_back(tailLoadOp.getResult());
+        destArgs.push_back(headLoadResult);
+        destArgs.push_back(tailLoadResult);
         builder.create<BranchOp>(branchLoc, dest, destArgs);
         break;
       }
@@ -857,6 +736,7 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto castOp =
             builder.create<CastOp>(branchLoc, selectorArg, boxedTupleType);
         auto boxedTuple = castOp.getResult();
+        unsigned ai = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
         SmallVector<Value, 2> destArgs(
             {baseDestArgs.begin(), baseDestArgs.end()});
         destArgs.reserve(arity);
@@ -865,7 +745,9 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
               builder.create<GetElementPtrOp>(branchLoc, boxedTuple, i + 1);
           auto elemPtr = getElemOp.getResult();
           auto elemLoadOp = builder.create<LoadOp>(branchLoc, elemPtr);
-          destArgs.push_back(elemLoadOp.getResult());
+          auto elemLoadResult = elemLoadOp.getResult();
+          dest->getArgument(ai++).setType(elemLoadResult.getType());
+          destArgs.push_back(elemLoadResult);
         }
         // 3. Unconditionally branch to the destination, with the tuple elements
         // as additional destArgs
@@ -890,7 +772,7 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
             builder.create<IsTypeOp>(branchLoc, selectorArg, mapType);
         auto isMapCond = isMapOp.getResult();
         auto ifOp = builder.create<CondBranchOp>(
-            branchLoc, isMapCond, split, ArrayRef<Value>{}, nextPatternBlock,
+            branchLoc, isMapCond, split, emptyArgs, nextPatternBlock,
             withSelectorArgs);
         // 2. In the split, call runtime function `is_map_key` to confirm
         // existence of the key in the map,
@@ -900,7 +782,7 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto hasKeyOp = builder.create<MapIsKeyOp>(branchLoc, selectorArg, key);
         auto hasKeyCond = hasKeyOp.getResult();
         builder.create<CondBranchOp>(branchLoc, hasKeyCond, split2,
-                                     ArrayRef<Value>{}, nextPatternBlock,
+                                     emptyArgs, nextPatternBlock,
                                      withSelectorArgs);
         // 3. In the second split, call runtime function `map_get` to obtain the
         // value for the key
@@ -908,6 +790,8 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto mapGetOp =
             builder.create<MapGetKeyOp>(branchLoc, selectorArg, key);
         auto valueTerm = mapGetOp.getResult();
+        unsigned i = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
+        dest->getArgument(i).setType(valueTerm.getType());
         // 4. Unconditionally branch to the destination, with the key's value as
         // an additional destArg
         SmallVector<Value, 2> destArgs(baseDestArgs.begin(),
@@ -1010,6 +894,9 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         Value matched = op->getResult(0);
         Value rest = op->getResult(1);
         Value success = op->getResult(2);
+        unsigned i = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
+        dest->getArgument(i++).setType(matched.getType());
+        dest->getArgument(i).setType(rest.getType());
         SmallVector<Value, 2> destArgs(baseDestArgs.begin(),
                                        baseDestArgs.end());
         destArgs.push_back(matched);

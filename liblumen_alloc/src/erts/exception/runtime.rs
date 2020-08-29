@@ -7,7 +7,7 @@ use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::trace::Trace;
 use crate::erts::term::prelude::*;
 
-use super::{ArcError, Exception, SystemException, UnexpectedExceptionError};
+use super::{ArcError, ErlangException, Exception, SystemException, UnexpectedExceptionError};
 
 #[derive(Error, Debug, Clone)]
 pub enum RuntimeException {
@@ -65,7 +65,7 @@ impl RuntimeException {
         // the tuple + a block of memory capable of holding the size in words of
         // the reason
         let words = self.reason().size_in_words();
-        let layout = Tuple::layout_for_len(3);
+        let layout = Layout::new::<ErlangException>();
         let (layout, _) = layout
             .extend(Layout::array::<Term>(words).unwrap())
             .unwrap();
@@ -81,6 +81,15 @@ impl RuntimeException {
             RuntimeException::Throw(e) => e.as_error_tuple(heap),
             RuntimeException::Exit(e) => e.as_error_tuple(heap),
             RuntimeException::Error(e) => e.as_error_tuple(heap),
+        }
+    }
+
+    #[inline]
+    pub fn as_erlang_exception(&self) -> Box<ErlangException> {
+        match self {
+            RuntimeException::Throw(e) => e.as_erlang_exception(),
+            RuntimeException::Exit(e) => e.as_erlang_exception(),
+            RuntimeException::Error(e) => e.as_erlang_exception(),
         }
     }
 

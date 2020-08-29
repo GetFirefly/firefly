@@ -64,8 +64,11 @@ where
             Err(ErrorReported)
         }
         // Invalid file/directory path
-        &FileName::Real(_) => {
-            db.report_error("invalid input file, not a file or directory");
+        &FileName::Real(ref path_buf) => {
+            db.report_error(format!(
+                "invalid input file ({}), not a file or directory",
+                path_buf.to_string_lossy()
+            ));
             Err(ErrorReported)
         }
     }

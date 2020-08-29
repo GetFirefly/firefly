@@ -175,6 +175,11 @@ LogicalResult TupleType::verifyConstructionInvariants(
     if (auto llvmType = elementType.dyn_cast_or_null<LLVMType>()) {
       if (llvmType.isIntegerTy()) continue;
     }
+    // Allow an exception for TraceRef, since it will be replaced by the
+    // InsertTraceConstructors pass
+    if (elementType.isa<TraceRefType>())
+      continue;
+
     llvm::outs() << "invalid tuple type element (" << i << "): ";
     elementType.dump();
     llvm::outs() << "\n";

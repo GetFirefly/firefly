@@ -1,10 +1,10 @@
 use super::*;
 
-mod with_empty_list_arguments;
-mod with_non_empty_proper_list_arguments;
+// `with_empty_list_arguments` in integration tests
+// `with_non_empty_proper_list_arguments` in integration tests
 
 #[test]
-fn without_proper_list_arguments_errors_badarg() {
+fn without_atom_function_errors_badarg() {
     run!(
         |arc_process| {
             (

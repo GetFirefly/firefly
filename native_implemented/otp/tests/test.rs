@@ -25,6 +25,32 @@ macro_rules! test_stdout {
     };
 }
 
+#[allow(unused_macros)]
+macro_rules! test_stdout_substrings {
+    ($func_name:ident, $expected_stdout_substrings:expr) => {
+        #[test]
+        fn $func_name() {
+            let output = $crate::test::output(file!(), stringify!($func_name));
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let formatted_code = match output.status.code() {
+                Some(code) => code.to_string(),
+                None => "".to_string(),
+            };
+            let formatted_signal = $crate::test::signal(output.status);
+
+            for expected_stdout_substring in $expected_stdout_substrings {
+                assert!(
+                    stdout.contains(expected_stdout_substring),
+                    "stdout does not contain substring\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                    expected_stdout_substring, stdout, stderr, formatted_code, formatted_signal
+                );
+            }
+        }
+    };
+}
+
 // FIXME https://github.com/lumen/lumen/issues/497
 fn work_around497(file: &str, name: &str) -> PathBuf {
     let mut tries = 0;

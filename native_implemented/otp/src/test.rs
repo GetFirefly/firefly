@@ -18,13 +18,10 @@ pub mod strategy;
 #[cfg(all(not(target_arch = "wasm32"), test))]
 pub use self::proptest::*;
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::{Process, Status};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::time::{Milliseconds, Monotonic};
 
@@ -32,62 +29,6 @@ use crate::erlang::{self, exit_1};
 use crate::runtime::scheduler::{Scheduled, SchedulerDependentAlloc};
 use crate::runtime::time::monotonic;
 use crate::runtime::timer;
-
-pub fn assert_exits<F: Fn(Arc<Trace>)>(
-    process: &Process,
-    expected_reason: Term,
-    assert_stacktrace: F,
-    source_substring: &str,
-) {
-    match *process.status.read() {
-        Status::Exited => {
-            let normal = Atom::str_to_term("normal");
-            assert_eq!(normal, expected_reason);
-        }
-        Status::RuntimeException(ref runtime_exception) => {
-            assert_eq!(runtime_exception.reason(), expected_reason);
-            assert_stacktrace(runtime_exception.stacktrace());
-
-            let source_string = format!("{:?}", runtime_exception.source());
-
-            assert!(
-                source_string.contains(source_substring),
-                "source ({}) does not contain `{}`",
-                source_string,
-                source_substring
-            );
-        }
-        ref status => panic!("Process status ({:?}) is not exiting.", status),
-    };
-}
-
-pub fn assert_exits_badarith(process: &Process, source_substring: &str) {
-    assert_exits(process, atom!("badarith"), |_| {}, source_substring)
-}
-
-pub fn assert_exits_undef(
-    process: &Process,
-    module: Term,
-    function: Term,
-    arguments: Term,
-    source_substring: &str,
-) {
-    assert_exits(
-        process,
-        atom!("undef"),
-        |stacktrace| {
-            let stacktrace_term = stacktrace.as_term().unwrap();
-            let stacktrace_boxed_cons: Boxed<Cons> = stacktrace_term.try_into().unwrap();
-            let head = stacktrace_boxed_cons.head;
-
-            assert_eq!(
-                head,
-                process.tuple_from_slice(&[module, function, arguments, Term::NIL])
-            );
-        },
-        source_substring,
-    );
-}
 
 pub fn exit_when_run(process: &Process, reason: Term) {
     process.queue_frame_with_arguments(exit_1::frame().with_arguments(false, &[reason]));

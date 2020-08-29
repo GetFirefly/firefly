@@ -6,6 +6,8 @@ use std::sync::Arc;
 use anyhow::*;
 use thiserror::Error;
 
+use crate::borrow::CloneToProcess;
+use crate::erts::exception::ErlangException;
 use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::trace::Trace;
 use crate::erts::term::prelude::*;
@@ -30,8 +32,6 @@ impl Throw {
     where
         A: TermAlloc,
     {
-        use crate::borrow::CloneToProcess;
-
         let class = Atom::THROW.as_term();
         // NOTE: The trace is allocated in a fragment, so this is a single word always
         let trace = self.stacktrace.as_term()?;
@@ -51,6 +51,10 @@ impl Throw {
             tuple
         };
         Ok(tuple.into())
+    }
+    pub fn as_erlang_exception(&self) -> Box<ErlangException> {
+        let class = Atom::THROW.as_term();
+        ErlangException::new(class, self.reason, self.stacktrace.clone())
     }
     pub fn class(&self) -> Class {
         Class::Throw
@@ -116,8 +120,6 @@ impl Error {
     where
         A: TermAlloc,
     {
-        use crate::borrow::CloneToProcess;
-
         let class = Atom::ERROR.as_term();
         // NOTE: The trace is allocated in a fragment, so this is a single word always
         let trace = self.stacktrace.as_term()?;
@@ -137,6 +139,10 @@ impl Error {
             tuple
         };
         Ok(tuple.into())
+    }
+    pub fn as_erlang_exception(&self) -> Box<ErlangException> {
+        let class = Atom::ERROR.as_term();
+        ErlangException::new(class, self.reason, self.stacktrace.clone())
     }
     pub fn arguments(&self) -> Option<Term> {
         self.arguments
@@ -201,8 +207,6 @@ impl Exit {
     where
         A: TermAlloc,
     {
-        use crate::borrow::CloneToProcess;
-
         let class = Atom::EXIT.as_term();
         // NOTE: The trace is allocated in a fragment, so this is a single word always
         let trace = self.stacktrace.as_term()?;
@@ -222,6 +226,10 @@ impl Exit {
             tuple
         };
         Ok(tuple.into())
+    }
+    pub fn as_erlang_exception(&self) -> Box<ErlangException> {
+        let class = Atom::EXIT.as_term();
+        ErlangException::new(class, self.reason, self.stacktrace.clone())
     }
     pub fn class(&self) -> Class {
         Class::Exit

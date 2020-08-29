@@ -35,6 +35,10 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     return targetInfo.getI8Type().getPointerTo();
   }
 
+  if (auto traceRef = type.dyn_cast_or_null<TraceRefType>()) {
+    return targetInfo.getI8Type().getPointerTo();
+  }
+
   OpaqueTermType ty = type.cast<OpaqueTermType>();
   if (ty.isOpaque() || ty.isImmediate()) return termTy;
 

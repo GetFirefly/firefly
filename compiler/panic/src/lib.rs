@@ -17,6 +17,7 @@
 #![feature(unwind_attributes)]
 #![feature(abi_thiscall)]
 #![feature(rustc_attrs)]
+#![feature(crate_visibility_modifier)]
 #![feature(raw)]
 #![panic_runtime]
 #![feature(panic_runtime)]
@@ -44,14 +45,30 @@ cfg_if::cfg_if! {
 
 mod dwarf;
 
+/// This matches the structure of ErlangException in liblumen_alloc
+#[repr(C)]
+pub struct ErlangPanic {
+    _header: usize,
+    kind: usize,
+    reason: usize,
+    trace: *mut u8,
+    _fragment: Option<*mut u8>,
+}
+
+extern "C" {
+    // See `ErlangException` in liblumen_alloc
+    #[link_name = "__lumen_cleanup_exception"]
+    fn cleanup(ptr: *mut ErlangPanic);
+}
+
 // Entry point for raising an exception, just delegates to the platform-specific implementation.
 #[unwind(allowed)]
 #[no_mangle]
-pub unsafe extern "C" fn __lumen_start_panic(payload: usize) -> u32 {
+pub unsafe extern "C" fn __lumen_start_panic(payload: *mut ErlangPanic) -> u32 {
     imp::panic(payload)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn __lumen_get_exception(ptr: *mut u8) -> usize {
-    imp::cleanup(ptr)
+pub unsafe extern "C" fn __lumen_get_exception(ptr: *mut u8) -> *mut ErlangPanic {
+    imp::cause(ptr)
 }

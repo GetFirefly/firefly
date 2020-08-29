@@ -259,9 +259,12 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
     auto i32Ty = ctx.getI32Type();
     auto termTy = ctx.getUsizeType();
     auto termPtrTy = termTy.getPointerTo();
+    auto termPtrPtrTy = termPtrTy.getPointerTo();
     auto exceptionTy = ctx.targetInfo.getExceptionType();
     auto voidTy = LLVMType::getVoidTy(ctx.context);
     auto tupleTy = ctx.getTupleType({termTy, termTy, termPtrTy});
+    auto erlangErrorTy = ctx.targetInfo.getErlangErrorType();
+    auto erlangErrorPtrTy = erlangErrorTy.getPointerTo();
 
     // Make sure we're starting in the landing pad block
     rewriter.setInsertionPointToEnd(landingPadBlock);
@@ -288,25 +291,24 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
         rewriter.getNamedAttr("argmemonly", rewriter.getUnitAttr()),
     };
     auto callee = ctx.getOrInsertFunction(
-        symbolName, termTy, ArrayRef<LLVMType>{i8PtrTy}, calleeAttrs);
+        symbolName, erlangErrorPtrTy, ArrayRef<LLVMType>{i8PtrTy}, calleeAttrs);
     auto callOp = rewriter.create<mlir::CallOp>(
         op.getLoc(), rewriter.getSymbolRefAttr(symbolName),
-        ArrayRef<Type>{termTy}, ArrayRef<Value>{exPtr});
+        ArrayRef<Type>{erlangErrorPtrTy}, ArrayRef<Value>{exPtr});
     callOp.setAttr("tail", rewriter.getUnitAttr());
-    // Cast to tuple
-    Value tuplePtr = ctx.decodeBox(tupleTy, callOp.getResult(0));
+    Value erlangErrorPtr = callOp.getResult(0);
     // Extract exception values
     Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
     auto kindIdx = llvm_constant(i32Ty, ctx.getI32Attr(1));
     Value kindPtr =
-        llvm_gep(termPtrTy, tuplePtr, ArrayRef<Value>{zero, kindIdx});
+        llvm_gep(termPtrTy, erlangErrorPtr, ArrayRef<Value>{zero, kindIdx});
     Value kind = llvm_load(kindPtr);
     auto reasonIdx = llvm_constant(i32Ty, ctx.getI32Attr(2));
     auto reasonPtr =
-        llvm_gep(termPtrTy, tuplePtr, ArrayRef<Value>{zero, reasonIdx});
+        llvm_gep(termPtrTy, erlangErrorPtr, ArrayRef<Value>{zero, reasonIdx});
     Value reason = llvm_load(reasonPtr);
     auto traceIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
-    auto tracePtr = llvm_gep(termPtrTy.getPointerTo(), tuplePtr,
+    auto tracePtr = llvm_gep(termPtrPtrTy, erlangErrorPtr,
                              ArrayRef<Value>{zero, traceIdx});
     Value trace = llvm_load(tracePtr);
 
@@ -337,52 +339,41 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
     auto loc = op.getLoc();
     auto termTy = ctx.getUsizeType();
     auto termPtrTy = termTy.getPointerTo();
+    auto i8PtrTy = ctx.targetInfo.getI8Type().getPointerTo();
     auto i32Ty = ctx.getI32Type();
     auto voidTy = LLVMType::getVoidTy(ctx.context);
+    auto erlangErrorTy = ctx.targetInfo.getErlangErrorType();
+    auto erlangErrorPtrTy = erlangErrorTy.getPointerTo();
 
     Value kind = adaptor.kind();
     Value reason = adaptor.reason();
     Value trace = adaptor.trace();
 
-    // Allocate tuple and write values to it
-    ArrayRef<Value> elements{kind, reason, trace};
-    auto numElements = elements.size();
-    auto tupleTy = ctx.getTupleType({termTy, termTy, termPtrTy});
+    // Construct exception
+    const char *raiseSymbol = "__lumen_builtin_raise/3";
+    ArrayRef<NamedAttribute> raiseAttrs = {
+      rewriter.getNamedAttr("nounwind", rewriter.getUnitAttr()),
+    };
+    auto raiseCallee = ctx.getOrInsertFunction(raiseSymbol, erlangErrorPtrTy, ArrayRef<LLVMType>{termTy, termTy, termPtrTy}, raiseAttrs);
+    auto raiseOp = rewriter.create<mlir::CallOp>(op.getLoc(), rewriter.getSymbolRefAttr(raiseSymbol), ArrayRef<Type>{erlangErrorPtrTy}, ArrayRef<Value>{kind, reason, trace});
+    raiseOp.setAttr("tail", rewriter.getUnitAttr());
+    raiseOp.setAttr("nounwind", rewriter.getUnitAttr());
 
-    Value arity = llvm_constant(termTy, ctx.getIntegerAttr(numElements));
-    Value tuplePtr = ctx.buildMalloc(tupleTy, TypeKind::Tuple, arity);
+    Value exception = raiseOp.getResult(0);
 
-    Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
-    auto headerRaw = ctx.targetInfo.encodeHeader(TypeKind::Tuple, numElements);
-    ArrayRef<Value> headerTermIndices{zero, zero};
-    Value headerTermPtr = llvm_gep(termPtrTy, tuplePtr, headerTermIndices);
-    llvm_store(llvm_constant(termTy, ctx.getIntegerAttr(headerRaw)),
-               headerTermPtr);
-
-    for (auto i = 0; i < numElements; i++) {
-      auto element = elements[i];
-      auto elementTy = tupleTy.getStructElementType(i + 1).getPointerTo();
-      auto idx = llvm_constant(i32Ty, ctx.getI32Attr(i + 1));
-      ArrayRef<Value> elementIndices{zero, idx};
-      auto elementPtr = llvm_gep(elementTy, tuplePtr, elementIndices);
-      llvm_store(element, elementPtr);
-    }
-
-    // Box the allocated tuple and bitcast to opaque term
-    auto boxed = ctx.encodeBox(tuplePtr);
-    Value exception = llvm_bitcast(termTy, boxed);
-
+    // Raise panic
     const char *symbolName = "__lumen_start_panic";
     ArrayRef<NamedAttribute> calleeAttrs = {
         rewriter.getNamedAttr("noreturn", rewriter.getUnitAttr()),
     };
     auto callee = ctx.getOrInsertFunction(
-        symbolName, voidTy, ArrayRef<LLVMType>{termTy}, calleeAttrs);
+        symbolName, voidTy, ArrayRef<LLVMType>{erlangErrorPtrTy}, calleeAttrs);
 
     auto callOp = rewriter.create<mlir::CallOp>(
         op.getLoc(), rewriter.getSymbolRefAttr(symbolName), ArrayRef<Type>{},
         ArrayRef<Value>{exception});
     callOp.setAttr("tail", rewriter.getUnitAttr());
+    callOp.setAttr("noreturn", rewriter.getUnitAttr());
     rewriter.replaceOpWithNewOp<LLVM::UnreachableOp>(op);
     return success();
   }

@@ -15,6 +15,9 @@ pub use self::arc::ArcError;
 mod classes;
 pub use self::classes::{Class, Error, Exit, Throw};
 
+mod erlang;
+pub use self::erlang::ErlangException;
+
 // A location represents file/line/column info about an error
 mod location;
 pub use self::location::Location;

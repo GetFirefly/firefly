@@ -38,14 +38,18 @@
 
 use alloc::boxed::Box;
 
-use crate::dwarf::eh::{self, EHAction, EHContext};
 use libc::{c_int, uintptr_t};
+
 use unwind as uw;
+
+use super::cleanup as cleanup_panic;
+use super::ErlangPanic;
+use crate::dwarf::eh::{self, EHAction, EHContext};
 
 #[repr(C)]
 pub struct Exception {
     _uwe: uw::_Unwind_Exception,
-    cause: usize,
+    cause: *mut ErlangPanic,
 }
 impl Exception {
     #[inline(always)]
@@ -54,7 +58,7 @@ impl Exception {
     }
 }
 
-pub unsafe fn panic(data: usize) -> u32 {
+pub unsafe fn panic(data: *mut ErlangPanic) -> u32 {
     let exception = Box::new(Exception {
         _uwe: uw::_Unwind_Exception {
             exception_class: lumen_exception_class(),
@@ -71,7 +75,8 @@ pub unsafe fn panic(data: usize) -> u32 {
         exception: *mut uw::_Unwind_Exception,
     ) {
         unsafe {
-            let _: Box<Exception> = Box::from_raw(exception as *mut Exception);
+            let ex = Box::from_raw(exception as *mut Exception);
+            cleanup_panic(ex.cause);
         }
     }
 }
@@ -99,9 +104,8 @@ pub unsafe fn __lumen_rethrow(ptr: *mut u8) -> ! {
     unreachable!("_Unwind_Resume unexpectedly returned in reraise_panic");
 }
 
-#[inline]
-pub unsafe fn cleanup(ptr: *mut u8) -> usize {
-    let exception = Box::from_raw(ptr as *mut Exception);
+pub unsafe fn cause(ptr: *mut u8) -> *mut ErlangPanic {
+    let exception = &*(ptr as *mut Exception);
     exception.cause
 }
 

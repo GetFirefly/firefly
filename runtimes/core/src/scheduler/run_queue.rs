@@ -103,7 +103,7 @@ impl Next {
         match status {
             Status::Runnable => Next::PushBack,
             Status::Waiting => Next::Wait,
-            Status::RuntimeException(_) => Next::Exit,
+            Status::Exited | Status::RuntimeException(_) => Next::Exit,
             Status::SystemException(_) => {
                 unreachable!("System exception should have already been cleared")
             }

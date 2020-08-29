@@ -1,6 +1,3 @@
-use anyhow::*;
-
-use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::{Frame, Native};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{Arity, ModuleFunctionArity};
@@ -32,7 +29,7 @@ fn module_function_arity() -> ModuleFunctionArity {
 }
 
 extern "C" fn native() -> Term {
-    current_process().exit_normal(Trace::capture(), anyhow!("Out of code").into());
+    current_process().exit_normal();
 
     Term::NONE
 }

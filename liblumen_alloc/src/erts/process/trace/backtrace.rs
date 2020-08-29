@@ -72,7 +72,7 @@ impl Trace {
             frames: Default::default(),
             fragment: ThreadLocalCell::new(Some(fragment)),
             term: ThreadLocalCell::new(Some(fragment_term)),
-            top: Default::default()
+            top: Default::default(),
         })
     }
 
@@ -93,7 +93,13 @@ impl Trace {
     }
 
     #[inline]
-    pub fn format(&self, f: &mut fmt::Formatter, kind: Term, reason: Term, source: Option<ArcError>) -> std::io::Result<()> {
+    pub fn format(
+        &self,
+        f: &mut fmt::Formatter,
+        kind: Term,
+        reason: Term,
+        source: Option<ArcError>,
+    ) -> std::io::Result<()> {
         format::format(self, f, kind, reason, source)
     }
 

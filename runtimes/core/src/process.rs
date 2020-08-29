@@ -110,12 +110,17 @@ pub fn monitor(process: &Process, monitored_process: &Process) -> Term {
     reference
 }
 
-pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
+pub fn propagate_exit(process: &Process, exception: Option<&RuntimeException>) {
     monitor::propagate_exit(process, exception);
     propagate_exit_to_links(process, exception);
 }
 
-pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) {
+pub fn propagate_exit_to_links(process: &Process, exception: Option<&RuntimeException>) {
+    // TODO: Shouldn't normal exits propagate?
+    if exception.is_none() {
+        return;
+    }
+    let exception = exception.unwrap();
     if !is_expected_exception(exception) {
         let tag = atom!("EXIT");
         let from = process.pid_term();

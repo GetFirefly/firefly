@@ -14,7 +14,7 @@ pub extern "C" fn builtin_fail(reason: Term) -> Term {
         let arguments = None;
         let source = None;
         let err = RuntimeException::Error(exception::Error::new(reason, arguments, trace, source));
-        process_raise(&current_process(), err);
+        process_raise(err);
     }
 }
 

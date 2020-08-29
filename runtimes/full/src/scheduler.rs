@@ -197,7 +197,7 @@ impl SchedulerTrait for Scheduler {
                     // will return to the Frame that called `process.wait()`
                     if !arc_process.is_exiting() {
                         match arc_process.run() {
-                            Ran::Waiting | Ran::Reduced | Ran::RuntimeException => (),
+                            Ran::Waiting | Ran::Reduced | Ran::Exited | Ran::RuntimeException => (),
                             Ran::SystemException => {
                                 let runnable = match &*arc_process.status.read() {
                                     Status::SystemException(system_exception) => {
@@ -245,9 +245,12 @@ impl SchedulerTrait for Scheduler {
 
                     if let Some(exiting_arc_process) = option_exiting_arc_process {
                         match *exiting_arc_process.status.read() {
+                            Status::Exited => {
+                                propagate_exit(&exiting_arc_process, None);
+                            }
                             Status::RuntimeException(ref exception) => {
                                 log_exit(&exiting_arc_process, exception);
-                                propagate_exit(&exiting_arc_process, exception);
+                                propagate_exit(&exiting_arc_process, Some(exception));
                             }
                             _ => unreachable!(),
                         }

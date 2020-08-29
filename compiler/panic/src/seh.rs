@@ -48,8 +48,11 @@ use core::any::Any;
 use core::mem::{self, ManuallyDrop};
 use libc::{c_int, c_uint, c_void};
 
+use super::cleanup as cleanup_panic;
+use super::ErlangPanic;
+
 struct Exception {
-    data: usize,
+    data: *mut ErlangPanic,
 }
 
 // First up, a whole bunch of type definitions. There's a few platform-specific
@@ -247,7 +250,7 @@ cfg_if::cfg_if! {
    }
 }
 
-pub unsafe fn panic(data: usize) -> u32 {
+pub unsafe fn panic(data: *mut ErlangPanic) -> u32 {
     use core::intrinsics::atomic_store;
 
     // _CxxThrowException executes entirely on this stack frame, so there's no
@@ -309,7 +312,12 @@ pub unsafe fn panic(data: usize) -> u32 {
     _CxxThrowException(throw_ptr, &mut THROW_INFO as *mut _ as *mut _);
 }
 
-pub unsafe fn cleanup(payload: *mut u8) -> usize {
-    let exception = &mut *(payload as *mut Exception);
+pub unsafe fn cause(payload: *mut u8) -> *mut ErlangPanic {
+    let exception = &*(payload as *mut Exception);
     exception.data
+}
+
+pub unsafe fn cleanup(payload: *mut u8) {
+    let exception = &mut *(payload as *mut Exception);
+    cleanup_panic(exception.data);
 }

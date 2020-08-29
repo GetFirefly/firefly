@@ -40,6 +40,10 @@ pub fn assert_exits<F: Fn(Arc<Trace>)>(
     source_substring: &str,
 ) {
     match *process.status.read() {
+        Status::Exited => {
+            let normal = Atom::str_to_term("normal");
+            assert_eq!(normal, expected_reason);
+        }
         Status::RuntimeException(ref runtime_exception) => {
             assert_eq!(runtime_exception.reason(), expected_reason);
             assert_stacktrace(runtime_exception.stacktrace());

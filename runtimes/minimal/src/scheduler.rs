@@ -83,8 +83,7 @@ pub unsafe extern "C" fn process_exit(exception: Option<NonNull<ErlangException>
             // Need to update reason to {nocatch, Reason}
             exception.set_nocatch();
         }
-        let trace = exception.trace();
-        scheduler.current.exit(exception.reason(), trace, None);
+        scheduler.current.erlang_exit(exception);
     } else {
         scheduler.current.exit_normal();
     }

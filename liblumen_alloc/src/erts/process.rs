@@ -38,7 +38,8 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 use crate::borrow::CloneToProcess;
 use crate::erts;
 use crate::erts::exception::{
-    AllocResult, ArcError, Exception, InternalResult, RuntimeException, SystemException,
+    AllocResult, ArcError, ErlangException, Exception, InternalResult, RuntimeException,
+    SystemException,
 };
 use crate::erts::module_function_arity::Arity;
 use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
@@ -1134,6 +1135,16 @@ impl Process {
         } else {
             false
         }
+    }
+
+    pub fn erlang_exit(&self, exception: Box<ErlangException>) {
+        self.reduce();
+        let mut heap = self.acquire_heap();
+        let reason = exception
+            .reason()
+            .clone_to_heap(&mut heap)
+            .unwrap_or_else(|_| Atom::str_to_term("unavailable"));
+        self.exit(reason, exception.trace(), None);
     }
 
     pub fn exit(&self, reason: Term, trace: Arc<trace::Trace>, source: Option<ArcError>) {

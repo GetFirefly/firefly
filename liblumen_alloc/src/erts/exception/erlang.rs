@@ -1,5 +1,6 @@
 use std::alloc::Layout;
 use std::mem;
+use std::ptr::{self, NonNull};
 use std::sync::Arc;
 
 use crate::borrow::CloneToProcess;
@@ -12,27 +13,34 @@ use super::AllocResult;
 
 /// The raw representation of an Erlang panic.
 ///
-/// Initially, this type is allocated in a HeapFragment not
+/// Initially, this type is allocated on the global heap and not
 /// attached to any given process. It can propagate through
 /// the exception handling system within a process freely. Once caught and
-/// is being converted to an Erlang term, or if it is being reified by
-/// a process somewhere, the following occurs:
+/// it is being converted to an Erlang term, or if it is being reified by
+/// a process somewhere via a trace constructor, the following occurs:
 ///
-/// - The structure is cloned to the process heap
-/// - The header is written to make this a 3-element tuple
-/// - The "raw" trace pointer is overwritten with the boxed
-/// pointer that points to the reified Erlang term form of
-/// the trace on the target process heap.
+/// - The exception reason is cloned to the process heap first
+/// - The trace term is constructed from the raw trace
+/// - This structure is then bitwise copied to the process heap, but with the fragment set to None
+///   and the trace set to a null pointer
+/// - The trace field of the copy is then overwritten with the box which points to the trace term.
 ///
-/// When the original exception is cleaned up, the heap fragment
-/// that was originally allocated is freed.
+/// When the original exception is cleaned up, this structure is dropped,
+/// which deallocates the memory it used on the global heap, and also
+/// drops the underlying heap fragment (if there was one). If this was
+/// the last outstanding reference to the Trace, then that will also be
+/// deallocated.
 ///
 /// Since the layout of this type perfectly matches that of a tuple
 /// of the same arity, this makes it a lot more efficient to pass around,
-/// as we only need make a single memcpy and one store to convert it
-/// to a tuple on the process heap; versus going through all of the
-/// runtime machinery to construct a new tuple, especially since we don't
-/// know if we'll be able to allocate
+/// as we only need to effectively make a single memcpy and one store to convert it
+/// to a tuple on the process heap; this also avoids copying parts of the
+/// exception to the process heap that can be allocated globally and shared
+/// as the exception propagates; only explicitly modifying the trace term would
+/// incur a copy to the process heap. This is especially important as we don't
+/// know if we'll be able to allocate much, if any, space on the process heap
+/// and our exceptions should not be reliant on doing so except when running
+/// the process code.
 #[allow(improper_ctypes)]
 #[derive(Debug)]
 #[repr(C)]
@@ -41,7 +49,7 @@ pub struct ErlangException {
     kind: Term,
     reason: Term,
     trace: *mut Trace,
-    fragment: Option<*mut HeapFragment>,
+    fragment: Option<NonNull<HeapFragment>>,
 }
 
 #[export_name = "__lumen_builtin_raise/2"]
@@ -82,7 +90,7 @@ impl ErlangException {
                         kind,
                         reason,
                         trace,
-                        fragment: Some(fragment),
+                        fragment: Some(nn),
                     })
                 } else {
                     // Fallback to 'unavailable' as reason
@@ -110,10 +118,13 @@ impl ErlangException {
         if unlikely(self.fragment.is_none()) {
             let layout = Tuple::layout_for_len(2);
             let nn = HeapFragment::new(layout).expect("out of memory");
-            self.fragment = Some(nn.as_ptr());
+            self.fragment = Some(nn);
         }
 
-        let frag = self.fragment.map(|ptr| unsafe { &mut *ptr }).unwrap();
+        let frag = self
+            .fragment
+            .map(|nn| unsafe { &mut *nn.as_ptr() })
+            .unwrap();
         let mut nocatch_reason = frag.mut_tuple(2).unwrap();
 
         let nocatch = Atom::str_to_term("nocatch");
@@ -136,7 +147,7 @@ impl ErlangException {
     }
 
     #[inline]
-    pub fn fragment(&self) -> Option<*mut HeapFragment> {
+    pub fn fragment(&self) -> Option<NonNull<HeapFragment>> {
         self.fragment
     }
 
@@ -157,7 +168,7 @@ impl Drop for ErlangException {
     fn drop(&mut self) {
         if let Some(fragment) = self.fragment {
             unsafe {
-                fragment.drop_in_place();
+                fragment.as_ptr().drop_in_place();
             }
         }
         // Drop our trace reference
@@ -170,11 +181,26 @@ impl CloneToProcess for ErlangException {
         A: ?Sized + TermAlloc,
     {
         let reason = self.reason.clone_to_heap(heap)?;
+        let trace = self.trace().as_term()?;
+        let tuple = unsafe {
+            let ptr = heap
+                .alloc_layout(Layout::new::<Self>())?
+                .cast::<Self>()
+                .as_ptr();
 
-        let mut tuple = heap.mut_tuple(3)?;
-        tuple.set_element(0, self.kind).unwrap();
-        tuple.set_element(1, reason).unwrap();
-        tuple.set_element(2, self.trace().as_term()?).unwrap();
+            ptr.write(Self {
+                _header: self._header,
+                kind: self.kind,
+                reason,
+                trace: ptr::null_mut(),
+                fragment: None,
+            });
+
+            let mut tuple = Tuple::from_raw_term(ptr as *mut Term);
+            tuple.set_element(2, trace).unwrap();
+
+            tuple
+        };
 
         Ok(tuple.into())
     }

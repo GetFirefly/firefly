@@ -223,7 +223,7 @@ impl Debug for Map {
 
 impl Display for Map {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "%{{")?;
+        write!(f, "#{{")?;
 
         let mut iter = self.iter();
 

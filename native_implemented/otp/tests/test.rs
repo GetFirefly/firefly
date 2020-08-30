@@ -51,38 +51,27 @@ macro_rules! test_stdout_substrings {
     };
 }
 
-// FIXME https://github.com/lumen/lumen/issues/497
-fn work_around497(file: &str, name: &str) -> PathBuf {
-    let mut tries = 0;
-    const MAX_TRIES: u8 = 7;
+fn compiled_path_buf(file: &str, name: &str) -> PathBuf {
+    match compile(file, name) {
+        Ok(path_buf) => path_buf,
+        Err((command, output)) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let formatted_code = match output.status.code() {
+                Some(code) => code.to_string(),
+                None => "".to_string(),
+            };
+            let formatted_signal = signal(output.status);
 
-    loop {
-        match compile(file, name) {
-            Ok(path_buf) => break path_buf,
-            Err((command, output)) => {
-                tries += 1;
-
-                if tries == MAX_TRIES {
-                    let stdout = String::from_utf8_lossy(&output.stdout);
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    let formatted_code = match output.status.code() {
-                        Some(code) => code.to_string(),
-                        None => "".to_string(),
-                    };
-                    let formatted_signal = signal(output.status);
-
-                    assert!(
-                        output.status.success(),
-                        "\nCommands:\ncd {}\n{:?}\n\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
-                        std::env::current_dir().unwrap().to_string_lossy(),
-                        command,
-                        stdout,
-                        stderr,
-                        formatted_code,
-                        formatted_signal
-                    );
-                }
-            }
+            panic!(
+                "Compilation failed\nCommands:\ncd {}\n{:?}\n\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                std::env::current_dir().unwrap().to_string_lossy(),
+                command,
+                stdout,
+                stderr,
+                formatted_code,
+                formatted_signal
+            );
         }
     }
 }
@@ -134,7 +123,7 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
 }
 
 pub fn output(file: &str, name: &str) -> Output {
-    let bin_path_buf = work_around497(file, name);
+    let bin_path_buf = compiled_path_buf(file, name);
 
     Command::new(bin_path_buf)
         .stdin(Stdio::null())

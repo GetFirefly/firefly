@@ -44,6 +44,8 @@ pub mod display_1;
 pub mod erase_0;
 #[path = "erlang/erase_1.rs"]
 pub mod erase_1;
+#[path = "erlang/exit_1.rs"]
+pub mod exit_1;
 #[path = "erlang/float_1.rs"]
 pub mod float_1;
 #[path = "erlang/float_to_binary_1.rs"]

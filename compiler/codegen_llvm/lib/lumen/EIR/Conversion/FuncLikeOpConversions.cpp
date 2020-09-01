@@ -86,7 +86,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     ClosureOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
-    auto loc = ctx.getLoc();
+    auto loc = op.getLoc();
 
     assert(op.isAnonymous() && "expected anonymous closures only");
 

@@ -1,13 +1,7 @@
 #include "lumen/EIR/IR/EIROps.h"
-
-#include <iterator>
-#include <vector>
-
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/SMLoc.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIRTypes.h"
+
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -22,12 +16,22 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/SMLoc.h"
+
+#include <iterator>
+#include <vector>
+
 using namespace lumen;
 using namespace lumen::eir;
 
 using ::llvm::ArrayRef;
 using ::llvm::SmallVector;
 using ::llvm::StringRef;
+using ::llvm::dyn_cast_or_null;
+using ::llvm::cast;
+using ::llvm::isa;
 using ::mlir::OpOperand;
 
 namespace lumen {

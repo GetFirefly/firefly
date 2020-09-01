@@ -1,2 +1,2 @@
-target/
-.git/
+/target
+/.git

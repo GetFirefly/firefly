@@ -8,6 +8,7 @@ VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' 
 XDG_DATA_HOME ?= $(HOME)/.local/share
 LLVM_PREFIX ?= `cd $(XDG_DATA_HOME)/llvm/lumen && pwd`
 CWD ?= `pwd`
+IMAGE_NAME ?= kronicdeth/lumen-development
 
 help:
 	@echo "$(NAME):$(VERSION)"
@@ -122,8 +123,16 @@ rebuild: clean build ## Rebuild all
 
 docker: ## Build Docker image for CI
 	cd .github/workflows/ && \
-		docker build --squash --force-rm -t kronicdeth/lumen-development:latest -f Dockerfile .
+		docker build --squash --force-rm -t $(IMAGE_NAME):latest -f Dockerfile .
+
+linux-shell: ## Run the lumen-dev Docker image
+	mkdir -p target/docker/target && \
+		docker run --privileged --rm \
+			-v $$(pwd):/opt/lumen \
+			-v $$(pwd)/../llvm-project:/tmp/sources \
+			-e CARGO_TARGET_DIR=/var/lumen \
+			-it $(IMAGE_NAME):latest bash -c 'cd /opt/lumen; exec bash'
+
 
 docker-release: docker
-	docker push kronicdeth/lumen-development:latest
-
+	docker push $(IMAGE_NAME):latest

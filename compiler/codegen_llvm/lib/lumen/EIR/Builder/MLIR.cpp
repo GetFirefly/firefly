@@ -13,7 +13,6 @@ extern "C" void MLIRRegisterDialects(MLIRContextRef context) {
   MLIRContext *ctx = unwrap(context);
 
   // Register the LLVM and EIR dialects with MLIR
-  ctx->getOrLoadDialect<mlir::StandardOpsDialect>();
-  ctx->getOrLoadDialect<mlir::LLVM::LLVMDialect>();
-  ctx->getOrLoadDialect<lumen::eir::eirDialect>();
+  ctx->loadDialect<mlir::StandardOpsDialect, mlir::LLVM::LLVMDialect, lumen::eir::eirDialect>();
+  assert(ctx->getLoadedDialects().size() >= 3 && "failed to load dialects!");
 }

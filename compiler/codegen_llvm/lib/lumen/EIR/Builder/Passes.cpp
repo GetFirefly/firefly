@@ -1,8 +1,15 @@
 #include "lumen/EIR/Builder/Passes.h"
+#include "lumen/EIR/IR/EIRDialect.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
 
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+
+#include "llvm/Support/Casting.h"
+
 using ::mlir::OpBuilder;
+using ::mlir::DialectRegistry;
 using ::mlir::PassWrapper;
 using ::mlir::OperationPass;
 using ::mlir::Block;
@@ -12,6 +19,10 @@ using ::mlir::Location;
 using ::mlir::Operation;
 using ::mlir::OpOperand;
 
+using ::llvm::isa;
+using ::llvm::dyn_cast_or_null;
+using ::llvm::cast;
+
 namespace {
 
 using namespace ::lumen::eir;
@@ -20,6 +31,11 @@ void forAllTraceUses(OpBuilder &, Location, Value, Value, unsigned);
     
 struct InsertTraceConstructorsPass
     : public PassWrapper<InsertTraceConstructorsPass, OperationPass<FuncOp>> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<mlir::StandardOpsDialect, mlir::LLVM::LLVMDialect,
+                    lumen::eir::eirDialect>();
+  }
+
   void runOnOperation() override {
     FuncOp op = getOperation();
     if (op.isExternal())

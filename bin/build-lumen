@@ -6,7 +6,8 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_DIR")" && pwd)"
 BIN_DIR="${ROOT_DIR}/bin"
-OUTPUT_DIR="${ROOT_DIR}/target/debug"
+TARGET_DIR="${CARGO_TARGET_DIR:-${ROOT_DIR}/target}"
+OUTPUT_DIR="${TARGET_DIR}/debug"
 RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//' | sed -e 's/ (directory override for.*$//')"
 RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
 TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
@@ -115,7 +116,7 @@ while [ $# -gt 0 ]; do
             ;;
         -debug | --debug )
             extra_rustc_flags="-C opt-level=0"
-            OUTPUT_DIR="${ROOT_DIR}/target/debug"
+            OUTPUT_DIR="${TARGET_DIR}/debug"
             ;;
 
         -only-tblgen | --only-tblgen )
@@ -123,7 +124,7 @@ while [ $# -gt 0 ]; do
             ;;
 
         -release | --release )
-            OUTPUT_DIR="${ROOT_DIR}/target/release"
+            OUTPUT_DIR="${TARGET_DIR}/release"
             extra_cargo_flags="--release $extra_cargo_flags"
             ;;
 

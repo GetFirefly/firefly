@@ -27,20 +27,23 @@ struct TargetInfoImpl {
   TargetInfoImpl(const TargetInfoImpl &other)
       : triple(other.triple),
         encoding(other.encoding),
-        pointerWidthIntTy(other.pointerWidthIntTy),
         voidTy(other.voidTy),
+        pointerWidthIntTy(other.pointerWidthIntTy),
         i1Ty(other.i1Ty),
         i8Ty(other.i8Ty),
         i32Ty(other.i32Ty),
+        i64Ty(other.i64Ty),
         bigIntTy(other.bigIntTy),
         floatTy(other.floatTy),
+        doubleTy(other.doubleTy),
         binaryTy(other.binaryTy),
         binPushResultTy(other.binPushResultTy),
+        matchResultTy(other.matchResultTy),
+        recvContextTy(other.recvContextTy),
         consTy(other.consTy),
         opaqueFnTy(other.opaqueFnTy),
         uniqueTy(other.uniqueTy),
         defTy(other.defTy),
-        recvContextTy(other.recvContextTy),
         exceptionTy(other.exceptionTy),
         erlangErrorTy(other.erlangErrorTy),
         nil(other.nil),
@@ -50,7 +53,8 @@ struct TargetInfoImpl {
         boxTag(other.boxTag),
         literalTag(other.literalTag),
         immediateMask(other.immediateMask),
-        headerMask(other.headerMask) {}
+        headerMask(other.headerMask),
+        immediateBits(other.immediateBits) {}
 
   std::string triple;
 

@@ -1,11 +1,11 @@
 #ifndef LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 #define LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 
-#include "llvm/Target/TargetMachine.h"
 #include "lumen/EIR/Conversion/TargetInfo.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
+
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -21,8 +21,14 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/Casting.h"
+
 using ::llvm::SmallVectorImpl;
 using ::llvm::TargetMachine;
+using ::llvm::dyn_cast_or_null;
+using ::llvm::cast;
+using ::llvm::isa;
 using ::mlir::ConversionPatternRewriter;
 using ::mlir::LLVMTypeConverter;
 using ::mlir::LogicalResult;
@@ -342,8 +348,6 @@ class RewritePatternContext : public OpConversionContext {
   using OpConversionContext::targetInfo;
   using OpConversionContext::typeConverter;
 
-  inline Location getLoc() const { return op.getLoc(); }
-
   inline const ModuleOp &getModule() const { return parentModule; }
 
   Operation *getOrInsertFunction(StringRef symbol, LLVMType resultTy,
@@ -421,7 +425,7 @@ class RewritePatternContext : public OpConversionContext {
   }
   Value encodeImmediate(OpaqueTermType ty, Value val) const {
     ModuleOp mod = getModule();
-    return OpConversionContext::encodeImmediate(mod, getLoc(), ty, val);
+    return OpConversionContext::encodeImmediate(mod, val.getLoc(), ty, val);
   }
 };
 

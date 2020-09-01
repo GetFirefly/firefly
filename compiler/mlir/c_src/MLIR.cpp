@@ -18,6 +18,7 @@ MLIRContextRef MLIRCreateContext(ContextOptions *opts) {
   ctx->printOpOnDiagnostic(opts->printOpOnDiagnostic);
   ctx->printStackTraceOnDiagnostic(opts->printStackTraceOnDiagnostic);
   ctx->enableMultithreading(opts->enableMultithreading);
+  ctx->allowUnregisteredDialects(false);
   
   return wrap(ctx);
 }

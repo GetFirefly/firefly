@@ -50,11 +50,11 @@ jobs:
         uses: actions/cache@v2
         with:
           path: /usr/local/bin/chromedriver
-          key: lumen-chromedriver-83.0.4103-mac64
+          key: lumen-chromedriver-85.0.4183.87-mac64
       - name: Install Chrome Driver
         if: steps.cache-chromedriver.outputs.cache-hit != 'true'
         run: |
-          wget https://chromedriver.storage.googleapis.com/83.0.4103.39/chromedriver_mac64.zip
+          wget https://chromedriver.storage.googleapis.com/85.0.4183.87/chromedriver_mac64.zip
           unzip chromedriver_mac64.zip
           mv chromedriver /usr/local/bin/
           rm chromedriver_mac64.zip

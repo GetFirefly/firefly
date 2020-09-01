@@ -276,6 +276,19 @@ pub enum Class {
     Exit,
     Throw,
 }
+impl Class {
+    pub fn as_atom(&self) -> Atom {
+        match self {
+            Self::Error { .. } => Atom::ERROR,
+            Self::Exit => Atom::EXIT,
+            Self::Throw => Atom::THROW,
+        }
+    }
+
+    pub fn as_term(&self) -> Term {
+        self.as_atom().as_term()
+    }
+}
 impl fmt::Display for Class {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

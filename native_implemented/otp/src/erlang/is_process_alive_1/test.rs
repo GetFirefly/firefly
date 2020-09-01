@@ -1,7 +1,5 @@
 mod with_pid;
 
-use anyhow::*;
-
 use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};

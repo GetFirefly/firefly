@@ -1,12 +1,10 @@
-pub mod gc;
+pub mod exceptions;
+//pub mod gc;
 pub mod receive;
 
 use std::convert::TryInto;
 use std::panic;
 
-use anyhow::anyhow;
-
-use liblumen_alloc::erts::process::ffi::process_raise;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_core::process::current_process;
@@ -39,20 +37,5 @@ pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
         res
     } else {
         panic!("send failed");
-    }
-}
-
-#[export_name = "__lumen_builtin_fail/1"]
-pub extern "C" fn builtin_fail(reason: Term) -> Term {
-    use liblumen_alloc::erts::exception::{self, ArcError, RuntimeException};
-    if reason.is_none() {
-        reason
-    } else {
-        let err = RuntimeException::Error(exception::Error::new(
-            reason,
-            None,
-            ArcError::new(anyhow!("call to fail/1 raised an error!")),
-        ));
-        process_raise(&current_process(), err);
     }
 }

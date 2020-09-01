@@ -3,14 +3,10 @@
 namespace lumen {
 namespace eir {
 
-static bool isa_eir_type(Type t) {
-  return inbounds(t.getKind(), Type::Kind::FIRST_EIR_TYPE,
-                  Type::Kind::LAST_EIR_TYPE);
-}
+static bool isa_eir_type(Type t) { return isa<eirDialect>(t.getDialect()); }
 
 static bool isa_std_type(Type t) {
-  return inbounds(t.getKind(), Type::Kind::FIRST_STANDARD_TYPE,
-                  Type::Kind::LAST_STANDARD_TYPE);
+  return isa<mlir::StandardOpsDialect>(t.getDialect());
 }
 
 Optional<Type> convertType(Type type, EirTypeConverter &converter,
@@ -35,6 +31,14 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     return boxedTy.getPointerTo();
   }
 
+  if (auto recvRef = type.dyn_cast_or_null<ReceiveRefType>()) {
+    return targetInfo.getI8Type().getPointerTo();
+  }
+
+  if (auto traceRef = type.dyn_cast_or_null<TraceRefType>()) {
+    return targetInfo.getI8Type().getPointerTo();
+  }
+
   OpaqueTermType ty = type.cast<OpaqueTermType>();
   if (ty.isOpaque() || ty.isImmediate()) return termTy;
 
@@ -51,14 +55,14 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
         assert(elemTy && "expected convertible element type!");
         elementTypes.push_back(elemTy);
       }
-      return targetInfo.makeTupleType(converter.getDialect(), elementTypes);
+      return targetInfo.makeTupleType(elementTypes);
     } else {
       return termTy;
     }
   }
 
   if (type.isa<eir::ClosureType>()) {
-    return targetInfo.makeClosureType(converter.getDialect(), 1);
+    return targetInfo.makeClosureType(1);
   }
 
   llvm::outs() << "\ntype: ";
@@ -80,7 +84,7 @@ Operation *OpConversionContext::getOrInsertFunction(
   if (resultTy) {
     fnTy = LLVMType::getFunctionTy(resultTy, argTypes, /*isVarArg=*/false);
   } else {
-    auto voidTy = LLVMType::getVoidTy(dialect);
+    auto voidTy = LLVMType::getVoidTy(context);
     fnTy = LLVMType::getFunctionTy(voidTy, argTypes, /*isVarArg=*/false);
   }
 
@@ -105,7 +109,7 @@ LLVM::GlobalOp OpConversionContext::getOrInsertGlobalString(
   if (!global) {
     auto i8Ty = getI8Type();
     auto i8PtrTy = i8Ty.getPointerTo();
-    auto i64Ty = LLVMType::getInt64Ty(dialect);
+    auto i64Ty = LLVMType::getInt64Ty(context);
     auto strTy = LLVMType::getArrayTy(i8Ty, value.size());
 
     PatternRewriter::InsertionGuard insertGuard(rewriter);
@@ -135,8 +139,7 @@ Value OpConversionContext::buildMalloc(ModuleOp mod, LLVMType ty,
   auto usizeTy = getUsizeType();
   StringRef symbolName("__lumen_builtin_malloc");
   auto callee = getOrInsertFunction(mod, symbolName, i8PtrTy, {i32Ty, usizeTy});
-  auto allocTyConst =
-      llvm_constant(i32Ty, getU32Attr(allocTy - mlir::Type::FIRST_EIR_TYPE));
+  auto allocTyConst = llvm_constant(i32Ty, getU32Attr(allocTy));
   auto calleeSymbol = FlatSymbolRefAttr::get(symbolName, callee->getContext());
   ArrayRef<Value> args{allocTyConst, arity};
   Operation *call = std_call(calleeSymbol, ArrayRef<Type>{i8PtrTy}, args);
@@ -187,7 +190,7 @@ Value OpConversionContext::encodeImmediate(ModuleOp mod, Location loc,
   auto callee = getOrInsertFunction(mod, symbolName, termTy, {i32Ty, termTy});
   auto calleeSymbol = FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
-  Value kind = llvm_constant(i32Ty, getI32Attr(ty.getForeignKind()));
+  Value kind = llvm_constant(i32Ty, getI32Attr(ty.getTypeKind().getValue()));
   ArrayRef<Value> args{kind, val};
   Operation *call = std_call(calleeSymbol, ArrayRef<Type>{termTy}, args);
   return call->getResult(0);

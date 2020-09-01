@@ -5,6 +5,7 @@ use std::convert::TryInto;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::{self, badmap};
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -139,7 +140,8 @@ pub fn term_try_into_map_or_badmap(
     name: &str,
     value: Term,
 ) -> exception::Result<Boxed<Map>> {
-    term_try_into_map(name, value).map_err(|source| badmap(process, value, source.into()))
+    term_try_into_map(name, value)
+        .map_err(|source| badmap(process, value, Trace::capture(), source.into()))
 }
 
 pub fn term_try_into_non_empty_list(name: &str, value: Term) -> anyhow::Result<Boxed<Cons>> {

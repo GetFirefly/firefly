@@ -14,5 +14,5 @@ test_stdout!(
 );
 test_stdout!(
     with_true_value_then_false_value_exits_when_linked_process_does_not_exit_normal,
-    "{trap_exit, true}\n{trap_exit, false}\n{parent, exited, abnormal}\n{child, exited, abnormal}\n"
+    "{trap_exit, true}\n{trap_exit, false}\n{child, exited, abnormal}\n{parent, exited, abnormal}\n"
 );

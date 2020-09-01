@@ -46,10 +46,7 @@ fn with_class_without_list_stacktrace_errors_badarg() {
             )
         },
         |(class, reason, stacktrace)| {
-            prop_assert_badarg!(
-                result(class, reason, stacktrace),
-                format!("stacktrace ({}) is not a stacktrace", stacktrace)
-            );
+            prop_assert_badarg!(result(class, reason, stacktrace), "is not a list");
 
             Ok(())
         },
@@ -105,7 +102,7 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
-                format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                "{Module, Function, Arity | Args}"
             );
 
             Ok(())
@@ -135,7 +132,7 @@ fn with_class_with_stacktrace_with_atom_module_without_atom_function_errors_bada
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
-                format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                format!("`Function` ({}) is not an atom", function)
             );
 
             Ok(())
@@ -166,7 +163,7 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
-                format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                "is not format `{Module, Function, Arity | Args}`"
             );
 
             Ok(())
@@ -201,7 +198,7 @@ fn with_class_with_stacktrace_with_mfa_with_file_without_charlist_errors_badarg(
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
-                format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                format!("file ({}) is not a non-empty list", file_value)
             );
 
             Ok(())
@@ -236,7 +233,7 @@ fn with_class_with_stacktrace_with_mfa_with_non_positive_line_with_errors_badarg
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
-                format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                format!("line ({}) is not 1 or greater", line_value)
             );
 
             Ok(())
@@ -278,7 +275,7 @@ fn with_class_with_stacktrace_with_mfa_with_invalid_location_errors_badarg() {
 
             prop_assert_badarg!(
                 result(class, reason, stacktrace),
-                format!("stacktrace ({}) is not a stacktrace", stacktrace)
+                format!("location ({})", location)
             );
 
             Ok(())
@@ -368,7 +365,8 @@ fn with_mfa_with_file_raises() {
                 strategy::term::function::module(),
                 strategy::term::function::function(),
                 strategy::term::function::arity_or_arguments(arc_process.clone()),
-                strategy::term::charlist(arc_process.clone()),
+                strategy::term::charlist(arc_process.clone())
+                    .prop_filter("File names can't be empty", |file| !file.is_nil()),
             )
         },
         |(arc_process, (class_variant, class), reason, module, function, arity, file_value)| {
@@ -433,7 +431,8 @@ fn with_mfa_with_file_and_line_raises() {
                 strategy::term::atom(),
                 strategy::term::atom(),
                 strategy::term::function::arity_or_arguments(arc_process.clone()),
-                strategy::term::charlist(arc_process.clone()),
+                strategy::term::charlist(arc_process.clone())
+                    .prop_filter("File names can't be empty", |file| !file.is_nil()),
                 strategy::term::integer::positive(arc_process),
             )
         },
@@ -489,8 +488,16 @@ fn prop_assert_raises(
 ) -> Result<(), TestCaseError> {
     if let Err(Exception::Runtime(ref runtime_exception)) = result(class, reason, stacktrace) {
         prop_assert_eq!(runtime_exception.class(), class_variant);
-        prop_assert_eq!(runtime_exception.reason(), reason);
-        prop_assert_eq!(runtime_exception.stacktrace(), Some(stacktrace));
+        prop_assert_eq!(
+            runtime_exception.reason(),
+            reason,
+            "source = {:?}",
+            runtime_exception.source()
+        );
+        prop_assert_eq!(
+            runtime_exception.stacktrace().as_term().unwrap(),
+            stacktrace
+        );
 
         Ok(())
     } else {

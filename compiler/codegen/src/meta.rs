@@ -130,12 +130,16 @@ impl ProjectInfo {
         if triple.contains("linux") {
             if triple.contains("android") {
                 platform_libs = vec![
+                    ("c", NativeLibraryKind::NativeUnknown),
+                    ("m", NativeLibraryKind::NativeUnknown),
                     ("dl", NativeLibraryKind::NativeUnknown),
                     ("log", NativeLibraryKind::NativeUnknown),
                     ("gcc", NativeLibraryKind::NativeUnknown),
                 ];
             } else if !triple.contains("musl") {
                 platform_libs = vec![
+                    ("c", NativeLibraryKind::NativeUnknown),
+                    ("m", NativeLibraryKind::NativeUnknown),
                     ("dl", NativeLibraryKind::NativeUnknown),
                     ("rt", NativeLibraryKind::NativeUnknown),
                     ("pthread", NativeLibraryKind::NativeUnknown),

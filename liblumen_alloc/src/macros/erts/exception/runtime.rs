@@ -1,73 +1,62 @@
 #[macro_export]
 macro_rules! badarg {
-    ($source:expr) => {
-        $crate::erts::exception::badarg(None, $source)
+    ($trace:expr) => {
+        $crate::erts::exception::badarg($trace, None)
     };
-    ($stacktrace:expr, $source:expr) => {
-        $crate::erts::exception::badarg(Some($stacktrace), $source)
+    ($trace:expr, $source:expr) => {
+        $crate::erts::exception::badarg($trace, Some($source))
     };
-}
-
-#[macro_export]
-macro_rules! undef {
-    ($process:expr, $module:expr, $function:expr, $arguments:expr) => {
-        $crate::erts::exception::undef(
-            $process,
-            $module,
-            $function,
-            $arguments,
-            $crate::location!(),
-            $crate::erts::term::prelude::Term::NIL,
-        )
-    };
-    ($process:expr, $module:expr, $function:expr, $arguments:expr, $stacktrace_tail:expr) => {{
-        $crate::erts::exception::undef(
-            $process,
-            $module,
-            $function,
-            $arguments,
-            $crate::location!(),
-            $stacktrace_tail,
-        )
-    }};
 }
 
 #[macro_export]
 macro_rules! raise {
     ($class:expr, $reason:expr) => {
-        $crate::erts::exception::raise($class, $reason, $crate::location!(), None)
+        let trace = crate::erts::process::trace::Trace::capture();
+        $crate::erts::exception::raise($class, $reason, trace)
     };
-    ($class:expr, $reason:expr, $stacktrace:expr) => {
-        $crate::erts::exception::raise($class, $reason, $crate::location!(), Some($stacktrace))
+}
+
+#[macro_export]
+macro_rules! raise_with_source {
+    ($class:expr, $reason:expr, $source:expr) => {
+        $crate::erts::exception::raise_with_source($class, $reason, $source)
     };
 }
 
 #[macro_export]
 macro_rules! error {
-    ($reason:expr, $source:expr) => {
-        $crate::erts::exception::error($reason, None, None, $source)
+    ($reason:expr, $trace:expr) => {
+        $crate::erts::exception::error($reason, None, $trace, None)
     };
-    ($reason:expr, $arguments:expr, $source:expr) => {
-        $crate::erts::exception::error($reason, Some($arguments), None, $source)
+    ($reason:expr, $arguments:expr, $trace:expr) => {
+        $crate::erts::exception::error($reason, Some($arguments), $trace, None)
+    };
+    ($reason:expr, $arguments:expr, $trace:expr, $source:expr) => {
+        $crate::erts::exception::error($reason, Some($arguments), $trace, Some($source))
     };
 }
 
 #[macro_export]
 macro_rules! exit {
-    ($reason:expr, $source:expr) => {
-        $crate::erts::exception::exit($reason, None, $source)
+    ($reason:expr, $trace:expr) => {
+        $crate::erts::exception::exit($reason, $trace, None)
     };
-    ($reason:expr, $stacktrace:expr, $source:expr) => {
-        $crate::erts::exception::exit($reason, Some($stacktrace), $source)
+    ($reason:expr, $trace:expr, $source:expr) => {
+        $crate::erts::exception::exit($reason, $trace, Some($source))
     };
 }
 
 #[macro_export]
 macro_rules! throw {
     ($reason:expr) => {
-        $crate::erts::exception::throw($reason, $crate::location!(), None)
+        let trace = crate::erts::process::trace::Trace::capture();
+        $crate::erts::exception::throw($reason, trace)
     };
-    ($reason:expr, $stacktrace:expr) => {
-        $crate::erts::exception::throw($reason, $crate::location!(), Some($stacktrace))
+}
+
+#[macro_export]
+macro_rules! throw_with_source {
+    ($reason:expr) => {
+        $crate::erts::exception::throw($reason, $crate::location!())
     };
 }

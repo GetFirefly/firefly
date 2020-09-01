@@ -12,7 +12,6 @@ lumen_cc_library(
     "MapOpConversions.h"
     "MathOpConversions.h"
     "MemoryOpConversions.h"
-    "Passes.h"
     "TargetInfo.h"
   SRCS
     "AggregateOpConversions.cpp"

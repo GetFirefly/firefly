@@ -14,45 +14,69 @@ macro_rules! test_stdout {
                 Some(code) => code.to_string(),
                 None => "".to_string(),
             };
+            let formatted_signal = $crate::test::signal(output.status);
 
             assert_eq!(
-                stdout,
-                $expected_stdout,
-                "\nstdout = {}\nstderr = {}\nstatus_code = {}\nsignal = {}",
-                stdout,
-                stderr,
-                formatted_code,
-                $crate::test::signal(output.status)
+                stdout, $expected_stdout,
+                "\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                stdout, stderr, formatted_code, formatted_signal
             );
         }
     };
 }
 
-// FIXME https://github.com/lumen/lumen/issues/497
-fn work_around497(file: &str, name: &str) -> PathBuf {
-    let mut tries = 0;
-    const MAX_TRIES: u8 = 7;
+#[allow(unused_macros)]
+macro_rules! test_stdout_substrings {
+    ($func_name:ident, $expected_stdout_substrings:expr) => {
+        #[test]
+        fn $func_name() {
+            let output = $crate::test::output(file!(), stringify!($func_name));
 
-    loop {
-        match compile(file, name) {
-            Ok(path_buf) => break path_buf,
-            Err(output) => {
-                tries += 1;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let formatted_code = match output.status.code() {
+                Some(code) => code.to_string(),
+                None => "".to_string(),
+            };
+            let formatted_signal = $crate::test::signal(output.status);
 
-                if tries == MAX_TRIES {
-                    assert!(
-                        output.status.success(),
-                        "stdout = {}\nstderr = {}",
-                        String::from_utf8_lossy(&output.stdout),
-                        String::from_utf8_lossy(&output.stderr)
-                    );
-                }
+            for expected_stdout_substring in $expected_stdout_substrings {
+                assert!(
+                    stdout.contains(expected_stdout_substring),
+                    "stdout does not contain substring\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                    expected_stdout_substring, stdout, stderr, formatted_code, formatted_signal
+                );
             }
+        }
+    };
+}
+
+fn compiled_path_buf(file: &str, name: &str) -> PathBuf {
+    match compile(file, name) {
+        Ok(path_buf) => path_buf,
+        Err((command, output)) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let formatted_code = match output.status.code() {
+                Some(code) => code.to_string(),
+                None => "".to_string(),
+            };
+            let formatted_signal = signal(output.status);
+
+            panic!(
+                "Compilation failed\nCommands:\ncd {}\n{:?}\n\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                std::env::current_dir().unwrap().to_string_lossy(),
+                command,
+                stdout,
+                stderr,
+                formatted_code,
+                formatted_signal
+            );
         }
     }
 }
 
-fn compile(file: &str, name: &str) -> Result<PathBuf, Output> {
+fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
     // `file!()` starts with path relative to workspace root, but the `current_dir` will be inside
     // the crate root, so need to strip the relative crate root.
     let file_path = Path::new(file);
@@ -94,12 +118,12 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, Output> {
     if compile_output.status.success() {
         Ok(output_path_buf)
     } else {
-        Err(compile_output)
+        Err((command, compile_output))
     }
 }
 
 pub fn output(file: &str, name: &str) -> Output {
-    let bin_path_buf = work_around497(file, name);
+    let bin_path_buf = compiled_path_buf(file, name);
 
     Command::new(bin_path_buf)
         .stdin(Stdio::null())

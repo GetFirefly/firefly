@@ -1,3 +1,4 @@
+#![deny(warnings)]
 // Do not fail the build when feature flags are stabilized on recent nightlies, just warn
 #![allow(stable_features)]
 // Support backtraces in errors
@@ -18,6 +19,7 @@
 #![feature(raw_vec_internals)]
 // Support external thread locals
 #![feature(thread_local)]
+#![feature(weak_into_raw)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

@@ -25,6 +25,7 @@ liblumen_core = { path = "../liblumen_core" }
 liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
 liblumen_term = { path = "../compiler/term" }
+termcolor = "1.1"
 
 [dependencies.dashmap]
 version = "3.11"
@@ -37,6 +38,9 @@ features = ["nightly"]
 [dependencies.intrusive-collections]
 version = "0.8"
 features = ["nightly"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+backtrace = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-test = "0.3.17"

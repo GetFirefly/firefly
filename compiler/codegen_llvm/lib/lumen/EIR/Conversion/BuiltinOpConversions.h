@@ -11,6 +11,7 @@ class MallocOpConversion;
 class PrintOpConversion;
 class TraceCaptureOpConversion;
 class TraceConstructOpConversion;
+class TracePrintOpConversion;
 
 void populateBuiltinOpConversionPatterns(OwningRewritePatternList &patterns,
                                          MLIRContext *context,

@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::{self, badarity};
-use liblumen_alloc::erts::process::{FrameWithArguments, Process};
+use liblumen_alloc::erts::process::{trace::Trace, FrameWithArguments, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 extern "Rust" {
@@ -27,19 +27,26 @@ fn result(process: &Process, function: Term, arguments: Term) -> exception::Resu
     if arguments_len == arity {
         Ok(unsafe { runtime_apply_2(function_boxed_closure, argument_vec) })
     } else {
+        let mfa = function_boxed_closure.module_function_arity();
+        let trace = Trace::capture();
+        trace.set_top_frame(&mfa, argument_vec.as_slice());
         Err(badarity(
             process,
             function,
             arguments,
-            anyhow!(
-                "arguments ({}) length ({}) does not match arity ({}) of function ({})",
-                arguments,
-                arguments_len,
-                arity,
-                function
-            )
-            .into(),
-        ))
+            trace,
+            Some(
+                anyhow!(
+                    "arguments ({}) length ({}) does not match arity ({}) of function ({})",
+                    arguments,
+                    arguments_len,
+                    arity,
+                    function
+                )
+                .into(),
+            ),
+        )
+        .into())
     }
 }
 

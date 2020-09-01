@@ -10,7 +10,7 @@ struct ConstructMapOpConversion : public EIROpConversion<ConstructMapOp> {
       ConstructMapOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    auto loc = ctx.getLoc();
+    auto loc = op.getLoc();
     ConstructMapOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
@@ -59,7 +59,7 @@ struct MapInsertOpConversion : public EIROpConversion<MapInsertOp> {
       MapInsertOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    auto loc = ctx.getLoc();
+    auto loc = op.getLoc();
     MapInsertOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
@@ -92,7 +92,7 @@ struct MapUpdateOpConversion : public EIROpConversion<MapUpdateOp> {
       MapUpdateOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    auto loc = ctx.getLoc();
+    auto loc = op.getLoc();
     MapUpdateOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();

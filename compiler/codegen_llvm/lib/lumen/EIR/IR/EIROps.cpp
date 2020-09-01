@@ -1,13 +1,7 @@
 #include "lumen/EIR/IR/EIROps.h"
-
-#include <iterator>
-#include <vector>
-
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/SMLoc.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIRTypes.h"
+
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -22,12 +16,23 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/SMLoc.h"
+
+#include <iterator>
+#include <vector>
+
 using namespace lumen;
 using namespace lumen::eir;
 
 using ::llvm::ArrayRef;
 using ::llvm::SmallVector;
 using ::llvm::StringRef;
+using ::llvm::dyn_cast_or_null;
+using ::llvm::cast;
+using ::llvm::isa;
+using ::mlir::OpOperand;
 
 namespace lumen {
 namespace eir {
@@ -235,8 +240,8 @@ struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
-  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr>(
-      context);
+  results.insert<SimplifyBrToBlockWithSinglePred,
+                 SimplifyPassThroughBr>(context);
 }
 
 Optional<MutableOperandRange> BranchOp::getMutableSuccessorOperands(
@@ -648,6 +653,16 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
 
     auto dest = b.getDest();
     auto baseDestArgs = b.getDestArgs();
+    auto numBaseDestArgs = baseDestArgs.size();
+
+    // Ensure the destination block argument types are propagated
+    for (unsigned i = 0; i < baseDestArgs.size(); i++) {
+      BlockArgument arg = dest->getArgument(i);
+      auto destArg = baseDestArgs[i];
+      auto destArgTy = destArg.getType();
+      if (arg.getType() != destArgTy)
+        arg.setType(destArgTy);
+    }
 
     switch (b.getPatternType()) {
       case MatchPatternType::Any: {
@@ -685,13 +700,18 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto headPointer = getHeadOp.getResult();
         auto tailPointer = getTailOp.getResult();
         auto headLoadOp = builder.create<LoadOp>(branchLoc, headPointer);
+        auto headLoadResult = headLoadOp.getResult();
         auto tailLoadOp = builder.create<LoadOp>(branchLoc, tailPointer);
+        auto tailLoadResult = tailLoadOp.getResult();
         // 3. Unconditionally branch to the destination, with head/tail as
         // additional destArgs
+        unsigned i = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
+        dest->getArgument(i++).setType(headLoadResult.getType());
+        dest->getArgument(i).setType(tailLoadResult.getType());
         SmallVector<Value, 2> destArgs(
             {baseDestArgs.begin(), baseDestArgs.end()});
-        destArgs.push_back(headLoadOp.getResult());
-        destArgs.push_back(tailLoadOp.getResult());
+        destArgs.push_back(headLoadResult);
+        destArgs.push_back(tailLoadResult);
         builder.create<BranchOp>(branchLoc, dest, destArgs);
         break;
       }
@@ -720,6 +740,7 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto castOp =
             builder.create<CastOp>(branchLoc, selectorArg, boxedTupleType);
         auto boxedTuple = castOp.getResult();
+        unsigned ai = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
         SmallVector<Value, 2> destArgs(
             {baseDestArgs.begin(), baseDestArgs.end()});
         destArgs.reserve(arity);
@@ -728,7 +749,9 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
               builder.create<GetElementPtrOp>(branchLoc, boxedTuple, i + 1);
           auto elemPtr = getElemOp.getResult();
           auto elemLoadOp = builder.create<LoadOp>(branchLoc, elemPtr);
-          destArgs.push_back(elemLoadOp.getResult());
+          auto elemLoadResult = elemLoadOp.getResult();
+          dest->getArgument(ai++).setType(elemLoadResult.getType());
+          destArgs.push_back(elemLoadResult);
         }
         // 3. Unconditionally branch to the destination, with the tuple elements
         // as additional destArgs
@@ -753,7 +776,7 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
             builder.create<IsTypeOp>(branchLoc, selectorArg, mapType);
         auto isMapCond = isMapOp.getResult();
         auto ifOp = builder.create<CondBranchOp>(
-            branchLoc, isMapCond, split, ArrayRef<Value>{}, nextPatternBlock,
+            branchLoc, isMapCond, split, emptyArgs, nextPatternBlock,
             withSelectorArgs);
         // 2. In the split, call runtime function `is_map_key` to confirm
         // existence of the key in the map,
@@ -763,7 +786,7 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto hasKeyOp = builder.create<MapIsKeyOp>(branchLoc, selectorArg, key);
         auto hasKeyCond = hasKeyOp.getResult();
         builder.create<CondBranchOp>(branchLoc, hasKeyCond, split2,
-                                     ArrayRef<Value>{}, nextPatternBlock,
+                                     emptyArgs, nextPatternBlock,
                                      withSelectorArgs);
         // 3. In the second split, call runtime function `map_get` to obtain the
         // value for the key
@@ -771,6 +794,8 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         auto mapGetOp =
             builder.create<MapGetKeyOp>(branchLoc, selectorArg, key);
         auto valueTerm = mapGetOp.getResult();
+        unsigned i = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
+        dest->getArgument(i).setType(valueTerm.getType());
         // 4. Unconditionally branch to the destination, with the key's value as
         // an additional destArg
         SmallVector<Value, 2> destArgs(baseDestArgs.begin(),
@@ -873,6 +898,9 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
         Value matched = op->getResult(0);
         Value rest = op->getResult(1);
         Value success = op->getResult(2);
+        unsigned i = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
+        dest->getArgument(i++).setType(matched.getType());
+        dest->getArgument(i).setType(rest.getType());
         SmallVector<Value, 2> destArgs(baseDestArgs.begin(),
                                        baseDestArgs.end());
         destArgs.push_back(matched);

@@ -1,4 +1,8 @@
+#include "lumen/term/Encoding.h"
 #include "lumen/EIR/Builder/ModuleBuilder.h"
+#include "lumen/EIR/IR/EIROps.h"
+#include "lumen/EIR/IR/EIRTypes.h"
+#include "lumen/EIR/Builder/Passes.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -11,12 +15,14 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
-#include "lumen/EIR/IR/EIROps.h"
-#include "lumen/EIR/IR/EIRTypes.h"
-#include "lumen/term/Encoding.h"
+
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 
 using ::llvm::Optional;
 using ::llvm::raw_ostream;
@@ -29,8 +35,14 @@ using ::mlir::edsc::createBlock;
 using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ScopedContext;
 using ::mlir::edsc::ValueBuilder;
-using ::mlir::LLVM::LLVMDialect;
+using ::mlir::LLVM::LLVMIntegerType;
+using ::mlir::LLVM::LLVMStructType;
+using ::mlir::LLVM::LLVMType;
+using ::mlir::PassManager;
+using ::mlir::OpPassManager;
 using namespace ::mlir::edsc::intrinsics;
+
+namespace LLVM = ::mlir::LLVM;
 
 using std_cmpi = ValueBuilder<::mlir::CmpIOp>;
 using llvm_addressof = ValueBuilder<LLVM::AddressOfOp>;
@@ -189,11 +201,10 @@ ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
                              unsigned immediateBits)
     : builder(&context),
       targetMachine(targetMachine),
-      llvmDialect(context.getRegisteredDialect<LLVMDialect>()),
       immediateBitWidth(immediateBits) {
   // Create an empty module into which we can codegen functions
-  theModule = mlir::ModuleOp::create(loc, name);
-  assert(isa<mlir::ModuleOp>(theModule) && "expected moduleop");
+  theModule = builder.create<mlir::ModuleOp>(loc, name);
+  assert(theModule != nullptr);
 }
 
 extern "C" void MLIRDumpModule(MLIRModuleBuilderRef b) {
@@ -213,12 +224,6 @@ extern "C" MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
   ModuleBuilder *builder = unwrap(b);
   auto finished = builder->finish();
   delete builder;
-  if (failed(mlir::verify(finished))) {
-    finished.dump();
-    llvm::outs() << "\n";
-    finished.emitError("module verification error");
-    return nullptr;
-  }
 
   // Move to the heap
   return wrap(new mlir::ModuleOp(finished));
@@ -227,6 +232,13 @@ extern "C" MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
 mlir::ModuleOp ModuleBuilder::finish() {
   mlir::ModuleOp finished;
   std::swap(finished, theModule);
+
+  // Apply some fixup passes to the generated IR
+  auto pm = std::unique_ptr<PassManager>(new PassManager(builder.getContext(), /*verifyPasses=*/false));
+  OpPassManager &fm = pm->nest<::lumen::eir::FuncOp>();
+  fm.addPass(::lumen::eir::createInsertTraceConstructorsPass());
+  pm->run(finished);
+
   return finished;
 }
 
@@ -644,9 +656,12 @@ extern "C" void MLIRBuildTraceCaptureOp(MLIRModuleBuilderRef b,
 
 void ModuleBuilder::build_trace_capture_op(Location loc, Block *dest,
                                            ArrayRef<MLIRValueRef> destArgs) {
-  auto termType = TermType::get(builder.getContext());
-  auto captureOp = builder.create<TraceCaptureOp>(loc, termType);
+  auto traceType = TraceRefType::get(builder.getContext());
+  auto captureOp = builder.create<TraceCaptureOp>(loc, traceType);
   auto capture = captureOp.getResult();
+
+  // Fixup type of destination block argument
+  dest->getArgument(0).setType(traceType);
 
   SmallVector<Value, 1> extendedArgs;
   extendedArgs.push_back(capture);
@@ -933,8 +948,8 @@ static Optional<Value> buildIntrinsicError1Op(ModuleBuilder *modBuilder,
   auto aError = builder.create<ConstantAtomOp>(loc, id, "error");
   Value kind = aError.getResult();
   Value reason = args.front();
-  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
-  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  Type traceTy = builder.getType<TraceRefType>();
+  Value trace = builder.create<TraceCaptureOp>(loc, traceTy);
   builder.create<ThrowOp>(loc, kind, reason, trace);
 
   return llvm::None;
@@ -951,9 +966,24 @@ static Optional<Value> buildIntrinsicError2Op(ModuleBuilder *modBuilder,
   Value where = args[1];
   auto tuple = builder.create<TupleOp>(loc, ArrayRef<Value>{reason, where});
   Value errorReason = tuple.getResult();
-  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
-  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  Type traceTy = builder.getType<TraceRefType>();
+  Value trace = builder.create<TraceCaptureOp>(loc, traceTy);
   builder.create<ThrowOp>(loc, kind, errorReason, trace);
+
+  return llvm::None;
+}
+
+static Optional<Value> buildIntrinsicExit1Op(ModuleBuilder *modBuilder,
+                                             Location loc,
+                                             ArrayRef<Value> args) {
+  auto builder = modBuilder->getBuilder();
+  APInt id(modBuilder->immediateBitWidth, ERROR_SYMBOL, /*signed=*/false);
+  auto aExit = builder.create<ConstantAtomOp>(loc, id, "exit");
+  Value kind = aExit.getResult();
+  Value reason = args.front();
+  Type traceTy = builder.getType<TraceRefType>();
+  Value trace = builder.create<TraceCaptureOp>(loc, traceTy);
+  builder.create<ThrowOp>(loc, kind, reason, trace);
 
   return llvm::None;
 }
@@ -966,8 +996,8 @@ static Optional<Value> buildIntrinsicThrowOp(ModuleBuilder *modBuilder,
   auto aThrow = builder.create<ConstantAtomOp>(loc, id, "throw");
   Value kind = aThrow.getResult();
   Value reason = args.front();
-  Value nil = builder.create<ConstantNilOp>(loc, builder.getType<NilType>());
-  Value trace = builder.create<CastOp>(loc, nil, builder.getType<TermType>());
+  Type traceTy = builder.getType<TraceRefType>();
+  Value trace = builder.create<TraceCaptureOp>(loc, traceTy);
   builder.create<ThrowOp>(loc, kind, reason, trace);
 
   return llvm::None;
@@ -1027,6 +1057,7 @@ using BuildIntrinsicFnT = Optional<Value> (*)(ModuleBuilder *, Location loc,
 static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
   auto fnPtr = StringSwitch<BuildIntrinsicFnT>(target)
                    .Case("erlang:error/1", buildIntrinsicError1Op)
+                   .Case("erlang:exit/1", buildIntrinsicExit1Op)
                    .Case("erlang:error/2", buildIntrinsicError2Op)
                    .Case("erlang:throw/1", buildIntrinsicThrowOp)
                    .Case("erlang:raise/3", buildIntrinsicRaiseOp)
@@ -1119,7 +1150,8 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
                      .Case("erlang:raise/3", true)
                      .Default(false);
 
-  assert(resultOpt.hasValue());
+  if (isThrow) return true;
+
   auto termTy = builder.getType<TermType>();
   // Tail calls directly return to caller
   if (isTail) {
@@ -1155,13 +1187,7 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
 
   // If the call has no result and isn't an error intrinsic,
   // then branch to the next block directly
-  if (!isThrow) {
-    eir_br(ok, ValueRange());
-    return true;
-  }
-
-  // Throws should be followed directly by a return
-  eir_return();
+  eir_br(ok, ValueRange());
   return true;
 }
 
@@ -1341,7 +1367,7 @@ Block *ModuleBuilder::build_landing_pad(Location loc, Block *err) {
   // ensure that exception unwinding is handled properly
   Block *unwind = builder.createBlock(err);
 
-  LLVMType i8Ty = LLVMType::getIntNTy(llvmDialect, 8);
+  LLVMType i8Ty = builder.getType<LLVMIntegerType>(8);
   LLVMType i8PtrTy = i8Ty.getPointerTo();
 
   // Obtain catch type value from entry block
@@ -1370,7 +1396,7 @@ Block *ModuleBuilder::build_landing_pad(Location loc, Block *err) {
         // type_name = lumen_panic\0
         LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
         LLVMType typeInfoTy = LLVMType::createStructTy(
-            llvmDialect,
+            builder.getContext(),
             ArrayRef<LLVMType>{i8PtrTy, i8PtrTy, typeNameTy.getPointerTo()},
             StringRef("type_info"));
         Value catchTypeGlobal =
@@ -1397,6 +1423,9 @@ Block *ModuleBuilder::build_landing_pad(Location loc, Block *err) {
 
   Operation *lp = eir_landingpad(catchType);
   eir_br(err, lp->getResults());
+
+  Type traceTy = TraceRefType::get(builder.getContext());
+  err->getArgument(2).setType(traceTy);
 
   // Restore original insertion point
   builder.restoreInsertionPoint(ip);
@@ -1750,7 +1779,8 @@ extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
 
 Attribute ModuleBuilder::build_int_attr(uint64_t value) {
   APInt i(immediateBitWidth, value, /*signed=*/true);
-  return APIntAttr::get(builder.getContext(), i);
+  auto intType = builder.getType<FixnumType>();
+  return APIntAttr::get(builder.getContext(), intType, i);
 }
 
 //===----------------------------------------------------------------------===//

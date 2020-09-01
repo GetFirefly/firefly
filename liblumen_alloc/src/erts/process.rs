@@ -2,6 +2,7 @@ pub mod alloc;
 pub mod ffi;
 mod flags;
 mod frame;
+
 mod frame_with_arguments;
 mod frames;
 pub mod gc;
@@ -9,6 +10,7 @@ mod heap;
 mod mailbox;
 mod monitor;
 pub mod priority;
+pub mod trace;
 
 use core::cell::RefCell;
 use core::convert::TryInto;
@@ -36,7 +38,8 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 use crate::borrow::CloneToProcess;
 use crate::erts;
 use crate::erts::exception::{
-    AllocResult, ArcError, Exception, InternalResult, RuntimeException, SystemException,
+    AllocResult, ArcError, ErlangException, Exception, InternalResult, RuntimeException,
+    SystemException,
 };
 use crate::erts::module_function_arity::Arity;
 use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
@@ -59,6 +62,7 @@ pub use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::monitor::Monitor;
 pub use self::priority::Priority;
+use crate::erts::process::ffi::process_error;
 
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
 cfg_if::cfg_if! {
@@ -211,7 +215,7 @@ impl Process {
             heap,
             heap_size,
         );
-        p.stack = Mutex::new(self::alloc::stack(8)?);
+        p.stack = Mutex::new(self::alloc::stack(32)?);
         Ok(p)
     }
 
@@ -1133,20 +1137,34 @@ impl Process {
         }
     }
 
-    pub fn exit(&self, reason: Term, source: ArcError) {
+    pub fn erlang_exit(&self, exception: Box<ErlangException>) {
         self.reduce();
-        self.exception(exit!(reason, source));
+        let mut heap = self.acquire_heap();
+        let reason = exception
+            .reason()
+            .clone_to_heap(&mut heap)
+            .unwrap_or_else(|_| Atom::str_to_term("unavailable"));
+        self.exit(reason, exception.trace(), None);
     }
 
-    pub fn exit_normal(&self, source: ArcError) {
-        self.exit(atom!("normal"), source);
+    pub fn exit(&self, reason: Term, trace: Arc<trace::Trace>, source: Option<ArcError>) {
+        self.reduce();
+        self.exception(exception::exit(reason, trace, source));
+    }
+
+    pub fn exit_with_exception(&self, exception: RuntimeException) {
+        self.reduce();
+        self.exception(exception);
+    }
+
+    pub fn exit_normal(&self) {
+        *self.status.write() = Status::Exited;
     }
 
     pub fn is_exiting(&self) -> bool {
-        if let Status::RuntimeException(_) = *self.status.read() {
-            true
-        } else {
-            false
+        match *self.status.read() {
+            Status::Exited | Status::RuntimeException(_) => true,
+            _ => false,
         }
     }
 
@@ -1163,7 +1181,7 @@ impl Process {
                     panic!("{}", &system_exception);
                 }
                 Exception::Runtime(runtime_exception) => {
-                    self::ffi::process_raise(self, runtime_exception);
+                    self::ffi::process_raise(runtime_exception);
                 }
             },
         }
@@ -1176,6 +1194,7 @@ impl Process {
             match self.call_current_native() {
                 CalledCurrentNative::Runnable => continue,
                 CalledCurrentNative::Waiting => return Ran::Waiting,
+                CalledCurrentNative::Exited => return Ran::Exited,
                 CalledCurrentNative::RuntimeException => return Ran::RuntimeException,
                 CalledCurrentNative::SystemException => return Ran::SystemException,
             }
@@ -1242,6 +1261,7 @@ impl Process {
                             // unlike with non-Term::NONE `returned`, don't push `returned`
                             CalledCurrentNative::Waiting
                         },
+                        Status::Exited => CalledCurrentNative::Exited,
                         Status::RuntimeException(_) => CalledCurrentNative::RuntimeException,
                         Status::SystemException(_) => CalledCurrentNative::SystemException
                     }
@@ -1263,9 +1283,9 @@ impl Process {
 
                 called_current_native
             }
-            Err(error) => {
-                let runtime_exception = error.downcast_ref::<RuntimeException>().unwrap();
-                *self.status.write() = Status::RuntimeException(runtime_exception.clone());
+            Err(_) => {
+                let runtime_exception = process_error().unwrap();
+                *self.status.write() = Status::RuntimeException(runtime_exception);
 
                 CalledCurrentNative::RuntimeException
             }
@@ -1427,6 +1447,7 @@ type Reductions = u16;
 enum CalledCurrentNative {
     Runnable,
     Waiting,
+    Exited,
     RuntimeException,
     SystemException,
 }
@@ -1434,6 +1455,7 @@ enum CalledCurrentNative {
 pub enum Ran {
     Waiting,
     Reduced,
+    Exited,
     RuntimeException,
     SystemException,
 }
@@ -1448,7 +1470,12 @@ pub enum Status {
     Runnable,
     Running,
     Waiting,
+    /// The process has exited normally
+    Exited,
+    /// The process has exited due to an internal system exception
+    /// NOTE: This should probably be deprecated, as system exceptions panic now
     SystemException(SystemException),
+    /// The process has exited due to a runtime exception (raised from Erlang)
     RuntimeException(RuntimeException),
 }
 

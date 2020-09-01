@@ -1,14 +1,15 @@
 #ifndef LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 #define LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 
-#include "llvm/Target/TargetMachine.h"
 #include "lumen/EIR/Conversion/TargetInfo.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
+
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
@@ -20,8 +21,14 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/Casting.h"
+
 using ::llvm::SmallVectorImpl;
 using ::llvm::TargetMachine;
+using ::llvm::dyn_cast_or_null;
+using ::llvm::cast;
+using ::llvm::isa;
 using ::mlir::ConversionPatternRewriter;
 using ::mlir::LLVMTypeConverter;
 using ::mlir::LogicalResult;
@@ -31,7 +38,6 @@ using ::mlir::SymbolTable;
 using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ScopedContext;
 using ::mlir::edsc::ValueBuilder;
-using ::mlir::LLVM::LLVMDialect;
 using ::mlir::LLVM::LLVMType;
 
 namespace LLVM = ::mlir::LLVM;
@@ -80,6 +86,7 @@ using eir_constant_float = ValueBuilder<::lumen::eir::ConstantFloatOp>;
 using eir_constant_binary = ValueBuilder<::lumen::eir::ConstantBinaryOp>;
 using eir_constant_tuple = ValueBuilder<::lumen::eir::ConstantTupleOp>;
 using eir_constant_list = ValueBuilder<::lumen::eir::ConstantListOp>;
+using eir_trace_construct = ValueBuilder<::lumen::eir::TraceConstructOp>;
 
 namespace lumen {
 namespace eir {
@@ -88,17 +95,14 @@ struct EirTypeConverter : public mlir::TypeConverter {
   using TypeConverter::TypeConverter;
 
   EirTypeConverter(LLVMTypeConverter &tc) : typeConverter(tc) {
-    addMaterialization(materializeCast);
+    addTargetMaterialization(materializeCast);
   }
 
-  static Optional<Value> materializeCast(PatternRewriter &rewriter,
-                                         Type resultType, ValueRange inputs,
-                                         Location loc) {
+  static Optional<Value> materializeCast(OpBuilder &builder, Type resultType,
+                                         ValueRange inputs, Location loc) {
     if (inputs.size() != 1) return llvm::None;
-    return rewriter.create<CastOp>(loc, inputs[0], resultType).getResult();
+    return builder.create<CastOp>(loc, inputs[0], resultType).getResult();
   }
-
-  LLVMDialect *getDialect() { return typeConverter.getDialect(); }
 
  private:
   LLVMTypeConverter &typeConverter;
@@ -111,18 +115,13 @@ class ConversionContext {
  public:
   explicit ConversionContext(MLIRContext *ctx, EirTypeConverter &tc,
                              TargetInfo &ti)
-      : dialect(tc.getDialect()),
-        targetInfo(ti),
-        typeConverter(tc),
-        context(ctx) {}
+      : targetInfo(ti), typeConverter(tc), context(ctx) {}
 
   ConversionContext(const ConversionContext &ctx)
-      : dialect(ctx.dialect),
-        targetInfo(ctx.targetInfo),
+      : targetInfo(ctx.targetInfo),
         typeConverter(ctx.typeConverter),
         context(ctx.context) {}
 
-  LLVMDialect *dialect;
   TargetInfo &targetInfo;
   EirTypeConverter &typeConverter;
   MLIRContext *context;
@@ -131,11 +130,13 @@ class ConversionContext {
   LLVMType getI1Type() const { return targetInfo.getI1Type(); }
   LLVMType getI8Type() const { return targetInfo.getI8Type(); }
   LLVMType getI32Type() const { return targetInfo.getI32Type(); }
+  LLVMType getI64Type() const { return targetInfo.getI64Type(); }
+  LLVMType getDoubleType() const { return targetInfo.getDoubleType(); }
   LLVMType getTupleType(unsigned arity) const {
-    return targetInfo.makeTupleType(dialect, arity);
+    return targetInfo.makeTupleType(arity);
   }
   LLVMType getTupleType(ArrayRef<LLVMType> elementTypes) const {
-    return targetInfo.makeTupleType(dialect, elementTypes);
+    return targetInfo.makeTupleType(elementTypes);
   }
 
   APInt encodeImmediateConstant(uint32_t type, uint64_t value);
@@ -157,11 +158,12 @@ class OpConversionContext : public ConversionContext {
   ConversionPatternRewriter &rewriter;
 
   using ConversionContext::context;
-  using ConversionContext::dialect;
   using ConversionContext::encodeHeaderConstant;
   using ConversionContext::encodeImmediateConstant;
+  using ConversionContext::getDoubleType;
   using ConversionContext::getI1Type;
   using ConversionContext::getI32Type;
+  using ConversionContext::getI64Type;
   using ConversionContext::getI8Type;
   using ConversionContext::getNilValue;
   using ConversionContext::getNoneValue;
@@ -322,17 +324,18 @@ class RewritePatternContext : public OpConversionContext {
   using OpConversionContext::decodeBox;
   using OpConversionContext::decodeImmediate;
   using OpConversionContext::decodeList;
-  using OpConversionContext::dialect;
   using OpConversionContext::encodeBox;
   using OpConversionContext::encodeHeaderConstant;
   using OpConversionContext::encodeImmediateConstant;
   using OpConversionContext::encodeList;
   using OpConversionContext::encodeLiteral;
+  using OpConversionContext::getDoubleType;
   using OpConversionContext::getI1Attr;
   using OpConversionContext::getI1Type;
   using OpConversionContext::getI32Attr;
   using OpConversionContext::getI32Type;
   using OpConversionContext::getI64ArrayAttr;
+  using OpConversionContext::getI64Type;
   using OpConversionContext::getI8Attr;
   using OpConversionContext::getI8Type;
   using OpConversionContext::getIntegerAttr;
@@ -344,8 +347,6 @@ class RewritePatternContext : public OpConversionContext {
   using OpConversionContext::rewriter;
   using OpConversionContext::targetInfo;
   using OpConversionContext::typeConverter;
-
-  inline Location getLoc() const { return op.getLoc(); }
 
   inline const ModuleOp &getModule() const { return parentModule; }
 
@@ -424,7 +425,7 @@ class RewritePatternContext : public OpConversionContext {
   }
   Value encodeImmediate(OpaqueTermType ty, Value val) const {
     ModuleOp mod = getModule();
-    return OpConversionContext::encodeImmediate(mod, getLoc(), ty, val);
+    return OpConversionContext::encodeImmediate(mod, val.getLoc(), ty, val);
   }
 };
 

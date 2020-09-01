@@ -5,7 +5,6 @@
 #include "lumen/llvm/Target.h"
 #include "lumen/mlir/IR.h"
 #include "lumen/mlir/MLIR.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Support/LLVM.h"
 
 using ::llvm::APFloat;
@@ -15,9 +14,6 @@ using ::llvm::SmallVector;
 using ::llvm::SmallVectorImpl;
 using ::llvm::StringRef;
 using ::mlir::MLIRContext;
-using ::mlir::LLVM::LLVMType;
-
-namespace LLVM = ::mlir::LLVM;
 
 typedef struct OpaqueModuleBuilder *MLIRModuleBuilderRef;
 
@@ -172,8 +168,6 @@ class ModuleBuilder {
   /// The builder is used for generating IR inside of functions in the module,
   /// it is very similar to the LLVM builder
   mlir::OpBuilder builder;
-
-  mlir::LLVM::LLVMDialect *llvmDialect;
 
   Location loc(Span span);
 };

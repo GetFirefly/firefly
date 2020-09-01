@@ -99,7 +99,7 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
     ModuleOp mod = ctx.getModule();
     LLVM::GlobalOp headerConst = mod.lookupSymbol<LLVM::GlobalOp>(headerName);
     if (!headerConst) {
-      auto i64Ty = LLVMType::getInt64Ty(ctx.dialect);
+      auto i64Ty = ctx.getI64Type();
       auto i8Ty = ctx.getI8Type();
       auto i8PtrTy = i8Ty.getPointerTo();
 
@@ -173,8 +173,8 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
     ModuleOp mod = ctx.getModule();
     LLVM::GlobalOp headerConst = mod.lookupSymbol<LLVM::GlobalOp>(headerName);
     if (!headerConst) {
-      auto i64Ty = LLVMType::getInt64Ty(ctx.dialect);
-      auto f64Ty = LLVMType::getDoubleTy(ctx.dialect);
+      auto i64Ty = ctx.getI64Type();
+      auto f64Ty = ctx.getDoubleType();
       auto i8Ty = ctx.getI8Type();
       auto i8PtrTy = i8Ty.getPointerTo();
 

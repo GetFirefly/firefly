@@ -15,6 +15,7 @@
 
 using ::llvm::SmallVector;
 using ::llvm::StringRef;
+using ::mlir::TypeRange;
 using ::mlir::LLVM::LLVMType;
 
 namespace lumen {
@@ -22,16 +23,18 @@ namespace eir {
 namespace detail {
 
 /// A type representing a collection of other types.
+
+/// A type representing a collection of other types.
 struct TupleTypeStorage final
     : public mlir::TypeStorage,
       public llvm::TrailingObjects<TupleTypeStorage, Type> {
-  using KeyTy = ArrayRef<Type>;
+  using KeyTy = TypeRange;
 
-  TupleTypeStorage(unsigned arity) : TypeStorage(arity) {}
+  TupleTypeStorage(unsigned arity) : arity(arity) {}
 
   /// Construction.
   static TupleTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                     ArrayRef<Type> key) {
+                                     TypeRange key) {
     // Allocate a new storage instance.
     auto byteSize = TupleTypeStorage::totalSizeToAlloc<Type>(key.size());
     auto rawMem = allocator.allocate(byteSize, alignof(TupleTypeStorage));
@@ -46,20 +49,22 @@ struct TupleTypeStorage final
   bool operator==(const KeyTy &key) const { return key == getTypes(); }
 
   /// Return the number of held types.
-  unsigned size() const { return getSubclassData(); }
+  unsigned size() const { return arity; }
 
   /// Return the held types.
   ArrayRef<Type> getTypes() const {
     return {getTrailingObjects<Type>(), size()};
   }
+
+ private:
+  unsigned arity;
 };
 
 struct BoxTypeStorage : public mlir::TypeStorage {
   using KeyTy = Type;
 
   BoxTypeStorage(Type boxedType)
-      : TypeStorage(boxedType.getKind()),
-        boxedType(boxedType.cast<OpaqueTermType>()) {}
+      : boxedType(boxedType.cast<OpaqueTermType>()) {}
 
   /// The hash key used for uniquing.
   bool operator==(const KeyTy &key) const { return key == boxedType; }
@@ -77,8 +82,7 @@ struct RefTypeStorage : public mlir::TypeStorage {
   using KeyTy = Type;
 
   RefTypeStorage(Type innerType)
-      : TypeStorage(innerType.getKind()),
-        innerType(innerType.cast<OpaqueTermType>()) {}
+      : innerType(innerType.cast<OpaqueTermType>()) {}
 
   /// The hash key used for uniquing.
   bool operator==(const KeyTy &key) const { return key == innerType; }
@@ -95,8 +99,7 @@ struct RefTypeStorage : public mlir::TypeStorage {
 struct PtrTypeStorage : public mlir::TypeStorage {
   using KeyTy = Type;
 
-  PtrTypeStorage(Type innerType)
-      : TypeStorage(innerType.getKind()), innerType(innerType) {}
+  PtrTypeStorage(Type innerType) : innerType(innerType) {}
 
   /// The hash key used for uniquing.
   bool operator==(const KeyTy &key) const { return key == innerType; }
@@ -124,11 +127,11 @@ namespace eir {
 // Tuple<T>
 
 TupleType TupleType::get(MLIRContext *context) {
-  return Base::get(context, TypeKind::Tuple, ArrayRef<Type>{});
+  return Base::get(context, ArrayRef<Type>{});
 }
 
 TupleType TupleType::get(MLIRContext *context, ArrayRef<Type> elementTypes) {
-  return Base::get(context, TypeKind::Tuple, elementTypes);
+  return Base::get(context, elementTypes);
 }
 
 TupleType TupleType::get(MLIRContext *context, unsigned arity) {
@@ -141,7 +144,7 @@ TupleType TupleType::get(MLIRContext *context, unsigned arity,
   for (unsigned i = 0; i < arity; i++) {
     elementTypes.push_back(elementType);
   }
-  return Base::get(context, TypeKind::Tuple, elementTypes);
+  return Base::get(context, elementTypes);
 }
 
 TupleType TupleType::get(unsigned arity, Type elementType) {
@@ -150,7 +153,7 @@ TupleType TupleType::get(unsigned arity, Type elementType) {
 
 TupleType TupleType::get(ArrayRef<Type> elementTypes) {
   auto context = elementTypes.front().getContext();
-  return Base::get(context, TypeKind::Tuple, elementTypes);
+  return Base::get(context, elementTypes);
 }
 
 LogicalResult TupleType::verifyConstructionInvariants(
@@ -172,6 +175,11 @@ LogicalResult TupleType::verifyConstructionInvariants(
     if (auto llvmType = elementType.dyn_cast_or_null<LLVMType>()) {
       if (llvmType.isIntegerTy()) continue;
     }
+    // Allow an exception for TraceRef, since it will be replaced by the
+    // InsertTraceConstructors pass
+    if (elementType.isa<TraceRefType>())
+      continue;
+
     llvm::outs() << "invalid tuple type element (" << i << "): ";
     elementType.dump();
     llvm::outs() << "\n";
@@ -197,15 +205,15 @@ Type TupleType::getElementType(unsigned index) const {
 // Box<T>
 
 BoxType BoxType::get(OpaqueTermType boxedType) {
-  return Base::get(boxedType.getContext(), TypeKind::Box, boxedType);
+  return Base::get(boxedType.getContext(), boxedType);
 }
 
 BoxType BoxType::get(MLIRContext *context, OpaqueTermType boxedType) {
-  return Base::get(context, TypeKind::Box, boxedType);
+  return Base::get(context, boxedType);
 }
 
 BoxType BoxType::getChecked(Type type, Location location) {
-  return Base::getChecked(location, TypeKind::Box, type);
+  return Base::getChecked(location, type);
 }
 
 OpaqueTermType BoxType::getBoxedType() const { return getImpl()->boxedType; }
@@ -213,15 +221,15 @@ OpaqueTermType BoxType::getBoxedType() const { return getImpl()->boxedType; }
 // Ref<T>
 
 RefType RefType::get(OpaqueTermType innerType) {
-  return Base::get(innerType.getContext(), TypeKind::Ref, innerType);
+  return Base::get(innerType.getContext(), innerType);
 }
 
 RefType RefType::get(MLIRContext *context, OpaqueTermType innerType) {
-  return Base::get(context, TypeKind::Ref, innerType);
+  return Base::get(context, innerType);
 }
 
 RefType RefType::getChecked(Type type, Location location) {
-  return Base::getChecked(location, TypeKind::Ref, type);
+  return Base::getChecked(location, type);
 }
 
 OpaqueTermType RefType::getInnerType() const { return getImpl()->innerType; }
@@ -229,19 +237,25 @@ OpaqueTermType RefType::getInnerType() const { return getImpl()->innerType; }
 // Ptr<T>
 
 PtrType PtrType::get(Type innerType) {
-  return Base::get(innerType.getContext(), TypeKind::Ptr, innerType);
+  return Base::get(innerType.getContext(), innerType);
 }
 
 PtrType PtrType::get(MLIRContext *context) {
-  return Base::get(context, TypeKind::Ptr, mlir::IntegerType::get(8, context));
+  return Base::get(context, mlir::IntegerType::get(8, context));
 }
 
 Type PtrType::getInnerType() const { return getImpl()->innerType; }
 
+// TraceRef
+
+TraceRefType TraceRefType::get(MLIRContext *context) {
+  return Base::get(context);
+}
+
 // ReceiveRef
 
 ReceiveRefType ReceiveRefType::get(MLIRContext *context) {
-  return Base::get(context, TypeKind::ReceiveRef);
+  return Base::get(context);
 }
 
 }  // namespace eir
@@ -410,6 +424,8 @@ Type eirDialect::parseType(mlir::DialectAsmParser &parser) const {
   if (typeNameLit == "tuple") return parseTuple(context, parser);
   // `box` `<` type `>`
   if (typeNameLit == "box") return parseTypeSingleton<BoxType>(context, parser);
+  // `trace_ref`
+  if (typeNameLit == "trace_ref") return TraceRefType::get(context);
   // `receive_ref`
   if (typeNameLit == "receive_ref") return ReceiveRefType::get(context);
 
@@ -465,85 +481,43 @@ void printTuple(TupleType type, llvm::raw_ostream &os,
 
 void eirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
   auto &os = p.getStream();
-  switch (ty.getKind()) {
-    case TypeKind::None:
-      os << "none";
-      break;
-    case TypeKind::Term:
-      os << "term";
-      break;
-    case TypeKind::List:
-      os << "list";
-      break;
-    case TypeKind::Number:
-      os << "number";
-      break;
-    case TypeKind::Integer:
-      os << "integer";
-      break;
-    case TypeKind::Float:
-      os << "float";
-      break;
-    case TypeKind::Atom:
-      os << "atom";
-      break;
-    case TypeKind::Boolean:
-      os << "bool";
-      break;
-    case TypeKind::Fixnum:
-      os << "fixnum";
-      break;
-    case TypeKind::BigInt:
-      os << "bigint";
-      break;
-    case TypeKind::Nil:
-      os << "nil";
-      break;
-    case TypeKind::Cons:
-      os << "cons";
-      break;
-    case TypeKind::Map:
-      os << "map";
-      break;
-    case TypeKind::Closure:
-      os << "closure";
-      break;
-    case TypeKind::Binary:
-      os << "binary";
-      break;
-    case TypeKind::HeapBin:
-      os << "heapbin";
-      break;
-    case TypeKind::ProcBin:
-      os << "procbin";
-      break;
-    case TypeKind::Tuple: {
-      printTuple(ty.cast<TupleType>(), os, p);
-    } break;
-    case TypeKind::Box: {
-      auto type = ty.cast<BoxType>();
-      os << "box<";
-      p.printType(type.getBoxedType());
-      os << '>';
-    } break;
-    case TypeKind::Ref: {
-      auto type = ty.cast<RefType>();
-      os << "ref<";
-      p.printType(type.getInnerType());
-      os << '>';
-    } break;
-    case TypeKind::Ptr: {
-      auto type = ty.cast<PtrType>();
-      os << "ptr<";
-      p.printType(type.getInnerType());
-      os << '>';
-    } break;
-    case TypeKind::ReceiveRef:
-      os << "receive_ref";
-      break;
-    default:
-      llvm_unreachable("unhandled EIR type");
-  }
+  TypeSwitch<Type>(ty)
+      .Case<NoneType>([&](Type) { os << "none"; })
+      .Case<TermType>([&](Type) { os << "term"; })
+      .Case<ListType>([&](Type) { os << "list"; })
+      .Case<NumberType>([&](Type) { os << "number"; })
+      .Case<IntegerType>([&](Type) { os << "integer"; })
+      .Case<FloatType>([&](Type) { os << "float"; })
+      .Case<AtomType>([&](Type) { os << "atom"; })
+      .Case<BooleanType>([&](Type) { os << "bool"; })
+      .Case<FixnumType>([&](Type) { os << "fixnum"; })
+      .Case<BigIntType>([&](Type) { os << "bigint"; })
+      .Case<NilType>([&](Type) { os << "nil"; })
+      .Case<ConsType>([&](Type) { os << "cons"; })
+      .Case<MapType>([&](Type) { os << "map"; })
+      .Case<ClosureType>([&](Type) { os << "closure"; })
+      .Case<BinaryType>([&](Type) { os << "binary"; })
+      .Case<HeapBinType>([&](Type) { os << "heapbin"; })
+      .Case<ProcBinType>([&](Type) { os << "procbin"; })
+      .Case<TupleType>([&](Type) { printTuple(ty.cast<TupleType>(), os, p); })
+      .Case<BoxType>([&](Type) {
+        os << "box<";
+        p.printType(ty.cast<BoxType>().getBoxedType());
+        os << ">";
+      })
+      .Case<RefType>([&](Type) {
+        os << "ref<";
+        p.printType(ty.cast<RefType>().getInnerType());
+        os << ">";
+      })
+      .Case<PtrType>([&](Type) {
+        os << "ptr<";
+        p.printType(ty.cast<PtrType>().getInnerType());
+        os << ">";
+      })
+      .Case<TraceRefType>([&](Type) { os << "trace_ref"; })
+      .Case<ReceiveRefType>([&](Type) { os << "receive_ref"; })
+      .Default([](Type) { llvm_unreachable("unknown eir type"); });
 }
 
 }  // namespace eir

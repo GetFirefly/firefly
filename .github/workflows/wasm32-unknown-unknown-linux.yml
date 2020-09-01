@@ -6,25 +6,17 @@ jobs:
   wasm:
     runs-on: ubuntu-latest
     container:
-      image: kronicdeth/lumen-development@sha256:50910ed07e49eaeb7b3bcea8a79a9e4c05a6607be1e7091c3eb8955132707e0c
+      image: kronicdeth/lumen-development@sha256:c784a8eeb79fa5244bd15d408e469dc37b9e538b44f9b40fa4a20fd6c72c5f47
 
     steps:
       - uses: actions/checkout@v2
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Cache Cargo
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       # $HOME is owned by user id 1001.  `container` `options` `--user 1001` doesn't work because dependencies can't be
       # installed, so make root own the directory instead, so that Firefox doesn't complain that root is using a profile
       # for a different user.
@@ -37,7 +29,12 @@ jobs:
       - name: Interpreter Checkout
         run: git clone --depth 1 https://github.com/lumen/interpreter interpreter
       - name: Examples Checkout
-        run: git clone --depth 1 https://github.com/lumen/examples examples
+        run: |
+          git init examples
+          cd examples
+          git remote add origin https://github.com/lumen/examples
+          git fetch --no-tags --no-tags --prune --progress --depth=1 origin +4fd51a462ba5bffa5194889b41f613e7c82c2684:refs/remotes/origin/lumen/554
+          git checkout --progress --force -B lumen/554 refs/remotes/origin/lumen/554
       - name: Spawn Chain Build
         run: wasm-pack build examples/spawn-chain
       - name: Spawn Chain Test

@@ -1,103 +1,97 @@
+use std::sync::Arc;
+
+use crate::erts::process::trace::Trace;
 use crate::erts::process::Process;
 use crate::erts::term::prelude::Term;
 
 use super::{ArcError, Exception, RuntimeException};
 
 #[inline]
-pub fn badarg(stacktrace: Option<Term>, source: ArcError) -> RuntimeException {
-    self::error(atom("badarg"), None, stacktrace, source)
+pub fn badarg(trace: Arc<Trace>, source: Option<ArcError>) -> RuntimeException {
+    self::error(atom("badarg"), None, trace, source)
 }
 
 #[inline]
-pub fn badarith(source: ArcError) -> RuntimeException {
-    self::error(atom("badarith"), None, None, source)
+pub fn badarith(trace: Arc<Trace>, source: Option<ArcError>) -> RuntimeException {
+    self::error(atom("badarith"), None, trace, source)
 }
 
-pub fn badarity(process: &Process, fun: Term, args: Term, source: ArcError) -> Exception {
+pub fn badarity(
+    process: &Process,
+    fun: Term,
+    args: Term,
+    trace: Arc<Trace>,
+    source: Option<ArcError>,
+) -> Exception {
     let fun_args = process.tuple_from_slice(&[fun, args]);
     let tag = atom("badarity");
     let reason = process.tuple_from_slice(&[tag, fun_args]);
 
-    Exception::Runtime(self::error(reason, None, None, source))
+    Exception::Runtime(self::error(reason, None, trace, source))
 }
 
-pub fn badfun(process: &Process, fun: Term, source: ArcError) -> Exception {
+pub fn badfun(process: &Process, fun: Term, trace: Arc<Trace>, source: ArcError) -> Exception {
     let tag = atom("badfun");
     let reason = process.tuple_from_slice(&[tag, fun]);
-
-    Exception::Runtime(self::error(reason, None, None, source))
+    Exception::Runtime(self::error(reason, None, trace, Some(source)))
 }
 
-pub fn badkey(process: &Process, key: Term, source: ArcError) -> Exception {
+pub fn badkey(process: &Process, key: Term, trace: Arc<Trace>, source: ArcError) -> Exception {
     let tag = atom("badkey");
     let reason = process.tuple_from_slice(&[tag, key]);
-
-    Exception::Runtime(self::error(reason, None, None, source))
+    Exception::Runtime(self::error(reason, None, trace, Some(source)))
 }
 
-pub fn badmap(process: &Process, map: Term, source: ArcError) -> Exception {
+pub fn badmap(process: &Process, map: Term, trace: Arc<Trace>, source: ArcError) -> Exception {
     let tag = atom("badmap");
     let reason = process.tuple_from_slice(&[tag, map]);
-
-    Exception::Runtime(self::error(reason, None, None, source))
+    Exception::Runtime(self::error(reason, None, trace, Some(source)))
 }
 
-pub fn undef(
-    process: &Process,
-    m: Term,
-    f: Term,
-    a: Term,
-    stacktrace_tail: Term,
-    source: ArcError,
-) -> Exception {
-    let reason = atom("undef");
-    // TODO empty list should be the location `[file: charlist(), line: integer()]`
-    let top = process.tuple_from_slice(&[m, f, a, Term::NIL]);
-    let stacktrace = process.cons(top, stacktrace_tail);
-
-    Exception::Runtime(self::exit(reason, Some(stacktrace), source))
+#[inline]
+pub fn undef(trace: Arc<Trace>, source: Option<ArcError>) -> Exception {
+    Exception::Runtime(self::exit(atom("undef"), trace, source))
 }
 
 #[inline]
 pub fn raise(
     class: super::Class,
     reason: Term,
-    stacktrace: Option<Term>,
-    source: ArcError,
+    trace: Arc<Trace>,
+    source: Option<ArcError>,
 ) -> RuntimeException {
     use super::Class;
 
     match class {
-        Class::Exit => self::exit(reason, stacktrace, source),
-        Class::Throw => self::throw(reason, stacktrace, source),
-        Class::Error { arguments } => self::error(reason, arguments, stacktrace, source),
+        Class::Exit => self::exit(reason, trace, source),
+        Class::Throw => self::throw(reason, trace, source),
+        Class::Error { arguments } => self::error(reason, arguments, trace, source),
     }
 }
 
 #[inline]
-pub fn exit(reason: Term, stacktrace: Option<Term>, source: ArcError) -> RuntimeException {
+pub fn exit(reason: Term, trace: Arc<Trace>, source: Option<ArcError>) -> RuntimeException {
     use super::Exit;
-
-    RuntimeException::Exit(Exit::new_with_trace(reason, stacktrace, source))
+    RuntimeException::Exit(Exit::new(reason, trace, source))
 }
 
 #[inline]
 pub fn error(
     reason: Term,
     args: Option<Term>,
-    stacktrace: Option<Term>,
-    source: ArcError,
+    trace: Arc<Trace>,
+    source: Option<ArcError>,
 ) -> RuntimeException {
     use super::Error;
 
-    RuntimeException::Error(Error::new_with_trace(reason, args, stacktrace, source))
+    RuntimeException::Error(Error::new(reason, args, trace, source))
 }
 
 #[inline]
-pub fn throw(reason: Term, stacktrace: Option<Term>, source: ArcError) -> RuntimeException {
+pub fn throw(reason: Term, trace: Arc<Trace>, source: Option<ArcError>) -> RuntimeException {
     use super::Throw;
 
-    RuntimeException::Throw(Throw::new_with_trace(reason, stacktrace, source))
+    RuntimeException::Throw(Throw::new(reason, trace, source))
 }
 
 #[inline(always)]

@@ -67,8 +67,8 @@ fn main() {
     let outdir = config
         .define("LUMEN_BUILD_COMPILER", "ON")
         .define("LUMEN_BUILD_TESTS", "OFF")
-        .define("BUILD_SHARED_LIBS", build_shared)
         .define("LLVM_BUILD_LLVM_DYLIB", build_shared)
+        .define("LLVM_LINK_LLVM_DYLIB", build_shared)
         .define("LLVM_PREFIX", llvm_prefix_env.as_str())
         .env("LLVM_PREFIX", llvm_prefix_env.as_str())
         .cxxflag(&format!("-I{}", lumen_llvm_include_dir))

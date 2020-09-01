@@ -1,12 +1,14 @@
-.PHONY: help test install build build-static rebuild clean 
+.PHONY: help test install build build-shared build-static rebuild clean 
 .PHONY: check clean-codegen unused-deps clippy format format-rust format-cpp
 .PHONY: liblumen_alloc liblumen_term liblumen_llvm liblumen_crt lumen_rt_core lumen_rt_minimal
+.PHONY: lumen-tblgen bloat
 
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
 XDG_DATA_HOME ?= $(HOME)/.local/share
 LLVM_PREFIX ?= `cd $(XDG_DATA_HOME)/llvm/lumen && pwd`
 CWD ?= `pwd`
+IMAGE_NAME ?= kronicdeth/lumen-development
 
 help:
 	@echo "$(NAME):$(VERSION)"
@@ -37,7 +39,7 @@ bloat:
 
 lumen-tblgen:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --only-tblgen
+		bin/build-lumen --static --only-tblgen
 
 libunwind:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
@@ -118,3 +120,19 @@ clean: ## Clean all
 	find bin -maxdepth 1 -mindepth 1 -type d -exec rm -rf '{}' \;
 
 rebuild: clean build ## Rebuild all
+
+docker: ## Build Docker image for CI
+	cd .github/workflows/ && \
+		docker build --squash --force-rm -t $(IMAGE_NAME):latest -f Dockerfile .
+
+linux-shell: ## Run the lumen-dev Docker image
+	mkdir -p target/docker/target && \
+		docker run --privileged --rm \
+			-v $$(pwd):/opt/lumen \
+			-v $$(pwd)/../llvm-project:/tmp/sources \
+			-e CARGO_TARGET_DIR=/var/lumen \
+			-it $(IMAGE_NAME):latest bash -c 'cd /opt/lumen; exec bash'
+
+
+docker-release: docker
+	docker push $(IMAGE_NAME):latest

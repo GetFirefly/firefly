@@ -67,7 +67,7 @@ def eir_TK_Box     : eir_TermKind<"Box", 18>;
 
 class eir_TermTypeBase<eir_TermKind kind, string description> : DialectType<
   eir_Dialect,
-  CPred<"OpaqueTermType::isTypeKind($_self, TypeKind::" # kind.symbol # ")">,
+  CPred<"$_self.isa<::lumen::eir::" # kind.symbol # "Type>()">,
   description> {
   eir_TermKind termKind = kind;
 }
@@ -78,8 +78,8 @@ class eir_BuildableTermType<eir_TermKind kind, string description, code builder>
 
 }
 
-class eir_TermType<eir_TermKind kind, string description, string typename> :
-  eir_BuildableTermType<kind, description, "$_builder.getType<::lumen::eir::" # typename # ">()"> {
+class eir_TermType<eir_TermKind kind, string description, string typename = kind.symbol> :
+  eir_BuildableTermType<kind, description, "$_builder.getType<::lumen::eir::" # typename # "Type>(" # kind.value # ")"> {
 }
 
 class eir_ReceiveStatus<string name, int kind> : IntEnumAttrCaseBase<I8, name, name, kind>;
@@ -108,28 +108,29 @@ def eir_ReceiveStatusAttr : IntEnumAttr<I8, "ReceiveStatus", "receive wait statu
 
 def eir_ReceiveStatusType : TypeAlias<I8, "receive wait status type">;
 
-def eir_NoneType : eir_TermType<eir_TK_None, "none", "NoneType">;
-def eir_AtomType : eir_TermType<eir_TK_Atom, "atom", "AtomType">;
-def eir_BoolType : eir_TermType<eir_TK_Boolean, "bool", "BooleanType">;
-def eir_FixnumType : eir_TermType<eir_TK_Fixnum, "fixnum", "FixnumType">;
-def eir_BigIntType : eir_TermType<eir_TK_BigInt, "bixint", "BigIntType">;
-def eir_NumberType : eir_TermType<eir_TK_Number, "number", "NumberType">;
-def eir_IntegerType : eir_TermType<eir_TK_Integer, "integer", "IntegerType">;
-def eir_FloatType : eir_TermType<eir_TK_Float, "float", "FloatType">;
-def eir_NilType : eir_TermType<eir_TK_Nil, "nil", "NilType">;
-def eir_ConsType : eir_TermType<eir_TK_Cons, "cons", "ConsType">;
-def eir_ListType : eir_TermType<eir_TK_List, "list", "ListType">;
-def eir_TupleType : eir_TermType<eir_TK_Tuple, "tuple", "TupleType">;
-def eir_MapType : eir_TermType<eir_TK_Map, "map", "MapType">;
-def eir_ClosureType : eir_TermType<eir_TK_Closure, "closure", "ClosureType">;
-def eir_BinaryType : eir_TermType<eir_TK_Binary, "binary", "BinaryType">;
-def eir_HeapBinType : eir_TermType<eir_TK_HeapBin, "heapbin", "HeapBinType">;
-def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin", "ProcBinType">;
+def eir_NoneType : eir_TermType<eir_TK_None, "none">;
+def eir_AtomType : eir_TermType<eir_TK_Atom, "atom">;
+def eir_BoolType : eir_TermType<eir_TK_Boolean, "bool">;
+def eir_FixnumType : eir_TermType<eir_TK_Fixnum, "fixnum">;
+def eir_BigIntType : eir_TermType<eir_TK_BigInt, "bigint">;
+def eir_NumberType : eir_TermType<eir_TK_Number, "number">;
+def eir_IntegerType : eir_TermType<eir_TK_Integer, "integer">;
+def eir_FloatType : eir_TermType<eir_TK_Float, "float">;
+def eir_NilType : eir_TermType<eir_TK_Nil, "nil">;
+def eir_ConsType : eir_TermType<eir_TK_Cons, "cons">;
+def eir_ListType : eir_TermType<eir_TK_List, "list">;
+def eir_TupleType : eir_TermType<eir_TK_Tuple, "tuple">;
+def eir_MapType : eir_TermType<eir_TK_Map, "map">;
+def eir_ClosureType : eir_TermType<eir_TK_Closure, "closure">;
+def eir_BinaryType : eir_TermType<eir_TK_Binary, "binary">;
+def eir_HeapBinType : eir_TermType<eir_TK_HeapBin, "heapbin">;
+def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin">;
 def eir_BoxType : eir_TermTypeBase<eir_TK_Box, "box">;
 
 def eir_RefType : Type<CPred<"$_self.isa<eir::RefType>()">, "pointer type">;
 def eir_PtrType : Type<CPred<"$_self.isa<eir::PtrType>()">, "raw pointer type">;
 def eir_ReceiveRefType : Type<CPred<"$_self.isa<eir::ReceiveRefType>()">, "opaque receive reference">;
+def eir_TraceRefType : Type<CPred<"$_self.isa<eir::TraceRefType>()">, "opaque trace reference">;
 def eir_AnyTerm : Type<CPred<"$_self.isa<::lumen::eir::TermType>()">, "dynamic term type">,
                    BuildableType<"$_builder.getType<::lumen::eir::TermType>()">;
 def eir_AnyType : Type<CPred<"$_self.isa<::lumen::eir::OpaqueTermType>()">, "any term type">,

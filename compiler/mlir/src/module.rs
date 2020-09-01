@@ -1,6 +1,7 @@
 use std::cell::RefCell;
+use std::ffi::c_void;
 use std::fmt;
-use std::mem::MaybeUninit;
+use std::mem::{self, MaybeUninit};
 use std::os;
 use std::ptr;
 
@@ -19,6 +20,34 @@ mod ffi {
 
     #[foreign_struct]
     pub struct Module;
+
+    #[repr(C)]
+    pub struct ToMLIRResult {
+        pub(super) module: ModuleRef,
+        pub(super) success: bool,
+    }
+
+    #[repr(C)]
+    pub struct ToLLVMIRResult {
+        pub(super) module: *const std::ffi::c_void,
+        pub(super) success: bool,
+    }
+    impl ToLLVMIRResult {
+        pub(super) fn as_mlir(&self) -> ModuleRef {
+            use std::ffi::c_void;
+            use std::mem;
+
+            unsafe { mem::transmute::<*const c_void, ModuleRef>(self.module) }
+        }
+
+        pub(super) fn as_llvm_ir(&self) -> super::llvm::ModuleRef {
+            use super::llvm;
+            use std::ffi::c_void;
+            use std::mem;
+
+            unsafe { mem::transmute::<*const c_void, llvm::ModuleRef>(self.module) }
+        }
+    }
 }
 
 pub use self::ffi::ModuleRef;
@@ -32,6 +61,8 @@ pub struct Module {
 unsafe impl Send for Module {}
 unsafe impl Sync for Module {}
 impl Module {
+    const DEFAULT_NAME: &'static str = "nofile";
+
     pub fn new(ptr: ModuleRef, dialect: Dialect) -> Self {
         assert!(!ptr.is_null());
         Self {
@@ -40,50 +71,59 @@ impl Module {
         }
     }
 
-    pub fn lower(&self, context: &Context) -> anyhow::Result<()> {
+    pub fn is_valid(&self) -> bool {
+        unsafe { MLIRVerifyModule(self.as_ref()) }
+    }
+
+    pub fn lower(&self, context: &Context) -> anyhow::Result<bool> {
         let pass_manager = context.pass_manager_ref();
-        let target_machine = context.target_machine_ref();
-        let result = unsafe {
-            MLIRLowerModule(
-                context.as_ref(),
-                pass_manager,
-                target_machine,
-                self.as_ref(),
-            )
-        };
-        if !result.is_null() {
-            self.module.replace(result);
-            self.dialect.replace(Dialect::LLVM);
-            return Ok(());
+        let result = unsafe { MLIRLowerModule(context.as_ref(), pass_manager, self.as_ref()) };
+        let module = result.module;
+        let success = result.success;
+        if module.is_null() {
+            return Err(anyhow!(
+                "unknown error occurred during lowering to llvm dialect"
+            ));
         }
-        Err(anyhow!("lowering to mlir (llvm dialect) failed"))
+        self.module.replace(module);
+        if success {
+            self.dialect.replace(Dialect::LLVM);
+        }
+        return Ok(success);
     }
 
     pub fn lower_to_llvm_ir(
         &self,
         context: &Context,
+        llvm_context: &llvm::Context,
         source_name: Option<String>,
-    ) -> anyhow::Result<llvm::module::Module> {
+    ) -> anyhow::Result<Result<llvm::module::Module, ()>> {
         let target_machine = context.target_machine_ref();
-        let result = if let Some(sn) = source_name {
-            let source_name_bytes = sn.as_bytes();
-            let source_name = source_name_bytes.as_ptr();
-            let source_name_len = source_name_bytes.len();
-            unsafe {
-                MLIRLowerToLLVMIR(
-                    self.as_ref(),
-                    target_machine,
-                    source_name as *const libc::c_char,
-                    source_name_len as libc::c_uint,
-                )
-            }
-        } else {
-            unsafe { MLIRLowerToLLVMIR(self.as_ref(), target_machine, ptr::null(), 0) }
+
+        let source_name_bytes = source_name
+            .as_ref()
+            .map(|s| s.as_bytes())
+            .unwrap_or_else(|| Self::DEFAULT_NAME.as_bytes());
+        let source_name_ptr = source_name_bytes.as_ptr();
+        let source_name_len = source_name_bytes.len();
+
+        let result = unsafe {
+            MLIRLowerToLLVMIR(
+                self.as_ref(),
+                llvm_context.as_ref(),
+                target_machine,
+                source_name_ptr as *const libc::c_char,
+                source_name_len as libc::c_uint,
+            )
         };
-        if result.is_null() {
-            Err(anyhow!("lowering to llvm failed"))
+        if result.module.is_null() {
+            return Err(anyhow!("unknown error occurred during lowering to llvm ir"));
+        }
+        if result.success {
+            Ok(Ok(llvm::Module::new(result.as_llvm_ir(), target_machine)))
         } else {
-            Ok(llvm::Module::new(result, target_machine))
+            self.module.replace(result.as_mlir());
+            Ok(Err(()))
         }
     }
 
@@ -141,19 +181,21 @@ impl Emit for Module {
 }
 
 extern "C" {
+    pub fn MLIRVerifyModule(module: ModuleRef) -> bool;
+
     pub fn MLIRLowerModule(
         context: ContextRef,
         pass_manager: PassManagerRef,
-        target_machine: TargetMachineRef,
         module: ModuleRef,
-    ) -> ModuleRef;
+    ) -> ffi::ToMLIRResult;
 
     pub fn MLIRLowerToLLVMIR(
         module: ModuleRef,
+        context: llvm::ContextRef,
         target_machine: TargetMachineRef,
         source_name: *const libc::c_char,
         source_name_len: libc::c_uint,
-    ) -> llvm::ModuleRef;
+    ) -> ffi::ToLLVMIRResult;
 
     #[cfg(not(windows))]
     pub fn MLIREmitToFileDescriptor(

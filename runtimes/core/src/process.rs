@@ -50,21 +50,29 @@ pub fn log_exit(process: &Process, exception: &RuntimeException) {
 
             if !is_expected_exit_reason(reason) {
                 puts_exit(&format!(
-                    "** (EXIT from {}) exited with reason: {}\n\nSource: {:?}",
+                    "** (EXIT from {}) exited with reason: {}\n\nSource: {}\n{}",
                     process,
                     reason,
-                    exception.source()
+                    format_source(exception.source()),
+                    process.stacktrace()
                 ));
             }
         }
         Class::Error { .. } => puts_exit(&format!(
-            "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {:?}\n{}",
+            "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {}\n{}",
             process,
             exception.reason(),
-            exception.source(),
+            format_source(exception.source()),
             process.stacktrace()
         )),
         _ => unimplemented!("{:?}", exception),
+    }
+}
+
+fn format_source(source: Option<ArcError>) -> String {
+    match source {
+        Some(arc_error) => format!("{:?}", arc_error),
+        None => "None".to_string(),
     }
 }
 
@@ -102,12 +110,17 @@ pub fn monitor(process: &Process, monitored_process: &Process) -> Term {
     reference
 }
 
-pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
+pub fn propagate_exit(process: &Process, exception: Option<&RuntimeException>) {
     monitor::propagate_exit(process, exception);
     propagate_exit_to_links(process, exception);
 }
 
-pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) {
+pub fn propagate_exit_to_links(process: &Process, exception: Option<&RuntimeException>) {
+    // TODO: Shouldn't normal exits propagate?
+    if exception.is_none() {
+        return;
+    }
+    let exception = exception.unwrap();
     if !is_expected_exception(exception) {
         let tag = atom!("EXIT");
         let from = process.pid_term();
@@ -115,9 +128,6 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
         let reason_word_size = reason.size_in_words();
         let exit_message_elements: &[Term] = &[tag, from, reason];
         let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);
-        let source: ArcError = exception
-            .source()
-            .context(format!("propagating exit from {}", process));
 
         for linked_pid in process.linked_pid_set.iter() {
             if let Some(linked_pid_arc_process) = pid_to_process(linked_pid.key()) {
@@ -151,18 +161,22 @@ pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) 
                                     &linked_pid_arc_process,
                                     linked_pid_heap,
                                     reason,
-                                    source.clone(),
+                                    exception.clone(),
                                 );
                             } else {
                                 exit_in_heap_fragment(
                                     &linked_pid_arc_process,
                                     reason,
-                                    source.clone(),
+                                    exception.clone(),
                                 );
                             }
                         }
                         None => {
-                            exit_in_heap_fragment(&linked_pid_arc_process, reason, source.clone());
+                            exit_in_heap_fragment(
+                                &linked_pid_arc_process,
+                                reason,
+                                exception.clone(),
+                            );
                         }
                     }
                 }
@@ -201,17 +215,26 @@ fn send_heap_exit_message(process: &Process, exit_message_elements: &[Term]) {
     process.send_heap_message(heap_fragment, ptr.into());
 }
 
-fn exit_in_heap(process: &Process, heap: &mut ProcessHeap, reason: Term, source: ArcError) {
+fn exit_in_heap(
+    process: &Process,
+    heap: &mut ProcessHeap,
+    reason: Term,
+    exception: RuntimeException,
+) {
     let data = reason.clone_to_heap(heap).unwrap();
 
-    process.exit(data, source);
+    process.exit(data, exception.stacktrace(), exception.source());
 }
 
-fn exit_in_heap_fragment(process: &Process, reason: Term, source: ArcError) {
+fn exit_in_heap_fragment(process: &Process, reason: Term, exception: RuntimeException) {
     let (heap_fragment_data, mut heap_fragment) = reason.clone_to_fragment().unwrap();
 
     process.attach_fragment(unsafe { heap_fragment.as_mut() });
-    process.exit(heap_fragment_data, source);
+    process.exit(
+        heap_fragment_data,
+        exception.stacktrace(),
+        exception.source(),
+    );
 }
 
 thread_local! {

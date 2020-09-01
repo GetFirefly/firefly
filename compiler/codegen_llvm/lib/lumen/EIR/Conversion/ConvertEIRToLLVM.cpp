@@ -30,17 +30,24 @@ class ConvertEIRToLLVMPass
         mlir::PassWrapper<ConvertEIRToLLVMPass,
                           mlir::OperationPass<ModuleOp>>() {}
 
+  void getDependentDialects(mlir::DialectRegistry &registry) const override {
+    registry.insert<mlir::StandardOpsDialect, mlir::LLVM::LLVMDialect,
+                    lumen::eir::eirDialect>();
+  }
+
   void runOnOperation() final {
     // Create the LLVM type converter for lowering types to Standard/LLVM IR
     // types
     auto &context = getContext();
+
     auto llvmOpts = mlir::LowerToLLVMOptions::getDefaultOptions();
+    llvmOpts.useAlignedAlloc = true;
+    llvmOpts.dataLayout = targetMachine->createDataLayout();
+
     LLVMTypeConverter llvmConverter(&context, llvmOpts);
     EirTypeConverter converter(llvmConverter);
-    // Initialize target-specific type information, using
-    // the LLVMDialect contained in the type converter to
-    // create named types
-    auto targetInfo = TargetInfo(targetMachine, *converter.getDialect());
+    // Initialize target-specific type information
+    auto targetInfo = TargetInfo(targetMachine, &context);
     converter.addConversion(
         [&](Type type) { return convertType(type, converter, targetInfo); });
     converter.addConversion([](LLVMType type) { return type; });
@@ -52,8 +59,7 @@ class ConvertEIRToLLVMPass
     LLVMTypeConverter stdTypeConverter(&context, llvmOpts);
     stdTypeConverter.addConversion(
         [&](Type type) { return convertType(type, converter, targetInfo); });
-    mlir::populateStdToLLVMConversionPatterns(stdTypeConverter, patterns,
-                                              llvmOpts);
+    mlir::populateStdToLLVMConversionPatterns(stdTypeConverter, patterns);
 
     // Add conversions from EIR to LLVM
     populateAggregateOpConversionPatterns(patterns, &context, converter,

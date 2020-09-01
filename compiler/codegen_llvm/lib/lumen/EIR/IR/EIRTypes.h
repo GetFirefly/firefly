@@ -6,7 +6,9 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
+#include "lumen/EIR/IR/EIRDialect.h"
 #include "lumen/EIR/IR/EIREnums.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
@@ -18,6 +20,7 @@
 
 using ::llvm::ArrayRef;
 using ::llvm::Optional;
+using ::llvm::TypeSwitch;
 using ::mlir::failure;
 using ::mlir::FunctionType;
 using ::mlir::Location;
@@ -31,6 +34,15 @@ using ::mlir::TypeStorage;
 namespace lumen {
 namespace eir {
 
+#define EIR_TERM_KIND(Name, Val) class Name##Type;
+#define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
+#include "lumen/EIR/IR/EIREncoding.h.inc"
+#undef EIR_TERM_KIND
+#undef FIRST_EIR_TERM_KIND
+class RefType;
+class PtrType;
+class ReceiveRefType;
+
 namespace detail {
 struct TupleTypeStorage;
 struct BoxTypeStorage;
@@ -41,14 +53,14 @@ struct ReceiveRefTypeStorage;
 
 namespace TypeKind {
 enum Kind {
-#define EIR_TERM_KIND(Name, Val) Name = mlir::Type::FIRST_EIR_TYPE + Val,
+#define EIR_TERM_KIND(Name, Val) Name = Val,
 #define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
 #include "lumen/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
-  Ref = mlir::Type::FIRST_EIR_TYPE + 19,
-  Ptr = mlir::Type::FIRST_EIR_TYPE + 20,
-  ReceiveRef = mlir::Type::LAST_EIR_TYPE,
+  Ref = 19,
+  Ptr = 20,
+  ReceiveRef = 21,
 };
 }  // namespace TypeKind
 
@@ -56,179 +68,142 @@ class OpaqueTermType : public Type {
  public:
   using Type::Type;
 
-  unsigned getImplKind() const { return getKind(); }
-
   // Returns the raw integer value of the TypeKind::Kind variant
   // that matches the equivalent variant in Rust, given an enum
   // definition that is a 1:1 match of TypeKind::Kind
-  unsigned getForeignKind() const {
-    unsigned offset = mlir::Type::FIRST_EIR_TYPE;
-    return getKind() - offset;
-  }
-
-  bool isKind(unsigned kind) const { return kind == getImplKind(); }
-
-  bool isOpaque() const { return isOpaque(getImplKind()); }
-
-  bool hasDynamicExtent() const { return hasDynamicExtent(getImplKind()); }
-
-  bool isImmediate() const { return isImmediate(getImplKind()); }
-
-  bool isBoxable() const { return isBoxable(getImplKind()); }
-
-  bool isAtom() const { return isAtom(getImplKind()); }
-
-  bool isBoolean() const { return isBoolean(getImplKind()); }
-
-  bool isNumber() const { return isNumber(getImplKind()); }
-
-  bool isFixnum() const { return isFixnum(getImplKind()); }
-
-  bool isInteger() const { return isInteger(getImplKind()); }
-
-  bool isFloat() const { return isFloat(getImplKind()); }
-
-  bool isList() const { return isList(getImplKind()); }
-
-  bool isNil() const { return isNil(getImplKind()); }
-
-  bool isNonEmptyList() const { return isNonEmptyList(getImplKind()); }
-
-  bool isTuple() const { return isTuple(getImplKind()); }
-
-  bool isBinary() const { return isBinary(getImplKind()); }
-
-  bool isClosure() const { return isClosure(getImplKind()); }
-
-  bool isBox() const { return isBox(getImplKind()); }
-
-  // Returns 0 for false, 1 for true, 2 for unknown
-  unsigned isMatch(Type matcher) const {
-    auto matcherBase = matcher.dyn_cast_or_null<OpaqueTermType>();
-    if (!matcherBase) return 2;
-
-    auto implKind = getImplKind();
-    auto matcherImplKind = matcherBase.getImplKind();
-
-    // Unresolvable statically
-    if (!isOpaque(implKind) || !matcherBase.isOpaque(matcherImplKind)) return 2;
-
-    // Guaranteed to match
-    if (implKind == matcherImplKind) return 1;
-
-    // Generic matches
-    if (matcherImplKind == TypeKind::Atom) return isAtom(implKind) ? 1 : 0;
-    if (matcherImplKind == TypeKind::List) return isList(implKind) ? 1 : 0;
-    if (matcherImplKind == TypeKind::Number) return isNumber(implKind) ? 1 : 0;
-    if (matcherImplKind == TypeKind::Integer)
-      return isInteger(implKind) ? 1 : 0;
-    if (matcherImplKind == TypeKind::Float) return isFloat(implKind) ? 1 : 0;
-
-    return 0;
-  }
-
-  static bool isTypeKind(Type type, TypeKind::Kind kind) {
-    if (!OpaqueTermType::classof(type)) {
-      return false;
-    }
-    return type.cast<OpaqueTermType>().getImplKind() == kind;
-  }
-
-  static bool classof(Type type) {
-    auto kind = type.getKind();
-    // ReceiveRefs are not actually term types
-    if (kind == TypeKind::ReceiveRef) return false;
-#define EIR_TERM_KIND(Name, Val)                    \
-  if (kind == (mlir::Type::FIRST_EIR_TYPE + Val)) { \
-    return true;                                    \
-  }
+  Optional<unsigned> getTypeKind() const {
+    return TypeSwitch<Type, Optional<unsigned>>(*this)
+#define EIR_TERM_KIND(Name, Val) .Case<Name##Type>([&](Type) { return Val; })
 #define FIRST_EIR_TERM_KIND(Name, Val) EIR_TERM_KIND(Name, Val)
 #include "lumen/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
-    return false;
+        .Default([](Type) { return llvm::None; });
+  }
+
+  bool hasDynamicExtent() const {
+    return TypeSwitch<Type, bool>(*this)
+        .Case<TupleType>([&](Type) { return true; })
+        .Case<BinaryType>([&](Type) { return true; })
+        .Case<HeapBinType>([&](Type) { return true; })
+        .Case<ProcBinType>([&](Type) { return true; })
+        .Case<ClosureType>([&](Type) { return true; })
+        .Default([](Type) { return false; });
+  }
+
+  bool isImmediate() const {
+    return TypeSwitch<Type, bool>(*this)
+        .Case<AtomType>([&](Type) { return true; })
+        .Case<BooleanType>([&](Type) { return true; })
+        .Case<FixnumType>([&](Type) { return true; })
+        .Case<FloatType>([&](Type) { return true; })
+        .Case<NilType>([&](Type) { return true; })
+        .Case<BoxType>([&](Type) { return true; })
+        .Case<TermType>([&](Type) { return true; })
+        .Default([](Type) { return false; });
+  }
+
+  bool isBoxable() const {
+    return TypeSwitch<Type, bool>(*this)
+        .Case<FloatType>([&](Type) { return true; })
+        .Case<BigIntType>([&](Type) { return true; })
+        .Case<ConsType>([&](Type) { return true; })
+        .Case<TupleType>([&](Type) { return true; })
+        .Case<MapType>([&](Type) { return true; })
+        .Case<ClosureType>([&](Type) { return true; })
+        .Case<BinaryType>([&](Type) { return true; })
+        .Case<HeapBinType>([&](Type) { return true; })
+        .Case<ProcBinType>([&](Type) { return true; })
+        .Default([](Type) { return false; });
+  }
+
+  bool isOpaque() { return isa<TermType>(); }
+
+  bool isAtom() const { return isa<AtomType>() || isBoolean(); }
+
+  bool isBoolean() const { return isa<BooleanType>(); }
+
+  bool isNumber() const {
+    return TypeSwitch<Type, bool>(*this)
+        .Case<NumberType>([&](Type) { return true; })
+        .Case<IntegerType>([&](Type) { return true; })
+        .Case<FixnumType>([&](Type) { return true; })
+        .Case<BigIntType>([&](Type) { return true; })
+        .Case<FloatType>([&](Type) { return true; })
+        .Default([](Type) { return false; });
+  }
+
+  bool isFixnum() const { return isa<FixnumType>(); }
+
+  bool isInteger() const {
+    return TypeSwitch<Type, bool>(*this)
+        .Case<IntegerType>([&](Type) { return true; })
+        .Case<FixnumType>([&](Type) { return true; })
+        .Case<BigIntType>([&](Type) { return true; })
+        .Default([](Type) { return false; });
+  }
+
+  bool isFloat() const { return isa<FloatType>(); }
+
+  bool isCons() const { return isa<ConsType>(); }
+
+  bool isList() const { return isa<ListType>() || isCons() || isNil(); }
+
+  bool isNil() const { return isa<NilType>(); }
+
+  bool isNonEmptyList() const { return isCons() || isList(); }
+
+  bool isTuple() const { return isa<TupleType>(); }
+
+  bool isBinary() const {
+    return isa<BinaryType>() || isHeapBin() || isProcBin();
+  }
+
+  bool isHeapBin() const { return isa<HeapBinType>(); }
+
+  bool isProcBin() const { return isa<ProcBinType>(); }
+
+  bool isClosure() const { return isa<ClosureType>(); }
+
+  bool isBox() const { return isa<BoxType>(); }
+
+  // Returns 0 for false, 1 for true, 2 for unknown
+  unsigned isMatch(Type matcher) {
+    auto matcherBase = matcher.dyn_cast_or_null<OpaqueTermType>();
+    if (!matcherBase) return 2;
+
+    auto typeId = getTypeID();
+    auto matcherTypeId = matcher.getTypeID();
+
+    // Unresolvable statically
+    if (!isOpaque() || !matcherBase.isOpaque()) return 2;
+
+    // Guaranteed to match
+    if (typeId == matcherTypeId) return 1;
+
+    // Generic matches
+    if (matcher.isa<AtomType>()) return isAtom() ? 1 : 0;
+    if (matcher.isa<ListType>()) return isList() ? 1 : 0;
+    if (matcher.isa<NumberType>()) return isNumber() ? 1 : 0;
+    if (matcher.isa<IntegerType>()) return isInteger() ? 1 : 0;
+    if (matcher.isa<BinaryType>()) return isBinary() ? 1 : 0;
+
+    return 0;
+  }
+
+  static bool classof(Type type) {
+    if (!llvm::isa<eirDialect>(type.getDialect())) return false;
+    // ReceiveRefs are not actually term types
+    if (type.isa<ReceiveRefType>()) return false;
+    return true;
   }
 
   Optional<int64_t> getSizeInBytes() {
-    auto implKind = getImplKind();
-    if (isImmediate(implKind)) {
+    if (isImmediate()) {
       return 8;
     }
     return llvm::None;
   }
-
- private:
-  static bool isOpaque(unsigned implKind) { return implKind == TypeKind::Term; }
-
-  static bool hasDynamicExtent(unsigned implKind) {
-    return implKind == TypeKind::Tuple || implKind == TypeKind::Binary ||
-           implKind == TypeKind::HeapBin || implKind == TypeKind::ProcBin ||
-           implKind == TypeKind::Closure;
-  }
-
-  static bool isImmediate(unsigned implKind) {
-    return implKind == TypeKind::Atom || implKind == TypeKind::Boolean ||
-           implKind == TypeKind::Fixnum || implKind == TypeKind::Float ||
-           implKind == TypeKind::Nil || implKind == TypeKind::Box ||
-           implKind == TypeKind::Term;
-  }
-
-  static bool isBoxable(unsigned implKind) {
-    return implKind == TypeKind::Float || implKind == TypeKind::BigInt ||
-           implKind == TypeKind::Cons || implKind == TypeKind::Tuple ||
-           implKind == TypeKind::Map || implKind == TypeKind::Closure ||
-           implKind == TypeKind::Binary || implKind == TypeKind::HeapBin ||
-           implKind == TypeKind::ProcBin;
-  }
-
-  static bool isAtom(unsigned implKind) {
-    return implKind >= TypeKind::Atom && implKind <= TypeKind::Boolean;
-  }
-
-  static bool isBoolean(unsigned implKind) {
-    return implKind == TypeKind::Boolean;
-  }
-
-  static bool isNumber(unsigned implKind) {
-    return implKind == TypeKind::Number || implKind == TypeKind::Integer ||
-           implKind == TypeKind::Fixnum || implKind == TypeKind::BigInt ||
-           implKind == TypeKind::Float;
-  }
-
-  static bool isFixnum(unsigned implKind) {
-    return implKind == TypeKind::Fixnum;
-  }
-
-  static bool isInteger(unsigned implKind) {
-    return implKind == TypeKind::Integer || implKind == TypeKind::Fixnum ||
-           implKind == TypeKind::BigInt;
-  }
-
-  static bool isFloat(unsigned implKind) { return implKind == TypeKind::Float; }
-
-  static bool isList(unsigned implKind) {
-    return implKind == TypeKind::List || implKind == TypeKind::Nil ||
-           implKind == TypeKind::Cons;
-  }
-
-  static bool isNil(unsigned implKind) { return implKind == TypeKind::Nil; }
-
-  static bool isNonEmptyList(unsigned implKind) {
-    return implKind == TypeKind::Cons;
-  }
-
-  static bool isTuple(unsigned implKind) { return implKind == TypeKind::Tuple; }
-
-  static bool isBinary(unsigned implKind) {
-    return implKind == TypeKind::Binary || implKind == TypeKind::HeapBin ||
-           implKind == TypeKind::ProcBin;
-  }
-
-  static bool isClosure(unsigned implKind) {
-    return implKind == TypeKind::Closure;
-  }
-
-  static bool isBox(unsigned implKind) { return implKind == TypeKind::Box; }
 };
 
 #define PrimitiveType(TYPE, KIND)                                              \
@@ -236,10 +211,6 @@ class OpaqueTermType : public Type {
       : public mlir::Type::TypeBase<TYPE, OpaqueTermType, mlir::TypeStorage> { \
    public:                                                                     \
     using Base::Base;                                                          \
-    static TYPE get(mlir::MLIRContext *context) {                              \
-      return Base::get(context, KIND);                                         \
-    }                                                                          \
-    static bool kindof(unsigned kind) { return kind == KIND; }                 \
   }
 
 PrimitiveType(NoneType, TypeKind::None);
@@ -265,9 +236,6 @@ class TupleType : public Type::TypeBase<TupleType, OpaqueTermType,
                                         detail::TupleTypeStorage> {
  public:
   using Base::Base;
-
-  /// Support method to enable LLVM-style type casting.
-  static bool kindof(unsigned kind) { return kind == TypeKind::Tuple; }
 
   static TupleType get(MLIRContext *context);
   static TupleType get(MLIRContext *context, unsigned arity);
@@ -307,19 +275,7 @@ class BoxType
   /// object type isn't supported.
   static BoxType getChecked(Type boxedType, mlir::Location location);
 
-  /// Verifies construction of a type with the given object.
-  static LogicalResult verifyConstructionInvariants(Location loc,
-                                                    Type boxedType) {
-    if (!OpaqueTermType::classof(boxedType)) {
-      emitError(loc) << "invalid target type for a box: " << boxedType;
-      return failure();
-    }
-    return success();
-  }
-
   OpaqueTermType getBoxedType() const;
-
-  static bool kindof(unsigned kind) { return kind == TypeKind::Box; }
 };
 
 /// A pointer to a term
@@ -337,8 +293,6 @@ class RefType : public Type::TypeBase<RefType, Type, detail::RefTypeStorage> {
   static RefType getChecked(Type innerType, mlir::Location location);
 
   OpaqueTermType getInnerType() const;
-
-  static bool kindof(unsigned kind) { return kind == TypeKind::Ref; }
 };
 
 /// A raw pointer
@@ -352,8 +306,15 @@ class PtrType : public Type::TypeBase<PtrType, Type, detail::PtrTypeStorage> {
   static PtrType get(MLIRContext *context);
 
   Type getInnerType() const;
+};
 
-  static bool kindof(unsigned kind) { return kind == TypeKind::Ptr; }
+/// Used to represent the raw stacktrace capture used in exception handling
+class TraceRefType
+    : public Type::TypeBase<TraceRefType, Type, mlir::TypeStorage> {
+ public:
+  using Base::Base;
+
+  static TraceRefType get(mlir::MLIRContext *context);
 };
 
 /// Used to represent the opaque handle for a receive construct
@@ -363,8 +324,6 @@ class ReceiveRefType
   using Base::Base;
 
   static ReceiveRefType get(mlir::MLIRContext *context);
-
-  static bool kindof(unsigned kind) { return kind == TypeKind::ReceiveRef; }
 };
 
 template <typename A, typename B>

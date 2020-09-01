@@ -52,9 +52,10 @@ fn generate_standard(
     let fn_ptr_type = builder.get_pointer_type(fn_type);
     let void_type = builder.get_void_type();
     let exception_type = builder.get_struct_type(Some("lumen.exception"), &[i8_ptr_type, i32_type]);
+    // Matches the layout of ErlangException in liblumen_alloc
     let erlang_error_type = builder.get_struct_type(
-        Some("tuple3"),
-        &[usize_type, usize_type, usize_type, usize_type],
+        Some("erlang.exception"),
+        &[usize_type, usize_type, usize_type, i8_ptr_type, i8_ptr_type],
     );
     let erlang_error_type_ptr = builder.get_pointer_type(erlang_error_type);
 
@@ -66,8 +67,11 @@ fn generate_standard(
         builder.build_external_function("lumen_eh_personality", personality_fun_ty);
 
     // Function to extract the Erlang exception term from the raw exception object
-    let get_exception_fun_ty =
-        builder.get_function_type(usize_type, &[i8_ptr_type], /* variadic */ false);
+    let get_exception_fun_ty = builder.get_function_type(
+        erlang_error_type_ptr,
+        &[i8_ptr_type],
+        /* variadic */ false,
+    );
     let get_exception_fun = builder.build_function_with_attrs(
         "__lumen_get_exception",
         get_exception_fun_ty,
@@ -79,35 +83,12 @@ fn generate_standard(
         ],
     );
 
-    // Term comparison
-    let cmp_eq_fun_ty = builder.get_function_type(
-        i1_type,
-        &[usize_type, usize_type],
-        /* variadic */ false,
-    );
-    let cmp_eq_fun = builder.build_function_with_attrs(
-        "__lumen_builtin_cmp.eq",
-        cmp_eq_fun_ty,
-        Linkage::External,
-        &[Attribute::NoUnwind],
-    );
-
-    // Process heap allocation
-    let malloc_fun_ty = builder.get_function_type(
-        i8_ptr_type,
-        &[i32_type, usize_type],
-        /* variadic */ false,
-    );
-    let malloc_fun = builder.build_function_with_attrs(
-        "__lumen_builtin_malloc",
-        malloc_fun_ty,
-        Linkage::External,
-        &[Attribute::NoUnwind],
-    );
-
     // Process exit
-    let exit_fun_ty =
-        builder.get_function_type(void_type, &[usize_type], /* variadic */ false);
+    let exit_fun_ty = builder.get_function_type(
+        void_type,
+        &[erlang_error_type_ptr],
+        /* variadic */ false,
+    );
     let exit_fun = builder.build_function_with_attrs(
         // This cannot be `erlang:exit/1` because this exit is called once the `process_raise`
         // exception has been caught, so it does `Process::exit` directly and yields to the
@@ -151,27 +132,12 @@ fn generate_standard(
     // Define all the blocks first so we can reference them
     let entry_block = builder.build_entry_block(func);
     let catch_block = builder.build_named_block(func, "catch");
-    let handle_throw_block = builder.build_named_block(func, "handle.throw");
-    let handle_throw_finish_block = builder.build_named_block(func, "handle.throw.finish");
-    let caught_block = builder.build_named_block(func, "caught");
     let exit_block = builder.build_named_block(func, "exit");
 
     // Define the entry block
     builder.position_at_end(entry_block);
 
-    // Allocate all constants here and reuse them as needed
-    let normal = Symbol::intern("normal");
-    let throw = Symbol::intern("throw");
-    let nocatch = Symbol::intern("nocatch");
-
-    let normal_atom = build_constant_atom(&builder, normal.as_usize(), options);
-    let throw_atom = build_constant_atom(&builder, throw.as_usize(), options);
-    let nocatch_atom = build_constant_atom(&builder, nocatch.as_usize(), options);
-    let nocatch_header = build_tuple_header(&builder, 2, options);
-    let box_tag = build_constant_box_tag(&builder, usize_type, options);
-    let tuple_kind = builder.build_constant_uint(i32_type, TermKind::Tuple as u64);
-    let nocatch_arity = builder.build_constant_uint(usize_type, 2);
-    let updated_error_header = build_tuple_header(&builder, 2, options);
+    let null_erlang_error = builder.build_constant_null(erlang_error_type_ptr);
 
     // Invoke the `init` function pointer
     let init_fn_ptr = builder.get_function_param(func, 0);
@@ -200,85 +166,19 @@ fn generate_standard(
 
     // Our personality function ensures that we only enter the landing pad
     // if this is an Erlang exception, so we proceed directly to handling the
-    // error, a boxed 3-tuple
-    let error_box = builder.build_call(get_exception_fun, &[exception_ptr], None);
-
-    // Drop the last element of the tuple and make the exit value just `{kind, reason}`,
-    // all we need to do for this is to rewrite the arity value in the tuple header, which
-    // can be done by writing to the pointer we just cast from
-    let error_ptr = match options.target.options.encoding {
-        // In this encoding scheme, boxes are always pointers
-        EncodingType::Encoding64Nanboxed => {
-            builder.build_inttoptr(error_box, erlang_error_type_ptr)
-        }
-        // For all other encoding schemes, we unmask the pointer first
-        _ => {
-            let box_tag = box_tag.unwrap();
-            let untagged = builder.build_and(error_box, builder.build_not(box_tag));
-            builder.build_inttoptr(untagged, erlang_error_type_ptr)
-        }
-    };
-    let error_kind_ptr = builder.build_struct_gep(error_ptr, 1);
-    let error_kind = builder.build_load(usize_type, error_kind_ptr);
-
-    let is_throw = builder.build_call(cmp_eq_fun, &[error_kind, throw_atom], None);
-    builder.build_condbr(is_throw, handle_throw_block, caught_block);
-
-    // Try to allocate memory on the process heap for the {nocatch, Reason} tuple
-    builder.position_at_end(handle_throw_block);
-
-    let nocatch_tuple_opaque = builder.build_call(malloc_fun, &[tuple_kind, nocatch_arity], None);
-    builder.build_condbr(
-        builder.build_is_null(nocatch_tuple_opaque),
-        handle_throw_finish_block,
-        caught_block,
-    );
-
-    // Handle translating throw to error with {nocatch, Reason} reason
-    builder.position_at_end(handle_throw_finish_block);
-
-    // Write the tuple elements
-    let nocatch_tuple = builder.build_bitcast(nocatch_tuple_opaque, erlang_error_type_ptr);
-
-    let nocatch_header_ptr = builder.build_struct_gep(nocatch_tuple, 0);
-    builder.build_store(nocatch_header, nocatch_header_ptr);
-    let nocatch_kind_ptr = builder.build_struct_gep(nocatch_tuple, 1);
-    builder.build_store(nocatch_atom, nocatch_kind_ptr);
-
-    let error_reason_ptr = builder.build_struct_gep(error_ptr, 2);
-    let error_reason = builder.build_load(usize_type, error_reason_ptr);
-    let nocatch_reason_ptr = builder.build_struct_gep(nocatch_tuple, 2);
-    builder.build_store(error_reason, nocatch_reason_ptr);
-
-    let nocatch_box = match options.target.options.encoding {
-        EncodingType::Encoding64Nanboxed => builder.build_ptrtoint(nocatch_tuple, usize_type),
-        _ => {
-            let box_tag = box_tag.unwrap();
-            let boxed = builder.build_ptrtoint(nocatch_tuple, usize_type);
-            builder.build_or(boxed, box_tag)
-        }
-    };
-
-    // Update the original error kind and reason
-    builder.build_store(throw_atom, error_kind_ptr);
-    builder.build_store(nocatch_box, error_reason_ptr);
-
-    builder.build_br(caught_block);
-
-    // Finish handling the error by forcefully resizing the tuple to drop the last element
-    builder.position_at_end(caught_block);
-
-    let error_header_ptr = builder.build_struct_gep(error_ptr, 0);
-    builder.build_store(updated_error_header, error_header_ptr);
-
+    // error, which is a pointer to an ErlangException
+    let erlang_error = builder.build_call(get_exception_fun, &[exception_ptr], None);
     builder.build_br(exit_block);
 
     // Exit the process
     builder.position_at_end(exit_block);
 
     let exit_value = builder.build_phi(
-        usize_type,
-        &[(normal_atom, entry_block), (error_box, caught_block)],
+        erlang_error_type_ptr,
+        &[
+            (null_erlang_error, entry_block),
+            (erlang_error, catch_block),
+        ],
     );
 
     let exit_fun_call = builder.build_call(exit_fun, &[exit_value], None);
@@ -329,8 +229,8 @@ fn generate_wasm32(
     let _exception_type =
         builder.get_struct_type(Some("lumen.exception"), &[i8_ptr_type, i32_type]);
     let erlang_error_type = builder.get_struct_type(
-        Some("tuple3"),
-        &[usize_type, usize_type, usize_type, usize_type],
+        Some("erlang.exception"),
+        &[usize_type, usize_type, usize_type, i8_ptr_type, i8_ptr_type],
     );
     let erlang_error_type_ptr = builder.get_pointer_type(erlang_error_type);
 
@@ -342,8 +242,11 @@ fn generate_wasm32(
         builder.build_external_function("lumen_eh_personality", personality_fun_ty);
 
     // Function to extract the Erlang exception term from the raw exception object
-    let get_exception_fun_ty =
-        builder.get_function_type(usize_type, &[i8_ptr_type], /* variadic */ false);
+    let get_exception_fun_ty = builder.get_function_type(
+        usize_type,
+        &[erlang_error_type_ptr],
+        /* variadic */ false,
+    );
     let get_exception_fun = builder.build_function_with_attrs(
         "__lumen_get_exception",
         get_exception_fun_ty,
@@ -355,35 +258,12 @@ fn generate_wasm32(
         ],
     );
 
-    // Term comparison
-    let cmp_eq_fun_ty = builder.get_function_type(
-        i1_type,
-        &[usize_type, usize_type],
-        /* variadic */ false,
-    );
-    let cmp_eq_fun = builder.build_function_with_attrs(
-        "__lumen_builtin_cmp.eq",
-        cmp_eq_fun_ty,
-        Linkage::External,
-        &[Attribute::NoUnwind],
-    );
-
-    // Process heap allocation
-    let malloc_fun_ty = builder.get_function_type(
-        i8_ptr_type,
-        &[i32_type, usize_type],
-        /* variadic */ false,
-    );
-    let malloc_fun = builder.build_function_with_attrs(
-        "__lumen_builtin_malloc",
-        malloc_fun_ty,
-        Linkage::External,
-        &[Attribute::NoUnwind],
-    );
-
     // Process exit
-    let exit_fun_ty =
-        builder.get_function_type(void_type, &[usize_type], /* variadic */ false);
+    let exit_fun_ty = builder.get_function_type(
+        void_type,
+        &[erlang_error_type_ptr],
+        /* variadic */ false,
+    );
     let exit_fun = builder.build_function_with_attrs(
         // This cannot be `erlang:exit/1` because this exit is called once the `process_raise`
         // exception has been caught, so it does `Process::exit` directly and yields to the
@@ -409,30 +289,15 @@ fn generate_wasm32(
     let catch_dispatch_block = builder.build_named_block(func, "catch.dispatch");
     let catch_start_block = builder.build_named_block(func, "catch.start");
     let catch_block = builder.build_named_block(func, "catch");
-    let handle_throw_block = builder.build_named_block(func, "handle.throw");
-    let handle_throw_finish_block = builder.build_named_block(func, "handle.throw.end");
-    let caught_block = builder.build_named_block(func, "caught");
     let catchret_block = builder.build_named_block(func, "catch.end");
     let exit_block = builder.build_named_block(func, "exit");
 
     // Define the entry block
     builder.position_at_end(entry_block);
 
-    let exit_value = builder.build_alloca(usize_type);
-
-    // Allocate all constants here and reuse them as needed
-    let normal = Symbol::intern("normal");
-    let throw = Symbol::intern("throw");
-    let nocatch = Symbol::intern("nocatch");
-
-    let normal_atom = build_constant_atom(&builder, normal.as_usize(), options);
-    let throw_atom = build_constant_atom(&builder, throw.as_usize(), options);
-    let nocatch_atom = build_constant_atom(&builder, nocatch.as_usize(), options);
-    let nocatch_header = build_tuple_header(&builder, 2, options);
-    let box_tag = build_constant_box_tag(&builder, usize_type, options);
-    let tuple_kind = builder.build_constant_uint(i32_type, TermKind::Tuple as u64);
-    let nocatch_arity = builder.build_constant_uint(usize_type, 2);
-    let updated_error_header = build_tuple_header(&builder, 2, options);
+    let null_erlang_error = builder.build_constant_null(erlang_error_type_ptr);
+    let exit_value = builder.build_alloca(erlang_error_type_ptr);
+    builder.build_store(exit_value, null_erlang_error);
 
     // Invoke the `init` function pointer
     let init_fn_ptr = builder.get_function_param(func, 0);
@@ -469,68 +334,11 @@ fn generate_wasm32(
 
     // Our personality function ensures that we only enter the landing pad
     // if this is an Erlang exception, so we proceed directly to handling the
-    // error, a boxed 3-tuple
-    let error_box = builder.build_call(get_exception_fun, &[exception_ptr], Some(&catchpad));
-    builder.build_store(exit_value, error_box);
+    // error, a pointer to an ErlangException
+    let erlang_error = builder.build_call(get_exception_fun, &[exception_ptr], Some(&catchpad));
+    builder.build_store(exit_value, erlang_error);
 
-    // Drop the last element of the tuple and make the exit value just `{kind, reason}`,
-    // all we need to do for this is to rewrite the arity value in the tuple header, which
-    // can be done by writing to the pointer we just cast from
-    let error_ptr = {
-        let box_tag = box_tag.unwrap();
-        let untagged = builder.build_and(error_box, builder.build_not(box_tag));
-        builder.build_inttoptr(untagged, erlang_error_type_ptr)
-    };
-    let error_kind_ptr = builder.build_struct_gep(error_ptr, 1);
-    let error_kind = builder.build_load(usize_type, error_kind_ptr);
-
-    let is_throw = builder.build_call(cmp_eq_fun, &[error_kind, throw_atom], Some(&catchpad));
-    builder.build_condbr(is_throw, handle_throw_block, caught_block);
-
-    // Try to allocate memory on the process heap for the {nocatch, Reason} tuple
-    builder.position_at_end(handle_throw_block);
-
-    let nocatch_tuple_opaque =
-        builder.build_call(malloc_fun, &[tuple_kind, nocatch_arity], Some(&catchpad));
-    builder.build_condbr(
-        builder.build_is_null(nocatch_tuple_opaque),
-        handle_throw_finish_block,
-        caught_block,
-    );
-
-    // Handle translating throw to error with {nocatch, Reason} reason
-    builder.position_at_end(handle_throw_finish_block);
-
-    // Write the tuple elements
-    let nocatch_tuple = builder.build_bitcast(nocatch_tuple_opaque, erlang_error_type_ptr);
-
-    let nocatch_header_ptr = builder.build_struct_gep(nocatch_tuple, 0);
-    builder.build_store(nocatch_header, nocatch_header_ptr);
-    let nocatch_kind_ptr = builder.build_struct_gep(nocatch_tuple, 1);
-    builder.build_store(nocatch_atom, nocatch_kind_ptr);
-
-    let error_reason_ptr = builder.build_struct_gep(error_ptr, 2);
-    let error_reason = builder.build_load(usize_type, error_reason_ptr);
-    let nocatch_reason_ptr = builder.build_struct_gep(nocatch_tuple, 2);
-    builder.build_store(error_reason, nocatch_reason_ptr);
-
-    let nocatch_box = {
-        let box_tag = box_tag.unwrap();
-        let boxed = builder.build_ptrtoint(nocatch_tuple, usize_type);
-        builder.build_or(boxed, box_tag)
-    };
-
-    // Update the original error kind and reason
-    builder.build_store(throw_atom, error_kind_ptr);
-    builder.build_store(nocatch_box, error_reason_ptr);
-
-    builder.build_br(caught_block);
-
-    // Finish handling the error by forcefully resizing the tuple to drop the last element
-    builder.position_at_end(caught_block);
-
-    let error_header_ptr = builder.build_struct_gep(error_ptr, 0);
-    builder.build_store(updated_error_header, error_header_ptr);
+    // That's it, return the caught error
     builder.build_br(catchret_block);
 
     // Finish catch handling
@@ -540,12 +348,7 @@ fn generate_wasm32(
     // Exit the process
     builder.position_at_end(exit_block);
 
-    let ret_value = builder.build_phi(
-        usize_type,
-        &[(normal_atom, entry_block), (exit_value, catchret_block)],
-    );
-
-    let exit_fun_call = builder.build_call(exit_fun, &[ret_value], None);
+    let exit_fun_call = builder.build_call(exit_fun, &[exit_value], None);
     builder.set_is_tail(exit_fun_call, true);
     builder.build_return(ptr::null_mut());
 

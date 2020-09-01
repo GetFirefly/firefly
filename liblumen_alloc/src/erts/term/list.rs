@@ -3,6 +3,7 @@ use core::cmp;
 use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display, Write};
 use core::iter::FusedIterator;
+use core::marker::PhantomData;
 use core::mem;
 use core::ptr;
 
@@ -74,6 +75,14 @@ pub struct Cons {
     pub tail: Term,
 }
 impl Cons {
+    pub fn iter(&self) -> self::Iter<'_> {
+        Iter {
+            head: Some(Ok(self.head)),
+            tail: Some(self.tail),
+            _marker: PhantomData,
+        }
+    }
+
     /// The number of bytes for the header and immediate terms or box term pointer to elements
     /// allocated elsewhere.
     pub fn need_in_bytes_from_len(len: usize) -> usize {
@@ -93,7 +102,7 @@ impl Cons {
     }
 
     pub fn contains(&self, term: Term) -> bool {
-        self.into_iter().any(|result| match result {
+        self.iter().any(|result| match result {
             Ok(ref element) => element == &term,
             _ => false,
         })
@@ -122,7 +131,7 @@ impl Cons {
     /// Returns true if this cons is the head of
     ///a proper list.
     pub fn is_proper(&self) -> bool {
-        self.into_iter().all(|result| result.is_ok())
+        self.iter().all(|result| result.is_ok())
     }
 
     /// Reify a cons cell from a pointer to the head of a cons cell
@@ -166,8 +175,11 @@ impl Cons {
     /// at the given index.
     ///
     /// If no key is found, returns 'badarg'
-    pub fn keyfind(&self, index: OneBasedIndex, key: Term) -> anyhow::Result<Option<Term>> {
-        for result in self.into_iter() {
+    pub fn keyfind<I>(&self, index: I, key: Term) -> anyhow::Result<Option<Term>>
+    where
+        I: TupleIndex + Copy,
+    {
+        for result in self.iter() {
             if let Ok(item) = result {
                 let tuple_item: Result<Boxed<Tuple>, _> = item.try_into();
                 if let Ok(tuple) = tuple_item {
@@ -187,7 +199,7 @@ impl Cons {
 
     // See https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L117-L140
     fn is_printable_string(&self) -> bool {
-        self.into_iter().all(|result| match result {
+        self.iter().all(|result| match result {
             Ok(ref element) => {
                 // See https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L128-L129
                 let result_char: Result<char, _> = (*element).try_into();
@@ -209,7 +221,7 @@ impl Debug for Cons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_char('[')?;
 
-        let mut iter = self.into_iter();
+        let mut iter = self.iter();
 
         if let Some(first_result) = iter.next() {
             write!(f, "{:?}", first_result.unwrap())?;
@@ -232,7 +244,7 @@ impl Display for Cons {
         if self.is_printable_string() {
             f.write_char('\"')?;
 
-            for result in self.into_iter() {
+            for result in self.iter() {
                 // `is_printable_string` guarantees all Ok
                 let element = result.unwrap();
                 let c: char = element.try_into().unwrap();
@@ -248,7 +260,7 @@ impl Display for Cons {
         } else {
             f.write_char('[')?;
 
-            let mut iter = self.into_iter();
+            let mut iter = self.iter();
 
             if let Some(first_result) = iter.next() {
                 write!(f, "{}", first_result.unwrap())?;
@@ -269,7 +281,7 @@ impl Display for Cons {
 impl Eq for Cons {}
 impl Ord for Cons {
     fn cmp(&self, other: &Cons) -> cmp::Ordering {
-        self.into_iter().cmp(other.into_iter())
+        self.iter().cmp(other.iter())
     }
 }
 impl PartialEq for Cons {
@@ -310,7 +322,7 @@ impl CloneToProcess for Cons {
         let mut vec: alloc::vec::Vec<Term> = Default::default();
         let mut tail = Term::NIL;
 
-        for result in self.into_iter() {
+        for result in self.iter() {
             match result {
                 Ok(element) => vec.push(element.clone_to_heap(heap)?),
                 Err(ImproperList {
@@ -328,7 +340,7 @@ impl CloneToProcess for Cons {
         let mut elements = 0;
         let mut words = 0;
 
-        for result in self.into_iter() {
+        for result in self.iter() {
             let element = match result {
                 Ok(element) => element,
                 Err(ImproperList { tail }) => tail,
@@ -343,15 +355,13 @@ impl CloneToProcess for Cons {
     }
 }
 
-impl IntoIterator for &Cons {
+impl<'a> IntoIterator for &'a Cons {
     type Item = Result<Term, ImproperList>;
-    type IntoIter = Iter;
+    type IntoIter = Iter<'a>;
 
-    fn into_iter(self) -> Iter {
-        Iter {
-            head: Some(Ok(self.head)),
-            tail: Some(self.tail),
-        }
+    #[inline(always)]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
@@ -360,14 +370,15 @@ pub struct ImproperList {
     pub tail: Term,
 }
 
-pub struct Iter {
+pub struct Iter<'a> {
     head: Option<Result<Term, ImproperList>>,
     tail: Option<Term>,
+    _marker: PhantomData<&'a Term>,
 }
 
-impl FusedIterator for Iter {}
+impl FusedIterator for Iter<'_> {}
 
-impl Iterator for Iter {
+impl Iterator for Iter<'_> {
     type Item = Result<Term, ImproperList>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -423,8 +434,7 @@ impl TryInto<String> for Boxed<Cons> {
     type Error = anyhow::Error;
 
     fn try_into(self) -> Result<String, Self::Error> {
-        self.as_ref()
-            .into_iter()
+        self.iter()
             .map(|result| match result {
                 Ok(element) => {
                     let result_char: Result<char, _> = element

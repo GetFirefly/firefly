@@ -81,7 +81,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
       }
 
       // For all other boxed types, the check is performed via builtin
-      auto matchKind = boxedType.getForeignKind();
+      auto matchKind = boxedType.getTypeKind().getValue();
       Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(matchKind));
       StringRef symbolName("__lumen_builtin_is_boxed_type");
       auto callee =
@@ -100,7 +100,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
     // TODO: With some additional foundation-laying, we could lower
     // these checks to precise bit masking/shift operations, rather
     // than a function call
-    auto matchKind = matchType.getForeignKind();
+    auto matchKind = matchType.getTypeKind().getValue();
     Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(matchKind));
     StringRef symbolName("__lumen_builtin_is_type");
     auto callee =
@@ -127,11 +127,13 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
     auto ty = ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
 
     if (innerTy.hasDynamicExtent()) {
-      Value allocPtr = ctx.buildMalloc(ty, innerTy.getKind(), adaptor.arity());
+      Value allocPtr = ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(),
+                                       adaptor.arity());
       rewriter.replaceOp(op, allocPtr);
     } else {
       Value zero = llvm_constant(ctx.getUsizeType(), ctx.getIntegerAttr(0));
-      Value allocPtr = ctx.buildMalloc(ty, innerTy.getKind(), zero);
+      Value allocPtr =
+          ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(), zero);
       rewriter.replaceOp(op, allocPtr);
     }
 
@@ -174,13 +176,43 @@ struct TraceCaptureOpConversion : public EIROpConversion<TraceCaptureOp> {
     auto ctx = getRewriteContext(op, rewriter);
 
     auto termTy = ctx.getUsizeType();
-    StringRef symbolName("__lumen_builtin_trace_capture");
-    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
+    auto termPtrTy = termTy.getPointerTo();
+    StringRef symbolName("__lumen_builtin_trace.capture");
+    auto callee = ctx.getOrInsertFunction(symbolName, termPtrTy, {});
 
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
     rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
-                                              ArrayRef<Type>{termTy});
+                                              ArrayRef<Type>{termPtrTy});
+    return success();
+  }
+};
+
+struct TracePrintOpConversion : public EIROpConversion<TracePrintOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      TracePrintOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+    TracePrintOpAdaptor adaptor(operands);
+
+    Value kind = adaptor.kind();
+    Value reason = adaptor.reason();
+    Value traceRef = adaptor.traceRef();
+
+    auto termTy = ctx.getUsizeType();
+    auto termPtrTy = termTy.getPointerTo();
+    auto voidTy = LLVMType::getVoidTy(ctx.context);
+
+    StringRef symbolName("__lumen_builtin_trace.print");
+    auto callee = ctx.getOrInsertFunction(symbolName, voidTy,
+                                          {termTy, termTy, termPtrTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+    rewriter.replaceOpWithNewOp<mlir::CallOp>(
+        op, calleeSymbol, ArrayRef<Type>{},
+        ArrayRef<Value>{kind, reason, traceRef});
     return success();
   }
 };
@@ -197,8 +229,10 @@ struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
     Value traceRef = adaptor.traceRef();
 
     auto termTy = ctx.getUsizeType();
-    StringRef symbolName("__lumen_builtin_trace_construct");
-    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy});
+    auto termPtrTy = termTy.getPointerTo();
+
+    StringRef symbolName("__lumen_builtin_trace.construct");
+    auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termPtrTy});
 
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
@@ -212,10 +246,11 @@ void populateBuiltinOpConversionPatterns(OwningRewritePatternList &patterns,
                                          MLIRContext *context,
                                          EirTypeConverter &converter,
                                          TargetInfo &targetInfo) {
-  patterns.insert<IncrementReductionsOpConversion, IsTypeOpConversion,
-                  PrintOpConversion, MallocOpConversion,
-                  TraceCaptureOpConversion, TraceConstructOpConversion>(
-      context, converter, targetInfo);
+  patterns
+      .insert<IncrementReductionsOpConversion, IsTypeOpConversion,
+              PrintOpConversion, MallocOpConversion, TraceCaptureOpConversion,
+              TraceConstructOpConversion, TracePrintOpConversion>(
+          context, converter, targetInfo);
 }
 
 }  // namespace eir

@@ -15,6 +15,9 @@ pub use self::arc::ArcError;
 mod classes;
 pub use self::classes::{Class, Error, Exit, Throw};
 
+mod erlang;
+pub use self::erlang::ErlangException;
+
 // A location represents file/line/column info about an error
 mod location;
 pub use self::location::Location;
@@ -39,6 +42,7 @@ use core::marker::PhantomData;
 use thiserror::Error;
 
 use super::term::prelude::*;
+use crate::erts::process::trace::Trace;
 use crate::erts::string::InvalidEncodingNameError;
 
 /// A convenience type alias for results which fail with `Exception`
@@ -95,7 +99,7 @@ impl From<InternalException> for Exception {
     fn from(err: InternalException) -> Self {
         match err {
             InternalException::System(err) => Self::System(err),
-            InternalException::Internal(err) => Self::Runtime(badarg!(err)),
+            InternalException::Internal(source) => Self::Runtime(badarg!(Trace::capture(), source)),
         }
     }
 }

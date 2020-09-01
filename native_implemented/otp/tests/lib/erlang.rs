@@ -44,6 +44,8 @@ pub mod display_1;
 pub mod erase_0;
 #[path = "erlang/erase_1.rs"]
 pub mod erase_1;
+#[path = "erlang/exit_1.rs"]
+pub mod exit_1;
 #[path = "erlang/float_1.rs"]
 pub mod float_1;
 #[path = "erlang/float_to_binary_1.rs"]
@@ -78,9 +80,17 @@ pub mod or_2;
 pub mod process_flag_2;
 #[path = "erlang/spawn_1.rs"]
 pub mod spawn_1;
+#[path = "erlang/spawn_3.rs"]
+pub mod spawn_3;
 #[path = "erlang/spawn_link_1.rs"]
 pub mod spawn_link_1;
+#[path = "erlang/spawn_link_3.rs"]
+pub mod spawn_link_3;
 #[path = "erlang/spawn_monitor_1.rs"]
 pub mod spawn_monitor_1;
+#[path = "erlang/spawn_monitor_3.rs"]
+pub mod spawn_monitor_3;
 #[path = "erlang/spawn_opt_2.rs"]
 pub mod spawn_opt_2;
+#[path = "erlang/spawn_opt_4.rs"]
+pub mod spawn_opt_4;

@@ -4,6 +4,7 @@
 use anyhow::*;
 
 use liblumen_alloc::erts::exception::{self, badarity};
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -34,13 +35,16 @@ fn result(process: &Process, arguments: Term) -> exception::Result<Term> {
             process,
             function,
             arguments,
-            anyhow!(
-                "function arguments {} is {} term(s), but should be {}",
-                arguments,
-                arguments_len,
-                erlang::apply_2::ARITY
-            )
-            .into(),
+            Trace::capture(),
+            Some(
+                anyhow!(
+                    "function arguments {} is {} term(s), but should be {}",
+                    arguments,
+                    arguments_len,
+                    erlang::apply_2::ARITY
+                )
+                .into(),
+            ),
         ))
     }
 }

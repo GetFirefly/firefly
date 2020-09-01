@@ -14,7 +14,6 @@ pub mod proplist;
 pub mod registry;
 pub mod scheduler;
 pub mod send;
-pub mod stacktrace;
 pub mod sys;
 pub mod test;
 pub mod time;

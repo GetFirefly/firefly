@@ -56,12 +56,30 @@ pub struct DebuggingOptions {
     #[option(hidden(true))]
     /// Print the arguments passed to the linker
     pub print_link_args: bool,
-    #[option(hidden(true))]
-    /// Prints the LLVM optimization passes being run
-    pub print_mlir_passes: bool,
+    #[option(default_value("false"))]
+    /// Prints the MLIR optimization passes before being run
+    pub print_passes_before: bool,
+    #[option(default_value("false"))]
+    /// Prints the MLIR optimization passes after being run
+    pub print_passes_after: bool,
+    #[option(default_value("true"))]
+    /// Prints the operation associated with an MLIR diagnostic
+    pub print_mlir_op_on_diagnostic: bool,
+    #[option(default_value("false"))]
+    /// Prints the stacktrace associated with an MLIR diagnostic
+    pub print_mlir_trace_on_diagnostic: bool,
+    #[option(default_value("false"))]
+    /// Prints MLIR at module scope when printing diagnostics
+    pub print_mlir_module_scope_always: bool,
+    #[option(default_value("true"))]
+    /// Only print MLIR after optimization passes when the IR changes
+    pub print_passes_on_change: bool,
     #[option(hidden(true))]
     /// Prints the LLVM optimization passes being run
     pub print_llvm_passes: bool,
+    #[option(default_value("false"))]
+    /// Prints diagnostics for LLVM optimization remarks produced during codegen
+    pub print_llvm_optimization_remarks: bool,
     #[option(takes_value(true), possible_values("full", "partial", "off", "none"))]
     /// Choose which RELRO level to use")
     pub relro_level: Option<RelroLevel>,

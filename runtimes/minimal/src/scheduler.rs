@@ -3,7 +3,7 @@ use std::any::Any;
 use std::ffi::c_void;
 use std::fmt::{self, Debug};
 use std::mem;
-use std::ptr;
+use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -15,12 +15,13 @@ use liblumen_core::locks::RwLock;
 use liblumen_core::sys::dynamic_call::DynamicCallee;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 
+use liblumen_alloc::erts::exception::ErlangException;
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::{self, CalleeSavedRegisters, Priority, Process, Status};
-use liblumen_alloc::{atom, Arity, CloneToProcess};
-
 use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::{atom, Arity, CloneToProcess};
 
 use lumen_rt_core::process::spawn::options::Options;
 use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
@@ -69,44 +70,24 @@ pub unsafe extern "C" fn process_yield() -> bool {
 }
 
 #[export_name = "__lumen_builtin_exit"]
-pub unsafe extern "C" fn process_exit(reason: Term) {
+pub unsafe extern "C" fn process_exit(exception: Option<NonNull<ErlangException>>) {
     let arc_dyn_scheduler = scheduler::current();
     let scheduler = arc_dyn_scheduler
         .as_any()
         .downcast_ref::<Scheduler>()
         .unwrap();
-    // FIXME https://github.com/lumen/lumen/issues/546
-    let exit_reason = work_around546(reason);
 
-    scheduler
-        .current
-        .exit(exit_reason, anyhow!("process exit").into());
-    scheduler.process_yield();
-}
-
-// Work-around:  Unwrap `{class, reason}`, but it means that processes can't exit with a reason
-// that looks like `{class, reason}.
-fn work_around546(reason: Term) -> Term {
-    match reason.decode().unwrap() {
-        TypedTerm::Tuple(boxed_tuple) => {
-            let elements = boxed_tuple.elements();
-
-            if elements.len() == 2 {
-                let class = elements[0];
-
-                match class.decode().unwrap() {
-                    TypedTerm::Atom(class_atom) => match class_atom.name() {
-                        "error" | "exit" => elements[1],
-                        _ => reason,
-                    },
-                    _ => reason,
-                }
-            } else {
-                reason
-            }
+    if let Some(nn) = exception {
+        let mut exception: Box<ErlangException> = Box::from_raw(nn.as_ptr());
+        if exception.kind() == Atom::str_to_term("throw") {
+            // Need to update reason to {nocatch, Reason}
+            exception.set_nocatch();
         }
-        _ => reason,
+        scheduler.current.erlang_exit(exception);
+    } else {
+        scheduler.current.exit_normal();
     }
+    scheduler.process_yield();
 }
 
 #[naked]
@@ -221,18 +202,25 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
 /// Called when the current process has finished executing, and has
 /// returned all the way to its entry function. This marks the process
 /// as exiting (if it wasn't already), and then yields to the scheduler
-fn do_process_return(scheduler: &Scheduler, exit_value: Term) -> bool {
+fn do_process_return(_scheduler: &Scheduler, _exit_value: Term) -> bool {
+    unreachable!("unexpected return instead of explicit exit");
+    /*
     let current = &scheduler.current;
     if current.pid() != scheduler.root.pid() {
         if let Some(err) = process::ffi::process_error() {
             current.exception(err);
         } else {
-            current.exit(exit_value, anyhow!("process exit").into());
+            current.exit(
+                exit_value,
+                Trace::capture(),
+                Some(anyhow!("process exit").into()),
+            );
         }
         scheduler.process_yield()
     } else {
         true
     }
+    */
 }
 
 #[export_name = "lumen_rt_scheduler_unregistered"]
@@ -595,13 +583,15 @@ impl Scheduler {
 
                     // If the process is exiting, then handle the exit
                     if let Some(exiting_arc_process) = option_exiting_arc_process {
-                        if let Status::RuntimeException(ref exception) =
-                            *exiting_arc_process.status.read()
-                        {
-                            log_exit(&exiting_arc_process, exception);
-                            propagate_exit(&exiting_arc_process, exception);
-                        } else {
-                            unreachable!()
+                        match *exiting_arc_process.status.read() {
+                            Status::Exited => {
+                                propagate_exit(&exiting_arc_process, None);
+                            }
+                            Status::RuntimeException(ref exception) => {
+                                log_exit(&exiting_arc_process, exception);
+                                propagate_exit(&exiting_arc_process, Some(exception));
+                            }
+                            _ => unreachable!(),
                         }
                     }
 
@@ -642,8 +632,7 @@ impl Scheduler {
     /// as exiting (if it wasn't already), and then yields to the scheduler
     pub fn process_return(&self) -> bool {
         if self.current.pid() != self.root.pid() {
-            self.current
-                .exit(atom!("normal"), anyhow!("Out of code").into());
+            self.current.exit_normal();
             self.process_yield()
         } else {
             true

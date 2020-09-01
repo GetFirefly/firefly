@@ -30,30 +30,25 @@ struct AtomAttributeStorage : public AttributeStorage {
   using KeyTy = std::tuple<Type, APInt, StringRef>;
 
   AtomAttributeStorage(Type type, APInt id, StringRef name = "")
-      : AttributeStorage(type), id(std::move(id)), name(name) {}
+      : AttributeStorage(type), type(type), id(std::move(id)), name(name) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
     auto keyType = std::get<Type>(key);
     auto keyId = std::get<APInt>(key);
-    auto idBits = id.getBitWidth();
-    auto keyIdBits = keyId.getBitWidth();
-    if (idBits == keyIdBits) {
-      return keyType == getType() && keyId == id;
-    } else if (idBits < keyIdBits) {
-      APInt temp(id);
-      temp.zext(keyIdBits);
-      return keyType == getType() && keyId == temp;
-    } else {
-      APInt temp(keyId);
-      temp.zext(idBits);
-      return keyType == getType() && id == temp;
-    }
+    if (id.getLimitedValue() == keyId.getLimitedValue())
+      return keyType == getType();
+    else
+      return false;
   }
 
-  static unsigned hashKey(const KeyTy &key) {
+  static llvm::hash_code hashKey(const KeyTy &key) {
     return hash_combine(hash_value(std::get<Type>(key)),
                         hash_value(std::get<APInt>(key)));
+  }
+
+  static KeyTy getKey(Type type, APInt value, StringRef name) {
+    return KeyTy{type, value, name};
   }
 
   /// Construct a new storage instance.
@@ -66,6 +61,7 @@ struct AtomAttributeStorage : public AttributeStorage {
         AtomAttributeStorage(type, *id, name);
   }
 
+  Type type;
   APInt id;
   StringRef name;
 };  // struct AtomAttr
@@ -74,8 +70,11 @@ struct AtomAttributeStorage : public AttributeStorage {
 }  // namespace lumen
 
 AtomAttr AtomAttr::get(MLIRContext *context, APInt id, StringRef name) {
-  unsigned kind = static_cast<unsigned>(AttributeKind::Atom);
-  return Base::get(context, kind, AtomType::get(context), id, name);
+  return Base::get(context, AtomType::get(context), id, name);
+}
+
+AtomAttr AtomAttr::getChecked(APInt id, StringRef name, Location loc) {
+  return Base::getChecked(loc, AtomType::get(loc.getContext()), id, name);
 }
 
 APInt &AtomAttr::getValue() const { return getImpl()->id; }
@@ -93,7 +92,7 @@ struct APIntAttributeStorage : public AttributeStorage {
   using KeyTy = std::tuple<Type, APInt>;
 
   APIntAttributeStorage(Type type, APInt value)
-      : AttributeStorage(type), value(std::move(value)) {}
+      : AttributeStorage(type), type(type), value(std::move(value)) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
@@ -104,20 +103,20 @@ struct APIntAttributeStorage : public AttributeStorage {
     if (valueBits == keyValueBits) {
       return keyType == getType() && keyValue == value;
     } else if (valueBits < keyValueBits) {
-      APInt temp(value);
-      temp.sext(keyValueBits);
+      APInt temp = value.sext(keyValueBits);
       return keyType == getType() && keyValue == temp;
     } else {
-      APInt temp(keyValue);
-      temp.sext(valueBits);
+      APInt temp = keyValue.sext(valueBits);
       return keyType == getType() && value == temp;
     }
   }
 
-  static unsigned hashKey(const KeyTy &key) {
+  static llvm::hash_code hashKey(const KeyTy &key) {
     return hash_combine(hash_value(std::get<Type>(key)),
                         hash_value(std::get<APInt>(key)));
   }
+
+  static KeyTy getKey(Type type, APInt value) { return KeyTy{type, value}; }
 
   /// Construct a new storage instance.
   static APIntAttributeStorage *construct(AttributeStorageAllocator &allocator,
@@ -128,6 +127,7 @@ struct APIntAttributeStorage : public AttributeStorage {
         APIntAttributeStorage(type, *value);
   }
 
+  Type type;
   APInt value;
 };  // struct APIntAttr
 }  // namespace detail
@@ -139,15 +139,27 @@ APIntAttr APIntAttr::get(MLIRContext *context, APInt value) {
 }
 
 APIntAttr APIntAttr::get(MLIRContext *context, Type type, APInt value) {
-  unsigned kind = static_cast<unsigned>(AttributeKind::Int);
-  return Base::get(context, kind, type, value);
+  return Base::get(context, type, value);
 }
 
 APIntAttr APIntAttr::get(MLIRContext *context, StringRef value,
                          unsigned numBits) {
   APInt i(numBits, value, /*radix=*/10);
-  unsigned kind = static_cast<unsigned>(AttributeKind::Int);
-  return Base::get(context, kind, BigIntType::get(context), i);
+  return Base::get(context, BigIntType::get(context), i);
+}
+
+APIntAttr APIntAttr::getChecked(APInt value, Location loc) {
+  return APIntAttr::getChecked(FixnumType::get(loc.getContext()), value, loc);
+}
+
+APIntAttr APIntAttr::getChecked(Type type, APInt value, Location loc) {
+  return Base::getChecked(loc, type, value);
+}
+
+APIntAttr APIntAttr::getChecked(StringRef value, unsigned numBits,
+                                Location loc) {
+  APInt i(numBits, value, /*radix=*/10);
+  return Base::getChecked(loc, BigIntType::get(loc.getContext()), i);
 }
 
 APInt &APIntAttr::getValue() const { return getImpl()->value; }
@@ -179,7 +191,7 @@ struct APFloatAttributeStorage : public AttributeStorage {
   using KeyTy = std::tuple<Type, APFloat>;
 
   APFloatAttributeStorage(Type type, APFloat value)
-      : AttributeStorage(type), value(std::move(value)) {}
+      : AttributeStorage(type), type(type), value(std::move(value)) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
@@ -188,10 +200,12 @@ struct APFloatAttributeStorage : public AttributeStorage {
     return keyType == getType() && keyValue == value;
   }
 
-  static unsigned hashKey(const KeyTy &key) {
+  static llvm::hash_code hashKey(const KeyTy &key) {
     return hash_combine(hash_value(std::get<Type>(key)),
                         hash_value(std::get<APFloat>(key)));
   }
+
+  static KeyTy getKey(Type type, APFloat value) { return KeyTy{type, value}; }
 
   /// Construct a new storage instance.
   static APFloatAttributeStorage *construct(
@@ -203,6 +217,7 @@ struct APFloatAttributeStorage : public AttributeStorage {
         APFloatAttributeStorage(type, *value);
   }
 
+  Type type;
   APFloat value;
 };  // struct APFloatAttr
 }  // namespace detail
@@ -210,8 +225,11 @@ struct APFloatAttributeStorage : public AttributeStorage {
 }  // namespace lumen
 
 APFloatAttr APFloatAttr::get(MLIRContext *context, APFloat value) {
-  unsigned kind = static_cast<unsigned>(AttributeKind::Float);
-  return Base::get(context, kind, FloatType::get(context), value);
+  return Base::get(context, FloatType::get(context), value);
+}
+
+APFloatAttr APFloatAttr::getChecked(APFloat value, Location loc) {
+  return Base::getChecked(loc, FloatType::get(loc.getContext()), value);
 }
 
 APFloat &APFloatAttr::getValue() const { return getImpl()->value; }
@@ -229,21 +247,26 @@ struct BinaryAttributeStorage : public AttributeStorage {
 
   BinaryAttributeStorage(Type type, StringRef bytes, APInt header, APInt flags)
       : AttributeStorage(type),
+        type(type),
         value(bytes.data(), bytes.size()),
         header(std::move(header)),
         flags(std::move(flags)) {}
 
   /// Key equality function.
   bool operator==(const KeyTy &key) const {
-    return key == KeyTy{getType(), value, header, flags};
+    return key == KeyTy{type, value, header, flags};
   }
 
-  static unsigned hashKey(const KeyTy &key) {
+  static llvm::hash_code hashKey(const KeyTy &key) {
     auto hashVal{hash_combine(std::get<Type>(key))};
     auto str = std::get<std::string>(key);
     return hash_combine(hashVal, hash_value(StringRef(str.data(), str.size())),
                         hash_value(std::get<2>(key)),
                         hash_value(std::get<3>(key)));
+  }
+
+  static KeyTy getKey(Type type, std::string bytes, APInt header, APInt flags) {
+    return KeyTy{type, bytes, header, flags};
   }
 
   /// Construct a new storage instance.
@@ -257,6 +280,7 @@ struct BinaryAttributeStorage : public AttributeStorage {
         BinaryAttributeStorage(type, bytes, *header, *flags);
   }
 
+  Type type;
   std::string value;
   APInt header;
   APInt flags;
@@ -275,8 +299,21 @@ BinaryAttr BinaryAttr::get(Type type, StringRef bytes, uint64_t header,
                            uint64_t flags) {
   APInt hi(64, header, /*signed=*/false);
   APInt fi(64, flags, /*signed=*/false);
-  unsigned kind = static_cast<unsigned>(AttributeKind::Binary);
-  return Base::get(type.getContext(), kind, type, bytes, hi, fi);
+  return Base::get(type.getContext(), type, bytes, hi, fi);
+}
+
+BinaryAttr BinaryAttr::getChecked(StringRef bytes, uint64_t header,
+                                  uint64_t flags, Location loc) {
+  return getChecked(BinaryType::get(loc.getContext()), bytes, header, flags,
+                    loc);
+}
+
+/// Get an instance of a BinaryAttr with the given string and Type.
+BinaryAttr BinaryAttr::getChecked(Type type, StringRef bytes, uint64_t header,
+                                  uint64_t flags, Location loc) {
+  APInt hi(64, header, /*signed=*/false);
+  APInt fi(64, flags, /*signed=*/false);
+  return Base::getChecked(loc, type, bytes, hi, fi);
 }
 
 std::string BinaryAttr::getHash() const {
@@ -312,11 +349,13 @@ struct SeqAttributeStorage : public AttributeStorage {
   using KeyTy = std::pair<Type, ArrayRef<Attribute>>;
 
   SeqAttributeStorage(Type type, ArrayRef<Attribute> value)
-      : AttributeStorage(type), value(value) {}
+      : AttributeStorage(type), type(type), value(value) {}
 
   /// Key equality function.
-  bool operator==(const KeyTy &key) const {
-    return key == KeyTy(getType(), value);
+  bool operator==(const KeyTy &key) const { return key == KeyTy(type, value); }
+
+  static KeyTy getKey(Type type, ArrayRef<Attribute> value) {
+    return KeyTy(type, value);
   }
 
   /// Construct a new storage instance.
@@ -326,6 +365,7 @@ struct SeqAttributeStorage : public AttributeStorage {
         SeqAttributeStorage(key.first, allocator.copyInto(key.second));
   }
 
+  Type type;
   ArrayRef<Attribute> value;
 };
 }  // namespace detail
@@ -333,8 +373,12 @@ struct SeqAttributeStorage : public AttributeStorage {
 }  // namespace lumen
 
 SeqAttr SeqAttr::get(Type type, ArrayRef<Attribute> value) {
-  unsigned kind = static_cast<unsigned>(AttributeKind::Seq);
-  return Base::get(type.getContext(), kind, type, value);
+  return Base::get(type.getContext(), type, value);
+}
+
+SeqAttr SeqAttr::getChecked(Type type, ArrayRef<Attribute> value,
+                            Location loc) {
+  return Base::getChecked(loc, type, value);
 }
 
 ArrayRef<Attribute> &SeqAttr::getValue() const { return getImpl()->value; }

@@ -15,7 +15,7 @@ static Value specializeIntegerMathOp(Location loc,
 template <typename Op, typename T>
 static Value specializeFloatMathOp(Location loc, RewritePatternContext<Op> &ctx,
                                    Value lhs, Value rhs) {
-  auto fpTy = LLVMType::getDoubleTy(ctx.dialect);
+  auto fpTy = ctx.getDoubleType();
   Value l = eir_cast(lhs, fpTy);
   Value r = eir_cast(rhs, fpTy);
   auto fpOp = ctx.rewriter.template create<T>(loc, l, r);
@@ -26,7 +26,7 @@ template <typename Op, typename T>
 static Value specializeUnaryFloatMathOp(Location loc,
                                         RewritePatternContext<Op> &ctx,
                                         Value rhs) {
-  auto fpTy = LLVMType::getDoubleTy(ctx.dialect);
+  auto fpTy = ctx.getDoubleType();
   Value r = eir_cast(rhs, fpTy);
   auto fpOp = ctx.rewriter.template create<T>(loc, r);
   return fpOp.getResult();

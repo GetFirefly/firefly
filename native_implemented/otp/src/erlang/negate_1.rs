@@ -5,6 +5,7 @@ use anyhow::*;
 use num_bigint::BigInt;
 
 use liblumen_alloc::erts::exception::{self, *};
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -33,9 +34,10 @@ pub fn result(process: &Process, number: Term) -> exception::Result<Term> {
 
             Ok(negated_number)
         }
-        _ => Err(
-            badarith(anyhow!("number ({}) is neither an integer nor a float", number).into())
-                .into(),
-        ),
+        _ => Err(badarith(
+            Trace::capture(),
+            Some(anyhow!("number ({}) is neither an integer nor a float", number).into()),
+        )
+        .into()),
     }
 }

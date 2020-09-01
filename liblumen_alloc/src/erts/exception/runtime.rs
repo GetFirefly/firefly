@@ -1,11 +1,13 @@
-use core::convert::TryFrom;
+use std::convert::TryFrom;
+use std::sync::Arc;
 
 use thiserror::Error;
 
 use crate::erts::process::alloc::TermAlloc;
+use crate::erts::process::trace::Trace;
 use crate::erts::term::prelude::*;
 
-use super::{ArcError, Exception, SystemException, UnexpectedExceptionError};
+use super::{ArcError, ErlangException, Exception, SystemException, UnexpectedExceptionError};
 
 #[derive(Error, Debug, Clone)]
 pub enum RuntimeException {
@@ -45,12 +47,29 @@ impl RuntimeException {
         }
     }
 
-    pub fn stacktrace(&self) -> Option<Term> {
+    pub fn stacktrace(&self) -> Arc<Trace> {
         match self {
             RuntimeException::Throw(e) => e.stacktrace(),
             RuntimeException::Exit(e) => e.stacktrace(),
             RuntimeException::Error(e) => e.stacktrace(),
         }
+    }
+
+    #[inline]
+    pub fn layout(&self) -> std::alloc::Layout {
+        use crate::borrow::CloneToProcess;
+        use std::alloc::Layout;
+
+        // The class and trace are 1 word each and stored inline with the tuple,
+        // the reason is the only potentially dynamic sized term. Simply calculate
+        // the tuple + a block of memory capable of holding the size in words of
+        // the reason
+        let words = self.reason().size_in_words();
+        let layout = Layout::new::<ErlangException>();
+        let (layout, _) = layout
+            .extend(Layout::array::<Term>(words).unwrap())
+            .unwrap();
+        layout.pad_to_align()
     }
 
     #[inline]
@@ -65,7 +84,16 @@ impl RuntimeException {
         }
     }
 
-    pub fn source(&self) -> ArcError {
+    #[inline]
+    pub fn as_erlang_exception(&self) -> Box<ErlangException> {
+        match self {
+            RuntimeException::Throw(e) => e.as_erlang_exception(),
+            RuntimeException::Exit(e) => e.as_erlang_exception(),
+            RuntimeException::Error(e) => e.as_erlang_exception(),
+        }
+    }
+
+    pub fn source(&self) -> Option<ArcError> {
         match self {
             RuntimeException::Throw(e) => e.source(),
             RuntimeException::Exit(e) => e.source(),
@@ -76,7 +104,7 @@ impl RuntimeException {
 
 impl From<anyhow::Error> for RuntimeException {
     fn from(err: anyhow::Error) -> Self {
-        badarg!(ArcError::new(err))
+        badarg!(Trace::capture(), ArcError::new(err))
     }
 }
 
@@ -100,12 +128,10 @@ mod tests {
     mod error {
         use super::*;
 
-        use anyhow::*;
-
         #[test]
         fn without_arguments_stores_none() {
             let reason = atom!("badarg");
-            let error = error!(reason, anyhow!("source").into());
+            let error = error!(reason, Trace::capture());
 
             assert_eq!(error.reason(), reason);
             assert_eq!(error.class(), Class::Error { arguments: None });
@@ -115,7 +141,7 @@ mod tests {
         fn with_arguments_stores_some() {
             let reason = atom!("badarg");
             let arguments = Term::NIL;
-            let error = error!(reason, arguments, anyhow!("source").into());
+            let error = error!(reason, arguments, Trace::capture());
 
             assert_eq!(error.reason(), reason);
             assert_eq!(

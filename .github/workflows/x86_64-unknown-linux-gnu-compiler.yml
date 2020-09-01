@@ -5,30 +5,20 @@ on: push
 jobs:
   compiler:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:50910ed07e49eaeb7b3bcea8a79a9e4c05a6607be1e7091c3eb8955132707e0c
+    container: kronicdeth/lumen-development@sha256:c784a8eeb79fa5244bd15d408e469dc37b9e538b44f9b40fa4a20fd6c72c5f47
 
     steps:
       - uses: actions/checkout@v2
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Cache Cargo
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Make Build
         env:
           RUST_BACKTRACE: full
-        run: make build
+        run: make build-shared
       - name: Lumen Test
-        env:
-          LLVM_BUILD_STATIC: 1
-        run: cargo test --package lumen
+        run: cargo test --package lumen --no-fail-fast

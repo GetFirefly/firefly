@@ -1,10 +1,10 @@
 FROM rust:latest
 
 RUN cd /tmp \
-  && wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-04/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
-  && tar -xvzf clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
-  && rm -f clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz \
-  && mv clang+llvm-10.0.0-x86_64-linux-gnu /opt/llvm \
+  && wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-26/clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz \
+  && tar -xvzf clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz \
+  && rm -f clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz \
+  && mv clang+llvm-12.0.0-x86_64-linux-gnu /opt/llvm \
   && update-alternatives --install /usr/bin/cc cc /opt/llvm/bin/clang 90 \
   && update-alternatives --install /usr/bin/c++ c++ /opt/llvm/bin/clang++ 90 \
   && update-alternatives --install /usr/bin/cpp cpp /opt/llvm/bin/clang++ 90 \
@@ -14,7 +14,7 @@ ENV PATH="/opt/llvm/bin:${PATH}"
 ENV LLVM_PREFIX="/opt/llvm"
 
 RUN apt-get update \
-  && apt-get install -y cmake jq libc++-dev libc++abi-dev libunwind-dev ninja-build rsync
+  && apt-get install -y cmake jq libc++-dev libc++abi-dev libunwind-dev ninja-build rsync libncurses5
 
 RUN rustup default nightly-2020-05-13
 

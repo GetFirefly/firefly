@@ -15,27 +15,58 @@ jobs:
           override: true
       - name: Install wasm32 Target
         run: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-13
+      - name: Cache Cargo
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install wasm-bindgen-cli
         run: cargo +nightly-2020-05-13 install wasm-bindgen-cli
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Cache LLVM
+        id: cache-llvm
+        uses: actions/cache@v2
+        with:
+          path: ~/.local/share/llvm/lumen
+          key: lumen-12.0.0-dev_2020-08-26-apple-darwin19.5.0
       - name: Install LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/share/llvm
           pushd ~/.local/share/llvm
-          wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-04/clang+llvm-10.0.0-x86_64-apple-darwin19.5.0.tar.gz
-          tar xvfz clang+llvm-10.0.0-x86_64-apple-darwin19.5.0.tar.gz
-          mv clang+llvm-10.0.0-x86_64-apple-darwin19.5.0 lumen
+          wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-26/clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
+          tar xvfz clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
+          mv clang+llvm-12.0.0-x86_64-apple-darwin19.5.0 lumen
           popd
-          echo "::set-env name=LLVM_PREFIX::$HOME/.local/share/llvm/lumen"
+      - name: Set LLVM_PREFIX
+        run: echo "::set-env name=LLVM_PREFIX::$HOME/.local/share/llvm/lumen"
+      - name: Install Ninja
+        run: brew install ninja
+      - name: Cache Chrome Driver
+        id: cache-chromedriver
+        uses: actions/cache@v2
+        with:
+          path: /usr/local/bin/chromedriver
+          key: lumen-chromedriver-83.0.4103-mac64
       - name: Install Chrome Driver
+        if: steps.cache-chromedriver.outputs.cache-hit != 'true'
         run: |
           wget https://chromedriver.storage.googleapis.com/83.0.4103.39/chromedriver_mac64.zip
           unzip chromedriver_mac64.zip
           mv chromedriver /usr/local/bin/
           rm chromedriver_mac64.zip
           chromedriver --version
+      - name: Cache Gecko Driver
+        id: cache-geckodriver
+        uses: actions/cache@v2
+        with:
+          path: /usr/local/bin/geckodriver
+          key: lumen-geckodriver-0.27.0-mac64
       - name: Install Gecko Driver
+        if: steps.cache-geckodriver.outputs.cache-hit != 'true'
         run: |
           wget https://github.com/mozilla/geckodriver/releases/download/v0.27.0/geckodriver-v0.27.0-macos.tar.gz
           tar xvfz geckodriver-v0.27.0-macos.tar.gz
@@ -51,7 +82,12 @@ jobs:
       - name: Interpreter Checkout
         run: git clone --depth 1 https://github.com/lumen/interpreter interpreter
       - name: Examples Checkout
-        run: git clone --depth 1 https://github.com/lumen/examples examples
+        run: |
+          git init examples
+          cd examples
+          git remote add origin https://github.com/lumen/examples
+          git fetch --no-tags --no-tags --prune --progress --depth=1 origin +4fd51a462ba5bffa5194889b41f613e7c82c2684:refs/remotes/origin/lumen/554
+          git checkout --progress --force -B lumen/554 refs/remotes/origin/lumen/554
       - name: Spawn Chain Build
         run: wasm-pack build examples/spawn-chain
       - name: Spawn Chain Test

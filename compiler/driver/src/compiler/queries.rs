@@ -2,6 +2,8 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::thread::{self, ThreadId};
 
+use anyhow::anyhow;
+
 use log::debug;
 
 use liblumen_codegen as codegen;
@@ -19,7 +21,9 @@ where
 {
     use llvm::Context;
     debug!("constructing new llvm context for thread {:?}", thread_id);
-    Arc::new(Context::new(db.diagnostics().clone()))
+    let options = db.options().clone();
+    let diagnostics = db.diagnostics().clone();
+    Arc::new(Context::new(options, diagnostics))
 }
 
 /// Create context for MLIR
@@ -33,12 +37,12 @@ where
 
     let options = db.options();
     let target_machine = db.get_target_machine(thread_id);
-    let llvm_context = db.llvm_context(thread_id);
+    let diagnostics = db.diagnostics().clone();
 
     Arc::new(Context::new(
         thread_id,
         &options,
-        &llvm_context,
+        &diagnostics,
         &target_machine,
     ))
 }
@@ -104,6 +108,15 @@ where
         &options,
         target_machine.deref(),
     ))?;
+
+    if !built.module.is_valid() {
+        db.maybe_emit_file_with_opts(&options, input, &built.module)?;
+        db.to_query_result(Err(anyhow!(
+            "module verification failed for {}",
+            module.name()
+        )))?;
+    }
+
     db.add_atoms(built.atoms.iter());
     db.add_symbols(built.symbols.iter());
     db.maybe_emit_file_with_opts(&options, input, &built.module)?;
@@ -164,10 +177,27 @@ where
         "lowering mlir to llvm dialect for {:?} on {:?}",
         input, thread_id
     );
-    db.to_query_result(module.lower(&context))?;
+    let successful = db.to_query_result(module.lower(&context))?;
 
-    // Emit LLVM dialect
+    // Emit module, which will either be the lowered LLVM dialect,
+    // or the combined EIR/LLVM dialect resulting from a failed pass
+    // causing the lowering to be incomplete
     db.maybe_emit_file_with_opts(&options, input, module.deref())?;
+
+    // Now that we've emitted the intermediate results, raise a
+    // compiler error that will terminate compilation.
+    if !successful {
+        if let Some(source_name) = get_input_source_name(db, input) {
+            db.to_query_result(Err(anyhow!(
+                "error occurred while lowering this module to llvm dialect {}",
+                &source_name
+            )))?;
+        } else {
+            db.to_query_result(Err(anyhow!(
+                "error occurred while lowering module to llvm dialect",
+            )))?;
+        }
+    }
 
     Ok(module)
 }
@@ -207,11 +237,22 @@ where
     let options = db.options();
     let context = db.mlir_context(thread_id);
     let mlir_module = db.get_llvm_dialect_module(thread_id, input)?;
+    let llvm_context = db.llvm_context(thread_id);
 
     // Convert to LLVM IR
     debug!("generating llvm for {:?} on {:?}", input, thread_id,);
     let source_name = get_input_source_name(db, input);
-    let mut module = db.to_query_result(mlir_module.lower_to_llvm_ir(&context, source_name))?;
+    let lower_result =
+        db.to_query_result(mlir_module.lower_to_llvm_ir(&context, &llvm_context, source_name))?;
+
+    if let Err(_) = lower_result {
+        db.maybe_emit_file_with_opts(&options, input, mlir_module.deref())?;
+        db.to_query_result(Err(anyhow!(
+            "lowering module to llvm ir failed during conversion"
+        )))?;
+    }
+
+    let mut module = lower_result.unwrap();
 
     // Run optimizations
     let mut pass_manager = PassManager::new();

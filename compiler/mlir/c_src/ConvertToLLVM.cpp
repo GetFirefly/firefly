@@ -10,6 +10,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/IR/Verifier.h"
 
 #include "llvm-c/Core.h"
 #include "llvm-c/TargetMachine.h"
@@ -17,6 +18,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/Target/TargetMachine.h"
 
 using ::mlir::MLIRContext;
@@ -24,52 +26,79 @@ using ::mlir::ModuleOp;
 using ::mlir::OpPassManager;
 using ::mlir::OwningModuleRef;
 using ::mlir::PassManager;
+using ::llvm::LLVMContext;
 using ::llvm::StringRef;
 using ::llvm::TargetMachine;
 using ::llvm::Triple;
+using ::llvm::unwrap;
 
 using namespace lumen;
 
-extern "C" MLIRModuleRef MLIRLowerModule(MLIRContextRef context,
-                                         MLIRPassManagerRef passManager,
-                                         LLVMTargetMachineRef tm,
-                                         MLIRModuleRef m) {
+extern "C" bool MLIRVerifyModule(MLIRModuleRef m) {
+  ModuleOp *mod = unwrap(m);
+  if (mlir::failed(mlir::verify(mod->getOperation())))
+    return false;
+
+  return true;
+}
+
+extern "C" {
+  struct LowerResult {
+    void *module;
+    bool success;
+  };
+}
+
+extern "C" LowerResult MLIRLowerModule(MLIRContextRef context,
+                                       MLIRPassManagerRef passManager,
+                                       MLIRModuleRef m) {
   MLIRContext *ctx = unwrap(context);
   PassManager *pm = unwrap(passManager);
   ModuleOp *mod = unwrap(m);
-  TargetMachine *targetMachine = unwrap(tm);
+  LowerResult result;
 
   OwningModuleRef ownedMod(*mod);
   if (mlir::failed(pm->run(*ownedMod))) {
-    ownedMod->dump();
-    llvm::outs() << "\n";
-    return nullptr;
+    MLIRModuleRef ptr = wrap(new ModuleOp(ownedMod.release()));
+    
+    result = {.module = (void *)(ptr), .success = false};
+    return result;
   }
 
-  return wrap(new ModuleOp(ownedMod.release()));
+  MLIRModuleRef ptr = wrap(new ModuleOp(ownedMod.release()));
+  result = {.module = (void *)(ptr), .success = true};
+  return result;
 }
 
 
-extern "C" LLVMModuleRef MLIRLowerToLLVMIR(MLIRModuleRef m,
-                                           LLVMTargetMachineRef tm,
-                                           const char *sourceName,
-                                           unsigned sourceNameLen) {
+extern "C" LowerResult MLIRLowerToLLVMIR(MLIRModuleRef m,
+                                         LLVMContextRef context,
+                                         LLVMTargetMachineRef tm,
+                                         const char *sourceName,
+                                         unsigned sourceNameLen) {
+  LLVMContext *ctx = unwrap(context);
   ModuleOp *mod = unwrap(m);
-  TargetMachine *targetMachine = unwrap(tm);
-  Triple triple = targetMachine->getTargetTriple();
-
-  auto modName = mod->getName();
+  StringRef srcName(sourceName, sourceNameLen);
+  StringRef modName;
+  if (auto mn = mod->getName())
+    modName = mn.getValue();
+  else
+    modName = StringRef("unknown");
 
   OwningModuleRef ownedMod(*mod);
-  auto llvmModPtr = mlir::translateModuleToLLVMIR(*ownedMod);
-  if (!llvmModPtr)
-    return nullptr;
+  auto llvmModPtr = mlir::translateModuleToLLVMIR(*ownedMod, *ctx, modName);
+  if (!llvmModPtr) {
+    MLIRModuleRef ptr = wrap(new ModuleOp(ownedMod.release()));
+    return {.module = (void *)(ptr), .success = false};
+  }
 
+  TargetMachine *targetMachine = unwrap(tm);
+  Triple triple = targetMachine->getTargetTriple();
   llvmModPtr->setDataLayout(targetMachine->createDataLayout());
   llvmModPtr->setTargetTriple(triple.getTriple());
-  llvmModPtr->setModuleIdentifier(modName.getValue());
-  if (sourceName != nullptr)
-    llvmModPtr->setSourceFileName(StringRef(sourceName, sourceNameLen));
+  llvmModPtr->setModuleIdentifier(modName);
+  llvmModPtr->setSourceFileName(srcName);
 
-  return wrap(llvmModPtr.release());
+  LLVMModuleRef ptr = wrap(llvmModPtr.release());
+  return {.module = (void *)(ptr), .success = true};
 }

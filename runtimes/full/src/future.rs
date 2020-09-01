@@ -26,7 +26,7 @@ pub fn run_until_ready(
 
 pub struct Ready {
     pub arc_process: Arc<Process>,
-    pub result: exception::Result<Term>,
+    pub result: Result<Term, Option<exception::Exception>>,
 }
 
 impl Clone for Ready {
@@ -60,7 +60,8 @@ pub enum Future {
     ///
     /// If `result`:
     /// * `Ok(Term)` - the `process` completed and `Term` is the return given to `code`.
-    /// * `Err(exception::Exception)` - the `process` exited with an exception.
+    /// * `Err(Some(exception::Exception))` - the `process` exited with an exception.
+    /// * `Err(None)` - the `process` exited normally without producing a result
     Ready(Ready),
 }
 
@@ -92,11 +93,20 @@ impl Spawned {
                 return Ok(ready.clone());
             }
 
-            if let Status::RuntimeException(ref exception) = *self.arc_process.status.read() {
-                return Ok(Ready {
-                    arc_process: self.arc_process.clone(),
-                    result: Err(exception::Exception::Runtime(exception.clone())),
-                });
+            match *self.arc_process.status.read() {
+                Status::Exited => {
+                    return Ok(Ready {
+                        arc_process: self.arc_process.clone(),
+                        result: Err(None),
+                    })
+                }
+                Status::RuntimeException(ref exception) => {
+                    return Ok(Ready {
+                        arc_process: self.arc_process.clone(),
+                        result: Err(Some(exception::Exception::Runtime(exception.clone()))),
+                    })
+                }
+                _ => (),
             }
         }
 

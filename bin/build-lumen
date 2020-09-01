@@ -6,7 +6,8 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 ROOT_DIR="$(cd "$(dirname "$SCRIPT_DIR")" && pwd)"
 BIN_DIR="${ROOT_DIR}/bin"
-OUTPUT_DIR="${ROOT_DIR}/target/debug"
+TARGET_DIR="${CARGO_TARGET_DIR:-${ROOT_DIR}/target}"
+OUTPUT_DIR="${TARGET_DIR}/debug"
 RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//' | sed -e 's/ (directory override for.*$//')"
 RUSTC_PATH="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
 TOOLCHAIN_BIN_PATH="$(cd "$(dirname "$RUSTC_PATH")" && pwd -P)"
@@ -115,7 +116,7 @@ while [ $# -gt 0 ]; do
             ;;
         -debug | --debug )
             extra_rustc_flags="-C opt-level=0"
-            OUTPUT_DIR="${ROOT_DIR}/target/debug"
+            OUTPUT_DIR="${TARGET_DIR}/debug"
             ;;
 
         -only-tblgen | --only-tblgen )
@@ -123,7 +124,7 @@ while [ $# -gt 0 ]; do
             ;;
 
         -release | --release )
-            OUTPUT_DIR="${ROOT_DIR}/target/release"
+            OUTPUT_DIR="${TARGET_DIR}/release"
             extra_cargo_flags="--release $extra_cargo_flags"
             ;;
 
@@ -140,7 +141,6 @@ while [ $# -gt 0 ]; do
         -link-aio-dylib | --link-aio-dylib )
             build_dynamic="true"
             build_static="false"
-            export LLVM_LINK_LLVM_DYLIB="ON"
             ;;
 
         -use-libcxx | --use-libcxx )
@@ -253,63 +253,6 @@ fi
 
 cd "$ROOT_DIR"
 
-printf "Checking for lumen-tblgen.."
-if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/lumen-tblgen/lumen-tblgen" ]; then
-    printf 'not found!\n\n'
-    mkdir -p "${OUTPUT_DIR}/build/lumen_tblgen"
-    pushd "${OUTPUT_DIR}/build/lumen_tblgen"
-    _gen="make"
-    _generator=""
-    _target="lumen-tblgen_lumen_tblgen"
-    if type -p ninja >/dev/null; then
-        _gen="ninja"
-        _generator="-GNinja"
-        _target="lumen-tblgen"
-    fi
-    _build_shared_libs="OFF"
-    _link_llvm_dylib="OFF"
-    if [ "$build_static" != "true" ]; then
-        if [ "$LLVM_LINK_LLVM_DYLIB" == "ON" ]; then
-            _build_shared_libs="OFF"
-            _link_llvm_dylib="ON"
-        else
-            _build_shared_libs="ON"
-            _link_llvm_dylib="OFF"
-        fi
-    fi
-    cmake ${_generator} \
-        -DLUMEN_BUILD_COMPILER=ON \
-        -DLUMEN_BUILD_TESTS=OFF \
-        -DBUILD_SHARED_LIBS="${_build_shared_libs}" \
-        -DLLVM_LINK_LLVM_DYLIB="${_link_llvm_dylib}" \
-        -DLLVM_PREFIX="$LLVM_PREFIX" \
-        --target lumen_tblgen \
-        --build "${ROOT_DIR}/compiler/codegen_llvm" && \
-    "$_gen" "$_target"
-
-    if [[ $? -ne 0 ]]; then
-        echo "Failed to build lumen-tblgen!"
-    fi
-
-    if [ ! -f "lumen-tblgen/lumen-tblgen" ]; then
-        echo "Expected lumen-tblgen binary, but one was not produced!"
-        exit 1
-    fi
-
-    popd
-else
-    printf 'ok!\033[1K\r'
-fi
-
-export PATH="${OUTPUT_DIR}/build/lumen_tblgen/lumen-tblgen:$PATH"
-if [ "$is_ci" = "true" ]; then
-    echo "::add-path::${OUTPUT_DIR}/build/lumen_tblgen/lumen-tblgen"
-fi
-
-if [ "$only_tblgen" = "true" ]; then
-    exit 0
-fi
-
 echo "Building Lumen"
 echo "  host:                $host_target"
 echo "  target:              $build_target"
@@ -321,6 +264,56 @@ echo "  extra rustc flags:   ${extra_rustc_flags:-"n/a"}"
 echo "  extra cargo flags:   ${extra_cargo_flags:-"n/a"}"
 echo "  extra link args:     ${build_link_args:-"n/a"}"
 echo ""
+
+printf "Checking for lumen-tblgen.."
+if [ ! -f "$OUTPUT_DIR/build/lumen_tblgen/bin/lumen-tblgen" ]; then
+    printf 'not found!\n\n'
+    mkdir -p "${OUTPUT_DIR}/build/lumen_tblgen"
+    pushd "${OUTPUT_DIR}/build/lumen_tblgen"
+    _gen="make"
+    _generator=""
+    _target="lumen-tblgen"
+    if type -p ninja >/dev/null; then
+        _gen="ninja"
+        _generator="-GNinja"
+        _target="lumen-tblgen"
+    fi
+    cmake ${_generator} \
+        -DLUMEN_BUILD_COMPILER=ON \
+        -DLUMEN_BUILD_TESTS=OFF \
+        -DBUILD_SHARED_LIBS="OFF" \
+        -DLLVM_PREFIX="$LLVM_PREFIX" \
+        --target "${_target}" \
+        --build "${ROOT_DIR}/compiler/codegen_llvm" && \
+    "$_gen" "$_target"
+
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to build lumen-tblgen!"
+    fi
+
+    if [ ! -f "bin/lumen-tblgen" ]; then
+        echo "Expected lumen-tblgen binary, but one was not produced!"
+        exit 1
+    fi
+
+    popd >/dev/null
+else
+    printf 'ok!\033[1K\r'
+fi
+
+export PATH="${OUTPUT_DIR}/build/lumen_tblgen/bin:$PATH"
+if [ "$is_ci" = "true" ]; then
+    echo "::add-path::${OUTPUT_DIR}/build/lumen_tblgen/bin"
+fi
+
+if [ "$only_tblgen" = "true" ]; then
+    echo "lumen-tblgen was built successfully!"
+    exit 0
+fi
+
+if [ "$build_dynamic" = "true" ]; then
+    export LLVM_LINK_LLVM_DYLIB="ON"
+fi
 
 if [ -n "$build_package" ]; then
     # shellcheck disable=SC2086

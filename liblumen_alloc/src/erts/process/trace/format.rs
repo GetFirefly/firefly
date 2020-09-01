@@ -95,7 +95,6 @@ where
     writeln!(out, "Backtrace (most recent call last):")?;
 
     for symbol in trace.iter_symbols().rev() {
-        println!("{:?}", &symbol);
         let mfa = symbol.module_function_arity();
         if mfa.is_none() {
             continue;

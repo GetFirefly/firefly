@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::{self, ArcError, RuntimeException};
+use liblumen_alloc::erts::exception::{self, RuntimeException};
 use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
@@ -13,7 +13,6 @@ use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
 use crate::registry::*;
 use crate::scheduler::{Scheduled, SchedulerDependentAlloc};
-use crate::sys;
 
 thread_local! {
   pub static CURRENT_PROCESS: RefCell<Option<Arc<Process>>> = RefCell::new(None);
@@ -42,37 +41,20 @@ fn is_expected_exit_reason(reason: Term) -> bool {
     }
 }
 
-pub fn log_exit(process: &Process, exception: &RuntimeException) {
-    use exception::Class;
-    match exception.class() {
-        Class::Exit => {
-            let reason = exception.reason();
+pub fn log_exit(exception: &RuntimeException) {
+    let reason = exception.reason();
 
-            if !is_expected_exit_reason(reason) {
-                puts_exit(&format!(
-                    "** (EXIT from {}) exited with reason: {}\n\nSource: {}\n{}",
-                    process,
-                    reason,
-                    format_source(exception.source()),
-                    process.stacktrace()
-                ));
-            }
+    if !is_expected_exit_reason(reason) {
+        if get_log_exit() {
+            exception
+                .stacktrace()
+                .print(
+                    exception.class().as_term(),
+                    exception.reason(),
+                    exception.source(),
+                )
+                .unwrap();
         }
-        Class::Error { .. } => puts_exit(&format!(
-            "** (EXIT from {}) exited with reason: an exception was raised: {}\n\nSource: {}\n{}",
-            process,
-            exception.reason(),
-            format_source(exception.source()),
-            process.stacktrace()
-        )),
-        _ => unimplemented!("{:?}", exception),
-    }
-}
-
-fn format_source(source: Option<ArcError>) -> String {
-    match source {
-        Some(arc_error) => format!("{:?}", arc_error),
-        None => "None".to_string(),
     }
 }
 
@@ -86,12 +68,6 @@ pub fn replace_log_exit(value: bool) -> bool {
 
 pub fn set_log_exit(value: bool) {
     LOG_EXIT.with(|log_exit| log_exit.set(value));
-}
-
-fn puts_exit(s: &str) {
-    if get_log_exit() {
-        sys::io::puts(s)
-    }
 }
 
 pub fn monitor(process: &Process, monitored_process: &Process) -> Term {

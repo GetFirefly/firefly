@@ -1372,6 +1372,7 @@ dependencies = [
  "liblumen_target",
  "liblumen_util",
  "walkdir",
+ "which",
 ]
 
 [[package]]
@@ -1862,21 +1863,21 @@ checksum = "159973aebc43b4640619042b3bf160e3b6348000a949e37c0806ae6acc79d6c7"
 [[package]]
 name = "parking_lot"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f842b1982eb6c2fe34036a4fbfb06dd185a3f5c8edfaacdf7d1ea10b07de6252"
+source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
 dependencies = [
- "lock_api 0.3.4",
- "parking_lot_core 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lock_api 0.3.1",
+ "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "rustc_version",
 ]
 
 [[package]]
 name = "parking_lot"
 version = "0.9.0"
-source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f842b1982eb6c2fe34036a4fbfb06dd185a3f5c8edfaacdf7d1ea10b07de6252"
 dependencies = [
- "lock_api 0.3.1",
- "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
+ "lock_api 0.3.4",
+ "parking_lot_core 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_version",
 ]
 
@@ -1904,21 +1905,6 @@ dependencies = [
 [[package]]
 name = "parking_lot_core"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b876b1b9e7ac6e1a74a6da34d25c42e17e8862aa409cbbbdcfc8d86c6f3bc62b"
-dependencies = [
- "cfg-if",
- "cloudabi 0.0.3",
- "libc",
- "redox_syscall",
- "rustc_version",
- "smallvec 0.6.13",
- "winapi",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.6.2"
 source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
 dependencies = [
  "cfg-if",
@@ -1928,6 +1914,21 @@ dependencies = [
  "rustc_version",
  "smallvec 0.6.13",
  "web-sys",
+ "winapi",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b876b1b9e7ac6e1a74a6da34d25c42e17e8862aa409cbbbdcfc8d86c6f3bc62b"
+dependencies = [
+ "cfg-if",
+ "cloudabi 0.0.3",
+ "libc",
+ "redox_syscall",
+ "rustc_version",
+ "smallvec 0.6.13",
  "winapi",
 ]
 

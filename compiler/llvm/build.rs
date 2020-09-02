@@ -14,6 +14,7 @@ const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "LLVM_LINK_LLVM_DYLIB";
 
 fn main() {
     let cwd = env::current_dir().unwrap();
+    let llvm_prefix = detect_llvm_prefix();
 
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
@@ -26,9 +27,7 @@ fn main() {
     let host = env::var("HOST").expect("HOST was not set");
     let is_crossed = target != host;
 
-    let llvm_prefix_env = env::var(ENV_LLVM_PREFIX).expect(ENV_LLVM_PREFIX);
     let llvm_link_llvm_dylib = env::var(ENV_LLVM_LINK_LLVM_DYLIB).unwrap_or("OFF".to_owned());
-    let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
     let llvm_config = llvm_prefix.as_path().join("bin/llvm-config").to_path_buf();
 
     let optional_components = vec![
@@ -292,6 +291,40 @@ fn main() {
         println!("cargo:rustc-link-lib=static-nobundle=pthread");
         println!("cargo:rustc-link-lib=dylib=uuid");
     }
+}
+
+fn detect_llvm_prefix() -> PathBuf {
+    if let Ok(prefix) = env::var(ENV_LLVM_PREFIX) {
+        return PathBuf::from(prefix);
+    }
+
+    if let Ok(llvm_config) = which::which("llvm-config") {
+        let mut cmd = Command::new(llvm_config);
+        cmd.arg("--prefix");
+        return PathBuf::from(output(&mut cmd));
+    }
+
+    let mut llvm_prefix = env::var("XDG_DATA_HOME")
+        .map(|s| PathBuf::from(s))
+        .unwrap_or_else(|_| {
+            let mut home = PathBuf::from(env::var("HOME").expect("HOME not defined"));
+            home.push(".local/share");
+            home
+        });
+    llvm_prefix.push("llvm");
+    if llvm_prefix.exists() {
+        // Make sure its actually the prefix and not a root
+        let llvm_bin = llvm_prefix.as_path().join("bin");
+        if llvm_bin.exists() {
+            return llvm_prefix;
+        }
+        let lumen = llvm_prefix.as_path().join("lumen");
+        if lumen.exists() {
+            return lumen.to_path_buf();
+        }
+    }
+
+    fail("LLVM_PREFIX is not defined and unable to locate LLVM to build with");
 }
 
 pub fn output(cmd: &mut Command) -> String {

@@ -25,13 +25,21 @@ install: ## Install the Lumen compiler
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --release --static --use-libcxx --install $(INSTALL_PREFIX)
 
-build: ## Build the Lumen compiler
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --static --use-libcxx
+build: build-shared ## Build the Lumen commpiler
 
 build-shared: ## Build the Lumen compiler dynamically linked to LLVM
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --link-aio-dylib --use-libcxx
+
+build-static: ## Build the Lumen compiler statically linked to LLVM
+	@LLVM_PREFIX=$(LLVM_PREFIX) \
+		bin/build-lumen --debug --static --use-libcxx
+
+release: ## Build a release of the Lumen compiler
+	@LLVM_PREFIX=$(LLVM_PREFIX) VERSION=$(VERSION) bin/release
+
+release-nightly: ## Build a nightly release of the Lumen compiler
+	@LLVM_PREFIX=$(LLVM_PREFIX) VERSION=$(VERSION) bin/release --nightly
 
 bloat:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
@@ -88,10 +96,6 @@ liblumen_mlir:
 liblumen_codegen:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_codegen
-
-build-static: ## Build a statically linked Lumen compiler
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --static --use-libcxx
 
 clean-codegen:
 	LLVM_PREFIX=$(LLVM_PREFIX) cargo clean -p liblumen_codegen

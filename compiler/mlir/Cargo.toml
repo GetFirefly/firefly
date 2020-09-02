@@ -21,4 +21,5 @@ liblumen_compiler_macros = { path = "../macros" }
 [build-dependencies]
 cc = "1.0"
 walkdir = "2.3"
+which = "4.0"
 liblumen_llvm = { path = "../llvm" }

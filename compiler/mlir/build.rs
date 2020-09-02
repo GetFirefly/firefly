@@ -13,6 +13,7 @@ const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "LLVM_LINK_LLVM_DYLIB";
 
 fn main() {
     let cwd = env::current_dir().unwrap();
+    let llvm_prefix = detect_llvm_prefix();
 
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
@@ -20,9 +21,6 @@ fn main() {
     rerun_if_changed_anything_in_dir(&cwd.join("c_src"));
 
     let outdir = PathBuf::from(env::var("OUT_DIR").unwrap());
-
-    let llvm_prefix_env = env::var(ENV_LLVM_PREFIX).expect(ENV_LLVM_PREFIX);
-    let llvm_prefix = PathBuf::from(llvm_prefix_env.as_str());
 
     let mut cfg = cc::Build::new();
     cfg.warnings(false);
@@ -175,6 +173,40 @@ fn link_lib_static(lib: &str) {
 #[inline]
 fn link_lib_dylib(lib: &str) {
     println!("cargo:rustc-link-lib=dylib={}", lib);
+}
+
+fn detect_llvm_prefix() -> PathBuf {
+    if let Ok(prefix) = env::var(ENV_LLVM_PREFIX) {
+        return PathBuf::from(prefix);
+    }
+
+    if let Ok(llvm_config) = which::which("llvm-config") {
+        let mut cmd = Command::new(llvm_config);
+        cmd.arg("--prefix");
+        return PathBuf::from(output(&mut cmd));
+    }
+
+    let mut llvm_prefix = env::var("XDG_DATA_HOME")
+        .map(|s| PathBuf::from(s))
+        .unwrap_or_else(|_| {
+            let mut home = PathBuf::from(env::var("HOME").expect("HOME not defined"));
+            home.push(".local/share");
+            home
+        });
+    llvm_prefix.push("llvm");
+    if llvm_prefix.exists() {
+        // Make sure its actually the prefix and not a root
+        let llvm_bin = llvm_prefix.as_path().join("bin");
+        if llvm_bin.exists() {
+            return llvm_prefix;
+        }
+        let lumen = llvm_prefix.as_path().join("lumen");
+        if lumen.exists() {
+            return lumen.to_path_buf();
+        }
+    }
+
+    fail("LLVM_PREFIX is not defined and unable to locate LLVM to build with");
 }
 
 fn fail(s: &str) -> ! {

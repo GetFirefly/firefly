@@ -1,58 +1,19 @@
 [workspace]
 
-members = [
-  "compiler/codegen",
-  "compiler/driver",
-  "compiler/llvm",
-  "compiler/macros",
-  "compiler/mlir",
-  "compiler/profiling",
-  "compiler/session",
-  "compiler/stackmaps",
-  "compiler/target",
-  "compiler/term",
-  "liblumen_alloc",
-  "liblumen_alloc_macros",
-  "liblumen_arena",
-  "liblumen_beam",
-  "liblumen_core",
-  "liblumen_core_macros",
-  "liblumen_util",
-  "lumen",
-  "native_implemented/macro",
-  "native_implemented/otp",
-  "native_implemented/web",
-  "runtimes/core",
-  "runtimes/crt",
-  "runtimes/full",
-  "runtimes/minimal",
+members = [ 
+  "compiler/*", 
+  "liblumen_*", 
+  "lumen", 
+  "native_implemented/*", 
+  "runtimes/*" 
 ]
 
-default-members = [
-  "compiler/codegen",
-  "compiler/driver",
-  "compiler/llvm",
-  "compiler/macros",
-  "compiler/mlir",
-  "compiler/profiling",
-  "compiler/session",
-  "compiler/target",
-  "compiler/term",
-  "liblumen_alloc",
-  "liblumen_alloc_macros",
-  "liblumen_arena",
-  "liblumen_beam",
-  "liblumen_core",
-  "liblumen_core_macros",
-  "liblumen_util",
-  "lumen",
-  "native_implemented/macro",
-  "native_implemented/otp",
-  "native_implemented/web",
-  "runtimes/crt",
+default-members = [ 
+  "lumen" 
 ]
 
 exclude = [
+  "compiler/codegen_llvm",
   "examples"
 ]
 

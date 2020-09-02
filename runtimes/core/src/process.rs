@@ -41,7 +41,7 @@ fn is_expected_exit_reason(reason: Term) -> bool {
     }
 }
 
-pub fn log_exit(exception: &RuntimeException) {
+pub fn log_exit(process: &Process, exception: &RuntimeException) {
     let reason = exception.reason();
 
     if !is_expected_exit_reason(reason) {
@@ -49,6 +49,7 @@ pub fn log_exit(exception: &RuntimeException) {
             exception
                 .stacktrace()
                 .print(
+                    process,
                     exception.class().as_term(),
                     exception.reason(),
                     exception.source(),

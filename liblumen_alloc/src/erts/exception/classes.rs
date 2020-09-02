@@ -87,6 +87,7 @@ impl fmt::Display for Throw {
         self.stacktrace
             .format(
                 f,
+                None,
                 Atom::str_to_term("throw"),
                 self.reason,
                 self.source.clone(),
@@ -181,6 +182,7 @@ impl fmt::Display for Error {
         self.stacktrace
             .format(
                 f,
+                None,
                 Atom::str_to_term("error"),
                 self.reason,
                 self.source.clone(),
@@ -262,6 +264,7 @@ impl fmt::Display for Exit {
         self.stacktrace
             .format(
                 f,
+                None,
                 Atom::str_to_term("exit"),
                 self.reason,
                 self.source.clone(),

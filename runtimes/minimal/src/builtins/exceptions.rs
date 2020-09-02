@@ -27,7 +27,9 @@ pub extern "C" fn builtin_trace_capture() -> *mut Trace {
 #[export_name = "__lumen_builtin_trace.print"]
 pub extern "C" fn builtin_trace_print(kind: Term, reason: Term, trace: &mut Trace) -> *mut Trace {
     let source = None;
-    trace.print(kind, reason, source).unwrap();
+    trace
+        .print(&current_process(), kind, reason, source)
+        .unwrap();
     trace
 }
 

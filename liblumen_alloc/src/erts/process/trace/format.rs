@@ -7,12 +7,14 @@ use std::path::Path;
 use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::erts::exception::ArcError;
+use crate::erts::process::Process;
 use crate::erts::term::prelude::*;
 
 use super::Trace;
 
 pub fn print(
     trace: &Trace,
+    process: &Process,
     kind: Term,
     reason: Term,
     source: Option<ArcError>,
@@ -22,7 +24,7 @@ pub fn print(
     let out = BufferWriter::stderr(ColorChoice::Auto);
     let mut buffer = out.buffer();
 
-    format_write(trace, &mut buffer, kind, reason, source)?;
+    format_write(trace, &mut buffer, Some(process), kind, reason, source)?;
     out.print(&buffer)?;
 
     Ok(())
@@ -61,6 +63,7 @@ impl<'f> Write for &mut FormatterWrapper<'f> {
 pub fn format(
     trace: &Trace,
     f: &mut fmt::Formatter,
+    process: Option<&Process>,
     kind: Term,
     reason: Term,
     source: Option<ArcError>,
@@ -69,12 +72,13 @@ pub fn format(
 
     let mut wrapper = unsafe { FormatterWrapper::new(f) };
     let mut ansi = Ansi::new(&mut wrapper);
-    format_write(trace, &mut ansi, kind, reason, source)
+    format_write(trace, &mut ansi, process, kind, reason, source)
 }
 
 fn format_write<W>(
     trace: &Trace,
     out: &mut W,
+    process: Option<&Process>,
     kind: Term,
     reason: Term,
     source: Option<ArcError>,
@@ -131,15 +135,23 @@ where
     out.set_color(&bold)?;
     let kind: Result<Atom, _> = kind.decode().unwrap().try_into();
     if let Ok(kind) = kind {
-        if kind == "error" {
-            writeln!(out, "\nProcess raised an error.")?;
-        } else if kind == "exit" {
-            writeln!(out, "\nProcess exited abnormally.")?;
-        } else if kind == "throw" {
-            writeln!(out, "\nProcess threw an exception.")?;
-        } else {
-            writeln!(out, "\nProcess crashed.")?;
+        write!(out, "\nProcess ")?;
+
+        if let Some(process) = process {
+            write!(out, "({}) ", process)?;
         }
+
+        let kind_suffix = if kind == "error" {
+            "raised an error."
+        } else if kind == "exit" {
+            "exited abnormally."
+        } else if kind == "throw" {
+            "threw an exception."
+        } else {
+            "crashed."
+        };
+
+        writeln!(out, "{}", kind_suffix)?;
     }
     out.set_color(&yellow)?;
     writeln!(out, "  {}\n", reason)?;

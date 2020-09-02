@@ -28,32 +28,28 @@ macro_rules! test_stdout {
 #[allow(unused_macros)]
 macro_rules! test_stdout_substrings {
     ($func_name:ident, $expected_stdout_substrings:expr) => {
-        #[test]
-        fn $func_name() {
-            let output = $crate::test::output(file!(), stringify!($func_name));
-
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let formatted_code = match output.status.code() {
-                Some(code) => code.to_string(),
-                None => "".to_string(),
-            };
-            let formatted_signal = $crate::test::signal(output.status);
-
-            for expected_stdout_substring in $expected_stdout_substrings {
-                assert!(
-                    stdout.contains(expected_stdout_substring),
-                    "stdout does not contain substring\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
-                    expected_stdout_substring, stdout, stderr, formatted_code, formatted_signal
-                );
-            }
-        }
+        test_substrings!(
+            $func_name,
+            $expected_stdout_substrings,
+            Vec::<&str>::default()
+        );
     };
 }
 
 #[allow(unused_macros)]
 macro_rules! test_stderr_substrings {
     ($func_name:ident, $expected_stderr_substrings:expr) => {
+        test_substrings!(
+            $func_name,
+            Vec::<&str>::default(),
+            $expected_stderr_substrings
+        );
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! test_substrings {
+    ($func_name:ident, $expected_stdout_substrings:expr, $expected_stderr_substrings:expr) => {
         #[test]
         fn $func_name() {
             let output = $crate::test::output(file!(), stringify!($func_name));
@@ -70,7 +66,17 @@ macro_rules! test_stderr_substrings {
             };
             let formatted_signal = $crate::test::signal(output.status);
 
-            for expected_stderr_substring in $expected_stderr_substrings {
+            let expected_stdout_substrings: Vec<&str> = $expected_stdout_substrings;
+            for expected_stdout_substring in expected_stdout_substrings {
+                assert!(
+                    stdout.contains(expected_stdout_substring),
+                    "stdout does not contain substring\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                    expected_stdout_substring, stdout, stderr, formatted_code, formatted_signal
+                );
+            }
+
+            let expected_stderr_substrings: Vec<&str> = $expected_stderr_substrings;
+            for expected_stderr_substring in expected_stderr_substrings {
                 assert!(
                     stripped_stderr.contains(expected_stderr_substring),
                     "stderr does not contain substring\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
@@ -78,7 +84,7 @@ macro_rules! test_stderr_substrings {
                 );
             }
         }
-    };
+    }
 }
 
 fn compiled_path_buf(file: &str, name: &str) -> PathBuf {

@@ -1,1 +1,1 @@
-test_stdout_substrings!(atom, vec!["exited with reason: atom"]);
+test_stderr_substrings!(atom, vec!["Process exited abnormally.", "atom"]);

@@ -88,6 +88,8 @@ impl Module {
         self.module.replace(module);
         if success {
             self.dialect.replace(Dialect::LLVM);
+        } else {
+            self.dialect.replace(Dialect::None);
         }
         return Ok(success);
     }
@@ -158,6 +160,7 @@ impl Emit for Module {
 
     fn emit_output_type(&self) -> OutputType {
         match *self.dialect.borrow() {
+            Dialect::None => OutputType::MLIR,
             Dialect::EIR => OutputType::EIRDialect,
             Dialect::LLVM => OutputType::LLVMDialect,
             Dialect::Standard => OutputType::StandardDialect,

@@ -73,6 +73,8 @@ impl FromStr for OutputTypeSpec {
 pub enum OutputType {
     AST,
     EIR,
+    /// Used to indicate a generic/unknown dialect
+    MLIR,
     EIRDialect,
     StandardDialect,
     LLVMDialect,
@@ -88,6 +90,7 @@ impl FromStr for OutputType {
         match s {
             "ast" => Ok(OutputType::AST),
             "eir" => Ok(OutputType::EIR),
+            "mlir" => Ok(OutputType::MLIR),
             "mlir-eir" => Ok(OutputType::EIRDialect),
             "mlir-std" => Ok(OutputType::StandardDialect),
             "mlir-llvm" => Ok(OutputType::LLVMDialect),
@@ -116,6 +119,7 @@ impl OutputType {
         match self {
             &OutputType::AST => "ast",
             &OutputType::EIR => "eir",
+            &OutputType::MLIR => "mlir",
             &OutputType::EIRDialect => "mlir-eir",
             &OutputType::StandardDialect => "mlir-std",
             &OutputType::LLVMDialect => "mlir-llvm",
@@ -131,6 +135,7 @@ impl OutputType {
         &[
             OutputType::AST,
             OutputType::EIR,
+            OutputType::MLIR,
             OutputType::EIRDialect,
             OutputType::StandardDialect,
             OutputType::LLVMDialect,
@@ -168,6 +173,7 @@ impl OutputType {
         match *self {
             OutputType::AST => "ast",
             OutputType::EIR => "eir",
+            OutputType::MLIR => "mlir",
             OutputType::EIRDialect => "eir.mlir",
             OutputType::StandardDialect => "std.mlir",
             OutputType::LLVMDialect => "llvm.mlir",

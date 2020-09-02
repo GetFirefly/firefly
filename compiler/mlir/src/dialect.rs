@@ -3,7 +3,6 @@ use std::fmt;
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(C)]
 pub enum Dialect {
-    #[allow(dead_code)]
     Other,
     None,
     EIR,

@@ -91,7 +91,6 @@ class ConvertEIRToLLVMPass
 
     mlir::ModuleOp moduleOp = getOperation();
     if (failed(applyFullConversion(moduleOp, conversionTarget, patterns))) {
-      moduleOp.emitError() << "conversion to LLVM IR dialect failed";
       return signalPassFailure();
     }
   }

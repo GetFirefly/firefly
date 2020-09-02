@@ -51,6 +51,36 @@ macro_rules! test_stdout_substrings {
     };
 }
 
+#[allow(unused_macros)]
+macro_rules! test_stderr_substrings {
+    ($func_name:ident, $expected_stderr_substrings:expr) => {
+        #[test]
+        fn $func_name() {
+            let output = $crate::test::output(file!(), stringify!($func_name));
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stripped_stderr_byte_vec = strip_ansi_escapes::strip(output.stderr.clone()).unwrap();
+            let stripped_stderr = String::from_utf8_lossy(&stripped_stderr_byte_vec);
+
+            let formatted_code = match output.status.code() {
+                Some(code) => code.to_string(),
+                None => "".to_string(),
+            };
+            let formatted_signal = $crate::test::signal(output.status);
+
+            for expected_stderr_substring in $expected_stderr_substrings {
+                assert!(
+                    stripped_stderr.contains(expected_stderr_substring),
+                    "stderr does not contain substring\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                    expected_stderr_substring, stdout, stderr, formatted_code, formatted_signal
+                );
+            }
+        }
+    };
+}
+
 fn compiled_path_buf(file: &str, name: &str) -> PathBuf {
     match compile(file, name) {
         Ok(path_buf) => path_buf,

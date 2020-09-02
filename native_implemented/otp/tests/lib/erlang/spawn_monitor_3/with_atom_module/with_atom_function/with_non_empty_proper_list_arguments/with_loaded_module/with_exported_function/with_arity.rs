@@ -5,5 +5,8 @@ test_stdout!(
 test_substrings!(
     without_valid_arguments_when_run_exits_and_sends_exit_message_to_parent,
     vec!["{child, exited, function_clause}", "{parent, alive, true}"],
-    vec!["Process exited abnormally.", "function_clause"]
+    vec![
+        "Process (#PID<0.3.0>) exited abnormally.",
+        "function_clause"
+    ]
 );

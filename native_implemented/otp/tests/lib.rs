@@ -13,7 +13,7 @@ test_stderr_substrings!(
         "native_implemented/otp/tests/lib/backtrace/init.erl:9, in init:bad_reverse/1",
         "native_implemented/otp/tests/lib/backtrace/init.erl:11, in init:bad_reverse/1",
         "native_implemented/otp/src/erlang/tl_1.rs:7, in erlang:tl/1",
-        "Process exited abnormally.",
+        "Process (#PID<0.2.0>) exited abnormally.",
         "badarg"
     ]
 );

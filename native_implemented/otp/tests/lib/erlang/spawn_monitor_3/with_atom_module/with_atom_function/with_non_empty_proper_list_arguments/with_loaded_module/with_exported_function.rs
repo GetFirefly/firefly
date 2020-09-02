@@ -3,5 +3,5 @@ mod with_arity;
 
 test_stderr_substrings!(
     without_arity_when_run_exits_undef_and_sends_exit_message_to_parent,
-    vec!["Process exited abnormally.", "undef"]
+    vec!["Process (#PID<0.3.0>) exited abnormally.", "undef"]
 );

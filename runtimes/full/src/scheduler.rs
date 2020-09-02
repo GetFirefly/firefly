@@ -249,7 +249,7 @@ impl SchedulerTrait for Scheduler {
                                 propagate_exit(&exiting_arc_process, None);
                             }
                             Status::RuntimeException(ref exception) => {
-                                log_exit(exception);
+                                log_exit(&exiting_arc_process, exception);
                                 propagate_exit(&exiting_arc_process, Some(exception));
                             }
                             _ => unreachable!(),

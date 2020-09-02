@@ -9,7 +9,7 @@ use liblumen_core::util::thread_local::ThreadLocalCell;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::ArcError;
 use crate::erts::process::alloc::TermAlloc;
-use crate::erts::process::{AllocResult, ModuleFunctionArity};
+use crate::erts::process::{AllocResult, ModuleFunctionArity, Process};
 use crate::erts::term::prelude::*;
 use crate::erts::HeapFragment;
 
@@ -88,19 +88,20 @@ impl Trace {
     }
 
     #[inline]
-    pub fn print(&self, kind: Term, reason: Term, source: Option<ArcError>) -> std::io::Result<()> {
-        format::print(self, kind, reason, source)
+    pub fn print(&self, process: &Process, kind: Term, reason: Term, source: Option<ArcError>) -> std::io::Result<()> {
+        format::print(self, process, kind, reason, source)
     }
 
     #[inline]
     pub fn format(
         &self,
         f: &mut fmt::Formatter,
+        process: Option<&Process>,
         kind: Term,
         reason: Term,
         source: Option<ArcError>,
     ) -> std::io::Result<()> {
-        format::format(self, f, kind, reason, source)
+        format::format(self, f, process, kind, reason, source)
     }
 
     /// Sets the top frame of the stacktrace to a specific module/function/arity,

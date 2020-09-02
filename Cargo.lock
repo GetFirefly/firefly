@@ -986,7 +986,7 @@ checksum = "a2f02823cf78b754822df5f7f268fb59822e7296276d3e069d8e8cb26a14bd10"
 [[package]]
 name = "libeir_diagnostics"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "anyhow",
  "codespan",
@@ -1000,7 +1000,7 @@ dependencies = [
 [[package]]
 name = "libeir_frontend"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "libeir_diagnostics",
  "libeir_ir",
@@ -1012,7 +1012,7 @@ dependencies = [
 [[package]]
 name = "libeir_intern"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "lazy_static 1.4.0",
  "libeir_diagnostics",
@@ -1022,7 +1022,7 @@ dependencies = [
 [[package]]
 name = "libeir_ir"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "bumpalo 3.2.0",
  "cranelift-bforest",
@@ -1039,6 +1039,7 @@ dependencies = [
  "libeir_util_dot_graph",
  "libeir_util_number",
  "libeir_util_parse",
+ "log",
  "matches",
  "meta_table",
  "petgraph",
@@ -1053,7 +1054,7 @@ dependencies = [
 [[package]]
 name = "libeir_lowerutils"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "cranelift-entity 0.56.0",
  "libeir_ir",
@@ -1063,7 +1064,7 @@ dependencies = [
 [[package]]
 name = "libeir_passes"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "bumpalo 3.2.0",
  "cranelift-bforest",
@@ -1084,7 +1085,7 @@ dependencies = [
 [[package]]
 name = "libeir_syntax_erl"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "bumpalo 3.2.0",
  "codespan-reporting",
@@ -1110,7 +1111,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_datastructures"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "cranelift-bforest",
  "cranelift-entity 0.56.0",
@@ -1120,12 +1121,12 @@ dependencies = [
 [[package]]
 name = "libeir_util_dot_graph"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 
 [[package]]
 name = "libeir_util_number"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "num-bigint 0.2.2",
  "num-traits",
@@ -1134,7 +1135,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "codespan-reporting",
  "libeir_diagnostics",
@@ -1145,7 +1146,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse_listing"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -1158,7 +1159,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_pattern_compiler"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "derivative 1.0.4",
  "either",
@@ -1652,7 +1653,7 @@ dependencies = [
 [[package]]
 name = "meta_table"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 dependencies = [
  "hashbrown 0.7.0",
 ]
@@ -1861,21 +1862,21 @@ checksum = "159973aebc43b4640619042b3bf160e3b6348000a949e37c0806ae6acc79d6c7"
 [[package]]
 name = "parking_lot"
 version = "0.9.0"
-source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f842b1982eb6c2fe34036a4fbfb06dd185a3f5c8edfaacdf7d1ea10b07de6252"
 dependencies = [
- "lock_api 0.3.1",
- "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
+ "lock_api 0.3.4",
+ "parking_lot_core 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_version",
 ]
 
 [[package]]
 name = "parking_lot"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f842b1982eb6c2fe34036a4fbfb06dd185a3f5c8edfaacdf7d1ea10b07de6252"
+source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
 dependencies = [
- "lock_api 0.3.4",
- "parking_lot_core 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lock_api 0.3.1",
+ "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "rustc_version",
 ]
 
@@ -1903,21 +1904,6 @@ dependencies = [
 [[package]]
 name = "parking_lot_core"
 version = "0.6.2"
-source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
-dependencies = [
- "cfg-if",
- "cloudabi 0.0.3",
- "libc",
- "redox_syscall",
- "rustc_version",
- "smallvec 0.6.13",
- "web-sys",
- "winapi",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b876b1b9e7ac6e1a74a6da34d25c42e17e8862aa409cbbbdcfc8d86c6f3bc62b"
 dependencies = [
@@ -1927,6 +1913,21 @@ dependencies = [
  "redox_syscall",
  "rustc_version",
  "smallvec 0.6.13",
+ "winapi",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.6.2"
+source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
+dependencies = [
+ "cfg-if",
+ "cloudabi 0.0.3",
+ "libc",
+ "redox_syscall",
+ "rustc_version",
+ "smallvec 0.6.13",
+ "web-sys",
  "winapi",
 ]
 
@@ -2479,7 +2480,7 @@ checksum = "ea6a9290e3c9cf0f18145ef7ffa62d68ee0bf5fcd651017e586dc7fd5da448c2"
 [[package]]
 name = "scoped_cell"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git?branch=lumen#2105e0dcda57f65dadc44f5532b9229ccaf90d5b"
+source = "git+https://github.com/eirproject/eir.git?branch=lumen#5e6b2e00f49f57ec9efe063be86522b448b4d14e"
 
 [[package]]
 name = "scopeguard"

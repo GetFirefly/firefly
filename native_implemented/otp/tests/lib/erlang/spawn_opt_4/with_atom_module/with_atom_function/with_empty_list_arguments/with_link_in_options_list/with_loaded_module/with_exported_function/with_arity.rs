@@ -2,11 +2,8 @@ test_stdout!(
     with_exits_normal_arent_does_not_exit,
     "{in, child}\n{parent, alive, true}\n"
 );
-test_stdout_substrings!(
+test_substrings!(
     without_exits_normal_arent_does_not_exit,
-    vec![
-        "{in, child}",
-        "exited with reason: abnormal",
-        "{parent, exited, abnormal}"
-    ]
+    vec!["{in, child}", "{parent, exited, abnormal}"],
+    vec!["Process exited abnormally.", "abnormal"]
 );

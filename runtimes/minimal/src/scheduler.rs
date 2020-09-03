@@ -165,38 +165,28 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
         .as_any()
         .downcast_ref::<Scheduler>()
         .unwrap();
+    let process = &s.current;
     let kind_result: Result<TermKind, _> = kind.try_into();
-    match kind_result {
-        Ok(TermKind::Closure) => {
-            let cl = ClosureLayout::for_env_len(arity);
-            let result = s.current.alloc_nofrag_layout(cl.layout().clone());
-            if let Ok(nn) = result {
-                return nn.as_ptr() as *mut u8;
-            }
-        }
-        Ok(TermKind::Tuple) => {
-            let layout = Tuple::layout_for_len(arity);
-            let result = s.current.alloc_nofrag_layout(layout);
-            if let Ok(nn) = result {
-                return nn.as_ptr() as *mut u8;
-            }
-        }
-        Ok(TermKind::Cons) => {
-            let layout = Layout::new::<Cons>();
-            let result = s.current.alloc_nofrag_layout(layout);
-            if let Ok(nn) = result {
-                return nn.as_ptr() as *mut u8;
-            }
-        }
+    let layout = match kind_result {
+        Ok(TermKind::Closure) => ClosureLayout::for_env_len(arity).layout().clone(),
+        Ok(TermKind::Tuple) => Tuple::layout_for_len(arity),
+        Ok(TermKind::Cons) => Layout::new::<Cons>(),
         Ok(tk) => {
             unimplemented!("unhandled use of malloc for {:?}", tk);
         }
         Err(_) => {
             panic!("invalid term kind: {}", kind);
         }
-    }
+    };
 
-    ptr::null_mut()
+    let result = process
+        .alloc_nofrag_layout(layout.clone())
+        .or_else(|_| process.alloc_fragment_layout(layout));
+
+    match result {
+        Ok(nn) => nn.as_ptr() as *mut u8,
+        Err(_) => ptr::null_mut(),
+    }
 }
 
 /// Called when the current process has finished executing, and has

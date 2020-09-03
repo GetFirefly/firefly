@@ -10,6 +10,7 @@ use walkdir::{DirEntry, WalkDir};
 const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
 const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "LLVM_LINK_LLVM_DYLIB";
+const ENV_LUMEN_LLVM_LTO: &'static str = "LUMEN_LLVM_LTO";
 
 fn main() {
     let cwd = env::current_dir().unwrap();
@@ -17,6 +18,7 @@ fn main() {
 
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
+    println!("cargo:rerun-if-env-changed={}", ENV_LUMEN_LLVM_LTO);
 
     rerun_if_changed_anything_in_dir(&cwd.join("c_src"));
 
@@ -29,6 +31,10 @@ fn main() {
     let cxxflags = env::var("DEP_LUMEN_LLVM_CORE_CXXFLAGS").unwrap();
     for flag in cxxflags.split(";") {
         cfg.flag(flag);
+    }
+
+    if env::var_os(ENV_LUMEN_LLVM_LTO).is_some() {
+        cfg.flag("-flto=thin");
     }
 
     if env::var_os("LLVM_NDEBUG").is_some() {

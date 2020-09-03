@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+# Install releases under target/lumen/install/<toolchain>/lumen,
+# then archive the `lumen` directory, producing an archive that
+# when unpacked, contains a lumen directory with all of the binaries
+# necessary to run the compiler.
+#
+# The archive will be saved to target/lumen/releases/lumen-<version>-<toolchain>.tar.gz
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+ROOT_DIR="$(cd "$(dirname "$SCRIPT_DIR")" && pwd)"
+TARGET_DIR="${CARGO_TARGET_DIR:-${ROOT_DIR}/target}"
+VERSION="${VERSION:-0.1.0-nightly}"
+
+# Work from the project root, even though we use absolute paths for everything
+pushd "${ROOT_DIR}" >/dev/null
+
+# Require LLVM_PREFIX and ensure its exported to subshells
+if [ -z "$LLVM_PREFIX" ]; then
+    echo "Expected LLVM_PREFIX to be exported in the environment!"
+    exit 2
+fi
+export LLVM_PREFIX
+
+# Find the Rust toolchain, we'll use a processed version of this as our target triple for releases
+RUST_TOOLCHAIN="$(rustup show active-toolchain | sed -e 's/ (default)//' | sed -e 's/ (directory override for.*$//')"
+host_toolchain=""
+# shellcheck disable=SC2001
+if ! host_toolchain="$(echo "$RUST_TOOLCHAIN" | sed -e 's/nightly-\([0-9]\{4,4\}-[0-9]\{2,2\}-[0-9]\{2,2\}-\)\{0,1\}//')"; then
+    echo "Unable to determine default host toolchain!"
+    exit 2
+fi
+if [ -z "${host_toolchain}" ]; then
+    echo "Expected non-empty toolchain name!"
+fi
+
+# Process options
+extra_build_flags=""
+while [ $# -gt 0 ]; do
+    lhs="${1%=*}"
+    rhs="${1#*=}"
+    # Shift once for the flag name if true
+    shift_key="false"
+    # Shift once for the flag value if true
+    shift_value="false"
+    # Shift for the flag value if true, and shift_value=true
+    has_value="false"
+    if [ "$lhs" = "$1" ]; then
+        # No '=' to split on, so grab the next arg
+        shift
+        # shellcheck disable=SC2034
+        rhs="$1"
+        # We already shifted for the name, but not for the value
+        shift_value="true"
+    else
+        # We only need one shift for both key and value
+        shift_key="true"
+    fi
+    case $lhs in
+        -v | -verbose | --verbose )
+            extra_build_flags="--verbose $extra_build_flags"
+            ;;
+        -nightly | --nightly )
+            VERSION="${VERSION}-nightly"
+            ;;
+
+        *)
+            echo "unknown option: $1"
+            usage
+            exit 2
+            ;;
+    esac
+
+    if [ "$shift_key" = "true" ]; then
+        shift
+    fi
+    if [ "$has_value" = "true" ] && [ "$shift_value" = "true" ]; then
+        shift
+    fi
+done
+
+
+# Perform install
+lumen_install_dir="${TARGET_DIR}/lumen/install/${host_toolchain}/lumen"
+
+# shellcheck disable=SC2086
+if bin/build-lumen --release --static --lto --use-libcxx --install "${lumen_install_dir}" ${extra_build_flags}; then
+    popd >/dev/null
+
+    echo "Packaging release.."
+    if tar -czf "${TARGET_DIR}/lumen/install/${host_toolchain}/lumen-${VERSION}.tar.gz" -C "${TARGET_DIR}/lumen/install/${host_toolchain}" lumen; then
+        mkdir -p "${TARGET_DIR}/lumen/releases"
+        cp "${TARGET_DIR}/lumen/install/${host_toolchain}/lumen-${VERSION}.tar.gz" "${TARGET_DIR}/lumen/releases/lumen-${VERSION}-${host_toolchain}.tar.gz"
+        echo "Release successful! Package can be found in ${TARGET_DIR}/lumen/releases"
+        exit 0
+    else
+        echo "Failed to build package for Lumen ${VERSION}"
+        exit 1
+    fi
+else
+    popd >/dev/null
+    exit 1
+fi

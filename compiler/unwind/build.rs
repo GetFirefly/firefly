@@ -71,6 +71,10 @@ mod llvm_libunwind {
             cfg.define("__LITTLE_ENDIAN__", Some("1"));
         }
 
+        if env::var_os("LUMEN_LLVM_LTO").is_some() {
+            cfg.flag("-flto=thin");
+        }
+
         if target_env == "msvc" {
             // Don't pull in extra libraries on MSVC
             cfg.flag("/Zl");

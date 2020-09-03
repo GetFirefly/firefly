@@ -37,6 +37,9 @@ extra_rustc_flags=""
 extra_cargo_flags=""
 run_bloat=""
 
+PATH="${LLVM_PREFIX}/bin:$PATH"
+export PATH
+
 function usage() {
     echo "usage: $(basename "$0") [--static] [OPTIONS..]"
     echo ""
@@ -46,6 +49,7 @@ function usage() {
     echo " --release            Build release binary"
     echo " --static             Build a statically linked executable"
     echo " --dynamic            Build the compiler dynamically linked against its libraries"
+    echo " --lto                Enable cross-language LTO"
     echo " --link-aio-dylib     Link against libLLVM/libMLIR shared libs"
     echo " --use-libcxx         Build the compiler dynamically linked against its libraries"
     echo " --target <triple>    The target triple to build for"
@@ -147,6 +151,12 @@ while [ $# -gt 0 ]; do
         -link-aio-dylib | --link-aio-dylib )
             build_dynamic="true"
             build_static="false"
+            ;;
+
+        -lto | --lto )
+            export LUMEN_LLVM_LTO=ON
+            export RUSTFLAGS="-C embed-bitcode=yes $RUSTFLAGS"
+            extra_rustc_flags="-C link_arg=-flto=thin -C embed-bitcode=yes -C lto=thin $extra_rustc_flags"
             ;;
 
         -use-libcxx | --use-libcxx )

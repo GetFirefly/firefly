@@ -7,8 +7,6 @@ use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use anyhow::anyhow;
-
 use log::info;
 
 use liblumen_core::locks::RwLock;
@@ -16,12 +14,11 @@ use liblumen_core::sys::dynamic_call::DynamicCallee;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 
 use liblumen_alloc::erts::exception::ErlangException;
-use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::{self, CalleeSavedRegisters, Priority, Process, Status};
+use liblumen_alloc::erts::process::{CalleeSavedRegisters, Priority, Process, Status};
 use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::{atom, Arity, CloneToProcess};
+use liblumen_alloc::{Arity, CloneToProcess};
 
 use lumen_rt_core::process::spawn::options::Options;
 use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};

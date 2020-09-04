@@ -6,7 +6,7 @@ macro_rules! test_stdout {
     ($func_name:ident, $expected_stdout:literal) => {
         #[test]
         fn $func_name() {
-            let output = $crate::test::output(file!(), stringify!($func_name));
+            let (command, output) = $crate::test::output(file!(), stringify!($func_name));
 
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -17,9 +17,15 @@ macro_rules! test_stdout {
             let formatted_signal = $crate::test::signal(output.status);
 
             assert_eq!(
-                stdout, $expected_stdout,
-                "\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
-                stdout, stderr, formatted_code, formatted_signal
+                stdout,
+                $expected_stdout,
+                "\nCommands:\ncd {}\n{:?}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                std::env::current_dir().unwrap().to_string_lossy(),
+                command,
+                stdout,
+                stderr,
+                formatted_code,
+                formatted_signal
             );
         }
     };
@@ -52,7 +58,7 @@ macro_rules! test_substrings {
     ($func_name:ident, $expected_stdout_substrings:expr, $expected_stderr_substrings:expr) => {
         #[test]
         fn $func_name() {
-            let output = $crate::test::output(file!(), stringify!($func_name));
+            let (command, output) = $crate::test::output(file!(), stringify!($func_name));
 
             let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -70,8 +76,14 @@ macro_rules! test_substrings {
             for expected_stdout_substring in expected_stdout_substrings {
                 assert!(
                     stdout.contains(expected_stdout_substring),
-                    "stdout does not contain substring\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
-                    expected_stdout_substring, stdout, stderr, formatted_code, formatted_signal
+                    "stdout does not contain substring\nCommands:\ncd {}\n{:?}\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                    std::env::current_dir().unwrap().to_string_lossy(),
+                    command,
+                    expected_stdout_substring,
+                    stdout,
+                    stderr,
+                    formatted_code,
+                    formatted_signal
                 );
             }
 
@@ -79,8 +91,14 @@ macro_rules! test_substrings {
             for expected_stderr_substring in expected_stderr_substrings {
                 assert!(
                     stripped_stderr.contains(expected_stderr_substring),
-                    "stderr does not contain substring\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
-                    expected_stderr_substring, stdout, stderr, formatted_code, formatted_signal
+                    "stderr does not contain substring\nCommands:\ncd {}\n{:?}\nsubstring: {}\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+                    std::env::current_dir().unwrap().to_string_lossy(),
+                    command,
+                    expected_stderr_substring,
+                    stdout,
+                    stderr,
+                    formatted_code,
+                    formatted_signal
                 );
             }
         }
@@ -165,13 +183,13 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
     }
 }
 
-pub fn output(file: &str, name: &str) -> Output {
+pub fn output(file: &str, name: &str) -> (Command, Output) {
     let bin_path_buf = compiled_path_buf(file, name);
+    let mut command = Command::new(bin_path_buf);
 
-    Command::new(bin_path_buf)
-        .stdin(Stdio::null())
-        .output()
-        .unwrap()
+    let output = command.stdin(Stdio::null()).output().unwrap();
+
+    (command, output)
 }
 
 #[cfg(unix)]

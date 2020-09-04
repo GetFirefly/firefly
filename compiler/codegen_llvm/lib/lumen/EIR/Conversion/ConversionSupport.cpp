@@ -9,8 +9,97 @@ static bool isa_std_type(Type t) {
   return isa<mlir::StandardOpsDialect>(t.getDialect());
 }
 
+static bool isa_llvm_type(Type t) {
+  return isa<mlir::LLVM::LLVMDialect>(t.getDialect());
+}
+
+// Extract an LLVM IR type from the LLVM IR dialect type.
+static LLVM::LLVMType unwrap(Type type) {
+  if (!type)
+    return nullptr;
+  auto *mlirContext = type.getContext();
+  auto wrappedLLVMType = type.dyn_cast<LLVM::LLVMType>();
+  if (!wrappedLLVMType)
+    emitError(mlir::UnknownLoc::get(mlirContext),
+              "conversion resulted in a non-LLVM type");
+  return wrappedLLVMType;
+}
+
+
+// Create an LLVM IR structure type if there is more than one result.
+Type EirTypeConverter::packFunctionResults(TargetInfo &targetInfo, ArrayRef<Type> types) {
+  assert(!types.empty() && "expected non-empty list of type");
+
+  if (types.size() == 1)
+    return convertType(types.front());
+
+  SmallVector<LLVM::LLVMType, 8> resultTypes;
+  resultTypes.reserve(types.size());
+  for (auto t : types) {
+    auto converted = convertType(t);
+    if (!converted)
+      return {};
+
+    resultTypes.push_back(converted.dyn_cast<LLVM::LLVMType>());
+  }
+
+  auto termTy = targetInfo.getUsizeType();
+  return LLVM::LLVMType::getStructTy(termTy.getContext(), resultTypes);
+}
+
+// Function types are converted to LLVM Function types by recursively converting
+// argument and result types.  If MLIR Function has zero results, the LLVM
+// Function has one VoidType result.  If MLIR Function has more than one result,
+// they are into an LLVM StructType in their order of appearance.
+LLVM::LLVMType convertFunctionSignature(
+    EirTypeConverter &converter, TargetInfo &targetInfo,
+    mlir::FunctionType type, bool isVariadic,
+    LLVMTypeConverter::SignatureConversion &result) {
+  // Convert argument types one by one and check for errors.
+  for (auto &en : llvm::enumerate(type.getInputs())) {
+    auto llvmTy = convertType(en.value(), converter, targetInfo);
+    if (!llvmTy.hasValue())
+      return {};
+
+    result.addInputs(en.index(), llvmTy.getValue());
+  }
+
+  SmallVector<LLVM::LLVMType, 8> argTypes;
+  argTypes.reserve(llvm::size(result.getConvertedTypes()));
+  for (Type ty : result.getConvertedTypes()) {
+    llvm::outs() << "convertedType: \n";
+    ty.dump();
+    llvm::outs() << "\n";
+    argTypes.push_back(unwrap(ty));
+  }
+
+  // If function does not return anything, create the void result type,
+  // if it returns on element, convert it, otherwise pack the result types into
+  // a struct.
+  LLVM::LLVMType resultType =
+      type.getNumResults() == 0
+          ? LLVM::LLVMType::getVoidTy(type.getContext())
+          : unwrap(converter.packFunctionResults(targetInfo, type.getResults()));
+  if (!resultType)
+    return {};
+  return LLVM::LLVMType::getFunctionTy(resultType, argTypes, isVariadic);
+}
+
 Optional<Type> convertType(Type type, EirTypeConverter &converter,
                            TargetInfo &targetInfo) {
+  // If we already have an LLVM type, we're good to go
+  if (isa_llvm_type(type)) return type;
+
+  if (auto funTy = type.dyn_cast_or_null<mlir::FunctionType>()) {
+     LLVMTypeConverter::SignatureConversion conversion(funTy.getNumInputs());
+     LLVM::LLVMType converted =
+        convertFunctionSignature(converter, targetInfo, funTy, /*isVariadic=*/false, conversion);
+     if (!converted)
+       return llvm::None;
+     return converted.getPointerTo();
+  }
+
+  // If this isn't otherwise an EIR type, we can't convert it
   if (!isa_eir_type(type)) return Optional<Type>();
 
   MLIRContext *context = type.getContext();

@@ -78,15 +78,10 @@ def eir_FuncOp : eir_Op<"func", [
 }
 
 def eir_ClosureOp : eir_Op<"closure", []> {
-  let summary = "Creates a closure capture at the current point in the function";
+  let summary = "Creates a new closure at the current point in the function";
 
-  let arguments = (ins
-    FlatSymbolRefAttr:$callee,
-    Variadic<AnyType>:$operands
-  );
-  let results = (outs
-    Variadic<AnyType>:$results
-  );
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$operands);
+  let results = (outs eir_BoxType:$closure);
 
   let assemblyFormat = [{
     $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -110,13 +105,14 @@ def eir_ClosureOp : eir_Op<"closure", []> {
       StringRef unique(&closure->unique[0], 16);
       result.addAttribute("unique", builder.getStringAttr(unique));
       result.addOperands(operands);
-      result.addTypes(termTy);
+      result.addTypes(BoxType::get(builder.getType<ClosureType>()));
     }]>
   ];
 
   let verifier = ?;
 
   let extraClassDeclaration = [{
+    mlir::FlatSymbolRefAttr getCallee() { return getAttrOfType<mlir::FlatSymbolRefAttr>("callee"); }
     mlir::IntegerAttr arityAttr() { return getAttrOfType<mlir::IntegerAttr>("arity"); }
     AtomAttr module() { return getAttrOfType<AtomAttr>("module"); }
     mlir::IntegerAttr envLenAttr() { return getAttrOfType<mlir::IntegerAttr>("env_len"); }
@@ -1792,6 +1788,40 @@ def eir_ConsOp : eir_Op<"cons"> {
       result.addOperands(head);
       result.addOperands(tail);
       result.addTypes(BoxType::get(builder.getType<ConsType>()));
+    }]>
+  ];
+
+  let verifier = ?;
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, $out)
+  }];
+
+  let extraClassDeclaration = [{
+      bool useAlloca() { return getAttrOfType<mlir::BoolAttr>("alloca").getValue(); }
+  }];
+}
+
+def eir_ListOp : eir_Op<"list"> {
+  let summary = "List constructor";
+  let description = [{
+    List construction primitive. Constructs a new list term from a list of elements.
+  }];
+
+  let arguments = (ins Variadic<eir_AnyType>:$elements);
+  let results = (outs eir_BoxType:$out);
+
+  let builders = [
+    OpBuilder<"OpBuilder &builder, OperationState &result, ArrayRef<Value> elements",
+    [{
+      SmallVector<Type, 1> elementTypes;
+      for (auto val : elements) {
+        elementTypes.push_back(val.getType());
+      }
+      result.addOperands(elements);
+      auto tupleType = builder.getType<eir::TupleType>(elementTypes);
+      result.addTypes(BoxType::get(tupleType));
+      result.addAttribute("alloca", builder.getBoolAttr(false));
     }]>
   ];
 

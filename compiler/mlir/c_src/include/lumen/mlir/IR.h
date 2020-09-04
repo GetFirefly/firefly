@@ -10,6 +10,9 @@
 #include "mlir/IR/Module.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/Visitors.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 
 #include "llvm/Support/CBindingWrapping.h"
 
@@ -20,12 +23,16 @@ class FuncOp;
 }  // namespace mlir
 
 using ::mlir::Block;
+using ::mlir::BlockArgument;
 using ::mlir::Type;
 using ::mlir::Value;
 using ::mlir::ValueRange;
 using ::mlir::Attribute;
 using ::mlir::Location;
 using ::mlir::Region;
+using ::mlir::Operation;
+using ::mlir::BranchOpInterface;
+using ::mlir::WalkResult;
 
 typedef struct MLIROpaqueBlock *MLIRBlockRef;
 typedef struct MLIROpaqueValue *MLIRValueRef;

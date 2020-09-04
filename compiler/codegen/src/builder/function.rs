@@ -341,6 +341,31 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
         panic!("expected block to correspond to the entry block in this functions' scope");
     }
 
+    pub fn make_closure_info(&self, fun_ref: FunctionRef) -> ClosureInfo {
+        match fun_ref.callee {
+            Callee::Static(ident) => {
+                let unique = unsafe {
+                    mem::transmute::<[u64; 2], [u8; 16]>([
+                        fxhash::hash64(&ident),
+                        fxhash::hash64(&ident),
+                    ])
+                };
+                let old_unique = fxhash::hash32(&unique);
+                return ClosureInfo {
+                    ident,
+                    index: 0,
+                    old_unique,
+                    unique,
+                };
+            }
+            Callee::LocalDynamic { .. } => todo!("local dynamic closure construction"),
+            Callee::GlobalDynamic { .. } => todo!("global dynamic closure construction"),
+            Callee::ClosureDynamic(_value) => {
+                panic!("attempted to make closure info for an already constructed closure value")
+            }
+        }
+    }
+
     /// Finds the EIR value the given value represents
     ///
     /// Panics if the value does not have an EIR representation
@@ -1318,7 +1343,19 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             target
         );
         ClosureBuilder::build(self, Some(ir_value), target)
-            .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected constant to have result")))
+            .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected closure to have result")))
+    }
+
+    #[inline]
+    fn build_capture_closure(&mut self, ir_value: ir::Value, target: FunctionRef) -> Result<Value> {
+        debug_in!(
+            self,
+            "building capture closure for value {:?} (target = {:?})",
+            ir_value,
+            &target
+        );
+        ClosureBuilder::build_capture(self, Some(ir_value), target)
+            .and_then(|vopt| vopt.ok_or_else(|| anyhow!("expected closure to have result")))
     }
 
     /// This function returns a Value that represents the given IR value lowered as a constant
@@ -1445,7 +1482,10 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                     "expected capture function primop to have three operands"
                 );
                 let callee = Callee::new(self, ir_value)?;
-                OpKind::FunctionRef(FunctionRef { loc, callee })
+                let fun_ref = FunctionRef { loc, callee };
+                return self
+                    .build_capture_closure(ir_value, fun_ref)
+                    .map(|result| Some(result));
             }
             ir::PrimOpKind::ValueList => {
                 debug_in!(self, "value list: {:?} with {} reads", ir_value, num_reads);

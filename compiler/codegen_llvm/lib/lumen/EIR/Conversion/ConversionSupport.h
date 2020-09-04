@@ -78,6 +78,7 @@ using eir_cast = ValueBuilder<::lumen::eir::CastOp>;
 using eir_gep = ValueBuilder<::lumen::eir::GetElementPtrOp>;
 using eir_malloc = ValueBuilder<::lumen::eir::MallocOp>;
 using eir_cons = ValueBuilder<::lumen::eir::ConsOp>;
+using eir_list = ValueBuilder<::lumen::eir::ListOp>;
 using eir_tuple = ValueBuilder<::lumen::eir::TupleOp>;
 using eir_map = OperationBuilder<::lumen::eir::ConstructMapOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
@@ -103,6 +104,8 @@ struct EirTypeConverter : public mlir::TypeConverter {
     if (inputs.size() != 1) return llvm::None;
     return builder.create<CastOp>(loc, inputs[0], resultType).getResult();
   }
+
+  Type packFunctionResults(TargetInfo &targetInfo, ArrayRef<Type> types);
 
  private:
   LLVMTypeConverter &typeConverter;

@@ -73,9 +73,9 @@ class ModuleBuilder {
   void build_static_call(Location loc, StringRef target, ArrayRef<Value> args,
                          bool isTail, Block *ok, ArrayRef<Value> okArgs);
 
-  void build_closure_call(Location loc, Value closure, ArrayRef<Value> args,
-                          bool isTail, Block *ok, ArrayRef<Value> okArgs,
-                          Block *err, ArrayRef<Value> errArgs);
+  void build_apply_2(Location loc, Value closure, ArrayRef<Value> args,
+                     bool isTail, Block *ok, ArrayRef<Value> okArgs,
+                     Block *err, ArrayRef<Value> errArgs);
 
   Block *build_landing_pad(Location loc, Block *err);
 

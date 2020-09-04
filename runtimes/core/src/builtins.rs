@@ -8,6 +8,11 @@ use liblumen_core::sys::Endianness;
 
 use crate::process::current_process;
 
+extern "C" {
+    #[link_name = "erlang:+/2"]
+    fn erlang_add_2(augend: Term, addend: Term) -> Term;
+}
+
 #[export_name = "__lumen_builtin_bigint_from_cstr"]
 pub extern "C" fn builtin_bigint_from_cstr(ptr: *const u8, size: usize) -> Term {
     let bytes = unsafe { core::slice::from_raw_parts(ptr, size) };
@@ -200,7 +205,11 @@ macro_rules! integer_math_builtin {
     }
 }
 
-math_builtin!("__lumen_builtin_math.add", builtin_math_add, Add, add);
+#[export_name = "__lumen_builtin_math.add"]
+pub extern "C" fn builtin_math_add(augend: Term, addend: Term) -> Term {
+    unsafe { erlang_add_2(augend, addend) }
+}
+
 math_builtin!("__lumen_builtin_math.sub", builtin_math_sub, Sub, sub);
 math_builtin!("__lumen_builtin_math.mul", builtin_math_mul, Mul, mul);
 math_builtin!("__lumen_builtin_math.fdiv", builtin_math_fdiv, Div, div);

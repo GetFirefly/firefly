@@ -1,3 +1,5 @@
+#[path = "erlang/abs_1.rs"]
+pub mod abs_1;
 #[path = "erlang/add_2.rs"]
 pub mod add_2;
 #[path = "erlang/and_2.rs"]

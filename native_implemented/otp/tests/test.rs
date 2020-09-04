@@ -143,10 +143,17 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
         .arg("-lm")
         .arg("--emit=all");
 
-    let erlang_path = directory_path.join(file_stem).join(name).join("init.erl");
+    let erlang_parent_path = directory_path.join(file_stem).join(name);
+    let erlang_src_path = erlang_parent_path.join("src");
+
+    let input_path = if erlang_src_path.is_dir() {
+        erlang_src_path
+    } else {
+        erlang_parent_path.join("init.erl")
+    };
 
     let compile_output = command
-        .arg(erlang_path)
+        .arg(input_path)
         .stdin(Stdio::null())
         .output()
         .unwrap();

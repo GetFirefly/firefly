@@ -1,4 +1,4 @@
-// `without_number_addend_errors_badarith` in unit tests
+test_stdout!(without_number_addend_errors_badarith, "{caught, error, badarith}\n{caught, error, badarith}\n{caught, error, badarith}\n{caught, error, badarith}\n{caught, error, badarith}\n{caught, error, badarith}\n{caught, error, badarith}\n{caught, error, badarith}\n{caught, error, badarith}\n");
 
 test_stdout!(
     with_zero_small_integer_returns_same_big_integer,

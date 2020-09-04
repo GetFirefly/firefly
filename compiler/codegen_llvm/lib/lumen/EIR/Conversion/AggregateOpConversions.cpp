@@ -39,6 +39,52 @@ struct ConsOpConversion : public EIROpConversion<ConsOp> {
   }
 };
 
+struct ListOpConversion : public EIROpConversion<ListOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      ListOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+    ListOpAdaptor adaptor(operands);
+
+    auto elements = adaptor.elements();
+    auto numElements = elements.size();
+
+    if (numElements == 0) {
+      Value nil = eir_nil();
+      rewriter.replaceOp(op, nil);
+      return success();
+    }
+
+    // Lower to single cons cell if it fits
+    if (numElements < 2) {
+      Value head = elements.front();
+      Value list = eir_cons(head, eir_nil());
+      rewriter.replaceOp(op, list);
+      return success();
+    }
+
+    unsigned cellsRequired = numElements;
+    unsigned currentIndex = numElements;
+
+    Value list;
+    while (currentIndex > 0) {
+      if (!list) {
+        Value tail = elements[--currentIndex];
+        Value head = elements[--currentIndex];
+        list = eir_cons(head, tail);
+      } else {
+        Value head = elements[--currentIndex];
+        list = eir_cons(head, list);
+      }
+    }
+
+    rewriter.replaceOp(op, list);
+    return success();
+  }
+};
+
 struct TupleOpConversion : public EIROpConversion<TupleOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -86,8 +132,8 @@ void populateAggregateOpConversionPatterns(OwningRewritePatternList &patterns,
                                            MLIRContext *context,
                                            EirTypeConverter &converter,
                                            TargetInfo &targetInfo) {
-  patterns.insert<ConsOpConversion, TupleOpConversion>(context, converter,
-                                                       targetInfo);
+  patterns.insert<ConsOpConversion, ListOpConversion,
+                  TupleOpConversion>(context, converter, targetInfo);
 }
 
 }  // namespace eir

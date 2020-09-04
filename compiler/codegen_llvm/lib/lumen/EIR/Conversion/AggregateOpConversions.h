@@ -6,6 +6,7 @@
 namespace lumen {
 namespace eir {
 class ConsOpConversion;
+class ListOpConversion;
 class TupleOpConversion;
 
 void populateAggregateOpConversionPatterns(OwningRewritePatternList &patterns,

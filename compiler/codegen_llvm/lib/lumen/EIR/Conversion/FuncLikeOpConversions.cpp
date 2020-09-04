@@ -116,9 +116,11 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     else if (auto tgt = dyn_cast_or_null<mlir::FuncOp>(target))
       targetType =
           ctx.typeConverter.convertType(tgt.getType()).cast<LLVM::LLVMType>();
-    else
-      targetType = ctx.typeConverter.convertType(cast<FuncOp>(target).getType())
-                       .cast<LLVM::LLVMType>();
+    else {
+      auto ft = cast<FuncOp>(target).getType();
+      auto tt = ctx.typeConverter.convertType(ft);
+      targetType = tt.cast<LLVM::LLVMType>();
+    }
 
     auto envLen = op.envLen();
     LLVMType opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
@@ -206,7 +208,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     Value codePtrGep =
         llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef, codeIndices);
     Value codePtr =
-        llvm_addressof(targetType.getPointerTo(), callee.getValue());
+        llvm_addressof(targetType, callee.getValue());
     llvm_store(llvm_bitcast(opaqueFnPtrTy, codePtr), codePtrGep);
 
     auto opOperands = adaptor.operands();

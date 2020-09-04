@@ -278,40 +278,21 @@ struct ConstantListOpConversion : public EIROpConversion<ConstantListOp> {
     auto elements = attr.getValue();
     auto numElements = elements.size();
 
+
     if (numElements == 0) {
       Value nil = eir_nil();
       rewriter.replaceOp(op, nil);
       return success();
     }
 
-    // Lower to single cons cell if it fits
-    if (numElements < 2) {
-      Value head = lowerElementValue(ctx, elements[0]);
-      assert(head && "unsupported element type in cons cell");
-      Value list = eir_cons(head, eir_nil());
-      rewriter.replaceOp(op, list);
-      return success();
+    SmallVector<Value, 4> elementValues;
+    for (auto element : elements) {
+      Value elementVal = lowerElementValue(ctx, element);
+      assert(elementVal && "unsupported element type in cons cell");
+      elementValues.push_back(elementVal);
     }
 
-    unsigned cellsRequired = numElements;
-    unsigned currentIndex = numElements;
-
-    Value list;
-    while (currentIndex > 0) {
-      if (!list) {
-        Value tail = lowerElementValue(ctx, elements[--currentIndex]);
-        assert(tail && "unsupported element type in cons cell");
-        Value head = lowerElementValue(ctx, elements[--currentIndex]);
-        assert(head && "unsupported element type in cons cell");
-        list = eir_cons(head, tail);
-      } else {
-        Value head = lowerElementValue(ctx, elements[--currentIndex]);
-        assert(head && "unsupported element type in cons cell");
-        list = eir_cons(head, list);
-      }
-    }
-
-    rewriter.replaceOp(op, list);
+    rewriter.replaceOpWithNewOp<ListOp>(op, elementValues);
     return success();
   }
 };

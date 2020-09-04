@@ -49,7 +49,7 @@ class ConvertEIRToLLVMPass
     // Initialize target-specific type information
     auto targetInfo = TargetInfo(targetMachine, &context);
     converter.addConversion(
-        [&](Type type) { return convertType(type, converter, targetInfo); });
+      [&](Type type) { return convertType(type, converter, targetInfo); });
     converter.addConversion([](LLVMType type) { return type; });
 
     // Populate conversion patterns
@@ -58,7 +58,7 @@ class ConvertEIRToLLVMPass
     // Add conversions from Standard to LLVM
     LLVMTypeConverter stdTypeConverter(&context, llvmOpts);
     stdTypeConverter.addConversion(
-        [&](Type type) { return convertType(type, converter, targetInfo); });
+      [&](Type type) { return convertType(type, converter, targetInfo); });
     mlir::populateStdToLLVMConversionPatterns(stdTypeConverter, patterns);
 
     // Add conversions from EIR to LLVM

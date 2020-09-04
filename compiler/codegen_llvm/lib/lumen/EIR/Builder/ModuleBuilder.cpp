@@ -63,6 +63,7 @@ using eir_cmplt = ValueBuilder<::lumen::eir::CmpLtOp>;
 using eir_cmplte = ValueBuilder<::lumen::eir::CmpLteOp>;
 using eir_atom = ValueBuilder<::lumen::eir::ConstantAtomOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
+using eir_list = ValueBuilder<::lumen::eir::ListOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 using eir_int = ValueBuilder<::lumen::eir::ConstantIntOp>;
 using eir_bigint = ValueBuilder<::lumen::eir::ConstantBigIntOp>;
@@ -342,8 +343,7 @@ Value ModuleBuilder::build_closure(Closure *closure) {
   unwrapValues(closure->env, closure->envLen, args);
   Location loc = unwrap(closure->loc);
   auto op = builder.create<ClosureOp>(loc, closure, args);
-  assert(op.getNumResults() == 1 && "unsupported number of results");
-  return op.getResult(0);
+  return op.getResult();
 }
 
 extern "C" bool MLIRBuildUnpackEnv(MLIRModuleBuilderRef b,
@@ -1311,7 +1311,6 @@ extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b,
                                      MLIRValueRef *errArgv, unsigned errArgc) {
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
-  Value closure = unwrap(cls);
   Block *ok = unwrap(okBlock);
   Block *err = unwrap(errBlock);
   SmallVector<Value, 2> args;
@@ -1320,63 +1319,45 @@ extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b,
   unwrapValues(okArgv, okArgc, okArgs);
   SmallVector<Value, 1> errArgs;
   unwrapValues(errArgv, errArgc, errArgs);
-  builder->build_closure_call(loc, closure, args, isTail, ok, okArgs, err,
-                              errArgs);
-}
-
-void ModuleBuilder::build_closure_call(Location loc, Value cls,
-                                       ArrayRef<Value> args, bool isTail,
-                                       Block *ok, ArrayRef<Value> okArgs,
-                                       Block *err, ArrayRef<Value> errArgs) {
-  ScopedContext scope(builder, loc);
 
   bool isInvoke = !isTail && err != nullptr;
 
-  // The closure call operation requires the callee to be of the
-  // correct type, so cast to closure type if not already
-  Value closure;
-  if (auto box = cls.getType().dyn_cast_or_null<BoxType>()) {
-    if (box.getBoxedType().isClosure()) {
-      closure = cls;
+  Value closure = unwrap(cls);
+  if (auto closureOp = getDefinition<ClosureOp>(closure)) {
+    // If this closure has no environment, we can replace the
+    // call to the closure with a call directly to the actual function
+    auto callee = closureOp.getCallee();
+    if (isInvoke) {
+      builder->build_static_invoke(loc, callee.getValue(), args, isTail, ok, okArgs,
+                                   err, errArgs);
     } else {
-      closure = eir_cast(cls, BoxType::get(builder.getType<ClosureType>()));
+      builder->build_static_call(loc, callee.getValue(), args, isTail, ok, okArgs);
     }
   } else {
-    closure = eir_cast(cls, BoxType::get(builder.getType<ClosureType>()));
+    // We can't find the original closure definition, so this
+    // function cannot be called directly, it must be called through `apply/2`
+    builder->build_apply_2(loc, closure, args, isTail, ok, okArgs, err, errArgs);
   }
+}
 
-  //  Build call
-  auto termTy = builder.getType<TermType>();
+void ModuleBuilder::build_apply_2(Location loc, Value cls,
+                                  ArrayRef<Value> args, bool isTail,
+                                  Block *ok, ArrayRef<Value> okArgs,
+                                  Block *err, ArrayRef<Value> errArgs) {
+  ScopedContext scope(builder, loc);
+
+  // We need to call apply/2 with the closure, and a list of arguments
+  SmallVector<Value, 2> applyArgs;
+  applyArgs.push_back(cls);
+  applyArgs.push_back(eir_list(args));
+
+  // Then, based on whether this was an invoke or not, call apply/2 appropriately
+  bool isInvoke = !isTail && err != nullptr;
   if (isInvoke) {
-    // Set up landing pad in error block
-    Block *pad = build_landing_pad(loc, err);
-    // Handle case where ok continuation is a return
-    bool generateRet = false;
-    if (!ok) {
-      // Create "normal" landing pad before the "unwind" pad
-      auto ip = builder.saveInsertionPoint();
-      ok = builder.createBlock(pad);
-      builder.restoreInsertionPoint(ip);
-      generateRet = true;
-    }
-    auto res = builder.create<InvokeClosureOp>(loc, closure, args, ok, okArgs,
-                                               pad, errArgs);
-    // Generate return if needed
-    if (generateRet) {
-      auto ip = builder.saveInsertionPoint();
-      builder.setInsertionPointToEnd(ok);
-      builder.create<ReturnOp>(loc, res.getResult());
-      builder.restoreInsertionPoint(ip);
-    }
-    return;
-  }
-  Operation *call;
-  if (isTail) {
-    call = builder.create<CallClosureOp>(loc, termTy, closure, args);
-    eir_return(ValueRange(call->getResult(0)));
+    build_static_invoke(loc, "erlang:apply/2", applyArgs, isTail, ok, okArgs,
+                        err, errArgs);
   } else {
-    call = builder.create<CallClosureOp>(loc, termTy, closure, args);
-    builder.create<BranchOp>(loc, ok, ArrayRef<Value>{call->getResult(0)});
+    build_static_call(loc, "erlang:apply/2", applyArgs, isTail, ok, okArgs);
   }
   return;
 }

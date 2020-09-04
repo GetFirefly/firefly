@@ -9,7 +9,7 @@ macro_rules! number_infix_operator {
 
         use crate::number::Operands::*;
 
-        let operands = match ($left.decode()?, $right.decode()?) {
+        let operands = match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
                 let left_isize = left_small_integer.into();
                 let right_isize = right_small_integer.into();

@@ -1814,13 +1814,9 @@ def eir_ListOp : eir_Op<"list"> {
   let builders = [
     OpBuilder<"OpBuilder &builder, OperationState &result, ArrayRef<Value> elements",
     [{
-      SmallVector<Type, 1> elementTypes;
-      for (auto val : elements) {
-        elementTypes.push_back(val.getType());
-      }
       result.addOperands(elements);
-      auto tupleType = builder.getType<eir::TupleType>(elementTypes);
-      result.addTypes(BoxType::get(tupleType));
+      auto listType = builder.getType<eir::ListType>();
+      result.addTypes(BoxType::get(listType));
       result.addAttribute("alloca", builder.getBoolAttr(false));
     }]>
   ];

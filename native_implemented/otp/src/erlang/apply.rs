@@ -10,7 +10,7 @@ pub fn arguments_term_to_vec(arguments: Term) -> exception::Result<Vec<Term>> {
 
     match arguments.decode().unwrap() {
         TypedTerm::List(arguments_boxed_cons) => {
-            for result in arguments_boxed_cons.into_iter() {
+            for result in arguments_boxed_cons.iter() {
                 match result {
                     Ok(element) => argument_vec.push(element),
                     Err(_) => {

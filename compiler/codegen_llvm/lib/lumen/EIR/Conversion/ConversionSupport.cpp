@@ -96,7 +96,7 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
         convertFunctionSignature(converter, targetInfo, funTy, /*isVariadic=*/false, conversion);
      if (!converted)
        return llvm::None;
-     return converted.getPointerTo();
+     return converted;
   }
 
   // If this isn't otherwise an EIR type, we can't convert it

@@ -106,8 +106,18 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
 
     // Look for the callee, if it doesn't exist, create a default declaration
     SmallVector<LLVMType, 2> argTypes;
-    for (auto i = 0; i < arity; i++) {
-      argTypes.push_back(termTy);
+    // If we have an environment, the first argument is a closure
+    if (op.envLen() > 0) {
+      argTypes.push_back(termPtrTy);
+      unsigned withEnvArity = arity > 0 ? arity - 1 : 0;
+      for (auto i = 0; i < withEnvArity; i++) {
+        argTypes.push_back(termTy);
+      }
+    } else {
+      // Otherwise, all arguments, if any, will be terms
+      for (auto i = 0; i < arity; i++) {
+        argTypes.push_back(termTy);
+      }
     }
     auto target = ctx.getOrInsertFunction(callee.getValue(), termTy, argTypes);
     LLVMType targetType;
@@ -208,7 +218,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     Value codePtrGep =
         llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef, codeIndices);
     Value codePtr =
-        llvm_addressof(targetType, callee.getValue());
+        llvm_addressof(targetType.getPointerTo(), callee.getValue());
     llvm_store(llvm_bitcast(opaqueFnPtrTy, codePtr), codePtrGep);
 
     auto opOperands = adaptor.operands();

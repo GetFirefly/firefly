@@ -87,69 +87,6 @@ pub unsafe extern "C" fn process_exit(exception: Option<NonNull<ErlangException>
     scheduler.process_yield();
 }
 
-#[naked]
-#[inline(never)]
-#[cfg(all(unix, target_arch = "x86_64"))]
-pub unsafe extern "C" fn process_return_continuation() {
-    let f: fn(term: Term) -> () = process_return;
-    llvm_asm!("
-        # When called, %rax holds the term the process exited with,
-        # so we move it to %rdi so that it ends up as the first argument
-        # to process_return
-        movq %rax, %rdi
-
-        callq *$0
-        "
-    :
-    : "r"(f)
-    :
-    : "volatile", "alignstack"
-    );
-}
-
-#[naked]
-#[inline(never)]
-#[cfg(all(unix, target_arch = "x86_64"))]
-pub unsafe extern "C" fn trap_exceptions() {
-    llvm_asm!("
-         # spawn_internal has set up the stack so that when we
-         # enter this function, %r14 holds the function pointer
-         # for the `init` function, and %r15 holds the function pointer
-         # for the 'real' trap_exceptions implementation. We need to
-         # move the init pointer to %rdi so it gets passed as the first
-         # argument to the trap_exceptions implementation. If the init
-         # function was a closure, %r12 has the closure term, which will
-         # be passed as the 2nd argument to trap_exceptions_impl, which in
-         # turn will move it to %rdi so that it is the first (and only)
-         # argument to the 'real' init function
-         #
-         # When called, trap_exceptions_impl will invoke the init function,
-         # wrapped in an exception handler that traps Erlang exceptions that
-         # went uncaught, but will allow non-Erlang exceptions to continue unwinding
-         movq  %r14, %rdi
-         movq  %r12, %rsi
-         callq *%r15
-
-         # When we get here, we're returning 'into' process_return_continuation,
-         # but we should never actually hit this, as the exception handler will invoke
-         # exit directly
-         retq
-         "
-    :
-    :
-    :
-    : "volatile", "alignstack"
-    );
-}
-
-#[inline(never)]
-fn process_return(exit_value: Term) {
-    do_process_return(
-        scheduler::current().as_any().downcast_ref().unwrap(),
-        exit_value,
-    );
-}
-
 #[export_name = "__lumen_builtin_malloc"]
 pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
     use core::convert::TryInto;
@@ -184,30 +121,6 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
         Ok(nn) => nn.as_ptr() as *mut u8,
         Err(_) => ptr::null_mut(),
     }
-}
-
-/// Called when the current process has finished executing, and has
-/// returned all the way to its entry function. This marks the process
-/// as exiting (if it wasn't already), and then yields to the scheduler
-fn do_process_return(_scheduler: &Scheduler, _exit_value: Term) -> bool {
-    unreachable!("unexpected return instead of explicit exit");
-    /*
-    let current = &scheduler.current;
-    if current.pid() != scheduler.root.pid() {
-        if let Some(err) = process::ffi::process_error() {
-            current.exception(err);
-        } else {
-            current.exit(
-                exit_value,
-                Trace::capture(),
-                Some(anyhow!("process exit").into()),
-            );
-        }
-        scheduler.process_yield()
-    } else {
-        true
-    }
-    */
 }
 
 #[export_name = "lumen_rt_scheduler_unregistered"]
@@ -614,18 +527,6 @@ impl Scheduler {
         }
     }
 
-    /// Called when the current process has finished executing, and has
-    /// returned all the way to its entry function. This marks the process
-    /// as exiting (if it wasn't already), and then yields to the scheduler
-    pub fn process_return(&self) -> bool {
-        if self.current.pid() != self.root.pid() {
-            self.current.exit_normal();
-            self.process_yield()
-        } else {
-            true
-        }
-    }
-
     /// This function takes care of coordinating the scheduling of a new
     /// process/descheduling of the current process.
     ///
@@ -734,6 +635,7 @@ impl Scheduler {
 
     fn runnable(process: &Process, init_fn: DynamicCallee, env: Option<Term>) {
         process.runnable(|| {
+            #[allow(unused)]
             #[inline(always)]
             unsafe fn push(sp: &mut StackPointer, value: u64) {
                 sp.0 = sp.0.offset(-1);
@@ -750,37 +652,41 @@ impl Scheduler {
             // in the process itself
             unsafe {
                 let stack = process.stack.lock();
+                // This can be used to push items on the process
+                // stack before it starts executing. For now that
+                // is not being done
                 let mut sp = StackPointer(stack.top as *mut u64);
-                // This empty slot will hold the return address of the swap_stack function,
-                // which will be used to allow the unwinder to unwind back to the scheduler
-                // properly
-                push(&mut sp, 0);
-                // Function that will be called when returning from trap_exceptions
-                push(&mut sp, process_return_continuation as u64);
-                // Function that traps any unhandled exceptions in the spawned process
-                // and converts them to exits
-                push(&mut sp, trap_exceptions as u64);
+
                 // Update process stack pointer
                 let s_top = &stack.top as *const _ as *mut _;
                 ptr::write(s_top, sp.0 as *const u8);
-                // Update rsp/rbp
+
+                // Write %rsp/%rbp initial values
                 let rsp = &process.registers.rsp as *const u64 as *mut _;
-                ptr::write(rsp, sp.0 as u64);
                 let rbp = &process.registers.rbp as *const u64 as *mut _;
+                ptr::write(rsp, sp.0 as u64);
                 ptr::write(rbp, sp.0 as u64);
+
                 // If this init function has a closure env, place it in
-                // r12, which will be moved to %rsi by trap_exceptions,
-                // and moved to %rdi by trap_exceptions_impl
+                // r12, which will be moved to %rsi by swap_stack, such
+                // that it becomes the second argument to __lumen_trap_exceptions,
+                // which will in turn move it to %rdi to become the first
+                // argument to the start function of the process
                 let r12 = &process.registers.r12 as *const _ as *mut Term;
                 ptr::write(r12, env.unwrap_or(Term::NONE));
+
                 // This is used to indicate to swap_stack that this process
-                // is being swapped to for the first time, so that its CFA
-                // can be linked to the parent stack
+                // is being swapped to for the first time, which allows the
+                // function to perform some initial one-time setup to link
+                // call frames for the unwinder and call __lumen_trap_exceptions
                 let r13 = &process.registers.r13 as *const u64 as *mut _;
                 ptr::write(r13, 0xdeadbeef as u64);
-                // Set up the function pointers for trap_exceptions
+
+                // The function that __lumen_trap_exceptions will call as entry
                 let r14 = &process.registers.r14 as *const u64 as *mut _;
                 ptr::write(r14, init_fn as u64);
+
+                // The function that swap_stack will call as entry (__lumen_trap_exceptions)
                 let r15 = &process.registers.r15 as *const u64 as *mut _;
                 ptr::write(r15, trap_exceptions_impl as u64);
             }
@@ -806,32 +712,20 @@ fn reset_reduction_counter() -> u64 {
 unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters) {
     const FIRST_SWAP: u64 = 0xdeadbeef;
     llvm_asm!("
-        # Store the return address
+       # Save the return address to a register
         leaq     0f(%rip),  %rax
-        pushq    %rax
 
-        # If this is the first time swapping to this process,
-        # we need to write the return address from above to the
-        # first stack slot, otherwise resume the process normally
-        pushq    %r15
-        movq     24($1), %r15
-        cmpq     %r15, $2
-        popq     %r15
-        jne      ${:private}_resume
+       # Save the parent base pointer for when control returns to this call frame.
+       # CFA directives will inform the unwinder to expect %rbp at the bottom of the
+       # stack for this frame, so this should be the last value on the stack in the caller
+        pushq    %rbp
 
-        # This is the first time this process is swapped to, so
-        # pop the return address we saved and write it to the beginning
-        # of the stack (3 8-byte words from the current rsp)
-        popq     %rax
-        pushq    %r15
-        movq     ($1), %r15
-        movq     %rax, -24(%r15)
-        popq     %r15
+       # We also save %rbp and %rsp to registers so that we can setup CFA directives if this
+       # is the first swap for the target process
+        movq     %rbp, %rcx
+        movq     %rsp, %r9
 
-        # This is where we jump if we're resuming normally
-        ${:private}_resume:
-
-        # Save the stack pointer, and callee-saved registers of `prev`
+       # Save the stack pointer, and callee-saved registers of `prev`
         movq     %rsp, ($0)
         movq     %r15, 8($0)
         movq     %r14, 16($0)
@@ -840,7 +734,7 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         movq     %rbx, 40($0)
         movq     %rbp, 48($0)
 
-        # Restore the stack pointer, and callee-saved registers of `new`
+       # Restore the stack pointer, and callee-saved registers of `new`
         movq     ($1),   %rsp
         movq     8($1),  %r15
         movq     16($1), %r14
@@ -849,12 +743,8 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         movq     40($1), %rbx
         movq     48($1), %rbp
 
-        # We need to let the unwinder know that the CFA has changed, currently
-        # that is 8 bytes above %rsp, because the call to this function pushes
-        # %rip to the stack, and since we're restoring the stack pointer, the
-        # value of the CFA, from the perspective of the unwinder, has also been
-        # changed
-        .cfi_def_cfa %rsp, 8
+       # The value of all the callee-saved registers has changed, so we
+       # need to inform the unwinder of that fact before proceeding
         .cfi_restore %rsp
         .cfi_restore %r15
         .cfi_restore %r14
@@ -863,11 +753,70 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         .cfi_restore %rbx
         .cfi_restore %rbp
 
+       # If this is the first time swapping to this process,
+       # we need to to perform some one-time initialization to
+       # link the stack to the original parent stack (i.e. the scheduler),
+       # which is important for the unwinder
+        cmpq     %r13, $2
+        jne      ${:private}_resume
+
+       # Store the original base pointer at the top of the stack
+        pushq %rcx
+       # Followed by the return address
+        pushq %rax
+       # Finally we store a pointer to the bottom of the stack in the
+       # parent call frame. The unwinder will expect to restore %rbp
+       # from this address
+        pushq %r9
+
+       # These CFI directives inform the unwinder of where it can expect
+       # to find the CFA relative to %rbp. This matches how we've laid out the stack.
+       #
+       # - The current %rbp is now 24 bytes (3 words) above %rsp.
+       # - 16 bytes _down_ from the current %rbp is the value from %r9 that
+       # we pushed, containing the parent call frame's stack pointer.
+       #
+       # The first directive tells the unwinder that it can expect to find the
+       # CFA (call frame address) 16 bytes above %rbp. The second directive then
+       # tells the unwinder that it can find the previous %rbp 16 bytes _down_
+       # from the current %rbp. The result is that the unwinder will restore %rbp
+       # from that stack slot, and will then expect to find the previous CFA 16 bytes
+       # above that address, allowing the unwinder to walk back into the parent frame
+        .cfi_def_cfa %rbp, 16
+        .cfi_offset %rbp, -16
+
+       # Now that the frames are linked, we can call the entry point. For now, this
+       # is __lumen_trap_exceptions, which expects to receive two arguments: the function
+       # being wrapped by the exception handler, and the value of the closure environment,
+       # _if_ it is a closure being called, otherwise the value of that argument is Term::NONE
+        movq  %r14, %rdi
+        movq  %r12, %rsi
+       # We have already set up the stack precisely, so we don't use callq here, instead
+       # we go ahead and jump straight to the beginning of the entry function.
+       # NOTE: This call never truly returns, as the exception handler calls __lumen_builtin_exit
+       # with the return value of the 'real' entry function, or with an exception if one
+       # is caught. However, swap_stack _does_ return for all other swaps, just not the first.
+        jmpq *%r15
+
+     ${:private}_resume:
+       # We land here only on a context switch, and since the last switch _away_ from
+       # this process pushed %rbp on to the stack, and we don't need that value, we
+       # adjust the stack pointer accordingly.
+        add $$8, %rsp
+
+       # At this point we will return back to where execution left off:
+       # For the 'root' (scheduler) process, this returns back into `swap_process`;
+       # for all other processes, this returns to the code which was executing when
+       # it yielded, the address of which is 8 bytes above the current stack pointer.
+       # We pop and jmp rather than ret to avoid branch mispredictions.
+        popq %rax
+        jmpq *%rax
      0:
     "
     :
-    : "r"(prev), "r"(new), "r"(FIRST_SWAP)
+    : "{rsi}"(prev), "{rdi}"(new), "{rdx}"(FIRST_SWAP)
     :
     : "volatile", "alignstack"
     );
+    core::intrinsics::unreachable();
 }

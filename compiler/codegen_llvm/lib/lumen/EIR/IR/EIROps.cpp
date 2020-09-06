@@ -527,12 +527,12 @@ static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
   }
   // Casting an opaque term to any term type is always allowed
   if (srcType.isOpaque()) return true;
-  // A cast must be to an immediate-sized type
-  if (!destType.isImmediate()) return false;
   // Box-to-box casts are always allowed
   if (srcType.isBox() & destType.isBox()) return true;
   // Only header types can be boxed
   if (destType.isBox() && !srcType.isBoxable()) return false;
+  // A cast must be to an immediate-sized type
+  if (!destType.isImmediate()) return false;
   // Only support casts between compatible types
   if (srcType.isNumber() && !destType.isNumber()) return false;
   if (srcType.isInteger() && !destType.isInteger()) return false;

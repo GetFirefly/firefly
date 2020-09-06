@@ -91,60 +91,46 @@ impl ReceiveContext {
 
 #[export_name = "__lumen_builtin_receive_start"]
 pub extern "C" fn builtin_receive_start(timeout: Term) -> *mut ReceiveContext {
-    let result = panic::catch_unwind(move || {
-        let to = match timeout.decode().unwrap() {
-            TypedTerm::Atom(atom) if atom == "infinity" => Timeout::Infinity,
-            TypedTerm::SmallInteger(si) => Timeout::from_millis(si).expect("invalid timeout value"),
-            _ => unreachable!("should never get non-atom/non-integer receive timeout"),
-        };
-        // TODO: It would be best if ReceiveContext was repr(C) so we
-        // could keep it on the stack rather than heap allocate here
-        let p = current_process();
-        let context = Box::new(ReceiveContext::new(p.clone(), to));
-        let mbox = p.mailbox.lock();
-        mbox.borrow().recv_start();
-        Box::into_raw(context)
-    });
-    if let Ok(res) = result {
-        res
-    } else {
-        ptr::null_mut()
-    }
+    let to = match timeout.decode().unwrap() {
+        TypedTerm::Atom(atom) if atom == "infinity" => Timeout::Infinity,
+        TypedTerm::SmallInteger(si) => Timeout::from_millis(si).expect("invalid timeout value"),
+        _ => unreachable!("should never get non-atom/non-integer receive timeout"),
+    };
+    // TODO: It would be best if ReceiveContext was repr(C) so we
+    // could keep it on the stack rather than heap allocate here
+    let p = current_process();
+    let context = Box::new(ReceiveContext::new(p.clone(), to));
+    let mbox = p.mailbox.lock();
+    mbox.borrow().recv_start();
+    Box::into_raw(context)
 }
 
 #[export_name = "__lumen_builtin_receive_wait"]
 pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState {
-    let result = panic::catch_unwind(move || {
-        let context = unsafe { &mut *ctx };
-        loop {
-            {
-                let p = current_process();
-                let mbox_lock = p.mailbox.lock();
-                let mut mbox = mbox_lock.borrow_mut();
-                if let Some(msg) = mbox.recv_peek() {
-                    mbox.recv_increment();
-                    context.with_message(msg);
-                    break ReceiveState::Received;
-                } else if context.should_time_out() {
-                    mbox.recv_timeout();
-                    context.with_timeout();
-                    break ReceiveState::Timeout;
-                } else {
-                    p.wait();
-                }
-            }
-            // We put our yield here to ensure that we're not holding
-            // the mailbox lock while waiting, when resuming from the
-            // yield, we'll continue looping
-            unsafe {
-                builtin_yield();
+    let context = unsafe { &mut *ctx };
+    loop {
+        {
+            let p = current_process();
+            let mbox_lock = p.mailbox.lock();
+            let mut mbox = mbox_lock.borrow_mut();
+            if let Some(msg) = mbox.recv_peek() {
+                mbox.recv_increment();
+                context.with_message(msg);
+                break ReceiveState::Received;
+            } else if context.should_time_out() {
+                mbox.recv_timeout();
+                context.with_timeout();
+                break ReceiveState::Timeout;
+            } else {
+                p.wait();
             }
         }
-    });
-    if let Ok(res) = result {
-        res
-    } else {
-        ReceiveState::Error
+        // We put our yield here to ensure that we're not holding
+        // the mailbox lock while waiting, when resuming from the
+        // yield, we'll continue looping
+        unsafe {
+            builtin_yield();
+        }
     }
 }
 

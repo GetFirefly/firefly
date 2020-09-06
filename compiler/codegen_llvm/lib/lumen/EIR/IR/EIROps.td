@@ -1769,7 +1769,7 @@ def eir_ConstantListOp : eir_ConstantOp<eir_BoxType, "constant.list"> {
       auto consType = builder.getType<ConsType>();
       auto type = builder.getType<eir::BoxType>(consType);
       auto attr = SeqAttr::get(type, elements);
-      build(builder, result, BoxType::get(type), attr);
+      build(builder, result, type, attr);
     }]>
   ];
 }

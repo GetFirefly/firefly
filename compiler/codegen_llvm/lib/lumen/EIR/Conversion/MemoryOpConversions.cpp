@@ -54,7 +54,13 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           return success();
         }
         if (ft.isBox() && tt.isOpaque()) {
-          Value encoded = ctx.encodeBox(in);
+          auto box = ft.cast<BoxType>();
+          auto boxed = box.getBoxedType();
+          Value encoded;
+          if (boxed.isNonEmptyList())
+            encoded = ctx.encodeList(in);
+          else
+            encoded = ctx.encodeBox(in);
           rewriter.replaceOp(op, encoded);
           return success();
         }
@@ -63,9 +69,16 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           return success();
         }
         if (ft.isOpaque() && tt.isBox()) {
-          auto tbt = ctx.typeConverter.convertType(tt.cast<BoxType>().getBoxedType())
-                         .cast<LLVMType>();
-          Value decoded = ctx.decodeBox(tbt, in);
+          auto box = tt.cast<BoxType>();
+          auto boxed = box.getBoxedType();
+          Value decoded;
+          if (boxed.isNonEmptyList()) {
+            decoded = ctx.decodeList(in);
+          } else {
+            auto tbt = ctx.typeConverter.convertType(boxed)
+                          .cast<LLVMType>();
+            decoded = ctx.decodeBox(tbt, in);
+          }
           rewriter.replaceOp(op, decoded);
           return success();
         }

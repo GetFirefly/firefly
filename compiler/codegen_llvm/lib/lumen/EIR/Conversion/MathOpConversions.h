@@ -20,8 +20,8 @@ class BslOpConversion;
 class BsrOpConversion;
 class BxorOpConversion;
 // Logical
-// class LogicalAndOpConversion;
-// class LogicalOrOpConversion;
+class LogicalAndOpConversion;
+class LogicalOrOpConversion;
 
 void populateMathOpConversionPatterns(OwningRewritePatternList &patterns,
                                       MLIRContext *context,

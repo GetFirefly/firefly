@@ -32,6 +32,11 @@ static Value specializeUnaryFloatMathOp(Location loc,
   return fpOp.getResult();
 }
 
+template <typename Op, typename T>
+static Value specializeLogicalOp(Location loc, RewritePatternContext<Op> &ctx,
+                                 Value lhs, Value rhs) {
+}
+
 template <typename Op, typename OperandAdaptor, typename IntOp,
           typename FloatOp>
 class MathOpConversion : public EIROpConversion<Op> {
@@ -269,6 +274,68 @@ struct FDivOpConversion
   using FloatMathOpConversion::FloatMathOpConversion;
 };
 
+template <typename Op, typename OperandAdaptor, typename LogicalOp>
+class LogicalOpConversion : public EIROpConversion<Op> {
+ public:
+  explicit LogicalOpConversion(MLIRContext *context,
+                               EirTypeConverter &converter_,
+                               TargetInfo &targetInfo_,
+                               mlir::PatternBenefit benefit = 1)
+      : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
+                                             benefit) {}
+
+  LogicalResult matchAndRewrite(
+      Op op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    OperandAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
+
+    Value lhs = adaptor.lhs();
+    Value rhs = adaptor.rhs();
+    Type lhsTy = lhs.getType();
+    Type rhsTy = rhs.getType();
+    auto i1Ty = ctx.getI1Type();
+
+    Value lhsOperand;
+    if (auto ty = lhsTy.dyn_cast_or_null<LLVMIntegerType>()) {
+      if (ty.getBitWidth() == 1) {
+        lhsOperand = lhs;
+      } else {
+        lhsOperand = llvm_trunc(i1Ty, lhs);
+      }
+    } else {
+      lhsOperand = eir_cast(lhs, i1Ty);
+    }
+    Value rhsOperand;
+    if (auto ty = rhsTy.dyn_cast_or_null<LLVMIntegerType>()) {
+      if (ty.getBitWidth() == 1) {
+        rhsOperand = rhs;
+      } else {
+        rhsOperand = llvm_trunc(i1Ty, rhs);
+      }
+    } else {
+      rhsOperand = eir_cast(rhs, i1Ty);
+    }
+
+    rewriter.replaceOpWithNewOp<LogicalOp>(op, lhsOperand, rhsOperand);
+    return success();
+  }
+
+ private:
+  using EIROpConversion<Op>::getRewriteContext;
+};
+
+struct LogicalAndOpConversion
+    : public LogicalOpConversion<LogicalAndOp, LogicalAndOpAdaptor, LLVM::AndOp> {
+  using LogicalOpConversion::LogicalOpConversion;
+};
+
+struct LogicalOrOpConversion
+    : public LogicalOpConversion<LogicalOrOp, LogicalOrOpAdaptor, LLVM::OrOp> {
+  using LogicalOpConversion::LogicalOpConversion;
+};
+
 void populateMathOpConversionPatterns(OwningRewritePatternList &patterns,
                                       MLIRContext *context,
                                       EirTypeConverter &converter,
@@ -276,7 +343,8 @@ void populateMathOpConversionPatterns(OwningRewritePatternList &patterns,
   patterns.insert<AddOpConversion, SubOpConversion, NegOpConversion,
                   MulOpConversion, DivOpConversion, FDivOpConversion,
                   RemOpConversion, BslOpConversion, BsrOpConversion,
-                  BandOpConversion, BorOpConversion, BxorOpConversion>(
+                  BandOpConversion, BorOpConversion, BxorOpConversion,
+                  LogicalAndOpConversion, LogicalOrOpConversion>(
       context, converter, targetInfo);
 }
 

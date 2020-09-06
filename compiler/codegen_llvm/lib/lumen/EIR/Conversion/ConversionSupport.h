@@ -39,6 +39,7 @@ using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ScopedContext;
 using ::mlir::edsc::ValueBuilder;
 using ::mlir::LLVM::LLVMType;
+using ::mlir::LLVM::LLVMIntegerType;
 
 namespace LLVM = ::mlir::LLVM;
 

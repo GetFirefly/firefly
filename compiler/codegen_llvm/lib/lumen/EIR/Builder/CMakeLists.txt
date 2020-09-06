@@ -6,6 +6,7 @@ lumen_cc_library(
   SRCS
     "MLIR.cpp"
     "ModuleBuilder.cpp"
+    "ModuleBuilderSupport.cpp"
     "Passes.cpp"
   DEPS
     lumen::EIR::IR

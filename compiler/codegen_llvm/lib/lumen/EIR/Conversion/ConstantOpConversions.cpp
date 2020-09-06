@@ -37,7 +37,7 @@ struct ConstantAtomOpConversion : public EIROpConversion<ConstantAtomOp> {
         op.emitError("invalid atom used as boolean value");
         return failure();
       }
-
+        
       // Lower to i1
       auto i1Ty = ctx.getI1Type();
       Value val = llvm_constant(i1Ty, ctx.getIntegerAttr(id));

@@ -434,7 +434,7 @@ impl Scheduler {
                     // Without this check, a process.exit() from outside the process during WAITING
                     // will return to code that called `process.wait()`
                     let requeue_arc_process = if !process.is_exiting() {
-                        info!("swapping into process");
+                        info!("swapping into process {:?}", process.pid());
                         // The swap takes care of setting up the to-be-scheduled process
                         // as the current process, and swaps to its stack. The code below
                         // is executed when that process has yielded and we're resetting
@@ -760,6 +760,8 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
         cmpq     %r13, $2
         jne      ${:private}_resume
 
+       # Ensure we never perform initialization twice
+        movq  $$0x0, %r13
        # Store the original base pointer at the top of the stack
         pushq %rcx
        # Followed by the return address
@@ -814,7 +816,7 @@ unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedReg
      0:
     "
     :
-    : "{rsi}"(prev), "{rdi}"(new), "{rdx}"(FIRST_SWAP)
+    : "{rdi}"(prev), "{rsi}"(new), "{rdx}"(FIRST_SWAP)
     :
     : "volatile", "alignstack"
     );

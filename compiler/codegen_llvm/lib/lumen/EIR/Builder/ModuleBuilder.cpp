@@ -1196,12 +1196,12 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
   // this is not 100% the case right now, but will be soon
   if (resultOpt) {
     auto result = resultOpt.getValue();
-    if (result.getType() != ok->getArgument(0).getType()) {
-      Value okArg = eir_cast(result, termTy);
-      eir_br(ok, ValueRange(okArg));
-    } else {
-      eir_br(ok, ValueRange(result));
+    Type resultType = result.getType();
+    BlockArgument blockArg = ok->getArgument(0);
+    if (resultType != blockArg.getType()) {
+      blockArg.setType(resultType);
     }
+    eir_br(ok, ValueRange(result));
     return true;
   }
 

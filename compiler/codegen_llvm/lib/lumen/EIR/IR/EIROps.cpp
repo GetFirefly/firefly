@@ -973,6 +973,11 @@ OpFoldResult ConstantFloatOp::fold(ArrayRef<Attribute> operands) {
   return getValue();
 }
 
+OpFoldResult ConstantBoolOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "constant has no operands");
+  return getValue();
+}
+
 OpFoldResult ConstantAtomOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.empty() && "constant has no operands");
   return getValue();

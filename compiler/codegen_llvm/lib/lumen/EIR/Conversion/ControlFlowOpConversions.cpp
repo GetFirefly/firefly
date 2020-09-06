@@ -21,6 +21,22 @@ struct CondBranchOpConversion : public EIROpConversion<eir::CondBranchOp> {
   LogicalResult matchAndRewrite(
       eir::CondBranchOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+    CondBranchOpAdaptor adaptor(op);
+
+    Value cond = adaptor.condition();
+    Type condType = cond.getType();
+    if (auto condTy = condType.dyn_cast_or_null<LLVMIntegerType>()) {
+      if (condTy.getBitWidth() > 1) {
+        auto i1Ty = ctx.getI1Type();
+        Value newCond = rewriter.create<CastOp>(op.getLoc(), adaptor.condition(), i1Ty);
+        rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
+          op, newCond, op.trueDest(), adaptor.trueDestOperands(), op.falseDest(), op.falseDestOperands()
+        );
+        return success();
+      }
+    }
+
     rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
         op, operands, op.getSuccessors(), op.getAttrs());
     return success();

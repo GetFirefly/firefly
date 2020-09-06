@@ -18,7 +18,7 @@ Operation *getDefinition(Value val) {
       return nullptr;
     // If there is a single predecessor, check the value passed as argument
     // to this block.
-    //
+    // 
     // If this block has multiple predecessors, we need to check if the
     // argument traces back to a single value; otherwise there are different
     // values in different branches, and we can't get a single definition

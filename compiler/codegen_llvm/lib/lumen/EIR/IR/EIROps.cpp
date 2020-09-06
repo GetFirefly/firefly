@@ -1220,16 +1220,6 @@ Optional<MutableOperandRange> InvokeOp::getMutableSuccessorOperands(
 }
 
 //===----------------------------------------------------------------------===//
-// eir.invoke_closure
-//===----------------------------------------------------------------------===//
-
-Optional<MutableOperandRange> InvokeClosureOp::getMutableSuccessorOperands(
-    unsigned index) {
-  assert(index < getNumSuccessors() && "invalid successor index");
-  return index == okIndex ? okDestOperandsMutable() : errDestOperandsMutable();
-}
-
-//===----------------------------------------------------------------------===//
 // eir.yield.check
 //===----------------------------------------------------------------------===//
 

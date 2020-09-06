@@ -31,12 +31,60 @@ struct ConstantAtomOpConversion : public EIROpConversion<ConstantAtomOp> {
 
     auto atomAttr = op.getValue().cast<AtomAttr>();
     auto id = (uint64_t)atomAttr.getValue().getLimitedValue();
-    auto termTy = ctx.getUsizeType();
-    auto taggedAtom = ctx.targetInfo.encodeImmediate(TypeKind::Atom, id);
-    Value val = llvm_constant(termTy, ctx.getIntegerAttr(taggedAtom));
 
-    rewriter.replaceOp(op, {val});
+    if (op.getType().isa<BooleanType>()) {
+      if (id > 1) {
+        op.emitError("invalid atom used as boolean value");
+        return failure();
+      }
+
+      // Lower to i1
+      auto i1Ty = ctx.getI1Type();
+      Value val = llvm_constant(i1Ty, ctx.getIntegerAttr(id));
+      rewriter.replaceOp(op, {val});
+    } else {
+      // Lower to termTy
+      auto termTy = ctx.getUsizeType();
+      auto taggedAtom = ctx.targetInfo.encodeImmediate(TypeKind::Atom, id);
+      Value val = llvm_constant(termTy, ctx.getIntegerAttr(taggedAtom));
+      rewriter.replaceOp(op, {val});
+    }
+
     return success();
+  }
+};
+
+struct ConstantBoolOpConversion : public EIROpConversion<ConstantBoolOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      ConstantBoolOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    auto ctx = getRewriteContext(op, rewriter);
+
+    auto attr = op.getValue().cast<BoolAttr>();
+    auto isTrue = attr.getValue();
+    auto valType = op.getType();
+
+    // Can be lowered to atoms
+    if (valType.isa<AtomType>()) {
+      auto ty = ctx.getUsizeType();
+      auto taggedAtom = ctx.targetInfo.encodeImmediate(TypeKind::Atom, (unsigned)(isTrue));
+      Value val = llvm_constant(ty, ctx.getIntegerAttr(taggedAtom));
+      rewriter.replaceOp(op, {val});
+      return success();
+    }
+
+    // Otherwise we are expecting this to be an integer type (i1 almost always)
+    if (valType.isa<mlir::IntegerType>()) {
+      auto ty = ctx.typeConverter.convertType(op.getType()).cast<LLVMType>();
+      Value val = llvm_constant(ty, ctx.getIntegerAttr((unsigned)(isTrue)));
+      rewriter.replaceOp(op, {val});
+      return success();
+    }
+
+    op.emitError("unexpected type associated with constant boolean value");
+    return failure();
   }
 };
 
@@ -502,7 +550,8 @@ void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,
                                           EirTypeConverter &converter,
                                           TargetInfo &targetInfo) {
-  patterns.insert<ConstantAtomOpConversion, ConstantBigIntOpConversion,
+  patterns.insert<ConstantAtomOpConversion, ConstantBoolOpConversion,
+                  ConstantBigIntOpConversion,
                   ConstantBinaryOpConversion, ConstantFloatOpConversion,
                   ConstantIntOpConversion, ConstantListOpConversion,
                   ConstantMapOpConversion, ConstantNilOpConversion,

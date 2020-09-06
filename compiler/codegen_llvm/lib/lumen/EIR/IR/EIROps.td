@@ -1596,7 +1596,30 @@ def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, "constant.bigint", [Const
   let hasFolder = 1;
 }
 
-def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, "constant.atom", [ConstantLike]> {
+def eir_ConstantBoolOp : eir_ConstantOp<eir_BoolType, "constant.bool", [ConstantLike]> {
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Type type, Attribute val",
+    [{
+      result.addAttribute("value", val);
+      result.addTypes(type);
+    }]>,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, bool truth",
+    [{
+      build(builder, result, builder.getType<BooleanType>(), builder.getBoolAttr(truth));
+    }]>,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Type type, bool truth",
+    [{
+      build(builder, result, type, builder.getBoolAttr(truth));
+    }]>,
+  ];
+
+  let hasFolder = 1;
+}
+
+def eir_ConstantAtomOp : eir_ConstantOp<eir_AnyType, "constant.atom", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1608,10 +1631,11 @@ def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, "constant.atom", [Constant
     "OpBuilder &builder, OperationState &result, bool truth",
     [{
       auto id = APInt(64, truth ? 1 : 0, /*signed=*/false);
+      auto boolTy = builder.getType<BooleanType>();
       if (truth) {
-        build(builder, result, id, "true");
+        build(builder, result, boolTy, id, "true");
       } else {
-        build(builder, result, id, "false");
+        build(builder, result, boolTy, id, "false");
       }
     }]>,
     OpBuilder<

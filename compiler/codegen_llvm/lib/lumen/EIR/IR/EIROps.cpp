@@ -514,8 +514,17 @@ static LogicalResult verify(IsTypeOp op) {
 //===----------------------------------------------------------------------===//
 
 static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
-  // Casting an immediate to an opaque term is always allowed
-  if (destType.isOpaque()) return srcType.isImmediate();
+  if (destType.isOpaque()) {
+    // Casting an immediate to an opaque term is always allowed
+    if (srcType.isImmediate())
+      return true;
+    // Casting a boxed value to an opaque term is always allowed
+    if (srcType.isBox())
+      return true;
+    // This is redundant, but technically allowed and will be eliminated via canonicalization
+    if (srcType.isOpaque())
+      return true;
+  }
   // Casting an opaque term to any term type is always allowed
   if (srcType.isOpaque()) return true;
   // A cast must be to an immediate-sized type

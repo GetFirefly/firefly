@@ -53,8 +53,20 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           rewriter.replaceOp(op, in);
           return success();
         }
+        if (ft.isBox() && tt.isOpaque()) {
+          Value encoded = ctx.encodeBox(in);
+          rewriter.replaceOp(op, encoded);
+          return success();
+        }
         if (ft.isOpaque() && tt.isImmediate()) {
           rewriter.replaceOp(op, in);
+          return success();
+        }
+        if (ft.isOpaque() && tt.isBox()) {
+          auto tbt = ctx.typeConverter.convertType(tt.cast<BoxType>().getBoxedType())
+                         .cast<LLVMType>();
+          Value decoded = ctx.decodeBox(tbt, in);
+          rewriter.replaceOp(op, decoded);
           return success();
         }
         if (ft.isBox() && tt.isBox()) {
@@ -65,10 +77,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           return success();
         }
 
-        llvm::outs() << "invalid opaque term cast: \n";
-        llvm::outs() << "to: " << toTy << "\n";
-        llvm::outs() << "from: " << fromTy << "\n";
-        assert(false && "unexpected type cast");
+        op.emitError("unsupported or unimplemented term type cast");
         return failure();
       }
 
@@ -80,25 +89,15 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           return success();
         }
 
-        llvm::outs() << "invalid cast to term from llvm type: \n";
-        llvm::outs() << "to: " << toTy << "\n";
-        llvm::outs() << "from: " << fromTy << "\n";
-        assert(false && "unexpected type cast");
+        op.emitError("unsupported or unimplemented llvm type cast");
         return failure();
       }
 
-      llvm::outs() << "invalid cast to term from unknown type: \n";
-      llvm::outs() << "to: " << toTy << "\n";
-      llvm::outs() << "from: " << fromTy << "\n";
-      assert(false && "unexpected type cast");
+      op.emitError("unsupported or unimplemented source type cast");
       return failure();
     }
 
-    // Unsupported cast
-    llvm::outs() << "invalid unknown cast: \n";
-    llvm::outs() << "to: " << toTy << "\n";
-    llvm::outs() << "from: " << fromTy << "\n";
-    assert(false && "unexpected type cast");
+    op.emitError("unsupported or unimplemented target type cast");
     return failure();
   }
 };

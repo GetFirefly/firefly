@@ -98,8 +98,6 @@ class OpaqueTermType : public Type {
         .Case<FixnumType>([&](Type) { return true; })
         .Case<FloatType>([&](Type) { return true; })
         .Case<NilType>([&](Type) { return true; })
-        .Case<BoxType>([&](Type) { return true; })
-        .Case<TermType>([&](Type) { return true; })
         .Default([](Type) { return false; });
   }
 
@@ -199,7 +197,7 @@ class OpaqueTermType : public Type {
   }
 
   Optional<int64_t> getSizeInBytes() {
-    if (isImmediate()) {
+    if (isImmediate() || isBox()) {
       return 8;
     }
     return llvm::None;

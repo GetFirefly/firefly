@@ -8,6 +8,7 @@ namespace eir {
 class CastOpConversion;
 class GetElementPtrOpConversion;
 class LoadOpConversion;
+class MallocOpConversion;
 
 void populateMemoryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,

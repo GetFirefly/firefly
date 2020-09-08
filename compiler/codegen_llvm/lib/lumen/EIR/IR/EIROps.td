@@ -203,6 +203,80 @@ def eir_IsTypeOp : eir_Op<"is_type", []> {
   }];
 }
 
+def eir_IsTupleOp : eir_Op<"is_tuple", [NoSideEffect]> {
+  let summary = "A type checking primitive";
+
+  let description = [{
+    Returns true if the input value is a tuple. If an (optional) arity
+    is also provided, the check also determines if the tuple is of the
+    given arity.
+  }];
+
+  let arguments = (ins eir_AnyType:$value, Optional<eir_AnyType>:$arity);
+  let results = (outs I1:$isMatch);
+
+  let assemblyFormat = "`(` operands `)` attr-dict `:` functional-type(operands, results)";
+
+  //let hasCanonicalizer = 1;
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, "
+    "Value value, Optional<Value> arity",
+    [{
+      result.addOperands(value);
+      if (arity.hasValue()) {
+        result.addOperands(arity.getValue());
+      }
+      result.addTypes(builder.getI1Type());
+    }]>,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, ValueRange operands",
+    [{
+      result.addOperands(operands);
+      result.addTypes(builder.getI1Type());
+    }]>
+  ];
+}
+
+def eir_IsFunctionOp : eir_Op<"is_function", [NoSideEffect]> {
+  let summary = "A type checking primitive";
+
+  let description = [{
+    Returns true if the input value is a function. If an (optional) arity
+    is also provided, the check also determines if the function is of the
+    given arity.
+  }];
+
+  let arguments = (ins eir_AnyType:$value, Optional<eir_AnyType>:$arity);
+  let results = (outs I1:$isMatch);
+
+  let assemblyFormat = "`(` operands `)` attr-dict `:` functional-type(operands, results)";
+
+  //let hasCanonicalizer = 1;
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, "
+    "Value value, Optional<Value> arity",
+    [{
+      result.addOperands(value);
+      if (arity.hasValue()) {
+        result.addOperands(arity.getValue());
+      }
+      result.addTypes(builder.getI1Type());
+    }]>,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, ValueRange operands",
+    [{
+      result.addOperands(operands);
+      result.addTypes(builder.getI1Type());
+    }]>
+  ];
+}
+
 class eir_UnaryOperator<string mnemonic, Type right, Type result, list<OpTrait> traits = []>
     : eir_Op<mnemonic, !listconcat(traits, [eir_UnaryOperatorInterface])> {
   // Defines the name of the builtin associated with this comparison op

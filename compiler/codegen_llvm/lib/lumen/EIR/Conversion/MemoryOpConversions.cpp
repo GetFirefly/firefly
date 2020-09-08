@@ -3,6 +3,36 @@
 namespace lumen {
 namespace eir {
 
+struct MallocOpConversion : public EIROpConversion<MallocOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      MallocOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    MallocOpAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
+
+    OpaqueTermType innerTy = op.getAllocType().dyn_cast<OpaqueTermType>();
+    if (!innerTy)
+      return op.emitOpError("unsupported target type");
+
+    auto ty = ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
+
+    if (innerTy.hasDynamicExtent()) {
+      Value allocPtr = ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(),
+                                       adaptor.arity());
+      rewriter.replaceOp(op, allocPtr);
+    } else {
+      Value zero = llvm_constant(ctx.getUsizeType(), ctx.getIntegerAttr(0));
+      Value allocPtr =
+          ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(), zero);
+      rewriter.replaceOp(op, allocPtr);
+    }
+
+    return success();
+  }
+};
+
 struct CastOpConversion : public EIROpConversion<CastOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -191,7 +221,8 @@ void populateMemoryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         EirTypeConverter &converter,
                                         TargetInfo &targetInfo) {
   patterns
-      .insert<CastOpConversion, GetElementPtrOpConversion, LoadOpConversion>(
+    .insert<MallocOpConversion, CastOpConversion,
+            GetElementPtrOpConversion, LoadOpConversion>(
           context, converter, targetInfo);
 }
 

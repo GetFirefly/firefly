@@ -83,7 +83,7 @@ class ModuleBuilder {
   // Operations
   //===----------------------------------------------------------------------===//
 
-  void build_match(Match op);
+  bool build_match(Match op);
   std::unique_ptr<MatchPattern> convertMatchPattern(
       const MLIRMatchPattern &inPattern);
 

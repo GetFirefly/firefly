@@ -3,14 +3,103 @@
 namespace lumen {
 namespace eir {
 
-static bool isa_eir_type(Type t) { return isa<eirDialect>(t.getDialect()); }
+bool isa_eir_type(Type t) { return isa<eirDialect>(t.getDialect()); }
 
-static bool isa_std_type(Type t) {
+bool isa_std_type(Type t) {
   return isa<mlir::StandardOpsDialect>(t.getDialect());
 }
 
-static bool isa_llvm_type(Type t) {
+bool isa_llvm_type(Type t) {
   return isa<mlir::LLVM::LLVMDialect>(t.getDialect());
+}
+
+Optional<Type> EirTypeConverter::coalesceOperandTypes(Type lhs, Type rhs) {
+  if (auto lTy = lhs.dyn_cast_or_null<OpaqueTermType>()) {
+    if (auto rTy = rhs.dyn_cast_or_null<OpaqueTermType>()) {
+      // If either operand is opaque, we have to treat them both as opaque
+      if (lTy.isOpaque() || rTy.isOpaque())
+        return llvm::None;
+
+      // If both operands are booleans, use i1
+      if (lTy.isBoolean() && rTy.isBoolean())
+        return LLVMType::getInt1Ty(lhs.getContext());
+
+      // If we have a boolean and an atom, cast to atom type
+      if ((lTy.isBoolean() && rTy.isAtom()) || (lTy.isAtom() && rTy.isBoolean()))
+        return AtomType::get(lhs.getContext());
+
+      // If both types are immediates, use the concrete type if matched, or term type otherwise
+      if (lTy.isImmediate() && rTy.isImmediate())
+        if (lTy == rTy)
+          return lhs;
+        else
+          return TermType::get(lhs.getContext());
+
+      // If both types are boxed, use the concrete type if matched, or term type otherwise
+      if (lTy.isBox() && rTy.isBox()) {
+        auto left = lTy.cast<BoxType>();
+        auto li = left.getBoxedType();
+        auto right = rTy.cast<BoxType>();
+        auto ri = right.getBoxedType();
+        if (li == ri)
+          return lhs;
+        else
+          return TermType::get(lhs.getContext());
+      }
+
+      // Otherwise if both types match, use the matched type
+      if (lTy == rTy)
+        return lhs;
+
+      return llvm::None;
+    }
+
+    // Right-hand side is _not_ a term type, which is fine for certain
+    // known type combinations for which we can cast
+
+    // i1 can be used directly with booleans/atoms
+    if (rhs.isInteger(1)) {
+      if (lTy.isBoolean())
+        return LLVMType::getInt1Ty(lhs.getContext());
+      else if (lTy.isAtom())
+        return AtomType::get(lhs.getContext());
+      else
+        return llvm::None;
+    }
+
+    // iN can be used with fixed-width integers
+    if (rhs.isInteger(pointerSizeInBits) && lTy.isFixnum())
+      return lhs;
+
+    // floats can be used with floats
+    if (rhs.isF64() && lTy.isFloat())
+      return lhs;
+
+    // Handle the case where LLVM types are provided
+    if (auto rt = rhs.dyn_cast_or_null<LLVMType>()) {
+      if (rt.isIntegerTy(1))
+        if (lTy.isBoolean() || lTy.isAtom())
+          return lhs;
+        else
+          return llvm::None;
+      else if (rt.isDoubleTy() && lTy.isFloat())
+        return lhs;
+    }
+
+    // No other recognized conversions
+    return llvm::None;
+  }
+
+  // Left-hand side is not a term, if right side is, flip the arguments and recurse
+  if (rhs.isa<OpaqueTermType>())
+    return coalesceOperandTypes(rhs, lhs);
+
+  // Neither are term types, but the types match, so use the matched type
+  if (lhs == rhs)
+    return lhs;
+
+  // Neither type are term types, and they don't match so we can't coalesce them
+  return llvm::None;
 }
 
 // Extract an LLVM IR type from the LLVM IR dialect type.
@@ -67,9 +156,6 @@ LLVM::LLVMType convertFunctionSignature(
   SmallVector<LLVM::LLVMType, 8> argTypes;
   argTypes.reserve(llvm::size(result.getConvertedTypes()));
   for (Type ty : result.getConvertedTypes()) {
-    llvm::outs() << "convertedType: \n";
-    ty.dump();
-    llvm::outs() << "\n";
     argTypes.push_back(unwrap(ty));
   }
 
@@ -115,9 +201,10 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     return innerTy.getPointerTo();
   }
 
-  if (auto boxTy = type.dyn_cast_or_null<BoxType>()) {
-    auto boxedTy = converter.convertType(boxTy.getBoxedType()).cast<LLVMType>();
-    return boxedTy.getPointerTo();
+  // Boxes are translated as opaque terms, since they are not
+  // technically valid pointers
+  if (type.isa<BoxType>()) {
+    return termTy;
   }
 
   if (auto recvRef = type.dyn_cast_or_null<ReceiveRefType>()) {
@@ -152,6 +239,10 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
 
   if (type.isa<eir::ClosureType>()) {
     return targetInfo.makeClosureType(1);
+  }
+
+  if (type.isa<eir::BinaryType>()) {
+    return targetInfo.getBinaryType();
   }
 
   llvm::outs() << "\ntype: ";

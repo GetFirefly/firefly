@@ -26,6 +26,7 @@
 
 using ::llvm::SmallVectorImpl;
 using ::llvm::TargetMachine;
+using ::llvm::StringSwitch;
 using ::llvm::dyn_cast_or_null;
 using ::llvm::cast;
 using ::llvm::isa;
@@ -61,6 +62,7 @@ using llvm_gep = ValueBuilder<LLVM::GEPOp>;
 using llvm_addressof = ValueBuilder<LLVM::AddressOfOp>;
 using llvm_insertvalue = ValueBuilder<LLVM::InsertValueOp>;
 using llvm_call = OperationBuilder<LLVM::CallOp>;
+using llvm_invoke = OperationBuilder<LLVM::InvokeOp>;
 using llvm_icmp = ValueBuilder<LLVM::ICmpOp>;
 using llvm_load = ValueBuilder<LLVM::LoadOp>;
 using llvm_store = OperationBuilder<LLVM::StoreOp>;
@@ -93,10 +95,17 @@ using eir_trace_construct = ValueBuilder<::lumen::eir::TraceConstructOp>;
 namespace lumen {
 namespace eir {
 
+bool isa_eir_type(Type t);
+bool isa_std_type(Type t);
+bool isa_llvm_type(Type t);
+
+using BuildCastFnT = std::function<Optional<Type>(OpBuilder &)>;
+
 struct EirTypeConverter : public mlir::TypeConverter {
   using TypeConverter::TypeConverter;
 
-  EirTypeConverter(LLVMTypeConverter &tc) : typeConverter(tc) {
+  EirTypeConverter(unsigned pointerSizeInBits, LLVMTypeConverter &tc)
+      : pointerSizeInBits(pointerSizeInBits), typeConverter(tc) {
     addTargetMaterialization(materializeCast);
   }
 
@@ -106,9 +115,20 @@ struct EirTypeConverter : public mlir::TypeConverter {
     return builder.create<CastOp>(loc, inputs[0], resultType).getResult();
   }
 
+  /// This function is used to determine which type to cast to when operating
+  /// on values of the given input types. If the types can be operated on directly
+  /// in LLVM IR, then this will return Some(Type) which the caller can then use
+  /// to insert casts where appropriate. If the types cannot be operated on directly
+  /// either due to incomplete type information, or because the types must use
+  /// runtime-provided functionality to operate on, then this will return llvm::None,
+  /// and the caller should cast the types to term type and use an appropriate runtime
+  /// function for whatever operation it is lowering
+  Optional<Type> coalesceOperandTypes(Type lhs, Type rhs);
+
   Type packFunctionResults(TargetInfo &targetInfo, ArrayRef<Type> types);
 
  private:
+  unsigned pointerSizeInBits;
   LLVMTypeConverter &typeConverter;
 };
 

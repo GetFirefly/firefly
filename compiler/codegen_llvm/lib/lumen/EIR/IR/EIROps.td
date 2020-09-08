@@ -81,7 +81,7 @@ def eir_ClosureOp : eir_Op<"closure", []> {
   let summary = "Creates a new closure at the current point in the function";
 
   let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$operands);
-  let results = (outs eir_BoxType:$closure);
+  let results = (outs eir_PtrType:$closure);
 
   let assemblyFormat = [{
     $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -105,7 +105,7 @@ def eir_ClosureOp : eir_Op<"closure", []> {
       StringRef unique(&closure->unique[0], 16);
       result.addAttribute("unique", builder.getStringAttr(unique));
       result.addOperands(operands);
-      result.addTypes(BoxType::get(builder.getType<ClosureType>()));
+      result.addTypes(PtrType::get(builder.getType<ClosureType>()));
     }]>
   ];
 
@@ -133,7 +133,7 @@ def eir_ClosureOp : eir_Op<"closure", []> {
 def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
   let summary = "Unpacks a value from a closure environment";
 
-  let arguments = (ins eir_BoxType:$env, Confined<I32Attr, [IntNonNegative]>:$index);
+  let arguments = (ins eir_PtrType:$env, Confined<I32Attr, [IntNonNegative]>:$index);
   let results = (outs eir_AnyType:$result);
 
   let assemblyFormat = [{
@@ -162,7 +162,7 @@ def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
 // Comparisons
 //===----------------------------------------------------------------------===//
 
-def eir_IsTypeOp : eir_Op<"is_type", []> {
+def eir_IsTypeOp : eir_Op<"is_type", [NoSideEffect]> {
   let summary = "A type checking primitive used in conditional branching.";
 
   let description = [{
@@ -191,10 +191,6 @@ def eir_IsTypeOp : eir_Op<"is_type", []> {
   ];
 
   let extraClassDeclaration = [{
-    Type getValueType() {
-      return getOperand().getType();
-    }
-
     Type getMatchType() {
       Attribute attr = getAttr("type");
       TypeAttr typeAttr = attr.dyn_cast<TypeAttr>();
@@ -320,7 +316,12 @@ class eir_BinaryOperator<string mnemonic, Type left, Type right, Type result, li
 
   let assemblyFormat = "operands attr-dict `:` functional-type(operands, $result)";
 
-  let verifier = ?;
+  let verifier = [{
+    auto numOperands = getNumOperands();
+    if (numOperands != 2)
+      return emitOpError("invalid number of operands, expected 2");
+    return success();
+  }];
 
   let builders = [
     OpBuilder<
@@ -398,15 +399,10 @@ class eir_BinaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = 
 }
 
 def eir_CmpEqOp :
-    eir_BinaryComparisonOp<eir_AnyType, "cmp.eq", [Commutative]> {
+    eir_BinaryComparisonOp<AnyType, "cmp.eq", [Commutative]> {
   let summary = [{term equality comparison operation}];
-  //let hasFolder = 1;
-}
-
-def eir_CmpNeqOp :
-    eir_BinaryComparisonOp<eir_AnyType, "cmp.neq", [Commutative]> {
-  let summary = [{term inequality comparison operation}];
-  //let hasFolder = 1;
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def eir_CmpLtOp :
@@ -706,9 +702,11 @@ class eir_CallBaseOp<string mnemonic, list<OpTrait> traits = []> :
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
-    CallInterfaceCallable getCallableForCallee() {
-      return getAttrOfType<FlatSymbolRefAttr>("callee");
-    }
+    CallInterfaceCallable getCallableForCallee() { return getCalleeAttr(); }
+
+    FlatSymbolRefAttr getCalleeAttr() { return getAttrOfType<FlatSymbolRefAttr>("callee"); }
+    Attribute getMustTailAttr() { return getAttrOfType<mlir::UnitAttr>("musttail"); }
+    Attribute getTailAttr() { return getAttrOfType<mlir::UnitAttr>("tail"); }
   }];
 }
 
@@ -757,9 +755,7 @@ def eir_CallOp : eir_CallBaseOp<"call"> {
     }]>,
   ];
 
-  let verifier = [{ /*TODO*/return success(); }];
-
-  //let hasCanonicalizer = 1;
+  let verifier = ?;
 }
 
 def CallIndirectOp : eir_Op<"call_indirect", [CallOpInterface]> {
@@ -946,6 +942,7 @@ def eir_InvokeOp : eir_InvokeBaseOp<"invoke", []> {
   let extraExtraClassDeclaration = [{
     StringRef getCallee() { return callee(); }
     FunctionType getCalleeType();
+    FlatSymbolRefAttr getCalleeAttr() { return getAttrOfType<FlatSymbolRefAttr>("callee"); }
 
     /// Get the argument operands to the called function.
     operand_range getArgOperands() { return operands(); }
@@ -1242,8 +1239,8 @@ def eir_IncrementReductionsOp : eir_Op<"reductions.inc", []> {
 
 def eir_CastOp : eir_Op<"cast", []> {
 
-  let arguments = (ins eir_AnyType:$input);
-  let results = (outs eir_AnyType:$output);
+  let arguments = (ins AnyType:$input);
+  let results = (outs AnyType:$output);
 
   let skipDefaultBuilders = 1;
   let builders = [
@@ -1262,10 +1259,11 @@ def eir_CastOp : eir_Op<"cast", []> {
 
   let extraClassDeclaration = [{
     Type getSourceType() { return getOperation()->getAttrOfType<TypeAttr>("from").getValue(); }
+    Type getTargetType() { return getOperation()->getAttrOfType<TypeAttr>("to").getValue(); }
   }];
 
 
-  //let hasFolder = 1;
+  let hasFolder = 1;
 }
 
 def eir_MallocOp : eir_Op<"malloc"> {
@@ -1293,37 +1291,47 @@ def eir_MallocOp : eir_Op<"malloc"> {
 
   let arguments = (ins Optional<eir_AnyType>:$arity,
                    Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$alignment);
-  let results = (outs eir_BoxType);
+  let results = (outs eir_PtrType);
 
+  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, BoxType boxType, "
+    OpBuilder<"OpBuilder &builder, OperationState &result, PtrType ptrType, "
               "mlir::IntegerAttr alignment = mlir::IntegerAttr()",
     [{
-       result.addAttribute("type", TypeAttr::get(boxType.getBoxedType()));
-       result.types.push_back(boxType);
-       if (alignment)
-         result.addAttribute(getAlignmentAttrName(), alignment);
+       build(builder, result, ptrType, llvm::None, alignment);
     }]>,
-    OpBuilder<"OpBuilder &builder, OperationState &result, BoxType boxType, "
-              "ArrayRef<Value> operands, mlir::IntegerAttr alignment = mlir::IntegerAttr()",
+    OpBuilder<"OpBuilder &builder, OperationState &result, PtrType ptrType, "
+              "Optional<Value> arity, "
+              "mlir::IntegerAttr alignment = mlir::IntegerAttr()",
     [{
-       result.addAttribute("type", TypeAttr::get(boxType.getBoxedType()));
-       result.types.push_back(boxType);
+       result.addAttribute("type", TypeAttr::get(ptrType.getInnerType()));
+       result.types.push_back(ptrType);
+       if (arity.hasValue())
+         result.addOperands(arity.getValue());
        if (alignment)
          result.addAttribute(getAlignmentAttrName(), alignment);
-       result.addOperands(operands);
     }]>
   ];
 
   let extraClassDeclaration = [{
     static StringRef getAlignmentAttrName() { return "alignment"; }
 
-    OpaqueTermType getAllocType() {
-        return getOperation()->getAttrOfType<TypeAttr>("type").getValue().cast<OpaqueTermType>();
+    Optional<unsigned> getAlignment() {
+      return getAttrOfType<mlir::IntegerAttr>(getAlignmentAttrName())
+        .getValue()
+        .getLimitedValue();
+    }
+
+    Type getAllocType() {
+        return getAttrOfType<TypeAttr>("type").getValue();
     }
   }];
 
   let hasCanonicalizer = 1;
+
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
 }
 
 def eir_LoadOp : eir_Op<"load", []> {
@@ -1341,32 +1349,33 @@ def eir_LoadOp : eir_Op<"load", []> {
     "OpBuilder &builder, OperationState &result, Value refVal",
     [{
       result.addOperands(refVal);
-      if (auto boxed = refVal.getType().dyn_cast_or_null<eir::BoxType>()) {
+      auto refType = refVal.getType();
+      if (auto boxed = refType.dyn_cast_or_null<BoxType>()) {
         result.addTypes(boxed.getBoxedType());
-      } else if (auto ptr = refVal.getType().dyn_cast_or_null<eir::RefType>()) {
+      } else if (auto ptr = refType.dyn_cast_or_null<RefType>()) {
+        result.addTypes(ptr.getInnerType());
+      } else if (auto ptr = refType.dyn_cast_or_null<PtrType>()){
         result.addTypes(ptr.getInnerType());
       } else {
-        result.addTypes(refVal.getType());
+        result.addTypes(refType);
       }
     }]
   >];
 
   let verifier = [{
     auto refVal = ref();
-    if (!refVal) {
-        return emitError("invalid value: referenced value must not be null");
-    }
-    if (refVal.getType().isa<eir::BoxType>()) {
-        return success();
-    }
-    if (refVal.getType().isa<eir::RefType>()) {
-        return success();
-    }
-    return emitError("invalid value: expected referenced type to be a box or ref type");
+    if (!refVal)
+      return emitError("referenced value must not be null");
+
+    auto refType = refVal.getType();
+    if (refType.isa<BoxType>() || refType.isa<RefType>() || refType.isa<PtrType>())
+      return success();
+
+    return emitOpError("invalid input type, must be pointer-like");
   }];
 
   let assemblyFormat = [{
-    `(` $ref `)` attr-dict `:` functional-type($ref, $out)
+    operands attr-dict `:` functional-type(operands, results)
   }];
 }
 
@@ -1376,28 +1385,30 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", []> {
     An aggregate access primitive used to calculate memory addresses to an element of an aggregate type
   }];
 
-  let arguments = (ins eir_BoxType:$base, Variadic<eir_AnyType>:$indices);
+  let arguments = (ins eir_PtrType:$base, Variadic<eir_AnyType>:$indices);
   let results = (outs eir_PointerLike:$ref);
 
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value boxedVal, int64_t index",
+    "OpBuilder &builder, OperationState &result, Value root, int64_t index",
     [{
-      auto boxedTy = boxedVal.getType();
-      Type elementTy;
-      if (auto boxTy = boxedTy.dyn_cast_or_null<eir::BoxType>()) {
-        elementTy = boxTy.getBoxedType();
-      } else {
-        assert(false && "expected element type to be a boxed term type");
+      if (!root.getType().isa<PtrType>()) {
+        result.addOperands(root);
+        return;
       }
-      result.addAttribute("pointee", TypeAttr::get(elementTy));
+
+      auto rootType = root.getType().cast<PtrType>();
+      auto pointeeType = rootType.getInnerType();
+      result.addAttribute("pointee", TypeAttr::get(pointeeType));
+
       auto termTy = builder.getType<eir::TermType>().cast<OpaqueTermType>();
-      if (elementTy.isa<ConsType>()) {
+
+      if (pointeeType.isa<ConsType>()) {
         result.addAttribute("element", TypeAttr::get(termTy));
-        auto refTy = builder.getType<eir::RefType>(termTy);
+        auto refTy = builder.getType<RefType>(termTy);
         result.addTypes(refTy);
-      } else if (auto tupleTy = elementTy.dyn_cast_or_null<TupleType>()) {
+      } else if (auto tupleTy = pointeeType.dyn_cast_or_null<TupleType>()) {
         if (tupleTy.hasDynamicShape()) {
           result.addAttribute("element", TypeAttr::get(termTy));
           auto refTy = builder.getType<eir::RefType>(termTy);
@@ -1417,13 +1428,16 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", []> {
         auto refTy = builder.getType<eir::RefType>(termTy);
         result.addTypes(refTy);
       }
-      result.addOperands(boxedVal);
+      result.addOperands(root);
       auto indexTy = builder.getIndexType();
       result.addAttribute("index", builder.getIntegerAttr(indexTy, index));
     }]>
   ];
 
-  let verifier = ?;
+  let verifier = [{
+    if (!base().getType().isa<PtrType>())
+      return emitOpError("invalid source operand, expected pointer");
+  }];
 
   let assemblyFormat = [{
     $base `[` $indices `]` attr-dict `:` functional-type(operands, results)
@@ -1434,13 +1448,11 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", []> {
 
     Type getPointeeType() { return getAttrOfType<TypeAttr>("pointee").getValue(); }
     Type getElementType() { return getAttrOfType<TypeAttr>("element").getValue(); }
-    Type getType() { return getResult().getType().cast<RefType>().getInnerType(); }
 
     uint64_t getIndex() {
         return getAttrOfType<mlir::IntegerAttr>("index").getValue().getLimitedValue();
     }
   }];
-
 }
 
 def eir_PrintOp : eir_Op<"print"> {
@@ -1579,7 +1591,7 @@ def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, "constant.bigint", [Const
   let hasFolder = 1;
 }
 
-def eir_ConstantBoolOp : eir_ConstantOp<eir_BoolType, "constant.bool", [ConstantLike]> {
+def eir_ConstantBoolOp : eir_ConstantOp<eir_BoolLike, "constant.bool", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
@@ -1602,24 +1614,13 @@ def eir_ConstantBoolOp : eir_ConstantOp<eir_BoolType, "constant.bool", [Constant
   let hasFolder = 1;
 }
 
-def eir_ConstantAtomOp : eir_ConstantOp<eir_AnyType, "constant.atom", [ConstantLike]> {
+def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, "constant.atom", [ConstantLike]> {
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Type type, Attribute val",
     [{
       result.addAttribute("value", val);
       result.addTypes(type);
-    }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, bool truth",
-    [{
-      auto id = APInt(64, truth ? 1 : 0, /*signed=*/false);
-      auto boolTy = builder.getType<BooleanType>();
-      if (truth) {
-        build(builder, result, boolTy, id, "true");
-      } else {
-        build(builder, result, boolTy, id, "false");
-      }
     }]>,
     OpBuilder<
     "OpBuilder &builder, OperationState &result, APInt id, StringRef name",

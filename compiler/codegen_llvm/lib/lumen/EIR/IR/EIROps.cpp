@@ -113,13 +113,29 @@ struct constant_bool_op_binder {
     }
 
     if (type.isa<AtomType>()) {
-      APInt value = attr.cast<AtomAttr>().getValue();
-      return value.getLimitedValue() == (int64_t)(*bind_value ? 1 : 0);
+      if (auto atomAttr = attr.dyn_cast<AtomAttr>()) {
+        auto id = atomAttr.getValue().getLimitedValue();
+        if (id == 0 || id == 1) {
+          *bind_value = id == 1;
+          return true;
+        }
+        return false;
+      }
     }
 
     if (type.isInteger(1)) {
-      APInt value = attr.cast<IntegerAttr>().getValue();
-      return value.getLimitedValue() == (int64_t)(*bind_value ? 1 : 0);
+      if (auto intAttr = attr.dyn_cast<IntegerAttr>()) {
+        auto val = intAttr.getValue().getLimitedValue();
+        if (val == 0 || val == 1) {
+          *bind_value = val == 1;
+          return true;
+        }
+        return false;
+      }
+
+      // We might have a boolean constant with i1 as type
+      return mlir::detail::attr_value_binder<BoolAttr>(bind_value)
+          .match(attr);
     }
 
     return false;
@@ -143,11 +159,12 @@ struct constant_atom_op_binder {
           .match(attr);
     }
 
-    auto i = bind_value->getLimitedValue();
-    auto isBool = i == 0 || i == 1;
-    if (type.isa<BooleanType>() && isBool) {
-      bool value = attr.cast<BoolAttr>().getValue();
-      return value ? i == 1 : i == 0;
+    if (type.isa<BooleanType>()) {
+      if (auto boolAttr = attr.dyn_cast<BoolAttr>()) {
+        *bind_value = APInt(64, (uint64_t)boolAttr.getValue(), /*signed=*/false);
+        return true;
+      }
+      return false;
     }
 
     return false;
@@ -674,10 +691,19 @@ static LogicalResult verify(IsFunctionOp op) {
 // eir.cast
 //===----------------------------------------------------------------------===//
 
+OpFoldResult CastOp::fold(ArrayRef<Attribute> operands) {
+  Type srcTy = getSourceType();
+  Type targetTy = getTargetType();
+  // Identity cast
+  if (srcTy == targetTy)
+    return input();
+  return nullptr;
+}
+
 static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
   if (destType.isOpaque()) {
     // Casting an immediate to an opaque term is always allowed
-    if (srcType.isImmediate())
+    if (srcType.isImmediate() || srcType.isPid())
       return true;
     // Casting a boxed value to an opaque term is always allowed
     if (srcType.isBox())
@@ -705,8 +731,8 @@ static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
 }
 
 static LogicalResult verify(CastOp op) {
-  auto opType = op.getOperand().getType();
-  auto resType = op.getType();
+  auto opType = op.getSourceType();
+  auto resType = op.getTargetType();
   if (auto opTermType = opType.dyn_cast_or_null<OpaqueTermType>()) {
     if (auto resTermType = resType.dyn_cast_or_null<OpaqueTermType>()) {
       if (!areCastCompatible(opTermType, resTermType)) {
@@ -716,13 +742,23 @@ static LogicalResult verify(CastOp op) {
       }
       return success();
     }
-    return op.emitError(
-               "invalid cast type for CastOp, expected term type, got ")
-           << resType;
+
+    if (resType.isa<PtrType>() || resType.isa<RefType>())
+      return success();
+
+    if (resType.isIntOrFloat())
+      return success();
+
+    return op.emitError("invalid cast type, target type is unsupported");
   }
-  return op.emitError(
-             "invalid operand type for CastOp, expected term type, got ")
-         << opType;
+
+  if (opType.isa<PtrType>() || resType.isa<RefType>())
+    return success();
+
+  if (opType.isIntOrFloat())
+    return success();
+
+  return op.emitError("invalid cast type, sourcce type is unsupported");
 }
 
 //===----------------------------------------------------------------------===//
@@ -860,13 +896,14 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
                                                  withSelectorArgs);
         // 2. In the split, extract head and tail values of the cons cell
         builder.setInsertionPointToEnd(split);
+        auto ptrConsType = builder.getType<PtrType>(consType);
         auto castOp =
-            builder.create<CastOp>(branchLoc, selectorArg, boxedConsType);
-        auto boxedCons = castOp.getResult();
+            builder.create<CastOp>(branchLoc, selectorArg, ptrConsType);
+        auto consPtr = castOp.getResult();
         auto getHeadOp =
-            builder.create<GetElementPtrOp>(branchLoc, boxedCons, 0);
+            builder.create<GetElementPtrOp>(branchLoc, consPtr, 0);
         auto getTailOp =
-            builder.create<GetElementPtrOp>(branchLoc, boxedCons, 1);
+            builder.create<GetElementPtrOp>(branchLoc, consPtr, 1);
         auto headPointer = getHeadOp.getResult();
         auto tailPointer = getTailOp.getResult();
         auto headLoadOp = builder.create<LoadOp>(branchLoc, headPointer);
@@ -899,7 +936,7 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
         auto arity = pattern->getArity();
         auto tupleType = builder.getType<eir::TupleType>(arity);
         auto boxedTupleType = builder.getType<BoxType>(tupleType);
-        auto isTupleOp =
+        auto isTupleOp = 
             builder.create<IsTypeOp>(branchLoc, selectorArg, boxedTupleType);
         auto isTupleCond = isTupleOp.getResult();
         auto ifOp = builder.create<CondBranchOp>(branchLoc, isTupleCond, split,
@@ -907,16 +944,17 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
                                                  withSelectorArgs);
         // 2. In the split, extract the tuple elements as values
         builder.setInsertionPointToEnd(split);
+        auto ptrTupleType = builder.getType<PtrType>(tupleType);
         auto castOp =
-            builder.create<CastOp>(branchLoc, selectorArg, boxedTupleType);
-        auto boxedTuple = castOp.getResult();
+            builder.create<CastOp>(branchLoc, selectorArg, ptrTupleType);
+        auto tuplePtr = castOp.getResult();
         unsigned ai = numBaseDestArgs > 0 ? numBaseDestArgs - 1 : 0;
         SmallVector<Value, 2> destArgs(
             {baseDestArgs.begin(), baseDestArgs.end()});
         destArgs.reserve(arity);
         for (int64_t i = 0; i < arity; i++) {
           auto getElemOp =
-              builder.create<GetElementPtrOp>(branchLoc, boxedTuple, i + 1);
+              builder.create<GetElementPtrOp>(branchLoc, tuplePtr, i + 1);
           auto elemPtr = getElemOp.getResult();
           auto elemLoadOp = builder.create<LoadOp>(branchLoc, elemPtr);
           auto elemLoadResult = elemLoadOp.getResult();
@@ -1082,11 +1120,249 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
         break;
       }
 
-      default:
-        llvm_unreachable("unexpected match pattern type!");
+      default: {
+        auto diagEngine = &builder.getContext()->getDiagEngine();
+        diagEngine->emit(branchLoc, DiagnosticSeverity::Error) 
+          << "unknown match pattern type '" << ((unsigned)b.getPatternType()) << "'";
+        return failure();
+      }
     }
   }
   builder.restoreInsertionPoint(finalIp);
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// cmp.eq
+//===----------------------------------------------------------------------===//
+
+// APInt comparisons require equivalent bit width
+static bool areAPIntsEqual(APInt &lhs, APInt &rhs) {
+  auto lhsBits = lhs.getBitWidth();
+  auto rhsBits = rhs.getBitWidth();
+
+  if (lhsBits == rhsBits)
+    return lhs == rhs;
+
+  if (lhsBits < rhsBits) {
+    APInt temp = lhs.sext(rhsBits);
+    return temp == rhs;
+  }
+
+  APInt temp = rhs.sext(lhsBits);
+  return lhs == temp;
+}
+
+static Optional<bool> foldEqualityComparison(Operation *op, ArrayRef<Attribute> operands) {
+  assert(operands.size() == 2 && "binary op takes two operands");
+    
+  Attribute lhs = operands[0];
+  Attribute rhs = operands[1];
+
+  if (!lhs || !rhs)
+    return llvm::None;
+
+  // Atom-likes
+  if (auto lhsAtom = lhs.dyn_cast_or_null<AtomAttr>()) {
+    if (auto rhsAtom = rhs.dyn_cast_or_null<AtomAttr>()) {
+      return areAPIntsEqual(lhsAtom.getValue(), rhsAtom.getValue());
+    }
+    if (auto rhsBool = rhs.dyn_cast_or_null<BoolAttr>()) {
+      bool areEqual = lhsAtom.getValue().getLimitedValue() == (unsigned)(rhsBool.getValue());
+      return areEqual;
+    }
+    assert(false && "unknown operand combo");
+  }
+
+  // Boolean-likes
+  if (auto lhsBool = lhs.dyn_cast_or_null<BoolAttr>()) {
+    if (auto rhsAtom = rhs.dyn_cast_or_null<AtomAttr>()) {
+      bool areEqual = (unsigned)(lhsBool.getValue()) == rhsAtom.getValue().getLimitedValue();
+      return areEqual;
+    }
+    if (auto rhsBool = rhs.dyn_cast_or_null<BoolAttr>()) {
+      bool areEqual = lhsBool.getValue() == rhsBool.getValue();
+      return areEqual;
+    }
+    assert(false && "unknown operand combo");
+  }
+
+  // Integers
+  if (auto lhsInt = lhs.dyn_cast_or_null<APIntAttr>()) {
+    if (auto rhsInt = rhs.dyn_cast_or_null<APIntAttr>()) {
+      return areAPIntsEqual(lhsInt.getValue(), rhsInt.getValue());
+    }
+    if (auto rhsInt = rhs.dyn_cast_or_null<IntegerAttr>()) {
+      auto rVal = rhsInt.getValue();
+      return areAPIntsEqual(lhsInt.getValue(), rVal);
+    }
+  }
+
+  // Floats
+  if (auto lhsFloat = lhs.dyn_cast_or_null<APFloatAttr>()) {
+    if (auto rhsFloat = rhs.dyn_cast_or_null<APFloatAttr>()) {
+      bool areEqual = lhsFloat.getValue() == rhsFloat.getValue();
+      return areEqual;
+    }
+  }
+
+  return llvm::None;
+}
+
+
+OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
+  auto maybeConstant = foldEqualityComparison(getOperation(), operands);
+  if (maybeConstant.hasValue()) {
+    return BoolAttr::get(maybeConstant.getValue(), getContext());
+  }
+
+  return nullptr;
+}
+
+namespace {
+/// Fold negations of constants into negated constants
+struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
+  using OpRewritePattern<CmpEqOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CmpEqOp op,
+                                PatternRewriter &rewriter) const override {
+    auto lhs = op.lhs();
+    auto rhs = op.rhs();
+    auto i1Ty = rewriter.getI1Type();
+
+    // Check if we can fold this comparison into a constant
+    bool lhsVal;
+    bool rhsVal;
+    auto lhsBoolPattern = m_ConstBool(&lhsVal);
+    auto rhsBoolPattern = m_ConstBool(&rhsVal);
+    if (matchPattern(lhs, lhsBoolPattern)) {
+      // Left-side is a constant boolean value, check right side
+      if (matchPattern(rhs, rhsBoolPattern)) {
+        // Both operands are boolean, constify
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, i1Ty, lhsVal == rhsVal);
+        return success();
+      }
+
+      // Right-hand side isn't a boolean, but is it a constant?
+      // If so, we know this comparison will be false
+      if (matchPattern(rhs, mlir::m_Constant())) {
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, i1Ty, false);
+        return success();
+      }
+    } else if (!lhs.isa<BlockArgument>() && matchPattern(rhs, rhsBoolPattern)) {
+      // Left-hand side isn't a boolean, but is it a constant?
+      // If so, we know this comparison will be false
+      if (matchPattern(lhs, mlir::m_Constant())) {
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, i1Ty, false);
+        return success();
+      }
+    }
+
+    // If one or both sides of the comparison are not constant,
+    // make sure the types match. If they don't, insert a cast
+    // where appropriate
+    auto lhsConst = matchPattern(lhs, mlir::m_Constant());
+    auto rhsConst = matchPattern(rhs, mlir::m_Constant());
+    if (!lhsConst || !rhsConst) {
+      auto lhsTy = lhs.getType();
+      auto rhsTy = rhs.getType();
+      if (lhsTy != rhsTy) {
+        // If both sides are terms and one side is opaque and the other is not,
+        // cast to the concrete type. If one side is not a term, cast the non-term
+        // type to the term type. If neither side are terms, we raise an error
+        if (lhsTy.isa<OpaqueTermType>() && rhsTy.isa<OpaqueTermType>()) {
+          auto lTy = lhsTy.cast<OpaqueTermType>();
+          auto rTy = rhsTy.cast<OpaqueTermType>();
+          if (lTy.isOpaque()) {
+            Value newRhs = rewriter.create<CastOp>(op.getLoc(), rhs, lhsTy);
+            auto rhsOperands = op.rhsMutable();
+            rhsOperands.assign(newRhs);
+            return success();
+          }
+          if (rTy.isOpaque()) {
+            Value newLhs = rewriter.create<CastOp>(op.getLoc(), lhs, rhsTy);
+            auto lhsOperands = op.lhsMutable();
+            lhsOperands.assign(newLhs);
+            return success();
+          }
+
+          // Comparing immediates to boxed values will always fail
+          if ((lTy.isImmediate() && !rTy.isImmediate()) || (!lTy.isImmediate() && rTy.isImmediate())) {
+            rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, i1Ty, false);
+            return success();
+          }
+
+          // Comparing immediates requires no type conversion,
+          // and any other term comparisons will be done at runtime
+          return success();
+        }
+
+        // If only one side is a term, we need to decide if we can cast
+        // to the non-term type for efficiency, or cast to term type for
+        // a call to the runtime
+        if (lhsTy.isa<OpaqueTermType>() || rhsTy.isa<OpaqueTermType>()) {
+          Type nonTermTy;
+          OpaqueTermType termTy;
+          bool lhsTerm = false;
+          if (auto lTy = lhsTy.dyn_cast_or_null<OpaqueTermType>()) {
+            termTy = lTy;
+            nonTermTy = rhsTy;
+            lhsTerm = true;
+          } else {
+            termTy = rhsTy.cast<OpaqueTermType>();
+            nonTermTy = lhsTy;
+          }
+
+          if (termTy.isBoolean() && nonTermTy.isInteger(1)) {
+            if (lhsTerm) {
+              Value newLhs = rewriter.create<CastOp>(op.getLoc(), lhs, rhsTy);
+              auto lhsOperands = op.lhsMutable();
+              lhsOperands.assign(newLhs);
+              return success();
+            } else {
+              Value newRhs = rewriter.create<CastOp>(op.getLoc(), rhs, lhsTy);
+              auto rhsOperands = op.rhsMutable();
+              rhsOperands.assign(newRhs);
+              return success();
+            }
+          } else {
+            // For now, just cast the non-term type to term
+            if (lhsTerm) {
+              Value newRhs = rewriter.create<CastOp>(op.getLoc(), rhs, lhsTy);
+              auto rhsOperands = op.rhsMutable();
+              rhsOperands.assign(newRhs);
+              return success();
+            } else {
+              Value newLhs = rewriter.create<CastOp>(op.getLoc(), lhs, rhsTy);
+              auto lhsOperands = op.lhsMutable();
+              lhsOperands.assign(newLhs);
+              return success();
+            }
+          }
+        }
+
+        // Neither side are terms, and have different types this shouldn't ever happen
+        op.emitError("invalid operand types for equality comparison, expected at least one operand to be a valid term type");
+        return failure();
+      } else {
+        return success();
+      }
+    } else {
+        // Types match we're done
+        return success();
+    }
+
+    // Both sides are constant, we can fold this comparison,
+    // our fold implementation should handle this, so do nothing
+    // for now
+    return success();
+  }
+};
+}  // end anonymous namespace
+
+void CmpEqOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<CanonicalizeEqualityComparison>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1210,66 +1486,26 @@ void NegOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 // MallocOp
 //===----------------------------------------------------------------------===//
 
-static void print(OpAsmPrinter &p, MallocOp op) {
-  p << MallocOp::getOperationName();
-
-  OpaqueTermType boxedType = op.getAllocType();
-  p.printOperands(op.getOperands());
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"type"});
-  p << " : " << BoxType::get(boxedType);
-}
-
-static ParseResult parseMallocOp(OpAsmParser &parser, OperationState &result) {
-  BoxType type;
-
-  llvm::SMLoc loc = parser.getCurrentLocation();
-  SmallVector<OpAsmParser::OperandType, 1> opInfo;
-  SmallVector<Type, 1> types;
-  if (parser.parseOperandList(opInfo)) return failure();
-  if (!opInfo.empty() && parser.parseColonTypeList(types)) return failure();
-
-  // Parse the optional dimension operand, followed by a box type.
-  if (parser.resolveOperands(opInfo, types, loc, result.operands) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(type))
-    return failure();
-
-  result.types.push_back(type);
-  return success();
-}
-
 static LogicalResult verify(MallocOp op) {
-  auto type = op.getResult().getType().dyn_cast<BoxType>();
-  if (!type) return op.emitOpError("result must be a box type");
+  auto resultType = op.getResult().getType();
+  if (!resultType.isa<PtrType>())
+    return op.emitOpError("result must be of pointer type");
 
-  OpaqueTermType boxedType = type.getBoxedType();
-  if (!boxedType.isBoxable())
-    return op.emitOpError("boxed type must be a boxable type");
+  auto allocType = op.getAllocType();
+  if (auto termType = allocType.dyn_cast_or_null<OpaqueTermType>()) {
+    if (!termType.isBoxable())
+      return op.emitOpError("cannot malloc an unboxable term type");
 
-  auto operands = op.getOperands();
-  if (operands.empty()) {
-    // There should be no dynamic dimensions in the boxed type
-    if (boxedType.isTuple()) {
-      auto tuple = boxedType.cast<TupleType>();
-      if (tuple.hasDynamicShape())
-        return op.emitOpError(
-            "boxed type has dynamic extent, but no dimension operands were "
-            "given");
+    Optional<Value> arityVal = op.arity();
+    if (arityVal.hasValue()) {
+      if (!termType.hasDynamicExtent())
+        return op.emitOpError("it is invalid to specify arity with statically-sized type");
+    } else {
+      if (termType.hasDynamicExtent())
+        return op.emitOpError("cannot malloc a type with dynamic extent without specifying arity");
     }
   } else {
-    // There should be exactly as many dynamic dimensions as there are operands,
-    // and those operands should be of integer type
-    if (!boxedType.isTuple())
-      return op.emitOpError(
-          "only tuples are allowed to have dynamic dimensions");
-    auto tuple = boxedType.cast<TupleType>();
-    if (tuple.hasStaticShape())
-      return op.emitOpError(
-          "boxed type has static extent, but dimension operands were given");
-    if (tuple.getArity() != operands.size())
-      return op.emitOpError(
-          "number of dimension operands does not match the number of dynamic "
-          "dimensions");
+    return op.emitOpError("it is currently unsupported to malloc non-term types");
   }
 
   return success();

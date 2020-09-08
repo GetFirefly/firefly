@@ -51,39 +51,142 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
       ConversionPatternRewriter &rewriter) const override {
     CallOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
+    auto termTy = ctx.getUsizeType();
 
+    // Always increment reduction count when performing a call
+    rewriter.create<IncrementReductionsOp>(op.getLoc());
+
+    // Default argument types for function have to assume terms for all
+    // arguments. In the future we'll have a pass that creates functions
+    // before lowering, and gathers type info from callers so that we can
+    // use more precise types, but we're not there yet
     SmallVector<LLVMType, 2> argTypes;
-    for (auto operand : operands) {
-      argTypes.push_back(operand.getType().cast<LLVMType>());
+    for (auto operand : adaptor.operands()) {
+      argTypes.push_back(termTy);
     }
+
+    // Results need to be converted, or use void if no result is returned
     auto opResultTypes = op.getResultTypes();
-    SmallVector<Type, 2> resultTypes;
     LLVMType resultType;
+    SmallVector<Type, 1> resultTypes;
     if (opResultTypes.size() == 1) {
       resultType =
           ctx.typeConverter.convertType(opResultTypes.front()).cast<LLVMType>();
       assert(resultType && "unable to convert result type");
       resultTypes.push_back(resultType);
+    } else {
+      resultType = ctx.targetInfo.getVoidType();
     }
 
-    // Always increment reduction count when performing a call
-    rewriter.create<IncrementReductionsOp>(op.getLoc());
+    auto callee = ctx.getOrInsertFunction(op.callee(), resultType, argTypes);
+    LLVM::LLVMFunctionType calleeTy;
+    if (auto llvmFunc = dyn_cast_or_null<LLVM::LLVMFuncOp>(callee)) {
+      calleeTy = llvmFunc.getType().cast<LLVM::LLVMFunctionType>();
+    } else {
+      auto eirFunc = cast<FuncOp>(callee);
+      calleeTy = ctx.typeConverter.convertType(eirFunc.getType()).cast<LLVM::LLVMFunctionType>();
+    }
 
-    auto calleeName = op.getCallee();
-    auto callee = ctx.getOrInsertFunction(calleeName, resultType, argTypes);
+    SmallVector<Value, 2> args;
+    unsigned index = 0;
+    for (auto operand : adaptor.operands()) {
+      LLVMType paramTy = calleeTy.getParamType(index);
+      auto argTy = operand.getType();
+      LLVMType llvmArgTy = ctx.typeConverter.convertType(argTy).cast<LLVMType>();
 
-    auto calleeSymbol =
-        FlatSymbolRefAttr::get(calleeName, callee->getContext());
-    auto callOp = rewriter.create<mlir::CallOp>(
-        op.getLoc(), calleeSymbol, resultTypes, adaptor.operands());
+      // If the types match, we're good
+      if (paramTy == llvmArgTy) {
+        args.push_back(operand);
+        continue;
+      }
+
+      // If the parameter type is a term type, the argument must be cast
+      if (paramTy.isIntegerTy(ctx.targetInfo.pointerSizeInBits)) {
+        Value cast = eir_cast(operand, rewriter.getType<TermType>());
+        args.push_back(cast);
+        continue;
+      }
+
+      // If the argument type is pointer-like, and the parameter type is a pointer,
+      // get the pointee type and see if we can cast to an appropriate concrete
+      // type
+      if (paramTy.isPointerTy()) {
+        LLVMType elTy = paramTy.cast<LLVM::LLVMPointerType>().getElementType();
+        // Terms can be cast to pointer types when the pointee is a term structure
+        if (argTy.isa<TermType>() && elTy.isStructTy()) {
+          auto structTy = elTy.cast<LLVM::LLVMStructType>();
+          auto structName = structTy.getName();
+          // Obtain a type builder for the type to cast to based on the pointee type name
+          auto castToFun =
+            StringSwitch<BuildCastFnT>(structName)
+            .Case("binary", [](OpBuilder &b) { return b.getType<BoxType>(b.getType<BinaryType>()); })
+            .Case("cons", [](OpBuilder &b) { return b.getType<BoxType>(b.getType<ConsType>()); })
+            .Case("bigint", [](OpBuilder &b) { return b.getType<BoxType>(b.getType<BigIntType>()); })
+            .Case("float", [](OpBuilder &b) { return b.getType<BoxType>(b.getType<FloatType>()); })
+            .Default([&](OpBuilder &b) {
+              if (structName.startswith("closure")) {
+                return Optional((Type)b.getType<BoxType>(b.getType<ClosureType>()));
+              }
+              if (structName.startswith("tuple")) {
+                return Optional((Type)b.getType<BoxType>(b.getType<TupleType>()));
+              }
+              return (Optional<Type>)llvm::None;
+            });
+          // If we found a type to build, construct a cast to the boxed type first, then
+          // cast to raw pointer type. In the case of types with dynamic extent, an additional
+          // bitcast may be necessary
+          Optional<Type> castTo = castToFun(rewriter);
+          if (castTo.hasValue()) {
+            BoxType boxedTy = castTo.getValue().cast<BoxType>();
+            OpaqueTermType innerTy = boxedTy.getBoxedType();
+            Value cast = eir_cast(operand, boxedTy);
+            Value unboxed = eir_cast(cast, rewriter.getType<PtrType>(innerTy));
+            if (innerTy.isClosure() || innerTy.isTuple()) {
+              Value fixed = llvm_bitcast(paramTy, unboxed);
+              args.push_back(fixed);
+            } else {
+              args.push_back(unboxed);
+            }
+          }
+
+          args.push_back(operand);
+          continue;
+        }
+
+        // If a boxed term is passed to a parameter of raw pointer type, we need to
+        // cast the box to raw pointer form so that unboxing occurs
+        if (auto boxedTy = argTy.dyn_cast_or_null<BoxType>()) {
+          if (elTy.isStructTy()) {
+            auto structTy = elTy.cast<LLVM::LLVMStructType>();
+            auto structName = structTy.getName();
+            auto isCastable =
+              StringSwitch<bool>(structName)
+              .Case("binary", true)
+              .Case("cons", true)
+              .Case("bigint", true)
+              .Case("float", true)
+              .Default(structName.startswith("closure") || structName.startswith("tuple"));
+            if (isCastable) {
+              Value cast = eir_cast(operand, rewriter.getType<PtrType>(boxedTy.getBoxedType()));
+              args.push_back(cast);
+              continue;
+            }
+          }
+        }
+
+        args.push_back(operand);
+        continue;
+      }
+    }
 
     // Add tail call markers where present
-    auto mustTail = op.getAttrOfType<mlir::UnitAttr>("musttail");
-    if (mustTail) callOp.setAttr("musttail", rewriter.getUnitAttr());
-    auto tail = op.getAttrOfType<mlir::UnitAttr>("tail");
-    if (tail) callOp.setAttr("tail", rewriter.getUnitAttr());
+    Operation *callOp = llvm_call(resultTypes, op.getCalleeAttr(), args);
+    auto attrs = op.getAttrs();
+    for (auto attr : op.getAttrs()) {
+      callOp->setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
+    }
 
-    rewriter.replaceOp(op, callOp.getResults());
+    rewriter.replaceOp(op, callOp->getResults());
     return success();
   }
 };
@@ -94,44 +197,69 @@ struct InvokeOpConversion : public EIROpConversion<InvokeOp> {
   LogicalResult matchAndRewrite(
       InvokeOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
+    InvokeOpAdaptor adaptor(op);
     auto ctx = getRewriteContext(op, rewriter);
-
-    ValueRange args = op.operands();
-    SmallVector<LLVMType, 2> argTypes;
-    for (auto arg : args) {
-      auto argType =
-          ctx.typeConverter.convertType(arg.getType()).cast<LLVMType>();
-      argTypes.push_back(argType);
-    }
-    auto ok = op.okDest();
-    auto okBlockArgs = ok->getArguments();
-    LLVMType resultType;
-    SmallVector<Type, 1> resultTypes;
-    if (!ok->args_empty()) {
-      resultType =
-          ctx.typeConverter.convertType(*ok->getArgumentTypes().begin())
-              .cast<LLVMType>();
-      assert(resultType && "unable to convert result type");
-      resultTypes.push_back(resultType);
-    }
+    auto termTy = ctx.getUsizeType();
 
     // Always increment reduction count when performing a call
     rewriter.create<IncrementReductionsOp>(op.getLoc());
 
-    auto calleeName = op.getCallee();
-    auto callee = ctx.getOrInsertFunction(calleeName, resultType, argTypes);
+    // Just like CallOp, we have to assume term type for any functions
+    // that don't have type information already defined
+    SmallVector<LLVMType, 2> argTypes;
+    for (auto operand : adaptor.operands()) {
+      argTypes.push_back(termTy);
+    }
 
-    auto attrs = op.getAttrs();
+    // The result types are based on the block arguments of the normal block
+    auto ok = op.okDest();
+    auto okBlockArgs = ok->getArguments();
+    LLVMType resultType;
+    if (!ok->args_empty()) {
+      resultType =
+          ctx.typeConverter.convertType(*ok->getArgumentTypes().begin())
+              .cast<LLVMType>();
+    }
+
+    auto callee = ctx.getOrInsertFunction(op.callee(), resultType, argTypes);
+    LLVM::LLVMFunctionType calleeTy;
+    if (auto llvmFunc = dyn_cast_or_null<LLVM::LLVMFuncOp>(callee)) {
+      calleeTy = llvmFunc.getType().cast<LLVM::LLVMFunctionType>();
+    } else {
+      auto eirFunc = cast<FuncOp>(callee);
+      calleeTy = ctx.typeConverter.convertType(eirFunc.getType()).cast<LLVM::LLVMFunctionType>();
+    }
+
+    SmallVector<Value, 2> args;
+    unsigned index = 0;
+    for (auto operand : adaptor.operands()) {
+      auto paramTy = calleeTy.getParamType(index);
+      auto argTy = argTypes[index];
+      // If the types match, we're good
+      if (paramTy == argTy) {
+        args.push_back(operand);
+        continue;
+      }
+      // If we have a concrete pointer type being passed
+      // as an opaque term parameter, insert a bitcast
+      if (argTy.isPointerTy() && paramTy == termTy) {
+        Value cast = llvm_bitcast(paramTy, operand);
+        args.push_back(cast);
+        continue;
+      }
+      // Otherwise we have an unresolvable discrepancy,
+      // if we don't catch this here, LLVM will blow up
+      // when lowering to LLVM IR, so raise an error here
+      op.emitOpError("unexpected argument type mismatch");
+      return failure();
+    }
+
     ValueRange okArgs = op.okDestOperands();
     auto err = op.errDest();
     ValueRange errArgs = op.errDestOperands();
-    auto calleeSymbol =
-        FlatSymbolRefAttr::get(calleeName, callee->getContext());
-    auto callOp = rewriter.create<LLVM::InvokeOp>(op.getLoc(), ArrayRef<Type>{},
-                                                  calleeSymbol, args, ok,
-                                                  okArgs, err, errArgs);
-    for (auto attr : attrs) {
-      callOp.setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
+    Operation *callOp = llvm_invoke(ArrayRef<Type>{}, op.getCalleeAttr(), args, ok, okArgs, err, errArgs);
+    for (auto attr : op.getAttrs()) {
+      callOp->setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
     }
 
     rewriter.eraseOp(op);

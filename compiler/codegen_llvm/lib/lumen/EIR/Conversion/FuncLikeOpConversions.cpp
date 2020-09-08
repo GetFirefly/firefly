@@ -170,8 +170,16 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     Value modPtrGep = llvm_gep(termPtrTy, valRef, modIndices);
     llvm_store(mod, modPtrGep);
 
+    // Arity
+    // arity: u32,
+    Value arityIdx = llvm_constant(i32Ty, ctx.getI32Attr(2));
+    ArrayRef<Value> arityIndices({zero, arityIdx});
+    Value arityPtrGep = llvm_gep(i32PtrTy, valRef, arityIndices);
+    Value arityConst = llvm_constant(i32Ty, ctx.getIntegerAttr(arity));
+    llvm_store(arityConst, arityPtrGep);
+
     // Definition
-    Value defIdx = llvm_constant(i32Ty, ctx.getI32Attr(2));
+    Value defIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
 
     // Definition - type
     Value defTypeIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
@@ -201,14 +209,6 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         llvm_gep(i32PtrTy, valRef, defOldUniqueIndices);
     Value oldUniqueConst = llvm_constant(i32Ty, ctx.getI32Attr(oldUnique));
     llvm_store(oldUniqueConst, definitionOldUniqueGep);
-
-    // Arity
-    // arity: u32,
-    Value arityIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
-    ArrayRef<Value> arityIndices({zero, arityIdx});
-    Value arityPtrGep = llvm_gep(i32PtrTy, valRef, arityIndices);
-    Value arityConst = llvm_constant(i32Ty, ctx.getIntegerAttr(arity));
-    llvm_store(arityConst, arityPtrGep);
 
     // Code
     // code: Option<*const ()>,

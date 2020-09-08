@@ -32,8 +32,8 @@ pub extern "C" fn closure_base_size(pointer_width: u32) -> u32 {
 pub struct Closure {
     header: Header<Closure>,
     module: Atom,
-    definition: Definition,
     arity: u32,
+    definition: Definition,
     /// Pointer to function entry.  When a closure is received over ETF, this may be `None`.
     native: Option<NonNull<c_void>>,
     env: [Term],
@@ -44,8 +44,8 @@ impl_dynamic_header!(Closure, Term::HEADER_CLOSURE);
 pub struct ClosureLayout {
     layout: Layout,
     module_offset: usize,
-    definition_offset: usize,
     arity_offset: usize,
+    definition_offset: usize,
     native_offset: usize,
     env_offset: usize,
 }
@@ -70,24 +70,28 @@ impl ClosureLayout {
     pub fn base_size_32bit() -> usize {
         // Header<T> + Atom
         let (layout, _module_offset) = Layout::new::<u32>().extend(Layout::new::<u32>()).unwrap();
+        // u32
+        let (layout, _arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
         // Definition
         let (layout, _definition_offset) = layout.extend(Layout::new::<Definition32>()).unwrap();
-        // u8
-        let (layout, _arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
         // Option<NonNull<c_void>>
-        let (layout, _native_offset) = layout.extend(Layout::new::<u32>()).unwrap();
+        let (layout, _native_offset) = layout
+            .extend(Layout::new::<Option<NonNull<c_void>>>())
+            .unwrap();
         layout.size()
     }
 
     pub fn base_size_64bit() -> usize {
         // Header<T> + Atom
         let (layout, _module_offset) = Layout::new::<u64>().extend(Layout::new::<u64>()).unwrap();
+        // u32
+        let (layout, _arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
         // Definition
         let (layout, _definition_offset) = layout.extend(Layout::new::<Definition64>()).unwrap();
-        // u8
-        let (layout, _arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
         // Option<NonNull<c_void>>
-        let (layout, _native_offset) = layout.extend(Layout::new::<u64>()).unwrap();
+        let (layout, _native_offset) = layout
+            .extend(Layout::new::<Option<NonNull<c_void>>>())
+            .unwrap();
         layout.size()
     }
 
@@ -95,8 +99,8 @@ impl ClosureLayout {
         let (layout, _module_offset) = Layout::new::<Header<Closure>>()
             .extend(Layout::new::<Atom>())
             .unwrap();
-        let (layout, _definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, _arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
+        let (layout, _definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, _native_offset) = layout
             .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
@@ -107,8 +111,8 @@ impl ClosureLayout {
         let (layout, module_offset) = Layout::new::<Header<Closure>>()
             .extend(Layout::new::<Atom>())
             .unwrap();
-        let (layout, definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, arity_offset) = layout.extend(Layout::new::<u32>()).unwrap();
+        let (layout, definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
         let (layout, native_offset) = layout
             .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
@@ -205,11 +209,11 @@ impl Closure {
             // Construct pointer to each field and write the corresponding value
             let module_ptr = ptr.offset(closure_layout.module_offset as isize) as *mut Atom;
             module_ptr.write(module);
+            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut u32;
+            arity_ptr.write(arity.into());
             let definition_ptr =
                 ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
             definition_ptr.write(definition);
-            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut u32;
-            arity_ptr.write(arity.into());
             let native_ptr =
                 ptr.offset(closure_layout.native_offset as isize) as *mut Option<NonNull<c_void>>;
             native_ptr.write(native);
@@ -268,11 +272,11 @@ impl Closure {
             // Construct pointer to each field and write the corresponding value
             let module_ptr = ptr.offset(closure_layout.module_offset as isize) as *mut Atom;
             module_ptr.write(module);
+            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut u32;
+            arity_ptr.write(arity.into());
             let definition_ptr =
                 ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
             definition_ptr.write(definition);
-            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut u32;
-            arity_ptr.write(arity.into());
             let native_ptr =
                 ptr.offset(closure_layout.native_offset as isize) as *mut Option<NonNull<c_void>>;
             native_ptr.write(native);
@@ -489,8 +493,8 @@ impl Debug for Closure {
         f.debug_struct("Closure")
             .field("header", &self.header)
             .field("module", &self.module)
-            .field("definition", &self.definition)
             .field("arity", &self.arity)
+            .field("definition", &self.definition)
             .field("native", &self.native.map(|nn| nn.as_ptr()))
             .field("env_len", &self.env.len())
             .field("env", &self.env.iter().copied().collect::<Vec<Term>>())
@@ -520,8 +524,8 @@ impl Eq for Closure {}
 impl Hash for Closure {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.module.hash(state);
-        self.definition.hash(state);
         self.arity.hash(state);
+        self.definition.hash(state);
         self.native_address().hash(state);
         self.env_slice().hash(state);
     }
@@ -531,8 +535,8 @@ impl Ord for Closure {
     fn cmp(&self, other: &Self) -> Ordering {
         self.module
             .cmp(&other.module)
-            .then_with(|| self.definition.cmp(&other.definition))
             .then_with(|| self.arity.cmp(&other.arity))
+            .then_with(|| self.definition.cmp(&other.definition))
             .then_with(|| self.native_address().cmp(&other.native_address()))
             .then_with(|| self.env_slice().cmp(other.env_slice()))
     }
@@ -541,8 +545,8 @@ impl Ord for Closure {
 impl PartialEq for Closure {
     fn eq(&self, other: &Self) -> bool {
         (self.module == other.module)
-            && (self.definition == other.definition)
             && (self.arity == other.arity)
+            && (self.definition == other.definition)
             && (self.native_address() == other.native_address())
             && (self.env_slice() == other.env_slice())
     }

@@ -42,6 +42,7 @@ using ::mlir::FlatSymbolRefAttr;
 using ::mlir::Identifier;
 using ::mlir::IntegerAttr;
 using ::mlir::LogicalResult;
+using ::mlir::DiagnosticSeverity;
 using ::mlir::ModuleOp;
 using ::mlir::MutableDictionaryAttr;
 using ::mlir::MutableOperandRange;
@@ -104,12 +105,9 @@ class MatchBranch {
   std::unique_ptr<MatchPattern> pattern;
 };
 
-/// Calculates the size of the boxed type for allocation
-int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType type);
-
 /// Performs lowering of a match operation
-void lowerPatternMatch(::mlir::OpBuilder &builder, Location loc, Value selector,
-                       ArrayRef<MatchBranch> branches);
+LogicalResult lowerPatternMatch(::mlir::OpBuilder &builder, Location loc, Value selector,
+                                ArrayRef<MatchBranch> branches);
 
 //===----------------------------------------------------------------------===//
 // TableGen

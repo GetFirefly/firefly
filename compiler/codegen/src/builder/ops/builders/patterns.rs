@@ -140,9 +140,11 @@ impl<'a, 'f, 'o> MatchBuilder<'a, 'f, 'o> {
             num_branches: branches.len() as libc::c_uint,
         };
 
-        unsafe { MLIRBuildMatchOp(self.builder.as_ref(), match_op) }
-
-        Ok(None)
+        if unsafe { MLIRBuildMatchOp(self.builder.as_ref(), match_op) } {
+            Ok(None)
+        } else {
+            Err(anyhow!("failed to lower pattern match operation"))
+        }
     }
 
     fn translate_branch_kind(

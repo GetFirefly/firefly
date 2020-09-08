@@ -513,9 +513,9 @@ void ModuleBuilder::build_if(Location loc, Value value, Block *yes, Block *no,
 // MatchOp
 //===----------------------------------------------------------------------===//
 
-extern "C" void MLIRBuildMatchOp(MLIRModuleBuilderRef b, eir::Match op) {
+extern "C" bool MLIRBuildMatchOp(MLIRModuleBuilderRef b, eir::Match op) {
   ModuleBuilder *builder = unwrap(b);
-  builder->build_match(op);
+  return builder->build_match(op);
 }
 
 std::unique_ptr<MatchPattern> ModuleBuilder::convertMatchPattern(
@@ -556,7 +556,7 @@ std::unique_ptr<MatchPattern> ModuleBuilder::convertMatchPattern(
   }
 }
 
-void ModuleBuilder::build_match(Match op) {
+bool ModuleBuilder::build_match(Match op) {
   // Convert FFI types into internal MLIR representation
   Value selector = unwrap(op.selector);
   Location loc = unwrap(op.loc);
@@ -587,7 +587,7 @@ void ModuleBuilder::build_match(Match op) {
   // We don't use an explicit operation for matches, as currently
   // there isn't enough structure in place to allow nested regions
   // to reference blocks from containing ops
-  lumen::eir::lowerPatternMatch(builder, loc, selector, branches);
+  return mlir::succeeded(lumen::eir::lowerPatternMatch(builder, loc, selector, branches));
 }
 
 //===----------------------------------------------------------------------===//

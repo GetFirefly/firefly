@@ -391,7 +391,7 @@ extern "C" {
     // Operations
     //---------------
 
-    pub fn MLIRBuildMatchOp(builder: ModuleBuilderRef, op: MatchOp);
+    pub fn MLIRBuildMatchOp(builder: ModuleBuilderRef, op: MatchOp) -> bool;
 
     pub fn MLIRBuildTraceCaptureOp(
         builder: ModuleBuilderRef,

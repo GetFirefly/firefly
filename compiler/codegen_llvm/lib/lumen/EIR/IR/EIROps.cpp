@@ -568,8 +568,8 @@ static LogicalResult verify(CastOp op) {
 // eir.match
 //===----------------------------------------------------------------------===//
 
-void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
-                       ArrayRef<MatchBranch> branches) {
+LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
+                                ArrayRef<MatchBranch> branches) {
   auto numBranches = branches.size();
   assert(numBranches > 0 && "expected at least one branch in a match");
 
@@ -899,10 +899,12 @@ void lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
                                                   payload.unit, size);
             break;
           }
-          default:
-            llvm::outs() << "binary match type: " << ((unsigned)spec.tag)
-                         << "\n";
-            llvm::report_fatal_error("unknown binary match type");
+          default: {
+            auto diagEngine = &builder.getContext()->getDiagEngine();
+            diagEngine->emit(branchLoc, DiagnosticSeverity::Error)
+              << "unknown binary specifier type tag '" << ((unsigned)spec.tag) << "'";
+            return failure();
+          }
         }
         Value matched = op->getResult(0);
         Value rest = op->getResult(1);
@@ -1196,17 +1198,6 @@ struct SimplifyDeadMalloc : public OpRewritePattern<MallocOp> {
 void MallocOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
   results.insert<SimplifyDeadMalloc>(context);
-}
-
-int64_t calculateAllocSize(unsigned pointerSizeInBits, BoxType boxType) {
-  auto boxedType = boxType.getBoxedType();
-  if (boxedType.isTuple()) {
-    auto tuple = boxedType.cast<TupleType>();
-    return tuple.getSizeInBytes();
-  } else if (boxedType.isNonEmptyList()) {
-    return 2 * (pointerSizeInBits / 8);
-  }
-  assert(false && "unimplemented boxed type in calculateAllocSize");
 }
 
 //===----------------------------------------------------------------------===//

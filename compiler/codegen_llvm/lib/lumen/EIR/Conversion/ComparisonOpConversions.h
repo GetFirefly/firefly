@@ -6,7 +6,6 @@
 namespace lumen {
 namespace eir {
 class CmpEqOpConversion;
-class CmpNeqOpConversion;
 class CmpLtOpConversion;
 class CmpLteOpConversion;
 class CmpGtOpConversion;

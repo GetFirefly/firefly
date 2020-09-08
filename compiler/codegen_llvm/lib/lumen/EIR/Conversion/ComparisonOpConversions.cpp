@@ -69,6 +69,7 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
     CmpEqOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
     auto i1Ty = ctx.getI1Type();
+    auto termTy = ctx.getUsizeType();
 
     Value lhs = adaptor.lhs();
     Value rhs = adaptor.rhs();
@@ -79,31 +80,31 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
       strict = attr.getValue();
     }
 
+    bool useICmp = true;
     Value lhsOperand;
     Value rhsOperand;
-    bool useICmp = true;
-    if (auto lTy = lhsType.dyn_cast_or_null<OpaqueTermType>()) {
-      if (auto rTy = rhsType.dyn_cast_or_null<OpaqueTermType>()) {
-        if (lTy.isBoolean() && rTy.isBoolean()) {
-          lhsOperand = lhs;
-          rhsOperand = rhs;
-        } else if (lTy.isBoolean() && rTy.isAtom()) {
-          lhsOperand = lhs;
-          rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs, i1Ty);
-        } else if (lTy.isAtom() && rTy.isBoolean()) {
-          lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs, i1Ty);
-        } else {
-          lhsOperand = lhs;
-          rhsOperand = rhs;
-          useICmp = strict && lTy.isImmediate() && rTy.isImmediate();
-        }
-      } else {
-        op.emitError("invalid type for rhs operand");
-        return failure();
-      }
+    Optional<Type> targetType = ctx.typeConverter.coalesceOperandTypes(lhsType, rhsType);
+    if (targetType.hasValue()) {
+      // We were able to decide which type to lower to, insert casts where necessary
+      auto tt = targetType.getValue();
+      if (lhsType != tt)
+        lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs, tt);
+      else
+        lhsOperand = lhs;
+      if (rhsType != tt)
+        rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs, tt);
+      else
+        rhsOperand = rhs;
     } else {
-      op.emitError("invalid type for lhs operand");
-      return failure();
+      useICmp = false;
+      if (lhsType.isa<TermType>())
+        lhsOperand = lhs;
+      else
+        lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs, rewriter.getType<TermType>());
+      if (rhsType.isa<TermType>())
+        rhsOperand = rhs;
+      else
+        rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs, rewriter.getType<TermType>());
     }
 
     if (useICmp) {
@@ -112,33 +113,15 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
     }
 
     // If we reach here, fall back to the slow path
-    auto termTy = ctx.getUsizeType();
-
     StringRef builtinSymbol = CmpEqOp::builtinSymbol();
     auto callee =
         ctx.getOrInsertFunction(builtinSymbol, i1Ty, {termTy, termTy});
 
-    ArrayRef<Value> args({lhs, rhs});
     auto calleeSymbol =
         FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
-    Operation *callOp = std_call(calleeSymbol, ArrayRef<Type>{i1Ty}, args);
+    Operation *callOp = std_call(calleeSymbol, ArrayRef<Type>{i1Ty}, ValueRange{lhs, rhs});
 
     rewriter.replaceOp(op, callOp->getResult(0));
-    return success();
-  }
-};
-
-struct CmpNeqOpConversion : public EIROpConversion<CmpNeqOp> {
-  using EIROpConversion::EIROpConversion;
-
-  LogicalResult matchAndRewrite(
-      CmpNeqOp op, ArrayRef<Value> operands,
-      ConversionPatternRewriter &rewriter) const override {
-    CmpNeqOpAdaptor adaptor(operands);
-
-    auto eqOp = rewriter.create<CmpEqOp>(op.getLoc(), adaptor.lhs(), adaptor.rhs());
-    Value isEqual = eqOp.getResult();
-    rewriter.replaceOpWithNewOp<LLVM::XOrOp>(op, isEqual, isEqual);
     return success();
   }
 };
@@ -147,7 +130,7 @@ void populateComparisonOpConversionPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *context,
                                             EirTypeConverter &converter,
                                             TargetInfo &targetInfo) {
-  patterns.insert<CmpEqOpConversion, CmpNeqOpConversion, CmpLtOpConversion,
+  patterns.insert<CmpEqOpConversion, CmpLtOpConversion,
                   CmpLteOpConversion, CmpGtOpConversion, CmpGteOpConversion>(
       context, converter, targetInfo);
 }

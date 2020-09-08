@@ -67,7 +67,7 @@ struct ConstantBoolOpConversion : public EIROpConversion<ConstantBoolOp> {
     auto valType = op.getType();
 
     // Can be lowered to atoms
-    if (valType.isa<AtomType>()) {
+    if (valType.isa<AtomType>() || valType.isa<BooleanType>()) {
       auto ty = ctx.getUsizeType();
       auto taggedAtom = ctx.targetInfo.encodeImmediate(TypeKind::Atom, (unsigned)(isTrue));
       Value val = llvm_constant(ty, ctx.getIntegerAttr(taggedAtom));

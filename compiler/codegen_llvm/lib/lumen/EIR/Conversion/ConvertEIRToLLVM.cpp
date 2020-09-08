@@ -39,15 +39,15 @@ class ConvertEIRToLLVMPass
     // Create the LLVM type converter for lowering types to Standard/LLVM IR
     // types
     auto &context = getContext();
+    auto targetInfo = TargetInfo(targetMachine, &context);
 
     auto llvmOpts = mlir::LowerToLLVMOptions::getDefaultOptions();
     llvmOpts.useAlignedAlloc = true;
     llvmOpts.dataLayout = targetMachine->createDataLayout();
 
     LLVMTypeConverter llvmConverter(&context, llvmOpts);
-    EirTypeConverter converter(llvmConverter);
+    EirTypeConverter converter(targetInfo.pointerSizeInBits, llvmConverter);
     // Initialize target-specific type information
-    auto targetInfo = TargetInfo(targetMachine, &context);
     converter.addConversion(
       [&](Type type) { return convertType(type, converter, targetInfo); });
     converter.addConversion([](LLVMType type) { return type; });

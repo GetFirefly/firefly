@@ -141,11 +141,12 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
 
     // Allocate closure header block
     auto boxedClosureTy = BoxType::get(rewriter.getType<ClosureType>());
+    auto closurePtrTy = PtrType::get(rewriter.getType<ClosureType>());
     auto headerArity = ctx.targetInfo.closureHeaderArity(envLen);
     Value headerArityConst =
         llvm_constant(termTy, ctx.getIntegerAttr(headerArity));
     auto mallocOp =
-        rewriter.create<MallocOp>(loc, boxedClosureTy, headerArityConst);
+        rewriter.create<MallocOp>(loc, closurePtrTy, headerArityConst);
     auto valRef = mallocOp.getResult();
 
     // Calculate pointers to each field in the header and write the
@@ -235,10 +236,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
       }
     }
 
-    // Box the allocated closure
-    auto boxed = ctx.encodeBox(valRef);
-
-    rewriter.replaceOp(op, boxed);
+    rewriter.replaceOp(op, valRef);
     return success();
   }
 };

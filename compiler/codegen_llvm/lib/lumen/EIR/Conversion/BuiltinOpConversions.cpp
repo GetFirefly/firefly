@@ -157,7 +157,7 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
     return success();
   }
 };
-
+ 
 struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
   using EIROpConversion::EIROpConversion;
 

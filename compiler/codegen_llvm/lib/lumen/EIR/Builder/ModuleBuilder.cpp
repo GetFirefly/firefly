@@ -56,12 +56,12 @@ using eir_landingpad = OperationBuilder<::lumen::eir::LandingPadOp>;
 using eir_return = OperationBuilder<::lumen::eir::ReturnOp>;
 using eir_cast = ValueBuilder<::lumen::eir::CastOp>;
 using eir_cmpeq = ValueBuilder<::lumen::eir::CmpEqOp>;
-using eir_cmpneq = ValueBuilder<::lumen::eir::CmpNeqOp>;
 using eir_cmpgt = ValueBuilder<::lumen::eir::CmpGtOp>;
 using eir_cmpgte = ValueBuilder<::lumen::eir::CmpGteOp>;
 using eir_cmplt = ValueBuilder<::lumen::eir::CmpLtOp>;
 using eir_cmplte = ValueBuilder<::lumen::eir::CmpLteOp>;
 using eir_atom = ValueBuilder<::lumen::eir::ConstantAtomOp>;
+using eir_bool = ValueBuilder<::lumen::eir::ConstantBoolOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_list = ValueBuilder<::lumen::eir::ListOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
@@ -355,7 +355,7 @@ extern "C" bool MLIRBuildUnpackEnv(MLIRModuleBuilderRef b,
   Value envBox = unwrap(ev);
   auto opBuilder = builder->getBuilder();
   Value env = opBuilder.create<CastOp>(
-      loc, envBox, BoxType::get(opBuilder.getType<ClosureType>()));
+      loc, envBox, PtrType::get(opBuilder.getType<ClosureType>()));
   for (auto i = 0; i < numValues; i++) {
     values[i] = wrap(builder->build_unpack_op(loc, env, i));
   }
@@ -478,20 +478,22 @@ void ModuleBuilder::build_if(Location loc, Value value, Block *yes, Block *no,
   //  Create the `if`, if necessary
   bool withOtherwiseRegion = other != nullptr;
   Value isTrue = value;
-  if (!value.getType().isa<BooleanType>()) {
+  Type i1Ty = builder.getI1Type();
+  if (!value.getType().isa<BooleanType>() && !value.getType().isInteger(1)) {
     // The condition is not boolean, so we need to do a comparison
-    auto trueConst = builder.create<ConstantAtomOp>(loc, true);
+    auto trueConst = builder.create<ConstantBoolOp>(loc, i1Ty, true);
     isTrue = builder.create<CmpEqOp>(loc, value, trueConst, /*strict=*/true);
   }
 
-  if (!other) {
-    // No need to do any additional comparisons
+  // If the value type is a boolean then the value _must_ be either true or false
+  // Likewise, if there was no otherwise branch, then we only need one comparison
+  if (!other || (value.getType().isa<BooleanType>() || value.getType().isInteger(1))) {
     builder.create<CondBranchOp>(loc, isTrue, yes, yesArgs, no, noArgs);
     return;
   }
 
   // Otherwise we need an additional check to see if we use the otherwise branch
-  auto falseConst = builder.create<ConstantAtomOp>(loc, false);
+  auto falseConst = builder.create<ConstantBoolOp>(loc, i1Ty, false);
   Value isFalse =
       builder.create<CmpEqOp>(loc, value, falseConst, /*strict=*/true);
 
@@ -715,7 +717,7 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
     return;
   }
 
-  auto termType = builder.getType<TermType>();
+  auto mapType = builder.getType<BoxType>(builder.getType<MapType>());
 
   unsigned numActions = actions.size();
   unsigned lastAction = numActions - 1;
@@ -728,30 +730,27 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
     // of the op if this is the last action being generated
     if (i == lastAction) {
       ok = unwrap(op.ok);
+      // Make sure the successor block argument has the right type
+      BlockArgument succArg = ok->getArgument(0);
+      succArg.setType(mapType);
     } else {
-      ok = builder.createBlock(err, {termType});
+      ok = builder.createBlock(err, {mapType});
     }
     builder.setInsertionPointToEnd(current);
     switch (action.action) {
       case MapActionType::Insert: {
         auto op = builder.create<MapInsertOp>(loc, map, key, val);
-        Value newMap = op.getResult(0);
-        assert(newMap && "expected result #0");
-        Value newMapAsTerm = eir_cast(newMap, termType);
-        Value isOk = op.getResult(1);
-        assert(isOk && "expected result #1");
-        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMapAsTerm},
+        Value newMap = op.newMap();
+        Value isOk = op.successFlag();
+        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMap},
                                      err, ValueRange{key});
         break;
       }
       case MapActionType::Update: {
         auto op = builder.create<MapUpdateOp>(loc, map, key, val);
-        Value newMap = op.getResult(0);
-        assert(newMap && "expected result #0");
-        Value newMapAsTerm = eir_cast(newMap, termType);
-        Value isOk = op.getResult(1);
-        assert(isOk && "expected result #1");
-        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMapAsTerm},
+        Value newMap = op.newMap();
+        Value isOk = op.successFlag();
+        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMap},
                                      err, ValueRange{key});
         break;
       }
@@ -801,7 +800,8 @@ extern "C" MLIRValueRef MLIRBuildIsNotEqualOp(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_is_not_equal(Location loc, Value lhs, Value rhs,
                                         bool isExact) {
   ScopedContext scope(builder, loc);
-  return eir_cmpneq(lhs, rhs, isExact);
+  Type i1Ty = builder.getI1Type();
+  return eir_cmpeq(eir_cmpeq(lhs, rhs, isExact), eir_bool(i1Ty, false), /*strict=*/true);
 }
 
 extern "C" MLIRValueRef MLIRBuildLessThanOrEqualOp(MLIRModuleBuilderRef b,
@@ -935,6 +935,19 @@ Value ModuleBuilder::build_logical_or(Location loc, ArrayRef<Value> args) {
     return op.getResult();                                              \
   }
 
+
+#define INTRINSIC_TYPECHECK_BUILDER(Alias, Ty)                          \
+  static Optional<Value> Alias(ModuleBuilder *modBuilder, Location loc, \
+                               ArrayRef<Value> args) {                  \
+    auto builder = modBuilder->getBuilder();                            \
+    assert(args.size() == 1 && "intrinsic type check called with multiple operands"); \
+    Value in = args.front();                                            \
+    auto ty = builder.getType<Ty>();                                    \
+    auto op = builder.create<IsTypeOp>(loc, in, ty);                    \
+                                                                        \
+    return op.getResult();                                              \
+  }
+
 INTRINSIC_BUILDER(buildIntrinsicPrintOp, PrintOp);
 INTRINSIC_BUILDER(buildIntrinsicAddOp, AddOp);
 INTRINSIC_BUILDER(buildIntrinsicSubOp, SubOp);
@@ -950,11 +963,25 @@ INTRINSIC_BUILDER(buildIntrinsicBandOp, BandOp);
 INTRINSIC_BUILDER(buildIntrinsicBorOp, BorOp);
 INTRINSIC_BUILDER(buildIntrinsicBxorOp, BxorOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpEqOp, CmpEqOp);
-INTRINSIC_BUILDER(buildIntrinsicCmpNeqOp, CmpNeqOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpLtOp, CmpLtOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpLteOp, CmpLteOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpGtOp, CmpGtOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpGteOp, CmpGteOp);
+
+
+
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsIntegerOp, IntegerType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsNumberOp, NumberType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsFloatOp, FloatType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsAtomOp, AtomType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsBooleanOp, BooleanType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsNilOp, NilType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsListOp, ListType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsBinaryOp, BinaryType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsMapOp, MapType);
+INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsReferenceOp, ReferenceType);
+INTRINSIC_BUILDER(buildIntrinsicIsTupleOp, IsTupleOp);
+INTRINSIC_BUILDER(buildIntrinsicIsFunctionOp, IsFunctionOp);
 
 #define ERROR_SYMBOL 46
 #define THROW_SYMBOL 58
@@ -1046,14 +1073,31 @@ static Optional<Value> buildIntrinsicCmpEqStrictOp(ModuleBuilder *modBuilder,
   return op.getResult();
 }
 
-static Optional<Value> buildIntrinsicCmpNeqStrictOp(ModuleBuilder *modBuilder,
-                                                    Location loc,
-                                                    ArrayRef<Value> args) {
+static Optional<Value> buildIntrinsicCmpNeqOp(ModuleBuilder *modBuilder,
+                                              Location loc,
+                                              ArrayRef<Value> args) {
   auto builder = modBuilder->getBuilder();
   assert(args.size() == 2 && "expected =/= operator to receive two operands");
   Value lhs = args[0];
   Value rhs = args[1];
-  auto op = builder.create<CmpNeqOp>(loc, lhs, rhs, /*strict=*/true);
+  Value areEqual = builder.create<CmpEqOp>(loc, lhs, rhs, /*strict=*/false);
+  Type i1Ty = builder.getI1Type();
+  Value constFalse = builder.create<ConstantBoolOp>(loc, i1Ty, false);
+  auto op = builder.create<CmpEqOp>(loc, areEqual, constFalse, /*strict=*/true);
+  return op.getResult();
+}
+
+static Optional<Value> buildIntrinsicCmpNeqStrictOp(ModuleBuilder *modBuilder,
+                                                    Location loc,
+                                                    ArrayRef<Value> args) {
+  auto builder = modBuilder->getBuilder();
+  assert(args.size() == 2 && "expected /= operator to receive two operands");
+  Value lhs = args[0];
+  Value rhs = args[1];
+  Value areEqual = builder.create<CmpEqOp>(loc, lhs, rhs, /*strict=*/true);
+  Type i1Ty = builder.getI1Type();
+  Value constFalse = builder.create<ConstantBoolOp>(loc, i1Ty, false);
+  auto op = builder.create<CmpEqOp>(loc, areEqual, constFalse, /*strict=*/true);
   return op.getResult();
 }
 
@@ -1104,6 +1148,19 @@ static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
                    .Case("erlang:=</2", buildIntrinsicCmpLteOp)
                    .Case("erlang:>/2", buildIntrinsicCmpGtOp)
                    .Case("erlang:>=/2", buildIntrinsicCmpGteOp)
+                   .Case("erlang:is_integer/1", buildIntrinsicIsIntegerOp)
+                   .Case("erlang:is_number/1", buildIntrinsicIsNumberOp)
+                   .Case("erlang:is_float/1", buildIntrinsicIsFloatOp)
+                   .Case("erlang:is_atom/1", buildIntrinsicIsAtomOp)
+                   .Case("erlang:is_boolean/1", buildIntrinsicIsBooleanOp)
+                   .Case("erlang:is_tuple/1", buildIntrinsicIsTupleOp)
+                   .Case("erlang:is_tuple/2", buildIntrinsicIsTupleOp)
+                   .Case("erlang:is_nil/1", buildIntrinsicIsNilOp)
+                   .Case("erlang:is_list/1", buildIntrinsicIsListOp)
+                   .Case("erlang:is_map/1", buildIntrinsicIsMapOp)
+                   .Case("erlang:is_binary/1", buildIntrinsicIsBinaryOp)
+                   .Case("erlang:is_function/1", buildIntrinsicIsFunctionOp)
+                   .Case("erlang:is_reference/1", buildIntrinsicIsReferenceOp)
                    .Default(nullptr);
   if (fnPtr == nullptr) {
     return llvm::None;
@@ -1178,9 +1235,9 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
     if (resultOpt) {
       auto result = resultOpt.getValue();
       auto func = result.getDefiningOp()->getParentOfType<FuncOp>();
-      if (result.getType() != func.getType().getResult(0)) {
-        Value coercedResult = eir_cast(result, termTy);
-        coercedResult.dump();
+      auto funcResultTy = func.getType().getResult(0);
+      if (result.getType() != funcResultTy) {
+        Value coercedResult = eir_cast(result, funcResultTy);
         eir_return(ValueRange(coercedResult));
       } else {
         eir_return(ValueRange(result));
@@ -1240,8 +1297,6 @@ void ModuleBuilder::build_static_invoke(Location loc, StringRef target,
     appendToBlock(normal,
                   [&](ValueRange args) { eir_return(ValueRange(args)); });
   } else {
-    // Otherwise create a new block that will relay the result
-    // to the "real" normal block
     eir_invoke(callee, args, ok, okArgs, unwind, errArgs);
   }
 }
@@ -1264,10 +1319,6 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
     auto rs = fn.getCallableResults();
     fnResults.append(rs.begin(), rs.end());
   } else {
-    SmallVector<Type, 1> argTypes;
-    for (auto arg : args) {
-      argTypes.push_back(arg.getType());
-    }
     fnResults.push_back(termType);
   }
 
@@ -1276,9 +1327,9 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
     Operation *call =
         eir_call(callee, fnResults, args, ArrayRef<NamedAttribute>{mustTail});
     auto parentFunc = call->getParentOfType<FuncOp>();
-    if (fnResults.size() > 0 &&
-        fnResults[0] != parentFunc.getType().getResult(0)) {
-      Value coercedResult = eir_cast(call->getResults().front(), termType);
+    auto parentResultType = parentFunc.getType().getResult(0);
+    if (fnResults.size() > 0 && fnResults[0] != parentResultType) {
+      Value coercedResult = eir_cast(call->getResults().front(), parentResultType);
       eir_return(ValueRange(coercedResult));
     } else {
       eir_return(call->getResults());
@@ -1288,12 +1339,31 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
     Operation *call =
         eir_call(callee, fnResults, args, ArrayRef<NamedAttribute>{tail});
     SmallVector<Value, 1> contArgsFinal;
-    if (fnResults.size() > 0 &&
-        fnResults[0] != cont->getArgument(0).getType()) {
-      Value coercedResult = eir_cast(call->getResults().front(), termType);
-      contArgsFinal.push_back(coercedResult);
-    } else {
-      contArgsFinal.push_back(call->getResults().front());
+    BlockArgument contArg = cont->getArgument(0);
+    Type contArgTy = contArg.getType();
+    if (fnResults.size() > 0) {
+      auto callResult = call->getResults().front();
+      auto callResultTy = callResult.getType();
+      if (callResultTy.isa<TermType>()) {
+        // Unknown result type
+        if (contArgTy.isa<TermType>()) {
+          contArgsFinal.push_back(callResult);
+        } else {
+          // If the type of the block argument is concrete, we need a cast
+          Value coercedResult = eir_cast(callResult, contArgTy);
+          contArgsFinal.push_back(coercedResult);
+        }
+      } else {
+        // Concrete result type
+        // If the type of the block argument is opaque, make it concrete
+        if (contArgTy.isa<TermType>()) {
+          contArg.setType(callResultTy);
+        } else {
+          // The block argument has a different concrete type, we need a cast
+          Value coercedResult = eir_cast(callResult, contArgTy);
+          contArgsFinal.push_back(coercedResult);
+        }
+      }
     }
     for (auto arg : contArgs) {
       contArgsFinal.push_back(arg);
@@ -1737,8 +1807,7 @@ extern "C" MLIRValueRef MLIRBuildConstantFloat(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_float(Location loc, double value) {
   ScopedContext scope(builder, loc);
-  auto termTy = builder.getType<TermType>();
-  return eir_cast(eir_float(APFloat(value)), termTy);
+  return eir_float(APFloat(value));
 }
 
 extern "C" MLIRAttributeRef MLIRBuildFloatAttr(MLIRModuleBuilderRef b,
@@ -1766,9 +1835,8 @@ extern "C" MLIRValueRef MLIRBuildConstantInt(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_int(Location loc, uint64_t value) {
   ScopedContext scope(builder, loc);
-  auto termTy = builder.getType<TermType>();
   APInt i(immediateBitWidth, value, /*signed=*/true);
-  return eir_cast(eir_int(i), termTy);
+  return eir_int(i);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
@@ -1801,9 +1869,8 @@ extern "C" MLIRValueRef MLIRBuildConstantBigInt(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_constant_bigint(Location loc, StringRef value,
                                            unsigned width) {
   ScopedContext scope(builder, loc);
-  auto termTy = builder.getType<TermType>();
   APInt i(width, value, /*radix=*/10);
-  return eir_cast(eir_bigint(i), termTy);
+  return eir_bigint(i);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildBigIntAttr(MLIRModuleBuilderRef b,
@@ -1837,9 +1904,13 @@ extern "C" MLIRValueRef MLIRBuildConstantAtom(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_constant_atom(Location loc, StringRef value,
                                          uint64_t valueId) {
   ScopedContext scope(builder, loc);
+  // Create boolean constant
+  if (valueId == 0 || valueId == 1) {
+    return eir_bool(valueId == 1);
+  }
+    
   APInt id(immediateBitWidth, valueId, /*isSigned=*/false);
-  auto termTy = builder.getType<TermType>();
-  return eir_cast(eir_atom(id, value), termTy);
+  return eir_atom(id, value);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildAtomAttr(MLIRModuleBuilderRef b,
@@ -1877,8 +1948,7 @@ extern "C" MLIRValueRef MLIRBuildConstantBinary(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_constant_binary(Location loc, StringRef value,
                                            uint64_t header, uint64_t flags) {
   ScopedContext scope(builder, loc);
-  auto termTy = builder.getType<TermType>();
-  return eir_cast(eir_constant_binary(value, header, flags), termTy);
+  return eir_constant_binary(value, header, flags);
 }
 
 extern "C" MLIRAttributeRef MLIRBuildBinaryAttr(MLIRModuleBuilderRef b,
@@ -1909,8 +1979,7 @@ extern "C" MLIRValueRef MLIRBuildConstantNil(MLIRModuleBuilderRef b,
 
 Value ModuleBuilder::build_constant_nil(Location loc) {
   ScopedContext scope(builder, loc);
-  auto termTy = builder.getType<TermType>();
-  return eir_cast(eir_nil(), termTy);
+  return eir_nil();
 }
 
 extern "C" MLIRAttributeRef MLIRBuildNilAttr(MLIRModuleBuilderRef b,
@@ -1950,7 +2019,7 @@ Value ModuleBuilder::build_constant_list(Location loc,
                                          ArrayRef<Attribute> elements) {
   ScopedContext scope(builder, loc);
   auto termTy = builder.getType<TermType>();
-  return eir_cast(eir_constant_list(elements), termTy);
+  return eir_constant_list(elements);
 }
 
 extern "C" MLIRValueRef MLIRBuildConstantTuple(MLIRModuleBuilderRef b,
@@ -1971,8 +2040,7 @@ extern "C" MLIRValueRef MLIRBuildConstantTuple(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_constant_tuple(Location loc,
                                           ArrayRef<Attribute> elements) {
   ScopedContext scope(builder, loc);
-  auto termTy = builder.getType<TermType>();
-  return eir_cast(eir_constant_tuple(elements), termTy);
+  return eir_constant_tuple(elements);
 }
 
 extern "C" MLIRValueRef MLIRBuildConstantMap(MLIRModuleBuilderRef b,
@@ -1999,7 +2067,7 @@ Value ModuleBuilder::build_constant_map(Location loc,
                                         ArrayRef<Attribute> elements) {
   ScopedContext scope(builder, loc);
   auto termTy = builder.getType<TermType>();
-  return eir_cast(eir_constant_map(elements), termTy);
+  return eir_constant_map(elements);
 }
 
 Attribute build_seq_attr(ModuleBuilder *builder,

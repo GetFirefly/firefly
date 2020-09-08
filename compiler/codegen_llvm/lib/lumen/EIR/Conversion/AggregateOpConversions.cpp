@@ -25,6 +25,10 @@ struct ConsOpConversion : public EIROpConversion<ConsOp> {
     Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
     Value one = llvm_constant(i32Ty, ctx.getI32Attr(1));
     Value arity = llvm_zext(termTy, zero);
+    // TODO(pauls): We should optimize this for allocating multiple
+    // cells by providing an optional pointer and index at which to
+    // allocate this cell, by offsetting the pointer by `index * sizeof(cell)`
+    // and then storing directly into that memory
     Value cellPtr = ctx.buildMalloc(consTy, TypeKind::Cons, arity);
     ArrayRef<Value> headIndices{zero, zero};
     Value headPtr = llvm_gep(termPtrTy, cellPtr, headIndices);

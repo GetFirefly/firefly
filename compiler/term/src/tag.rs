@@ -73,6 +73,22 @@ where
             _ => false,
         }
     }
+
+    #[inline]
+    pub fn is_pid(&self) -> bool {
+        match self {
+            Self::Pid | Self::ExternalPid => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_reference(&self) -> bool {
+        match self {
+            Self::Reference | Self::ExternalReference => true,
+            _ => false,
+        }
+    }
 }
 
 impl<T> fmt::Debug for Tag<T>

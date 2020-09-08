@@ -64,6 +64,8 @@ def eir_TK_Binary  : eir_TermKind<"Binary", 15>;
 def eir_TK_HeapBin : eir_TermKind<"HeapBin", 16>;
 def eir_TK_ProcBin : eir_TermKind<"ProcBin", 17>;
 def eir_TK_Box     : eir_TermKind<"Box", 18>;
+def eir_TK_Pid     : eir_TermKind<"Pid", 19>;
+def eir_TK_Reference : eir_TermKind<"Reference", 20>;
 
 class eir_TermTypeBase<eir_TermKind kind, string description> : DialectType<
   eir_Dialect,
@@ -126,6 +128,8 @@ def eir_BinaryType : eir_TermType<eir_TK_Binary, "binary">;
 def eir_HeapBinType : eir_TermType<eir_TK_HeapBin, "heapbin">;
 def eir_ProcBinType : eir_TermType<eir_TK_ProcBin, "procbin">;
 def eir_BoxType : eir_TermTypeBase<eir_TK_Box, "box">;
+def eir_PidType : eir_TermTypeBase<eir_TK_Pid, "pid">;
+def eir_ReferenceType : eir_TermTypeBase<eir_TK_Reference, "reference">;
 
 def eir_RefType : Type<CPred<"$_self.isa<eir::RefType>()">, "pointer type">;
 def eir_PtrType : Type<CPred<"$_self.isa<eir::PtrType>()">, "raw pointer type">;

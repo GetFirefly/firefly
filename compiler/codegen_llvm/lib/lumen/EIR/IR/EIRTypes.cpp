@@ -241,7 +241,11 @@ PtrType PtrType::get(Type innerType) {
 }
 
 PtrType PtrType::get(MLIRContext *context) {
-  return Base::get(context, mlir::IntegerType::get(8, context));
+  return PtrType::get(context, mlir::IntegerType::get(8, context));
+}
+
+PtrType PtrType::get(MLIRContext *context, Type innerType) {
+  return Base::get(context, innerType);
 }
 
 Type PtrType::getInnerType() const { return getImpl()->innerType; }
@@ -392,6 +396,10 @@ Type eirDialect::parseType(mlir::DialectAsmParser &parser) const {
   if (typeNameLit == "term") return TermType::get(context);
   // `list`
   if (typeNameLit == "list") return ListType::get(context);
+  // `pid`
+  if (typeNameLit == "pid") return PidType::get(context);
+  // `reference`
+  if (typeNameLit == "reference") return ReferenceType::get(context);
   // `number`
   if (typeNameLit == "number") return NumberType::get(context);
   // `integer`
@@ -485,6 +493,8 @@ void eirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
       .Case<NoneType>([&](Type) { os << "none"; })
       .Case<TermType>([&](Type) { os << "term"; })
       .Case<ListType>([&](Type) { os << "list"; })
+      .Case<PidType>([&](Type) { os << "pid"; })
+      .Case<ReferenceType>([&](Type) { os << "reference"; })
       .Case<NumberType>([&](Type) { os << "number"; })
       .Case<IntegerType>([&](Type) { os << "integer"; })
       .Case<FloatType>([&](Type) { os << "float"; })

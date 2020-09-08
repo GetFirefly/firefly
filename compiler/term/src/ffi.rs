@@ -34,6 +34,8 @@ mod tablegen {
                 TermKind::ProcBin => Ok(Tag::ProcBin),
                 TermKind::Box => Ok(Tag::Box),
                 TermKind::Term
+                | TermKind::Pid
+                | TermKind::Reference
                 | TermKind::List
                 | TermKind::Number
                 | TermKind::Integer
@@ -101,7 +103,7 @@ pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
 
 #[export_name = "__lumen_builtin_is_tuple"]
 #[cfg(target_pointer_width = "32")]
-pub extern "C" fn is_boxed_type(arity: usize, value: usize) -> bool {
+pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
     do_is_tuple::<E32>(arity, value)
 }
 
@@ -115,6 +117,24 @@ pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
 pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
     do_is_tuple::<E64>(arity, value)
+}
+
+#[export_name = "__lumen_builtin_is_function"]
+#[cfg(target_pointer_width = "32")]
+pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
+    do_is_function::<E32>(arity, value)
+}
+
+#[export_name = "__lumen_builtin_is_function"]
+#[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
+pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
+    do_is_function::<E64N>(arity, value)
+}
+
+#[export_name = "__lumen_builtin_is_function"]
+#[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
+pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
+    do_is_function::<E64>(arity, value)
 }
 
 #[export_name = "__lumen_builtin_encode_immediate"]
@@ -255,6 +275,8 @@ where
         TermKind::Number => tag.is_number(),
         TermKind::Integer => tag.is_integer(),
         TermKind::Binary => tag.is_binary(),
+        TermKind::Pid => tag.is_pid(),
+        TermKind::Reference => tag.is_reference(),
         _ => {
             let expected: Result<Tag<T::Type>, _> = kind.try_into();
             match expected {
@@ -285,6 +307,8 @@ where
         TermKind::Number => tag.is_number(),
         TermKind::Integer => tag.is_integer(),
         TermKind::Binary => tag.is_binary(),
+        TermKind::Pid => tag.is_pid(),
+        TermKind::Reference => tag.is_reference(),
         _ => {
             let expected: Result<Tag<T::Type>, _> = kind.try_into();
             match expected {
@@ -310,6 +334,39 @@ where
     let value = value.try_into().unwrap();
     if T::is_tuple(value) {
         let actual_arity = T::Type::as_usize(&T::decode_header_value(value));
+        return arity == actual_arity;
+    }
+    false
+}
+
+#[inline]
+fn do_is_function<T>(arity: usize, value: usize) -> bool
+where
+    T: Encoding,
+    <T as Encoding>::Type: Word,
+    <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
+{
+    let tag = T::type_of(value.try_into().unwrap());
+    if Tag::Box != tag {
+        return false;
+    }
+    let ptr = value as *const usize;
+    let value = unsafe { *ptr };
+    let value = value.try_into().unwrap();
+    if T::is_function(value) {
+        // HACK(pauls): This is dependent on the layout of Closure,
+        // which we don't have access to in this crate. It is unlikely
+        // to change in a way that breaks this, but should that happen,
+        // this will need to be changed accordingly
+        //
+        // Closure {
+        //   header: usize / Header<Closure>,
+        //   module: usize / Atom
+        //   arity: u32,
+        //   ...
+        // }
+        let arity_ptr = unsafe { ptr.offset(3) as *const u32 };
+        let actual_arity = unsafe { (*arity_ptr) as usize };
         return arity == actual_arity;
     }
     false

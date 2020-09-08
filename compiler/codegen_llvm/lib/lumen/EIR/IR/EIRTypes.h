@@ -42,13 +42,13 @@ namespace eir {
 class RefType;
 class PtrType;
 class ReceiveRefType;
+class TraceRefType;
 
 namespace detail {
 struct TupleTypeStorage;
 struct BoxTypeStorage;
 struct RefTypeStorage;
 struct PtrTypeStorage;
-struct ReceiveRefTypeStorage;
 }  // namespace detail
 
 namespace TypeKind {
@@ -58,9 +58,6 @@ enum Kind {
 #include "lumen/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
-  Ref = 19,
-  Ptr = 20,
-  ReceiveRef = 21,
 };
 }  // namespace TypeKind
 
@@ -94,6 +91,7 @@ class OpaqueTermType : public Type {
   bool isImmediate() const {
     return TypeSwitch<Type, bool>(*this)
         .Case<AtomType>([&](Type) { return true; })
+        .Case<PidType>([&](Type) { return true; })
         .Case<BooleanType>([&](Type) { return true; })
         .Case<FixnumType>([&](Type) { return true; })
         .Case<FloatType>([&](Type) { return true; })
@@ -103,6 +101,8 @@ class OpaqueTermType : public Type {
 
   bool isBoxable() const {
     return TypeSwitch<Type, bool>(*this)
+        .Case<PidType>([&](Type) { return true; })
+        .Case<ReferenceType>([&](Type) { return true; })
         .Case<FloatType>([&](Type) { return true; })
         .Case<BigIntType>([&](Type) { return true; })
         .Case<ConsType>([&](Type) { return true; })
@@ -120,6 +120,10 @@ class OpaqueTermType : public Type {
   bool isAtom() const { return isa<AtomType>() || isBoolean(); }
 
   bool isBoolean() const { return isa<BooleanType>(); }
+
+  bool isPid() const { return isa<PidType>(); }
+
+  bool isReference() const { return isa<ReferenceType>(); }
 
   bool isNumber() const {
     return TypeSwitch<Type, bool>(*this)
@@ -191,8 +195,11 @@ class OpaqueTermType : public Type {
 
   static bool classof(Type type) {
     if (!llvm::isa<eirDialect>(type.getDialect())) return false;
-    // ReceiveRefs are not actually term types
+    // The following are not actually term types
+    if (type.isa<PtrType>()) return false;
+    if (type.isa<RefType>()) return false;
     if (type.isa<ReceiveRefType>()) return false;
+    if (type.isa<TraceRefType>()) return false;
     return true;
   }
 
@@ -228,6 +235,8 @@ PrimitiveType(ClosureType, TypeKind::Closure);
 PrimitiveType(BinaryType, TypeKind::Binary);
 PrimitiveType(HeapBinType, TypeKind::HeapBin);
 PrimitiveType(ProcBinType, TypeKind::ProcBin);
+PrimitiveType(PidType, TypeKind::Pid);
+PrimitiveType(ReferenceType, TypeKind::Reference);
 
 /// A dynamically/statically shaped vector of elements
 class TupleType : public Type::TypeBase<TupleType, OpaqueTermType,
@@ -300,6 +309,7 @@ class PtrType : public Type::TypeBase<PtrType, Type, detail::PtrTypeStorage> {
 
   /// Gets or creates a PtrType with the provided target object type.
   static PtrType get(Type innerType);
+  static PtrType get(MLIRContext *context, Type innerType);
   /// Gets or creates a PtrType with a default type of i8
   static PtrType get(MLIRContext *context);
 

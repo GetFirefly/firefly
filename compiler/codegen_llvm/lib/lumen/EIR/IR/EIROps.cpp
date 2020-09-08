@@ -37,6 +37,143 @@ using ::mlir::OpOperand;
 namespace lumen {
 namespace eir {
 
+/// Matches a ConstantIntOp
+
+/// The matcher that matches a constant numeric operation and binds the constant
+/// value.
+struct constant_apint_op_binder {
+  APIntAttr::ValueType *bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  constant_apint_op_binder(APIntAttr::ValueType *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    Attribute attr;
+    if (!mlir::detail::constant_op_binder<Attribute>(&attr).match(op))
+      return false;
+    auto type = op->getResult(0).getType();
+
+    if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
+      if (opaque.isFixnum())
+        return mlir::detail::attr_value_binder<APIntAttr>(bind_value)
+            .match(attr);
+      if (opaque.isBox()) {
+        auto box = type.cast<BoxType>();
+        if (box.getBoxedType().isInteger())
+          return mlir::detail::attr_value_binder<APIntAttr>(bind_value)
+              .match(attr);
+      }
+    }
+
+    return false;
+  }
+};
+
+/// The matcher that matches a constant numeric operation and binds the constant
+/// value.
+struct constant_apfloat_op_binder {
+  APFloatAttr::ValueType *bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  constant_apfloat_op_binder(APFloatAttr::ValueType *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    Attribute attr;
+    if (!mlir::detail::constant_op_binder<Attribute>(&attr).match(op))
+      return false;
+    auto type = op->getResult(0).getType();
+
+    if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
+      if (opaque.isFloat())
+        return mlir::detail::attr_value_binder<APFloatAttr>(bind_value)
+            .match(attr);
+    }
+
+    return false;
+  }
+};
+
+/// The matcher that matches a constant boolean operation and binds the constant
+/// value.
+struct constant_bool_op_binder {
+  BoolAttr::ValueType *bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  constant_bool_op_binder(BoolAttr::ValueType *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    Attribute attr;
+    if (!mlir::detail::constant_op_binder<Attribute>(&attr).match(op))
+      return false;
+    auto type = op->getResult(0).getType();
+
+    if (type.isa<BooleanType>()) {
+      return mlir::detail::attr_value_binder<BoolAttr>(bind_value)
+          .match(attr);
+    }
+
+    if (type.isa<AtomType>()) {
+      APInt value = attr.cast<AtomAttr>().getValue();
+      return value.getLimitedValue() == (int64_t)(*bind_value ? 1 : 0);
+    }
+
+    if (type.isInteger(1)) {
+      APInt value = attr.cast<IntegerAttr>().getValue();
+      return value.getLimitedValue() == (int64_t)(*bind_value ? 1 : 0);
+    }
+
+    return false;
+  }
+};
+
+struct constant_atom_op_binder {
+  AtomAttr::ValueType *bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  constant_atom_op_binder(AtomAttr::ValueType *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    Attribute attr;
+    if (!mlir::detail::constant_op_binder<Attribute>(&attr).match(op))
+      return false;
+    auto type = op->getResult(0).getType();
+
+    if (type.isa<AtomType>()) {
+      return mlir::detail::attr_value_binder<AtomAttr>(bind_value)
+          .match(attr);
+    }
+
+    auto i = bind_value->getLimitedValue();
+    auto isBool = i == 0 || i == 1;
+    if (type.isa<BooleanType>() && isBool) {
+      bool value = attr.cast<BoolAttr>().getValue();
+      return value ? i == 1 : i == 0;
+    }
+
+    return false;
+  }
+};
+
+inline constant_apint_op_binder m_ConstInt(APIntAttr::ValueType *bind_value) {
+  return constant_apint_op_binder(bind_value);
+}
+
+inline constant_apfloat_op_binder m_ConstFloat(
+    APFloatAttr::ValueType *bind_value) {
+  return constant_apfloat_op_binder(bind_value);
+}
+
+inline constant_bool_op_binder m_ConstBool(
+    BoolAttr::ValueType *bind_value) {
+  return constant_bool_op_binder(bind_value);
+}
+
+inline constant_atom_op_binder m_ConstAtom(
+    AtomAttr::ValueType *bind_value) {
+  return constant_atom_op_binder(bind_value);
+}
+
+
 //===----------------------------------------------------------------------===//
 // eir.func
 //===----------------------------------------------------------------------===//
@@ -995,74 +1132,10 @@ OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
   return getValue();
 }
 
+
 //===----------------------------------------------------------------------===//
 // eir.neg
 //===----------------------------------------------------------------------===//
-
-/// Matches a ConstantIntOp
-
-/// The matcher that matches a constant numeric operation and binds the constant
-/// value.
-struct constant_apint_op_binder {
-  APIntAttr::ValueType *bind_value;
-
-  /// Creates a matcher instance that binds the value to bv if match succeeds.
-  constant_apint_op_binder(APIntAttr::ValueType *bv) : bind_value(bv) {}
-
-  bool match(Operation *op) {
-    Attribute attr;
-    if (!mlir::detail::constant_op_binder<Attribute>(&attr).match(op))
-      return false;
-    auto type = op->getResult(0).getType();
-
-    if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
-      if (opaque.isFixnum())
-        return mlir::detail::attr_value_binder<APIntAttr>(bind_value)
-            .match(attr);
-      if (opaque.isBox()) {
-        auto box = type.cast<BoxType>();
-        if (box.getBoxedType().isInteger())
-          return mlir::detail::attr_value_binder<APIntAttr>(bind_value)
-              .match(attr);
-      }
-    }
-
-    return false;
-  }
-};
-
-/// The matcher that matches a constant numeric operation and binds the constant
-/// value.
-struct constant_apfloat_op_binder {
-  APFloatAttr::ValueType *bind_value;
-
-  /// Creates a matcher instance that binds the value to bv if match succeeds.
-  constant_apfloat_op_binder(APFloatAttr::ValueType *bv) : bind_value(bv) {}
-
-  bool match(Operation *op) {
-    Attribute attr;
-    if (!mlir::detail::constant_op_binder<Attribute>(&attr).match(op))
-      return false;
-    auto type = op->getResult(0).getType();
-
-    if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
-      if (opaque.isFloat())
-        return mlir::detail::attr_value_binder<APFloatAttr>(bind_value)
-            .match(attr);
-    }
-
-    return false;
-  }
-};
-
-inline constant_apint_op_binder m_ConstInt(APIntAttr::ValueType *bind_value) {
-  return constant_apint_op_binder(bind_value);
-}
-
-inline constant_apfloat_op_binder m_ConstFloat(
-    APFloatAttr::ValueType *bind_value) {
-  return constant_apfloat_op_binder(bind_value);
-}
 
 namespace {
 /// Fold negations of constants into negated constants

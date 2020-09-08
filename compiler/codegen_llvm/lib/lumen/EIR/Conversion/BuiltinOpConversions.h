@@ -7,7 +7,8 @@ namespace lumen {
 namespace eir {
 class IncrementReductionsOpConversion;
 class IsTypeOpConversion;
-class MallocOpConversion;
+class IsTupleOpConversion;
+class IsFunctionOpConversion;
 class PrintOpConversion;
 class TraceCaptureOpConversion;
 class TraceConstructOpConversion;

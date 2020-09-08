@@ -63,21 +63,23 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
         return success();
       }
 
-      // For tuples with static shape, we use a specialized builtin
+      // For tuples we have a dedicated op
       if (auto tupleType = boxedType.dyn_cast_or_null<eir::TupleType>()) {
         if (tupleType.hasStaticShape()) {
           Value arity =
               llvm_constant(termTy, ctx.getIntegerAttr(tupleType.getArity()));
-          ArrayRef<LLVMType> argTypes({termTy, termTy});
-          StringRef symbolName("__lumen_builtin_is_tuple");
-          auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
-          auto calleeSymbol =
-              FlatSymbolRefAttr::get(symbolName, callee->getContext());
-          Operation *isType = std_call(calleeSymbol, int1Ty,
-                                       ArrayRef<Value>{arity, adaptor.value()});
-          rewriter.replaceOp(op, isType->getResults());
+          rewriter.replaceOpWithNewOp<IsTupleOp>(op, adaptor.value(), arity);
+          return success();
+        } else {
+          rewriter.replaceOpWithNewOp<IsTupleOp>(op, adaptor.value(), llvm::None);
           return success();
         }
+      }
+
+      // For functions we have a dedicated op
+      if (auto closureType = boxedType.dyn_cast_or_null<eir::ClosureType>()) {
+        rewriter.replaceOpWithNewOp<IsFunctionOp>(op, adaptor.value());
+        return success();
       }
 
       // For all other boxed types, the check is performed via builtin
@@ -90,7 +92,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
       auto calleeSymbol =
           FlatSymbolRefAttr::get(symbolName, callee->getContext());
       Operation *isType =
-          std_call(calleeSymbol, int1Ty, ArrayRef<Value>{matchConst, input});
+          std_call(calleeSymbol, int1Ty, ValueRange{matchConst, input});
       rewriter.replaceOp(op, isType->getResults());
       return success();
     }
@@ -108,35 +110,92 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
     Operation *isType = std_call(calleeSymbol, int1Ty,
-                                 ArrayRef<Value>{matchConst, adaptor.value()});
+                                 ValueRange{matchConst, adaptor.value()});
     rewriter.replaceOp(op, isType->getResults());
     return success();
   }
 };
 
-struct MallocOpConversion : public EIROpConversion<MallocOp> {
+struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
   using EIROpConversion::EIROpConversion;
 
   LogicalResult matchAndRewrite(
-      MallocOp op, ArrayRef<Value> operands,
+      IsTupleOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    MallocOpAdaptor adaptor(operands);
+    IsTupleOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
-    OpaqueTermType innerTy = op.getAllocType();
-    auto ty = ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
+    Value input = adaptor.value();
+    Optional<Value> maybeArity = adaptor.arity();
+    auto termTy = ctx.getUsizeType();
+    auto int1Ty = ctx.getI1Type();
+    auto int32Ty = ctx.getI32Type();
 
-    if (innerTy.hasDynamicExtent()) {
-      Value allocPtr = ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(),
-                                       adaptor.arity());
-      rewriter.replaceOp(op, allocPtr);
-    } else {
-      Value zero = llvm_constant(ctx.getUsizeType(), ctx.getIntegerAttr(0));
-      Value allocPtr =
-          ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(), zero);
-      rewriter.replaceOp(op, allocPtr);
+    // When an arity is given, we use a special builtin
+    if (maybeArity.hasValue()) {
+      Value arity = maybeArity.getValue();
+      ArrayRef<LLVMType> argTypes({termTy, termTy});
+      StringRef symbolName("__lumen_builtin_is_tuple");
+      auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
+      auto calleeSymbol =
+          FlatSymbolRefAttr::get(symbolName, callee->getContext());
+      Operation *isType = std_call(calleeSymbol, int1Ty, ValueRange{arity, input});
+      rewriter.replaceOp(op, isType->getResults());
+      return success();
     }
 
+    // Otherwise we fall back to the generic boxed type builtin
+    Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(TypeKind::Tuple));
+    StringRef symbolName("__lumen_builtin_is_boxed_type");
+    auto callee =
+        ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+    Operation *isType =
+        std_call(calleeSymbol, int1Ty, ValueRange{matchConst, input});
+    rewriter.replaceOp(op, isType->getResults());
+    return success();
+  }
+};
+
+struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
+  using EIROpConversion::EIROpConversion;
+
+  LogicalResult matchAndRewrite(
+      IsFunctionOp op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const override {
+    IsFunctionOpAdaptor adaptor(operands);
+    auto ctx = getRewriteContext(op, rewriter);
+
+    Value input = adaptor.value();
+    Optional<Value> maybeArity = adaptor.arity();
+    auto termTy = ctx.getUsizeType();
+    auto int1Ty = ctx.getI1Type();
+    auto int32Ty = ctx.getI32Type();
+
+    // When an arity is given, we use a special builtin
+    if (maybeArity.hasValue()) {
+      Value arity = maybeArity.getValue();
+      ArrayRef<LLVMType> argTypes({termTy, termTy});
+      StringRef symbolName("__lumen_builtin_is_function");
+      auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
+      auto calleeSymbol =
+          FlatSymbolRefAttr::get(symbolName, callee->getContext());
+      Operation *isType = std_call(calleeSymbol, int1Ty, ValueRange{arity, input});
+      rewriter.replaceOp(op, isType->getResults());
+      return success();
+    }
+
+    // Otherwise we fall back to the generic boxed type builtin
+    Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(TypeKind::Closure));
+    StringRef symbolName("__lumen_builtin_is_boxed_type");
+    auto callee =
+        ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(symbolName, callee->getContext());
+    Operation *isType =
+        std_call(calleeSymbol, int1Ty, ValueRange{matchConst, input});
+    rewriter.replaceOp(op, isType->getResults());
     return success();
   }
 };
@@ -248,7 +307,8 @@ void populateBuiltinOpConversionPatterns(OwningRewritePatternList &patterns,
                                          TargetInfo &targetInfo) {
   patterns
       .insert<IncrementReductionsOpConversion, IsTypeOpConversion,
-              PrintOpConversion, MallocOpConversion, TraceCaptureOpConversion,
+              IsTupleOpConversion, IsFunctionOpConversion,
+              PrintOpConversion, TraceCaptureOpConversion,
               TraceConstructOpConversion, TracePrintOpConversion>(
           context, converter, targetInfo);
 }

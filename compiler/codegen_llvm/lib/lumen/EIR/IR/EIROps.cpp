@@ -647,6 +647,30 @@ static LogicalResult verify(IsTypeOp op) {
 }
 
 //===----------------------------------------------------------------------===//
+// eir.is_tuple
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(IsTupleOp op) {
+  auto numOperands = op.getNumOperands();
+  if (numOperands < 1 || numOperands > 2)
+    return op.emitOpError("invalid number of operands, expected at least one and no more than 2");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// eir.is_function
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(IsFunctionOp op) {
+  auto numOperands = op.getNumOperands();
+  if (numOperands < 1 || numOperands > 2)
+    return op.emitOpError("invalid number of operands, expected at least one and no more than 2");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // eir.cast
 //===----------------------------------------------------------------------===//
 

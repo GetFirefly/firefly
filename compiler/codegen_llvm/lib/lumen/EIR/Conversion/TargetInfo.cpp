@@ -173,9 +173,9 @@ LLVMType TargetInfo::makeTupleType(ArrayRef<LLVMType> elementTypes) {
 pub struct Closure {
     header: Header<Closure>,
     module: Atom,
+    arity: u32,
     definition: Definition,
-    arity: u8,
-    code: Option<*const ()>,
+    code: Option<NonNull<*const c_void>>,
     env: [Term],
 }
 */
@@ -188,7 +188,7 @@ LLVMType TargetInfo::makeClosureType(unsigned size) {
   auto voidFnPtrTy =
       LLVMType::getFunctionTy(voidTy, false).getPointerTo();
   auto envTy = LLVMType::getArrayTy(intNTy, size);
-  ArrayRef<LLVMType> fields{intNTy, intNTy, defTy, int32Ty, voidFnPtrTy, envTy};
+  ArrayRef<LLVMType> fields{intNTy, intNTy, int32Ty, defTy, voidFnPtrTy, envTy};
 
   // Name the type based on the arity of the env, makes IR more readable
   const char *fmt = "closure%d";

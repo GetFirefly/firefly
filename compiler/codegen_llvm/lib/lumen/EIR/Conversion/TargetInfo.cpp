@@ -140,10 +140,17 @@ TargetInfo::TargetInfo(const TargetInfo &other)
       impl(new TargetInfoImpl(*other.impl)) {}
 
 LLVMType TargetInfo::makeTupleType(unsigned arity) {
+  const char *fmt = "tuple%d";
+  int bufferSize = std::snprintf(nullptr, 0, fmt, arity);
+  std::vector<char> buffer(bufferSize + 1);
+  std::snprintf(&buffer[0], buffer.size(), fmt, arity);
+  StringRef typeName(&buffer[0], buffer.size());
+
   auto termTy = getUsizeType();
   if (arity == 0) {
-    return LLVMType::getStructTy(termTy.getContext(),
-                                 ArrayRef<LLVMType>{termTy});
+    return LLVMType::createStructTy(termTy.getContext(),
+                                 ArrayRef<LLVMType>{termTy},
+                                 typeName.drop_back());
   }
   SmallVector<LLVMType, 2> fieldTypes;
   fieldTypes.reserve(1 + arity);
@@ -151,21 +158,10 @@ LLVMType TargetInfo::makeTupleType(unsigned arity) {
   for (auto i = 0; i < arity; i++) {
     fieldTypes.push_back(termTy);
   }
-  return LLVMType::getStructTy(termTy.getContext(), fieldTypes);
+  return LLVMType::createStructTy(termTy.getContext(), fieldTypes, typeName.drop_back());
 }
 LLVMType TargetInfo::makeTupleType(ArrayRef<LLVMType> elementTypes) {
-  auto termTy = getUsizeType();
-  if (elementTypes.size() == 0) {
-    return LLVMType::getStructTy(termTy.getContext(),
-                                 ArrayRef<LLVMType>{termTy});
-  }
-  SmallVector<LLVMType, 3> withHeader;
-  withHeader.reserve(1 + elementTypes.size());
-  withHeader.push_back(termTy);
-  for (auto elemTy : elementTypes) {
-    withHeader.push_back(elemTy);
-  }
-  return LLVMType::getStructTy(termTy.getContext(), withHeader);
+  return makeTupleType(elementTypes.size());
 }
 
 /*

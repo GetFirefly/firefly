@@ -343,16 +343,22 @@ class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
   let builders = [
     OpBuilder<
     "OpBuilder &builder, OperationState &result, Value lhs, Value rhs",
-    [{ build(builder, result, builder.getType<BooleanType>(), lhs, rhs); }]>
+    [{ build(builder, result, builder.getType<BooleanType>(), lhs, rhs); }]>,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, ValueRange args",
+    [{
+      result.addOperands(args);
+      result.addTypes(builder.getType<BooleanType>());
+    }]>
   ];
 }
 
-def eir_LogicalAndOp : eir_LogicalOp<eir_AnyType, "logical.and", [Commutative]> {
+def eir_LogicalAndOp : eir_LogicalOp<AnyType, "logical.and", [Commutative]> {
   let summary = "logical AND";
   //let hasFolder = 1;
 }
 
-def eir_LogicalOrOp : eir_LogicalOp<eir_AnyType, "logical.or", [Commutative]> {
+def eir_LogicalOrOp : eir_LogicalOp<AnyType, "logical.or", [Commutative]> {
   let summary = "logical OR";
   //let hasFolder = 1;
 }

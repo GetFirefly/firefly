@@ -962,6 +962,8 @@ INTRINSIC_BUILDER(buildIntrinsicBandOp, BandOp);
 // INTRINSIC_BUILDER(buildIntrinsicBnotOp, BnotOp);
 INTRINSIC_BUILDER(buildIntrinsicBorOp, BorOp);
 INTRINSIC_BUILDER(buildIntrinsicBxorOp, BxorOp);
+INTRINSIC_BUILDER(buildIntrinsicAndOp, LogicalAndOp);
+INTRINSIC_BUILDER(buildIntrinsicOrOp, LogicalOrOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpEqOp, CmpEqOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpLtOp, CmpLtOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpLteOp, CmpLteOp);
@@ -1140,6 +1142,8 @@ static Optional<BuildIntrinsicFnT> getIntrinsicBuilder(StringRef target) {
                    //.Case("erlang:bnot/2", buildIntrinsicBnotOp)
                    .Case("erlang:bor/2", buildIntrinsicBorOp)
                    .Case("erlang:bxor/2", buildIntrinsicBxorOp)
+                   .Case("erlang:and/2", buildIntrinsicAndOp)
+                   .Case("erlang:or/2", buildIntrinsicOrOp)
                    .Case("erlang:=:=/2", buildIntrinsicCmpEqStrictOp)
                    .Case("erlang:=/=/2", buildIntrinsicCmpNeqStrictOp)
                    .Case("erlang:==/2", buildIntrinsicCmpEqOp)

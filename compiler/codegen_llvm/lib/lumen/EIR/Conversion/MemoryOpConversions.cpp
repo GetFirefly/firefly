@@ -177,6 +177,13 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           }
         }
 
+        if (llvmFromTy.isIntegerTy(1) && (tt.isBoolean() || tt.isAtom() || tt.isOpaque())) {
+          Value extended = llvm_zext(termTy, in);
+          auto atomTy = ctx.rewriter.getType<AtomType>();
+          rewriter.replaceOp(op, ctx.encodeImmediate(atomTy, extended));
+          return success();
+        }
+
         op.emitError("unsupported or unimplemented llvm type cast");
         return failure();
       }
@@ -184,7 +191,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
       if (fromTy.isInteger(1)) {
         // Standard dialect booleans may occasionally need
         // casting to our boolean type, or promoted to an atom
-        if (tt.isBoolean() || tt.isAtom()) {
+        if (tt.isBoolean() || tt.isAtom() || tt.isOpaque()) {
           Value extended = llvm_zext(termTy, in);
           auto atomTy = ctx.rewriter.getType<AtomType>();
           rewriter.replaceOp(op, ctx.encodeImmediate(atomTy, extended));

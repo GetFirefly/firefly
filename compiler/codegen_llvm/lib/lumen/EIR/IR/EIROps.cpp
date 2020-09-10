@@ -1136,6 +1136,14 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
 // cmp.eq
 //===----------------------------------------------------------------------===//
 
+static APInt normalizeAPInt(APInt lhs, unsigned bitWidth) {
+  auto lhsBits = lhs.getBitWidth();
+  if (lhsBits >= bitWidth)
+    return lhs;
+
+  return lhs.sext(bitWidth);
+}
+
 // APInt comparisons require equivalent bit width
 static bool areAPIntsEqual(APInt &lhs, APInt &rhs) {
   auto lhsBits = lhs.getBitWidth();
@@ -1363,6 +1371,278 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
 void CmpEqOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
   results.insert<CanonicalizeEqualityComparison>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.math.*
+//===----------------------------------------------------------------------===//
+
+
+using BinaryIntegerFnT = std::function<APInt(APInt &, APInt &)>;
+using BinaryFloatFnT = std::function<APFloat(APFloat &, APFloat &)>;
+
+static Optional<APInt> foldBinaryIntegerOp(ArrayRef<Attribute> operands, BinaryIntegerFnT fun) {
+  assert(operands.size() == 2 && "binary op takes two operands");
+    
+  Attribute lhsAttr = operands[0];
+  Attribute rhsAttr = operands[1];
+
+  if (!lhsAttr || !rhsAttr)
+    return llvm::None;
+
+  APInt lhs;
+  APInt rhs;
+  if (auto lhsInt = lhsAttr.dyn_cast_or_null<APIntAttr>()) {
+    lhs = lhsInt.getValue();
+  } else if (auto lhsInt = lhsAttr.dyn_cast_or_null<IntegerAttr>()) {
+    lhs = lhsInt.getValue();
+  } else {
+    return llvm::None;
+  }
+  if (auto rhsInt = rhsAttr.dyn_cast_or_null<APIntAttr>()) {
+    rhs = rhsInt.getValue();
+  } else if (auto rhsInt = rhsAttr.dyn_cast_or_null<IntegerAttr>()) {
+    rhs = rhsInt.getValue();
+  } else {
+    return llvm::None;
+  }
+
+  auto lhsBits = lhs.getBitWidth();
+  auto rhsBits = rhs.getBitWidth();
+  unsigned defaultBitWidth = 64;
+  auto bitWidth = std::max({defaultBitWidth, lhsBits, rhsBits});
+
+  APInt left  = normalizeAPInt(lhs, bitWidth);
+  APInt right = normalizeAPInt(rhs, bitWidth);
+  
+  return fun(left, right);
+}
+
+static Optional<APFloat> foldBinaryFloatOp(ArrayRef<Attribute> operands, BinaryFloatFnT fun) {
+  assert(operands.size() == 2 && "binary op takes two operands");
+    
+  Attribute lhs = operands[0];
+  Attribute rhs = operands[1];
+
+  if (!lhs || !rhs)
+    return llvm::None;
+
+  auto &semantics = llvm::APFloatBase::IEEEdouble();
+  APFloat left(semantics);
+  APFloat right(semantics);
+  if (auto lhsFlt = lhs.dyn_cast_or_null<APFloatAttr>()) {
+    left = lhsFlt.getValue();
+  } else if (auto lhsFlt = lhs.dyn_cast_or_null<mlir::FloatAttr>()) {
+    left = lhsFlt.getValue();
+  } else if (auto lhsInt = lhs.dyn_cast_or_null<APIntAttr>()) {
+    APInt li = lhsInt.getValue();
+    left = APFloat(semantics, APInt::getNullValue(64));
+    auto status = left.convertFromAPInt(li, /*signed=*/true, APFloat::rmNearestTiesToEven);
+    if (status != APFloat::opStatus::opOK)
+      return llvm::None;
+  } else if (auto lhsInt = lhs.dyn_cast_or_null<IntegerAttr>()) {
+    APInt li = lhsInt.getValue();
+    left = APFloat(semantics, APInt::getNullValue(64));
+    auto status = left.convertFromAPInt(li, /*signed=*/true, APFloat::rmNearestTiesToEven);
+    if (status != APFloat::opStatus::opOK)
+      return llvm::None;
+  } else {
+    return llvm::None;
+  }
+  if (auto rhsFlt = rhs.dyn_cast_or_null<APFloatAttr>()) {
+    right = rhsFlt.getValue();
+  } else if (auto rhsFlt = rhs.dyn_cast_or_null<mlir::FloatAttr>()) {
+    right = rhsFlt.getValue();
+  } else if (auto rhsInt = rhs.dyn_cast_or_null<APIntAttr>()) {
+    APInt ri = rhsInt.getValue();
+    right = APFloat(semantics, APInt::getNullValue(64));
+    auto status = right.convertFromAPInt(ri, /*signed=*/true, APFloat::rmNearestTiesToEven);
+    if (status != APFloat::opStatus::opOK)
+      return llvm::None;
+  } else if (auto rhsInt = rhs.dyn_cast_or_null<IntegerAttr>()) {
+    APInt ri = rhsInt.getValue();
+    right = APFloat(semantics, APInt::getNullValue(64));
+    auto status = right.convertFromAPInt(ri, /*signed=*/true, APFloat::rmNearestTiesToEven);
+    if (status != APFloat::opStatus::opOK)
+      return llvm::None;
+  } else {
+    return llvm::None;
+  }
+
+  if (left.isNaN() || right.isNaN())
+    return llvm::None;
+
+  return fun(left, right);
+}
+
+OpFoldResult AddOp::fold(ArrayRef<Attribute> operands) {
+  auto intResult =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs + rhs;
+    });
+
+  if (intResult.hasValue()) {
+    return APIntAttr::get(getContext(), intResult.getValue());
+  }
+
+  auto floatResult =
+    foldBinaryFloatOp(operands, [](APFloat &lhs, APFloat &rhs) {
+      return lhs + rhs;
+    });
+
+  if (floatResult.hasValue()) {
+    return APFloatAttr::get(getContext(), floatResult.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult SubOp::fold(ArrayRef<Attribute> operands) {
+  auto intResult =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs - rhs;
+    });
+
+  if (intResult.hasValue()) {
+    return APIntAttr::get(getContext(), intResult.getValue());
+  }
+
+  auto floatResult =
+    foldBinaryFloatOp(operands, [](APFloat &lhs, APFloat &rhs) {
+      return lhs - rhs;
+    });
+
+  if (floatResult.hasValue()) {
+    return APFloatAttr::get(getContext(), floatResult.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult MulOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs * rhs;
+    });
+
+  if (result.hasValue()) {
+    return APIntAttr::get(getContext(), result.getValue());
+  }
+
+  auto floatResult =
+    foldBinaryFloatOp(operands, [](APFloat &lhs, APFloat &rhs) {
+      return lhs * rhs;
+    });
+
+  if (floatResult.hasValue()) {
+    return APFloatAttr::get(getContext(), floatResult.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult FDivOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryFloatOp(operands, [](APFloat &lhs, APFloat &rhs) {
+      return lhs / rhs;
+    });
+
+  if (result.hasValue()) {
+    return APFloatAttr::get(getContext(), result.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult DivOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs.sdiv(rhs);
+    });
+
+  if (result.hasValue()) {
+    return APIntAttr::get(getContext(), result.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult RemOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs.srem(rhs);
+    });
+
+  if (result.hasValue()) {
+    return APIntAttr::get(getContext(), result.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult BandOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs & rhs;
+    });
+
+  if (result.hasValue()) {
+    return APIntAttr::get(getContext(), result.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult BorOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs | rhs;
+    });
+
+  if (result.hasValue()) {
+    return APIntAttr::get(getContext(), result.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult BxorOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs ^ rhs;
+    });
+
+  if (result.hasValue()) {
+    return APIntAttr::get(getContext(), result.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult BslOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs.shl(rhs);
+    });
+
+  if (result.hasValue()) {
+    return APIntAttr::get(getContext(), result.getValue());
+  }
+
+  return nullptr;
+}
+
+OpFoldResult BsrOp::fold(ArrayRef<Attribute> operands) {
+  auto result =
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
+      return lhs.ashr(rhs);
+    });
+
+  if (result.hasValue()) {
+    return APIntAttr::get(getContext(), result.getValue());
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//

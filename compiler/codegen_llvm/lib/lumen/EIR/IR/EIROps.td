@@ -337,6 +337,48 @@ class eir_BinaryOperator<string mnemonic, Type left, Type right, Type result, li
   let extraClassDeclaration = "static StringRef builtinSymbol() { return \"" # builtinSymbol # "\"; }";
 }
 
+class eir_SpecializedBinaryOperator<string mnemonic, Type left, Type right, Type result, list<OpTrait> traits = []>
+    : eir_Op<mnemonic, !listconcat(traits, [eir_BinaryOperatorInterface])> {
+  // Defines the name of the builtin associated with this op
+  string builtinSymbol = "__lumen_builtin_" # mnemonic;
+  string intrinsicSymbol = ?;
+
+  let summary = ?;
+  let description = ?;
+
+  let arguments = (ins left:$lhs, right:$rhs);
+  let results = (outs result:$result);
+
+  let assemblyFormat = "operands attr-dict `:` functional-type(operands, $result)";
+
+  let verifier = [{
+    auto numOperands = getNumOperands();
+    if (numOperands != 2)
+      return emitOpError("invalid number of operands, expected 2");
+    return success();
+  }];
+
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Type resultTy, Value lhs, Value rhs,"
+    "ArrayRef<NamedAttribute> attrs = {}",
+    [{
+      result.addOperands(ValueRange({lhs, rhs}));
+      result.addTypes(resultTy);
+      result.addAttributes(attrs);
+    }]>
+  ];
+
+  let extraClassDeclaration = ""
+    "static StringRef builtinSymbol() {"
+    " return \"" # builtinSymbol # "\";"
+    "}"
+    " "
+    "static StringRef intrinsicSymbol() {"
+    " return \"" # intrinsicSymbol # "\";"
+    "}";
+}
+
 class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
     eir_BinaryOperator<mnemonic, type, type, eir_BoolType, traits> {
 
@@ -468,9 +510,28 @@ class eir_BinaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = 
   ];
 }
 
+class eir_SpecializedBinaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = []>
+    : eir_SpecializedBinaryOperator<mnemonic, type, type, type, traits> {
+  let summary = "Peform the specified specializable arithmetic operation over two operands";
+
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, ArrayRef<Value> args",
+    [{
+      assert(args.size() == 2 && "expected exactly two arguments for arithmetic operator");
+      Value lhs = args[0];
+      Value rhs = args[1];
+      Type resultTy = lhs.getType();
+      build(builder, result, resultTy, lhs, rhs);
+    }]>
+  ];
+}
+
 def eir_AddOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.add", [Commutative]> {
+    eir_SpecializedBinaryArithmeticOp<eir_AnyType, "math.add", [Commutative]> {
   let summary = "Addition operator";
+  let intrinsicSymbol = "@llvm.sadd.with.overflow";
+  let hasFolder = 1;
 }
 
 def eir_NegOp :
@@ -481,53 +542,65 @@ def eir_NegOp :
 }
 
 def eir_SubOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.sub"> {
+    eir_SpecializedBinaryArithmeticOp<eir_AnyType, "math.sub"> {
   let summary = "Subraction operator";
+  let intrinsicSymbol = "@llvm.ssub.with.overflow";
+  let hasFolder = 1;
 }
 
 def eir_MulOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.mul", [Commutative]> {
+    eir_SpecializedBinaryArithmeticOp<eir_AnyType, "math.mul", [Commutative]> {
   let summary = "Multiplication operator";
+  let intrinsicSymbol = "@llvm.smul.with.overflow";
+  let hasFolder = 1;
 }
 
 def eir_DivOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.div"> {
   let summary = "Integer division operator";
+  let hasFolder = 1;
 }
 
 def eir_FDivOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.fdiv"> {
   let summary = "Floating-point division operator";
+  let hasFolder = 1;
 }
 
 def eir_RemOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.rem"> {
   let summary = "Integer remainder operator";
+  let hasFolder = 1;
 }
 
 def eir_BslOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.bsl"> {
   let summary = "Bitwise shift-left operator";
+  let hasFolder = 1;
 }
 
 def eir_BsrOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.bsr"> {
   let summary = "Bitwise shift-right operator";
+  let hasFolder = 1;
 }
 
 def eir_BandOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.band"> {
   let summary = "Bitwise AND operator";
+  let hasFolder = 1;
 }
 
 def eir_BorOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.bor"> {
   let summary = "Bitwise OR operator";
+  let hasFolder = 1;
 }
 
 def eir_BxorOp :
     eir_BinaryArithmeticOp<eir_AnyType, "math.bxor"> {
   let summary = "Bitwise XOR operator";
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//

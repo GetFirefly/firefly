@@ -413,6 +413,5 @@ Value OpConversionContext::decodeImmediate(Value val) const {
     return masked;
   }
 }
-
 }  // namespace eir
 }  // namespace lumen

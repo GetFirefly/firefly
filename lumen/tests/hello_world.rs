@@ -14,10 +14,7 @@ mod hello_world {
             .arg("-o")
             .arg("hello_world")
             // Turn off optimizations as work-around for debug info bug in EIR
-            .arg("-O0")
-            .arg("-lc");
-
-        add_link_args(&mut command);
+            .arg("-O0");
 
         let compile_output = command
             .arg("tests/hello_world/init.erl")
@@ -41,17 +38,5 @@ mod hello_world {
             "\nstdout = {}\nstderr = {}",
             hello_world_stdout, hello_world_stderr
         );
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    fn add_link_args(_command: &mut Command) {}
-
-    #[cfg(target_os = "linux")]
-    fn add_link_args(command: &mut Command) {
-        command
-            .arg("-lunwind")
-            .arg("-lpthread")
-            .arg("-ldl")
-            .arg("-lm");
     }
 }

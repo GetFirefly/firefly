@@ -10,10 +10,11 @@ use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Output, Stdio};
 use std::str;
 
-use anyhow::anyhow;
+use anyhow::*;
 use cc::windows_registry;
 use log::{info, warn};
 use tempfile::Builder as TempFileBuilder;
+use thiserror::private::PathAsDisplay;
 
 use liblumen_core::util::thread_local::ThreadLocalCell;
 use liblumen_session::filesearch;
@@ -82,6 +83,22 @@ pub fn link_binary(
             p.set_extension(ext);
             p
         });
+
+    // `output_dir` is not necessarily the parent of `output_file`, such as with
+    // `--output-dir _build --output bin/myapp`
+    let output_file_parent = output_file.parent().with_context(|| {
+        format!(
+            "{} does not have a parent directory",
+            output_file.as_display()
+        )
+    })?;
+    fs::create_dir_all(output_file_parent).with_context(|| {
+        format!(
+            "Could not create parent directories ({}) of file ({})",
+            output_file_parent.as_display(),
+            output_file.as_display()
+        )
+    })?;
 
     match project_type {
         ProjectType::Staticlib => {

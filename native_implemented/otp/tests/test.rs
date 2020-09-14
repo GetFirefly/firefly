@@ -144,15 +144,13 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
     let mut command = Command::new("../../bin/lumen");
 
     let bin_path_buf = test_directory_path.join("bin");
-    std::fs::create_dir_all(&bin_path_buf).unwrap();
-
     let output_path_buf = bin_path_buf.join(name);
 
     command
         .arg("compile")
         .arg("--output-dir")
         .arg(build_path_buf)
-        .arg("-o")
+        .arg("--output")
         .arg(&output_path_buf)
         // Turn off optimizations as work-around for debug info bug in EIR
         .arg("-O0")

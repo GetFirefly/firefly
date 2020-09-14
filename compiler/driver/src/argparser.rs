@@ -82,16 +82,16 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
         .about("Compiles Erlang sources to an executable or shared library")
         .setting(AppSettings::DeriveDisplayOrder)
         .arg(
-            Arg::with_name("input")
+            Arg::with_name("inputs")
                 .index(1)
                 .help(
-                    "Path to the source file or directory to compile.\n\
+                    "Path(s) to the source file(s) or director(y|ies) to compile.\n\
                      You may also use `-` as a file name to read a file from stdin.\n\
                      If not provided, the compiler will use the current directory as input.",
                 )
                 .next_line_help(true)
-                .takes_value(true)
-                .value_name("PATH"),
+                .multiple(true)
+                .value_name("PATHS"),
         )
         .arg(
             Arg::with_name("raw")

@@ -67,7 +67,7 @@ pub struct Options {
     pub debugging_opts: DebuggingOptions,
 
     pub current_dir: PathBuf,
-    pub input_file: Option<FileName>,
+    pub input_files: Option<Vec<FileName>>,
     pub output_file: Option<PathBuf>,
     pub output_dir: Option<PathBuf>,
     // Remap source path prefixes in all output (messages, object files, debug, etc.).
@@ -91,15 +91,33 @@ impl Options {
         cwd: PathBuf,
         args: &ArgMatches<'a>,
     ) -> Result<Self, anyhow::Error> {
-        // Check the input argument first to see if help was requested
-        let input_file = match args.value_of_os("input") {
+        let input_files: Option<Vec<FileName>> = match args.values_of_os("inputs") {
             None => None,
-            Some(input_arg) => match input_arg.to_str() {
-                Some("help") => return Err(HelpRequested("compile", None).into()),
-                Some("-") => Some("stdin".into()),
-                Some(path) => Some(PathBuf::from(path).into()),
-                None => Some(PathBuf::from(input_arg).into()),
-            },
+            Some(mut input_args) => {
+                let option_first_input_arg = input_args.next();
+
+                // Check the input argument first to see if help was requested
+                if let Some(first_input_arg) = option_first_input_arg {
+                    let first_file_name = match first_input_arg.to_str() {
+                        Some("help") => return Err(HelpRequested("compile", None).into()),
+                        Some("-") => "stdin".into(),
+                        Some(path) => PathBuf::from(path).into(),
+                        None => PathBuf::from(first_input_arg).into(),
+                    };
+
+                    let mut file_name_vec: Vec<FileName> = vec![first_file_name];
+
+                    file_name_vec.extend(input_args.map(|input_arg| match input_arg.to_str() {
+                        Some("-") => "stdin".into(),
+                        Some(path) => PathBuf::from(path).into(),
+                        None => PathBuf::from(input_arg).into(),
+                    }));
+
+                    Some(file_name_vec)
+                } else {
+                    None
+                }
+            }
         };
 
         if let Some(extra_args) = args.values_of("raw") {
@@ -108,7 +126,7 @@ impl Options {
             }
         }
 
-        let project_name = detect_project_name(args, cwd.as_path(), input_file.as_ref());
+        let project_name = detect_project_name(args, cwd.as_path(), input_files.as_deref());
         let project_type_opt: Option<ProjectType> =
             ParseOption::parse_option(&option!("project-type"), &args)?;
         let project_type = project_type_opt.unwrap_or(ProjectType::Executable);
@@ -231,7 +249,7 @@ impl Options {
             codegen_opts,
             debugging_opts,
             current_dir: cwd,
-            input_file,
+            input_files,
             output_file,
             output_dir,
             source_path_prefix,
@@ -308,7 +326,7 @@ impl Options {
             codegen_opts,
             debugging_opts,
             current_dir: cwd,
-            input_file: None,
+            input_files: None,
             output_file: None,
             output_dir: None,
             source_path_prefix: vec![],
@@ -430,29 +448,33 @@ impl Options {
     }
 }
 
-fn detect_project_name<'a>(args: &ArgMatches<'a>, cwd: &Path, input: Option<&FileName>) -> String {
+fn detect_project_name<'a>(
+    args: &ArgMatches<'a>,
+    cwd: &Path,
+    option_input_file_names: Option<&[FileName]>,
+) -> String {
     // If explicitly set, use the provided name
     if let Some(name) = args.value_of("name") {
         return name.to_owned();
     }
-    match input {
-        // If we have a single input file, name the project after it
-        Some(FileName::Real(ref path)) if path.exists() && path.is_file() => path
-            .file_stem()
-            .unwrap()
-            .to_str()
-            .expect("invalid utf-8 in input file name")
-            .to_owned(),
-        // If we have an input directory, name the project after the directory
-        Some(FileName::Real(ref path)) if path.exists() && path.is_dir() => path
-            .file_name()
-            .unwrap()
-            .to_str()
-            .expect("invalid utf-8 in input file name")
-            .to_owned(),
-        // Fallback to using the current working directory name
-        _ => cwd.file_name().unwrap().to_str().unwrap().to_owned(),
+    if let Some(input_file_names) = option_input_file_names {
+        if input_file_names.len() == 1 {
+            if let FileName::Real(ref path) = input_file_names[0] {
+                // If we have a single input file, name the project after it
+                // If we have an input directory, name the project after the directory
+                if path.exists() && (path.is_dir() || path.is_file()) {
+                    return path
+                        .file_stem()
+                        .unwrap()
+                        .to_str()
+                        .expect("invalid utf-8 in input file name")
+                        .to_owned();
+                }
+            }
+        }
     }
+    // Fallback to using the current working directory name
+    cwd.file_name().unwrap().to_str().unwrap().to_owned()
 }
 
 /// Generate a default project configuration for the current session

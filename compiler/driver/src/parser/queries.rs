@@ -26,52 +26,61 @@ where
     let options = db.options();
 
     // Handle case where input is empty, indicating to compile the current working directory
-    if options.input_file.is_none() {
-        return db.to_query_result(find_sources(db, &options.current_dir));
+    if options.input_files.is_none() {
+        let result = find_sources(db, &options.current_dir).map(|sources| Arc::new(sources.into()));
+        return db.to_query_result(result);
     }
 
-    // We can get three types of input:
-    //
-    // 1. `-` for standard input
-    // 2. `path/to/file.erl` for a single file
-    // 3. `path/to/dir` for a directory of files
-    match options.input_file.as_ref().unwrap() {
-        // Read from standard input
-        &FileName::Virtual(ref name) if name == "-" => {
-            let mut source = String::new();
-            db.to_query_result(
-                io::stdin()
-                    .read_to_string(&mut source)
-                    .map_err(|e| e.into()),
-            )?;
-            let input = Input::new(name.clone(), source);
-            let interned = db.intern_input(input);
-            Ok(Arc::new(seq![interned]))
-        }
-        // Read from a single file
-        &FileName::Real(ref path) if path.exists() && path.is_file() => {
-            let input = Input::File(path.clone());
-            let interned = db.intern_input(input);
-            Ok(Arc::new(seq![interned]))
-        }
-        // Read all files in a directory
-        &FileName::Real(ref path) if path.exists() && path.is_dir() => {
-            db.to_query_result(find_sources(db, path))
-        }
-        // Invalid virtual file
-        &FileName::Virtual(_) => {
-            db.report_error("invalid input file, expected `-`, a file path, or a directory");
-            Err(ErrorReported)
-        }
-        // Invalid file/directory path
-        &FileName::Real(ref path_buf) => {
-            db.report_error(format!(
-                "invalid input file ({}), not a file or directory",
-                path_buf.to_string_lossy()
-            ));
-            Err(ErrorReported)
+    let input_files: &[FileName] = options.input_files.as_deref().unwrap();
+    let mut interned_input_vec: Vec<InternedInput> = Vec::new();
+
+    for input_file in input_files {
+        // We can get three types of input:
+        //
+        // 1. `-` for standard input
+        // 2. `path/to/file.erl` for a single file
+        // 3. `path/to/dir` for a directory of files
+        match input_file {
+            // Read from standard input
+            &FileName::Virtual(ref name) if name == "-" => {
+                let mut source = String::new();
+                db.to_query_result(
+                    io::stdin()
+                        .read_to_string(&mut source)
+                        .map_err(|e| e.into()),
+                )?;
+                let input = Input::new(name.clone(), source);
+                let interned = db.intern_input(input);
+                interned_input_vec.push(interned)
+            }
+            // Read from a single file
+            &FileName::Real(ref path) if path.exists() && path.is_file() => {
+                let input = Input::File(path.clone());
+                let interned = db.intern_input(input);
+                interned_input_vec.push(interned)
+            }
+            // Read all files in a directory
+            &FileName::Real(ref path) if path.exists() && path.is_dir() => {
+                let sources = db.to_query_result(find_sources(db, path))?;
+                interned_input_vec.extend(sources);
+            }
+            // Invalid virtual file
+            &FileName::Virtual(_) => {
+                db.report_error("invalid input file, expected `-`, a file path, or a directory");
+                return Err(ErrorReported);
+            }
+            // Invalid file/directory path
+            &FileName::Real(ref path_buf) => {
+                db.report_error(format!(
+                    "invalid input file ({}), not a file or directory",
+                    path_buf.to_string_lossy()
+                ));
+                return Err(ErrorReported);
+            }
         }
     }
+
+    Ok(Arc::new(interned_input_vec.into()))
 }
 
 pub(crate) fn input_type<P>(db: &P, input: InternedInput) -> InputType
@@ -153,7 +162,7 @@ where
     Ok(new_module)
 }
 
-pub fn find_sources<D, P>(db: &D, dir: P) -> anyhow::Result<Arc<Seq<InternedInput>>>
+pub fn find_sources<D, P>(db: &D, dir: P) -> anyhow::Result<Vec<InternedInput>>
 where
     D: Parser,
     P: AsRef<Path>,
@@ -193,5 +202,5 @@ where
         }
     }
 
-    Ok(Arc::new(inputs.into()))
+    Ok(inputs)
 }

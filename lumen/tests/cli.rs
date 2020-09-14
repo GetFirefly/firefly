@@ -75,7 +75,7 @@ mod cli {
             .arg("compile")
             .arg("--output-dir")
             .arg("_build")
-            .arg("-o")
+            .arg("--output")
             .arg("cli")
             // Turn off optimizations as work-around for debug info bug in EIR
             .arg("-O0");

@@ -3,8 +3,6 @@ mod hello_world {
 
     #[test]
     fn prints_hello_world() {
-        std::fs::create_dir_all("_build").unwrap();
-
         let mut command = Command::new("../bin/lumen");
 
         command

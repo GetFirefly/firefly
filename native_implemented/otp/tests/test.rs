@@ -1,3 +1,4 @@
+use std::env::current_dir;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Output, Stdio};
 
@@ -165,7 +166,10 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
         erlang_parent_path.join("init.erl")
     };
 
+    let shared_path = current_dir().unwrap().join("tests/shared/src");
+
     let compile_output = command
+        .arg(shared_path)
         .arg(input_path)
         .stdin(Stdio::null())
         .output()

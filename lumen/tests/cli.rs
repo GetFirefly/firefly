@@ -69,8 +69,6 @@ mod cli {
     }
 
     fn compile() {
-        std::fs::create_dir_all("_build").unwrap();
-
         let mut command = Command::new("../bin/lumen");
 
         command

@@ -140,7 +140,6 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
     let test_directory_path = directory_path.join(file_stem).join(name);
 
     let build_path_buf = test_directory_path.join("_build");
-    std::fs::create_dir_all(&build_path_buf).unwrap();
 
     let mut command = Command::new("../../bin/lumen");
 

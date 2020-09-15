@@ -286,23 +286,6 @@ macro_rules! prop_assert_badarith {
 }
 
 #[cfg(test)]
-macro_rules! prop_assert_badarity {
-    ($actual:expr, $process:expr, $fun:expr, $args:expr, $expected_substring:expr) => {{
-        let process = $process;
-
-        prop_assert_error!(
-            $actual,
-            "badarity",
-            process.tuple_from_slice(&[
-                liblumen_alloc::atom!("badarity"),
-                process.tuple_from_slice(&[$fun, $args])
-            ]),
-            $expected_substring
-        )
-    }};
-}
-
-#[cfg(test)]
 macro_rules! prop_assert_badkey {
     ($actual:expr, $process:expr, $expected_key:expr, $expected_substring:expr) => {{
         prop_assert_error!(

@@ -305,13 +305,15 @@ impl HeapFragment {
     pub fn new_map_from_hash_map(
         hash_map: HashMap<Term, Term>,
     ) -> AllocResult<(Boxed<Map>, NonNull<Self>)> {
-        let layout = Layout::for_value(&hash_map);
+        let map = Map::from_hash_map(hash_map);
+        let layout = Layout::for_value(&map);
         let mut non_null_heap_fragment = Self::new(layout)?;
         let heap_fragment = unsafe { non_null_heap_fragment.as_mut() };
 
-        heap_fragment
-            .map_from_hash_map(hash_map)
-            .map(|boxed_map| (boxed_map, non_null_heap_fragment))
+        let term = map.clone_to_heap(heap_fragment)?;
+        let boxed_map: Boxed<Map> = term.dyn_cast();
+
+        Ok((boxed_map, non_null_heap_fragment))
     }
 
     pub fn new_map_from_slice(slice: &[(Term, Term)]) -> AllocResult<(Boxed<Map>, NonNull<Self>)> {

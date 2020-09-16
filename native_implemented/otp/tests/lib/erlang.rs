@@ -14,6 +14,8 @@ pub mod apply_2;
 pub mod atom_to_binary_2;
 #[path = "erlang/atom_to_list_1.rs"]
 pub mod atom_to_list_1;
+#[path = "erlang/band_2.rs"]
+pub mod band_2;
 #[path = "erlang/binary_part_2.rs"]
 pub mod binary_part_2;
 #[path = "erlang/binary_part_3.rs"]

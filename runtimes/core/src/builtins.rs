@@ -11,6 +11,8 @@ use crate::process::current_process;
 extern "C" {
     #[link_name = "erlang:+/2"]
     fn erlang_add_2(augend: Term, addend: Term) -> Term;
+    #[link_name = "erlang:band/2"]
+    fn erlang_band_2(left: Term, right: Term) -> Term;
 }
 
 #[export_name = "__lumen_builtin_bigint_from_cstr"]
@@ -218,7 +220,12 @@ integer_math_builtin!("__lumen_builtin_math.div", builtin_math_div, div);
 integer_math_builtin!("__lumen_builtin_math.rem", builtin_math_rem, rem);
 integer_math_builtin!("__lumen_builtin_math.bsl", builtin_math_bsl, shl);
 integer_math_builtin!("__lumen_builtin_math.bsr", builtin_math_bsr, shr);
-integer_math_builtin!("__lumen_builtin_math.band", builtin_math_band, bitand);
+
+#[export_name = "__lumen_builtin_math.band"]
+pub extern "C" fn builtin_math_band(left: Term, right: Term) -> Term {
+    unsafe { erlang_band_2(left, right) }
+}
+
 integer_math_builtin!("__lumen_builtin_math.bor", builtin_math_bor, bitor);
 integer_math_builtin!("__lumen_builtin_math.bxor", builtin_math_bxor, bitxor);
 

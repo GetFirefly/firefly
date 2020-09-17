@@ -106,8 +106,13 @@ macro_rules! test_substrings {
     }
 }
 
-fn compiled_path_buf(file: &str, name: &str) -> PathBuf {
-    match compile(file, name) {
+pub struct Compilation<'a> {
+    pub command: &'a mut Command,
+    pub test_directory_path: &'a Path
+}
+
+pub fn compiled_path_buf<F>(file: &str, name: &str, compilation_mutator: F) -> PathBuf where F: FnOnce(Compilation) {
+    match compile(file, name, compilation_mutator) {
         Ok(path_buf) => path_buf,
         Err((command, output)) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -131,7 +136,8 @@ fn compiled_path_buf(file: &str, name: &str) -> PathBuf {
     }
 }
 
-fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
+
+fn compile<F>(file: &str, name: &str, compilation_mutator: F) -> Result<PathBuf, (Command, Output)> where F: FnOnce(Compilation) {
     // `file!()` starts with path relative to workspace root, but the `current_dir` will be inside
     // the crate root, so need to strip the relative crate root.
     let file_path = Path::new(file);
@@ -157,20 +163,9 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
         .arg("-O0")
         .arg("--emit=all");
 
-    let erlang_parent_path = directory_path.join(file_stem).join(name);
-    let erlang_src_path = erlang_parent_path.join("src");
-
-    let input_path = if erlang_src_path.is_dir() {
-        erlang_src_path
-    } else {
-        erlang_parent_path.join("init.erl")
-    };
-
-    let shared_path = current_dir().unwrap().join("tests/shared/src");
+    compilation_mutator(Compilation { command: &mut command, test_directory_path: &test_directory_path });
 
     let compile_output = command
-        .arg(shared_path)
-        .arg(input_path)
         .stdin(Stdio::null())
         .output()
         .unwrap();
@@ -183,7 +178,22 @@ fn compile(file: &str, name: &str) -> Result<PathBuf, (Command, Output)> {
 }
 
 pub fn output(file: &str, name: &str) -> (Command, Output) {
-    let bin_path_buf = compiled_path_buf(file, name);
+    let bin_path_buf = compiled_path_buf(file, name, |Compilation { command, test_directory_path }| {
+        let erlang_src_path = test_directory_path.join("src");
+
+        let input_path = if erlang_src_path.is_dir() {
+            erlang_src_path
+        } else {
+            test_directory_path.join("init.erl")
+        };
+
+        let shared_path = current_dir().unwrap().join("tests/shared/src");
+
+        command
+            .arg(shared_path)
+            .arg(input_path);
+    });
+
     let mut command = Command::new(bin_path_buf);
 
     let output = command.stdin(Stdio::null()).output().unwrap();

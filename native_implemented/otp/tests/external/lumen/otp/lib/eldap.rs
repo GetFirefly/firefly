@@ -26,13 +26,13 @@ fn setup() {
         .current_dir(&working_directory)
         .arg("../ebin/ELDAPv3.hrl");
 
-    if let Err((command, output)) = test::timeout(
+    if let Err((command, output)) = crate::test::timeout(
         "make ../ebin/ELDAPv3.hrl",
         working_directory.clone(),
         command,
         Duration::from_secs(10),
     ) {
-        test::command_failed(
+        crate::test::command_failed(
             "make ../ebin/ELDAPv3.hrl",
             working_directory,
             command,

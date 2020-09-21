@@ -1,5 +1,5 @@
 #[macro_use]
-#[path = "./test.rs"]
+#[path = "test.rs"]
 mod test;
 
 #[path = "lib/erlang.rs"]

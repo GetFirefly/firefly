@@ -1392,6 +1392,7 @@ dependencies = [
  "num-bigint 0.2.6",
  "num-traits",
  "panic-control",
+ "process_control",
  "proptest",
  "radix_fmt",
  "strip-ansi-escapes",
@@ -2087,6 +2088,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04f5f085b5d71e2188cb8271e5da0161ad52c3f227a661a3c135fdf28e258b12"
 dependencies = [
  "unicode-xid 0.2.1",
+]
+
+[[package]]
+name = "process_control"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7538f867a6b141d35e9b89e4d397d44a8705daa074a430bf0b909b2cefdb716c"
+dependencies = [
+ "cc",
+ "libc",
+ "winapi",
 ]
 
 [[package]]

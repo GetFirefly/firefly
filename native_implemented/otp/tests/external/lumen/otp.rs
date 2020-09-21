@@ -1,34 +1,29 @@
 //! Tests compiling Erlang source from https://github.com/lumen/otp
-
-#[macro_use]
-#[path = "test.rs"]
-mod test;
-
 macro_rules! test_compiles_lumen_otp {
     ($file_stem:ident) => {
         #[test]
         fn $file_stem() {
             setup();
-            $crate::compiles_lumen_otp(file!(), relative_directory_path(), stringify!($file_stem), includes(), vec![]);
+            $crate::lumen::otp::compiles_lumen_otp(file!(), relative_directory_path(), stringify!($file_stem), includes(), vec![]);
         }
     };
     ($file_stem:ident imports $($dependency:literal),+) => {
         #[test]
         fn $file_stem() {
             setup();
-            $crate::compiles_lumen_otp(file!(), relative_directory_path(), stringify!($file_stem), includes(), vec![$($dependency),+]);
+            $crate::lumen::otp::compiles_lumen_otp(file!(), relative_directory_path(), stringify!($file_stem), includes(), vec![$($dependency),+]);
         }
     };
 }
 
-#[path = "lumen_otp/erts.rs"]
+#[path = "otp/erts.rs"]
 mod erts;
-#[path = "lumen_otp/lib.rs"]
+#[path = "otp/lib.rs"]
 mod lib;
 
 use std::path::PathBuf;
 
-use test::Compilation;
+use crate::test::Compilation;
 
 fn compiles_lumen_otp(
     file: &str,
@@ -37,7 +32,7 @@ fn compiles_lumen_otp(
     includes: Vec<&str>,
     dependencies: Vec<&str>,
 ) {
-    test::compiled_path_buf(file, name, |Compilation { command, .. }| {
+    crate::test::compiled_path_buf(file, name, |Compilation { command, .. }| {
         let file_name = format!("{}.erl", name);
         let relative_path = relative_directory_path.join(file_name);
         let lumen_otp_directory = lumen_otp_directory();

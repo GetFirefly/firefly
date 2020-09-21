@@ -47,6 +47,8 @@ jobs:
           echo "::add-path::$PWD/bin"
       - name: Lumen Test
         run: cargo test --package lumen --no-fail-fast
+      - name: liblumen_otp Integration tests
+        run: "cargo test --package liblumen_otp lib:: -- --skip lumen::otp"
       - name: Examples Checkout
         run: |
           git init examples

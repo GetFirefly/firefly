@@ -1,9 +1,9 @@
-name: x86_64-apple-darwin Runtime Full
+name: x86_64-apple-darwin lumen/otp
 
 on: push
 
 jobs:
-  runtime:
+  lumen-otp:
     runs-on: macos-latest
 
     steps:
@@ -41,7 +41,14 @@ jobs:
         run: brew install ninja
       - name: Make Build
         run: make build-shared
-      - name: Test lumen_rt_full
-        run: cargo test --package lumen_rt_full --no-fail-fast
-      - name: Test liblumen_otp with runtime_full
-        run: "cargo test --package liblumen_otp --no-fail-fast -- --skip lib:: --skip lumen::otp"
+      - name: lumen/otp Checkout
+        run: |
+          cd ..
+          git init otp
+          cd otp
+          echo "::set-env name=ERL_TOP::$PWD"
+          git remote add origin https://github.com/lumen/otp
+          git fetch --no-tags --prune --progress --depth=1 origin +ca83f680aab717fe65634247d16f18a8cbfc6d8d:refs/remotes/origin/lumen
+          git checkout --progress --force -B lumen refs/remotes/origin/lumen
+      - name: Test compiling lumen/otp against liblumen_otp
+        run: "cargo test --package liblumen_otp --no-fail-fast lumen::otp::"

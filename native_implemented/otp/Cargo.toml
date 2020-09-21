@@ -39,6 +39,7 @@ libc = "0.2.74"
 lumen_rt_full = { path = "../../runtimes/full" }
 lumen = { path = "../../lumen" }
 panic-control = "0.1.4"
+process_control = "2.0.0"
 # get rid of colors in backtraces for easier matching in integration tests
 strip-ansi-escapes = "0.1.0"
 

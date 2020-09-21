@@ -1,6 +1,9 @@
 use std::env::current_dir;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Output, Stdio};
+use std::process::{Command, Stdio};
+use std::time::Duration;
+
+use process_control::{ChildExt, ExitStatus, Output, Timeout};
 
 #[allow(unused_macros)]
 macro_rules! test_stdout {
@@ -108,36 +111,54 @@ macro_rules! test_substrings {
 
 pub struct Compilation<'a> {
     pub command: &'a mut Command,
-    pub test_directory_path: &'a Path
+    pub test_directory_path: &'a Path,
 }
 
-pub fn compiled_path_buf<F>(file: &str, name: &str, compilation_mutator: F) -> PathBuf where F: FnOnce(Compilation) {
+pub fn command_failed(
+    message: &'static str,
+    working_directory: PathBuf,
+    command: Command,
+    output: Output,
+) -> ! {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let formatted_code = match output.status.code() {
+        Some(code) => code.to_string(),
+        None => "".to_string(),
+    };
+    let formatted_signal = signal(output.status);
+
+    panic!(
+        "{} failed\nCommands:\ncd {}\n{:?}\n\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
+        message,
+        working_directory.display(),
+        command,
+        stdout,
+        stderr,
+        formatted_code,
+        formatted_signal
+    );
+}
+
+pub fn compiled_path_buf<F>(file: &str, name: &str, compilation_mutator: F) -> PathBuf
+where
+    F: FnOnce(Compilation),
+{
     match compile(file, name, compilation_mutator) {
         Ok(path_buf) => path_buf,
-        Err((command, output)) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let formatted_code = match output.status.code() {
-                Some(code) => code.to_string(),
-                None => "".to_string(),
-            };
-            let formatted_signal = signal(output.status);
-
-            panic!(
-                "Compilation failed\nCommands:\ncd {}\n{:?}\n\nstdout: {}\nstderr: {}\nStatus code: {}\nSignal: {}",
-                std::env::current_dir().unwrap().to_string_lossy(),
-                command,
-                stdout,
-                stderr,
-                formatted_code,
-                formatted_signal
-            );
-        }
+        Err((command, output)) => command_failed(
+            "Compilation",
+            std::env::current_dir().unwrap(),
+            command,
+            output,
+        ),
     }
 }
 
-
-fn compile<F>(file: &str, name: &str, compilation_mutator: F) -> Result<PathBuf, (Command, Output)> where F: FnOnce(Compilation) {
+fn compile<F>(file: &str, name: &str, compilation_mutator: F) -> Result<PathBuf, (Command, Output)>
+where
+    F: FnOnce(Compilation),
+{
     // `file!()` starts with path relative to workspace root, but the `current_dir` will be inside
     // the crate root, so need to strip the relative crate root.
     let file_path = Path::new(file);
@@ -163,48 +184,102 @@ fn compile<F>(file: &str, name: &str, compilation_mutator: F) -> Result<PathBuf,
         .arg("-O0")
         .arg("--emit=all");
 
-    compilation_mutator(Compilation { command: &mut command, test_directory_path: &test_directory_path });
+    compilation_mutator(Compilation {
+        command: &mut command,
+        test_directory_path: &test_directory_path,
+    });
 
-    let compile_output = command
+    timeout(
+        "Compilation",
+        std::env::current_dir().unwrap(),
+        command,
+        Duration::from_secs(20),
+    )
+    .map(|_| output_path_buf)
+}
+
+pub fn timeout(
+    message: &'static str,
+    working_directory: PathBuf,
+    mut command: Command,
+    time_limit: Duration,
+) -> Result<(), (Command, Output)> {
+    let process = command
         .stdin(Stdio::null())
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .unwrap();
 
-    if compile_output.status.success() {
-        Ok(output_path_buf)
-    } else {
-        Err((command, compile_output))
+    match process
+        .with_output_timeout(time_limit)
+        .terminating()
+        .wait()
+        .unwrap()
+    {
+        Some(output) => {
+            if output.status.success() {
+                Ok(())
+            } else {
+                Err((command, output))
+            }
+        }
+        None => {
+            panic!(
+                "{} timed out after {:?}\nCommands:\ncd {}\n{:?}",
+                message,
+                time_limit,
+                working_directory.display(),
+                command,
+            );
+        }
     }
 }
 
 pub fn output(file: &str, name: &str) -> (Command, Output) {
-    let bin_path_buf = compiled_path_buf(file, name, |Compilation { command, test_directory_path }| {
-        let erlang_src_path = test_directory_path.join("src");
+    let bin_path_buf = compiled_path_buf(
+        file,
+        name,
+        |Compilation {
+             command,
+             test_directory_path,
+         }| {
+            let erlang_src_path = test_directory_path.join("src");
 
-        let input_path = if erlang_src_path.is_dir() {
-            erlang_src_path
-        } else {
-            test_directory_path.join("init.erl")
-        };
+            let input_path = if erlang_src_path.is_dir() {
+                erlang_src_path
+            } else {
+                test_directory_path.join("init.erl")
+            };
 
-        let shared_path = current_dir().unwrap().join("tests/shared/src");
+            let shared_path = current_dir().unwrap().join("tests/shared/src");
 
-        command
-            .arg(shared_path)
-            .arg(input_path);
-    });
+            command.arg(shared_path).arg(input_path);
+        },
+    );
 
     let mut command = Command::new(bin_path_buf);
 
-    let output = command.stdin(Stdio::null()).output().unwrap();
+    let process = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let time_limit = Duration::from_secs(10);
+
+    let output = process
+        .with_output_timeout(time_limit)
+        .terminating()
+        .wait()
+        .unwrap()
+        .unwrap();
 
     (command, output)
 }
 
 #[cfg(unix)]
 pub fn signal(exit_status: ExitStatus) -> String {
-    use std::os::unix::process::ExitStatusExt;
-
     exit_status
         .signal()
         .map(|i| match i as libc::c_int {

@@ -11,30 +11,5 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::binary_part_3::result;
-use crate::test::{strategy, total_byte_len};
 
-#[test]
-fn without_bitstring_errors_badarg() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_not_bitstring(arc_process.clone()),
-            )
-        },
-        |(arc_process, binary)| {
-            let start = arc_process.integer(0);
-            let length = arc_process.integer(0);
-
-            prop_assert_badarg!(
-                result(&arc_process, binary, start, length),
-                format!(
-                    "binary ({}) must be a binary or bitstring with at least 1 full byte",
-                    binary
-                )
-            );
-
-            Ok(())
-        },
-    );
-}
+// `without_bitstring_errors_badarg` in integration tests

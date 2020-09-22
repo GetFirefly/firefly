@@ -213,14 +213,6 @@ pub fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &
     process.tuple_from_slice(&[Atom::str_to_term(tag), timer_reference, message])
 }
 
-pub fn total_byte_len(term: Term) -> usize {
-    match term.decode().unwrap() {
-        TypedTerm::HeapBinary(heap_binary) => heap_binary.total_byte_len(),
-        TypedTerm::SubBinary(subbinary) => subbinary.total_byte_len(),
-        typed_term => panic!("{:?} does not have a total_byte_len", typed_term),
-    }
-}
-
 pub fn with_binary_without_atom_encoding_errors_badarg(
     source_file: &'static str,
     result: fn(Term, Term) -> exception::Result<Term>,

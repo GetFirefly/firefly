@@ -86,6 +86,20 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
     );
 }
 
+fn returns_subbinary(
+    (arc_process, binary, start, length): (Arc<Process>, Term, Term, Term),
+) -> TestCaseResult {
+    let result = result(&arc_process, binary, start, length);
+
+    prop_assert!(result.is_ok());
+
+    let returned = result.unwrap();
+
+    prop_assert!(returned.is_boxed_subbinary());
+
+    Ok(())
+}
+
 fn returns_subbinary_without_bit_count(
     (arc_process, binary, start, length): (Arc<Process>, Term, Term, Term),
 ) -> TestCaseResult {

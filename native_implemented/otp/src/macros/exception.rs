@@ -184,16 +184,6 @@ macro_rules! prop_assert_is_not_boolean {
 }
 
 #[cfg(test)]
-macro_rules! prop_assert_is_not_integer {
-    ($actual:expr, $name:ident) => {
-        prop_assert_is_not_integer!($actual, stringify!($name), $name)
-    };
-    ($actual:expr, $name:expr, $value:expr) => {
-        prop_assert_is_not_type!($actual, $name, $value, "an integer")
-    };
-}
-
-#[cfg(test)]
 macro_rules! prop_assert_is_not_local_pid {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_local_pid!($actual, stringify!($name), $name)
@@ -220,16 +210,6 @@ macro_rules! prop_assert_is_not_non_empty_list {
     };
     ($actual:expr, $name:expr, $value:expr) => {
         prop_assert_is_not_type!($actual, $name, $value, "a non-empty list")
-    };
-}
-
-#[cfg(test)]
-macro_rules! prop_assert_is_not_non_negative_integer {
-    ($actual:expr, $name:ident) => {
-        prop_assert_is_not_non_negative_integer!($actual, stringify!($name), $name)
-    };
-    ($actual:expr, $name:expr, $value:expr) => {
-        prop_assert_is_not_type!($actual, $name, $value, "a non-negative integer")
     };
 }
 

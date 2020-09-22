@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! https://github.com/lumen/otp/tree/lumen/lib/wx/src/gen
 
 use super::*;

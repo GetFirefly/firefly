@@ -32,6 +32,8 @@ pub mod binary_to_list_3;
 pub mod binary_to_term_1;
 #[path = "erlang/binary_to_term_2.rs"]
 pub mod binary_to_term_2;
+#[path = "erlang/bnot_1.rs"]
+pub mod bnot_1;
 #[path = "erlang/cancel_timer_1.rs"]
 pub mod cancel_timer_1;
 #[path = "erlang/ceil_1.rs"]

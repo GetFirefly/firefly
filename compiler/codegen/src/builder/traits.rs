@@ -234,6 +234,7 @@ impl AsValueRef for BinaryTerm {
         use liblumen_term::*;
 
         let slice = self.value();
+        panic!("slice = {:?}", slice);
         let encoding_type = options.target.options.encoding;
         let pointer_width = options.target.target_pointer_width;
         let (header, flags) = match encoding_type {

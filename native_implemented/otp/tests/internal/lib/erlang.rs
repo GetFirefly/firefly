@@ -20,6 +20,8 @@ pub mod band_2;
 pub mod binary_part_2;
 #[path = "erlang/binary_part_3.rs"]
 pub mod binary_part_3;
+#[path = "erlang/binary_to_atom_2.rs"]
+pub mod binary_to_atom_2;
 #[path = "erlang/binary_to_integer_1.rs"]
 pub mod binary_to_integer_1;
 #[path = "erlang/binary_to_integer_2.rs"]

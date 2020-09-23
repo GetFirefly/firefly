@@ -8,9 +8,6 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::runtime::context::*;
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
-mod test;
-
 macro_rules! maybe_aligned_maybe_binary_to_atom {
     ($binary:ident, $maybe_aligned_maybe_binary:ident) => {
         if $maybe_aligned_maybe_binary.is_binary() {

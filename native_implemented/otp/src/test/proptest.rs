@@ -71,14 +71,6 @@ pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Proce
     timer_message("cancel_timer", timer_reference, result, process)
 }
 
-pub fn count_ones(term: Term) -> u32 {
-    match term.decode().unwrap() {
-        TypedTerm::SmallInteger(n) => n.count_ones(),
-        TypedTerm::BigInteger(n) => n.as_ref().count_ones(),
-        _ => panic!("Can't count 1s in non-integer"),
-    }
-}
-
 pub fn external_arc_node() -> Arc<Node> {
     Arc::new(Node::new(
         1,

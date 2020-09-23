@@ -13,6 +13,8 @@ extern "C" {
     fn erlang_add_2(augend: Term, addend: Term) -> Term;
     #[link_name = "erlang:band/2"]
     fn erlang_band_2(left: Term, right: Term) -> Term;
+    #[link_name = "erlang:bor/2"]
+    fn erlang_bor_2(left: Term, right: Term) -> Term;
 }
 
 #[export_name = "__lumen_builtin_bigint_from_cstr"]
@@ -226,7 +228,11 @@ pub extern "C" fn builtin_math_band(left: Term, right: Term) -> Term {
     unsafe { erlang_band_2(left, right) }
 }
 
-integer_math_builtin!("__lumen_builtin_math.bor", builtin_math_bor, bitor);
+#[export_name = "__lumen_builtin_math.bor"]
+pub extern "C" fn builtin_math_bor(left: Term, right: Term) -> Term {
+    unsafe { erlang_bor_2(left, right) }
+}
+
 integer_math_builtin!("__lumen_builtin_math.bxor", builtin_math_bxor, bitxor);
 
 /// Capture the data needed to construct a stack trace later

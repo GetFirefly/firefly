@@ -3,15 +3,15 @@
 namespace lumen {
 namespace eir {
 
-struct ConstructMapOpConversion : public EIROpConversion<ConstructMapOp> {
+struct MapOpConversion : public EIROpConversion<MapOp> {
   using EIROpConversion::EIROpConversion;
 
   LogicalResult matchAndRewrite(
-      ConstructMapOp op, ArrayRef<Value> operands,
+      MapOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
     auto loc = op.getLoc();
-    ConstructMapOpAdaptor adaptor(operands);
+    MapOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     StringRef symbolName("__lumen_builtin_map.new");
@@ -118,14 +118,14 @@ struct MapUpdateOpConversion : public EIROpConversion<MapUpdateOp> {
   }
 };
 
-struct MapIsKeyOpConversion : public EIROpConversion<MapIsKeyOp> {
+struct MapContainsKeyOpConversion : public EIROpConversion<MapContainsKeyOp> {
   using EIROpConversion::EIROpConversion;
 
   LogicalResult matchAndRewrite(
-      MapIsKeyOp op, ArrayRef<Value> operands,
+      MapContainsKeyOp op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
     auto ctx = getRewriteContext(op, rewriter);
-    MapIsKeyOpAdaptor adaptor(operands);
+    MapContainsKeyOpAdaptor adaptor(operands);
 
     auto termTy = ctx.getUsizeType();
     auto i1Ty = ctx.getI1Type();
@@ -169,8 +169,8 @@ void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,
                                      EirTypeConverter &converter,
                                      TargetInfo &targetInfo) {
-  patterns.insert<ConstructMapOpConversion, MapInsertOpConversion,
-                  MapUpdateOpConversion, MapIsKeyOpConversion,
+  patterns.insert<MapOpConversion, MapInsertOpConversion,
+                  MapUpdateOpConversion, MapContainsKeyOpConversion,
                   MapGetKeyOpConversion>(context, converter, targetInfo);
 }
 

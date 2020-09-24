@@ -76,14 +76,14 @@ struct ConstantBoolOpConversion : public EIROpConversion<ConstantBoolOp> {
     }
 
     // Otherwise we are expecting this to be an integer type (i1 almost always)
-    if (valType.isa<mlir::IntegerType>()) {
-      auto ty = ctx.typeConverter.convertType(op.getType()).cast<LLVMType>();
+    if (valType.isInteger(1)) {
+      auto ty = ctx.typeConverter.convertType(valType).cast<LLVMType>();
       Value val = llvm_constant(ty, ctx.getIntegerAttr((unsigned)(isTrue)));
       rewriter.replaceOp(op, {val});
       return success();
     }
 
-    op.emitError("unexpected type associated with constant boolean value");
+    op.emitOpError("invalid type associated with constant boolean value");
     return failure();
   }
 };
@@ -364,7 +364,7 @@ struct ConstantMapOpConversion : public EIROpConversion<ConstantMapOp> {
       elements.push_back(element);
     }
 
-    ConstructMapOp newMap = eir_map(elements);
+    MapOp newMap = eir_map(elements);
     rewriter.replaceOp(op, newMap.out());
 
     return success();

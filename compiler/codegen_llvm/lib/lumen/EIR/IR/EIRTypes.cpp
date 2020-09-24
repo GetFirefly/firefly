@@ -11,6 +11,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/TypeRange.h"
 #include "mlir/Parser.h"
 
 using ::llvm::SmallVector;
@@ -18,13 +19,15 @@ using ::llvm::StringRef;
 using ::mlir::TypeRange;
 using ::mlir::LLVM::LLVMType;
 
+//===----------------------------------------------------------------------===//
+// Type Implementations
+//===----------------------------------------------------------------------===//
+
 namespace lumen {
 namespace eir {
+
+// Tuple<T>
 namespace detail {
-
-/// A type representing a collection of other types.
-
-/// A type representing a collection of other types.
 struct TupleTypeStorage final
     : public mlir::TypeStorage,
       public llvm::TrailingObjects<TupleTypeStorage, Type> {
@@ -59,72 +62,7 @@ struct TupleTypeStorage final
  private:
   unsigned arity;
 };
-
-struct BoxTypeStorage : public mlir::TypeStorage {
-  using KeyTy = Type;
-
-  BoxTypeStorage(Type boxedType)
-      : boxedType(boxedType.cast<OpaqueTermType>()) {}
-
-  /// The hash key used for uniquing.
-  bool operator==(const KeyTy &key) const { return key == boxedType; }
-
-  static BoxTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                   const KeyTy &key) {
-    // Initialize the memory using placement new.
-    return new (allocator.allocate<BoxTypeStorage>()) BoxTypeStorage(key);
-  }
-
-  OpaqueTermType boxedType;
-};
-
-struct RefTypeStorage : public mlir::TypeStorage {
-  using KeyTy = Type;
-
-  RefTypeStorage(Type innerType)
-      : innerType(innerType.cast<OpaqueTermType>()) {}
-
-  /// The hash key used for uniquing.
-  bool operator==(const KeyTy &key) const { return key == innerType; }
-
-  static RefTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                   const KeyTy &key) {
-    // Initialize the memory using placement new.
-    return new (allocator.allocate<RefTypeStorage>()) RefTypeStorage(key);
-  }
-
-  OpaqueTermType innerType;
-};
-
-struct PtrTypeStorage : public mlir::TypeStorage {
-  using KeyTy = Type;
-
-  PtrTypeStorage(Type innerType) : innerType(innerType) {}
-
-  /// The hash key used for uniquing.
-  bool operator==(const KeyTy &key) const { return key == innerType; }
-
-  static PtrTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                   const KeyTy &key) {
-    // Initialize the memory using placement new.
-    return new (allocator.allocate<PtrTypeStorage>()) PtrTypeStorage(key);
-  }
-
-  Type innerType;
-};
-
-}  // namespace detail
-}  // namespace eir
-}  // namespace lumen
-
-//===----------------------------------------------------------------------===//
-// Type Implementations
-//===----------------------------------------------------------------------===//
-
-namespace lumen {
-namespace eir {
-
-// Tuple<T>
+} // namespace detail
 
 TupleType TupleType::get(MLIRContext *context) {
   return Base::get(context, ArrayRef<Type>{});
@@ -180,10 +118,7 @@ LogicalResult TupleType::verifyConstructionInvariants(
     if (elementType.isa<TraceRefType>())
       continue;
 
-    llvm::outs() << "invalid tuple type element (" << i << "): ";
-    elementType.dump();
-    llvm::outs() << "\n";
-    return failure();
+    return emitError(loc, "invalid tuple type element at index ") << i << ": " << elementType;
   }
 
   return success();
@@ -202,7 +137,211 @@ Type TupleType::getElementType(unsigned index) const {
   return getImpl()->getTypes()[index];
 }
 
+// Closure
+namespace detail {
+struct ClosureTypeKey {
+  ClosureTypeKey() : functionType(nullptr), envTypes(nullptr), envLen(llvm::None) {}
+  ClosureTypeKey(FunctionType ft) : functionType(ft), envTypes(nullptr), envLen(llvm::None) {}
+  ClosureTypeKey(size_t len) : functionType(nullptr), envTypes(nullptr), envLen(len) {}
+  ClosureTypeKey(TypeRange env) : functionType(nullptr), envTypes(env), envLen(env.size()) {}
+  ClosureTypeKey(FunctionType ft, size_t len) : functionType(ft), envTypes(nullptr), envLen(len) {}
+  ClosureTypeKey(FunctionType ft, TypeRange env) : functionType(ft), envTypes(env), envLen(env.size()) {}
+  ClosureTypeKey(Optional<FunctionType> ft, Optional<TypeRange> env, Optional<size_t> len)
+    : functionType(ft), envTypes(env), envLen(len) {}
+  ClosureTypeKey(const ClosureTypeKey &key)
+    : functionType(key.functionType), envTypes(key.envTypes), envLen(key.envLen) {}
+
+  bool operator==(const ClosureTypeKey &key) const {
+    // Fully dynamic closure types are equivalent
+    if (!hasStaticShape() && !key.hasStaticShape())
+      return true;
+
+    // Closure types with differing callee types are considered unique
+    if (functionType.hasValue() && key.functionType.hasValue()) {
+      if (functionType.getValue() != key.functionType.getValue())
+        return false;
+    } else if (functionType.hasValue() || key.functionType.hasValue()) {
+      return false;
+    }
+
+    // Closure types with differently typed environents are considered unique
+    if (envTypes.hasValue() && key.envTypes.hasValue()) {
+      if (envTypes.getValue() != key.envTypes.getValue())
+        return false;
+    } else if (envTypes.hasValue() && !key.envTypes.hasValue()) {
+      for (auto ty : envTypes.getValue())
+        if (!ty.isa<TermType>())
+          return false;
+    } else if (key.envTypes.hasValue() && !envTypes.hasValue()) {
+      for (auto ty : key.envTypes.getValue())
+        if (!ty.isa<TermType>())
+          return false;
+    } else if (envLen.hasValue() && key.envLen.hasValue()) {
+      if (envLen.getValue() != key.envLen.getValue())
+        return false;
+    } else if (envLen.hasValue() && !key.envLen.hasValue()) {
+      return false;
+    } else if (!envLen.hasValue() && key.envLen.hasValue()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  inline bool hasStaticShape() const { return envTypes.hasValue() || envLen.hasValue(); }
+
+  Optional<FunctionType> functionType;
+  Optional<TypeRange> envTypes;
+  Optional<size_t> envLen;
+};
+  
+struct ClosureTypeStorage final
+    : public mlir::TypeStorage,
+      public llvm::TrailingObjects<ClosureTypeStorage, Type> {
+  using KeyTy = ClosureTypeKey;
+
+  ClosureTypeStorage(Optional<FunctionType> ft, Optional<TypeRange> env, Optional<size_t> len)
+      : functionType(ft), envTypes(env), envLen(len) {}
+
+  static KeyTy getKey(Optional<FunctionType> functionType, Optional<TypeRange> envTypes, Optional<size_t> envLen) {
+    return KeyTy(functionType, envTypes, envLen);
+  }
+
+  /// Construction.
+  static ClosureTypeStorage *construct(mlir::TypeStorageAllocator &allocator, const KeyTy &key) {
+    // Allocate a new storage instance.
+    size_t actualEnvLen;
+    if (key.envTypes.hasValue())
+      actualEnvLen = key.envTypes.getValue().size();
+    else if (key.envLen.hasValue())
+      actualEnvLen = key.envLen.getValue();
+    else
+      actualEnvLen = 0;
+
+    auto byteSize = ClosureTypeStorage::totalSizeToAlloc<Type>(actualEnvLen);
+    auto rawMem = allocator.allocate(byteSize, alignof(ClosureTypeStorage));
+    ClosureTypeStorage *result =
+      ::new (rawMem) ClosureTypeStorage(key.functionType, key.envTypes, key.envLen);
+
+    if (key.envTypes.hasValue()) {
+      auto env = key.envTypes.getValue();
+      // Copy in the element types into the trailing storage.
+      std::uninitialized_copy(env.begin(), env.end(),
+                              result->getTrailingObjects<Type>());
+    }
+
+    return result;
+  }
+
+  bool operator==(const KeyTy &key) const {
+    return key == getKey(functionType, envTypes, envLen);
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &key) {
+    Type functionType = key.functionType.hasValue() ? Type(key.functionType.getValue()) : Type();
+    TypeRange envTypes = key.envTypes.hasValue() ? TypeRange(key.envTypes.getValue()) : TypeRange();
+    size_t envLen = key.envLen.hasValue() ? key.envLen.getValue() : 0;
+    return llvm::hash_combine(mlir::hash_value(functionType), mlir::hash_value(envTypes), envLen);
+  }
+
+  Optional<FunctionType> getCalleeType() const { return functionType; }
+
+  Optional<size_t> arity() const {
+    if (!functionType.hasValue())
+      return llvm::None;
+    auto fnTy = functionType.getValue();
+    return fnTy.getNumInputs();
+  }
+  inline size_t getEnvLen() const { return envLen.hasValue() ? envLen.getValue() : 0; }
+  inline bool hasTypedEnv() const { return envTypes.hasValue(); }
+  inline bool hasStaticShape() const { return envTypes.hasValue() || envLen.hasValue(); }
+  TypeRange getEnvTypes() const { return TypeRange(ArrayRef<Type>{getTrailingObjects<Type>(), getEnvLen()}); }
+
+  Type getEnvType(unsigned index) const {
+    if (!hasTypedEnv())
+      return nullptr;
+    auto envTypes = getEnvTypes();
+    if (envTypes.size() > index)
+      return envTypes[index];
+    return nullptr;
+  }
+
+ private:
+  Optional<FunctionType> functionType;
+  Optional<TypeRange> envTypes;
+  Optional<size_t> envLen;
+};
+} // namespace detail
+
+ClosureType ClosureType::get(MLIRContext *context) {
+  return Base::get(context, detail::ClosureTypeStorage::KeyTy());
+}
+
+ClosureType ClosureType::get(MLIRContext *context, size_t envLen) {
+  return Base::get(context, detail::ClosureTypeStorage::KeyTy(envLen));
+}
+
+ClosureType ClosureType::get(MLIRContext *context, TypeRange env) {
+  return Base::get(context, detail::ClosureTypeStorage::KeyTy(env));
+}
+
+ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType) {
+  return Base::get(context, detail::ClosureTypeStorage::KeyTy(functionType));
+}
+
+ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType, size_t envLen) {
+  return Base::get(context, detail::ClosureTypeStorage::KeyTy(functionType, envLen));
+}
+
+ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType, TypeRange env) {
+  return Base::get(context, detail::ClosureTypeStorage::KeyTy(functionType, env));
+}
+
+LogicalResult ClosureType::verifyConstructionInvariants(
+    Location loc, const detail::ClosureTypeStorage::KeyTy &key) {
+  // TODO
+  return success();
+}
+
+Optional<FunctionType> ClosureType::getCalleeType() const { return getImpl()->getCalleeType(); }
+
+Optional<size_t> ClosureType::getArity() const { return getImpl()->arity(); }
+
+size_t ClosureType::getEnvLen() const { return getImpl()->getEnvLen(); }
+
+bool ClosureType::hasStaticShape() const { return getImpl()->hasStaticShape(); }
+
+bool ClosureType::hasDynamicShape() const { return !hasStaticShape(); }
+
+Type ClosureType::getEnvType(unsigned index) const {
+  if (!getImpl()->hasTypedEnv())
+    return TermType::get(getContext());
+  Type result = getImpl()->getEnvType(index);
+  if (result)
+    return result;
+  return NoneType::get(getContext());
+}
+
 // Box<T>
+namespace detail {
+struct BoxTypeStorage : public mlir::TypeStorage {
+  using KeyTy = Type;
+
+  BoxTypeStorage(Type boxedType)
+      : boxedType(boxedType.cast<OpaqueTermType>()) {}
+
+  /// The hash key used for uniquing.
+  bool operator==(const KeyTy &key) const { return key == boxedType; }
+
+  static BoxTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                   const KeyTy &key) {
+    // Initialize the memory using placement new.
+    return new (allocator.allocate<BoxTypeStorage>()) BoxTypeStorage(key);
+  }
+
+  OpaqueTermType boxedType;
+};
+} // namespace detail
 
 BoxType BoxType::get(OpaqueTermType boxedType) {
   return Base::get(boxedType.getContext(), boxedType);
@@ -220,6 +359,26 @@ OpaqueTermType BoxType::getBoxedType() const { return getImpl()->boxedType; }
 
 // Ref<T>
 
+namespace detail {
+struct RefTypeStorage : public mlir::TypeStorage {
+  using KeyTy = Type;
+
+  RefTypeStorage(Type innerType)
+      : innerType(innerType.cast<OpaqueTermType>()) {}
+
+  /// The hash key used for uniquing.
+  bool operator==(const KeyTy &key) const { return key == innerType; }
+
+  static RefTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                   const KeyTy &key) {
+    // Initialize the memory using placement new.
+    return new (allocator.allocate<RefTypeStorage>()) RefTypeStorage(key);
+  }
+
+  OpaqueTermType innerType;
+};
+} // namespace detail
+
 RefType RefType::get(OpaqueTermType innerType) {
   return Base::get(innerType.getContext(), innerType);
 }
@@ -235,6 +394,25 @@ RefType RefType::getChecked(Type type, Location location) {
 OpaqueTermType RefType::getInnerType() const { return getImpl()->innerType; }
 
 // Ptr<T>
+
+namespace detail {
+struct PtrTypeStorage : public mlir::TypeStorage {
+  using KeyTy = Type;
+
+  PtrTypeStorage(Type innerType) : innerType(innerType) {}
+
+  /// The hash key used for uniquing.
+  bool operator==(const KeyTy &key) const { return key == innerType; }
+
+  static PtrTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                   const KeyTy &key) {
+    // Initialize the memory using placement new.
+    return new (allocator.allocate<PtrTypeStorage>()) PtrTypeStorage(key);
+  }
+
+  Type innerType;
+};
+} // namespace detail
 
 PtrType PtrType::get(Type innerType) {
   return Base::get(innerType.getContext(), innerType);
@@ -260,6 +438,180 @@ TraceRefType TraceRefType::get(MLIRContext *context) {
 
 ReceiveRefType ReceiveRefType::get(MLIRContext *context) {
   return Base::get(context);
+}
+
+
+// OpaqueTermType
+
+unsigned OpaqueTermType::isMatch(Type matcher) {
+  auto matcherBase = matcher.dyn_cast_or_null<OpaqueTermType>();
+  if (!matcherBase) return 2;
+
+  auto typeId = getTypeID();
+  auto matcherTypeId = matcher.getTypeID();
+
+  // Unresolvable statically
+  if (isOpaque() || matcherBase.isOpaque()) return 2;
+
+  // Guaranteed to match
+  if (typeId == matcherTypeId) return 1;
+
+  // Handle boxed types if the matcher is a box type
+  if (matcherBase.isBox() && isBox()) {
+    auto expected = matcher.cast<BoxType>().getBoxedType();
+    auto inner = cast<BoxType>().getBoxedType();
+    return inner.isMatch(expected);
+  }
+
+  // If the matcher is not a box, but is a boxable type, handle
+  // comparing types correctly (i.e. if this is a boxed type, then
+  // compare the boxed type)
+  if (matcherBase.isBoxable() && isBox()) {
+    auto inner = cast<BoxType>().getBoxedType();
+    return inner.isMatch(matcher);
+  }
+
+  // Generic matches
+  if (matcher.isa<AtomType>()) return isAtom() ? 1 : 0;
+  if (matcher.isa<BooleanType>())
+    if (isBoolean())
+      return 1;
+    else if (isAtom())
+      return 2;
+    else
+      return 0;
+  if (matcher.isa<NumberType>()) return isNumber() ? 1 : 0;
+  if (matcher.isa<IntegerType>()) return isInteger() ? 1 : 0;
+  if (matcher.isa<FloatType>()) return isFloat() ? 1 : 0;
+  if (matcher.isa<BinaryType>()) return isBinary() ? 1 : 0;
+  if (matcher.isa<ListType>()) return isList() ? 1 : 0;
+  if (matcher.isa<MapType>()) return isMap() ? 1 : 0;
+  if (matcher.isa<ClosureType>()) return isClosure() ? 2 : 0;
+
+  if (auto tupleTy = matcher.dyn_cast_or_null<TupleType>())
+    if (tupleTy.hasStaticShape() && isTuple()) {
+      auto tt = cast<TupleType>();
+      if (tt.hasStaticShape() && tt.getArity() != tupleTy.getArity())
+        return 0;
+      else
+        return 2;
+    }
+    else if (isTuple())
+      return 2;
+    else
+      return 0;
+
+  return 0;
+}
+
+bool OpaqueTermType::canTypeEverBeEqual(Type other) {
+  // We have to be pessimistic if this is opaque
+  if (isOpaque())
+    return true;
+
+  // Only a limited subset of non-term types can be compared to terms
+  if (!other.isa<OpaqueTermType>()) {
+    // Primitives
+    if (isBoolean() && other.isInteger(1))
+      return true;
+    if (isNumber() && other.isIntOrFloat())
+      return true;
+
+    // Pointer types
+    if (auto ptrTy = other.dyn_cast_or_null<PtrType>()) {
+      auto innerTy = ptrTy.getInnerType();
+      // Equality can never hold against raw pointers
+      if (innerTy.isInteger(1))
+        return false;
+
+      // If this is a box, we can compare the inner types,
+      // otherwise continue as if this is a boxable type
+      if (isBox()) {
+        auto boxedTy = cast<BoxType>().getBoxedType();
+        return boxedTy.canTypeEverBeEqual(innerTy);
+      } else {
+        return canTypeEverBeEqual(innerTy);
+      }
+    }
+
+    if (auto refTy = other.dyn_cast_or_null<RefType>()) {
+      auto innerTy = refTy.getInnerType();
+
+      // If this is a box, we can compare the inner types,
+      // otherwise continue as if this is a boxable type
+      if (isBox()) {
+        auto boxedTy = cast<BoxType>().getBoxedType();
+        return boxedTy.canTypeEverBeEqual(innerTy);
+      } else {
+        return canTypeEverBeEqual(innerTy);
+      }
+    }
+
+    return false;
+  }
+
+  // Once we reach here, we're comparing terms
+  auto ty = other.cast<OpaqueTermType>();
+
+  // Again, pessimistically assume all opaque terms are equatable
+  if (ty.isOpaque())
+    return true;
+
+  // Unwrap boxed types
+  if (isBox()) {
+    auto lhs = cast<BoxType>().getBoxedType();
+
+    if (ty.isBox()) {
+      auto rhs = ty.cast<BoxType>().getBoxedType();
+      return lhs.canTypeEverBeEqual(rhs);
+    }
+
+    return lhs.canTypeEverBeEqual(other);
+  }
+  if (ty.isBox()) {
+    auto rhs = ty.cast<BoxType>().getBoxedType();
+    return canTypeEverBeEqual(rhs);
+  }
+
+  // Numbers can only be equal to numbers
+  if (isNumber() && !ty.isNumber())
+    return false;
+
+  // Atom-likes can only be equal to atom-likes
+  if (isAtom() && !ty.isAtom())
+    return false;
+
+  // Pids can only be equal to pids
+  if (isPid() && !isPid())
+    return false;
+
+  // References can only be equal to referencess
+  if (isReference() && !isReference())
+    return false;
+
+  // Aggregates of each class can only be equal to the same class
+  if (isList() && !ty.isList())
+    return false;
+
+  if (isTuple() && !ty.isTuple())
+    return false;
+
+  if (isMap() && !ty.isMap())
+    return false;
+
+  if (isBinary() && !ty.isBinary())
+    return false;
+
+  // Closures can only be equal to closures
+  if (isClosure() && !ty.isClosure())
+    return false;
+
+  // Rather than explicitly whitelist valid equality comparisons,
+  // we identify comparisons we know can't succeed. If we hit here,
+  // we're saying that we pessimistically assume equality is possible,
+  // but its possible that the operands would never compare equal, we
+  // just haven't explicitly identified that case above
+  return true;
 }
 
 }  // namespace eir

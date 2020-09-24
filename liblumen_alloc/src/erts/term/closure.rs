@@ -18,13 +18,15 @@ use crate::erts::{self, to_word_size, Arity, ModuleFunctionArity};
 
 use super::prelude::*;
 
-#[export_name = "lumen_closure_base_size"]
-pub extern "C" fn closure_base_size(pointer_width: u32) -> u32 {
+#[export_name = "lumen_closure_size"]
+pub extern "C" fn closure_size(pointer_width: u32, env_len: u32) -> u32 {
     if pointer_width == 64 {
-        ClosureLayout::base_size_64bit() as u32
+        let layout = ClosureLayout::layout_64bit(env_len as usize);
+        layout.size() as u32
     } else {
         assert_eq!(pointer_width, 32);
-        ClosureLayout::base_size_32bit() as u32
+        let layout = ClosureLayout::layout_32bit(env_len as usize);
+        layout.size() as u32
     }
 }
 
@@ -67,7 +69,7 @@ impl ClosureLayout {
         }
     }
 
-    pub fn base_size_32bit() -> usize {
+    pub fn base_layout_32bit() -> Layout {
         // Header<T> + Atom
         let (layout, _module_offset) = Layout::new::<u32>().extend(Layout::new::<u32>()).unwrap();
         // u32
@@ -78,10 +80,26 @@ impl ClosureLayout {
         let (layout, _native_offset) = layout
             .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
+        layout
+    }
+
+    pub fn layout_32bit(env_len: usize) -> Layout {
+        let layout = Self::base_layout_32bit();
+        let env = unsafe {
+            let ptr = ptr::null_mut() as *mut u64;
+            let arr = core::slice::from_raw_parts(ptr as *const (), env_len);
+            &*(arr as *const [()] as *mut [u64])
+        };
+        let (layout, _env_offset) = layout.extend(Layout::for_value(env)).unwrap();
+        layout.pad_to_align()
+    }
+
+    pub fn base_size_32bit() -> usize {
+        let layout = Self::base_layout_32bit();
         layout.size()
     }
 
-    pub fn base_size_64bit() -> usize {
+    pub fn base_layout_64bit() -> Layout {
         // Header<T> + Atom
         let (layout, _module_offset) = Layout::new::<u64>().extend(Layout::new::<u64>()).unwrap();
         // u32
@@ -92,6 +110,22 @@ impl ClosureLayout {
         let (layout, _native_offset) = layout
             .extend(Layout::new::<Option<NonNull<c_void>>>())
             .unwrap();
+        layout
+    }
+
+    pub fn layout_64bit(env_len: usize) -> Layout {
+        let layout = Self::base_layout_64bit();
+        let env = unsafe {
+            let ptr = ptr::null_mut() as *mut u32;
+            let arr = core::slice::from_raw_parts(ptr as *const (), env_len);
+            &*(arr as *const [()] as *mut [u32])
+        };
+        let (layout, _env_offset) = layout.extend(Layout::for_value(env)).unwrap();
+        layout.pad_to_align()
+    }
+
+    pub fn base_size_64bit() -> usize {
+        let layout = Self::base_layout_64bit();
         layout.size()
     }
 

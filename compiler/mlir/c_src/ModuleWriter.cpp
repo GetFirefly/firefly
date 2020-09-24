@@ -25,7 +25,7 @@ extern "C" bool LLVMEmitToFileDescriptor(LLVMModuleRef m, HANDLE handle,
 #else
 extern "C" bool LLVMEmitToFileDescriptor(LLVMModuleRef m, int fd,
                                          char **errorMessage) {
-  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false);
+  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false, llvm::raw_ostream::OStreamKind::OK_FDStream);
 #endif
   llvm::Module *mod = llvm::unwrap(m);
 
@@ -50,7 +50,7 @@ extern "C" bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, HANDLE handle,
 #else
 extern "C" bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m, int fd,
                                                 char **errorMessage) {
-  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false);
+  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false, llvm::raw_ostream::OStreamKind::OK_FDStream);
 #endif
   llvm::Module *mod = llvm::unwrap(m);
 
@@ -75,7 +75,7 @@ extern "C" bool MLIREmitToFileDescriptor(MLIRModuleRef m, HANDLE handle,
 #else
 extern "C" bool MLIREmitToFileDescriptor(MLIRModuleRef m, int fd,
                                          char **errorMessage) {
-  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false);
+  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false, llvm::raw_ostream::OStreamKind::OK_FDStream);
 #endif
   mlir::ModuleOp *mod = unwrap(m);
   mod->print(stream);

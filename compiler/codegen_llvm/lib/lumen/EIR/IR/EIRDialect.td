@@ -8,8 +8,9 @@ include "mlir/IR/OpBase.td"
 def eir_Dialect : Dialect {
   let name = "eir";
   let summary = "An MLIR dialect that corresponds to EIR produced by the Lumen front-end";
-  let cppNamespace = "eir";
+  let cppNamespace = "::lumen::eir";
   let dependentDialects = ["mlir::LLVM::LLVMDialect", "mlir::StandardOpsDialect"];
+  let hasConstantMaterializer = 1;
 }
 
 #endif

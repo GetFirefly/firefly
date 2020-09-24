@@ -19,8 +19,7 @@ struct IncrementReductionsOpConversion
         "CURRENT_REDUCTION_COUNT", i32Ty, nullptr, LLVM::Linkage::External,
         LLVM::ThreadLocalMode::LocalExec);
 
-    auto incBy = op.increment().getLimitedValue();
-    Value increment = llvm_constant(i32Ty, ctx.getI32Attr(incBy));
+    Value increment = llvm_constant(i32Ty, ctx.getI32Attr(op.increment()));
     llvm_atomicrmw(i32Ty, LLVM::AtomicBinOp::add, reductionCount, increment,
                    LLVM::AtomicOrdering::monotonic);
     rewriter.eraseOp(op);

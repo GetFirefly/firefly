@@ -76,8 +76,8 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
     Type lhsType = op.lhs().getType();
     Type rhsType = op.rhs().getType();
     bool strict = false;
-    if (auto attr = op.getAttrOfType<BoolAttr>("strict")) {
-      strict = attr.getValue();
+    if (auto attr = op.getAttrOfType<UnitAttr>("strict")) {
+      strict = true;
     }
 
     bool useICmp = true;

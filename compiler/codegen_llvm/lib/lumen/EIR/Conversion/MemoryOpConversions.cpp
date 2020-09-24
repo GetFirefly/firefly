@@ -12,7 +12,10 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
     MallocOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
-    OpaqueTermType innerTy = op.getAllocType().dyn_cast<OpaqueTermType>();
+    // We're expecting malloc target type to always be of PtrType
+    PtrType ptrTy = op.getAllocType().dyn_cast<PtrType>();
+    // The pointee (for now) is expected to be a term type
+    OpaqueTermType innerTy = ptrTy.getInnerType().dyn_cast<OpaqueTermType>();
     if (!innerTy)
       return op.emitOpError("unsupported target type");
 
@@ -268,34 +271,34 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
     GetElementPtrOpAdaptor adaptor(operands);
     auto ctx = getRewriteContext(op, rewriter);
 
-    Value base = adaptor.base();
-    LLVMType baseTy = base.getType().cast<LLVMType>();
+    Value basePtr = adaptor.base();
+    LLVMType basePtrTy = basePtr.getType().cast<LLVMType>();
 
-    Value pointeeCast;
-    if (baseTy.isPointerTy()) {
-      pointeeCast = base;
+    if (!basePtrTy.isPointerTy())
+      return op.emitOpError("cannot perform this operation on a non-pointer type");
+
+    auto index = op.getIndex();
+
+    LLVMType baseTy = basePtrTy.getPointerElementTy();
+    LLVMType elementTy;
+    if (auto structTy = baseTy.dyn_cast<LLVMStructType>()) {
+      auto elementTys = structTy.getBody();
+      if (index >= elementTys.size())
+        return op.emitOpError("invalid element index, only ")
+          << elementTys.size() << " fields, but wanted " << index;
+      elementTy = elementTys[index];
+    } else if (auto arrayTy = baseTy.dyn_cast<LLVMArrayType>()) {
+      elementTy = arrayTy.getElementType();
     } else {
-      Type pointeeTy = op.getPointeeType();
-      if (pointeeTy.isa<ConsType>()) {
-        pointeeCast = ctx.decodeList(base);
-      } else if (pointeeTy.isa<TupleType>()) {
-        auto innerTy =
-            ctx.typeConverter.convertType(pointeeTy).cast<LLVMType>();
-        pointeeCast = ctx.decodeBox(innerTy, base);
-      } else {
-        op.emitError("invalid pointee value: expected cons or tuple");
-        return failure();
-      }
+      return op.emitOpError("invalid base pointer type, expected aggregate type");
     }
 
-    LLVMType elementTy =
-        ctx.typeConverter.convertType(op.getElementType()).cast<LLVMType>();
     LLVMType elementPtrTy = elementTy.getPointerTo();
     LLVMType int32Ty = ctx.getI32Type();
     Value zero = llvm_constant(int32Ty, ctx.getI32Attr(0));
-    Value index = llvm_constant(int32Ty, ctx.getI32Attr(op.getIndex()));
-    ArrayRef<Value> indices({zero, index});
-    Value gep = llvm_gep(elementPtrTy, pointeeCast, indices);
+    Value gepIndex = llvm_constant(int32Ty, ctx.getI32Attr(index));
+    ArrayRef<Value> indices({zero, gepIndex});
+    Value gep = llvm_gep(elementPtrTy, basePtr, indices);
 
     rewriter.replaceOp(op, gep);
     return success();

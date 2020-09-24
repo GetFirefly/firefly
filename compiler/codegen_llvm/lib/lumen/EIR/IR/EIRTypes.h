@@ -28,6 +28,7 @@ using ::mlir::LogicalResult;
 using ::mlir::MLIRContext;
 using ::mlir::success;
 using ::mlir::Type;
+using ::mlir::TypeRange;
 using ::mlir::TypeStorage;
 
 /// This enumeration represents all of the types defined by the EIR dialect
@@ -46,6 +47,8 @@ class TraceRefType;
 
 namespace detail {
 struct TupleTypeStorage;
+struct ClosureTypeKey;
+struct ClosureTypeStorage;
 struct BoxTypeStorage;
 struct RefTypeStorage;
 struct PtrTypeStorage;
@@ -157,6 +160,8 @@ class OpaqueTermType : public Type {
 
   bool isTuple() const { return isa<TupleType>(); }
 
+  bool isMap() const { return isa<MapType>(); }
+
   bool isBinary() const {
     return isa<BinaryType>() || isHeapBin() || isProcBin();
   }
@@ -170,28 +175,9 @@ class OpaqueTermType : public Type {
   bool isBox() const { return isa<BoxType>(); }
 
   // Returns 0 for false, 1 for true, 2 for unknown
-  unsigned isMatch(Type matcher) {
-    auto matcherBase = matcher.dyn_cast_or_null<OpaqueTermType>();
-    if (!matcherBase) return 2;
+  unsigned isMatch(Type matcher);
 
-    auto typeId = getTypeID();
-    auto matcherTypeId = matcher.getTypeID();
-
-    // Unresolvable statically
-    if (!isOpaque() || !matcherBase.isOpaque()) return 2;
-
-    // Guaranteed to match
-    if (typeId == matcherTypeId) return 1;
-
-    // Generic matches
-    if (matcher.isa<AtomType>()) return isAtom() ? 1 : 0;
-    if (matcher.isa<ListType>()) return isList() ? 1 : 0;
-    if (matcher.isa<NumberType>()) return isNumber() ? 1 : 0;
-    if (matcher.isa<IntegerType>()) return isInteger() ? 1 : 0;
-    if (matcher.isa<BinaryType>()) return isBinary() ? 1 : 0;
-
-    return 0;
-  }
+  bool canTypeEverBeEqual(Type other);
 
   static bool classof(Type type) {
     if (!llvm::isa<eirDialect>(type.getDialect())) return false;
@@ -231,7 +217,6 @@ PrimitiveType(BigIntType, TypeKind::BigInt);
 PrimitiveType(NilType, TypeKind::Nil);
 PrimitiveType(ConsType, TypeKind::Cons);
 PrimitiveType(MapType, TypeKind::Map);
-PrimitiveType(ClosureType, TypeKind::Closure);
 PrimitiveType(BinaryType, TypeKind::Binary);
 PrimitiveType(HeapBinType, TypeKind::HeapBin);
 PrimitiveType(ProcBinType, TypeKind::ProcBin);
@@ -265,6 +250,37 @@ class TupleType : public Type::TypeBase<TupleType, OpaqueTermType,
   bool hasDynamicShape() const;
   // Returns the element type for the given element
   Type getElementType(unsigned index) const;
+};
+
+/// A closure with a potentially dynamically-sized environment
+class ClosureType : public Type::TypeBase<ClosureType, OpaqueTermType,
+                                          detail::ClosureTypeStorage> {
+ public:
+  using Base::Base;
+
+  static ClosureType get(MLIRContext *context);
+  static ClosureType get(MLIRContext *context, size_t envLen);
+  static ClosureType get(MLIRContext *context, TypeRange env);
+  static ClosureType get(MLIRContext *context, FunctionType functionType);
+  static ClosureType get(MLIRContext *context, FunctionType functionType, size_t envLen);
+  static ClosureType get(MLIRContext *context, FunctionType functionType, TypeRange env);
+
+  // Verifies construction invariants and issues errors/warnings.
+  static LogicalResult verifyConstructionInvariants(
+      Location loc, const detail::ClosureTypeKey &key);
+
+  // Gets the type of the underlying function
+  Optional<FunctionType> getCalleeType() const;
+  // Returns the arity of the underlying function
+  Optional<size_t> getArity() const;
+  // Returns the size of the closure environment
+  size_t getEnvLen() const;
+  // Returns true if the dimensions of the closure environment are known
+  bool hasStaticShape() const;
+  // Returns true if the dimensions of the closure environment are unknown
+  bool hasDynamicShape() const;
+  // Returns the element type for the given element
+  Type getEnvType(unsigned index) const;
 };
 
 /// A pointer to a heap-allocated term header

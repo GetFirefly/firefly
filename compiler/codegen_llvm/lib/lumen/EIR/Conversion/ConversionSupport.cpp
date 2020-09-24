@@ -186,7 +186,8 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
   }
 
   // If this isn't otherwise an EIR type, we can't convert it
-  if (!isa_eir_type(type)) return Optional<Type>();
+  if (!isa_eir_type(type))
+    return converter.deferTypeConversion(type);
 
   MLIRContext *context = type.getContext();
   auto termTy = targetInfo.getUsizeType();
@@ -237,8 +238,8 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     }
   }
 
-  if (type.isa<eir::ClosureType>()) {
-    return targetInfo.makeClosureType(1);
+  if (auto closureTy = type.dyn_cast_or_null<ClosureType>()) {
+    return targetInfo.makeClosureType(closureTy.getEnvLen());
   }
 
   if (type.isa<eir::BinaryType>()) {

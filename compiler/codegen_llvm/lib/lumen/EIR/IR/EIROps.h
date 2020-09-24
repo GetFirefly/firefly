@@ -70,10 +70,10 @@ using ::mlir::ValueRange;
 namespace OpTrait = ::mlir::OpTrait;
 namespace MemoryEffects = ::mlir::MemoryEffects;
 
+#include "lumen/EIR/IR/EIROpInterface.h"
+
 namespace lumen {
 namespace eir {
-
-#include "lumen/EIR/IR/EIROpInterface.h.inc"
 
 class MatchBranch {
  public:
@@ -109,6 +109,9 @@ class MatchBranch {
 LogicalResult lowerPatternMatch(::mlir::OpBuilder &builder, Location loc, Value selector,
                                 ArrayRef<MatchBranch> branches);
 
+}  // namespace eir
+}  // namespace lumen
+
 //===----------------------------------------------------------------------===//
 // TableGen
 //===----------------------------------------------------------------------===//
@@ -116,8 +119,5 @@ LogicalResult lowerPatternMatch(::mlir::OpBuilder &builder, Location loc, Value 
 /// All operations are declared in this auto-generated header
 #define GET_OP_CLASSES
 #include "lumen/EIR/IR/EIROps.h.inc"
-
-}  // namespace eir
-}  // namespace lumen
 
 #endif  // EIR_OPS_H_

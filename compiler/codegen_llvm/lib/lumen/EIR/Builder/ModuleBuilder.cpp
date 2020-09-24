@@ -152,8 +152,7 @@ Type ModuleBuilder::getArgType(const Arg *arg) {
   return fromRust(builder, &arg->ty);
 }
 
-bool unwrapValues(MLIRValueRef *argv, unsigned argc,
-                  SmallVectorImpl<Value> &list) {
+bool unwrapValues(MLIRValueRef *argv, unsigned argc, SmallVectorImpl<Value> &list) {
   if (argc < 1) {
     return false;
   }
@@ -162,6 +161,26 @@ bool unwrapValues(MLIRValueRef *argv, unsigned argc,
     Value arg = unwrap(*it);
     assert(arg != nullptr);
     list.push_back(arg);
+  }
+  return true;
+}
+
+bool unwrapValuesAsTerms(OpBuilder &builder, MLIRValueRef *argv, unsigned argc, SmallVectorImpl<Value> &list) {
+  if (argc < 1) {
+    return false;
+  }
+  auto termTy = builder.getType<TermType>();
+  ArrayRef<MLIRValueRef> args(argv, argv + argc);
+  for (auto it = args.begin(); it != args.end(); it++) {
+    Value arg = unwrap(*it);
+    assert(arg != nullptr);
+    // Ensure we cast to term
+    if (arg.getType().isa<OpaqueTermType>()) {
+      list.push_back(arg);
+    } else {
+      auto castOp = builder.create<CastOp>(arg.getLoc(), arg, termTy);
+      list.push_back(castOp.getResult());
+    }
   }
   return true;
 }
@@ -221,26 +240,47 @@ ModuleBuilder::~ModuleBuilder() {
   if (theModule) theModule.erase();
 }
 
-extern "C" MLIRModuleRef MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
+extern "C" LowerResult MLIRFinalizeModuleBuilder(MLIRModuleBuilderRef b) {
   ModuleBuilder *builder = unwrap(b);
-  auto finished = builder->finish();
+  LowerResult result = builder->finish();
   delete builder;
 
-  // Move to the heap
-  return wrap(new mlir::ModuleOp(finished));
+  return result;
 }
 
-mlir::ModuleOp ModuleBuilder::finish() {
-  mlir::ModuleOp finished;
-  std::swap(finished, theModule);
+LowerResult ModuleBuilder::finish() {
+  MLIRModuleRef ptr;
+  mlir::ModuleOp mod;
+  std::swap(mod, theModule);
 
   // Apply some fixup passes to the generated IR
-  auto pm = std::unique_ptr<PassManager>(new PassManager(builder.getContext(), /*verifyPasses=*/false));
-  OpPassManager &fm = pm->nest<::lumen::eir::FuncOp>();
-  fm.addPass(::lumen::eir::createInsertTraceConstructorsPass());
-  pm->run(finished);
+  PassManager pm(builder.getContext(), /*verifyPasses=*/false);
+  //mlir::OpPrintingFlags printerFlags;
+  //pm.enableIRPrinting(
+  //    /*shouldPrintBefore=*/[](mlir::Pass *, Operation *) { return true; },
+  //    /*shouldPrintAfter=*/ [](mlir::Pass *, Operation *) { return true; },
+  //    /*printModuleScopeAlways=*/false,
+  //    /*printAfterOnlyOnChange=*/true, llvm::errs(),
+  //    printerFlags);
 
-  return finished;
+  OpPassManager &fm = pm.nest<::lumen::eir::FuncOp>();
+  fm.addPass(::lumen::eir::createInsertTraceConstructorsPass());
+  fm.addPass(::mlir::createCanonicalizerPass());
+
+  mlir::OwningModuleRef owned(mod);
+  if (mlir::failed(pm.run(*owned))) {
+    ptr = wrap(new mlir::ModuleOp(owned.release()));
+    return {.module = (void *)(ptr), .success = false};
+  }
+
+  auto *result = new mlir::ModuleOp(owned.release());
+  ptr = wrap(result);
+  auto success = mlir::verify(result->getOperation());
+  if (mlir::failed(success)) {
+    return {.module = (void *)(ptr), .success = false};
+  }
+
+  return {.module = (void *)(ptr), .success = true};
 }
 
 //===----------------------------------------------------------------------===//
@@ -269,17 +309,16 @@ extern "C" FunctionDeclResult MLIRCreateFunction(MLIRModuleBuilderRef b,
 }
 
 FuncOp ModuleBuilder::getOrDeclareFunction(StringRef symbol, Type resultTy,
-                                           bool isVarArg,
-                                           ArrayRef<Type> argTypes) {
+                                           TypeRange argTypes, bool isVarArg) {
   Operation *funcOp = SymbolTable::lookupNearestSymbolFrom(theModule, symbol);
   if (funcOp) return dyn_cast_or_null<FuncOp>(funcOp);
 
   // Create a function declaration for the symbol
   FunctionType fnTy;
   if (resultTy) {
-    fnTy = builder.getFunctionType(argTypes, ArrayRef<Type>{resultTy});
+    fnTy = builder.getFunctionType(argTypes, TypeRange(resultTy));
   } else {
-    fnTy = builder.getFunctionType(argTypes, ArrayRef<Type>{});
+    fnTy = builder.getFunctionType(argTypes, TypeRange());
   }
 
   auto ip = builder.saveInsertionPoint();
@@ -296,6 +335,26 @@ FuncOp ModuleBuilder::getOrDeclareFunction(StringRef symbol, Type resultTy,
 FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
                                       SmallVectorImpl<Arg> &functionArgs,
                                       EirType *resultType) {
+  // All generated functions get our custom exception handling personality
+  Type i32Ty = builder.getIntegerType(32);
+  auto personalityFn =
+      getOrDeclareFunction("lumen_eh_personality", i32Ty, TypeRange(), /*vararg=*/true);
+  auto personalityFnSymbol = builder.getSymbolRefAttr("lumen_eh_personality");
+
+  // If we forward-declared this function but did not fill it out, use that definition
+  Operation *maybeOp = SymbolTable::lookupNearestSymbolFrom(theModule, functionName);
+  if (maybeOp) {
+    // We've previously declared this function, now we're populating it
+    FuncOp funcOp = cast<FuncOp>(maybeOp);
+    assert(funcOp.isExternal() && "cannot define a function more than once");
+
+    // Make sure attributes we would normally set, are set
+    if (!funcOp.getAttr("personality"))
+      funcOp.setAttr("personality", personalityFnSymbol);
+
+    return funcOp;
+  }
+
   llvm::SmallVector<Type, 2> argTypes;
   argTypes.reserve(functionArgs.size());
   for (auto it = functionArgs.begin(); it != functionArgs.end(); it++) {
@@ -304,14 +363,9 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
     argTypes.push_back(type);
   }
 
-  // All generated functions get our custom exception handling personality
-  Type i32Ty = builder.getIntegerType(32);
-  auto personalityFn =
-      getOrDeclareFunction("lumen_eh_personality", i32Ty, /*vararg=*/true);
-  auto personalityFnSymbol = builder.getSymbolRefAttr("lumen_eh_personality");
+
   auto personalityAttr =
       builder.getNamedAttr("personality", personalityFnSymbol);
-
   ArrayRef<NamedAttribute> attrs({personalityAttr});
 
   if (resultType->any.tag == EirTypeTag::None) {
@@ -327,7 +381,11 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
 extern "C" void MLIRAddFunction(MLIRModuleBuilderRef b, MLIRFunctionOpRef f) {
   ModuleBuilder *builder = unwrap(b);
   FuncOp *fun = unwrap(f);
-  builder->add_function(*fun);
+  Operation *op = fun->getOperation();
+  // If the function has already been linked to the module,
+  // we don't need to try and add it twice
+  if (!op->getParentRegion())
+    builder->add_function(*fun);
 }
 
 void ModuleBuilder::add_function(FuncOp f) { theModule.push_back(f); }
@@ -339,9 +397,9 @@ extern "C" MLIRValueRef MLIRBuildClosure(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_closure(Closure *closure) {
-  llvm::SmallVector<Value, 2> args;
-  unwrapValues(closure->env, closure->envLen, args);
   Location loc = unwrap(closure->loc);
+  llvm::SmallVector<Value, 2> args;
+  unwrapValuesAsTerms(builder, closure->env, closure->envLen, args);
   auto op = builder.create<ClosureOp>(loc, closure, args);
   return op.getResult();
 }
@@ -355,7 +413,7 @@ extern "C" bool MLIRBuildUnpackEnv(MLIRModuleBuilderRef b,
   Value envBox = unwrap(ev);
   auto opBuilder = builder->getBuilder();
   Value env = opBuilder.create<CastOp>(
-      loc, envBox, PtrType::get(opBuilder.getType<ClosureType>()));
+      loc, envBox, PtrType::get(opBuilder.getType<ClosureType>(numValues)));
   for (auto i = 0; i < numValues; i++) {
     values[i] = wrap(builder->build_unpack_op(loc, env, i));
   }
@@ -624,17 +682,7 @@ void ModuleBuilder::build_return(Location loc, Value value) {
   if (!value) {
     builder.create<ReturnOp>(loc);
   } else {
-    Block *block = builder.getBlock();
-    auto func = cast<FuncOp>(block->getParentOp());
-    auto resultTypes = func.getCallableResults();
-    Type expectedType = resultTypes.front();
-    Type valueType = value.getType();
-    if (expectedType == valueType) {
-      builder.create<ReturnOp>(loc, value);
-    } else {
-      Value cast = eir_cast(value, expectedType);
-      builder.create<ReturnOp>(loc, cast);
-    }
+    builder.create<ReturnOp>(loc, value);
   }
 }
 
@@ -930,7 +978,7 @@ Value ModuleBuilder::build_logical_or(Location loc, ArrayRef<Value> args) {
   static Optional<Value> Alias(ModuleBuilder *modBuilder, Location loc, \
                                ArrayRef<Value> args) {                  \
     auto builder = modBuilder->getBuilder();                            \
-    auto op = builder.create<Op>(loc, args);                            \
+    auto op = builder.create<Op>(loc, ValueRange(args));                \
                                                                         \
     return op.getResult();                                              \
   }
@@ -1238,14 +1286,7 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
   if (isTail) {
     if (resultOpt) {
       auto result = resultOpt.getValue();
-      auto func = result.getDefiningOp()->getParentOfType<FuncOp>();
-      auto funcResultTy = func.getType().getResult(0);
-      if (result.getType() != funcResultTy) {
-        Value coercedResult = eir_cast(result, funcResultTy);
-        eir_return(ValueRange(coercedResult));
-      } else {
-        eir_return(ValueRange(result));
-      }
+      eir_return(ValueRange(result));
     } else {
       eir_return();
     }
@@ -1280,10 +1321,32 @@ void ModuleBuilder::build_static_invoke(Location loc, StringRef target,
 
   if (maybe_build_intrinsic(loc, target, args, isTail, ok, okArgs)) return;
 
-  // Create symbolref and lookup function definition (if present)
-  auto callee = builder.getSymbolRefAttr(target);
-  auto fn = theModule.lookupSymbol<FuncOp>(callee.getValue());
+  auto termType = builder.getType<TermType>();
 
+  // These are placeholder argument types if the function is not defined
+  SmallVector<Type, 2> argTypes;
+  for (auto arg : args) {
+    argTypes.push_back(termType);
+  }
+
+  // Declare the callee, or get existing declaration
+  auto callee = builder.getSymbolRefAttr(target);
+  auto fn = getOrDeclareFunction(target, termType, argTypes);
+  auto fnType = fn.getType();
+
+  // Cast arguments as necessary
+  SmallVector<Value, 2> callArgs;
+  for (auto it : llvm::zip(args, fnType.getInputs())) {
+    Value arg = std::get<0>(it);
+    Type expectedType = std::get<1>(it);
+    if (arg.getType() != expectedType) {
+      auto castOp = builder.create<CastOp>(loc, arg, expectedType);
+      callArgs.push_back(castOp.getResult());
+    } else {
+      callArgs.push_back(arg);
+    }   
+  }
+  
   // Set up landing pad in error block
   Block *unwind = build_landing_pad(loc, err);
 
@@ -1294,14 +1357,13 @@ void ModuleBuilder::build_static_invoke(Location loc, StringRef target,
     if (fn) {
       normal = createBlock(fn.getCallableResults());
     } else {
-      auto termType = builder.getType<TermType>();
       normal = createBlock({termType});
     }
-    eir_invoke(callee, args, normal, okArgs, unwind, errArgs);
+    eir_invoke(callee, callArgs, normal, okArgs, unwind, errArgs);
     appendToBlock(normal,
                   [&](ValueRange args) { eir_return(ValueRange(args)); });
   } else {
-    eir_invoke(callee, args, ok, okArgs, unwind, errArgs);
+    eir_invoke(callee, callArgs, ok, okArgs, unwind, errArgs);
   }
 }
 
@@ -1312,68 +1374,78 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
 
   if (maybe_build_intrinsic(loc, target, args, isTail, cont, contArgs)) return;
 
-  // Create symbolref and lookup function definition (if present)
-  auto callee = builder.getSymbolRefAttr(target);
-  auto fn = theModule.lookupSymbol<FuncOp>(callee.getValue());
   auto termType = builder.getType<TermType>();
 
-  // Build result types list
-  SmallVector<Type, 1> fnResults;
-  if (fn) {
-    auto rs = fn.getCallableResults();
-    fnResults.append(rs.begin(), rs.end());
-  } else {
-    fnResults.push_back(termType);
+  // These are placeholder argument types if the function is not defined
+  SmallVector<Type, 2> argTypes;
+  for (auto arg : args) {
+    argTypes.push_back(termType);
+  }
+  // Declare the callee, or get existing declaration
+  auto callee = builder.getSymbolRefAttr(target);
+  auto fn = getOrDeclareFunction(target, termType, argTypes);
+  auto fnType = fn.getType();
+  auto fnResults = fn.getCallableResults();
+
+  // Cast arguments as necessary
+  SmallVector<Value, 2> callArgs;
+  for (auto it : llvm::zip(args, fnType.getInputs())) {
+    Value arg = std::get<0>(it);
+    Type expectedType = std::get<1>(it);
+    if (arg.getType() != expectedType) {
+      auto castOp = builder.create<CastOp>(loc, arg, expectedType);
+      callArgs.push_back(castOp.getResult());
+    } else {
+      callArgs.push_back(arg);
+    }
   }
 
+  // Handle tail calls
   if (isTail) {
     auto mustTail = builder.getNamedAttr("musttail", builder.getUnitAttr());
     Operation *call =
-        eir_call(callee, fnResults, args, ArrayRef<NamedAttribute>{mustTail});
-    auto parentFunc = call->getParentOfType<FuncOp>();
-    auto parentResultType = parentFunc.getType().getResult(0);
-    if (fnResults.size() > 0 && fnResults[0] != parentResultType) {
-      Value coercedResult = eir_cast(call->getResults().front(), parentResultType);
-      eir_return(ValueRange(coercedResult));
-    } else {
-      eir_return(call->getResults());
-    }
-  } else {
-    auto tail = builder.getNamedAttr("tail", builder.getUnitAttr());
-    Operation *call =
-        eir_call(callee, fnResults, args, ArrayRef<NamedAttribute>{tail});
-    SmallVector<Value, 1> contArgsFinal;
-    BlockArgument contArg = cont->getArgument(0);
-    Type contArgTy = contArg.getType();
-    if (fnResults.size() > 0) {
-      auto callResult = call->getResults().front();
-      auto callResultTy = callResult.getType();
-      if (callResultTy.isa<TermType>()) {
-        // Unknown result type
-        if (contArgTy.isa<TermType>()) {
-          contArgsFinal.push_back(callResult);
-        } else {
-          // If the type of the block argument is concrete, we need a cast
-          Value coercedResult = eir_cast(callResult, contArgTy);
-          contArgsFinal.push_back(coercedResult);
-        }
+        eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{mustTail});
+    eir_return(call->getResults());
+    return;
+  }
+
+  // All other calls may be tail callable after optimization, so add the hint anyway
+  auto tail = builder.getNamedAttr("tail", builder.getUnitAttr());
+  Operation *call =
+      eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{tail});
+
+  // Make sure continuation block arguments match up
+  SmallVector<Value, 1> contArgsFinal;
+  BlockArgument contArg = cont->getArgument(0);
+  Type contArgTy = contArg.getType();
+  if (fnResults.size() > 0) {
+    auto callResult = call->getResults().front();
+    auto callResultTy = callResult.getType();
+    if (callResultTy.isa<TermType>()) {
+      // Unknown result type
+      if (contArgTy.isa<TermType>()) {
+        contArgsFinal.push_back(callResult);
       } else {
-        // Concrete result type
-        // If the type of the block argument is opaque, make it concrete
-        if (contArgTy.isa<TermType>()) {
-          contArg.setType(callResultTy);
-        } else {
-          // The block argument has a different concrete type, we need a cast
-          Value coercedResult = eir_cast(callResult, contArgTy);
-          contArgsFinal.push_back(coercedResult);
-        }
+        // If the type of the block argument is concrete, we need a cast
+        Value coercedResult = eir_cast(callResult, contArgTy);
+        contArgsFinal.push_back(coercedResult);
+      }
+    } else {
+      // Concrete result type
+      // If the type of the block argument is opaque, make it concrete
+      if (contArgTy.isa<TermType>()) {
+        contArg.setType(callResultTy);
+      } else {
+        // The block argument has a different concrete type, we need a cast
+        Value coercedResult = eir_cast(callResult, contArgTy);
+        contArgsFinal.push_back(coercedResult);
       }
     }
-    for (auto arg : contArgs) {
-      contArgsFinal.push_back(arg);
-    }
-    eir_br(cont, contArgsFinal);
   }
+  for (auto arg : contArgs) {
+    contArgsFinal.push_back(arg);
+  }
+  eir_br(cont, contArgsFinal);
 }
 
 extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b,
@@ -1420,6 +1492,8 @@ void ModuleBuilder::build_apply_2(Location loc, Value cls,
                                   Block *err, ArrayRef<Value> errArgs) {
   ScopedContext scope(builder, loc);
 
+  auto termTy = builder.getType<TermType>();
+  
   // We need to call apply/2 with the closure, and a list of arguments
   SmallVector<Value, 2> applyArgs;
   applyArgs.push_back(cls);
@@ -1522,7 +1596,18 @@ extern "C" MLIRValueRef MLIRCons(MLIRModuleBuilderRef b, MLIRLocationRef locref,
 }
 
 Value ModuleBuilder::build_cons(Location loc, Value head, Value tail) {
-  auto op = builder.create<ConsOp>(loc, head, tail);
+  Value h = head;
+  if (!head.getType().isa<OpaqueTermType>()) {
+    auto castOp = builder.create<CastOp>(loc, head, builder.getType<TermType>());
+    h = castOp.getResult();
+  }
+  Value t = tail;
+  if (!tail.getType().isa<OpaqueTermType>()) {
+    auto castOp = builder.create<CastOp>(loc, tail, builder.getType<TermType>());
+    t = castOp.getResult();
+  }
+
+  auto op = builder.create<ConsOp>(loc, h, t);
   return op.getResult();
 }
 
@@ -1532,15 +1617,13 @@ extern "C" MLIRValueRef MLIRConstructTuple(MLIRModuleBuilderRef b,
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
   SmallVector<Value, 2> elements;
-  unwrapValues(ev, ec, elements);
+  unwrapValuesAsTerms(builder->getBuilder(), ev, ec, elements);
   return wrap(builder->build_tuple(loc, elements));
 }
 
 Value ModuleBuilder::build_tuple(Location loc, ArrayRef<Value> elements) {
   auto op = builder.create<TupleOp>(loc, elements);
-  auto castOp =
-      builder.create<CastOp>(loc, op.getResult(), builder.getType<TermType>());
-  return castOp.getResult();
+  return op.getResult();
 }
 
 extern "C" MLIRValueRef MLIRConstructMap(MLIRModuleBuilderRef b,
@@ -1553,7 +1636,7 @@ extern "C" MLIRValueRef MLIRConstructMap(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_map(Location loc, ArrayRef<MapEntry> entries) {
-  auto op = builder.create<ConstructMapOp>(loc, entries);
+  auto op = builder.create<MapOp>(loc, entries);
   return op.getResult(0);
 }
 
@@ -1585,13 +1668,37 @@ extern "C" void MLIRBuildBinaryFinish(MLIRModuleBuilderRef b,
 
 void ModuleBuilder::build_binary_finish(Location loc, Block *cont, Value bin) {
   auto op =
-      builder.create<BinaryFinishOp>(loc, builder.getType<TermType>(), bin);
+      builder.create<BinaryFinishOp>(loc, bin);
   auto finished = op.getResult();
+  auto resultTy = finished.getType();
   // If the continuation is not a block but a return, then cont will be null
   if (cont) {
-    builder.create<BranchOp>(loc, cont, ArrayRef<Value>{finished});
+    // If the destination block argument has a type other than box<binary>,
+    // but we're the only predecessor, then update the target block argument
+    auto blockArg = cont->getArgument(0);
+    auto blockArgType = blockArg.getType();
+    if (blockArgType != resultTy) {
+      // If the target block has any predecessors already, then we're not
+      // the only predecessor and so cannot force the block argument type
+      if (cont->hasNoPredecessors()) {
+        // We're good to set the block arg type
+        blockArg.setType(resultTy);
+        builder.create<BranchOp>(loc, cont, ArrayRef<Value>{finished});
+      } else {
+        // We can't force a type, so perform a cast here before branching
+        auto termTy = builder.getType<TermType>();
+        auto cast = builder.create<CastOp>(loc, finished, termTy);
+        builder.create<BranchOp>(loc, cont, ArrayRef<Value>{cast.getResult()});
+      }
+    } else {
+      // The type already matches, so we can simply branch
+      builder.create<BranchOp>(loc, cont, ArrayRef<Value>{finished});
+    }
   } else {
-    builder.create<ReturnOp>(loc, ArrayRef<Value>{finished});
+    // Make sure we cast to term on return
+    auto termTy = builder.getType<TermType>();
+    auto cast = builder.create<CastOp>(loc, finished, termTy);
+    builder.create<ReturnOp>(loc, cast.getResult());
   }
 }
 
@@ -1642,7 +1749,7 @@ void ModuleBuilder::build_binary_push(Location loc, Value bin, Value value,
                        builder.getI8IntegerAttr(spec->payload.i.unit)});
       attrs.push_back({builder.getIdentifier("endianness"),
                        builder.getI8IntegerAttr(spec->payload.i.endianness)});
-      attrs.push_back({builder.getIdentifier("signed"),
+      attrs.push_back({builder.getIdentifier("is_signed"),
                        builder.getBoolAttr(spec->payload.i.isSigned)});
       break;
     case BinarySpecifierType::Float:

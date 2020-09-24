@@ -157,7 +157,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             op.getAttrOfType<IntegerAttr>("endianness")
                 .getValue()
                 .getLimitedValue());
-        isSigned = op.getAttrOfType<BoolAttr>("signed").getValue();
+        isSigned = op.getAttrOfType<BoolAttr>("is_signed").getValue();
         Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
         Value endiannessVal = llvm_constant(i32Ty, ctx.getI32Attr(endianness));
         ArrayRef<Value> args({bin, value, signedVal, endiannessVal});
@@ -179,7 +179,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             op.getAttrOfType<IntegerAttr>("endianness")
                 .getValue()
                 .getLimitedValue());
-        isSigned = op.getAttrOfType<BoolAttr>("signed").getValue();
+        isSigned = op.getAttrOfType<BoolAttr>("is_signed").getValue();
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
         Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
         Value endiannessVal = llvm_constant(i32Ty, ctx.getI32Attr(endianness));
@@ -203,7 +203,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             op.getAttrOfType<IntegerAttr>("endianness")
                 .getValue()
                 .getLimitedValue());
-        isSigned = op.getAttrOfType<BoolAttr>("signed").getValue();
+        isSigned = op.getAttrOfType<BoolAttr>("is_signed").getValue();
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
         Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
         Value endiannessVal = llvm_constant(i32Ty, ctx.getI32Attr(endianness));
@@ -227,7 +227,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             op.getAttrOfType<IntegerAttr>("endianness")
                 .getValue()
                 .getLimitedValue());
-        isSigned = op.getAttrOfType<BoolAttr>("signed").getValue();
+        isSigned = op.getAttrOfType<BoolAttr>("is_signed").getValue();
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
         Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
         Value endiannessVal = llvm_constant(i32Ty, ctx.getI32Attr(endianness));
@@ -289,7 +289,7 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
 
     // Get operands to work with
     auto bin = adaptor.bin();
-    auto opArgs = adaptor.args();
+    auto opArgs = operands;
     auto numOpArgs = opArgs.size();
 
     // Handle optional size parameter, using a none val to represent no size

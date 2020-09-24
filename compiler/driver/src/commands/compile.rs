@@ -122,11 +122,18 @@ pub fn handle_command<'a>(
         if options.project_type.requires_link() {
             diagnostics.note("Linker was explicitly disabled, skipping link");
         } else {
-            debug!("skipping link because project type does not require it");
+            debug!(
+                "skipping link because it was not requested and project type does not require it"
+            );
         }
-        if let Err(err) = linker::link_binary(&options, &diagnostics, &codegen_results) {
-            diagnostics.error(format!("{}", err));
-            return Err(anyhow!("failed to link binary"));
+    } else {
+        if options.project_type.requires_link() {
+            if let Err(err) = linker::link_binary(&options, &diagnostics, &codegen_results) {
+                diagnostics.error(format!("{}", err));
+                return Err(anyhow!("failed to link binary"));
+            }
+        } else {
+            debug!("skipping link because project type does not require it");
         }
     }
 

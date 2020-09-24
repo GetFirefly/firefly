@@ -5,10 +5,8 @@
 
 namespace lumen {
 namespace eir {
-// class ApplyOpConversion;
 class BranchOpConversion;
 class CondBranchOpConversion;
-// class CallIndirectOpConversion;
 class CallOpConversion;
 class InvokeOpConversion;
 class LandingPadOp;

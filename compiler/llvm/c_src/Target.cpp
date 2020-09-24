@@ -170,7 +170,7 @@ extern "C" bool LLVMTargetMachineEmitToFileDescriptor(
 extern "C" bool LLVMTargetMachineEmitToFileDescriptor(
     LLVMTargetMachineRef t, LLVMModuleRef m, int fd,
     LLVMCodeGenFileType codegen, char **errorMessage) {
-  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false);
+  llvm::raw_fd_ostream stream(fd, /*shouldClose=*/false, /*unbuffered=*/false, llvm::raw_ostream::OStreamKind::OK_FDStream);
 #endif
   TargetMachine *tm = unwrap(t);
   llvm::Module *mod = unwrap(m);

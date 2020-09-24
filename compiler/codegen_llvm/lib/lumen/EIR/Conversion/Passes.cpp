@@ -84,11 +84,11 @@ extern "C" MLIRPassManagerRef MLIRCreatePassManager(
   // TODO: Hook driver into instrumentation
   // pm.addInstrumentation(...);
 
-  // Canonicalize generated EIR
-  pm->addNestedPass<::lumen::eir::FuncOp>(mlir::createCanonicalizerPass());
-
   // Convert EIR to LLVM dialect
   pm->addPass(::lumen::eir::createConvertEIRToLLVMPass(targetMachine));
+
+  // Canonicalize 
+  pm->addNestedPass<::mlir::LLVM::LLVMFuncOp>(mlir::createCanonicalizerPass());
 
   // Add optimizations if enabled
   if (optLevel > CodeGenOptLevel::None) {
@@ -98,8 +98,8 @@ extern "C" MLIRPassManagerRef MLIRCreatePassManager(
     }
 
     // Canonicalize generated LLVM dialect, and perform optimizations
-    OpPassManager &optPM = pm->nest<::mlir::LLVM::LLVMFuncOp>();
-    optPM.addPass(mlir::createCanonicalizerPass());
+    //OpPassManager &optPM = pm->nest<::mlir::LLVM::LLVMFuncOp>();
+    //optPM.addPass(mlir::createCanonicalizerPass());
     // Sparse conditional constant propagation
     // optPM.addPass(mlir::createSCCPPass());
     // Common sub-expression elimination

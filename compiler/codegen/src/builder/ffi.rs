@@ -11,6 +11,12 @@ use crate::builder::function::Param;
 #[foreign_struct]
 pub struct ModuleBuilder;
 
+#[repr(C)]
+pub struct ModuleBuilderResult {
+    pub module: ModuleRef,
+    pub success: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct SourceLocation {
@@ -255,7 +261,7 @@ extern "C" {
     #[allow(unused)]
     pub fn MLIRDumpModule(builder: ModuleBuilderRef);
 
-    pub fn MLIRFinalizeModuleBuilder(builder: ModuleBuilderRef) -> ModuleRef;
+    pub fn MLIRFinalizeModuleBuilder(builder: ModuleBuilderRef) -> ModuleBuilderResult;
 
     //---------------
     // Locations

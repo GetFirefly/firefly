@@ -18,6 +18,6 @@ test(Shift) ->
   Integer = 1,
   LeftShifted = Integer bsl Shift,
   NegativeShift = -1 * Shift,
-  RightShifted = Integer bsl NegativeShift,
+  RightShifted = Integer bsr NegativeShift,
   display(LeftShifted == RightShifted).
 

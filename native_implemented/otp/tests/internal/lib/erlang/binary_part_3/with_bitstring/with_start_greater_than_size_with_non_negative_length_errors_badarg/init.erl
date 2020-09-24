@@ -3,10 +3,8 @@
 -import(erlang, [display/1]).
 
 start() ->
-  Binary = <<>>,
   Length = 0,
-  Start = byte_size(Binary) + 1,
-  display(Start > byte_size(Binary)),
+  Start = 1,
   test:caught(fun () ->
-    binary_part(Binary, Start, Length)
+    binary_part(<<>>, Start, Length)
   end).

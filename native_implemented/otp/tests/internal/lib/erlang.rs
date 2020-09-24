@@ -38,6 +38,8 @@ pub mod bnot_1;
 pub mod bor_2;
 #[path = "erlang/bsl_2.rs"]
 pub mod bsl_2;
+#[path = "erlang/bsr_2.rs"]
+pub mod bsr_2;
 #[path = "erlang/cancel_timer_1.rs"]
 pub mod cancel_timer_1;
 #[path = "erlang/ceil_1.rs"]

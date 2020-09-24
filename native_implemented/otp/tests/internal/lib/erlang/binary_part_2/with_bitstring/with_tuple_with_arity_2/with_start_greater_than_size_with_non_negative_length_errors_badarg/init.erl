@@ -5,7 +5,7 @@
 start() ->
   Binary = <<>>,
   Length = 0,
-  Start = byte_size(Binary) + 1,
+  Start = 1,
   display(Start > byte_size(Binary)),
   StartLength = {Start, Length},
   test:caught(fun () ->

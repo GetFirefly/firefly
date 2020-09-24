@@ -21,7 +21,7 @@ test_stdout!(
 );
 test_stdout!(
     with_start_less_than_size_with_negative_length_past_start_errors_badarg,
-    "true\ntrue\n{caught, error, badarg}\n"
+    "{caught, error, badarg}\n"
 );
 test_stdout!(
     with_start_less_than_size_with_positive_length_past_end_errors_badarg,

@@ -80,14 +80,13 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
 
     mlir::CallOp pushOp;
     switch (pushType) {
-      case BinarySpecifierType::Bytes:
-      case BinarySpecifierType::Bits: {
+      case BinarySpecifierType::Bytes: {
         unit = static_cast<unsigned>(
-            op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
+                  op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
         if (sizeOpt != nullptr) {
-          StringRef symbolName("__lumen_builtin_binary_push_binary");
-          // __lumen_builtin_binary_push_binary(bin, value, size, unit)
+          StringRef symbolName("__lumen_builtin_binary_push_byte_size_unit");
+          // __lumen_builtin_binary_push_byte_size_unit(bin, value, size, unit)
           auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
                                                 {termTy, termTy, termTy, i8Ty});
           auto calleeSymbol =
@@ -96,8 +95,35 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
           pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
                                                  pushTy, args);
         } else {
-          StringRef symbolName("__lumen_builtin_binary_push_binary_all");
-          // __lumen_builtin_binary_push_binary_all(bin, value, unit)
+          StringRef symbolName("__lumen_builtin_binary_push_byte_unit");
+          // __lumen_builtin_binary_push_byte_unit(bin, value, unit)
+          auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
+                                                {termTy, termTy, i8Ty});
+          auto calleeSymbol =
+              FlatSymbolRefAttr::get(symbolName, callee->getContext());
+          ArrayRef<Value> args({bin, value, unitVal});
+          pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                                 pushTy, args);
+        }
+        break;
+      }
+      case BinarySpecifierType::Bits: {
+        unit = static_cast<unsigned>(
+            op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
+        Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
+        if (sizeOpt != nullptr) {
+          StringRef symbolName("__lumen_builtin_binary_push_bits_size_unit");
+          // __lumen_builtin_binary_push_bits_size_unit(bin, value, size, unit)
+          auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
+                                                {termTy, termTy, termTy, i8Ty});
+          auto calleeSymbol =
+              FlatSymbolRefAttr::get(symbolName, callee->getContext());
+          ArrayRef<Value> args({bin, value, size, unitVal});
+          pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                                 pushTy, args);
+        } else {
+          StringRef symbolName("__lumen_builtin_binary_bits_push_unit");
+          // __lumen_builtin_binary_bits_push_unit(bin, value, unit)
           auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
                                                 {termTy, termTy, i8Ty});
           auto calleeSymbol =

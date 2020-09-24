@@ -396,51 +396,45 @@ pub extern "C" fn builtin_binary_push_utf32(
     }
 }
 
-#[export_name = "__lumen_builtin_binary_push_binary"]
-pub extern "C" fn builtin_binary_push_binary(
+#[export_name = "__lumen_builtin_binary_push_byte_size_unit"]
+pub extern "C" fn builtin_binary_push_byte_size_unit(
+    _builder: &mut BinaryBuilder,
+    _value: Term,
+    _size: Term,
+    _unit: u8,
+) -> BinaryPushResult {
+    unimplemented!()
+}
+
+#[export_name = "__lumen_builtin_binary_push_byte_unit"]
+pub extern "C" fn builtin_binary_push_byte_unit(
     builder: &mut BinaryBuilder,
     value: Term,
-    size: Term,
     unit: u8,
 ) -> BinaryPushResult {
-    let flags = BinaryPushFlags::default();
-    let bit_size = calculate_bit_size(size, unit, flags).unwrap();
-    let result = match value.decode().unwrap() {
-        TypedTerm::HeapBinary(bin) => builder.push_binary(bin, None, bit_size),
-        TypedTerm::ProcBin(bin) => builder.push_binary(bin, None, bit_size),
-        TypedTerm::BinaryLiteral(bin) => builder.push_binary(bin, None, bit_size),
-        TypedTerm::SubBinary(bin) => {
-            builder.push_binary(bin, Some(bin.bit_offset() as usize), bit_size)
-        }
-        TypedTerm::MatchContext(bin) => builder.push_binary(bin, None, bit_size),
-        _ => Err(()),
-    };
     BinaryPushResult {
         builder,
-        success: result.is_ok(),
+        success: builder.push_byte_unit(value, unit).is_ok(),
     }
 }
 
-#[export_name = "__lumen_builtin_binary_push_binary_all"]
-pub extern "C" fn builtin_binary_push_binary_all(
-    builder: &mut BinaryBuilder,
-    value: Term,
-    unit: u8,
+#[export_name = "__lumen_builtin_binary_push_bits_size_unit"]
+pub extern "C" fn builtin_binary_push_bits_size_unit(
+    _builder: &mut BinaryBuilder,
+    _value: Term,
+    _size: Term,
+    _unit: u8,
 ) -> BinaryPushResult {
-    let result = match value.decode().unwrap() {
-        TypedTerm::HeapBinary(bin) => builder.push_binary_all(bin, None, unit),
-        TypedTerm::ProcBin(bin) => builder.push_binary_all(bin, None, unit),
-        TypedTerm::BinaryLiteral(bin) => builder.push_binary_all(bin, None, unit),
-        TypedTerm::SubBinary(bin) => {
-            builder.push_binary_all(bin, Some(bin.bit_offset() as usize), unit)
-        }
-        TypedTerm::MatchContext(bin) => builder.push_binary_all(bin, None, unit),
-        _ => Err(()),
-    };
-    BinaryPushResult {
-        builder,
-        success: result.is_ok(),
-    }
+    unimplemented!();
+}
+
+#[export_name = "__lumen_builtin_binary_push_bits_unit"]
+pub extern "C" fn builtin_binary_push_bits_unit(
+    _builder: &mut BinaryBuilder,
+    _value: Term,
+    _unit: u8,
+) -> BinaryPushResult {
+    unimplemented!();
 }
 
 #[export_name = "__lumen_builtin_binary_push_string"]
@@ -516,5 +510,5 @@ pub extern "C" fn builtin_binary_match_utf32(
     _endianness: Endianness,
     _size: Term,
 ) -> BinaryMatchResult {
-    unimplemented!()
+    unimplemented!();
 }

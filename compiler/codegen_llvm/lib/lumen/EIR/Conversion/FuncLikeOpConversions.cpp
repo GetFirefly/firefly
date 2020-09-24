@@ -88,13 +88,13 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
 
     auto loc = op.getLoc();
 
-    assert(op.isAnonymous() && "expected anonymous closures only");
-
+    auto envLen = op.envLen();
     unsigned arity = op.arity();
     unsigned index = op.index();
     unsigned oldUnique = op.oldUnique();
     StringRef unique = op.unique();
     FlatSymbolRefAttr callee = op.calleeAttr();
+    bool isAnonymous = op.isAnonymous();
 
     LLVMType termTy = ctx.getUsizeType();
     LLVMType termPtrTy = termTy.getPointerTo();
@@ -107,7 +107,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     // Look for the callee, if it doesn't exist, create a default declaration
     SmallVector<LLVMType, 2> argTypes;
     // If we have an environment, the first argument is a closure
-    if (op.envLen() > 0) {
+    if (envLen > 0) {
       argTypes.push_back(termPtrTy);
       unsigned withEnvArity = arity > 0 ? arity - 1 : 0;
       for (auto i = 0; i < withEnvArity; i++) {
@@ -132,7 +132,6 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
       targetType = tt.cast<LLVM::LLVMType>();
     }
 
-    auto envLen = op.envLen();
     LLVMType opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
     LLVMType closureTy = ctx.targetInfo.makeClosureType(envLen);
     LLVMType uniqueTy = ctx.targetInfo.getClosureUniqueType();
@@ -140,8 +139,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     LLVMType defTy = ctx.targetInfo.getClosureDefinitionType();
 
     // Allocate closure header block
-    auto boxedClosureTy = BoxType::get(rewriter.getType<ClosureType>());
-    auto closurePtrTy = PtrType::get(rewriter.getType<ClosureType>());
+    auto boxedClosureTy = BoxType::get(rewriter.getType<ClosureType>(envLen));
+    auto closurePtrTy = PtrType::get(rewriter.getType<ClosureType>(envLen));
     auto headerArity = ctx.targetInfo.closureHeaderArity(envLen);
     Value headerArityConst =
         llvm_constant(termTy, ctx.getIntegerAttr(headerArity));
@@ -158,81 +157,84 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         ctx.targetInfo.encodeHeader(TypeKind::Closure, headerArity);
     Value header = llvm_constant(
         termTy, ctx.getIntegerAttr(closureHeader.getLimitedValue()));
-    Value headerIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
-    ArrayRef<Value> headerIndices({zero, headerIdx});
-    Value headerPtrGep = llvm_gep(termPtrTy, valRef, headerIndices);
+    Value headerPtrGep = llvm_gep(termPtrTy, valRef, ValueRange{zero, zero});
     llvm_store(header, headerPtrGep);
 
     // Module atom
     Value mod = llvm_constant(
         termTy, ctx.getIntegerAttr(op.module().getValue().getLimitedValue()));
     Value modIdx = llvm_constant(i32Ty, ctx.getI32Attr(1));
-    ArrayRef<Value> modIndices({zero, modIdx});
-    Value modPtrGep = llvm_gep(termPtrTy, valRef, modIndices);
+    Value modPtrGep = llvm_gep(termPtrTy, valRef, ValueRange{zero, modIdx});
     llvm_store(mod, modPtrGep);
 
     // Arity
     // arity: u32,
-    Value arityIdx = llvm_constant(i32Ty, ctx.getI32Attr(2));
-    ArrayRef<Value> arityIndices({zero, arityIdx});
-    Value arityPtrGep = llvm_gep(i32PtrTy, valRef, arityIndices);
     Value arityConst = llvm_constant(i32Ty, ctx.getIntegerAttr(arity));
+    Value arityIdx = llvm_constant(i32Ty, ctx.getI32Attr(2));
+    Value arityPtrGep = llvm_gep(i32PtrTy, valRef, ValueRange{zero, arityIdx});
     llvm_store(arityConst, arityPtrGep);
 
     // Definition
     Value defIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
+    if (isAnonymous) {
+      // Definition - tag
+      Value anonTypeConst = llvm_constant(i32Ty, ctx.getI32Attr(1));
+      Value defTagIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
+      Value defTagPtrGep = llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defTagIdx});
+      llvm_store(anonTypeConst, defTagPtrGep);
 
-    // Definition - type
-    Value defTypeIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
-    ArrayRef<Value> defTypeIndices({zero, defIdx, defTypeIdx});
-    Value definitionTypePtrGep = llvm_gep(i32PtrTy, valRef, defTypeIndices);
-    Value anonTypeConst = llvm_constant(i32Ty, ctx.getI32Attr(1));
-    llvm_store(anonTypeConst, definitionTypePtrGep);
+      // Definition - index
+      Value indexConst = llvm_constant(termTy, ctx.getIntegerAttr(index));
+      Value defIndexIdx = llvm_constant(i32Ty, ctx.getI32Attr(1));
+      Value definitionIndexGep = llvm_gep(termPtrTy, valRef, ValueRange{zero, defIdx, defIndexIdx});
+      llvm_store(indexConst, definitionIndexGep);
 
-    // Definition - index
-    Value defIndexIdx = llvm_constant(i32Ty, ctx.getI32Attr(1));
-    ArrayRef<Value> defIndexIndices({zero, defIdx, defIndexIdx});
-    Value definitionIndexGep = llvm_gep(termPtrTy, valRef, defIndexIndices);
-    Value indexConst = llvm_constant(termTy, ctx.getIntegerAttr(index));
-    llvm_store(indexConst, definitionIndexGep);
+      // Definition - unique
+      Value uniqueConst = llvm_constant(uniqueTy, ctx.getStringAttr(unique));
+      Value defUniqIdx = llvm_constant(i32Ty, ctx.getI32Attr(2));
+      Value defUniqGep = llvm_gep(uniquePtrTy, valRef, ValueRange{zero, defIdx, defUniqIdx});
+      llvm_store(uniqueConst, defUniqGep);
 
-    // Definition - unique
-    Value defUniqueIdx = llvm_constant(i32Ty, ctx.getI32Attr(2));
-    ArrayRef<Value> defUniqueIndices({zero, defIdx, defUniqueIdx});
-    Value definitionUniqueGep = llvm_gep(uniquePtrTy, valRef, defUniqueIndices);
-    Value uniqueConst = llvm_constant(uniqueTy, ctx.getStringAttr(unique));
-    llvm_store(uniqueConst, definitionUniqueGep);
-
-    // Definition - old_unique
-    Value defOldUniqueIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
-    ArrayRef<Value> defOldUniqueIndices({zero, defIdx, defOldUniqueIdx});
-    Value definitionOldUniqueGep =
-        llvm_gep(i32PtrTy, valRef, defOldUniqueIndices);
-    Value oldUniqueConst = llvm_constant(i32Ty, ctx.getI32Attr(oldUnique));
-    llvm_store(oldUniqueConst, definitionOldUniqueGep);
+      // Definition - old_unique
+      Value oldUniqueConst = llvm_constant(i32Ty, ctx.getI32Attr(oldUnique));
+      Value defOldUniqIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
+      Value defOldUniqGep =
+        llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defOldUniqIdx});
+      llvm_store(oldUniqueConst, defOldUniqGep);
+    } else {
+      // Definition - tag
+      Value exportTypeConst = llvm_constant(i32Ty, ctx.getI32Attr(0));
+      Value defTagIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
+      Value defTagPtrGep = llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defTagIdx});
+      llvm_store(exportTypeConst, defTagPtrGep);
+    }
 
     // Code
     // code: Option<*const ()>,
-    Value codeIdx = llvm_constant(i32Ty, ctx.getI32Attr(4));
-    ArrayRef<Value> codeIndices({zero, codeIdx});
-    LLVMType opaqueFnPtrTy = opaqueFnTy.getPointerTo();
-    Value codePtrGep =
-        llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef, codeIndices);
     Value codePtr =
         llvm_addressof(targetType.getPointerTo(), callee.getValue());
+    Value codeIdx = llvm_constant(i32Ty, ctx.getI32Attr(4));
+    LLVMType opaqueFnPtrTy = opaqueFnTy.getPointerTo();
+    Value codePtrGep =
+      llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef, ValueRange{zero, codeIdx});
     llvm_store(llvm_bitcast(opaqueFnPtrTy, codePtr), codePtrGep);
 
-    auto opOperands = adaptor.operands();
-    if (opOperands.size() > 0) {
-      Value envIdx = llvm_constant(i32Ty, ctx.getI32Attr(CLOSURE_ENV_INDEX));
-      // Env
-      // env: [Term],
-      unsigned opIndex = 0;
-      for (auto operand : opOperands) {
-        Value opIdx = llvm_constant(i32Ty, ctx.getI32Attr(opIndex));
-        ArrayRef<Value> opIndices({zero, envIdx, opIdx});
-        Value opPtrGep = llvm_gep(termPtrTy, valRef, opIndices);
-        llvm_store(operand, opPtrGep);
+    // Env
+    // env: [Term],
+    if (isAnonymous) {
+      auto opOperands = adaptor.operands();
+      if (opOperands.size() > envLen)
+        return op.emitOpError("mismatched closure env signature, expected ") << envLen << ", got " << opOperands.size();
+
+      if (opOperands.size() > 0) {
+        Value envIdx = llvm_constant(i32Ty, ctx.getI32Attr(CLOSURE_ENV_INDEX));
+
+        for (auto it : llvm::enumerate(opOperands)) {
+          Value operand = it.value();
+          Value opIdx = llvm_constant(i32Ty, ctx.getI32Attr(it.index()));
+          Value opPtrGep = llvm_gep(termPtrTy, valRef, ValueRange{zero, envIdx, opIdx});
+          llvm_store(operand, opPtrGep);
+        }
       }
     }
 
@@ -257,11 +259,10 @@ struct UnpackEnvOpConversion : public EIROpConversion<UnpackEnvOp> {
     Value env = adaptor.env();
 
     Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
-    Value fieldIndex = llvm_constant(i32Ty, ctx.getI32Attr(CLOSURE_ENV_INDEX));
-    Value envIndex = llvm_constant(i32Ty, ctx.getI32Attr(op.envIndex()));
+    Value fieldIdx = llvm_constant(i32Ty, ctx.getI32Attr(CLOSURE_ENV_INDEX));
+    Value envIdx = llvm_constant(i32Ty, ctx.getI32Attr(op.envIndex()));
 
-    ArrayRef<Value> indices({zero, fieldIndex, envIndex});
-    Value ptr = llvm_gep(termPtrTy, env, indices);
+    Value ptr = llvm_gep(termPtrTy, env, ValueRange{zero, fieldIdx, envIdx});
     Value unpacked = llvm_load(ptr);
 
     rewriter.replaceOp(op, unpacked);

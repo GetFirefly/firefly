@@ -14,6 +14,7 @@ using ::llvm::SmallVector;
 using ::llvm::SmallVectorImpl;
 using ::llvm::StringRef;
 using ::mlir::MLIRContext;
+using ::mlir::TypeRange;
 
 typedef struct OpaqueModuleBuilder *MLIRModuleBuilderRef;
 
@@ -30,7 +31,7 @@ class ModuleBuilder {
 
   void dump();
 
-  mlir::ModuleOp finish();
+  LowerResult finish();
 
   //===----------------------------------------------------------------------===//
   // Functions
@@ -148,8 +149,8 @@ class ModuleBuilder {
 
   mlir::MLIRContext *getContext() { return builder.getContext(); }
 
-  FuncOp getOrDeclareFunction(StringRef symbol, Type resultTy, bool isVarArg,
-                              ArrayRef<Type> argTypes = {});
+  FuncOp getOrDeclareFunction(StringRef symbol, Type resultTy, TypeRange argTypes,
+                              bool isVarArg = false);
 
   Location getLocation(SourceLocation sloc);
   Location getFusedLocation(ArrayRef<Location> locs);

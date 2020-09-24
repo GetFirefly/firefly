@@ -36,11 +36,16 @@ using ::mlir::LogicalResult;
 using ::mlir::PatternRewriter;
 using ::mlir::success;
 using ::mlir::SymbolTable;
+using ::mlir::UnitAttr;
 using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ScopedContext;
 using ::mlir::edsc::ValueBuilder;
 using ::mlir::LLVM::LLVMType;
 using ::mlir::LLVM::LLVMIntegerType;
+using ::mlir::LLVM::LLVMStructType;
+using ::mlir::LLVM::LLVMArrayType;
+using ::mlir::CallInterfaceCallable;
+using ::mlir::CallableOpInterface;
 
 namespace LLVM = ::mlir::LLVM;
 
@@ -85,7 +90,7 @@ using eir_malloc = ValueBuilder<::lumen::eir::MallocOp>;
 using eir_cons = ValueBuilder<::lumen::eir::ConsOp>;
 using eir_list = ValueBuilder<::lumen::eir::ListOp>;
 using eir_tuple = ValueBuilder<::lumen::eir::TupleOp>;
-using eir_map = OperationBuilder<::lumen::eir::ConstructMapOp>;
+using eir_map = OperationBuilder<::lumen::eir::MapOp>;
 using eir_nil = ValueBuilder<::lumen::eir::ConstantNilOp>;
 using eir_none = ValueBuilder<::lumen::eir::ConstantNoneOp>;
 using eir_constant_float = ValueBuilder<::lumen::eir::ConstantFloatOp>;
@@ -128,6 +133,8 @@ struct EirTypeConverter : public mlir::TypeConverter {
   Optional<Type> coalesceOperandTypes(Type lhs, Type rhs);
 
   Type packFunctionResults(TargetInfo &targetInfo, ArrayRef<Type> types);
+
+  Optional<Type> deferTypeConversion(Type type) { return typeConverter.convertType(type); }
 
  private:
   unsigned pointerSizeInBits;

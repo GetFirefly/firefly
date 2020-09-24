@@ -101,7 +101,7 @@ where
         .get(module.span().start().source_id())
         .map(|s| s.clone())
         .expect("expected input to have corresponding entry in code map");
-    let built = db.to_query_result(build(
+    let build_result = db.to_query_result(build(
         &module,
         source_file,
         &context,
@@ -109,18 +109,21 @@ where
         target_machine.deref(),
     ))?;
 
-    if !built.module.is_valid() {
-        db.maybe_emit_file_with_opts(&options, input, &built.module)?;
-        db.to_query_result(Err(anyhow!(
-            "module verification failed for {}",
-            module.name()
-        )))?;
+    match build_result {
+        Err(ref mlir_module) => {
+            db.maybe_emit_file_with_opts(&options, input, mlir_module)?;
+            db.to_query_result(Err(anyhow!(
+                "compilation of {} failed while preparing for codegen",
+                module.name()
+            )))
+        }
+        Ok(generated_module) => {
+            db.add_atoms(generated_module.atoms.iter());
+            db.add_symbols(generated_module.symbols.iter());
+            db.maybe_emit_file_with_opts(&options, input, &generated_module.module)?;
+            Ok(Arc::new(generated_module.module))
+        }
     }
-
-    db.add_atoms(built.atoms.iter());
-    db.add_symbols(built.symbols.iter());
-    db.maybe_emit_file_with_opts(&options, input, &built.module)?;
-    Ok(Arc::new(built.module))
 }
 
 /// Either load MLIR input directly, or lower EIR to MLIR, depending on type of input

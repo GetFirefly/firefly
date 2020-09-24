@@ -17,4 +17,11 @@ DEFINE_STDCXX_CONVERSION_FUNCTIONS(mlir::MLIRContext, MLIRContextRef);
 DEFINE_STDCXX_CONVERSION_FUNCTIONS(mlir::ModuleOp, MLIRModuleRef);
 DEFINE_STDCXX_CONVERSION_FUNCTIONS(mlir::PassManager, MLIRPassManagerRef);
 
+extern "C" {
+  struct LowerResult {
+    void *module;
+    bool success;
+  };
+}
+
 #endif

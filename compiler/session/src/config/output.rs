@@ -229,7 +229,10 @@ pub struct OutputTypes(BTreeMap<OutputType, Option<fs::Pattern>>);
 
 impl Default for OutputTypes {
     fn default() -> Self {
-        Self(BTreeMap::new())
+        let mut map = BTreeMap::new();
+        map.insert(OutputType::Object, None);
+        map.insert(OutputType::Link, None);
+        Self(map)
     }
 }
 impl OutputTypes {

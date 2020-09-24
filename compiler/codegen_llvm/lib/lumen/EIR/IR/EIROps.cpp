@@ -37,6 +37,22 @@ using ::mlir::OpOperand;
 namespace lumen {
 namespace eir {
 
+struct cast_binder {
+  Value *bind_value;
+
+  cast_binder(Value *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    if (auto castOp = dyn_cast_or_null<CastOp>(op)) {
+      Value source = castOp.input();
+      *bind_value = source;
+      return true;
+    }
+
+    return false;
+  }
+};
+
 /// Matches a ConstantIntOp
 
 /// The matcher that matches a constant numeric operation and binds the constant
@@ -171,6 +187,10 @@ struct constant_atom_op_binder {
   }
 };
 
+inline cast_binder m_Cast(Value *bind_value) {
+  return cast_binder(bind_value);
+}
+
 inline constant_apint_op_binder m_ConstInt(APIntAttr::ValueType *bind_value) {
   return constant_apint_op_binder(bind_value);
 }
@@ -188,6 +208,28 @@ inline constant_bool_op_binder m_ConstBool(
 inline constant_atom_op_binder m_ConstAtom(
     AtomAttr::ValueType *bind_value) {
   return constant_atom_op_binder(bind_value);
+}
+
+static Value castToTermEquivalent(OpBuilder &builder, Value input) {
+  Type inputType = input.getType();
+  if (inputType.isa<OpaqueTermType>())
+    return input;
+
+  Type targetType;
+  if (auto ptrTy = inputType.dyn_cast_or_null<PtrType>()) {
+    Type innerTy = ptrTy.getInnerType();
+    if (innerTy.isa<OpaqueTermType>())
+      targetType = builder.getType<BoxType>(innerTy.cast<OpaqueTermType>());
+    else
+      targetType = builder.getType<TermType>();
+  } else if (auto refTy = inputType.dyn_cast_or_null<RefType>()) {
+    targetType = builder.getType<BoxType>(refTy.getInnerType());
+  } else {
+    targetType = builder.getType<TermType>();
+  }
+
+  auto castOp = builder.create<CastOp>(input.getLoc(), input, targetType);
+  return castOp.getResult();
 }
 
 
@@ -261,38 +303,7 @@ LogicalResult FuncOp::verifyType() {
 Region *FuncOp::getCallableRegion() { return &body(); }
 
 ArrayRef<Type> FuncOp::getCallableResults() {
-  assert(!isExternal() && "invalid callable");
   return getType().getResults();
-}
-
-//===----------------------------------------------------------------------===//
-// eir.call_indirect
-//===----------------------------------------------------------------------===//
-namespace {
-/// Fold indirect calls that have a constant function as the callee operand.
-struct SimplifyIndirectCallWithKnownCallee
-    : public OpRewritePattern<CallIndirectOp> {
-  using OpRewritePattern<CallIndirectOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(CallIndirectOp indirectCall,
-                                PatternRewriter &rewriter) const override {
-    // Check that the callee is a constant callee.
-    FlatSymbolRefAttr calledFn;
-    if (!matchPattern(indirectCall.getCallee(), ::mlir::m_Constant(&calledFn)))
-      return failure();
-
-    // Replace with a direct call.
-    rewriter.replaceOpWithNewOp<CallOp>(indirectCall, calledFn,
-                                        indirectCall.getResultTypes(),
-                                        indirectCall.getArgOperands());
-    return success();
-  }
-};
-}  // end anonymous namespace.
-
-void CallIndirectOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<SimplifyIndirectCallWithKnownCallee>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -343,7 +354,130 @@ static LogicalResult collapseBranch(Block *&successor,
   return success();
 }
 
+void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op, BranchOpInterface branchInterface) {
+  for (auto sit : llvm::enumerate(op->getSuccessors())) {
+    Optional<MutableOperandRange> maybeOperands = branchInterface.getMutableSuccessorOperands(sit.index());
+    if (!maybeOperands.hasValue())
+      continue;
+
+    MutableOperandRange mutableOperands = maybeOperands.getValue();
+    OperandRange operands(mutableOperands);
+    Block *successor = sit.value();
+
+    // If there is a mismatch like this we have to ignore this op, its invalid
+    if (successor->getNumArguments() != operands.size())
+      return;
+
+    // If we're the only predecessor, then we can set the type of
+    // all block arguments based on the values given as successor operands
+    if (successor->getSinglePredecessor()) {
+      for (auto it : llvm::enumerate(operands)) {
+        Value operand = it.value();
+        Type operandType = operand.getType();
+        BlockArgument blockArg = successor->getArgument(it.index());
+        Type blockArgType = blockArg.getType();
+
+        if (operandType == blockArgType)
+          continue;
+
+        blockArg.setType(operandType);
+      }
+      continue;
+    }
+
+    // Gather all of the operand types for every path which reaches this successor
+    SmallVector<TypeRange, 4> successorOperandTypes;
+
+    if (successor->getUniquePredecessor()) {
+      // We're the only predecessor, but this branch references the
+      // successor multiple times, so we have to confirm for each operand
+      // whether the type can be set, or whether a cast is needed, for
+      // each reference
+      for (auto it : llvm::enumerate(op->getSuccessors())) {
+        Block *succ = it.value();
+
+        if (succ != successor) {
+          continue;
+        }
+
+        Optional<OperandRange> maybeSuccOperands = branchInterface.getSuccessorOperands(it.index());
+        auto succOperands = maybeSuccOperands.getValue();
+        successorOperandTypes.push_back(TypeRange(succOperands.getTypes()));
+      }
+    } else {
+      // There are many predecessors, so we need to perform the same
+      // check as above, but across all predecessors, not just the
+      // current block
+      for (auto pred : successor->getPredecessors()) {
+        // Get the terminator, which will always implement BranchOpInterface here
+        auto terminator = pred->getTerminator();
+        BranchOpInterface termInterface = dyn_cast<BranchOpInterface>(terminator);
+        assert(termInterface && "expected predecessor to be terminated with a branch-like operation");
+
+        for (auto sit2 : llvm::enumerate(terminator->getSuccessors())) {
+          Block *succ = sit2.value();
+          if (succ != successor)
+            continue;
+          Optional<OperandRange> maybeSuccOperands = termInterface.getSuccessorOperands(sit2.index());
+          auto succOperands = maybeSuccOperands.getValue();
+          successorOperandTypes.push_back(TypeRange(succOperands.getTypes()));
+        }
+      }
+    }
+
+    // For each block argument in this successor, if all of the operands that
+    // flow to this argument have the same type, then set the block argument type
+    // to the common type; otherwise, insert a cast at this location if the type does
+    // not match
+    for (BlockArgument blockArg : successor->getArguments()) {
+      auto argIndex = blockArg.getArgNumber();
+      Type baseType = successorOperandTypes.front()[argIndex];
+
+      if (std::all_of(successorOperandTypes.begin(), successorOperandTypes.end(),
+                      [&](TypeRange operandTypes) { return operandTypes[argIndex] == baseType; })) {
+        blockArg.setType(baseType);
+        continue;
+      }
+
+      // If we reach here, a cast is required on any path which does not
+      // have a type that matches the block argument type. So for each
+      // path that reaches this successor, make sure a cast is inserted
+      // if needed
+      //
+      // NOTE: I imagine there is a clever way to do this such that we can
+      // handle cases where there are differing types, but ones that are castable
+      // to one another, allowing us to keep as much type info as possible, rather
+      // than pessimizing. This doesn't technically pessimize so much as use whatever
+      // type is on the block argument, but since that will almost always be TermType,
+      // that is effectively what all the preds will be cast to.
+      for (auto oit = operands.begin(), oe = operands.end(); oit != oe; ++oit) {
+        Value operand = *oit;
+        Type operandType = operand.getType();
+
+        if (operandType == baseType)
+          continue;
+
+        builder.setInsertionPoint(op);
+        auto castOp = builder.create<CastOp>(operand.getLoc(), operand, baseType);
+        mutableOperands.slice(argIndex, 1).assign(castOp.getResult());
+      }
+    }
+  }
+}
+
 namespace {
+template <typename OpType>
+struct PropagateTypesThroughBr : public OpRewritePattern<OpType> {
+  using OpRewritePattern<OpType>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpType op,
+                                PatternRewriter &rewriter) const override {
+    Operation *operation = op.getOperation();
+    canonicalizeBranchOpInterface(rewriter, operation, cast<BranchOpInterface>(operation));
+    return success();
+  }
+};
+
 /// Simplify a branch to a block that has a single predecessor. This effectively
 /// merges the two blocks.
 struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
@@ -395,7 +529,8 @@ struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
   results.insert<SimplifyBrToBlockWithSinglePred,
-                 SimplifyPassThroughBr>(context);
+                 SimplifyPassThroughBr,
+                 PropagateTypesThroughBr<BranchOp>>(context);
 }
 
 Optional<MutableOperandRange> BranchOp::getMutableSuccessorOperands(
@@ -419,7 +554,21 @@ struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
 
   LogicalResult matchAndRewrite(CondBranchOp condbr,
                                 PatternRewriter &rewriter) const override {
-    if (matchPattern(condbr.getCondition(), mlir::m_NonZero())) {
+    // First test for constant !eir.bool values, followed by i1
+    bool selector = false;
+    if (matchPattern(condbr.getCondition(), m_ConstBool(&selector))) {
+      if (selector) {
+        // True branch taken
+        rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
+                                              condbr.getTrueOperands());
+        return success();
+      } else {
+        // False branch taken
+        rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
+                                              condbr.getTrueOperands());
+        return success();
+      }
+    } else if (matchPattern(condbr.getCondition(), mlir::m_NonZero())) {
       // True branch taken.
       rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
                                             condbr.getTrueOperands());
@@ -610,9 +759,11 @@ struct SimplifyCondBranchToUnreachable : public OpRewritePattern<CondBranchOp> {
 
 void CondBranchOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<SimplifyConstCondBranchPred, SimplifyPassThroughCondBranch,
+  results.insert<SimplifyConstCondBranchPred,
+                 SimplifyPassThroughCondBranch,
                  SimplifyCondBranchIdenticalSuccessors,
-                 SimplifyCondBranchToUnreachable>(context);
+                 SimplifyCondBranchToUnreachable,
+                 PropagateTypesThroughBr<CondBranchOp>>(context);
 }
 
 Optional<MutableOperandRange> CondBranchOp::getMutableSuccessorOperands(
@@ -626,6 +777,112 @@ Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
   if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
     return condAttr.getValue().isOneValue() ? trueDest() : falseDest();
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// eir.call
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeCall : public OpRewritePattern<CallOp> {
+  using OpRewritePattern<CallOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CallOp op,
+                                PatternRewriter &rewriter) const override {
+
+
+    auto operandsMut = op.operandsMutable();
+    if (operandsMut.size() == 0)
+      return success();
+    
+    OperandRange operands(operandsMut);
+    auto index = operands.getBeginOperandIndex();
+    for (auto operand : op.operands()) {
+      Value o = castToTermEquivalent(rewriter, operand);
+      if (o != operand) {
+        operandsMut.slice(index, 1).assign(o);
+      }
+      index++;
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void CallOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<CanonicalizeCall>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.invoke
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeInvoke : public OpRewritePattern<InvokeOp> {
+  using OpRewritePattern<InvokeOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(InvokeOp op,
+                                PatternRewriter &rewriter) const override {
+
+
+    auto operandsMut = op.operandsMutable();
+    if (operandsMut.size() == 0)
+      return success();
+    
+    OperandRange operands(operandsMut);
+    auto index = operands.getBeginOperandIndex();
+    for (auto operand : op.operands()) {
+      Value o = castToTermEquivalent(rewriter, operand);
+      if (o != operand) {
+        operandsMut.slice(index, 1).assign(o);
+      }
+      index++;
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void InvokeOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<CanonicalizeInvoke>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.throw
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeThrow : public OpRewritePattern<ThrowOp> {
+  using OpRewritePattern<ThrowOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ThrowOp op,
+                                PatternRewriter &rewriter) const override {
+    Value kind = op.kind();
+    Value k = castToTermEquivalent(rewriter, kind);
+    if (k != kind) {
+      auto kindOperand = op.kindMutable();
+      kindOperand.assign(k);
+    }
+
+    Value reason = op.kind();
+    Value r = castToTermEquivalent(rewriter, reason);
+    if (r != reason) {
+      auto reasonOperand = op.reasonMutable();
+      reasonOperand.assign(r);
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void ThrowOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<CanonicalizeThrow>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -652,6 +909,42 @@ static LogicalResult verify(ReturnOp op) {
   return success();
 }
 
+namespace {
+struct CanonicalizeReturn : public OpRewritePattern<ReturnOp> {
+  using OpRewritePattern<ReturnOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ReturnOp op,
+                                PatternRewriter &rewriter) const override {
+    auto operandsMut = op.operandsMutable();
+    if (operandsMut.size() == 0)
+      return success();
+    
+    auto funcOp = op.getOperation()->getParentOfType<FuncOp>();
+    auto funcType = funcOp.getType();
+    auto resultTypes = funcType.getResults();
+
+    OperandRange operands(operandsMut);
+    auto index = operands.getBeginOperandIndex();
+    for (auto it : llvm::zip(op.operands(), resultTypes)) {
+      Value operand = std::get<0>(it);
+      Type expectedType = std::get<1>(it);
+      if (operand.getType() != expectedType) {
+        auto castOp = rewriter.create<CastOp>(op.getLoc(), operand, expectedType);
+        operandsMut.slice(index, 1).assign(castOp.getResult());
+      }
+      index++;
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void ReturnOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<CanonicalizeReturn>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // eir.is_type
 //===----------------------------------------------------------------------===//
@@ -660,9 +953,103 @@ static LogicalResult verify(IsTypeOp op) {
   auto typeAttr = op.getAttrOfType<TypeAttr>("type");
   if (!typeAttr) return op.emitOpError("requires type attribute named 'type'");
 
+  if (!typeAttr.getValue().isa<OpaqueTermType>())
+    return op.emitOpError("expected term type");
+
   return success();
 }
 
+OpFoldResult IsTypeOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 1);
+
+  Type matchType = getMatchType();
+  Type inputType;
+
+  Attribute constInput = operands[0];
+  if (constInput) {
+    if (auto typeAttr = constInput.dyn_cast_or_null<TypeAttr>()) {
+      inputType = typeAttr.getValue();
+    } else {
+      inputType = constInput.getType();
+    }
+  } else {
+    auto input = getOperand();
+    inputType = input.getType();
+  }
+
+  // Fast path for when the types are obviously the same
+  if (inputType == matchType)
+    return BoolAttr::get(true, getContext());
+
+  // The match type should always be a term type, but handle it gracefully in
+  // the instance where it is not. We should use verify/1 to handle invalid
+  // type arguments
+  OpaqueTermType expected = matchType.dyn_cast<OpaqueTermType>();
+  if (!expected)
+    return nullptr;
+
+  // If the input value is itself an opaque term type, then unwrap it
+  // and delegate to the isMatch helper. This handles all term/term comparisons
+  if (auto inputTy = inputType.dyn_cast_or_null<OpaqueTermType>()) {
+    switch (inputTy.isMatch(matchType)) {
+      case 0:
+        return BoolAttr::get(false, getContext());
+      case 1:
+        return BoolAttr::get(true, getContext());
+      case 2:
+        return nullptr;
+    }
+  }
+
+  // The above would have handled all term types, but ptr/ref types
+  // are not technically term types, however they get coerced to them, so
+  // if we have a typecheck on a pointer value, we can resolve that check
+  // statically if the pointee type matches the boxed type that is expected
+  if (!expected.isBox() && !expected.isBoxable())
+    return nullptr;
+
+  // Normalize the type which should be compared against the pointee type
+  OpaqueTermType boxedTy;
+  if (expected.isBox())
+    boxedTy = matchType.cast<BoxType>().getBoxedType();
+  else
+    boxedTy = expected;
+
+  if (auto ptrTy = inputType.dyn_cast_or_null<PtrType>()) {
+    Type innerTy = ptrTy.getInnerType();
+    if (auto innerTermTy = innerTy.dyn_cast_or_null<OpaqueTermType>()) {
+      switch (innerTermTy.isMatch(boxedTy)) {
+        case 0:
+          return BoolAttr::get(false, getContext());
+        case 1:
+          return BoolAttr::get(true, getContext());
+        case 2:
+          return nullptr;
+      }
+    }
+    return nullptr;
+  }
+
+  if (auto refTy = inputType.dyn_cast_or_null<RefType>()) {
+    Type innerTy = refTy.getInnerType();
+    if (auto innerTermTy = innerTy.dyn_cast_or_null<OpaqueTermType>()) {
+      switch (innerTermTy.isMatch(boxedTy)) {
+        case 0:
+          return BoolAttr::get(false, getContext());
+        case 1:
+          return BoolAttr::get(true, getContext());
+        case 2:
+          return nullptr;
+      }
+    }
+    return nullptr;
+  }
+
+  // Err on the side of caution and do not assume no match, as later passes
+  // may change the code enough to provide us with missing information
+  return nullptr;
+}
+ 
 //===----------------------------------------------------------------------===//
 // eir.is_tuple
 //===----------------------------------------------------------------------===//
@@ -675,6 +1062,57 @@ static LogicalResult verify(IsTupleOp op) {
   return success();
 }
 
+OpFoldResult IsTupleOp::fold(ArrayRef<Attribute> operands) {
+  auto numOperands = getNumOperands();
+  if (numOperands < 1 || numOperands > 2)
+    return nullptr;
+
+  auto input = getOperand(0);
+  Type inputType = input.getType();
+  if (auto boxType = inputType.dyn_cast_or_null<BoxType>()) {
+    if (boxType.getBoxedType().isa<TupleType>())
+      return BoolAttr::get(true, getContext());
+    else
+      return BoolAttr::get(false, getContext());
+  } else if (auto ptrType = inputType.dyn_cast_or_null<PtrType>()) {
+    if (auto tt = ptrType.getInnerType().dyn_cast_or_null<TupleType>())
+      if (numOperands == 2 && tt.hasStaticShape()) {
+        Attribute arityAttr = operands[1];
+        if (!arityAttr)
+          return nullptr;
+
+        if (auto intAttr = arityAttr.dyn_cast_or_null<IntegerAttr>()) {
+          auto arity = intAttr.getValue();
+          if (arity == tt.getArity())
+            return BoolAttr::get(true, getContext());
+          else
+            return BoolAttr::get(false, getContext());
+        } else if (auto intAttr = arityAttr.dyn_cast_or_null<APIntAttr>()) {
+          auto arity = intAttr.getValue();
+          if (arity == tt.getArity())
+            return BoolAttr::get(true, getContext());
+          else
+            return BoolAttr::get(false, getContext());
+        } else {
+          return nullptr;
+        }
+      } else {
+        return BoolAttr::get(true, getContext());
+      }
+    else if (ptrType.getInnerType().isa<OpaqueTermType>())
+      return BoolAttr::get(false, getContext());
+    else
+      return nullptr;
+  } else if (auto termTy = inputType.dyn_cast_or_null<OpaqueTermType>()) {
+    if (!termTy.isOpaque())
+      return BoolAttr::get(false, getContext());
+    else
+      return nullptr;
+  }
+
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 // eir.is_function
 //===----------------------------------------------------------------------===//
@@ -685,6 +1123,61 @@ static LogicalResult verify(IsFunctionOp op) {
     return op.emitOpError("invalid number of operands, expected at least one and no more than 2");
 
   return success();
+}
+
+OpFoldResult IsFunctionOp::fold(ArrayRef<Attribute> operands) {
+  auto numOperands = getNumOperands();
+  if (numOperands < 1 || numOperands > 2)
+    return nullptr;
+
+  auto input = getOperand(0);
+  Type inputType = input.getType();
+  if (auto boxType = inputType.dyn_cast_or_null<BoxType>()) {
+    if (auto closureTy = boxType.getBoxedType().dyn_cast_or_null<ClosureType>()) {
+      if (numOperands < 2)
+        return BoolAttr::get(true, getContext());
+      auto arityAttr = operands[1];
+      if (!arityAttr)
+        return nullptr;
+      auto closureArity = closureTy.getArity();
+      if (!closureArity.hasValue())
+        return nullptr;
+      auto expectedArity = arityAttr.cast<IntegerAttr>().getValue().getLimitedValue();
+      if (expectedArity == closureArity.getValue())
+        return BoolAttr::get(true, getContext());
+      else
+        return BoolAttr::get(false, getContext());
+    } else {
+      return BoolAttr::get(false, getContext());
+    }
+  } else if (auto ptrType = inputType.dyn_cast_or_null<PtrType>()) {
+    if (auto closureTy = ptrType.getInnerType().dyn_cast_or_null<ClosureType>()) {
+      if (numOperands < 2)
+        return BoolAttr::get(true, getContext());
+      auto arityAttr = operands[1];
+      if (!arityAttr)
+        return nullptr;
+      auto closureArity = closureTy.getArity();
+      if (!closureArity.hasValue())
+        return nullptr;
+      auto expectedArity = arityAttr.cast<IntegerAttr>().getValue().getLimitedValue();
+      if (expectedArity == closureArity.getValue())
+        return BoolAttr::get(true, getContext());
+      else
+        return BoolAttr::get(false, getContext());
+    } else if (ptrType.getInnerType().isa<OpaqueTermType>()) {
+      return BoolAttr::get(false, getContext());
+    } else {
+      return nullptr;
+    }
+  } else if (auto termTy = inputType.dyn_cast_or_null<OpaqueTermType>()) {
+    if (!termTy.isOpaque())
+      return BoolAttr::get(false, getContext());
+    else
+      return nullptr;
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -991,7 +1484,7 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
         //    then conditionally branch to the second split if successful,
         //    otherwise the next pattern
         builder.setInsertionPointToEnd(split);
-        auto hasKeyOp = builder.create<MapIsKeyOp>(branchLoc, selectorArg, key);
+        auto hasKeyOp = builder.create<MapContainsKeyOp>(branchLoc, selectorArg, key);
         auto hasKeyCond = hasKeyOp.getResult();
         builder.create<CondBranchOp>(branchLoc, hasKeyCond, split2,
                                      emptyArgs, nextPatternBlock,
@@ -1161,74 +1654,132 @@ static bool areAPIntsEqual(APInt &lhs, APInt &rhs) {
   return lhs == temp;
 }
 
-static Optional<bool> foldEqualityComparison(Operation *op, ArrayRef<Attribute> operands) {
+OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 2 && "binary op takes two operands");
     
-  Attribute lhs = operands[0];
-  Attribute rhs = operands[1];
+  Attribute lhsOperand = operands[0];
+  Attribute rhsOperand = operands[1];
 
-  if (!lhs || !rhs)
-    return llvm::None;
+  bool strict;
+  if (getAttrOfType<mlir::UnitAttr>("is_strict"))
+    strict = true;
+  else
+    strict = false;
+
+  // If one operand is constant but not the other, move the constant
+  // to the left, so that canonicalization can assume that non-constant
+  // operands are always on the right hand side
+  if (!lhsOperand || !rhsOperand) {
+    Value l = lhs();
+    Value r = rhs();
+    auto lhsOperandMut = lhsMutable();
+    auto rhsOperandMut = rhsMutable();
+
+    // If both are non-constant, we can't do anything further
+    if (!lhsOperand && !rhsOperand) {
+      // Before we bail, if we have a term type on one side
+      // and a non-term type on another, move the term type
+      // to the right-hand operand
+      Type lTy = l.getType();
+      Type rTy = r.getType();
+      // Nothing to do
+      if (lTy.isa<OpaqueTermType>() && rTy.isa<OpaqueTermType>())
+        return nullptr;
+      // Term is already on the right
+      if (rTy.isa<OpaqueTermType>())
+        return nullptr;
+
+      // We have a term on the left, move to the right
+      if (lTy.isa<OpaqueTermType>()) {
+        lhsOperandMut.assign(r);
+        rhsOperandMut.assign(l);
+      }
+
+      return nullptr;
+    }
+
+    // If the non-constant operand is already on the right, we're done
+    if (!rhsOperand)
+      return nullptr;
+
+    lhsOperandMut.assign(r);
+    rhsOperandMut.assign(l);
+    return nullptr;
+  }
 
   // Atom-likes
-  if (auto lhsAtom = lhs.dyn_cast_or_null<AtomAttr>()) {
-    if (auto rhsAtom = rhs.dyn_cast_or_null<AtomAttr>()) {
-      return areAPIntsEqual(lhsAtom.getValue(), rhsAtom.getValue());
+  if (auto lhsAtom = lhsOperand.dyn_cast_or_null<AtomAttr>()) {
+    if (auto rhsAtom = rhsOperand.dyn_cast_or_null<AtomAttr>()) {
+      bool areEqual = areAPIntsEqual(lhsAtom.getValue(), rhsAtom.getValue());
+      return BoolAttr::get(areEqual, getContext());
     }
-    if (auto rhsBool = rhs.dyn_cast_or_null<BoolAttr>()) {
+    if (auto rhsBool = rhsOperand.dyn_cast_or_null<BoolAttr>()) {
       bool areEqual = lhsAtom.getValue().getLimitedValue() == (unsigned)(rhsBool.getValue());
-      return areEqual;
+      return BoolAttr::get(areEqual, getContext());
     }
-    assert(false && "unknown operand combo");
+    return nullptr;
   }
 
   // Boolean-likes
-  if (auto lhsBool = lhs.dyn_cast_or_null<BoolAttr>()) {
-    if (auto rhsAtom = rhs.dyn_cast_or_null<AtomAttr>()) {
+  if (auto lhsBool = lhsOperand.dyn_cast_or_null<BoolAttr>()) {
+    if (auto rhsAtom = rhsOperand.dyn_cast_or_null<AtomAttr>()) {
       bool areEqual = (unsigned)(lhsBool.getValue()) == rhsAtom.getValue().getLimitedValue();
-      return areEqual;
+      return BoolAttr::get(areEqual, getContext());
     }
-    if (auto rhsBool = rhs.dyn_cast_or_null<BoolAttr>()) {
+    if (auto rhsBool = rhsOperand.dyn_cast_or_null<BoolAttr>()) {
       bool areEqual = lhsBool.getValue() == rhsBool.getValue();
-      return areEqual;
+      return BoolAttr::get(areEqual, getContext());
     }
-    assert(false && "unknown operand combo");
+    return nullptr;
   }
 
   // Integers
-  if (auto lhsInt = lhs.dyn_cast_or_null<APIntAttr>()) {
-    if (auto rhsInt = rhs.dyn_cast_or_null<APIntAttr>()) {
-      return areAPIntsEqual(lhsInt.getValue(), rhsInt.getValue());
+  if (auto lhsInt = lhsOperand.dyn_cast_or_null<APIntAttr>()) {
+    if (auto rhsInt = rhsOperand.dyn_cast_or_null<APIntAttr>()) {
+      bool areEqual = areAPIntsEqual(lhsInt.getValue(), rhsInt.getValue());
+      return BoolAttr::get(areEqual, getContext());
     }
-    if (auto rhsInt = rhs.dyn_cast_or_null<IntegerAttr>()) {
+    if (auto rhsInt = rhsOperand.dyn_cast_or_null<IntegerAttr>()) {
       auto rVal = rhsInt.getValue();
-      return areAPIntsEqual(lhsInt.getValue(), rVal);
+      bool areEqual = areAPIntsEqual(lhsInt.getValue(), rVal);
+      return BoolAttr::get(areEqual, getContext());
     }
+    // TODO: If non-strict, we can compare ints to floats
+    return nullptr;
   }
 
   // Floats
-  if (auto lhsFloat = lhs.dyn_cast_or_null<APFloatAttr>()) {
-    if (auto rhsFloat = rhs.dyn_cast_or_null<APFloatAttr>()) {
+  if (auto lhsFloat = lhsOperand.dyn_cast_or_null<APFloatAttr>()) {
+    if (auto rhsFloat = rhsOperand.dyn_cast_or_null<APFloatAttr>()) {
       bool areEqual = lhsFloat.getValue() == rhsFloat.getValue();
-      return areEqual;
+      return BoolAttr::get(areEqual, getContext());
     }
-  }
-
-  return llvm::None;
-}
-
-
-OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
-  auto maybeConstant = foldEqualityComparison(getOperation(), operands);
-  if (maybeConstant.hasValue()) {
-    return BoolAttr::get(maybeConstant.getValue(), getContext());
+    // TODO: If non-strict, we can compare ints to floats
   }
 
   return nullptr;
 }
 
 namespace {
-/// Fold negations of constants into negated constants
+static bool canTypesEverBeEqual(Type lhsTy, Type rhsTy, bool strict) {
+  if (lhsTy == rhsTy)
+    return true;
+
+  if (lhsTy.isa<OpaqueTermType>()) {
+    OpaqueTermType lhs = lhsTy.cast<OpaqueTermType>();
+    return lhs.canTypeEverBeEqual(rhsTy);
+  }
+  if (rhsTy.isa<OpaqueTermType>()) {
+    OpaqueTermType rhs = rhsTy.cast<OpaqueTermType>();
+    return rhs.canTypeEverBeEqual(lhsTy);
+  }
+
+  if (lhsTy.isIntOrFloat() && rhsTy.isIntOrFloat())
+    return true;
+
+  return false;
+}
+
 struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
   using OpRewritePattern<CmpEqOp>::OpRewritePattern;
 
@@ -1236,9 +1787,17 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
                                 PatternRewriter &rewriter) const override {
     auto lhs = op.lhs();
     auto rhs = op.rhs();
+    auto resultTy = op.getType();
     auto i1Ty = rewriter.getI1Type();
+    bool strict;
+    if (op.getAttrOfType<mlir::UnitAttr>("is_strict"))
+      strict = true;
+    else
+      strict = false;
 
-    // Check if we can fold this comparison into a constant
+    // We deal specially with eliminating redundant boolean comparisons,
+    // since they occur frequently as a result of lowering, and are often
+    // trivially removed
     bool lhsVal;
     bool rhsVal;
     auto lhsBoolPattern = m_ConstBool(&lhsVal);
@@ -1247,122 +1806,183 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
       // Left-side is a constant boolean value, check right side
       if (matchPattern(rhs, rhsBoolPattern)) {
         // Both operands are boolean, constify
-        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, i1Ty, lhsVal == rhsVal);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsVal == rhsVal);
         return success();
       }
 
       // Right-hand side isn't a boolean, but is it a constant?
       // If so, we know this comparison will be false
       if (matchPattern(rhs, mlir::m_Constant())) {
-        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, i1Ty, false);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, false);
         return success();
       }
     } else if (!lhs.isa<BlockArgument>() && matchPattern(rhs, rhsBoolPattern)) {
       // Left-hand side isn't a boolean, but is it a constant?
       // If so, we know this comparison will be false
       if (matchPattern(lhs, mlir::m_Constant())) {
-        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, i1Ty, false);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, false);
         return success();
       }
     }
 
-    // If one or both sides of the comparison are not constant,
-    // make sure the types match. If they don't, insert a cast
-    // where appropriate
-    auto lhsConst = matchPattern(lhs, mlir::m_Constant());
-    auto rhsConst = matchPattern(rhs, mlir::m_Constant());
-    if (!lhsConst || !rhsConst) {
-      auto lhsTy = lhs.getType();
-      auto rhsTy = rhs.getType();
-      if (lhsTy != rhsTy) {
-        // If both sides are terms and one side is opaque and the other is not,
-        // cast to the concrete type. If one side is not a term, cast the non-term
-        // type to the term type. If neither side are terms, we raise an error
-        if (lhsTy.isa<OpaqueTermType>() && rhsTy.isa<OpaqueTermType>()) {
-          auto lTy = lhsTy.cast<OpaqueTermType>();
-          auto rTy = rhsTy.cast<OpaqueTermType>();
-          if (lTy.isOpaque()) {
-            Value newRhs = rewriter.create<CastOp>(op.getLoc(), rhs, lhsTy);
-            auto rhsOperands = op.rhsMutable();
-            rhsOperands.assign(newRhs);
-            return success();
-          }
-          if (rTy.isOpaque()) {
-            Value newLhs = rewriter.create<CastOp>(op.getLoc(), lhs, rhsTy);
-            auto lhsOperands = op.lhsMutable();
-            lhsOperands.assign(newLhs);
-            return success();
-          }
+    auto lhsIsConst = matchPattern(lhs, mlir::m_Constant());
+    auto rhsIsConst = matchPattern(rhs, mlir::m_Constant());
+    auto lhsTy = lhs.getType();
+    auto rhsTy = rhs.getType();
+    auto termTy = rewriter.getType<TermType>();
 
-          // Comparing immediates to boxed values will always fail
-          if ((lTy.isImmediate() && !rTy.isImmediate()) || (!lTy.isImmediate() && rTy.isImmediate())) {
-            rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, i1Ty, false);
-            return success();
-          }
-
-          // Comparing immediates requires no type conversion,
-          // and any other term comparisons will be done at runtime
-          return success();
-        }
-
-        // If only one side is a term, we need to decide if we can cast
-        // to the non-term type for efficiency, or cast to term type for
-        // a call to the runtime
-        if (lhsTy.isa<OpaqueTermType>() || rhsTy.isa<OpaqueTermType>()) {
-          Type nonTermTy;
-          OpaqueTermType termTy;
-          bool lhsTerm = false;
-          if (auto lTy = lhsTy.dyn_cast_or_null<OpaqueTermType>()) {
-            termTy = lTy;
-            nonTermTy = rhsTy;
-            lhsTerm = true;
-          } else {
-            termTy = rhsTy.cast<OpaqueTermType>();
-            nonTermTy = lhsTy;
-          }
-
-          if (termTy.isBoolean() && nonTermTy.isInteger(1)) {
-            if (lhsTerm) {
-              Value newLhs = rewriter.create<CastOp>(op.getLoc(), lhs, rhsTy);
-              auto lhsOperands = op.lhsMutable();
-              lhsOperands.assign(newLhs);
-              return success();
-            } else {
-              Value newRhs = rewriter.create<CastOp>(op.getLoc(), rhs, lhsTy);
-              auto rhsOperands = op.rhsMutable();
-              rhsOperands.assign(newRhs);
-              return success();
-            }
-          } else {
-            // For now, just cast the non-term type to term
-            if (lhsTerm) {
-              Value newRhs = rewriter.create<CastOp>(op.getLoc(), rhs, lhsTy);
-              auto rhsOperands = op.rhsMutable();
-              rhsOperands.assign(newRhs);
-              return success();
-            } else {
-              Value newLhs = rewriter.create<CastOp>(op.getLoc(), lhs, rhsTy);
-              auto lhsOperands = op.lhsMutable();
-              lhsOperands.assign(newLhs);
-              return success();
-            }
-          }
-        }
-
-        // Neither side are terms, and have different types this shouldn't ever happen
-        op.emitError("invalid operand types for equality comparison, expected at least one operand to be a valid term type");
-        return failure();
-      } else {
-        return success();
-      }
-    } else {
-        // Types match we're done
-        return success();
+    // If the types of the operands can never be equal, then we have our answer
+    if (!canTypesEverBeEqual(lhsTy, rhsTy, strict)) {
+      rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, false);
+      return success();
     }
 
-    // Both sides are constant, we can fold this comparison,
-    // our fold implementation should handle this, so do nothing
-    // for now
+    // Handle constant atoms/integers/floats
+    APInt lhsInt;
+    if (matchPattern(lhs, m_ConstInt(&lhsInt))) {
+      APInt rhsInt;
+      if (matchPattern(rhs, m_ConstInt(&rhsInt))) {
+        bool areEqual = areAPIntsEqual(lhsInt, rhsInt);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, areEqual);
+        return success();
+      }
+    }
+
+    APInt lhsAtom;
+    if (matchPattern(lhs, m_ConstAtom(&lhsAtom))) {
+      APInt rhsAtom;
+      if (matchPattern(rhs, m_ConstAtom(&rhsAtom))) {
+        bool areEqual = areAPIntsEqual(lhsAtom, rhsAtom);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, areEqual);
+        return success();
+      }
+    }
+
+    auto &semantics = llvm::APFloatBase::IEEEdouble();
+    APFloat lhsFloat(semantics, APInt::getNullValue(64));
+    if (matchPattern(lhs, m_ConstFloat(&lhsFloat))) {
+      APFloat rhsFloat(semantics, APInt::getNullValue(64));
+      if (matchPattern(rhs, m_ConstFloat(&rhsFloat))) {
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsFloat == rhsFloat);
+        return success();
+      }
+    }
+
+    // One case we often see due to canonicalization is a sequence of
+    // constant -> cast -> cmp.eq, where the cast is not needed, so
+    // recognize this sequence and handle it specially
+    //
+    // There is also a variant where one operand is a constant cast,
+    // and the other is a constant, but not both, and we handle that
+    // here as well
+    bool lhsBool, rhsBool;
+    if (matchPattern(lhs, mlir::m_Op<CastOp>(m_ConstBool(&lhsBool)))) {
+      if (matchPattern(rhs, mlir::m_Op<CastOp>(m_ConstBool(&rhsBool)))) {
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsBool == rhsBool);
+        return success();
+      } else if (matchPattern(rhs, m_ConstBool(&rhsBool))) {
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsBool == rhsBool);
+        return success();
+      }
+    } else if (matchPattern(rhs, mlir::m_Op<CastOp>(m_ConstBool(&rhsBool)))) {
+      if (matchPattern(lhs, m_ConstBool(&lhsBool))) {
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsBool == rhsBool);
+        return success();
+      }
+    }
+
+    // If the source types match, we're good
+    if (lhsTy == rhsTy) {
+      return success();
+    }
+
+    // Handle mixed bools even for non-constant operands
+    if (lhsTy.isInteger(1)) {
+      if (rhsTy.isa<BooleanType>()) {
+        auto rhsCast = rewriter.create<CastOp>(op.getLoc(), rhs, i1Ty);
+        rewriter.replaceOpWithNewOp<CmpEqOp>(op, lhs, rhsCast.getResult(), strict);
+        return success();
+      }
+    } else if (rhsTy.isInteger(1)) {
+      if (lhsTy.isa<BooleanType>()) {
+        auto lhsCast = rewriter.create<CastOp>(op.getLoc(), lhs, i1Ty);
+        rewriter.replaceOpWithNewOp<CmpEqOp>(op, lhsCast.getResult(), rhs, strict);
+        return success();
+      }
+    }
+
+    /*
+    // Another common case is a sequence of:
+    //   
+    //   val/op -> cast \
+    //                  cmp.eq
+    //   val/op -> cast /
+    //
+    // The casts are generally to term type, and the original
+    // values can be lowered to a primitive comparison instead.
+    // 
+    // The fold operation canonicalizes the order of
+    // the operands so we can match these patterns pretty
+    // simply.
+    //
+    // For now, we're simply looking at boolean comparisons,
+    // since we often have a mixture of i1 and !eir.bool values,
+    // resulting in these kind of redundant casts. If the target
+    // type of the operands is either i1 or !eir.bool, we can
+    // optimize to compare with i1 and remove useless casts
+    //
+    // If the source types match, we also strip the casts in those
+    // cases, but it is unlikely that the IR ever enters that state,
+    // since the casts are only introduced when the types differ; but
+    // it is possible that optimization may result in such IR being
+    // generated, so we handle it while we're here
+    if (lhsTy.isa<TermType>() && rhsTy.isa<TermType>()) {
+      Value lhsVal;
+      if (matchPattern(lhs, m_Cast(&lhsVal))) {
+        Value rhsVal;
+        if (matchPattern(rhs, m_Cast(&rhsVal))) {
+          Type lhsValTy = lhsVal.getType();
+          Type rhsValTy = rhsVal.getType();
+
+          // Handle mixed bools
+          if (lhsValTy.isInteger(1)) {
+            if (rhsValTy.isa<BooleanType>()) {
+              auto rhsCast = rewriter.create<CastOp>(op.getLoc(), rhsVal, i1Ty);
+              rewriter.replaceOpWithNewOp<CmpEqOp>(op, resultTy, lhsVal, rhsCast.getResult());
+              return success();
+            }
+          } else if (rhsValTy.isInteger(1)) {
+            if (lhsValTy.isa<BooleanType>()) {
+              auto lhsCast = rewriter.create<CastOp>(op.getLoc(), lhsVal, i1Ty);
+              rewriter.replaceOpWithNewOp<CmpEqOp>(op, resultTy, lhsCast.getResult(), rhsVal);
+              return success();
+            }           
+          }
+
+          // Strip redundant casts if sources are of the same type
+          if (lhsValTy == rhsValTy) {
+            rewriter.replaceOpWithNewOp<CmpEqOp>(op, resultTy, lhsVal, rhsVal);
+            return success();
+          }
+        }
+      }
+    }
+    */
+
+    // At this point, one operand is non-constant, or both are constants
+    // but do not strictly match. For now, we fall back to calling the
+    // builtin, but in the future we should be reason more about these comparisons
+
+    if (!lhsTy.isa<TermType>()) {
+      auto lhsCast = rewriter.create<CastOp>(op.getLoc(), lhs, termTy);
+      auto lhsOperands = op.lhsMutable();
+      lhsOperands.assign(lhsCast.getResult());
+    }
+    if (!rhsTy.isa<TermType>()) {
+      auto rhsCast = rewriter.create<CastOp>(op.getLoc(), rhs, termTy);
+      auto rhsOperands = op.rhsMutable();
+      rhsOperands.assign(rhsCast.getResult());
+    }
     return success();
   }
 };
@@ -1646,36 +2266,8 @@ OpFoldResult BsrOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
-// Constant*Op
+// eir.constant.*
 //===----------------------------------------------------------------------===//
-
-static ParseResult parseConstantOp(OpAsmParser &parser,
-                                   OperationState &result) {
-  Attribute valueAttr;
-  if (parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseAttribute(valueAttr, "value", result.attributes))
-    return failure();
-
-  auto type = valueAttr.getType();
-
-  // Add the attribute type to the list.
-  return parser.addTypeToList(type, result.types);
-}
-
-template <typename ConstantOp>
-static void printConstantOp(OpAsmPrinter &p, ConstantOp &op) {
-  p << op.getOperationName() << ' ';
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"value"});
-
-  if (op.getAttrs().size() > 1) p << ' ';
-  p << op.getValue();
-}
-
-template <typename ConstantOp>
-static LogicalResult verifyConstantOp(ConstantOp &) {
-  // TODO
-  return success();
-}
 
 OpFoldResult ConstantIntOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.empty() && "constant has no operands");
@@ -1763,7 +2355,7 @@ void NegOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 }
 
 //===----------------------------------------------------------------------===//
-// MallocOp
+// eir.malloc
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(MallocOp op) {
@@ -1841,11 +2433,425 @@ Block *YieldCheckOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// eir.cons
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeCons : public OpRewritePattern<ConsOp> {
+  using OpRewritePattern<ConsOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ConsOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    Value head = op.head();
+    Value h = castToTermEquivalent(rewriter, head);
+    if (h != head) {
+      auto headOperand = op.headMutable();
+      headOperand.assign(h);
+    }
+
+    Value tail = op.tail();
+    Value t = castToTermEquivalent(rewriter, tail);
+    if (t != tail) {
+      auto tailOperand = op.tailMutable();
+      tailOperand.assign(t);
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void ConsOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                         MLIRContext *context) {
+  results.insert<CanonicalizeCons>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.list
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeList : public OpRewritePattern<ListOp> {
+  using OpRewritePattern<ListOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ListOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    auto elementOperandsMut = op.elementsMutable();
+    if (elementOperandsMut.size() == 0)
+      return success();
+    
+    OperandRange elementOperands(elementOperandsMut);
+    auto index = elementOperands.getBeginOperandIndex();
+    for (auto element : op.elements()) {
+      Value e = castToTermEquivalent(rewriter, element);
+      if (e != element) {
+        elementOperandsMut.slice(index, 1).assign(e);
+      }
+      index++;
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void ListOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                         MLIRContext *context) {
+  results.insert<CanonicalizeList>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.tuple
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeTuple : public OpRewritePattern<TupleOp> {
+  using OpRewritePattern<TupleOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TupleOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    auto elementOperandsMut = op.elementsMutable();
+    if (elementOperandsMut.size() == 0)
+      return success();
+    
+    OperandRange elementOperands(elementOperandsMut);
+    auto index = elementOperands.getBeginOperandIndex();
+    for (auto element : op.elements()) {
+      Value e = castToTermEquivalent(rewriter, element);
+      if (e != element) {
+        elementOperandsMut.slice(index, 1).assign(e);
+      }
+      index++;
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void TupleOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<CanonicalizeTuple>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.map.*
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeMap : public OpRewritePattern<MapOp> {
+  using OpRewritePattern<MapOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(MapOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    auto argsOperandsMut = op.argsMutable();
+    if (argsOperandsMut.size() == 0)
+      return success();
+    
+    OperandRange argsOperands(argsOperandsMut);
+    auto index = argsOperands.getBeginOperandIndex();
+    for (auto arg : op.args()) {
+      Value a = castToTermEquivalent(rewriter, arg);
+      if (a != arg) {
+        argsOperandsMut.slice(index, 1).assign(a);
+      }
+      index++;
+    }
+
+    return success();
+  }
+};
+
+template <typename OpType>
+struct CanonicalizeMapMutation : public OpRewritePattern<OpType> {
+  using OpRewritePattern<OpType>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpType op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    Value map = op.map();
+    Value m = castToTermEquivalent(rewriter, map);
+    if (m != map) {
+      auto mapOperand = op.mapMutable();
+      mapOperand.assign(m);
+    }
+
+    Value key = op.key();
+    Value k = castToTermEquivalent(rewriter, key);
+    if (k != key) {
+      auto keyOperand = op.keyMutable();
+      keyOperand.assign(k);
+    }
+
+    Value val = op.val();
+    Value v = castToTermEquivalent(rewriter, val);
+    if (v != val) {
+      auto valOperand = op.valMutable();
+      valOperand.assign(v);
+    }
+
+    return success();
+  }
+};
+
+
+template <typename OpType>
+struct CanonicalizeMapKeyOp : public OpRewritePattern<OpType> {
+  using OpRewritePattern<OpType>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpType op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    Value map = op.map();
+    Value m = castToTermEquivalent(rewriter, map);
+    if (m != map) {
+      auto mapOperand = op.mapMutable();
+      mapOperand.assign(m);
+    }
+
+    Value key = op.key();
+    Value k = castToTermEquivalent(rewriter, key);
+    if (k != key) {
+      auto keyOperand = op.keyMutable();
+      keyOperand.assign(k);
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void MapOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                        MLIRContext *context) {
+  results.insert<CanonicalizeMap>(context);
+}
+
+void MapInsertOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  results.insert<CanonicalizeMapMutation<MapInsertOp>>(context);
+}
+
+void MapUpdateOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  results.insert<CanonicalizeMapMutation<MapUpdateOp>>(context);
+}
+
+void MapContainsKeyOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                                   MLIRContext *context) {
+  results.insert<CanonicalizeMapKeyOp<MapContainsKeyOp>>(context);
+}
+
+void MapGetKeyOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  results.insert<CanonicalizeMapKeyOp<MapGetKeyOp>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.binary.push
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeBinaryPush : public OpRewritePattern<BinaryPushOp> {
+  using OpRewritePattern<BinaryPushOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BinaryPushOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    Value value = op.value();
+    Value v = castToTermEquivalent(rewriter, value);
+    if (v != value) {
+      auto valueOperand = op.valueMutable();
+      valueOperand.assign(v);
+    }
+
+    Optional<Value> sizeOpt = op.size();
+    if (!sizeOpt.hasValue())
+      return success();
+
+    Value size = sizeOpt.getValue();
+    Value s = castToTermEquivalent(rewriter, size);
+    if (s != size) {
+      auto sizeOperand = op.sizeMutable();
+      sizeOperand.assign(s);
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void BinaryPushOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                               MLIRContext *context) {
+  results.insert<CanonicalizeBinaryPush>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.binary.match.*
+//===----------------------------------------------------------------------===//
+
+namespace {
+template <typename OpType>
+struct CanonicalizeSizedBinaryMatch : public OpRewritePattern<OpType> {
+  using OpRewritePattern<OpType>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpType op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    Value bin = op.bin();
+    Value b = castToTermEquivalent(rewriter, bin);
+    if (b != bin) {
+      auto binOperand = op.binMutable();
+      binOperand.assign(b);
+    }
+
+    Optional<Value> sizeOpt = op.size();
+    if (!sizeOpt.hasValue())
+      return success();
+
+    Value size = sizeOpt.getValue();
+    Value s = castToTermEquivalent(rewriter, size);
+    if (s != size) {
+      auto sizeOperand = op.sizeMutable();
+      sizeOperand.assign(s);
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void BinaryMatchRawOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                                   MLIRContext *context) {
+  results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchRawOp>>(context);
+}
+
+void BinaryMatchIntegerOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                                       MLIRContext *context) {
+  results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchIntegerOp>>(context);
+}
+
+void BinaryMatchFloatOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                                     MLIRContext *context) {
+  results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchFloatOp>>(context);
+}
+
+void BinaryMatchUtf8Op::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                                    MLIRContext *context) {
+  results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchUtf8Op>>(context);
+}
+
+void BinaryMatchUtf16Op::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                                     MLIRContext *context) {
+  results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchUtf16Op>>(context);
+}
+
+void BinaryMatchUtf32Op::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                                     MLIRContext *context) {
+  results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchUtf32Op>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.receive.*
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizeReceiveStart : public OpRewritePattern<ReceiveStartOp> {
+  using OpRewritePattern<ReceiveStartOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ReceiveStartOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    Value timeout = op.timeout();
+    Value t = castToTermEquivalent(rewriter, timeout);
+    if (t != timeout) {
+      auto operand = op.timeoutMutable();
+      operand.assign(t);
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void ReceiveStartOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                                     MLIRContext *context) {
+  results.insert<CanonicalizeReceiveStart>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// eir.print
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct CanonicalizePrint : public OpRewritePattern<PrintOp> {
+  using OpRewritePattern<PrintOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(PrintOp op,
+                                PatternRewriter &rewriter) const override {
+    Value thing = op.thing();
+    Value t = castToTermEquivalent(rewriter, thing);
+    if (t != thing) {
+      auto operand = op.thingMutable();
+      operand.assign(t);
+    }
+
+    return success();
+  }
+};
+}  // end anonymous namespace.
+
+void PrintOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<CanonicalizePrint>(context);
+}
+
+
+}  // namespace eir
+}  // namespace lumen
+
+//===----------------------------------------------------------------------===//
 // TableGen Output
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
 #include "lumen/EIR/IR/EIROps.cpp.inc"
-
-}  // namespace eir
-}  // namespace lumen

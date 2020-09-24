@@ -38,6 +38,8 @@ pub struct GeneratedModule {
     pub symbols: HashSet<FunctionSymbol>,
 }
 
+pub type BuildResult = std::result::Result<GeneratedModule, Module>;
+
 /// Constructs an MLIR module from an EIR module, using the provided context and options
 pub fn build(
     module: &ir::Module,
@@ -45,7 +47,7 @@ pub fn build(
     context: &Context,
     options: &Options,
     target_machine: &TargetMachine,
-) -> Result<GeneratedModule> {
+) -> Result<BuildResult> {
     debug!("building mlir module for {}", module.name());
 
     let builder = ModuleBuilder::new(module, source_file, context, target_machine.as_ref());
@@ -139,7 +141,7 @@ impl<'m> ModuleBuilder<'m> {
     /// then returning the constructed MLIR module
     ///
     /// Calling this consumes the builder
-    pub fn build(mut self, options: &Options) -> Result<GeneratedModule> {
+    pub fn build(mut self, options: &Options) -> Result<BuildResult> {
         use ffi::MLIRFinalizeModuleBuilder;
 
         debug!("building mlir module for {}", self.module.name());
@@ -157,13 +159,17 @@ impl<'m> ModuleBuilder<'m> {
         debug!("finished building {}, finalizing..", self.module.name());
 
         let result = unsafe { MLIRFinalizeModuleBuilder(self.builder) };
-        let module = Module::new(result, Dialect::EIR);
+        if !result.success {
+            return Ok(Err(Module::new(result.module, Dialect::EIR)));
+        }
 
-        Ok(GeneratedModule {
+        let module = Module::new(result.module, Dialect::EIR);
+
+        Ok(Ok(GeneratedModule {
             module,
             atoms: self.atoms.into_inner(),
             symbols: self.symbols.into_inner(),
-        })
+        }))
     }
 
     /// Returns the set of atoms found in this module

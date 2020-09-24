@@ -107,11 +107,9 @@ impl CompilerOutput for Compiler {
     {
         let input = self.lookup_intern_input(input);
         let output_type = output.emit_output_type();
-        if let Some(filename) = options.output_types.maybe_emit(&input, output_type) {
+        if let Some(filename) = options.maybe_emit(&input, output_type) {
             debug!("emitting {} for {:?}", output_type, input);
-            let output_dir = self.output_dir();
-            let outfile = output_dir.join(filename);
-            Ok(Some(self.emit_file(outfile, output)?))
+            Ok(Some(self.emit_file(filename, output)?))
         } else {
             Ok(None)
         }
@@ -141,11 +139,9 @@ impl CompilerOutput for Compiler {
         F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
     {
         let input = self.lookup_intern_input(input);
-        if let Some(filename) = options.output_types.maybe_emit(&input, output_type) {
+        if let Some(filename) = options.maybe_emit(&input, output_type) {
             debug!("emitting {} for {:?}", output_type, input);
-            let output_dir = self.output_dir();
-            let outfile = output_dir.join(filename);
-            Ok(Some(self.emit_file_with_callback(outfile, callback)?))
+            Ok(Some(self.emit_file_with_callback(filename, callback)?))
         } else {
             Ok(None)
         }

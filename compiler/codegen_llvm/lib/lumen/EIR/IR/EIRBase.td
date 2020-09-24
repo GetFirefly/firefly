@@ -77,11 +77,10 @@ class eir_TermTypeBase<eir_TermKind kind, string description> : DialectType<
 class eir_BuildableTermType<eir_TermKind kind, string description, code builder> :
   eir_TermTypeBase<kind, description>,
   BuildableType<builder> {
-
 }
 
 class eir_TermType<eir_TermKind kind, string description, string typename = kind.symbol> :
-  eir_BuildableTermType<kind, description, "$_builder.getType<::lumen::eir::" # typename # "Type>(" # kind.value # ")"> {
+  eir_BuildableTermType<kind, description, "$_builder.getType<::lumen::eir::" # typename # "Type>()"> {
 }
 
 class eir_ReceiveStatus<string name, int kind> : IntEnumAttrCaseBase<I8, name, name, kind>;
@@ -131,16 +130,22 @@ def eir_BoxType : eir_TermTypeBase<eir_TK_Box, "box">;
 def eir_PidType : eir_TermTypeBase<eir_TK_Pid, "pid">;
 def eir_ReferenceType : eir_TermTypeBase<eir_TK_Reference, "reference">;
 
+// NOTE: Adding a custom type which is _not_ a term type that is in the TermKind enumeration
+// such as those below, require adding the type to eirDialect::initialize manually. If you
+// forget this step, things will explode at some point during compilation, so its important
+// to make sure you make the change in both places at the same time
 def eir_RefType : Type<CPred<"$_self.isa<eir::RefType>()">, "pointer type">;
 def eir_PtrType : Type<CPred<"$_self.isa<eir::PtrType>()">, "raw pointer type">;
 def eir_ReceiveRefType : Type<CPred<"$_self.isa<eir::ReceiveRefType>()">, "opaque receive reference">;
 def eir_TraceRefType : Type<CPred<"$_self.isa<eir::TraceRefType>()">, "opaque trace reference">;
+
+// These are simply type constraints, they have no actual type definition in EIRTypes.h
 def eir_AnyTerm : Type<CPred<"$_self.isa<::lumen::eir::TermType>()">, "dynamic term type">,
                    BuildableType<"$_builder.getType<::lumen::eir::TermType>()">;
 def eir_AnyType : Type<CPred<"$_self.isa<::lumen::eir::OpaqueTermType>()">, "any term type">,
                    BuildableType<"$_builder.getType<::lumen::eir::TermType>()">;
 def eir_BoolLike : AnyTypeOf<[I1, eir_BoolType], "boolean-like type">;
-def eir_FixnumLike : AnyTypeOf<[I32, I64, eir_FixnumType], "fixed-width integer type">;
+def eir_FixnumLike : AnyTypeOf<[AnyInteger, eir_FixnumType], "fixed-width integer type">;
 def eir_FloatLike : AnyTypeOf<[F64, eir_FloatType], "float-like type">;
 def eir_ListLike : AnyTypeOf<[eir_NilType, eir_ConsType, eir_ListType], "list-like type">;
 def eir_BinaryLike : AnyTypeOf<[eir_BinaryType, eir_HeapBinType, eir_ProcBinType], "binary-like type">;
@@ -200,11 +205,15 @@ def eir_OpInterface : OpInterface<"eir_Op"> {
     Common interface used for EIR ops
   }];
 
+  let cppNamespace = "::lumen::eir";
+
   let methods = [];
 }
 
-def eir_UnaryOperatorInterface : OpInterface<"eir_UnaryOperator"> {
-  let description = "Common interface for unary ops";
+def eir_RuntimeBuiltinOpInterface : OpInterface<"eir_RuntimeBuiltinOp"> {
+  let description = "Common interface for operations which correspond to runtime builtins, e.g. __lumen_builtin_*";
+
+  let cppNamespace = "::lumen::eir";
 
   let methods = [
     StaticInterfaceMethod<"get the builtin symbol name for this op",
@@ -212,21 +221,14 @@ def eir_UnaryOperatorInterface : OpInterface<"eir_UnaryOperator"> {
   ];
 }
 
-def eir_BinaryOperatorInterface : OpInterface<"eir_BinaryOperator"> {
-  let description = "Common interface for binary ops";
+def eir_IntrinsicOpInterface : OpInterface<"eir_IntrinsicOp"> {
+  let description = "Common interface for operations which correspond to compiler intrinsics, e.g. __lumen_*";
+
+  let cppNamespace = "::lumen::eir";
 
   let methods = [
-    StaticInterfaceMethod<"get the builtin symbol name for this op",
-      "StringRef", "builtinSymbol">
-  ];
-}
-
-def eir_BinaryMatchOpInterface : OpInterface<"eir_BinaryMatchOperator"> {
-  let description = "Common interface for binary pattern matching ops";
-
-  let methods = [
-    StaticInterfaceMethod<"get the builtin symbol name for this op",
-      "StringRef", "builtinSymbol">
+    StaticInterfaceMethod<"get the intrinsic symbol name for this op",
+    "StringRef", "intrinsicSymbol">
   ];
 }
 

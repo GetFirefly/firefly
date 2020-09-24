@@ -42,13 +42,6 @@ extern "C" bool MLIRVerifyModule(MLIRModuleRef m) {
   return true;
 }
 
-extern "C" {
-  struct LowerResult {
-    void *module;
-    bool success;
-  };
-}
-
 extern "C" LowerResult MLIRLowerModule(MLIRContextRef context,
                                        MLIRPassManagerRef passManager,
                                        MLIRModuleRef m) {

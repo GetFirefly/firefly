@@ -15,13 +15,14 @@ using ::llvm::StringRef;
 using ::mlir::MLIRContext;
 using ::mlir::LLVM::LLVMType;
 using ::mlir::LLVM::LLVMVoidType;
+using ::mlir::LLVM::LLVMStructType;
 
 using ::lumen::Encoding;
 using ::lumen::MaskInfo;
 
 using namespace lumen::eir;
 
-extern "C" uint32_t lumen_closure_base_size(uint32_t pointerWidth);
+extern "C" uint32_t lumen_closure_size(uint32_t pointerWidth, uint32_t envLen);
 
 namespace lumen {
 
@@ -143,22 +144,27 @@ LLVMType TargetInfo::makeTupleType(unsigned arity) {
   const char *fmt = "tuple%d";
   int bufferSize = std::snprintf(nullptr, 0, fmt, arity);
   std::vector<char> buffer(bufferSize + 1);
-  std::snprintf(&buffer[0], buffer.size(), fmt, arity);
-  StringRef typeName(&buffer[0], buffer.size());
+  int strSize = std::snprintf(buffer.data(), buffer.size(), fmt, arity);
+  StringRef typeName(buffer.data(), strSize);
 
   auto termTy = getUsizeType();
+  auto tupleTy = LLVMStructType::getIdentified(termTy.getContext(), typeName);
+  if (tupleTy.isInitialized())
+    return tupleTy;
+  
   if (arity == 0) {
-    return LLVMType::createStructTy(termTy.getContext(),
-                                 ArrayRef<LLVMType>{termTy},
-                                 typeName.drop_back());
+    tupleTy.setBody(ArrayRef<LLVMType>{termTy}, /*packed=*/false);
+    return tupleTy;
   }
+
   SmallVector<LLVMType, 2> fieldTypes;
   fieldTypes.reserve(1 + arity);
   fieldTypes.push_back(termTy);
   for (auto i = 0; i < arity; i++) {
     fieldTypes.push_back(termTy);
   }
-  return LLVMType::createStructTy(termTy.getContext(), fieldTypes, typeName.drop_back());
+  tupleTy.setBody(fieldTypes, /*packed=*/false);
+  return tupleTy;
 }
 LLVMType TargetInfo::makeTupleType(ArrayRef<LLVMType> elementTypes) {
   return makeTupleType(elementTypes.size());
@@ -190,10 +196,15 @@ LLVMType TargetInfo::makeClosureType(unsigned size) {
   const char *fmt = "closure%d";
   int bufferSize = std::snprintf(nullptr, 0, fmt, size);
   std::vector<char> buffer(bufferSize + 1);
-  std::snprintf(&buffer[0], buffer.size(), fmt, size);
-  StringRef typeName(&buffer[0], buffer.size());
+  int strSize = std::snprintf(buffer.data(), buffer.size(), fmt, size);
+  StringRef typeName(buffer.data(), strSize);
 
-  return LLVMType::createStructTy(intNTy.getContext(), fields, typeName.drop_back());
+  auto closureTy = LLVMStructType::getIdentified(intNTy.getContext(), typeName);
+  if (closureTy.isInitialized())
+    return closureTy;
+
+  closureTy.setBody(fields, /*packed=*/false);
+  return closureTy;
 }
 
 APInt TargetInfo::encodeImmediate(unsigned type, uint64_t value) {
@@ -223,9 +234,12 @@ uint32_t TargetInfo::closureHeaderArity(uint32_t envLen) const {
     assert(pointerSizeInBits == 32 && "unsupported pointer width");
     wordSize = 4;
   }
-  auto totalBytes =
-      lumen_closure_base_size(pointerSizeInBits) + (envLen * wordSize);
-  return (totalBytes / wordSize) - 1;
+  // This is the full size of the closure in memory (in bytes)
+  auto totalBytes = lumen_closure_size(pointerSizeInBits, envLen);
+  // Converted to words (pointer-size integer in bytes)
+  auto words = totalBytes / wordSize;
+  // Header arity is in words, and does _not_ include the header word
+  return words - 1;
 }
 MaskInfo &TargetInfo::immediateMask() const { return impl->immediateMask; }
 MaskInfo &TargetInfo::headerMask() const { return impl->headerMask; }

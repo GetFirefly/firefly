@@ -15,10 +15,6 @@ using ::mlir::Region;
 using ::mlir::Type;
 using ::mlir::Value;
 
-namespace lumen {
-namespace eir {
 #include "lumen/EIR/IR/EIROpInterface.h.inc"
-}  // namespace eir
-}  // namespace lumen
 
 #endif

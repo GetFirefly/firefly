@@ -82,7 +82,7 @@ pub enum OutputType {
     LLVMBitcode,
     Assembly,
     Object,
-    Exe,
+    Link,
 }
 impl FromStr for OutputType {
     type Err = ();
@@ -98,7 +98,7 @@ impl FromStr for OutputType {
             "llvm-bc" => Ok(OutputType::LLVMBitcode),
             "asm" => Ok(OutputType::Assembly),
             "obj" => Ok(OutputType::Object),
-            "link" => Ok(OutputType::Exe),
+            "link" => Ok(OutputType::Link),
             _ => Err(()),
         }
     }
@@ -127,7 +127,7 @@ impl OutputType {
             &OutputType::LLVMBitcode => "llvm-bc",
             &OutputType::Assembly => "asm",
             &OutputType::Object => "obj",
-            &OutputType::Exe => "link",
+            &OutputType::Link => "link",
         }
     }
 
@@ -143,7 +143,7 @@ impl OutputType {
             OutputType::LLVMBitcode,
             OutputType::Assembly,
             OutputType::Object,
-            OutputType::Exe,
+            OutputType::Link,
         ]
     }
 
@@ -164,7 +164,7 @@ impl OutputType {
            llvm-bc   = LLVM Bitcode (*)\n  \
            asm       = Assembly (*)\n  \
            obj       = Object File (*)\n  \
-           link      =  Executable (*)\n\
+           link      = Linked executable or library(*)\n\
          \n\
          (*) Indicates that globs cannot be applied to this output type"
     }
@@ -181,7 +181,7 @@ impl OutputType {
             OutputType::LLVMBitcode => "bc",
             OutputType::Assembly => "s",
             OutputType::Object => "o",
-            OutputType::Exe => "",
+            OutputType::Link => "",
         }
     }
 }
@@ -267,6 +267,24 @@ impl OutputTypes {
             }
         }
 
+        if map.is_empty() {
+            // By default we want to generate objects and link them
+            map.insert(OutputType::Object, None);
+            map.insert(OutputType::Link, None);
+        } else if map.contains_key(&OutputType::Link) {
+            // If a link is requested, we need to emit all objects
+            match map.entry(OutputType::Object) {
+                Entry::Vacant(entry) => {
+                    entry.insert(None);
+                }
+                Entry::Occupied(mut entry) => {
+                    // Override the previous entry for objects, they are all required
+                    let value = entry.get_mut();
+                    *value = None;
+                }
+            }
+        }
+
         Ok(Self(map))
     }
 
@@ -344,6 +362,13 @@ impl OutputTypes {
             _ => true,
         })
     }
+
+    pub fn should_link(&self) -> bool {
+        self.0.keys().any(|k| match *k {
+            OutputType::Link => true,
+            _ => false,
+        })
+    }
 }
 impl ParseOption for OutputTypes {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
@@ -366,6 +391,18 @@ impl ParseOption for OutputTypes {
                 }
                 match OutputTypeSpec::from_str(value) {
                     Ok(OutputTypeSpec {
+                        output_type: OutputType::Link,
+                        pattern: Some(_),
+                    }) => {
+                        return Err(clap::Error {
+                            kind: clap::ErrorKind::ValueValidation,
+                            message: format!(
+                                "cannot specify a file pattern for the 'link' output type"
+                            ),
+                            info: Some(vec![info.name.to_string()]),
+                        });
+                    }
+                    Ok(OutputTypeSpec {
                         output_type,
                         pattern,
                     }) => {
@@ -382,10 +419,6 @@ impl ParseOption for OutputTypes {
             }
         }
 
-        if output_types.is_empty() {
-            output_types.push((OutputType::Object, None));
-            output_types.push((OutputType::Exe, None));
-        }
         Self::new(output_types.as_slice()).map_err(|err| {
             let mut clap_err: clap::Error = err.into();
             clap_err.info = Some(vec![info.name.to_string()]);
@@ -404,9 +437,8 @@ pub fn calculate_outputs(
     for variant in OutputType::variants().iter().copied() {
         outputs.insert(variant, None);
     }
-    if !options.project_type.is_executable() {
-        // The executable output type is not used
-        outputs.remove(&OutputType::Exe);
+    if !options.project_type.requires_link() {
+        outputs.remove(&OutputType::Link);
     }
 
     // For each output type requested, map the given input to that output type,
@@ -447,8 +479,8 @@ pub fn calculate_outputs(
 // a single output path, if the input should produce an output; otherwise it returns `None`
 fn map_input_output(input: &Input, output_type: &OutputType, output_dir: &Path) -> Option<PathBuf> {
     match output_type {
-        OutputType::LLVMBitcode | OutputType::Assembly | OutputType::Object | OutputType::Exe => {
-            // All inputs go into a single output for these types
+        OutputType::Link => {
+            // All inputs go into a single output when linking
             None
         }
         _ => Some(output_filename(

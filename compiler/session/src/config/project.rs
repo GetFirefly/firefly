@@ -21,6 +21,13 @@ impl ProjectType {
         }
         false
     }
+
+    pub fn requires_link(&self) -> bool {
+        match self {
+            Self::Executable | Self::Dylib | Self::Cdylib => true,
+            _ => false,
+        }
+    }
 }
 impl Default for ProjectType {
     fn default() -> Self {

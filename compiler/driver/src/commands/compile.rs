@@ -107,22 +107,27 @@ pub fn handle_command<'a>(
     let target_machine = db.get_target_machine(thread_id);
     let atoms = db.take_atoms();
     let symbols = db.take_symbols();
-    let output_dir = db.output_dir();
     codegen::generators::run(
         &options,
         &mut codegen_results,
         context.deref(),
         target_machine.deref(),
-        output_dir.as_path(),
         atoms,
         symbols,
     )?;
 
     // Link all compiled objects
     let diagnostics = db.diagnostics();
-    if let Err(err) = linker::link_binary(&options, &diagnostics, &codegen_results) {
-        diagnostics.error(format!("{}", err));
-        return Err(anyhow!("failed to link binary"));
+    if !options.should_link() {
+        if options.project_type.requires_link() {
+            diagnostics.note("Linker was explicitly disabled, skipping link");
+        } else {
+            debug!("skipping link because project type does not require it");
+        }
+        if let Err(err) = linker::link_binary(&options, &diagnostics, &codegen_results) {
+            diagnostics.error(format!("{}", err));
+            return Err(anyhow!("failed to link binary"));
+        }
     }
 
     let duration = HumanDuration::since(start);

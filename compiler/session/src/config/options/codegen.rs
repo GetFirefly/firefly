@@ -13,7 +13,7 @@ use crate::config::*;
 )]
 #[derive(Debug, Clone, Default)]
 pub struct CodegenOptions {
-    #[option(value_name("MODEL"), takes_value(true))]
+    #[option(value_name("MODEL"), takes_value(true), hidden(true))]
     /// Choose the code model to use
     pub code_model: Option<CodeModel>,
     #[option(
@@ -21,7 +21,8 @@ pub struct CodegenOptions {
         takes_value(true),
         value_name("CHECK_TYPE"),
         default_value("disabled"),
-        possible_values("false", "true", "disabled", "checks", "nochecks")
+        possible_values("false", "true", "disabled", "checks", "nochecks"),
+        hidden(true)
     )]
     /**
      ** Use Windows Control Flow Guard:
@@ -53,9 +54,9 @@ pub struct CodegenOptions {
     #[option(default_value("false"))]
     /// Allow the linker to link its default libraries
     pub default_linker_libraries: bool,
-    #[option(default_value("true"))]
+    #[option(default_value("false"), hidden(true))]
     pub embed_bitcode: bool,
-    #[option(default_value("255"), value_name("N"), takes_value(true))]
+    #[option(default_value("255"), value_name("N"), takes_value(true), hidden(true))]
     /// Set the threshold for inlining a function
     pub inline_threshold: Option<u64>,
 
@@ -118,10 +119,10 @@ pub struct CodegenOptions {
     #[option]
     /// Prefer dynamic linking to static linking
     pub prefer_dynamic: bool,
-    #[option(value_name("MODEL"), takes_value(true))]
+    #[option(value_name("MODEL"), takes_value(true), hidden(true))]
     /// Choose the relocation model to use
     pub relocation_model: Option<RelocModel>,
-    #[option(value_name("PASSES"), takes_value(true))]
+    #[option(value_name("PASSES"), takes_value(true), hidden(true))]
     /// Print remarks for these optimization passes (comma separated, or 'all')
     pub remark: Passes,
     #[option]
@@ -136,7 +137,7 @@ pub struct CodegenOptions {
     #[option(value_name("FEATURES"), takes_value(true))]
     /// Select target specific attributes (see `lumen print target-features`)
     pub target_features: Option<String>,
-    #[option]
+    #[option(hidden(true))]
     /// Choose the TLS model to use
     pub tls_model: Option<TlsModel>,
 }

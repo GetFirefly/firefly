@@ -20,7 +20,7 @@ pub struct DebuggingOptions {
     /// Link native libraries in the linker invocation
     pub link_native_libraries: bool,
     #[option]
-    /// Control whether to link Rust provided C objects/libraries or rely
+    /// Control whether to link Lumen provided C objects/libraries or rely
     /// on C toolchain installed in the system
     pub link_self_contained: Option<bool>,
     #[option(
@@ -34,9 +34,6 @@ pub struct DebuggingOptions {
     #[option]
     /// Run all passes except codegen; no output
     pub no_codegen: bool,
-    #[option(hidden(true))]
-    /// Don't run LLVM in parallel (while keeping codegen-units and ThinLTO)
-    pub no_parallel_llvm: bool,
     #[option]
     /// Pass `-install_name @rpath/...` to the macOS linker
     pub osx_rpath_install_name: bool,
@@ -57,11 +54,15 @@ pub struct DebuggingOptions {
     /// Print the arguments passed to the linker
     pub print_link_args: bool,
     #[option(default_value("false"))]
-    /// Prints the MLIR optimization passes before being run
+    /// Prints MLIR IR and pass name for each optimization pass before being run
     pub print_passes_before: bool,
     #[option(default_value("false"))]
-    /// Prints the MLIR optimization passes after being run
+    /// Prints MLIR IR and pass name for each optimization pass after being run
     pub print_passes_after: bool,
+    #[option(default_value("true"))]
+    /// Only print MLIR IR and pass name after each optimization pass when the IR changes
+    /// This is expected to be combined with `print_passes_after`.
+    pub print_passes_on_change: bool,
     #[option(default_value("true"))]
     /// Prints the operation associated with an MLIR diagnostic
     pub print_mlir_op_on_diagnostic: bool,
@@ -71,21 +72,23 @@ pub struct DebuggingOptions {
     #[option(default_value("false"))]
     /// Prints MLIR at module scope when printing diagnostics
     pub print_mlir_module_scope_always: bool,
-    #[option(default_value("true"))]
-    /// Only print MLIR after optimization passes when the IR changes
-    pub print_passes_on_change: bool,
-    #[option(hidden(true))]
+    #[option(default_value("false"))]
     /// Prints the LLVM optimization passes being run
     pub print_llvm_passes: bool,
     #[option(default_value("false"))]
     /// Prints diagnostics for LLVM optimization remarks produced during codegen
     pub print_llvm_optimization_remarks: bool,
-    #[option(takes_value(true), possible_values("full", "partial", "off", "none"))]
+    #[option(
+        takes_value(true),
+        possible_values("full", "partial", "off", "none"),
+        hidden(true)
+    )]
     /// Choose which RELRO level to use")
     pub relro_level: Option<RelroLevel>,
     #[option(
         takes_value(true),
-        possible_values("address", "leak", "memory", "thread")
+        possible_values("address", "leak", "memory", "thread"),
+        hidden(true)
     )]
     /// Use a sanitizer
     pub sanitizer: Option<Sanitizer>,
@@ -110,16 +113,16 @@ pub struct DebuggingOptions {
     #[option(default_value("1"), takes_value(true), value_name("N"))]
     /// Use a thread pool with N threads
     pub threads: u64,
-    #[option]
+    #[option(hidden(true))]
     /// Measure time of each lumen pass
     pub time_passes: bool,
-    #[option(hidden(true))]
+    #[option]
     /// Measure time of each LLVM pass
     pub time_mlir_passes: bool,
-    #[option(hidden(true))]
+    #[option]
     /// Measure time of each LLVM pass
     pub time_llvm_passes: bool,
-    #[option]
+    #[option(default_value("true"))]
     /// Verify LLVM IR
     pub verify_llvm_ir: bool,
 }

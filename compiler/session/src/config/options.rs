@@ -338,6 +338,20 @@ impl Options {
         })
     }
 
+    /// Determines whether we should invoke the linker for the program being compiled
+    pub fn should_link(&self) -> bool {
+        self.output_types.contains_key(&OutputType::Link)
+    }
+
+    pub fn maybe_emit(&self, input: &Input, output_type: OutputType) -> Option<PathBuf> {
+        self.output_types
+            .maybe_emit(input, output_type)
+            .map(|p| match self.output_dir.as_ref() {
+                Some(base) => base.join(p),
+                None => p,
+            })
+    }
+
     /// Returns the panic strategy for this compile session. If the user explicitly selected one
     /// using '-C panic', use that, otherwise use the panic strategy defined by the target.
     pub fn panic_strategy(&self) -> PanicStrategy {

@@ -3,7 +3,6 @@ mod exceptions;
 mod symbol_table;
 
 use std::collections::HashSet;
-use std::path::Path;
 
 use libeir_intern::Symbol;
 
@@ -20,18 +19,16 @@ pub fn run(
     result: &mut CodegenResults,
     context: &Context,
     target_machine: &TargetMachine,
-    output_dir: &Path,
     atoms: HashSet<Symbol>,
     symbols: HashSet<FunctionSymbol>,
 ) -> Result<()> {
-    let atom_table = atom_table::generate(options, context, target_machine, atoms, output_dir)?;
+    let atom_table = atom_table::generate(options, context, target_machine, atoms)?;
     result.modules.push(atom_table);
 
-    let symbol_table =
-        symbol_table::generate(options, context, target_machine, symbols, output_dir)?;
+    let symbol_table = symbol_table::generate(options, context, target_machine, symbols)?;
     result.modules.push(symbol_table);
 
-    let exception_handler = exceptions::generate(options, context, target_machine, output_dir)?;
+    let exception_handler = exceptions::generate(options, context, target_machine)?;
     result.modules.push(exception_handler);
 
     Ok(())

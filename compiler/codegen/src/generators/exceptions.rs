@@ -10,7 +10,7 @@ use liblumen_llvm::attributes::Attribute;
 use liblumen_llvm::builder::ModuleBuilder;
 use liblumen_llvm::enums::Linkage;
 use liblumen_llvm::target::TargetMachine;
-use liblumen_session::Options;
+use liblumen_session::{Input, Options, OutputType};
 use liblumen_term::{
     Encoding, Encoding32, Encoding64, Encoding64Nanboxed, EncodingType, Tag, TermKind,
 };
@@ -23,12 +23,11 @@ pub fn generate(
     options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
-    output_dir: &Path,
 ) -> Result<Arc<CompiledModule>> {
     if options.target.arch != "wasm32" {
-        generate_standard(options, context, target_machine, output_dir)
+        generate_standard(options, context, target_machine)
     } else {
-        generate_wasm32(options, context, target_machine, output_dir)
+        generate_wasm32(options, context, target_machine)
     }
 }
 
@@ -36,7 +35,6 @@ fn generate_standard(
     options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
-    output_dir: &Path,
 ) -> Result<Arc<CompiledModule>> {
     const NAME: &'static str = "liblumen_crt_exceptions";
 
@@ -188,21 +186,39 @@ fn generate_standard(
     // Finalize module
     let module = builder.finish()?;
 
-    // Open ll file for writing
-    let ir_path = output_dir.join(&format!("{}.ll", NAME));
-    let mut file = File::create(ir_path.as_path())?;
-    // Emit IR file
-    module.emit_ir(&mut file)?;
+    // We need an input to represent the generated source
+    let input = Input::from(Path::new(&format!("{}", NAME)));
 
-    // Open object file for writing
-    let obj_path = output_dir.join(&format!("{}.o", NAME));
-    let mut file = File::create(obj_path.as_path())?;
+    // Emit LLVM IR file
+    if let Some(ir_path) = options.maybe_emit(&input, OutputType::LLVMAssembly) {
+        let mut file = File::create(ir_path.as_path())?;
+        module.emit_ir(&mut file)?;
+    }
+
+    // Emit LLVM bitcode file
+    if let Some(bc_path) = options.maybe_emit(&input, OutputType::LLVMBitcode) {
+        let mut file = File::create(bc_path.as_path())?;
+        module.emit_bc(&mut file)?;
+    }
+
+    // Emit assembly file
+    if let Some(asm_path) = options.maybe_emit(&input, OutputType::Assembly) {
+        let mut file = File::create(asm_path.as_path())?;
+        module.emit_asm(&mut file)?;
+    }
+
     // Emit object file
-    module.emit_obj(&mut file)?;
+    let obj_path = if let Some(obj_path) = options.maybe_emit(&input, OutputType::Object) {
+        let mut file = File::create(obj_path.as_path())?;
+        module.emit_obj(&mut file)?;
+        Some(obj_path)
+    } else {
+        None
+    };
 
     Ok(Arc::new(CompiledModule::new(
         NAME.to_string(),
-        Some(obj_path),
+        obj_path,
         None,
     )))
 }
@@ -211,7 +227,6 @@ fn generate_wasm32(
     options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
-    output_dir: &Path,
 ) -> Result<Arc<CompiledModule>> {
     const NAME: &'static str = "liblumen_crt_exceptions";
 
@@ -355,21 +370,39 @@ fn generate_wasm32(
     // Finalize module
     let module = builder.finish()?;
 
-    // Open ll file for writing
-    let ir_path = output_dir.join(&format!("{}.ll", NAME));
-    let mut file = File::create(ir_path.as_path())?;
-    // Emit IR file
-    module.emit_ir(&mut file)?;
+    // We need an input to represent the generated source
+    let input = Input::from(Path::new(&format!("{}", NAME)));
 
-    // Open object file for writing
-    let obj_path = output_dir.join(&format!("{}.o", NAME));
-    let mut file = File::create(obj_path.as_path())?;
+    // Emit LLVM IR file
+    if let Some(ir_path) = options.maybe_emit(&input, OutputType::LLVMAssembly) {
+        let mut file = File::create(ir_path.as_path())?;
+        module.emit_ir(&mut file)?;
+    }
+
+    // Emit LLVM bitcode file
+    if let Some(bc_path) = options.maybe_emit(&input, OutputType::LLVMBitcode) {
+        let mut file = File::create(bc_path.as_path())?;
+        module.emit_bc(&mut file)?;
+    }
+
+    // Emit assembly file
+    if let Some(asm_path) = options.maybe_emit(&input, OutputType::Assembly) {
+        let mut file = File::create(asm_path.as_path())?;
+        module.emit_asm(&mut file)?;
+    }
+
     // Emit object file
-    module.emit_obj(&mut file)?;
+    let obj_path = if let Some(obj_path) = options.maybe_emit(&input, OutputType::Object) {
+        let mut file = File::create(obj_path.as_path())?;
+        module.emit_obj(&mut file)?;
+        Some(obj_path)
+    } else {
+        None
+    };
 
     Ok(Arc::new(CompiledModule::new(
         NAME.to_string(),
-        Some(obj_path),
+        obj_path,
         None,
     )))
 }

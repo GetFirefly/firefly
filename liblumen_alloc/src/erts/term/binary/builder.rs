@@ -506,69 +506,16 @@ impl BinaryBuilder {
         Ok(())
     }
 
-    pub fn push_binary<B>(
-        &mut self,
-        value: B,
-        bit_offset: Option<usize>,
-        num_bits: usize,
-    ) -> Result<(), ()>
-    where
-        B: Bitstring + MaybePartialByte,
-    {
-        if num_bits > value.total_bit_len() {
-            return Err(());
+    pub fn push_byte_unit(&mut self, value: Term, unit: u8) -> Result<(), ()> {
+        match value.decode().unwrap() {
+            TypedTerm::SmallInteger(small_integer) => {
+                let bytes = small_integer.to_le_bytes();
+                let unit_usize = unit as usize;
+                assert!(1 <= unit && unit_usize <= bytes.len());
+                self.push_string(&bytes[0..unit_usize])
+            }
+            _ => unimplemented!("pushing value ({}) as byte with unit ({})", value, unit),
         }
-
-        let bitoffs = bit_offset.unwrap_or(0);
-
-        self.ensure_needed(nbytes!(num_bits));
-
-        let src = unsafe { value.as_byte_ptr() };
-        let dst = self.buffer.as_mut_ptr();
-        unsafe {
-            copy_binary_to_buffer(src, bitoffs, dst, bit_offset!(self.offset), num_bits);
-        }
-
-        self.offset += num_bits;
-
-        // TODO: bump_reds(num_bits / bits_per_reduction)
-
-        Ok(())
-    }
-
-    pub fn push_binary_all<B>(
-        &mut self,
-        value: B,
-        bit_offset: Option<usize>,
-        unit: u8,
-    ) -> Result<(), ()>
-    where
-        B: Bitstring + MaybePartialByte,
-    {
-        let bitoffs = bit_offset.unwrap_or(0);
-        let bitsize = value.partial_byte_bit_len();
-        let num_bits = value.total_bit_len();
-
-        if unit == 8 && bitsize != 0 {
-            return Err(());
-        } else if unit != 1 && num_bits % unit as usize != 0 {
-            return Err(());
-        }
-
-        self.ensure_needed(nbytes!(num_bits));
-
-        let src = unsafe { value.as_byte_ptr() };
-        let dst = self.buffer.as_mut_ptr();
-
-        unsafe {
-            copy_binary_to_buffer(src, bitoffs, dst, bit_offset!(self.offset), num_bits);
-        }
-
-        self.offset += num_bits;
-
-        // TODO: bump_reds(num_bits / bits_per_reduction)
-
-        Ok(())
     }
 
     pub fn push_string(&mut self, value: &[u8]) -> Result<(), ()> {

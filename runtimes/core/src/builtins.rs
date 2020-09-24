@@ -17,6 +17,8 @@ extern "C" {
     fn erlang_bor_2(left: Term, right: Term) -> Term;
     #[link_name = "erlang:bsl/2"]
     fn erlang_bsl_2(integer: Term, shift: Term) -> Term;
+    #[link_name = "erlang:bsr/2"]
+    fn erlang_bsr_2(integer: Term, shift: Term) -> Term;
 }
 
 #[export_name = "__lumen_builtin_bigint_from_cstr"]
@@ -228,7 +230,10 @@ pub extern "C" fn builtin_math_bsl(integer: Term, shift: Term) -> Term {
     unsafe { erlang_bsl_2(integer, shift) }
 }
 
-integer_math_builtin!("__lumen_builtin_math.bsr", builtin_math_bsr, shr);
+#[export_name = "__lumen_builtin_math.bsr"]
+pub extern "C" fn builtin_math_bsr(integer: Term, shift: Term) -> Term {
+    unsafe { erlang_bsr_2(integer, shift) }
+}
 
 #[export_name = "__lumen_builtin_math.band"]
 pub extern "C" fn builtin_math_band(left: Term, right: Term) -> Term {

@@ -19,6 +19,8 @@ extern "C" {
     fn erlang_bsl_2(integer: Term, shift: Term) -> Term;
     #[link_name = "erlang:bsr/2"]
     fn erlang_bsr_2(integer: Term, shift: Term) -> Term;
+    #[link_name = "erlang:bxor/2"]
+    fn erlang_bxor_2(left: Term, right: Term) -> Term;
 }
 
 #[export_name = "__lumen_builtin_bigint_from_cstr"]
@@ -245,7 +247,10 @@ pub extern "C" fn builtin_math_bor(left: Term, right: Term) -> Term {
     unsafe { erlang_bor_2(left, right) }
 }
 
-integer_math_builtin!("__lumen_builtin_math.bxor", builtin_math_bxor, bitxor);
+#[export_name = "__lumen_builtin_math.bxor"]
+pub extern "C" fn builtin_math_bxor(left: Term, right: Term) -> Term {
+    unsafe { erlang_bxor_2(left, right) }
+}
 
 /// Capture the data needed to construct a stack trace later
 #[export_name = "__lumen_builtin_trace_capture"]

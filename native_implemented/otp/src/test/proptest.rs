@@ -273,33 +273,6 @@ pub fn with_integer_returns_integer(
     );
 }
 
-pub fn with_integer_left_without_integer_right_errors_badarith(
-    source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
-) {
-    run(
-        source_file,
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_integer(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-            )
-        },
-        |(arc_process, left, right)| {
-            prop_assert_badarith!(
-                result(&arc_process, left, right),
-                format!(
-                    "left_integer ({}) and right_integer ({}) are not both integers",
-                    left, right
-                )
-            );
-
-            Ok(())
-        },
-    );
-}
-
 pub fn without_boolean_left_errors_badarg(
     source_file: &'static str,
     result: fn(Term, Term) -> exception::Result<Term>,
@@ -599,33 +572,6 @@ pub fn with_integer_dividend_with_zero_divisor_errors_badarith(
             prop_assert_badarith!(
                 result(&arc_process, dividend, divisor),
                 format!("divisor ({}) cannot be zero", divisor)
-            );
-
-            Ok(())
-        },
-    );
-}
-
-pub fn without_integer_left_errors_badarith(
-    source_file: &'static str,
-    result: fn(&Process, Term, Term) -> exception::Result<Term>,
-) {
-    run(
-        source_file,
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone()),
-                strategy::term::is_integer(arc_process.clone()),
-            )
-        },
-        |(arc_process, left, right)| {
-            prop_assert_badarith!(
-                result(&arc_process, left, right),
-                format!(
-                    "left_integer ({}) and right_integer ({}) are not both integers",
-                    left, right
-                )
             );
 
             Ok(())

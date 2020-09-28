@@ -50,5 +50,13 @@ jobs:
           git remote add origin https://github.com/lumen/otp
           git fetch --no-tags --prune --progress --depth=1 origin +ca83f680aab717fe65634247d16f18a8cbfc6d8d:refs/remotes/origin/lumen
           git checkout --progress --force -B lumen refs/remotes/origin/lumen
+      - name: lumen/otp autoconf
+        run: |
+          cd ../otp
+          ./otp_build autoconf
+      - name: lumen/otp configure
+        run: |
+          cd ../otp
+          ./configure
       - name: Test compiling lumen/otp against liblumen_otp
         run: "cargo test --package liblumen_otp --no-fail-fast lumen::otp::"

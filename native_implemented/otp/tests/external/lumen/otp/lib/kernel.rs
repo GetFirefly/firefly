@@ -1,5 +1,8 @@
 //! https://github.com/lumen/otp/tree/lumen/lib/kernel/src
 
+use std::process::Command;
+use std::time::Duration;
+
 use super::*;
 
 test_compiles_lumen_otp!(application);
@@ -106,4 +109,27 @@ fn includes() -> Vec<&'static str> {
 
 fn relative_directory_path() -> PathBuf {
     super::relative_directory_path().join("kernel/src")
+}
+
+fn setup() {
+    let working_directory = lumen_otp_directory().join("lib/kernel/src");
+
+    let mut command = Command::new("make");
+    command
+        .current_dir(&working_directory)
+        .arg("inet_dns_record_adts.hrl");
+
+    if let Err((command, output)) = crate::test::timeout(
+        "make inet_dns_record_adts.hrl",
+        working_directory.clone(),
+        command,
+        Duration::from_secs(10),
+    ) {
+        crate::test::command_failed(
+            "make inet_dns_record_adts.hrl",
+            working_directory,
+            command,
+            output,
+        )
+    }
 }

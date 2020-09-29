@@ -44,6 +44,8 @@ pub mod bsr_2;
 pub mod bxor_2;
 #[path = "erlang/cancel_timer_1.rs"]
 pub mod cancel_timer_1;
+#[path = "erlang/cancel_timer_2.rs"]
+pub mod cancel_timer_2;
 #[path = "erlang/ceil_1.rs"]
 pub mod ceil_1;
 #[path = "erlang/convert_time_unit_3.rs"]

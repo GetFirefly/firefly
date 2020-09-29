@@ -67,10 +67,6 @@ pub fn arc_process_to_arc_process_subbinary_zero_start_byte_count_length(
         })
 }
 
-pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
-    timer_message("cancel_timer", timer_reference, result, process)
-}
-
 pub fn external_arc_node() -> Arc<Node> {
     Arc::new(Node::new(
         1,

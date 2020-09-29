@@ -236,6 +236,7 @@ pub fn timeout(
     }
 }
 
+#[allow(dead_code)]
 pub fn output(file: &str, name: &str) -> (Command, Output) {
     let bin_path_buf = compiled_path_buf(
         file,

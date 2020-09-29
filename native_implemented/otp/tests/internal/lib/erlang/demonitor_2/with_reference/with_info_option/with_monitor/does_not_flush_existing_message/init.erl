@@ -1,25 +1,22 @@
 -module(init).
 -export([start/0]).
--import(erlang, [demonitor/1, display/1, process_info/2, spawn_monitor/1]).
+-import(erlang, [demonitor/2, display/1, process_info/2, spawn_monitor/1]).
 
 start() ->
   ParentPid = self(),
   {ChildPid, MonitorReference} = spawn_monitor(fun () ->
-     receive
-       next -> ParentPid ! child_done
-     end
+    receive
+      next -> ParentPid ! child_done
+    end
   end),
-  display(has_message(MonitorReference)),
   ChildPid ! next,
-  receive
-    child_done -> ok
-  end,
   receive
   after 5 ->
     ok
   end,
   display(has_message(MonitorReference)),
-  display(demonitor(MonitorReference)),
+  Options = [info],
+  display(demonitor(MonitorReference, Options)),
   display(has_message(MonitorReference)).
 
 has_message(MonitorReference) ->

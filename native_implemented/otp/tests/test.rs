@@ -193,7 +193,7 @@ where
         "Compilation",
         std::env::current_dir().unwrap(),
         command,
-        Duration::from_secs(20),
+        Duration::from_secs(30),
     )
     .map(|_| output_path_buf)
 }

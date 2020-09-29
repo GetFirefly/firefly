@@ -48,6 +48,8 @@ pub mod cancel_timer_1;
 pub mod cancel_timer_2;
 #[path = "erlang/ceil_1.rs"]
 pub mod ceil_1;
+#[path = "erlang/concatenate_2.rs"]
+pub mod concatenate_2;
 #[path = "erlang/convert_time_unit_3.rs"]
 pub mod convert_time_unit_3;
 #[path = "erlang/date_0.rs"]

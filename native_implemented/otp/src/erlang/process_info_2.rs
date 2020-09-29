@@ -4,7 +4,9 @@ mod test;
 use anyhow::*;
 
 use liblumen_alloc::atom;
+use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::exception::{self, InternalResult};
+use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -47,7 +49,7 @@ fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
         "last_calls" => unimplemented!(),
         "memory" => unimplemented!(),
         "message_queue_len" => unimplemented!(),
-        "messages" => unimplemented!(),
+        "messages" => Ok(messages(process)),
         "min_heap_size" => unimplemented!(),
         "min_bin_vheap_size" => unimplemented!(),
         "monitored_by" => Ok(monitored_by(process)),
@@ -86,6 +88,27 @@ fn links(process: &Process) -> Term {
         .iter()
         .map(|ref_multi| ref_multi.encode().unwrap())
         .collect();
+    let value = process.list_from_slice(&vec);
+
+    process.tuple_from_slice(&[tag, value])
+}
+
+fn messages(process: &Process) -> Term {
+    let tag = atom!("messages");
+
+    let vec: Vec<Term> = process
+        .mailbox
+        .lock()
+        .borrow()
+        .iter()
+        .map(|message| match message {
+            Message::Process(message::Process { data }) => *data,
+            Message::HeapFragment(message::HeapFragment { data, .. }) => {
+                data.clone_to_process(process)
+            }
+        })
+        .collect();
+
     let value = process.list_from_slice(&vec);
 
     process.tuple_from_slice(&[tag, value])

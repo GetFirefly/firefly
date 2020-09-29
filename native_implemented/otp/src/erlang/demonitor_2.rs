@@ -1,8 +1,5 @@
 mod options;
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
-mod test;
-
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;

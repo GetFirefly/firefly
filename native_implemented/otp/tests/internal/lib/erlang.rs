@@ -54,6 +54,8 @@ pub mod concatenate_2;
 pub mod convert_time_unit_3;
 #[path = "erlang/date_0.rs"]
 pub mod date_0;
+#[path = "erlang/delete_element_2.rs"]
+pub mod delete_element_2;
 #[path = "erlang/demonitor_1.rs"]
 pub mod demonitor_1;
 #[path = "erlang/demonitor_2.rs"]

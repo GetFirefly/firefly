@@ -66,6 +66,8 @@ pub mod display_1;
 pub mod div_2;
 #[path = "erlang/divide_2.rs"]
 pub mod divide_2;
+#[path = "erlang/element_2.rs"]
+pub mod element_2;
 #[path = "erlang/erase_0.rs"]
 pub mod erase_0;
 #[path = "erlang/erase_1.rs"]

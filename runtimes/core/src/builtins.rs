@@ -23,6 +23,8 @@ extern "C" {
     fn erlang_bxor_2(left: Term, right: Term) -> Term;
     #[link_name = "erlang:div/2"]
     fn erlang_div_2(dividend: Term, divisor: Term) -> Term;
+    #[link_name = "erlang://2"]
+    fn erlang_divide_2(dividend: Term, divisor: Term) -> Term;
 }
 
 #[export_name = "__lumen_builtin_bigint_from_cstr"]
@@ -224,7 +226,11 @@ pub extern "C" fn builtin_math_add(augend: Term, addend: Term) -> Term {
 
 math_builtin!("__lumen_builtin_math.sub", builtin_math_sub, Sub, sub);
 math_builtin!("__lumen_builtin_math.mul", builtin_math_mul, Mul, mul);
-math_builtin!("__lumen_builtin_math.fdiv", builtin_math_fdiv, Div, div);
+
+#[export_name = "__lumen_builtin_math.fdiv"]
+pub extern "C" fn builtin_math_fdiv(dividend: Term, divisor: Term) -> Term {
+    unsafe { erlang_divide_2(dividend, divisor) }
+}
 
 #[export_name = "__lumen_builtin_math.div"]
 pub extern "C" fn builtin_math_div(dividend: Term, divisor: Term) -> Term {

@@ -1,80 +1,15 @@
-mod with_float_dividend;
-
 use std::sync::Arc;
 
+use proptest::prop_assert;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
-use proptest::{prop_assert, prop_oneof};
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang::divide_2::result;
 use crate::test::strategy;
-use crate::test::with_process;
 
-#[test]
-fn without_number_dividend_errors_badarith() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_not_number(arc_process.clone()),
-                strategy::term::is_number(arc_process.clone()),
-            )
-        },
-        |(arc_process, dividend, divisor)| {
-            prop_assert_badarith!(
-                result(&arc_process, dividend, divisor),
-                format!("dividend ({}) cannot be promoted to a float", dividend)
-            );
-
-            Ok(())
-        },
-    );
-}
-
-#[test]
-fn with_number_dividend_without_number_divisor_errors_badarith() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_number(arc_process.clone()),
-                strategy::term::is_not_number(arc_process.clone()),
-            )
-        },
-        |(arc_process, dividend, divisor)| {
-            prop_assert_badarith!(
-                result(&arc_process, dividend, divisor),
-                format!("divisor ({}) cannot be promoted to a float", divisor)
-            );
-
-            Ok(())
-        },
-    );
-}
-
-#[test]
-fn with_number_dividend_with_zero_divisor_errors_badarith() {
-    run!(
-        |arc_process| {
-            (
-                Just(arc_process.clone()),
-                strategy::term::is_number(arc_process.clone()),
-                zero(arc_process.clone()),
-            )
-        },
-        |(arc_process, dividend, divisor)| {
-            prop_assert_badarith!(
-                result(&arc_process, dividend, divisor),
-                format!("divisor ({}) cannot be zero", divisor)
-            );
-
-            Ok(())
-        },
-    );
-}
-
+// FIXME https://github.com/lumen/lumen/issues/650 and then remove for integration test
 #[test]
 fn with_number_dividend_without_zero_number_divisor_returns_float() {
     run!(
@@ -117,8 +52,4 @@ fn number_is_not_zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
             }
         })
         .boxed()
-}
-
-fn zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    prop_oneof![Just(arc_process.integer(0)), Just(arc_process.float(0.0))].boxed()
 }

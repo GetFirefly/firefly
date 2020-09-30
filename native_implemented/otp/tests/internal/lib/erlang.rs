@@ -74,6 +74,8 @@ pub mod erase_0;
 pub mod erase_1;
 #[path = "erlang/error_1.rs"]
 pub mod error_1;
+#[path = "erlang/error_2.rs"]
+pub mod error_2;
 #[path = "erlang/exit_1.rs"]
 pub mod exit_1;
 #[path = "erlang/float_1.rs"]

@@ -1,0 +1,12 @@
+test_stdout!(
+    with_small_integer_divisor_with_underflow_returns_small_integer,
+    "true\n17592186044416\n"
+);
+test_stdout!(
+    with_big_integer_divisor_with_underflow_returns_small_integer,
+    "true\n1\n"
+);
+test_stdout!(
+    with_big_integer_divisor_without_underflow_returns_big_integer,
+    "true\n70368744177664\n"
+);

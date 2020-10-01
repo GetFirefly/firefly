@@ -88,6 +88,8 @@ pub mod float_to_binary_2;
 pub mod float_to_list_1;
 #[path = "erlang/float_to_list_2.rs"]
 pub mod float_to_list_2;
+#[path = "erlang/floor_1.rs"]
+pub mod floor_1;
 #[path = "erlang/get_0.rs"]
 pub mod get_0;
 #[path = "erlang/get_1.rs"]

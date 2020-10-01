@@ -5,9 +5,6 @@
 //! @spec function_exported(module :: atom(), function :: atom(), arity :: 0..255)
 //! ```
 
-#[cfg(test)]
-mod test;
-
 use std::convert::TryInto;
 
 use anyhow::*;

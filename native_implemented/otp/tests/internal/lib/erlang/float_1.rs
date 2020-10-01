@@ -1,4 +1,4 @@
-// `without_number_errors_badarg` in unit tests
+test_stdout!(without_number_errors_badarg, "{caught, error, badarg}\n{caught, error, badarg}\n{caught, error, badarg}\n{caught, error, badarg}\n{caught, error, badarg}\n{caught, error, badarg}\n{caught, error, badarg}\n{caught, error, badarg}\n{caught, error, badarg}\n");
 test_stdout!(
     with_integer_returns_float_with_same_value,
     "-1.0\n0.0\n1.0\n"

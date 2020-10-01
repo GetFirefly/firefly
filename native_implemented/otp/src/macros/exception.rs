@@ -87,23 +87,6 @@ macro_rules! assert_has_message {
 }
 
 #[cfg(test)]
-macro_rules! assert_is_not_non_empty_list {
-    ($actual:expr, $name:ident) => {
-        assert_is_not_non_empty_list!($actual, stringify!($name), $name)
-    };
-    ($actual:expr, $name:expr, $value:expr) => {
-        assert_is_not_type!($actual, $name, $value, "a non-empty list")
-    };
-}
-
-#[cfg(test)]
-macro_rules! assert_is_not_type {
-    ($actual:expr, $name:expr, $value:expr, $type:expr) => {
-        assert_badarg!($actual, format!("{} ({}) is not {}", $name, $value, $type))
-    };
-}
-
-#[cfg(test)]
 macro_rules! prop_assert_error {
     ($actual:expr, $expected_error_name:literal, $expected_reason:expr, $expected_substring:expr $(,)?) => {{
         let actual = $actual;

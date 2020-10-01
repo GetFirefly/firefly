@@ -102,6 +102,8 @@ pub mod get_keys_0;
 pub mod get_keys_1;
 #[path = "erlang/hd_1.rs"]
 pub mod hd_1;
+#[path = "erlang/insert_element_3.rs"]
+pub mod insert_element_3;
 #[path = "erlang/integer_to_binary_1.rs"]
 pub mod integer_to_binary_1;
 #[path = "erlang/integer_to_list_1.rs"]

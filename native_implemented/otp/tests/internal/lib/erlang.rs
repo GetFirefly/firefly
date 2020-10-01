@@ -118,6 +118,8 @@ pub mod is_binary_1;
 pub mod is_boolean_1;
 #[path = "erlang/is_float_1.rs"]
 pub mod is_float_1;
+#[path = "erlang/is_integer_1.rs"]
+pub mod is_integer_1;
 #[path = "erlang/is_list_1.rs"]
 pub mod is_list_1;
 #[path = "erlang/link_1.rs"]

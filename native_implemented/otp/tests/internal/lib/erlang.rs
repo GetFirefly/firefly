@@ -110,6 +110,8 @@ pub mod integer_to_list_1;
 pub mod is_alive_0;
 #[path = "erlang/is_atom_1.rs"]
 pub mod is_atom_1;
+#[path = "erlang/is_binary_1.rs"]
+pub mod is_binary_1;
 #[path = "erlang/is_list_1.rs"]
 pub mod is_list_1;
 #[path = "erlang/link_1.rs"]

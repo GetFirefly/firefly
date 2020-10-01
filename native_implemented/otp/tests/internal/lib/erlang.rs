@@ -132,3 +132,5 @@ pub mod spawn_monitor_3;
 pub mod spawn_opt_2;
 #[path = "erlang/spawn_opt_4.rs"]
 pub mod spawn_opt_4;
+#[path = "erlang/tl_1.rs"]
+pub mod tl_1;

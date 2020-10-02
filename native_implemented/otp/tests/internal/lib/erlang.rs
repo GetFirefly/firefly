@@ -126,6 +126,8 @@ pub mod is_list_1;
 pub mod is_map_1;
 #[path = "erlang/is_number_1.rs"]
 pub mod is_number_1;
+#[path = "erlang/is_pid_1.rs"]
+pub mod is_pid_1;
 #[path = "erlang/link_1.rs"]
 pub mod link_1;
 #[path = "erlang/or_2.rs"]

@@ -115,6 +115,7 @@ pub mod list_to_integer_2;
 pub mod list_to_pid_1;
 mod list_to_string;
 pub mod list_to_tuple_1;
+pub mod load_nif_2;
 pub mod localtime_0;
 pub mod make_ref_0;
 pub mod make_tuple_2;

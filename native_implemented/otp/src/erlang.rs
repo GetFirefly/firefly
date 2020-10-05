@@ -128,6 +128,7 @@ pub mod monotonic_time_0;
 pub mod monotonic_time_1;
 pub mod multiply_2;
 pub mod negate_1;
+pub mod nif_error_1;
 pub mod node_0;
 pub mod not_1;
 pub mod now_0;

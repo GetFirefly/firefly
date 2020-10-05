@@ -132,6 +132,8 @@ pub mod is_pid_1;
 pub mod is_process_alive_1;
 #[path = "erlang/link_1.rs"]
 pub mod link_1;
+#[path = "erlang/nif_error_1.rs"]
+pub mod nif_error_1;
 #[path = "erlang/or_2.rs"]
 pub mod or_2;
 #[path = "erlang/process_flag_2.rs"]

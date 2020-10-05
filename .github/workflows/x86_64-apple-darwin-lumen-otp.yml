@@ -58,5 +58,7 @@ jobs:
         run: |
           cd ../otp
           ./configure
+      - name: Install Erlang
+        run: brew install erlang
       - name: Test compiling lumen/otp against liblumen_otp
         run: "cargo test --package liblumen_otp --no-fail-fast lumen::otp::"

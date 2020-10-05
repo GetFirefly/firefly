@@ -6,7 +6,7 @@ jobs:
   wasm:
     runs-on: ubuntu-latest
     container:
-      image: kronicdeth/lumen-development@sha256:c784a8eeb79fa5244bd15d408e469dc37b9e538b44f9b40fa4a20fd6c72c5f47
+      image: kronicdeth/lumen-development@sha256:bb25b47f31e25caf1ff66ed9e7b920a9986fa643873deb9d72f727bca6812987
 
     steps:
       - uses: actions/checkout@v2

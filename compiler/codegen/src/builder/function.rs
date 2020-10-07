@@ -1370,7 +1370,8 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
                 debug_in!(self, "operator = {:?}", kind);
                 assert_eq!(
                     num_reads, 2,
-                    "expected logical operations to have two operands"
+                    "expected logical operation ({:?}) to have two operands",
+                    kind
                 );
                 let lhs = self.build_value(reads[0])?;
                 let rhs = self.build_value(reads[1])?;

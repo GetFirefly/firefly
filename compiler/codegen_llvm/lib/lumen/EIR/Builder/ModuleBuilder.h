@@ -73,6 +73,12 @@ class ModuleBuilder {
   void build_static_call(Location loc, StringRef target, ArrayRef<Value> args,
                          bool isTail, Block *ok, ArrayRef<Value> okArgs);
 
+  void build_global_dynamic_call(Location loc,
+                                 Value module, Value function, ArrayRef<Value> args,
+                                 bool isTail,
+                                 Block *ok, ArrayRef<Value> okArgs,
+                                 Block *err, ArrayRef<Value> errArgs);
+
   void build_closure_call(Location loc, Value closure, ArrayRef<Value> args,
                           bool isTail, Block *ok, ArrayRef<Value> okArgs,
                           Block *err, ArrayRef<Value> errArgs);

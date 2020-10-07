@@ -1282,6 +1282,76 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
   }
 }
 
+extern "C" void MLIRBuildGlobalDynamicCall(MLIRModuleBuilderRef b,
+                                           MLIRLocationRef locref,
+                                           MLIRValueRef moduleRef,
+                                           MLIRValueRef functionRef,
+                                           MLIRValueRef *argv, unsigned argc,
+                                           bool isTail,
+                                           MLIRBlockRef okBlock,
+                                           MLIRValueRef *okArgv, unsigned okArgc,
+                                           MLIRBlockRef errBlock,
+                                           MLIRValueRef *errArgv, unsigned errArgc) {
+  ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
+  Value module = unwrap(moduleRef);
+  Value function = unwrap(functionRef);
+  Block *ok = unwrap(okBlock);
+  Block *err = unwrap(errBlock);
+  SmallVector<Value, 2> args;
+  unwrapValues(argv, argc, args);
+  SmallVector<Value, 1> okArgs;
+  unwrapValues(okArgv, okArgc, okArgs);
+  SmallVector<Value, 1> errArgs;
+  unwrapValues(errArgv, errArgc, errArgs);
+  builder->build_global_dynamic_call(loc, module, function, args, isTail, ok, okArgs, err,
+                                     errArgs);
+}
+
+void ModuleBuilder::build_global_dynamic_call(Location loc,
+                                              Value module, Value function, ArrayRef<Value> args,
+                                              bool isTail,
+                                              Block *ok, ArrayRef<Value> okArgs,
+                                              Block *err, ArrayRef<Value> errArgs) {
+  ScopedContext scope(builder, loc);
+
+  bool isInvoke = !isTail && err != nullptr;
+
+  //  Build call
+  if (isInvoke) {
+    // Set up landing pad in error block
+    Block *pad = build_landing_pad(loc, err);
+    // Handle case where ok continuation is a return
+    bool generateRet = false;
+    if (!ok) {
+      // Create "normal" landing pad before the "unwind" pad
+      auto ip = builder.saveInsertionPoint();
+      ok = builder.createBlock(pad);
+      builder.restoreInsertionPoint(ip);
+      generateRet = true;
+    }
+    auto res = builder.create<InvokeGlobalDynamicOp>(loc, module, function, args, ok, okArgs,
+                                                     pad, errArgs);
+    // Generate return if needed
+    if (generateRet) {
+      auto ip = builder.saveInsertionPoint();
+      builder.setInsertionPointToEnd(ok);
+      builder.create<ReturnOp>(loc, res.getResult());
+      builder.restoreInsertionPoint(ip);
+    }
+    return;
+  }
+  Operation *call;
+  if (isTail) {
+    call = builder.create<CallGlobalDynamicOp>(loc, module, function, args);
+    eir_return(ValueRange(call->getResult(0)));
+  } else {
+    call = builder.create<CallGlobalDynamicOp>(loc, module, function, args);
+    builder.create<BranchOp>(loc, ok, ArrayRef<Value>{call->getResult(0)});
+  }
+  return;
+}
+
 extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b,
                                      MLIRLocationRef locref, MLIRValueRef cls,
                                      MLIRValueRef *argv, unsigned argc,

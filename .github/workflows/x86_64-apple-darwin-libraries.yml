@@ -36,7 +36,7 @@ jobs:
           mv clang+llvm-12.0.0-x86_64-apple-darwin19.5.0 lumen
           popd
       - name: Set LLVM_PREFIX
-        run: echo "::set-env name=LLVM_PREFIX::$HOME/.local/share/llvm/lumen"
+        run: echo "LLVM_PREFIX=$HOME/.local/share/llvm/lumen" >> $GITHUB_ENV
       - name: Install Ninja
         run: brew install ninja
       - name: Test liblumen_arena

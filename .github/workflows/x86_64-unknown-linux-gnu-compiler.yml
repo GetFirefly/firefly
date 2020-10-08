@@ -21,7 +21,7 @@ jobs:
           RUST_BACKTRACE: full
         run: |
           make build-shared
-          echo "::add-path::$PWD/bin"
+          echo "$PWD/bin" >> $GITHUB_PATH
       - name: Lumen Test
         run: cargo test --package lumen --no-fail-fast
       - name: liblumen_otp Integration Tests

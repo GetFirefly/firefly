@@ -100,8 +100,8 @@ class ModuleBuilder {
   Value build_is_less_than(Location loc, Value lhs, Value rhs);
   Value build_is_greater_than_or_equal(Location loc, Value lhs, Value rhs);
   Value build_is_greater_than(Location loc, Value lhs, Value rhs);
-  Value build_logical_and(Location loc, Value lhs, Value rhs);
-  Value build_logical_or(Location loc, Value lhs, Value rhs);
+  Value build_logical_and(Location loc, ArrayRef<Value> args);
+  Value build_logical_or(Location loc, ArrayRef<Value> args);
   Value build_cons(Location loc, Value head, Value tail);
   Value build_tuple(Location loc, ArrayRef<Value> elements);
   Value build_map(Location loc, ArrayRef<MapEntry> entries);

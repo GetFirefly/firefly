@@ -1368,18 +1368,20 @@ impl<'f, 'o> ScopedFunctionBuilder<'f, 'o> {
             ir::PrimOpKind::LogicOp(kind) => {
                 debug_in!(self, "primop is logical operator");
                 debug_in!(self, "operator = {:?}", kind);
-                assert_eq!(
-                    num_reads, 2,
-                    "expected logical operation ({:?}) to have two operands",
+                assert!(
+                    num_reads >= 2,
+                    "expected logical operation ({:?}) to have at least two operands",
                     kind
                 );
-                let lhs = self.build_value(reads[0])?;
-                let rhs = self.build_value(reads[1])?;
+                let operands = reads
+                    .into_iter()
+                    .map(|read| self.build_value(read))
+                    .collect::<Result<Vec<Value>>>()?;
+
                 OpKind::LogicOp(LogicalOperator {
                     loc,
                     kind,
-                    lhs,
-                    rhs: Some(rhs),
+                    operands,
                 })
             }
             // (value)

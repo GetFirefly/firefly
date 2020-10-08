@@ -464,14 +464,14 @@ extern "C" {
     pub fn MLIRBuildLogicalAndOp(
         builder: ModuleBuilderRef,
         loc: LocationRef,
-        lhs: ValueRef,
-        rhs: ValueRef,
+        argv: *const ValueRef,
+        argc: libc::c_uint,
     ) -> ValueRef;
     pub fn MLIRBuildLogicalOrOp(
         builder: ModuleBuilderRef,
         loc: LocationRef,
-        lhs: ValueRef,
-        rhs: ValueRef,
+        argv: *const ValueRef,
+        argc: libc::c_uint,
     ) -> ValueRef;
 
     pub fn MLIRCons(

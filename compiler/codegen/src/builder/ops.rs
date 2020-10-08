@@ -100,12 +100,11 @@ pub struct BinaryOperator {
     pub rhs: Value,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct LogicalOperator {
     pub loc: LocationRef,
     pub kind: ir::LogicOp,
-    pub lhs: Value,
-    pub rhs: Option<Value>,
+    pub operands: Vec<Value>,
 }
 
 #[derive(Debug, Clone)]

@@ -874,32 +874,52 @@ Value ModuleBuilder::build_is_greater_than(Location loc, Value lhs, Value rhs) {
 
 extern "C" MLIRValueRef MLIRBuildLogicalAndOp(MLIRModuleBuilderRef b,
                                               MLIRLocationRef locref,
-                                              MLIRValueRef l, MLIRValueRef r) {
+                                              MLIRValueRef *argv, unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
-  Value lhs = unwrap(l);
-  Value rhs = unwrap(r);
-  return wrap(builder->build_logical_and(loc, lhs, rhs));
+
+  assert(argc >= 2 && "logical and operation does not have at least 2 operands");
+  SmallVector<Value, 2> args;
+  unwrapValues(argv, argc, args);
+
+  return wrap(builder->build_logical_and(loc, args));
 }
 
-Value ModuleBuilder::build_logical_and(Location loc, Value lhs, Value rhs) {
-  auto op = builder.create<LogicalAndOp>(loc, lhs, rhs);
-  return op.getResult();
+Value ModuleBuilder::build_logical_and(Location loc, ArrayRef<Value> args) {
+  auto begin = args.begin();
+  Value acc = *begin;
+
+  for (auto it = std::next(begin); it != args.end(); ++it) {
+    auto op = builder.create<LogicalAndOp>(loc, acc, *it);
+    acc = op.getResult();
+  }
+
+  return acc;
 }
 
 extern "C" MLIRValueRef MLIRBuildLogicalOrOp(MLIRModuleBuilderRef b,
                                              MLIRLocationRef locref,
-                                             MLIRValueRef l, MLIRValueRef r) {
+                                             MLIRValueRef *argv, unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
-  Value lhs = unwrap(l);
-  Value rhs = unwrap(r);
-  return wrap(builder->build_logical_or(loc, lhs, rhs));
+
+  assert(argc >= 2 && "logical or operation does not have at least 2 operands");
+  SmallVector<Value, 2> args;
+  unwrapValues(argv, argc, args);
+
+  return wrap(builder->build_logical_or(loc, args));
 }
 
-Value ModuleBuilder::build_logical_or(Location loc, Value lhs, Value rhs) {
-  auto op = builder.create<LogicalOrOp>(loc, lhs, rhs);
-  return op.getResult();
+Value ModuleBuilder::build_logical_or(Location loc, ArrayRef<Value> args) {
+  auto begin = args.begin();
+  Value acc = *begin;
+
+  for (auto it = std::next(begin); it != args.end(); ++it) {
+    auto op = builder.create<LogicalOrOp>(loc, acc, *it);
+    acc = op.getResult();
+  }
+
+  return acc;
 }
 
 //===----------------------------------------------------------------------===//

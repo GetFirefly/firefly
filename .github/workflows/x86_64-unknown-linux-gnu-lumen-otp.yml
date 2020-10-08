@@ -23,7 +23,7 @@ jobs:
           cd ..
           git init otp
           cd otp
-          echo "::set-env name=ERL_TOP::$PWD"
+          echo "ERL_TOP=$PWD" >> $GITHUB_ENV
           git remote add origin https://github.com/lumen/otp
           git fetch --no-tags --prune --progress --depth=1 origin +ca83f680aab717fe65634247d16f18a8cbfc6d8d:refs/remotes/origin/lumen
           git checkout --progress --force -B lumen refs/remotes/origin/lumen

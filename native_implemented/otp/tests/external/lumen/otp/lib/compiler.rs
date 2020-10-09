@@ -39,7 +39,7 @@ test_compiles_lumen_otp!(cerl_inline);
 test_compiles_lumen_otp!(cerl_sets);
 test_compiles_lumen_otp!(cerl_trees);
 test_compiles_lumen_otp!(compile);
-test_compiles_lumen_otp!(core_lib);
+test_compiles_lumen_otp!(core_lib imports "lib/compiler/src/cerl", "lib/stdlib/src/lists");
 test_compiles_lumen_otp!(core_lint);
 test_compiles_lumen_otp!(core_pp);
 test_compiles_lumen_otp!(core_scan);

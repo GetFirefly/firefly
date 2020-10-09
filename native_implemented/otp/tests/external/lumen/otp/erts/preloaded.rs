@@ -4,7 +4,7 @@ use super::*;
 
 test_compiles_lumen_otp!(atomics);
 test_compiles_lumen_otp!(counters imports "erts/preloaded/src/atomics");
-test_compiles_lumen_otp!(erl_init);
+test_compiles_lumen_otp!(erl_init imports "erts/preloaded/src/erl_tracer", "erts/preloaded/src/prim_buffer", "erts/preloaded/src/prim_file", "erts/preloaded/src/zlib");
 test_compiles_lumen_otp!(erl_prim_loader);
 test_compiles_lumen_otp!(erl_tracer);
 test_compiles_lumen_otp!(erlang);
@@ -18,7 +18,7 @@ test_compiles_lumen_otp!(prim_buffer);
 test_compiles_lumen_otp!(prim_eval);
 test_compiles_lumen_otp!(prim_file);
 test_compiles_lumen_otp!(prim_inet);
-test_compiles_lumen_otp!(prim_net);
+test_compiles_lumen_otp!(prim_net imports "erts/preloaded/src/prim_socket");
 test_compiles_lumen_otp!(prim_socket);
 test_compiles_lumen_otp!(prim_zip);
 test_compiles_lumen_otp!(socket_registry);

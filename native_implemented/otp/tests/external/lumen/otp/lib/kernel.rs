@@ -33,7 +33,7 @@ test_compiles_lumen_otp!(file);
 test_compiles_lumen_otp!(file_io_server);
 test_compiles_lumen_otp!(file_server);
 test_compiles_lumen_otp!(gen_sctp);
-test_compiles_lumen_otp!(gen_tcp);
+test_compiles_lumen_otp!(gen_tcp imports "lib/kernel/src/inet");
 test_compiles_lumen_otp!(gen_tcp_socket);
 test_compiles_lumen_otp!(gen_udp);
 test_compiles_lumen_otp!(global);

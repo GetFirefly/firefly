@@ -122,7 +122,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
           pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
                                                  pushTy, args);
         } else {
-          StringRef symbolName("__lumen_builtin_binary_bits_push_unit");
+          StringRef symbolName("__lumen_builtin_binary_push_bits_unit");
           // __lumen_builtin_binary_bits_push_unit(bin, value, unit)
           auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
                                                 {termTy, termTy, i8Ty});

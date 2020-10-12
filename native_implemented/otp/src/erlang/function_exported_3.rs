@@ -9,11 +9,10 @@ use std::convert::TryInto;
 
 use anyhow::*;
 
+use liblumen_alloc::erts::apply::find_symbol;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 use liblumen_alloc::{Arity, ModuleFunctionArity};
-
-use liblumen_alloc::erts::apply::find_symbol;
 
 #[native_implemented::function(erlang:function_exported/3)]
 pub fn result(module: Term, function: Term, arity: Term) -> exception::Result<Term> {

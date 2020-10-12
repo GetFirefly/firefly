@@ -124,6 +124,7 @@ pub mod map_get_2;
 pub mod map_size_1;
 pub mod max_2;
 pub mod min_2;
+pub mod module_loaded_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod monotonic_time_1;

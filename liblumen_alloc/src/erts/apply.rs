@@ -2,7 +2,7 @@ use core::ffi::c_void;
 use core::mem;
 use core::slice;
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 
 use once_cell::sync::OnceCell;
 
@@ -66,6 +66,17 @@ pub fn dump_symbols() {
     symbols.dump();
 }
 
+pub fn module_loaded(module: Atom) -> bool {
+    let symbols = SYMBOLS.get().unwrap_or_else(|| {
+        panic!(
+            "InitializeLumenDispatchTable not called before trying to check module ({}) loaded",
+            module
+        )
+    });
+
+    symbols.contains_module(module)
+}
+
 /// The symbol table used by the runtime system
 static SYMBOLS: OnceCell<SymbolTable> = OnceCell::new();
 
@@ -103,6 +114,7 @@ pub unsafe extern "C" fn InitializeLumenDispatchTable(
 struct SymbolTable {
     functions: HashMap<&'static ModuleFunctionArity, *const c_void>,
     idents: HashMap<*const c_void, &'static ModuleFunctionArity>,
+    modules: HashSet<Atom>,
     arena: DroplessArena,
 }
 impl SymbolTable {
@@ -110,6 +122,7 @@ impl SymbolTable {
         Self {
             functions: HashMap::with_capacity(size),
             idents: HashMap::with_capacity(size),
+            modules: HashSet::new(),
             arena: DroplessArena::default(),
         }
     }
@@ -153,6 +166,7 @@ impl SymbolTable {
             let sym = mem::transmute::<&ModuleFunctionArity, &'static ModuleFunctionArity>(&*ptr);
             assert_eq!(None, table.idents.insert(callee, sym));
             assert_eq!(None, table.functions.insert(sym, callee));
+            table.modules.insert(sym.module);
         }
 
         Ok(table)
@@ -165,6 +179,10 @@ impl SymbolTable {
 
     fn get_function(&self, ident: &ModuleFunctionArity) -> Option<*const c_void> {
         self.functions.get(ident).copied()
+    }
+
+    fn contains_module(&self, module: Atom) -> bool {
+        self.modules.contains(&module)
     }
 }
 

@@ -142,6 +142,8 @@ pub mod nif_error_1;
 pub mod or_2;
 #[path = "erlang/process_flag_2.rs"]
 pub mod process_flag_2;
+#[path = "erlang/seq_trace_info_1.rs"]
+pub mod seq_trace_info_1;
 #[path = "erlang/spawn_1.rs"]
 pub mod spawn_1;
 #[path = "erlang/spawn_3.rs"]

@@ -435,11 +435,50 @@ class eir_BinaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = 
   ];
 }
 
-def eir_CmpEqOp :
-    eir_BinaryComparisonOp<AnyType, "cmp.eq", [Commutative]> {
+def eir_CmpEqOp : eir_Op<"cmp.eq", [Commutative, NoSideEffect]> {
   let summary = "term equality comparison operation";
+
+  let arguments = (ins AnyType:$lhs, AnyType:$rhs, OptionalAttr<UnitAttr>:$is_strict);
+  let results = (outs eir_BoolType:$result);
+
+  let assemblyFormat = [{
+    `(` operands `)` (`strict` $is_strict^)? attr-dict `:` functional-type(operands, results)
+  }];
+
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+
+  let verifier = [{
+    auto numOperands = getNumOperands();
+    if (numOperands != 2)
+      return emitOpError("invalid number of operands, expected 2");
+    return success();
+  }];
+
+  let builders = [
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Type resultTy, Value lhs, Value rhs,"
+    "ArrayRef<NamedAttribute> attrs = {}",
+    [{
+      result.addOperands(ValueRange({lhs, rhs}));
+      result.addTypes(resultTy);
+      result.addAttributes(attrs);
+    }]>,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, ValueRange args",
+    [{
+      assert(args.size() == 2 && "expected binary operator to receive 2 arguments");
+      Value lhs = args[0];
+      Value rhs = args[1];
+      build(builder, result, lhs, rhs);
+    }]>,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, bool strict = false",
+    [{
+      auto boolType = builder.getType<eir::BooleanType>();
+      build(builder, result, boolType, lhs, rhs, strict ? builder.getUnitAttr() : nullptr);
+    }]>
+  ];
 }
 
 def eir_CmpLtOp :

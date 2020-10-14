@@ -83,33 +83,38 @@ pub extern "C" fn builtin_map_get(map: Term, key: Term) -> Term {
 }
 
 /// Strict equality
-#[export_name = "__lumen_builtin_cmp.eq"]
-pub extern "C" fn builtin_cmpeq(lhs: Term, rhs: Term) -> bool {
-    let result = panic::catch_unwind(|| {
-        if let Ok(left) = lhs.decode() {
-            if let Ok(right) = rhs.decode() {
-                left.exact_eq(&right)
-            } else {
-                false
-            }
+#[export_name = "__lumen_builtin_cmp.eq.strict"]
+pub extern "C" fn builtin_cmpeq_strict(lhs: Term, rhs: Term) -> bool {
+    if let Ok(left) = lhs.decode() {
+        if let Ok(right) = rhs.decode() {
+            left.exact_eq(&right)
         } else {
-            if lhs.is_none() && rhs.is_none() {
-                true
-            } else {
-                false
-            }
+            false
         }
-    });
-    if let Ok(res) = result {
-        res
     } else {
-        false
+        if lhs.is_none() && rhs.is_none() {
+            true
+        } else {
+            false
+        }
     }
 }
 
-#[export_name = "__lumen_builtin_cmp.neq"]
-pub extern "C" fn builtin_cmpneq(lhs: Term, rhs: Term) -> bool {
-    !builtin_cmpeq(lhs, rhs)
+#[export_name = "__lumen_builtin_cmp.eq"]
+pub extern "C" fn builtin_cmpeq(lhs: Term, rhs: Term) -> bool {
+    if let Ok(left) = lhs.decode() {
+        if let Ok(right) = rhs.decode() {
+            left.eq(&right)
+        } else {
+            false
+        }
+    } else {
+        if lhs.is_none() && rhs.is_none() {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 macro_rules! comparison_builtin {

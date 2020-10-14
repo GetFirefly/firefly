@@ -68,7 +68,7 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
         resultTypes.push_back(resultType);
       }
     } else {
-      resultTypes.push_back(ctx.targetInfo.getVoidType());
+      //resultTypes.push_back(ctx.targetInfo.getVoidType());
     }
 
     // Add tail call markers where present
@@ -78,7 +78,11 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
       callOp->setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
     }
 
-    rewriter.replaceOp(op, callOp->getResults());
+    if (op.getNumResults() > 0) {
+      rewriter.replaceOp(op, callOp->getResults());
+    } else {
+      rewriter.eraseOp(op);
+    }
     return success();
   }
 };

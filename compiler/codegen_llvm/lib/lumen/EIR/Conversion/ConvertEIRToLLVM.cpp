@@ -84,9 +84,6 @@ class ConvertEIRToLLVMPass
     // Define the legality of the operations we're converting to
     mlir::ConversionTarget conversionTarget(context);
     conversionTarget.addLegalDialect<mlir::LLVM::LLVMDialect>();
-    conversionTarget.addDynamicallyLegalOp<mlir::FuncOp>([&](mlir::FuncOp op) {
-      return converter.isSignatureLegal(op.getType());
-    });
     conversionTarget.addLegalOp<ModuleOp, mlir::ModuleTerminatorOp>();
 
     mlir::ModuleOp moduleOp = getOperation();

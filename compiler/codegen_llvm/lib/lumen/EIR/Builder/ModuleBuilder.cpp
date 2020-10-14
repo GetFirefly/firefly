@@ -1894,18 +1894,6 @@ void ModuleBuilder::build_receive_wait(Location loc, Block *timeout,
   // the timeout checking code, and simply handle the error case by
   // raising a fatal error
   auto termTy = builder.getType<TermType>();
-  /*
-  if (isa<UnreachableOp>(check->getTerminator())) {
-    auto calleeSymbol =
-      FlatSymbolRefAttr::get("__lumen_builtin_fatal_error",
-  builder.getContext()); auto callOp = builder.create<CallOp>(loc, calleeSymbol,
-  ArrayRef<Type>{}, ValueRange()); callOp.setAttr("tail",
-  builder.getUnitAttr()); callOp.setAttr("noreturn", builder.getUnitAttr());
-    Value noneVal = eir_none(termTy);
-    builder.create<ReturnOp>(loc, ValueRange(noneVal));
-    return;
-  }
-  */
 
   // Otherwise we handle the timeout/error cases
   Block *fatalBlock = builder.createBlock(recvFailedBlock);
@@ -1922,8 +1910,9 @@ void ModuleBuilder::build_receive_wait(Location loc, Block *timeout,
   // If this was an error, drop an abort, for now
   builder.setInsertionPointToEnd(fatalBlock);
 
-  auto calleeSymbol = FlatSymbolRefAttr::get("__lumen_builtin_fatal_error",
-                                             builder.getContext());
+  StringRef fatalErrSymbol("__lumen_builtin_fatal_error");
+  getOrDeclareFunction(fatalErrSymbol, nullptr, TypeRange());
+  auto calleeSymbol = FlatSymbolRefAttr::get(fatalErrSymbol, builder.getContext());
   auto callOp =
       builder.create<CallOp>(loc, calleeSymbol, ArrayRef<Type>{}, ValueRange());
   callOp.setAttr("tail", builder.getUnitAttr());

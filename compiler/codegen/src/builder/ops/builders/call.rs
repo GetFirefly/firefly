@@ -67,35 +67,6 @@ impl CallBuilder {
 
                 Ok(None)
             }
-            Callee::GlobalDynamic {
-                module,
-                function,
-                arity,
-            } => {
-                builder.debug(&format!("globally dynamic target with arity {}", arity));
-
-                let module_ref = builder.value_ref(module);
-                let function_ref = builder.value_ref(function);
-                unsafe {
-                    MLIRBuildGlobalDynamicCall(
-                        builder.as_ref(),
-                        op.loc,
-                        module_ref,
-                        function_ref,
-                        args.as_ptr(),
-                        args.len() as libc::c_uint,
-                        op.is_tail,
-                        ok_block,
-                        ok_args.as_ptr(),
-                        ok_args.len() as libc::c_uint,
-                        err_block,
-                        err_args.as_ptr(),
-                        err_args.len() as libc::c_uint,
-                    );
-                }
-
-                Ok(None)
-            }
             Callee::Static(ref ident) => {
                 builder.debug(&format!("static call target is {}", ident));
 

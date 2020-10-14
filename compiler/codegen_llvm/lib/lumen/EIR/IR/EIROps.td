@@ -508,7 +508,7 @@ def eir_BranchOp : eir_Op<"br",
 }
 
 def eir_CondBranchOp : eir_Op<"cond_br",
-  [AttrSizedOperandSegments,
+  [AttrSizedOperandSegments, 
    DeclareOpInterfaceMethods<BranchOpInterface, ["getSuccessorForOperands"]>,
    NoSideEffect, Terminator]> {
   let summary = "conditional branch operation";
@@ -926,44 +926,40 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
   ];
 }
 
-def CallGlobalDynamicOp : eir_Op<"call_global_dynamic", []> {
-  let summary = "call operation to for M:F(A...)";
+def ApplyOp : eir_Op<"apply", []> {
+  let summary = "dynamic call operation";
   let description = [{
-      Calls a dynamic functon in a dynamic module with a fixed number of arguments.
+    The "apply" operation represents an dynamic call to an MFA.
 
-      The first two operands are the module, and function; the arity
-      is inferred by the number of arguments passed.
+    The first two operands are the module, and function; the arity
+    is inferred by the number of arguments passed.
 
-        %0 = eir.constant.atom { value = "erlang" }
-        %1 = eir.constant.atom { value = "+" }
-        %4 = eir.call_global_dynamic [%0, %1](%2, %3) : (f32, f32) -> f32
+      %0 = eir.constant.atom { value = "erlang" }
+      %1 = eir.constant.atom { value = "+" }
+      %4 = eir.apply [%0, %1](%2, %3) : (f32, f32) -> f32
   }];
 
-  let arguments = (ins eir_AnyType:$module, eir_AnyType:$function, Variadic<eir_AnyType>:$operands);
+  let arguments = (ins eir_AnyType:$module, eir_AnyType:$fun, Variadic<eir_AnyType>:$operands);
   let results = (outs eir_AnyType:$result);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value module, Value function,"
+    "OpBuilder &builder, OperationState &result, Value module, Value fun,"
     "ValueRange operands = {}", [{
       result.operands.push_back(module);
-      result.operands.push_back(function);
+      result.operands.push_back(fun);
       result.addOperands(operands);
       result.addTypes(builder.getType<TermType>());
   }]>];
 
-  let hasCanonicalizer = 1;
-
   let extraClassDeclaration = [{
     Value getTargetModule() { return getOperand(0); }
-    Value getTargetFunction() { return getOperand(1); }
+    Value getTargetFun() { return getOperand(1); }
 
     /// Get the argument operands to the called function.
     operand_range getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
     }
-
-    unsigned getNumArgOperands() { return getArgOperands().size(); }
 
     operand_iterator arg_operand_begin() { return operand_begin() + 2; }
     operand_iterator arg_operand_end() { return operand_end(); }
@@ -971,60 +967,7 @@ def CallGlobalDynamicOp : eir_Op<"call_global_dynamic", []> {
 
   let verifier = ?;
 
-  let assemblyFormat = "`[` $module `:` type($module) `,` $function `:` type($function) `]` `(` $operands `)` attr-dict `:` functional-type($operands, $result)";
-}
-
-def eir_InvokeGlobalDynamicOp : eir_InvokeBaseOp<"invoke_global_dynamic", []> {
-  let summary = "call operation for M:F(A...) that may raise exceptions";
-  let description = [{
-    Calls a dynamic function in a dynamic module with a fixed number of arguments, uses the provided ok/err blocks
-    to handle the flow of control upon return of the callee, based on whether
-    an exception was raised or not.
-  }];
-
-  let arguments = (ins
-    eir_AnyType:$module,
-    eir_AnyType:$function,
-    Variadic<eir_AnyType>:$operands,
-    Variadic<AnyType>:$okDestOperands,
-    Variadic<AnyType>:$errDestOperands
-  );
-  let results = (outs eir_AnyType:$result);
-
-  let assemblyFormat = [{
-    `[` $module `:` type($module) `,` $function `:` type($function) `]` (`(` $operands^ `:` type($operands) `)`)? `to`
-      $okDest (`(` $okDestOperands^ `:` type($okDestOperands) `)`)? `unwind`
-      $errDest (`(` $errDestOperands^ `:` type($errDestOperands) `)`)?
-      attr-dict `:` type(results)
-  }];
-
-  let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result,
-      Value module, Value function, ValueRange operands,
-      Block *okDest, ValueRange okDestOperands,
-      Block *errDest, ValueRange errDestOperands
-    }], [{
-      Type resultType = builder.getType<TermType>();
-      build(builder, result,
-            resultType, module, function, operands,
-            okDestOperands, errDestOperands,
-            okDest, errDest);
-    }]>,
-  ];
-
-  let hasCanonicalizer = 1;
-  let verifier = ?;
-
-  let extraExtraClassDeclaration = [{
-    Value getTargetModule() { return module(); }
-    Value getTargetFunction() { return function(); }
-
-    /// Get the argument operands to the called function.
-    operand_range getArgOperands() { return operands(); }
-
-    unsigned getNumArgOperands() { return getArgOperands().size(); }
-  }];
+  let assemblyFormat = "`[` $module `:` type($module) `,` $fun `:` type($fun) `]` `(` $operands `)` attr-dict `:` functional-type($operands, $result)";
 }
 
 def CallClosureOp : eir_Op<"call_closure", []> {

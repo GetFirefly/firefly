@@ -112,55 +112,6 @@ ArrayRef<Type> FuncOp::getCallableResults() {
 }
 
 //===----------------------------------------------------------------------===//
-// eir.call_global_dynamic
-//===----------------------------------------------------------------------===//
-namespace {
-struct CallGlobalDynamicOpToCallOpErlangApply3
-    : public OpRewritePattern<CallGlobalDynamicOp> {
-  using OpRewritePattern<CallGlobalDynamicOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(CallGlobalDynamicOp callGlobalDynamic,
-                                PatternRewriter &rewriter) const override {
-      auto calleeSymbol = rewriter.getSymbolRefAttr("erlang:apply/3");
-      auto termTy = rewriter.getType<TermType>();
-
-      SmallVector<Value, 3> args;
-      args.push_back(callGlobalDynamic.getTargetModule());
-      args.push_back(callGlobalDynamic.getTargetFunction());
-
-      // convert arg operands to a list
-
-      auto constantNilOp = rewriter.create<ConstantNilOp>(callGlobalDynamic.getLoc());
-      auto castOp = rewriter.create<CastOp>(callGlobalDynamic.getLoc(), constantNilOp, termTy);
-      auto tail = castOp.getResult();
-
-      if (callGlobalDynamic.getNumArgOperands() > 0) {
-          auto argOperands = callGlobalDynamic.getArgOperands();
-
-          for (auto i = argOperands.size(); i--;) {
-              auto consOp = rewriter.create<ConsOp>(callGlobalDynamic.getLoc(), argOperands[i], tail);
-              auto castOp = rewriter.create<CastOp>(callGlobalDynamic.getLoc(), consOp, termTy);
-              tail = castOp.getResult();
-          }
-      }
-
-      args.push_back(tail);
-
-      // Replace with a call of `erlang:apply/3`
-      SmallVector<Type, 1> resultTypes{termTy};
-      rewriter.replaceOpWithNewOp<CallOp>(callGlobalDynamic, calleeSymbol, resultTypes, args, callGlobalDynamic.getAttrs());
-
-      return success();
-  }
-};
-} // end anonymous namespace;
-
-void CallGlobalDynamicOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<CallGlobalDynamicOpToCallOpErlangApply3>(context);
-}
-
-//===----------------------------------------------------------------------===//
 // eir.call_indirect
 //===----------------------------------------------------------------------===//
 namespace {
@@ -1252,69 +1203,6 @@ Optional<MutableOperandRange> InvokeOp::getMutableSuccessorOperands(
     unsigned index) {
   assert(index < getNumSuccessors() && "invalid successor index");
   return index == okIndex ? llvm::None : Optional(errDestOperandsMutable());
-}
-
-//===----------------------------------------------------------------------===//
-// eir.invoke_global_dynamic
-//===----------------------------------------------------------------------===//
-namespace {
-struct InvokeGlobalDynamicOpToInvokeOpErlangApply3
-    : public OpRewritePattern<InvokeGlobalDynamicOp> {
-  using OpRewritePattern<InvokeGlobalDynamicOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(InvokeGlobalDynamicOp invokeGlobalDynamic,
-                                PatternRewriter &rewriter) const override {
-      auto calleeSymbol = rewriter.getSymbolRefAttr("erlang:apply/3");
-
-      SmallVector<Value, 3> args;
-      args.push_back(invokeGlobalDynamic.getTargetModule());
-      args.push_back(invokeGlobalDynamic.getTargetFunction());
-
-      auto termTy = rewriter.getType<TermType>();
-
-      // convert arg operands to a list
-
-      auto constantNilOp = rewriter.create<ConstantNilOp>(invokeGlobalDynamic.getLoc());
-      auto castOp = rewriter.create<CastOp>(invokeGlobalDynamic.getLoc(), constantNilOp, termTy);
-      auto tail = castOp.getResult();
-
-      if (invokeGlobalDynamic.getNumArgOperands() > 0) {
-          auto argOperands = invokeGlobalDynamic.getArgOperands();
-
-          for (auto i = argOperands.size(); i--;) {
-             auto consOp = rewriter.create<ConsOp>(invokeGlobalDynamic.getLoc(), argOperands[i], tail);
-             auto castOp = rewriter.create<CastOp>(invokeGlobalDynamic.getLoc(), consOp, termTy);
-             tail = castOp.getResult();
-          }
-      }
-
-      args.push_back(tail);
-
-      auto ok = invokeGlobalDynamic.okDest();
-      auto okArgs = invokeGlobalDynamic.okDestOperands();
-
-      auto err = invokeGlobalDynamic.errDest();
-      auto errArgs = invokeGlobalDynamic.errDestOperands();
-
-      // Replace with an invoke of `erlang:apply/3`
-      rewriter.replaceOpWithNewOp<InvokeOp>(invokeGlobalDynamic,
-                                            calleeSymbol, args,
-                                            ok, okArgs,
-                                            err, errArgs);
-      return success();
-  }
-};
-} // end anonymous namespace.
-
-void InvokeGlobalDynamicOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<InvokeGlobalDynamicOpToInvokeOpErlangApply3>(context);
-}
-
-Optional<MutableOperandRange> InvokeGlobalDynamicOp::getMutableSuccessorOperands(
-    unsigned index) {
-  assert(index < getNumSuccessors() && "invalid successor index");
-  return index == okIndex ? okDestOperandsMutable() : errDestOperandsMutable();
 }
 
 //===----------------------------------------------------------------------===//

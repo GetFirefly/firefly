@@ -1277,6 +1277,12 @@ def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
   let extraClassDeclaration = [{
     Type getSourceType() { return getOperation()->getAttrOfType<TypeAttr>("from").getValue(); }
     Type getTargetType() { return getOperation()->getAttrOfType<TypeAttr>("to").getValue(); }
+
+    // This is a helper used by the InsertTraceConstructors pass
+    void resetSourceType() {
+      Type srcType = input().getType();
+      setAttr("from", TypeAttr::get(srcType));
+    }
   }];
 }
 

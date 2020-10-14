@@ -1251,7 +1251,7 @@ static LogicalResult verify(CastOp op) {
   if (opType.isIntOrFloat())
     return success();
 
-  return op.emitError("invalid cast type, sourcce type is unsupported");
+  return op.emitError("invalid cast type, source type is unsupported");
 }
 
 //===----------------------------------------------------------------------===//

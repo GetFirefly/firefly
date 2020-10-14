@@ -1,6 +1,3 @@
-use std::ffi::c_void;
-use std::mem::transmute;
-
 use anyhow::*;
 
 use liblumen_core::sys::dynamic_call::DynamicCallee;
@@ -8,7 +5,6 @@ use liblumen_core::sys::dynamic_call::DynamicCallee;
 use liblumen_alloc::erts::apply::find_symbol;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::Native;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{Arity, ModuleFunctionArity};
 
@@ -18,7 +14,7 @@ extern "Rust" {
     #[link_name = "lumen_rt_apply_3"]
     fn runtime_apply_3(
         module_function_arity: ModuleFunctionArity,
-        native: Native,
+        callee: DynamicCallee,
         arguments: Vec<Term>,
     ) -> Term;
 }
@@ -37,15 +33,7 @@ fn result(module: Term, function: Term, arguments: Term) -> exception::Result<Te
     };
 
     match find_symbol(&module_function_arity) {
-        Some(dynamic_call) => {
-            let native = unsafe {
-                let ptr = transmute::<DynamicCallee, *const c_void>(dynamic_call);
-
-                Native::from_ptr(ptr, arity)
-            };
-
-            Ok(unsafe { runtime_apply_3(module_function_arity, native, argument_vec) })
-        }
+        Some(callee) => Ok(unsafe { runtime_apply_3(module_function_arity, callee, argument_vec) }),
         None => {
             let trace = Trace::capture();
             trace.set_top_frame(&module_function_arity, argument_vec.as_slice());

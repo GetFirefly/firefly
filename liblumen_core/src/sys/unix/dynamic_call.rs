@@ -35,8 +35,16 @@ use crate::sys::dynamic_call::DynamicCallee;
 pub unsafe fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize {
     let ret: usize;
     llvm_asm!("
-        # First, push argc into %r12 and %r13, subtract 1 to get max index
+        # First, push argc into %r12
         movq     %rdx, %r12
+
+        # If we have no arguments, jump straight to the call
+        cmpq     $$0, %r12
+        cmoveq   %rdi, %r12
+        je       __dyn_call_call
+
+        # Since we have at least one argument, we need argc in %r13 too, and
+        # subtract 1 from %r12 to get the max index
         movq     %rdx, %r13
         subq     $$1, %r12
         # Then subtract 6 from %r13, giving us the number of arguments to spill
@@ -46,8 +54,8 @@ pub unsafe fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize 
 
         # Next we actually spill the arguments
         __dyn_call_spill:
-          # Index into %rdi, using %r12, stride is 8 bytes
-          pushq  (%rdi, %r12, 8)
+          # Index into %rsi, using %r12, stride is 8 bytes
+          pushq  (%rsi, %r12, 8)
           # We're pushing from right to left, so %r12 is our index, %r13 is our counter,
           # and we need to decrement both of them, but only %r13 is used to determine when
           # we're done, since we're indexing from the end
@@ -68,19 +76,20 @@ pub unsafe fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize 
         movq     (%r13), %rdi
 
         # If we have two arguments, push the second argument
-        cmpq     $$1, %r14
-        cmovaq   8(%r13), %rsi
+        cmpq     $$2, %r14
+        cmovaeq   8(%r13), %rsi
 
         # arg3, ..arg6
-        cmp      $$2, %r14
-        cmovaq   16(%r13), %rdx
         cmp      $$3, %r14
-        cmovaq   24(%r13), %rcx
+        cmovaeq  16(%r13), %rdx
         cmp      $$4, %r14
-        cmovaq   32(%r13), %r8
+        cmovaeq  24(%r13), %rcx
         cmp      $$5, %r14
-        cmovaq   40(%r13), %r9
+        cmovaeq  32(%r13), %r8
+        cmp      $$6, %r14
+        cmovaeq  40(%r13), %r9
 
+        __dyn_call_call:
         # We've set up the call, now we execute it!
         # The call will have set rax/rdx appropriately for our return
         callq    *%r12
@@ -131,7 +140,26 @@ mod tests {
         assert_eq!(result, 33);
     }
 
+    #[test]
+    fn basic_apply_rustcc_test() {
+        // Transform a function reference to a generic void function pointer
+        let callee = adder_rust as *const ();
+        // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
+        let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
+        // Build up the args and call the function
+        let args = &[22, 11];
+        let argv = args.as_ptr();
+        let argc = args.len();
+        let result = unsafe { apply(callee, argv, argc) };
+
+        assert_eq!(result, 33);
+    }
+
     extern "C" fn adder(x: usize, y: usize) -> usize {
+        x + y
+    }
+
+    fn adder_rust(x: usize, y: usize) -> usize {
         x + y
     }
 }

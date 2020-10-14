@@ -1,3 +1,6 @@
+use liblumen_core::sys::dynamic_call::DynamicCallee;
+
+use liblumen_alloc::erts;
 use liblumen_alloc::erts::process::Native;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
@@ -23,39 +26,25 @@ pub fn apply_2(function_boxed_closure: Boxed<Closure>, mut arguments: Vec<Term>)
         );
     }
 
-    let native_arity = function_boxed_closure.native_arity();
+    let callee = function_boxed_closure
+        .callee()
+        .expect("invalid closure, no code!");
 
-    let native =
-        unsafe { Native::from_ptr(function_boxed_closure.native().as_ptr(), native_arity) };
+    // If we have a non-empty env, we need to update the argument list
+    // to hold the closure value, from which the closure can unpack captured values
+    if function_boxed_closure.env_len() > 0 {
+        arguments.insert(0, function_boxed_closure.into());
+    }
 
-    let native_arguments = if function_boxed_closure.env_len() == 0 {
-        // without captured environment variables, the closure passing is optimized out and so
-        // should not be passed.
-        arguments
-    } else {
-        // codegen'd closures extract their environment from themselves, so it is passed as the
-        // first argument.
-        let function = function_boxed_closure.into();
-
-        let mut native_arguments = Vec::with_capacity(native_arity as usize);
-        native_arguments.push(function);
-        native_arguments.append(&mut arguments);
-
-        native_arguments
-    };
-
-    apply_3(
-        function_boxed_closure.module_function_arity(),
-        native,
-        native_arguments,
-    )
+    // We need to prepend the closure value to the callee
+    unsafe { erts::apply::apply_callee(callee, arguments.as_slice()) }
 }
 
 #[export_name = "lumen_rt_apply_3"]
 pub fn apply_3(
     _module_function_arity: ModuleFunctionArity,
-    native: Native,
+    callee: DynamicCallee,
     arguments: Vec<Term>,
 ) -> Term {
-    native.apply(&arguments)
+    unsafe { erts::apply::apply_callee(callee, arguments.as_slice()) }
 }

@@ -47,6 +47,13 @@ pub unsafe fn apply(symbol: &ModuleFunctionArity, args: &[Term]) -> Result<Term,
     }
 }
 
+#[cfg(all(unix, target_arch = "x86_64"))]
+pub unsafe fn apply_callee(callee: DynamicCallee, args: &[Term]) -> Term {
+    let argv = args.as_ptr() as *const usize;
+    let argc = args.len();
+    mem::transmute::<usize, Term>(dynamic_call::apply(callee, argv, argc))
+}
+
 pub fn find_symbol(mfa: &ModuleFunctionArity) -> Option<DynamicCallee> {
     let symbols = SYMBOLS.get().unwrap_or_else(|| {
         panic!(

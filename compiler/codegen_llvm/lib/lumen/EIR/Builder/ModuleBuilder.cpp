@@ -1312,7 +1312,7 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
   eir_br(ok, ValueRange());
   return true;
 }
-
+  
 void ModuleBuilder::build_static_invoke(Location loc, StringRef target,
                                         ArrayRef<Value> args, bool isTail,
                                         Block *ok, ArrayRef<Value> okArgs,
@@ -1486,8 +1486,34 @@ extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b,
   }
 }
 
+extern "C" void MLIRBuildGlobalDynamicCall(MLIRModuleBuilderRef b,
+                                           MLIRLocationRef locref,
+                                           MLIRValueRef modRef,
+                                           MLIRValueRef funRef,
+                                           MLIRValueRef *argv, unsigned argc,
+                                           bool isTail,
+                                           MLIRBlockRef okBlock,
+                                           MLIRValueRef *okArgv, unsigned okArgc,
+                                           MLIRBlockRef errBlock,
+                                           MLIRValueRef *errArgv, unsigned errArgc) {
+  ModuleBuilder *builder = unwrap(b);
+  Location loc = unwrap(locref);
+  Value mod = unwrap(modRef);
+  Value fun = unwrap(funRef);
+  Block *ok = unwrap(okBlock);
+  Block *err = unwrap(errBlock);
+  SmallVector<Value, 2> args;
+  unwrapValues(argv, argc, args);
+  SmallVector<Value, 1> okArgs;
+  unwrapValues(okArgv, okArgc, okArgs);
+  SmallVector<Value, 1> errArgs;
+  unwrapValues(errArgv, errArgc, errArgs);
+
+  builder->build_apply_3(loc, mod, fun, args, isTail, ok, okArgs, err, errArgs);
+}
+
 void ModuleBuilder::build_apply_2(Location loc, Value cls,
-                                  ArrayRef<Value> args, bool isTail,
+                                  ValueRange args, bool isTail,
                                   Block *ok, ArrayRef<Value> okArgs,
                                   Block *err, ArrayRef<Value> errArgs) {
   ScopedContext scope(builder, loc);
@@ -1506,6 +1532,31 @@ void ModuleBuilder::build_apply_2(Location loc, Value cls,
                         err, errArgs);
   } else {
     build_static_call(loc, "erlang:apply/2", applyArgs, isTail, ok, okArgs);
+  }
+  return;
+}
+
+void ModuleBuilder::build_apply_3(Location loc, Value mod, Value fun,
+                                  ValueRange args, bool isTail,
+                                  Block *ok, ArrayRef<Value> okArgs,
+                                  Block *err, ArrayRef<Value> errArgs) {
+  ScopedContext scope(builder, loc);
+
+  auto termTy = builder.getType<TermType>();
+  
+  // We need to call apply/3, with module/function and a list of arguments
+  SmallVector<Value, 3> applyArgs;
+  applyArgs.push_back(mod);
+  applyArgs.push_back(fun);
+  applyArgs.push_back(eir_list(args));
+
+  // Then, based on whether this was an invoke or not, call apply/2 appropriately
+  bool isInvoke = !isTail && err != nullptr;
+  if (isInvoke) {
+    build_static_invoke(loc, "erlang:apply/3", applyArgs, isTail, ok, okArgs,
+                        err, errArgs);
+  } else {
+    build_static_call(loc, "erlang:apply/3", applyArgs, isTail, ok, okArgs);
   }
   return;
 }

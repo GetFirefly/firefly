@@ -1739,7 +1739,7 @@ def eir_ListOp : eir_Op<"list"> {
   let results = (outs eir_BoxType:$out);
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, ArrayRef<Value> elements, bool alloca = false",
+    OpBuilder<"OpBuilder &builder, OperationState &result, ValueRange elements, bool alloca = false",
     [{
       result.addOperands(elements);
       auto listType = builder.getType<eir::ListType>();

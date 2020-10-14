@@ -74,7 +74,11 @@ class ModuleBuilder {
   void build_static_call(Location loc, StringRef target, ArrayRef<Value> args,
                          bool isTail, Block *ok, ArrayRef<Value> okArgs);
 
-  void build_apply_2(Location loc, Value closure, ArrayRef<Value> args,
+  void build_apply_2(Location loc, Value closure, ValueRange args,
+                     bool isTail, Block *ok, ArrayRef<Value> okArgs,
+                     Block *err, ArrayRef<Value> errArgs);
+
+  void build_apply_3(Location loc, Value mod, Value fun, ValueRange args,
                      bool isTail, Block *ok, ArrayRef<Value> okArgs,
                      Block *err, ArrayRef<Value> errArgs);
 

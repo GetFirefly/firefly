@@ -160,6 +160,14 @@ void forAllTraceUses(OpBuilder &builder, Location loc, Value root,
       traceTerm = builder.create<TraceConstructOp>(loc, root);
       use.set(traceTerm);
     }
+
+    // We need to specially handle casts, as the original types are
+    // stored in attributes when the cast op is built, but we're replacing
+    // the trace reference with a boxed term here, so we need to make sure
+    // the type is properly updated in the cast attributes
+    if (auto castOp = dyn_cast_or_null<CastOp>(user)) {
+      castOp.resetSourceType();
+    }
   }
 }
 }

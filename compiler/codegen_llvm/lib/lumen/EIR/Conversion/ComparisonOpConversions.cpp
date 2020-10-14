@@ -76,7 +76,7 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
     Type lhsType = op.lhs().getType();
     Type rhsType = op.rhs().getType();
     bool strict = false;
-    if (auto attr = op.getAttrOfType<UnitAttr>("strict")) {
+    if (auto attr = op.getAttrOfType<UnitAttr>("is_strict")) {
       strict = true;
     }
 
@@ -107,13 +107,18 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
         rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs, rewriter.getType<TermType>());
     }
 
-    if (useICmp) {
+    if (strict && useICmp) {
       rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq, lhsOperand, rhsOperand);
       return success();
     }
 
     // If we reach here, fall back to the slow path
-    StringRef builtinSymbol = CmpEqOp::builtinSymbol();
+    StringRef builtinSymbol;
+    if (strict)
+      builtinSymbol = "__lumen_builtin_cmp.eq.strict";
+    else
+      builtinSymbol = "__lumen_builtin_cmp.eq";
+
     auto callee =
         ctx.getOrInsertFunction(builtinSymbol, i1Ty, {termTy, termTy});
 

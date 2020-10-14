@@ -12,9 +12,6 @@ const unsigned CLOSURE_ENV_INDEX = 5;
 // - Check if reduction count is exceeded
 // - Check if we should garbage collect
 //   - If either of the above are true, yield
-//
-// TODO: Need to actually perform the above, right now we just handle
-// the translation to mlir::FuncOp
 struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
   using EIROpConversion::EIROpConversion;
 

@@ -33,7 +33,7 @@ pub fn apply_3(
     arguments: Vec<Term>,
 ) -> Term {
     let native = unsafe {
-        let ptr = transmute::<DynamicCallee, *const c_void>(dynamic_call);
+        let ptr = transmute::<DynamicCallee, *const c_void>(callee);
 
         Native::from_ptr(ptr, arguments.len() as Arity)
     };

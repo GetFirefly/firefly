@@ -153,6 +153,8 @@ pub mod send_2;
 pub mod send_3;
 pub mod send_after_3;
 pub mod send_after_4;
+pub mod seq_trace;
+pub mod seq_trace_2;
 pub mod seq_trace_info_1;
 pub mod seq_trace_print_1;
 pub mod seq_trace_print_2;

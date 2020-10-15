@@ -1,7 +1,7 @@
 FROM rust:latest
 
 RUN cd /tmp \
-  && wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-26/clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz \
+  && wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-10-14/clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz \
   && tar -xvzf clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz \
   && rm -f clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz \
   && mv clang+llvm-12.0.0-x86_64-linux-gnu /opt/llvm \

@@ -1502,8 +1502,13 @@ extern "C" void MLIRBuildGlobalDynamicCall(MLIRModuleBuilderRef b,
   Value fun = unwrap(funRef);
   Block *ok = unwrap(okBlock);
   Block *err = unwrap(errBlock);
+
+  // We need to add an extra nil value to the arg list
+  // to ensure the list is proper when constructed by eir_list
   SmallVector<Value, 2> args;
   unwrapValues(argv, argc, args);
+  args.push_back(builder->build_constant_nil(loc));
+
   SmallVector<Value, 1> okArgs;
   unwrapValues(okArgv, okArgc, okArgs);
   SmallVector<Value, 1> errArgs;

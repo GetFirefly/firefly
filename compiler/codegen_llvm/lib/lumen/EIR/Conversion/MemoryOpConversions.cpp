@@ -65,14 +65,6 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
     if (auto tt = toTy.dyn_cast_or_null<OpaqueTermType>()) {
       // ..from another term type
       if (auto ft = fromTy.dyn_cast_or_null<OpaqueTermType>()) {
-        if (ft.isBoolean() && (tt.isAtom() || tt.isOpaque())) {
-          // Booleans are type-converted as i1, so a word-sized target
-          // type means we need to zero-extend the source value
-          Value extended = llvm_zext(termTy, in);
-          auto atomTy = ctx.rewriter.getType<AtomType>();
-          rewriter.replaceOp(op, ctx.encodeImmediate(atomTy, extended));
-          return success();
-        }
         if (ft.isAtom() && (tt.isAtom()) || tt.isOpaque()) {
           // This cast is a no-op
           rewriter.replaceOp(op, in);

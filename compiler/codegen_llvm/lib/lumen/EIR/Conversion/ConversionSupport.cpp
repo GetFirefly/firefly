@@ -208,11 +208,6 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     return termTy;
   }
 
-  // Always lower explicit boolean types as i1, rely on casts to
-  // get back terms where needed.
-  if (type.isa<BooleanType>())
-    return targetInfo.getI1Type();
-
   if (auto recvRef = type.dyn_cast_or_null<ReceiveRefType>()) {
     return targetInfo.getI8Type().getPointerTo();
   }

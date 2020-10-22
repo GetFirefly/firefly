@@ -138,5 +138,5 @@ linux-shell: ## Run the lumen-dev Docker image
 			-it $(IMAGE_NAME):latest bash -c 'cd /opt/lumen; exec bash'
 
 
-docker-release: docker
+docker-release:
 	docker push $(IMAGE_NAME):latest

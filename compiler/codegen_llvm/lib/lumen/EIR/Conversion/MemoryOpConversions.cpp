@@ -255,6 +255,14 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
         rewriter.replaceOp(op, truncated);
         return success();
       }
+
+      if (auto llvmToTy = toTy.dyn_cast_or_null<LLVMType>()) {
+        if (llvmToTy.isIntegerTy(1)) {
+          Value truncated = llvm_trunc(llvmToTy, in);
+          rewriter.replaceOp(op, truncated);
+          return success();
+        }
+      }
     }
 
     op.emitError("unsupported or unimplemented target type cast");

@@ -293,27 +293,48 @@ where
 {
     let kind = unwrap_term_kind!(ty);
     let tag = T::type_of(value.try_into().unwrap());
-    let tag = if tag.is_box() {
+    // This is necessary to check some types which may be either boxed
+    // or immediate, but if a type kind is known to be boxed, one should
+    // use is_boxed_type/2 instead
+    let is_boxed = tag.is_box();
+    let tag = if is_boxed {
         let value = unsafe { *(value as *const usize) };
         T::type_of(value.try_into().unwrap())
     } else {
         tag
     };
     match kind {
-        TermKind::Term => tag.is_term(),
+        // Because these term types represent polymorphic
+        // types which may be either boxed or immediate, we
+        // have to perform some more precise checks to avoid
+        // misclassifying the input value
+        TermKind::Term => is_boxed || tag.is_term(),
         TermKind::List => tag.is_list(),
+        TermKind::Number if is_boxed => tag.is_boxed_number(),
         TermKind::Number => tag.is_number(),
+        TermKind::Integer if is_boxed => tag.is_big_integer(),
         TermKind::Integer => tag.is_integer(),
         TermKind::Binary => tag.is_binary(),
+        TermKind::Pid if is_boxed => tag.is_external_pid(),
         TermKind::Pid => tag.is_pid(),
+        TermKind::Reference if is_boxed => tag.is_external_reference(),
         TermKind::Reference => tag.is_reference(),
-        _ => {
+        TermKind::Boolean => !is_boxed && T::is_boolean(value.try_into().unwrap()),
+        _ if is_boxed && tag.is_boxable() => {
             let expected: Result<Tag<T::Type>, _> = kind.try_into();
             match expected {
                 Ok(t) => tag == t,
                 Err(_) => unreachable!(),
             }
         }
+        _ if !is_boxed => {
+            let expected: Result<Tag<T::Type>, _> = kind.try_into();
+            match expected {
+                Ok(t) => tag == t,
+                Err(_) => unreachable!(),
+            }
+        }
+        _ => false,
     }
 }
 

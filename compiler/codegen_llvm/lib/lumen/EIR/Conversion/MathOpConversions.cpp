@@ -362,32 +362,35 @@ class LogicalOpConversion : public EIROpConversion<Op> {
 
     Value lhs = adaptor.lhs();
     Value rhs = adaptor.rhs();
-    Type lhsTy = lhs.getType();
-    Type rhsTy = rhs.getType();
+    Type lhsTy = op.getOperand(0).getType();
+    Type rhsTy = op.getOperand(1).getType();
+
     auto i1Ty = ctx.getI1Type();
+    auto boolTy = rewriter.getType<BooleanType>();
 
-    Value lhsOperand;
-    if (auto ty = lhsTy.dyn_cast_or_null<LLVMIntegerType>()) {
-      if (ty.getBitWidth() == 1) {
-        lhsOperand = lhs;
-      } else {
-        lhsOperand = llvm_trunc(i1Ty, lhs);
-      }
-    } else {
-      lhsOperand = eir_cast(lhs, i1Ty);
-    }
-    Value rhsOperand;
-    if (auto ty = rhsTy.dyn_cast_or_null<LLVMIntegerType>()) {
-      if (ty.getBitWidth() == 1) {
-        rhsOperand = rhs;
-      } else {
-        rhsOperand = llvm_trunc(i1Ty, rhs);
-      }
-    } else {
-      rhsOperand = eir_cast(rhs, i1Ty);
+    if (lhsTy.isa<BooleanType>() && rhsTy.isa<BooleanType>()) {
+      Value lhsBool = eir_cast(lhs, lhsTy, i1Ty);
+      Value rhsBool = eir_cast(rhs, rhsTy, i1Ty);
+      rewriter.replaceOpWithNewOp<LogicalOp>(op, lhsBool, rhsBool);
+      return success();
     }
 
-    rewriter.replaceOpWithNewOp<LogicalOp>(op, lhsOperand, rhsOperand);
+    if (lhsTy.isInteger(1) && rhsTy.isInteger(1)) {
+      rewriter.replaceOpWithNewOp<LogicalOp>(op, lhs, rhs);
+      return success();
+    }
+
+    // Call builtin function
+    StringRef builtinSymbol = Op::builtinSymbol();
+    auto termTy = ctx.getUsizeType();
+    auto callee =
+        ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
+
+    ArrayRef<Value> args({lhs, rhs});
+    auto calleeSymbol =
+        FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+    auto callOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, ArrayRef<Type>{boolTy}, args);
+    rewriter.replaceOpWithNewOp<CastOp>(op, callOp.getResult(0), i1Ty);
     return success();
   }
 

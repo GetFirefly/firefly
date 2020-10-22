@@ -102,20 +102,36 @@ class OpaqueTermType : public Type {
         .Default([](Type) { return false; });
   }
 
-  bool isBoxable() const {
-    return TypeSwitch<Type, bool>(*this)
-        .Case<PidType>([&](Type) { return true; })
-        .Case<ReferenceType>([&](Type) { return true; })
-        .Case<FloatType>([&](Type) { return true; })
-        .Case<BigIntType>([&](Type) { return true; })
-        .Case<ConsType>([&](Type) { return true; })
-        .Case<TupleType>([&](Type) { return true; })
-        .Case<MapType>([&](Type) { return true; })
-        .Case<ClosureType>([&](Type) { return true; })
-        .Case<BinaryType>([&](Type) { return true; })
-        .Case<HeapBinType>([&](Type) { return true; })
-        .Case<ProcBinType>([&](Type) { return true; })
-        .Default([](Type) { return false; });
+  // NOTE: We default to 32 bits so that floats are boxable by default
+  bool isBoxable(uint8_t pointerSizeInBits = 32) const {
+    if (pointerSizeInBits == 64) {
+      return TypeSwitch<Type, bool>(*this)
+          .Case<PidType>([&](Type) { return true; })
+          .Case<ReferenceType>([&](Type) { return true; })
+          .Case<BigIntType>([&](Type) { return true; })
+          .Case<ConsType>([&](Type) { return true; })
+          .Case<TupleType>([&](Type) { return true; })
+          .Case<MapType>([&](Type) { return true; })
+          .Case<ClosureType>([&](Type) { return true; })
+          .Case<BinaryType>([&](Type) { return true; })
+          .Case<HeapBinType>([&](Type) { return true; })
+          .Case<ProcBinType>([&](Type) { return true; })
+          .Default([](Type) { return false; });
+    } else {
+      return TypeSwitch<Type, bool>(*this)
+          .Case<PidType>([&](Type) { return true; })
+          .Case<ReferenceType>([&](Type) { return true; })
+          .Case<FloatType>([&](Type) { return true; })
+          .Case<BigIntType>([&](Type) { return true; })
+          .Case<ConsType>([&](Type) { return true; })
+          .Case<TupleType>([&](Type) { return true; })
+          .Case<MapType>([&](Type) { return true; })
+          .Case<ClosureType>([&](Type) { return true; })
+          .Case<BinaryType>([&](Type) { return true; })
+          .Case<HeapBinType>([&](Type) { return true; })
+          .Case<ProcBinType>([&](Type) { return true; })
+          .Default([](Type) { return false; });
+    }
   }
 
   bool isOpaque() { return isa<TermType>(); }

@@ -364,7 +364,7 @@ class eir_SpecializedBinaryOperator<string mnemonic, Type left, Type right, Type
 }
 
 class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
-    eir_BinaryOperator<mnemonic, type, type, eir_BoolType, !listconcat(traits, [NoSideEffect])> {
+    eir_BinaryOperator<mnemonic, type, type, I1, !listconcat(traits, [NoSideEffect])> {
 
   let builders = [
     OpBuilder<
@@ -374,17 +374,19 @@ class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
     "OpBuilder &builder, OperationState &result, ValueRange args",
     [{
       result.addOperands(args);
-      result.addTypes(builder.getType<BooleanType>());
+      result.addTypes(builder.getI1Type());
     }]>
   ];
 }
 
 def eir_LogicalAndOp : eir_LogicalOp<AnyType, "logical.and", [Commutative]> {
+  let builtinSymbol = "erlang:and/2";
   let summary = "logical AND";
   //let hasFolder = 1;
 }
 
 def eir_LogicalOrOp : eir_LogicalOp<AnyType, "logical.or", [Commutative]> {
+  let builtinSymbol = "erlang:or/2";
   let summary = "logical OR";
   //let hasFolder = 1;
 }
@@ -1265,6 +1267,13 @@ def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
     [{
       result.addOperands(source);
       result.addAttribute("from", TypeAttr::get(source.getType()));
+      result.addAttribute("to", TypeAttr::get(destType));
+      result.addTypes(destType);
+    }]>,
+    OpBuilder<"OpBuilder &builder, OperationState &result, Value source, Type srcType, Type destType",
+    [{
+      result.addOperands(source);
+      result.addAttribute("from", TypeAttr::get(srcType));
       result.addAttribute("to", TypeAttr::get(destType));
       result.addTypes(destType);
     }]>

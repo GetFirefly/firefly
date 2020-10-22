@@ -29,7 +29,8 @@ extern "C" {
     static mut PROCESS_SIGNAL: ProcessSignal;
 
     #[allow(improper_ctypes)]
-    #[link_name = "__lumen_start_panic"]
+    #[unwind(allowed)]
+    #[link_name = "__lumen_panic"]
     fn lumen_panic(err: *mut ErlangException) -> !;
 }
 
@@ -58,6 +59,7 @@ pub fn clear_process_signal() {
     }
 }
 
+#[unwind(allowed)]
 pub fn process_raise(err: RuntimeException) -> ! {
     let erlang_exception = err.as_erlang_exception();
     let ptr = Box::into_raw(erlang_exception);

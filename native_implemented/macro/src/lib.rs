@@ -689,6 +689,7 @@ impl Signatures {
         };
 
         quote! {
+            #[unwind(allowed)]
             pub extern "C" fn native(#(#native_fn_arg),*) -> Term {
                 let arc_process = crate::runtime::process::current_process();
                 arc_process.reduce();

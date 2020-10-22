@@ -10,6 +10,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_rt_core::process::current_process;
 use lumen_rt_core::registry;
 
+#[unwind(allowed)]
 #[export_name = "erlang:!/2"]
 pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
     let result = panic::catch_unwind(|| {

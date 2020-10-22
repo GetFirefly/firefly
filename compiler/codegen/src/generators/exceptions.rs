@@ -64,6 +64,25 @@ fn generate_standard(
     let personality_fun =
         builder.build_external_function("lumen_eh_personality", personality_fun_ty);
 
+    // Define __lumen_start_panic symbol
+    let func_ty = builder.get_function_type(void_type, &[i8_ptr_type], /* variadic= */ false);
+    let start_panic_fun =
+        builder.build_function_with_attrs("__lumen_start_panic", func_ty, Linkage::External, &[]);
+
+    // Define __lumen_panic, which tail calls __lumen_start_panic in
+    // order to panic using the right personality function
+    let func_ty = builder.get_function_type(void_type, &[i8_ptr_type], /* variadic= */ false);
+    let func = builder.build_function_with_attrs("__lumen_panic", func_ty, Linkage::External, &[]);
+    builder.set_personality(func, personality_fun);
+
+    let entry_block = builder.build_entry_block(func);
+    builder.position_at_end(entry_block);
+
+    let exception_ptr = builder.get_function_param(func, 0);
+    let call = builder.build_call(start_panic_fun, &[exception_ptr], None);
+    builder.set_is_tail(call, true);
+    builder.build_unreachable();
+
     // Function to extract the Erlang exception term from the raw exception object
     let get_exception_fun_ty = builder.get_function_type(
         erlang_error_type_ptr,
@@ -94,7 +113,7 @@ fn generate_standard(
         "__lumen_builtin_exit",
         exit_fun_ty,
         Linkage::External,
-        &[Attribute::NoUnwind, Attribute::NoReturn],
+        &[Attribute::NoReturn],
     );
 
     // Define global that holds the "type" of Erlang exceptions
@@ -256,6 +275,34 @@ fn generate_wasm32(
     let personality_fun =
         builder.build_external_function("lumen_eh_personality", personality_fun_ty);
 
+    // Define __lumen_start_panic symbol
+    let func_ty = builder.get_function_type(void_type, &[i8_ptr_type], /* variadic= */ false);
+    let start_panic_fun = builder.build_function_with_attrs(
+        "__lumen_start_panic",
+        func_ty,
+        Linkage::External,
+        &[Attribute::NoReturn],
+    );
+
+    // Define __lumen_panic, which tail calls __lumen_start_panic in
+    // order to panic using the right personality function
+    let func_ty = builder.get_function_type(void_type, &[i8_ptr_type], /* variadic= */ false);
+    let func = builder.build_function_with_attrs(
+        "__lumen_panic",
+        func_ty,
+        Linkage::External,
+        &[Attribute::NoReturn],
+    );
+    builder.set_personality(func, personality_fun);
+
+    let entry_block = builder.build_entry_block(func);
+    builder.position_at_end(entry_block);
+
+    let exception_ptr = builder.get_function_param(func, 0);
+    let call = builder.build_call(start_panic_fun, &[exception_ptr], None);
+    builder.set_is_tail(call, true);
+    builder.build_unreachable();
+
     // Function to extract the Erlang exception term from the raw exception object
     let get_exception_fun_ty = builder.get_function_type(
         usize_type,
@@ -286,7 +333,7 @@ fn generate_wasm32(
         "__lumen_builtin_exit",
         exit_fun_ty,
         Linkage::External,
-        &[Attribute::NoUnwind, Attribute::NoReturn],
+        &[Attribute::NoReturn],
     );
 
     // Define exception handler

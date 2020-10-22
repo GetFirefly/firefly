@@ -14,7 +14,7 @@ pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set
 
 #[unwind(allowed)]
 #[no_mangle]
-pub unsafe extern "C" fn __lumen_start_panic(term: Term) {
+pub unsafe extern "C" fn __lumen_panic(term: Term) {
     panic!(term);
 }
 

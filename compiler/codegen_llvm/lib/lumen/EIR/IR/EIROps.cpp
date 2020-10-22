@@ -1998,8 +1998,8 @@ void CmpEqOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 //===----------------------------------------------------------------------===//
 
 
-using BinaryIntegerFnT = std::function<APInt(APInt &, APInt &)>;
-using BinaryFloatFnT = std::function<APFloat(APFloat &, APFloat &)>;
+using BinaryIntegerFnT = std::function<Optional<APInt>(APInt &, APInt &)>;
+using BinaryFloatFnT = std::function<Optional<APFloat>(APFloat &, APFloat &)>;
 
 static Optional<APInt> foldBinaryIntegerOp(ArrayRef<Attribute> operands, BinaryIntegerFnT fun) {
   assert(operands.size() == 2 && "binary op takes two operands");
@@ -2241,8 +2241,22 @@ OpFoldResult BxorOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult BslOp::fold(ArrayRef<Attribute> operands) {
   auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs.shl(rhs);
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) -> Optional<APInt> {
+      // APInt doesn't support some valid Erlang shifts
+      if (rhs.isNegative())
+        return llvm::None;
+
+      auto shiftWidth = rhs.getLimitedValue();
+
+      // We can't handle shifts larger than this
+      if (shiftWidth > 64)
+        return llvm::None;
+
+      // Zero-extend to new width
+      auto lhsBits = lhs.getMinSignedBits();
+      auto requiredBits = lhsBits + shiftWidth;
+      auto newLhs = lhs.zextOrSelf(requiredBits);
+      return newLhs.shl(shiftWidth);
     });
 
   if (result.hasValue()) {
@@ -2254,8 +2268,11 @@ OpFoldResult BslOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult BsrOp::fold(ArrayRef<Attribute> operands) {
   auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs.ashr(rhs);
+    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) -> Optional<APInt> {
+      if (rhs.isNegative())
+        return llvm::None;
+      
+      return lhs.lshr(rhs);
     });
 
   if (result.hasValue()) {

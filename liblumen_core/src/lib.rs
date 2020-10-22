@@ -7,6 +7,9 @@
 #![feature(ptr_offset_from)]
 // Dynamic dispatch intrinsics
 #![feature(llvm_asm)]
+#![feature(naked_functions)]
+#![feature(unwind_attributes)]
+#![feature(global_asm)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc as core_alloc;

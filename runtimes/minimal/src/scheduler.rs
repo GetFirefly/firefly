@@ -35,15 +35,18 @@ extern "C" {
     #[thread_local]
     static mut CURRENT_REDUCTION_COUNT: u32;
 
+    #[unwind(allowed)]
     #[link_name = "__lumen_trap_exceptions"]
     fn trap_exceptions_impl() -> bool;
 }
 
 // External functions defined in OTP
 extern "C" {
+    #[unwind(allowed)]
     #[link_name = "lumen:apply_apply_2/1"]
     fn apply_apply_2() -> usize;
 
+    #[unwind(allowed)]
     #[link_name = "lumen:apply_apply_3/1"]
     fn apply_apply_3() -> usize;
 }
@@ -57,6 +60,7 @@ crate fn stop_waiting(process: &Process) {
 #[derive(Copy, Clone)]
 struct StackPointer(*mut u64);
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_yield"]
 pub unsafe extern "C" fn process_yield() -> bool {
     scheduler::current()
@@ -66,6 +70,7 @@ pub unsafe extern "C" fn process_yield() -> bool {
         .process_yield()
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_exit"]
 pub unsafe extern "C" fn process_exit(exception: Option<NonNull<ErlangException>>) {
     let arc_dyn_scheduler = scheduler::current();
@@ -87,6 +92,7 @@ pub unsafe extern "C" fn process_exit(exception: Option<NonNull<ErlangException>
     scheduler.process_yield();
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_malloc"]
 pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
     use core::convert::TryInto;
@@ -123,6 +129,7 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_rt_scheduler_unregistered"]
 fn unregistered() -> Arc<dyn lumen_rt_core::scheduler::Scheduler> {
     Arc::new(Scheduler::new().unwrap())
@@ -708,8 +715,9 @@ fn reset_reduction_counter() -> u64 {
 /// resume execution where `swap_stack` was called previously.
 #[naked]
 #[inline(never)]
+#[unwind(allowed)]
 #[cfg(all(unix, target_arch = "x86_64"))]
-unsafe fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters) {
+unsafe extern "C" fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters) {
     const FIRST_SWAP: u64 = 0xdeadbeef;
     llvm_asm!("
        # Save the return address to a register

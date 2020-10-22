@@ -42,7 +42,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
 
     auto matchType = op.getMatchType().cast<OpaqueTermType>();
     // Boxed types and immediate types are dispatched differently
-    if (matchType.isBox() || matchType.isBoxable()) {
+    if (matchType.isBox() || matchType.isBoxable(ctx.targetInfo.immediateBits())) {
       OpaqueTermType boxedType;
       if (matchType.isBox()) {
         boxedType = matchType.cast<BoxType>().getBoxedType();
@@ -81,10 +81,15 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
         return success();
       }
 
+      StringRef symbolName("__lumen_builtin_is_boxed_type");
+      // If we're matching floats but the target doesn't use boxed floats,
+      // use the correct type check function
+      if (boxedType.isa<FloatType>() && !ctx.targetInfo.requiresPackedFloats())
+        symbolName = StringRef("__lumen_builtin_is_type");
+
       // For all other boxed types, the check is performed via builtin
       auto matchKind = boxedType.getTypeKind().getValue();
       Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(matchKind));
-      StringRef symbolName("__lumen_builtin_is_boxed_type");
       auto callee =
           ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
       Value input = adaptor.value();
@@ -125,14 +130,13 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
     auto ctx = getRewriteContext(op, rewriter);
 
     Value input = adaptor.value();
-    Optional<Value> maybeArity = adaptor.arity();
+    Value arity = adaptor.arity();
     auto termTy = ctx.getUsizeType();
     auto int1Ty = ctx.getI1Type();
     auto int32Ty = ctx.getI32Type();
 
     // When an arity is given, we use a special builtin
-    if (maybeArity.hasValue()) {
-      Value arity = maybeArity.getValue();
+    if (arity) {
       ArrayRef<LLVMType> argTypes({termTy, termTy});
       StringRef symbolName("__lumen_builtin_is_tuple");
       auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
@@ -167,14 +171,13 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
     auto ctx = getRewriteContext(op, rewriter);
 
     Value input = adaptor.value();
-    Optional<Value> maybeArity = adaptor.arity();
+    Value arity = adaptor.arity();
     auto termTy = ctx.getUsizeType();
     auto int1Ty = ctx.getI1Type();
     auto int32Ty = ctx.getI32Type();
 
     // When an arity is given, we use a special builtin
-    if (maybeArity.hasValue()) {
-      Value arity = maybeArity.getValue();
+    if (arity) {
       ArrayRef<LLVMType> argTypes({termTy, termTy});
       StringRef symbolName("__lumen_builtin_is_function");
       auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);

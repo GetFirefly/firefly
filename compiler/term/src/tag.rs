@@ -45,7 +45,29 @@ where
     #[inline]
     pub fn is_box(&self) -> bool {
         match self {
-            Self::Box => true,
+            Self::Box | Self::Literal => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_boxable(&self) -> bool {
+        match self {
+            Self::BigInteger
+            | Self::Float
+            | Self::Tuple
+            | Self::List
+            | Self::Map
+            | Self::Closure
+            | Self::ProcBin
+            | Self::HeapBinary
+            | Self::SubBinary
+            | Self::MatchContext
+            | Self::ExternalPid
+            | Self::ExternalPort
+            | Self::ExternalReference
+            | Self::ResourceReference
+            | Self::Literal => true,
             _ => false,
         }
     }
@@ -59,6 +81,14 @@ where
     }
 
     #[inline]
+    pub fn is_atom(&self) -> bool {
+        match self {
+            Self::Atom => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
     pub fn is_number(&self) -> bool {
         match self {
             Self::SmallInteger | Self::BigInteger | Self::Float => true,
@@ -67,9 +97,25 @@ where
     }
 
     #[inline]
+    pub fn is_boxed_number(&self) -> bool {
+        match self {
+            Self::BigInteger | Self::Float => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
     pub fn is_integer(&self) -> bool {
         match self {
             Self::SmallInteger | Self::BigInteger => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_big_integer(&self) -> bool {
+        match self {
+            Self::BigInteger => true,
             _ => false,
         }
     }
@@ -91,9 +137,25 @@ where
     }
 
     #[inline]
+    pub fn is_external_pid(&self) -> bool {
+        match self {
+            Self::ExternalPid => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
     pub fn is_reference(&self) -> bool {
         match self {
             Self::Reference | Self::ExternalReference => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_external_reference(&self) -> bool {
+        match self {
+            Self::ExternalReference => true,
             _ => false,
         }
     }

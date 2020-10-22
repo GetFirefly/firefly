@@ -5,6 +5,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_core::process::current_process;
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_fail/1"]
 pub extern "C" fn builtin_fail(reason: Term) -> Term {
     if reason.is_none() {
@@ -18,12 +19,14 @@ pub extern "C" fn builtin_fail(reason: Term) -> Term {
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_trace.capture"]
 pub extern "C" fn builtin_trace_capture() -> *mut Trace {
     let trace = Trace::capture();
     Trace::into_raw(trace)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_trace.print"]
 pub extern "C" fn builtin_trace_print(kind: Term, reason: Term, trace: &mut Trace) -> *mut Trace {
     let source = None;
@@ -33,6 +36,7 @@ pub extern "C" fn builtin_trace_print(kind: Term, reason: Term, trace: &mut Trac
     trace
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_trace.construct"]
 pub extern "C" fn builtin_trace_construct(trace: &mut Trace) -> Term {
     trace.as_term().unwrap()

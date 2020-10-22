@@ -89,6 +89,7 @@ impl ReceiveContext {
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_receive_start"]
 pub extern "C" fn builtin_receive_start(timeout: Term) -> *mut ReceiveContext {
     let to = match timeout.decode().unwrap() {
@@ -105,6 +106,7 @@ pub extern "C" fn builtin_receive_start(timeout: Term) -> *mut ReceiveContext {
     Box::into_raw(context)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_receive_wait"]
 pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState {
     let context = unsafe { &mut *ctx };
@@ -134,12 +136,14 @@ pub extern "C" fn builtin_receive_wait(ctx: *mut ReceiveContext) -> ReceiveState
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_receive_message"]
 pub extern "C" fn builtin_receive_message(ctx: *mut ReceiveContext) -> Term {
     let context = unsafe { &*ctx };
     context.message
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_receive_done"]
 pub extern "C" fn builtin_receive_done(ctx: *mut ReceiveContext) -> bool {
     let result = panic::catch_unwind(|| {

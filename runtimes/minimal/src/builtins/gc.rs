@@ -20,6 +20,7 @@ use lumen_rt_core::process::current_process;
 /// to trace live objects, and update those roots accordingly.
 #[naked]
 #[inline(never)]
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_gc.enter"]
 pub unsafe fn builtin_gc_enter() {
     llvm_asm!("
@@ -49,6 +50,7 @@ pub unsafe fn builtin_gc_enter() {
 /// 8 bytes above the base pointer to locate the previous frames return address, we can walk up the
 /// stack to locate all roots
 #[inline(never)]
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_gc.run"]
 pub unsafe extern "C" fn builtin_gc_run(
     return_address: *const u8,

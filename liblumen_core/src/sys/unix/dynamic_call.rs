@@ -30,95 +30,17 @@ use crate::sys::dynamic_call::DynamicCallee;
 ///
 /// It is essential that this function never be inlined, or it would more than likely be
 /// incorrect, so we tell the compiler not to do that.
-#[inline(never)]
-#[cfg(target_arch = "x86_64")]
-pub unsafe fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize {
-    let ret: usize;
-    llvm_asm!("
-        # First, push argc into %r12
-        movq     %rdx, %r12
 
-        # If we have no arguments, jump straight to the call
-        cmpq     $$0, %r12
-        cmoveq   %rdi, %r12
-        je       __dyn_call_call
-
-        # Since we have at least one argument, we need argc in %r13 too, and
-        # subtract 1 from %r12 to get the max index
-        movq     %rdx, %r13
-        subq     $$1, %r12
-        # Then subtract 6 from %r13, giving us the number of arguments to spill
-        subq     $$6, %r13
-        # If we have nothing to spill, skip it
-        jbe      __dyn_call_spill_done
-
-        # Next we actually spill the arguments
-        __dyn_call_spill:
-          # Index into %rsi, using %r12, stride is 8 bytes
-          pushq  (%rsi, %r12, 8)
-          # We're pushing from right to left, so %r12 is our index, %r13 is our counter,
-          # and we need to decrement both of them, but only %r13 is used to determine when
-          # we're done, since we're indexing from the end
-          decq   %r12
-          decq   %r13
-          jnz    __dyn_call_spill
-
-        __dyn_call_spill_done:
-
-        # Since we're about to call another function, we need to move
-        # rdi/rsi/rdx to r12-14 to avoid clobbering them
-        movq     %rdi, %r12
-        movq     %rsi, %r13
-        movq     %rdx, %r14
-
-        # Next up, push up to 6 arguments in to registers,
-        # and we always have at least one argument
-        movq     (%r13), %rdi
-
-        # If we have two arguments, push the second argument
-        cmpq     $$2, %r14
-        cmovaeq   8(%r13), %rsi
-
-        # arg3, ..arg6
-        cmp      $$3, %r14
-        cmovaeq  16(%r13), %rdx
-        cmp      $$4, %r14
-        cmovaeq  24(%r13), %rcx
-        cmp      $$5, %r14
-        cmovaeq  32(%r13), %r8
-        cmp      $$6, %r14
-        cmovaeq  40(%r13), %r9
-
-        __dyn_call_call:
-        # We've set up the call, now we execute it!
-        # The call will have set rax/rdx appropriately for our return
-        callq    *%r12
-
-        # Move our result into 'ret'
-        movq     %rax, %rdi
-
-        # The compiler takes care of moving %rdi into %rax, and
-        # inserts a `popq %rbp; retq` for us.
-        "
-    // This gets set after the inner call
-    : "={rdi}"(ret)
-    // Following the SystemV ABI, the first three arguments should be in these
-    // three registers, but we're going to be explicit to ensure things are more
-    // clear
-    : "{rdi}"(f), "{rsi}"(argv), "{rdx}"(argc)
-    // Mark all registers as clobbered, except those we've explicitly preserved
-    : "rax",   "rbx",   "rcx",   "rdx",   "rsi", /*"rdi",   "rbp",   "rsp",*/
-      "r8",    "r9",    "r10",   "r11",   "r12",   "r13",   "r14",   "r15",
-      "mm0",   "mm1",   "mm2",   "mm3",   "mm4",   "mm5",   "mm6",   "mm7",
-      "xmm0",  "xmm1",  "xmm2",  "xmm3",  "xmm4",  "xmm5",  "xmm6",  "xmm7",
-      "xmm8",  "xmm9",  "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
-      "xmm16", "xmm17", "xmm18", "xmm19", "xmm20", "xmm21", "xmm22", "xmm23",
-      "xmm24", "xmm25", "xmm26", "xmm27", "xmm28", "xmm29", "xmm30", "xmm31",
-      "cc", "dirflag", "fpsr", "flags", "memory"
-    : "volatile", "alignstack"
-    );
-    ret
+extern "C" {
+    #[unwind(allowed)]
+    #[link_name = "__lumen_dynamic_apply"]
+    pub fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize;
 }
+
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_macos.s"));
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_linux.s"));
 
 #[cfg(test)]
 mod tests {

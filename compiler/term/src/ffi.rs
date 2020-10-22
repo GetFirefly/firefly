@@ -65,90 +65,105 @@ macro_rules! unwrap_term_kind {
     }};
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_type"]
 #[cfg(target_pointer_width = "32")]
 pub extern "C" fn is_type(ty: u32, value: usize) -> bool {
     do_is_type::<E32>(ty, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_type"]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
 pub extern "C" fn is_type(ty: u32, value: usize) -> bool {
     do_is_type::<E64N>(ty, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_type"]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
 pub extern "C" fn is_type(ty: u32, value: usize) -> bool {
     do_is_type::<E64>(ty, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_boxed_type"]
 #[cfg(target_pointer_width = "32")]
 pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
     do_is_boxed_type::<E32>(ty, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_boxed_type"]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
 pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
     do_is_boxed_type::<E64N>(ty, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_boxed_type"]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
 pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
     do_is_boxed_type::<E64>(ty, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_tuple"]
 #[cfg(target_pointer_width = "32")]
 pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
     do_is_tuple::<E32>(arity, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_tuple"]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
 pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
     do_is_tuple::<E64N>(arity, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_tuple"]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
 pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
     do_is_tuple::<E64>(arity, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_function"]
 #[cfg(target_pointer_width = "32")]
 pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
     do_is_function::<E32>(arity, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_function"]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
 pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
     do_is_function::<E64N>(arity, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_is_function"]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
 pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
     do_is_function::<E64>(arity, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_encode_immediate"]
 #[cfg(target_pointer_width = "32")]
 pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
     do_encode_immediate::<E32>(ty, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_encode_immediate"]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
 pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
     do_encode_immediate::<E64N>(ty, value)
 }
 
+#[unwind(allowed)]
 #[export_name = "__lumen_builtin_encode_immediate"]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
 pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
@@ -157,6 +172,7 @@ pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
 
 /// This is a less efficient, but more general type checking function,
 /// primarily meant for consumption during compile-time
+#[unwind(allowed)]
 #[export_name = "lumen_is_type"]
 pub extern "C" fn generic_is_type(encoding: *const EncodingInfo, ty: u32, value: u64) -> bool {
     let encoding = unsafe { &*encoding };
@@ -168,6 +184,7 @@ pub extern "C" fn generic_is_type(encoding: *const EncodingInfo, ty: u32, value:
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_encode_immediate"]
 pub extern "C" fn generic_encode_immediate(
     encoding: *const EncodingInfo,
@@ -183,6 +200,7 @@ pub extern "C" fn generic_encode_immediate(
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_encode_header"]
 pub extern "C" fn encode_header(encoding: *const EncodingInfo, ty: u32, arity: u64) -> u64 {
     let encoding = unsafe { &*encoding };
@@ -194,6 +212,7 @@ pub extern "C" fn encode_header(encoding: *const EncodingInfo, ty: u32, arity: u
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_list_tag"]
 pub extern "C" fn list_tag(encoding: *const EncodingInfo) -> u64 {
     let encoding = unsafe { &*encoding };
@@ -205,6 +224,7 @@ pub extern "C" fn list_tag(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_box_tag"]
 pub extern "C" fn box_tag(encoding: *const EncodingInfo) -> u64 {
     let encoding = unsafe { &*encoding };
@@ -216,6 +236,7 @@ pub extern "C" fn box_tag(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_literal_tag"]
 pub extern "C" fn literal_tag(encoding: *const EncodingInfo) -> u64 {
     let encoding = unsafe { &*encoding };
@@ -227,6 +248,7 @@ pub extern "C" fn literal_tag(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_immediate_mask"]
 pub extern "C" fn immediate_mask(encoding: *const EncodingInfo) -> MaskInfo {
     let encoding = unsafe { &*encoding };
@@ -238,6 +260,7 @@ pub extern "C" fn immediate_mask(encoding: *const EncodingInfo) -> MaskInfo {
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_list_mask"]
 pub extern "C" fn list_mask(encoding: *const EncodingInfo) -> u64 {
     let encoding = unsafe { &*encoding };
@@ -249,6 +272,7 @@ pub extern "C" fn list_mask(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
+#[unwind(allowed)]
 #[export_name = "lumen_header_mask"]
 pub extern "C" fn header_mask(encoding: *const EncodingInfo) -> MaskInfo {
     let encoding = unsafe { &*encoding };
@@ -269,6 +293,12 @@ where
 {
     let kind = unwrap_term_kind!(ty);
     let tag = T::type_of(value.try_into().unwrap());
+    let tag = if tag.is_box() {
+        let value = unsafe { *(value as *const usize) };
+        T::type_of(value.try_into().unwrap())
+    } else {
+        tag
+    };
     match kind {
         TermKind::Term => tag.is_term(),
         TermKind::List => tag.is_list(),

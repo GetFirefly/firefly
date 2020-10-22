@@ -20,6 +20,7 @@
 // Support external thread locals
 #![feature(thread_local)]
 #![feature(weak_into_raw)]
+#![feature(unwind_attributes)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

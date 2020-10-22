@@ -43,6 +43,14 @@ where
     }
 
     #[inline]
+    pub fn is_box(&self) -> bool {
+        match self {
+            Self::Box => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
     pub fn is_list(&self) -> bool {
         match self {
             Self::Nil | Self::List => true,

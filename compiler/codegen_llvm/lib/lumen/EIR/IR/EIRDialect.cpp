@@ -92,12 +92,13 @@ Operation *eirDialect::materializeConstant(mlir::OpBuilder &builder,
   }
 
   if (type.isa<FixnumType>() || type.isa<BigIntType>()) {
-    if (value.isa<APIntAttr>())
-      if (type.isa<FixnumType>())
-        return builder.create<ConstantIntOp>(loc, type, value);
+    if (auto intAttr = value.dyn_cast_or_null<APIntAttr>()) {
+      auto val = intAttr.getValue();
+      if (val.getMinSignedBits() > 47)
+        return builder.create<ConstantBigIntOp>(loc, val);
       else
-        return builder.create<ConstantBigIntOp>(loc, type, value);
-
+        return builder.create<ConstantIntOp>(loc, val);
+    }
     if (auto intAttr = value.dyn_cast_or_null<mlir::IntegerAttr>()) {
       auto val = intAttr.getValue();
       if (type.isa<FixnumType>())

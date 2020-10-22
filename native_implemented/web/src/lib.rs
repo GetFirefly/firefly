@@ -1,3 +1,4 @@
+#![feature(unwind_attributes)]
 #![deny(warnings)]
 
 pub mod r#async;

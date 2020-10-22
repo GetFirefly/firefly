@@ -1,4 +1,5 @@
 #![feature(arbitrary_enum_discriminant)]
+#![feature(unwind_attributes)]
 
 mod encoding;
 #[cfg(not(target_arch = "wasm32"))]

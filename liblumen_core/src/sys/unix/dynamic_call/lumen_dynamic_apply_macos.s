@@ -1,145 +1,201 @@
+    .p2align 4
     .global ___lumen_dynamic_apply
 ___lumen_dynamic_apply:
+L_dyn_call_begin:
     .cfi_startproc
     .cfi_personality 155, _rust_eh_personality
     .cfi_lsda 16, L_dyn_call_lsda
+    # At this point, the following registers are bound:
+    #
+    #   %rdi <- callee
+    #   %rsi <- argv
+    #   %rdx <- argc
+    #
     # Save the parent base pointer for when control returns to this call frame.
     # CFA directives will inform the unwinder to expect %rbp at the bottom of the
     # stack for this frame, so this should be the last value on the stack in the caller
-    pushq    %rbp
+    pushq %rbp
     .cfi_def_cfa_offset 16
     .cfi_offset %rbp, -16
-    movq     %rsp, %rbp
+    movq  %rsp, %rbp
     .cfi_def_cfa_register %rbp
 
-    # Reserve static stack space
-    subq $40, %rsp
+    # Save our callee and argv pointers, and argc
+    movq    %rdi, %r10
+    movq    %rsi, %r11
+    movq    %rdx, %rax
 
-    # Callee-saved registers
-    movq  %r15, 32(%rsp)
-    movq  %r14, 24(%rsp)
-    movq  %r13, 16(%rsp)
-    movq  %r12, 8(%rsp)
-    movq  %rbx, (%rsp)
+    # Determine if spills are needed
+    # In the common case in which they are not, we perform a tail call
+    cmpq  $7, %rdx
+    ja L_dyn_call_spill
+    
+L_dyn_call_no_spill:
+    # We only reach this block if we had no arguments to spill, so
+    # we are not certain about which registers we need to assign. We
+    # simply check for each register whether this a corresponding argument,
+    # and if so, we assign it.
+    #
+    # Sure would be nice if we had the equivalent of LDM from ARM
 
-    # Save stack pointer at beginning of spill region
-    movq     %rsp, %r15
+    # Calculate offset in jump table to block which handles the specific
+    # number of registers we have arguments for, then jump to that block
+    leaq    L_dyn_call_jt(%rip), %rcx
+    movslq  (%rcx,%rax,4), %rax
+    addq    %rcx, %rax
+    jmpq    *%rax
 
-    # First, push argc into %r12
-    movq     %rdx, %r12
+    # All of these basic blocks perform a tail call. As such,
+    # the unwinder will skip over this frame should the callee
+    # throw an exception
+L_dyn_call_regs0:
+    popq %rbp
+    jmpq *%r10
 
-    # If we have no arguments, jump straight to the call
-    cmpq     $0, %r12
-    cmoveq   %rdi, %r12
-    je       L_dyn_call_call
+L_dyn_call_regs1:
+    movq (%r11), %rdi
+    popq %rbp
+    jmpq *%r10
 
-    # Since we have at least one argument, we need argc in %r13 too, and
-    # subtract 1 from %r12 to get the max index
-    movq     %rdx, %r13
-    subq     $1, %r12
-    # Then subtract 6 from %r13, giving us the number of arguments to spill
-    subq     $6, %r13
-    # If we have nothing to spill, skip it
-    jbe      L_dyn_call_spill_done
+L_dyn_call_regs2:
+    movq (%r11), %rdi
+    movq 8(%r11), %rsi
+    popq %rbp
+    jmpq *%r10
 
-    # Next we actually spill the arguments
-    # TODO: Need to make sure stack is 16-byte aligned before call
+L_dyn_call_regs3:
+    movq (%r11), %rdi
+    movq 8(%r11), %rsi
+    movq 16(%r11), %rdx
+    popq %rbp
+    jmpq *%r10
+
+L_dyn_call_regs4:
+    movq (%r11), %rdi
+    movq 8(%r11), %rsi
+    movq 16(%r11), %rdx
+    movq 24(%r11), %rcx
+    popq %rbp
+    jmpq *%r10
+
+L_dyn_call_regs5:
+    movq (%r11), %rdi
+    movq 8(%r11), %rsi
+    movq 16(%r11), %rdx
+    movq 24(%r11), %rcx
+    movq 32(%r11), %r8
+    popq %rbp
+    jmpq *%r10
+
+L_dyn_call_regs6:
+    movq (%r11), %rdi
+    movq 8(%r11), %rsi
+    movq 16(%r11), %rdx
+    movq 24(%r11), %rcx
+    movq 32(%r11), %r8
+    movq 40(%r11), %r9
+    popq %rbp
+    jmpq *%r10
+
 L_dyn_call_spill:
-        # Index into %rsi, using %r12, stride is 8 bytes
-        pushq  (%rsi, %r12, 8)
-        # We're pushing from right to left, so %r12 is our index, %r13 is our counter,
-        # and we need to decrement both of them, but only %r13 is used to determine when
-        # we're done, since we're indexing from the end
-        decq   %r12
-        decq   %r13
-        jnz    L_dyn_call_spill
+    # If we hit this block, we have identified that there are
+    # arguments to spill. We perform some setup for the actual
+    # spilling, which is a loop built on `rep movsq`
 
-L_dyn_call_spill_done:
+    # Calculate spill count for later (rep uses rcx for the iteration count,
+    # which in this case is the number of quadwords to copy)
+    movq  %rdx, %rcx
+    subq  $6, %rcx
 
-    # Since we're about to call another function, we need to move
-    # rdi/rsi/rdx to r12-14 to avoid clobbering them
-    movq     %rdi, %r12
-    movq     %rsi, %r13
-    movq     %rdx, %r14
+    # Calculate spill space, and ensure it is rounded up to the nearest 16 bytes.
+    leaq 15(,%rcx,8), %rax
+    andq $-16, %rax
 
-    # Next up, push up to 6 arguments in to registers,
-    # and we always have at least one argument
-    movq     (%r13), %rdi
+    # Allocate spill space
+    subq %rax, %rsp
 
-    # If we have two arguments, push the second argument
-    cmpq     $2, %r14
-    cmovaeq   8(%r13), %rsi
+    # load source pointer (last item of argv)
+    leaq -8(%r11, %rdx, 8), %rsi
+    # load destination pointer (top of spill region)
+    leaq -8(%rsp, %rcx, 8), %rdi
+    # copy rcx quadwords from rsi to rdi, in reverse
+    std
+    rep movsq
+    cld
 
-    # arg3, ..arg6
-    cmp      $3, %r14
-    cmovaeq  16(%r13), %rdx
-    cmp      $4, %r14
-    cmovaeq  24(%r13), %rcx
-    cmp      $5, %r14
-    cmovaeq  32(%r13), %r8
-    cmp      $6, %r14
-    cmovaeq  40(%r13), %r9
+    # We've spilled arguments, so we have at least 6 args
+    movq  (%r11),   %rdi
+    movq  8(%r11),  %rsi
+    movq  16(%r11), %rdx
+    movq  24(%r11), %rcx
+    movq  32(%r11), %r8
+    movq  40(%r11), %r9
 
-L_dyn_call_call:
-    # Save stack pointer before spill region
-    pushq    %r15
-
-    # We've set up the call, now we execute it!
-    # The call will have set rax/rdx appropriately for our return
-    callq    *%r12
-
-L_dyn_call_finish:
-    # Restore stack pointer to before spill region
-    popq %rsp
-
-    # Restore callee-saved registers
-    movq  32(%rsp), %r15
-    movq  24(%rsp), %r14
-    movq  16(%rsp), %r13
-    movq  8(%rsp), %r12
-    movq  (%rsp),  %rbx
-
-    addq $40, %rsp
-
-    .cfi_restore %rbx
-    .cfi_restore %r12
-    .cfi_restore %r13
-    .cfi_restore %r14
-    .cfi_restore %r15
-
-    leaveq
+L_dyn_call_exec:
+    # If we spill arguments to the stack, we can't perform
+    # a tail call, so we do a normal call/ret sequence here
+    # 
+    # At this point, the stack should be 16-byte aligned,
+    # all of the callee arguments should be in registers or
+    # spilled to the stack (spilled in reverse order). All
+    # that remains is to actually execute the call!
+    #
+    # This instruction will push the return address and jump,
+    # and we can expect %rbp to be the same as we left it upon
+    # return.
+    callq    *%r10
+    
+L_dyn_call_ret:
+    # Non-tail call completed successfully
+    movq %rbp, %rsp
+    popq %rbp
     retq
-
-L_dyn_call_landing_pad:
-    movq %rax, -16(%rbp)
-    movl %edx, -8(%rbp)
-    movq -16(%rbp), %rdi
-    callq __Unwind_Resume
-    ud2
 
 L_dyn_call_end:
     .cfi_endproc
 
+    # The following is the jump table for setting up calls with
+    # a variable number of register-based arguments
+    .p2align 2
+    .data_region jt32
+    .set L_dyn_call_jt_entry0, L_dyn_call_exec-L_dyn_call_jt
+    .set L_dyn_call_jt_entry1, L_dyn_call_regs1-L_dyn_call_jt
+    .set L_dyn_call_jt_entry2, L_dyn_call_regs2-L_dyn_call_jt
+    .set L_dyn_call_jt_entry3, L_dyn_call_regs3-L_dyn_call_jt
+    .set L_dyn_call_jt_entry4, L_dyn_call_regs4-L_dyn_call_jt
+    .set L_dyn_call_jt_entry5, L_dyn_call_regs5-L_dyn_call_jt
+    .set L_dyn_call_jt_entry6, L_dyn_call_regs6-L_dyn_call_jt
+L_dyn_call_jt:
+    .long L_dyn_call_jt_entry0
+    .long L_dyn_call_jt_entry1
+    .long L_dyn_call_jt_entry2
+    .long L_dyn_call_jt_entry3
+    .long L_dyn_call_jt_entry4
+    .long L_dyn_call_jt_entry5
+    .long L_dyn_call_jt_entry6
+    .end_data_region
+
+    # The following is the LSDA metadata for exception handling
     .section __TEXT,__gcc_except_tab
     .p2align 2
 L_dyn_call_lsda:
+    # Landing pad encoding (DW_EH_PE_omit) = omit
     .byte 255
+    # DWARF encoding of type entries in types table = no type entries
     .byte 255
+L_dyn_call_cst_header:
+    # Call site encoding = uleb128
     .byte 1
+    # Size of call site table
     .uleb128 L_dyn_call_cst_end-L_dyn_call_cst_begin
 L_dyn_call_cst_begin:
-    # Start of IP range
-    .uleb128 L_dyn_call_call-___lumen_dynamic_apply
-    # Length of IP range
-    .uleb128 L_dyn_call_finish-L_dyn_call_call
-    # Landing pad address
-    .uleb128 L_dyn_call_landing_pad-___lumen_dynamic_apply
-    # Offset into action table
+    # Call site entry for the dynamic callee (offset, size, pad, action)
+    #  call occurs between L_dyn_call_exec and L_dyn_call_ret
+    .uleb128 L_dyn_call_exec-L_dyn_call_begin
+    .uleb128 L_dyn_call_ret-L_dyn_call_exec
+    #  no landing pad, the unwinder will skip over us
     .byte 0
-    .uleb128 L_dyn_call_finish-___lumen_dynamic_apply
-    .uleb128 L_dyn_call_end-L_dyn_call_finish
+    #  offset into action table (0 is no action)
     .byte 0
-    .byte 0
-
 L_dyn_call_cst_end:
     .p2align 2

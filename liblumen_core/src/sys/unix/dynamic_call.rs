@@ -1,35 +1,13 @@
+///! This module defines an assembly shim that dispatches calls with a
+///! variable number of arguments as efficiently as possible, following the
+///! System-V ABI calling convention, or other equivalent platform-standard
+///! convention, depending on target.
+///!
+///! Currently, we have written the shim for x86_64 Linux and macOS.
+///!
+///! See the assembly files in `dynamic_apply/*.s` for details on their
+///! implementation.
 use crate::sys::dynamic_call::DynamicCallee;
-
-/// This function is horrific. The fact that it needs to exist could not
-/// be more disappointing. But here we are. We need a way to dynamically
-/// invoke functions in some specific situations, and this is our only option.
-///
-/// This was crafted following the SystemV ABI for x86_64, in short:
-///
-/// - Callee-saved registers are %rsp, %rbp, %rbx, %r12-15
-/// - All other registers are caller-saved
-/// - First six integer/pointer arguments are %rdi, %rsi, %rdx, %rcx, %r8, %r9
-/// - If there are more than six arguments, they are spilled to the stack
-///
-/// This function needs to dynamically construct an ABI-correct call to
-/// the provided function pointer. Working in our favor is the fact that
-/// the argument and return types are the same, and are all integer-sized.
-///
-/// The gist:
-///
-/// - The compiler takes care of preparing the stack and saving/restoring callee-saved registers,
-///   since this is not marked naked.
-/// - Our first step is to determine if we need to allocate any spill storage
-///   - If no spillage, skip this step
-///   - If so, calculate the amount of spillage, and push spilled args to the stack, in reverse
-///     order, i.e. the lowest index resides nearest the top of the stack
-/// - Store up to 6 arguments from the provided argument vector in available parameter registers
-/// - At this point, the call is prepared, so we execute it
-/// - Write the return value to our local variable created to hold it
-/// - Return to the caller
-///
-/// It is essential that this function never be inlined, or it would more than likely be
-/// incorrect, so we tell the compiler not to do that.
 
 extern "C" {
     #[unwind(allowed)]
@@ -77,11 +55,111 @@ mod tests {
         assert_eq!(result, 33);
     }
 
+    #[test]
+    fn spilled_args_even_spills_apply_test() {
+        // Transform a function reference to a generic void function pointer
+        let callee = spilled_args_even as *const ();
+        // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
+        let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
+        // Build up the args and call the function
+        let args = &[1, 1, 1, 1, 1, 1, 1, 1, 1];
+        let argv = args.as_ptr();
+        let argc = args.len();
+        let result = unsafe { apply(callee, argv, argc) };
+
+        assert_eq!(result, 8);
+    }
+
+    #[test]
+    fn spilled_args_odd_spills_apply_test() {
+        // Transform a function reference to a generic void function pointer
+        let callee = spilled_args_odd as *const ();
+        // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
+        let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
+        // Build up the args and call the function
+        let args = &[1, 1, 1, 1, 1, 1, 1, 1];
+        let argv = args.as_ptr();
+        let argc = args.len();
+        let result = unsafe { apply(callee, argv, argc) };
+
+        assert_eq!(result, 7);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_apply_test() {
+        // Transform a function reference to a generic void function pointer
+        let callee = panicky as *const ();
+        // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
+        let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
+        // Build up the args and call the function
+        let args = &[22, 11];
+        let argv = args.as_ptr();
+        let argc = args.len();
+        let _result = unsafe { apply(callee, argv, argc) };
+    }
+
+    #[test]
+    #[should_panic]
+    fn panic_apply_spills_test() {
+        // Transform a function reference to a generic void function pointer
+        let callee = panicky_spilled as *const ();
+        // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
+        let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
+        // Build up the args and call the function
+        let args = &[1, 1, 1, 1, 1, 1, 1, 1];
+        let argv = args.as_ptr();
+        let argc = args.len();
+        let _result = unsafe { apply(callee, argv, argc) };
+    }
+
+    fn panicky(_x: usize, _y: usize) -> usize {
+        panic!("panicky");
+    }
+
+    #[unwind(allowed)]
+    extern "C" fn panicky_spilled(
+        _a: usize,
+        _b: usize,
+        _c: usize,
+        _d: usize,
+        _e: usize,
+        _f: usize,
+        _g: usize,
+    ) -> usize {
+        panic!("panicky");
+    }
+
     extern "C" fn adder(x: usize, y: usize) -> usize {
         x + y
     }
 
     fn adder_rust(x: usize, y: usize) -> usize {
         x + y
+    }
+
+    extern "C" fn spilled_args_even(
+        a: usize,
+        b: usize,
+        c: usize,
+        d: usize,
+        e: usize,
+        f: usize,
+        g: usize,
+        h: usize,
+    ) -> usize {
+        a + b + c + d + e + f + g + h
+    }
+
+    extern "C" fn spilled_args_odd(
+        a: usize,
+        b: usize,
+        c: usize,
+        d: usize,
+        e: usize,
+        f: usize,
+        g: usize,
+    ) -> usize {
+        a + b + c + d + e + f + g
     }
 }

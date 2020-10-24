@@ -1449,6 +1449,8 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
 
     if (!base().getType().isa<PtrType>())
       return emitOpError("invalid source operand, expected pointer");
+
+    return success();
   }];
 
   let assemblyFormat = [{

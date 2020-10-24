@@ -58,7 +58,7 @@ static void buildDeoptimizationPath(
   // block where we re-encode the result and continue
   // execution where we left off
   ctx.rewriter.setInsertionPointToEnd(current);
-  llvm_condbr(obit, cont, ValueRange(), overflow, ValueRange());
+  llvm_condbr(obit, normal, ValueRange(), overflow, ValueRange());
 
   // Handle normal
   ctx.rewriter.setInsertionPointToEnd(normal);

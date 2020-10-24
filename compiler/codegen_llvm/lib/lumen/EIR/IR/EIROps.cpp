@@ -1997,7 +1997,6 @@ void CmpEqOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 // eir.math.*
 //===----------------------------------------------------------------------===//
 
-
 using BinaryIntegerFnT = std::function<Optional<APInt>(APInt &, APInt &)>;
 using BinaryFloatFnT = std::function<Optional<APFloat>(APFloat &, APFloat &)>;
 
@@ -2093,6 +2092,31 @@ static Optional<APFloat> foldBinaryFloatOp(ArrayRef<Attribute> operands, BinaryF
     return llvm::None;
 
   return fun(left, right);
+}
+
+OpFoldResult NegOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 1 && "unary op takes one operand");
+  Attribute attr = operands[0];
+  
+  if (!attr)
+    return nullptr;
+
+  if (auto valInt = attr.dyn_cast_or_null<APIntAttr>()) {
+    auto val = valInt.getValue();
+    val.negate();
+    return APIntAttr::get(getContext(), val);
+  } else if (auto valInt = attr.dyn_cast_or_null<IntegerAttr>()) {
+    auto val = valInt.getValue();
+    val.negate();
+    return APIntAttr::get(getContext(), val);
+  }
+
+  if (auto flt = attr.dyn_cast_or_null<APFloatAttr>())
+    return APFloatAttr::get(getContext(), llvm::neg(flt.getValue()));
+  else if (auto flt = attr.dyn_cast_or_null<mlir::FloatAttr>())
+    return APFloatAttr::get(getContext(), llvm::neg(flt.getValue()));
+
+  return nullptr;
 }
 
 OpFoldResult AddOp::fold(ArrayRef<Attribute> operands) {

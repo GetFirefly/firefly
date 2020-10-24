@@ -326,7 +326,7 @@ fi
 
 export PATH="${OUTPUT_DIR}/build/lumen_tblgen/bin:$PATH"
 if [ "$is_ci" = "true" ]; then
-    echo "::add-path::${OUTPUT_DIR}/build/lumen_tblgen/bin"
+    echo "${OUTPUT_DIR}/build/lumen_tblgen/bin" >> "$GITHUB_PATH"
 fi
 
 if [ "$only_tblgen" = "true" ]; then

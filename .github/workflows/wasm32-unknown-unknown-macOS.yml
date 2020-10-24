@@ -86,7 +86,7 @@ jobs:
           git init examples
           cd examples
           git remote add origin https://github.com/lumen/examples
-          git fetch --no-tags --no-tags --prune --progress --depth=1 origin +bf390b117c02d58f33eeacca4b203769103c9ea7:refs/remotes/origin/spawn-chain-cli
+          git fetch --no-tags --prune --progress --depth=1 origin +f4f50dcbf5fe158f5c81c62abe57c4b924107745:refs/remotes/origin/spawn-chain-cli
           git checkout --progress --force -B spawn-chain-cli refs/remotes/origin/spawn-chain-cli
       - name: Spawn Chain Build
         run: wasm-pack build examples/spawn-chain/wasm

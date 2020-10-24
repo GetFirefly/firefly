@@ -569,6 +569,7 @@ def eir_NegOp :
   let summary = "Negation operator";
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def eir_SubOp :

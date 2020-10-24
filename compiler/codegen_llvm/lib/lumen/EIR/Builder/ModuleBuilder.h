@@ -26,7 +26,9 @@ class FuncOp;
 class ModuleBuilder {
  public:
   ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
-                const llvm::TargetMachine *tm, unsigned immediateBitWidth);
+                const llvm::TargetMachine *tm,
+                llvm::Triple::ArchType archType,
+                unsigned immediateBitWidth);
   ~ModuleBuilder();
 
   void dump();
@@ -163,6 +165,7 @@ class ModuleBuilder {
 
  public:
   unsigned immediateBitWidth;
+  llvm::Triple::ArchType archType;
 
  private:
   const llvm::TargetMachine *targetMachine;

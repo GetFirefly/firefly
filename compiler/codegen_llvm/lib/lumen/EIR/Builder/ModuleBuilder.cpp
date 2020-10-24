@@ -213,14 +213,16 @@ extern "C" MLIRModuleBuilderRef MLIRCreateModuleBuilder(
   auto immediateBits = maxAllowedImmediateVal.getActiveBits();
   Location loc = mlir::FileLineColLoc::get(filename, sl.line, sl.column, ctx);
   return wrap(
-      new ModuleBuilder(*ctx, moduleName, loc, targetMachine, immediateBits));
+      new ModuleBuilder(*ctx, moduleName, loc, targetMachine, archType, immediateBits));
 }
 
 ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
                              const TargetMachine *targetMachine,
+                             llvm::Triple::ArchType archType,
                              unsigned immediateBits)
     : builder(&context),
       targetMachine(targetMachine),
+      archType(archType),
       immediateBitWidth(immediateBits) {
   // Create an empty module into which we can codegen functions
   theModule = builder.create<mlir::ModuleOp>(loc, name);
@@ -1402,9 +1404,23 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
 
   // Handle tail calls
   if (isTail) {
-    auto mustTail = builder.getNamedAttr("musttail", builder.getUnitAttr());
-    Operation *call =
-        eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{mustTail});
+    // Determine if this call is a candidate for musttail, which
+    // currently means that on x86_64, the parameter counts match.
+    // For wasm32, all tail calls can be musttail. For other platforms,
+    // we'll restrict like x86_64 for now
+    bool canMustTail = archType == llvm::Triple::ArchType::wasm32;
+    if (!canMustTail) {
+      auto currentFun = cast<FuncOp>(builder.getBlock()->getParentOp());
+      canMustTail = callArgs.size() == currentFun.getNumArguments();
+    }
+    Operation *call;
+    if (canMustTail) {
+      auto mustTail = builder.getNamedAttr("musttail", builder.getUnitAttr());
+      call = eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{mustTail});
+    } else {
+      auto tail = builder.getNamedAttr("tail", builder.getUnitAttr());
+      call = eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{tail});
+    }
     eir_return(call->getResults());
     return;
   }

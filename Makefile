@@ -49,57 +49,6 @@ lumen-tblgen:
 	@LLVM_PREFIX=$(LLVM_PREFIX) \
 		bin/build-lumen --static --only-tblgen
 
-libunwind:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package unwind
-
-libpanic:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package panic
-
-lumen_rt_core:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_core
-
-lumen_rt_minimal:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_minimal
-
-lumen_rt_full:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package lumen_rt_full
-
-liblumen_crt:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_crt 
-
-liblumen_otp:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_otp
-
-liblumen_alloc:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_alloc 
-
-liblumen_term:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_term 
-
-liblumen_llvm:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_llvm 
-
-liblumen_mlir:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_mlir
-
-liblumen_codegen:
-	@LLVM_PREFIX=$(LLVM_PREFIX) \
-		bin/build-lumen --debug --dynamic --use-libcxx --package liblumen_codegen
-
-clean-codegen:
-	LLVM_PREFIX=$(LLVM_PREFIX) cargo clean -p liblumen_codegen
-
 check: ## Check the Lumen compiler
 	LLVM_PREFIX=$(LLVM_PREFIX) cargo check -p lumen
 

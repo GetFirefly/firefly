@@ -43,7 +43,7 @@ jobs:
         env:
           RUST_BACKTRACE: full
         run: |
-          make build-shared
+          make build
           echo "$PWD/bin" >> $GITHUB_PATH
       - name: Lumen Test
         run: cargo test --package lumen --no-fail-fast

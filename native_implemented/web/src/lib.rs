@@ -1,5 +1,5 @@
-#![feature(unwind_attributes)]
 #![deny(warnings)]
+#![feature(unwind_attributes)]
 
 pub mod r#async;
 pub mod document;

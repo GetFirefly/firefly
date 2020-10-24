@@ -14,7 +14,7 @@ start() ->
   display(Midway),
   MillisecondsRemaining = cancel_timer(TimerReference),
   display(is_integer(MillisecondsRemaining)),
-  display(0 < MillisecondsRemaining),
+  display(0 =< MillisecondsRemaining),
   display(MillisecondsRemaining =< 50),
   display(cancel_timer(TimerReference)),
   After = receive

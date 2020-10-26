@@ -20,6 +20,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cargo-make
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-make
       - name: Cache LLVM
         id: cache-llvm
         uses: actions/cache@v2
@@ -39,11 +44,18 @@ jobs:
         run: echo "LLVM_PREFIX=$HOME/.local/share/llvm/lumen" >> $GITHUB_ENV
       - name: Install Ninja
         run: brew install ninja
-      - name: Test liblumen_arena
-        run: cargo test --package liblumen_arena --no-fail-fast
+      - name: Run liblumen_arena tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_arena
       - name: Test liblumen_core
-        run: cargo test --package liblumen_core --no-fail-fast
-      - name: Build TableGen
-        run: make lumen-tblgen
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_core
       - name: Test liblumen_alloc
-        run: cargo test --package liblumen_alloc --no-fail-fast
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_alloc

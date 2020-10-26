@@ -1,0 +1,537 @@
+env_scripts = [
+'''
+#!@duckscript
+
+llvm_prefix = get_env LLVM_PREFIX
+if is_empty "${llvm_prefix}"
+   data_home = get_env XDG_DATA_HOME
+   if is_empty "${data_home}"
+      home = get_env HOME
+      llvm_prefix = set "${home}/.local/share/llvm/lumen"
+   else
+      llvm_prefix = set "${data_home}/llvm/lumen"
+   end
+end
+
+if is_directory ${llvm_prefix}
+   set_env LLVM_PREFIX "${llvm_prefix}"
+else
+   trigger_error "Unable to locate LLVM. Export LLVM_PREFIX and try again"
+   exit 1
+end
+
+set_env BUILD_LUMEN false
+
+task_name = get_env CARGO_MAKE_TASK
+if eq "${task_name}" lumen
+   set_env BUILD_LUMEN true
+   set_env CARGO_MAKE_CARGO_PACKAGE lumen
+   exit 0
+elseif eq "${task_name}" default
+   set_env BUILD_LUMEN true
+   set_env CARGO_MAKE_CARGO_PACKAGE lumen
+   exit 0
+end
+
+task_args = get_env CARGO_MAKE_TASK_ARGS
+argv = split task_args ";"
+argc = array_length ${argv}
+indices = range 0 ${argc}
+package = set ""
+for i in ${indices}
+    item = array_get ${argv} ${i}
+    if eq "${item}" "-p"
+      j = calc ${i} + 1
+      package = array_get ${argv} ${j}
+    elseif eq "${item}" "--package"
+      j = calc ${i} + 1
+      package = array_get ${argv} ${j}
+    end
+    if "${package}"
+      set_env CARGO_MAKE_CARGO_PACKAGE "${package}"
+      if eq "${package}" lumen
+        set_env BUILD_LUMEN true
+      end
+      exit 0
+    end
+end
+'''
+]
+
+[config]
+default_to_workspace = false
+default_task_name = "lumen"
+skip_core_tasks = true
+modify_core_tasks = { private = true, namespace = "default" }
+init_task = "init"
+
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+CARGO_MAKE_CARGO_VERBOSE_FLAGS = { source = "${CARGO_MAKE_CI}", default_value = "", mapping = { "true" = "--verbose" } }
+CARGO_MAKE_RUST_SCRIPT_PROVIDER = "cargo-script"
+CARGO_MAKE_USE_WORKSPACE_PROFILE = true
+CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "--all-features --no-fail-fast"
+CARGO_TARGET_DIR = { value = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target", condition = { env_not_set = ["CARGO_TARGET_DIR"] } }
+BACKTRACE_DEFAULT = { source = "${CARGO_MAKE_CI}", mapping = { "true" = "1", "false" = "0" } }
+RUST_BACKTRACE = { value = "${BACKTRACE_DEFAULT}", condition = { env_not_set = ["RUST_BACKTRACE"] } }
+GECKODRIVER_VERSION = "0.27.0"
+CHROMEDRIVER_VERSION = "85.0.4183.87"
+LUMEN_BUILD_PROFILE = { source = "${CARGO_MAKE_PROFILE}", default_value = "debug", mapping = { "development" = "debug", "production" = "release" } }
+LUMEN_BUILD_TYPE = { value = "dynamic", condition = { env_not_set = ["LUMEN_BUILD_TYPE"] } }
+LUMEN_BUILD_LTO = { source = "${LUMEN_BUILD_PROFILE}", default_value = "false", mapping = { "dev" = "false", "release" = "true" } }
+LUMEN_LLVM_LTO = { source = "${LUMEN_BUILD_LTO}", default_value = "OFF", mapping = { "false" = "OFF", "true" = "ON" } }
+LUMEN_BIN_DIR = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/bin"
+LUMEN_INSTALL_DIR = "${LUMEN_BIN_DIR}/${CARGO_MAKE_RUST_TARGET_TRIPLE}"
+LLVM_BUILD_STATIC = { source = "${LUMEN_BUILD_TYPE}", default_value = "OFF", mapping = { "dynamic" = "OFF", "static" = "ON" } }
+LLVM_USE_LIBCXX = { source = "${CARGO_MAKE_RUST_TARGET_VENDOR}", default_value = "OFF", mapping = { "apple" = "ON" } }
+LLVM_LINK_LLVM_DYLIB = { source = "${LUMEN_BUILD_TYPE}", default_value = "ON", mapping = { "dynamic" = "ON", "static" = "OFF" } }
+
+[tasks.init]
+run_task = "print-env"
+
+[tasks.default]
+category = "Build"
+description = "Default task builds the compiler"
+alias = "lumen"
+
+[tasks.print-env]
+category = "Tools"
+run_task = [{ name = ["print-build-env", "print-ci-env", "print-rust-env", "print-cargo-env"] }]
+
+[tasks.print-build-env]
+private = true
+script = [
+'''
+#!@duckscript
+echo "*************************************"
+echo "Build Environment:"
+echo "    Task: ${CARGO_MAKE_TASK}"
+echo "    Task Arguments: ${CARGO_MAKE_TASK_ARGS}"
+echo "    Command: ${CARGO_MAKE_COMMAND}"
+echo "    Working Directory: ${CARGO_MAKE_WORKING_DIRECTORY}"
+echo "    Target Directory: ${CARGO_TARGET_DIR}"
+echo "    Profile: ${LUMEN_BUILD_PROFILE}"
+echo "    Build Type: ${LUMEN_BUILD_TYPE}"
+echo "    LTO Enabled: ${LUMEN_BUILD_LTO}"
+echo "    Bin Directory: ${LUMEN_BIN_DIR}"
+echo "    Install Directory: ${LUMEN_INSTALL_DIR}"
+echo "    Target Triple: ${CARGO_MAKE_RUST_TARGET_TRIPLE}"
+echo ""
+echo "    RUST_BACKTRACE: ${RUST_BACKTRACE}"
+echo "    GECKODRIVER_VERSION: ${GECKODRIVER_VERSION}"
+echo "    CHROMEDRIVER_VERSION: ${CHROMEDRIVER_VERSION}"
+echo "    LUMEN_LLVM_LTO: ${LUMEN_LLVM_LTO}"
+echo "    LLVM_BUILD_STATIC: ${LLVM_BUILD_STATIC}"
+echo "    LLVM_USE_LIBCXX: ${LLVM_USE_LIBCXX}"
+echo "    LLVM_LINK_LLVM_DYLIB: ${LLVM_LINK_LLVM_DYLIB}"
+echo "*************************************"
+'''
+]
+
+[tasks.print-ci-env]
+private = true
+condition = { env = { "CARGO_MAKE_CI" = "true" } }
+script = [
+'''
+#!@duckscript
+echo "*************************************"
+echo "CI:"
+echo "    CI: ${CARGO_MAKE_CI}"
+echo "    PR: ${CARGO_MAKE_PR}"
+echo "    Branch Name: ${CARGO_MAKE_CI_BRANCH_NAME}"
+echo "    CI Vendor: ${CARGO_MAKE_CI_VENDOR}"
+echo "*************************************"
+'''
+]
+
+[tasks.print-rust-env]
+category = "Tools"
+condition = { env_set = [ "CARGO_MAKE_RUST_CHANNEL" ] }
+script = [
+'''
+#!@duckscript
+echo "*************************************"
+echo "Rust:"
+echo "    Version: ${CARGO_MAKE_RUST_VERSION}"
+echo "    Channel: ${CARGO_MAKE_RUST_CHANNEL}"
+echo "    Target Arch: ${CARGO_MAKE_RUST_TARGET_ARCH}"
+echo "    Target Env: ${CARGO_MAKE_RUST_TARGET_ENV}"
+echo "    Target OS: ${CARGO_MAKE_RUST_TARGET_OS}"
+echo "    Pointer Width: ${CARGO_MAKE_RUST_TARGET_POINTER_WIDTH}"
+echo "    Target Triple: ${CARGO_MAKE_RUST_TARGET_TRIPLE}"
+echo "*************************************"
+'''
+]
+
+[tasks.print-cargo-env]
+category = "Tools"
+condition = { env_set = [ "CARGO_MAKE_CARGO_HOME" ] }
+script = [
+'''
+#!@duckscript
+echo "*************************************"
+echo "Cargo:"
+echo "    Home: ${CARGO_MAKE_CARGO_HOME}"
+echo "    Profile: ${CARGO_MAKE_CARGO_PROFILE}"
+echo "*************************************"
+'''
+]
+
+[tasks.format]
+category = "Development"
+dependencies = ["format-rust", "format-cpp"]
+
+[tasks.check-format]
+description = "Runs cargo fmt to check appropriate code format."
+category = "Test"
+command = "cargo"
+args = ["fmt", "--", "--check"]
+dependencies = ["install-rustfmt"]
+
+[tasks.format-rust]
+category = "Development"
+description = "Formats source code (Rust)"
+command = "cargo"
+args = ["fmt"]
+dependencies = ["install-rustfmt"]
+
+[tasks.format-cpp]
+category = "Development"
+description = "Formats source code (C/C++)"
+script = ['''
+#!@duckscript
+
+result = which clang-format
+if is_empty "${result}"
+  exit 1
+end
+
+cpp_files = glob_array "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/compiler/codegen_llvm/*.cpp"
+h_files = glob_array "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/compiler/codegen_llvm/*.h"
+files = array_concat ${cpp_files} ${h_files}
+for file in ${files}
+    is_cached = contains "${file}" ".ccls-cache"
+    if not ${is_cached}
+       result = exec clang-format -i --verbose "${file}"
+       if ${result.code}
+          echo "${result.stderr}"
+          exit ${result.code}
+       end
+    end
+end
+''']
+
+[tasks.install-rustfmt]
+category = "Development"
+description = "Installs cargo rustfmt plugin."
+env.CFG_RELEASE = { value = "${CARGO_MAKE_RUST_VERSION}", condition = { env_not_set = ["CFG_RELEASE"] } }
+env.CFG_RELEASE_CHANNEL = { value = "${CARGO_MAKE_RUST_CHANNEL}", condition = { env_not_set = ["CFG_RELEASE_CHANNEL"] } }
+install_crate = { crate_name = "rustfmt-nightly", rustup_component_name = "rustfmt", binary = "rustfmt", test_arg = "--help" }
+
+[tasks.bloat]
+category = "Development"
+description = "Run cargo-bloat"
+command = "cargo"
+args = ["bloat", "${@}"]
+
+[tasks.clean]
+category = "Build"
+description = "Clean build artifacts"
+command = "cargo"
+args = ["clean"]
+
+[tasks.test]
+category = "Test"
+description = "Runs all tests"
+dependencies = ["test-rust"]
+
+[tasks.test-rust]
+category = "Test"
+description = "Runs tests written in Rust"
+toolchain = "nightly"
+env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
+command = "cargo"
+args = ["test", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "@@split(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS, )", "${@}"]
+dependencies = [
+  "require-ninja",
+  "require-cmake",
+  "lumen-tblgen",
+]
+
+[tasks.rebuild]
+command = "cargo"
+category = "Build"
+description = "Perform a clean build"
+dependencies = ["clean", "build"]
+
+[tasks.check-build]
+category = "Build"
+description = "Ensures code is formatted, builds Lumen, and runs tests"
+run_task = { name = ["check-format", "lumen", "test"] }
+
+[tasks.check]
+category = "Build"
+description = "Runs cargo check"
+condition = { env = {"BUILD_LUMEN" = "false" } }
+command = "cargo"
+args = ["check", "${@}"]
+dependencies = [
+  "require-ninja",
+  "require-cmake",
+  "lumen-tblgen",
+]
+
+[tasks.build]
+category = "Build"
+description = "Build a package"
+condition = { env_set = ["CARGO_MAKE_CARGO_PACKAGE", "BUILD_LUMEN"] }
+run_task = [
+  { name = "build-package", condition = { env = { "BUILD_LUMEN" = "false" } } },
+  { name = "lumen", condition = { env = { "BUILD_LUMEN" = "true" } } }
+]
+
+[tasks.build-package]
+private = true
+description = "Runs cargo build"
+category = "Build"
+command = "cargo"
+args = ["build", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "${@}"]
+dependencies = [
+  "require-ninja",
+  "require-cmake",
+  "lumen-tblgen",
+]
+
+[tasks.lumen]
+category = "Build"
+description = "Builds the Lumen compiler"
+condition = { env = { "BUILD_LUMEN" = "true" } }
+script_runner = "@rust"
+script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lumen.rs", absolute_path = true }
+dependencies = [
+  "require-ninja",
+  "require-cmake",
+  "lumen-tblgen",
+]
+
+[tasks.require-ninja]
+private = true
+script = ['''
+#!@duckscript
+result = which ninja
+if is_empty ${result}
+  trigger_error "Unable to locate ninja executable!"
+  exit 1
+else
+  exit 0
+end
+''']
+
+[tasks.require-cmake]
+private = true
+script = ['''
+#!@duckscript
+result = which cmake
+if is_empty ${result}
+  trigger_error "Unable to locate cmake executable!"
+  exit 1
+else
+  exit 0
+end
+''']
+
+[tasks.lumen-tblgen]
+private = true
+category = "Build"
+condition = { files_not_exist = ["${CARGO_TARGET_DIR}/build/lumen_tblgen/bin/lumen-tblgen"] }
+script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lumen_tablegen.ds", absolute_path = true }
+
+[tasks.install-wasm-target]
+category = "Web"
+description = "Install wasm32-unknown-unknown target"
+toolchain = "nightly-2020-05-13"
+command = "rustup"
+args = ["target", "add", "wasm32-unknown-unknown"]
+condition_script = ['''
+result = exec rustup target list --installed
+if ${result.code}
+  exit ${result.code}
+end
+if contains ${result.stdout} "wasm32-unknown-unknown"
+  exit 0
+else
+  exit 1
+end
+''']
+
+[tasks.docker]
+category = "Tools"
+description = "Build the Lumen development Docker image"
+cwd = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/.github/workflows"
+command = "docker"
+args = ["build", "--squash", "--force-rm", "-t", "kronicdeth/lumen-development:latest", "-f", "Dockerfile", "."]
+
+[tasks.docker-release]
+category = "Tools"
+description = "Publish the latest version of the Docker image"
+command = "docker"
+args = ["push", "kronicdeth/lumen-development:latest"]
+
+[tasks.linux-shell]
+category = "Tools"
+description = "Starts a shell in the kronicdeth/lumen-development:latest Docker image"
+command = "docker"
+args = [
+    "run",
+    "--privileged",
+    "--rm",
+    "-v",
+    "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}:/opt/lumen",
+    "-v",
+    "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}../llvm-project:/tmp/sources",
+    "-e",
+    "CARGO_TARGET_DIR=/var/lumen",
+    "-it",
+    "kronicdeth/lumen-development:latest",
+    "bash",
+    "-c",
+    "cd /opt/lumen; exec bash"
+]
+dependencies = ["prepare-docker-target-dir"]
+
+[tasks.prepare-docker-target-dir]
+private = true
+condition = { files_not_exist = ["${CARGO_TARGET_DIR}/docker/target"] }
+script_runner = "@duckscript"
+script = ["mkdir ${CARGO_TARGET_DIR}/docker/target"]
+
+[tasks.install-wasm-bindgen-cli]
+category = "Web"
+description = "Install wasm-bindgen"
+toolchain = "nightly-2020-05-13"
+install_crate = { crate_name = "wasm-bindgen-cli", binary = "wasm-bindgen", test_arg = ["--version"] }
+
+[tasks.install-wasm-pack]
+category = "Web"
+description = "Install wasm-pack"
+toolchain = "nightly-2020-05-13"
+install_crate = { crate_name = "wasm-pack", binary = "wasm-pack", test_arg = ["-V"] }
+
+[tasks.install-wasm-pack.linux]
+install_script = ["curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh"]
+
+[tasks.install-wasm-pack.mac]
+install_script = ["curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh"]
+
+[tasks.install-chrome-driver]
+category = "Web"
+description = "Installs the Chrome test driver"
+condition_script = ['''
+result = which chromedriver
+if is_empty ${result}
+  exit 1
+else
+  exit 0
+''']
+
+[tasks.install-chrome-driver.mac]
+install_script = ['''
+#!@duckscript
+path = temp_file .zip
+result = wget -O ${path} "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_mac64.zip"
+if not ${result}
+    trigger_error "Failed to download chromedriver!"
+    exit 1
+end
+
+output = exec unzip ${path} "chromedriver" -d "${CARGO_MAKE_CARGO_HOME}"
+if ${output.code}
+  echo ${output.stderr}
+  exit ${output.code}
+end
+
+exec --fail-with-error chromedriver --version
+''']
+
+[tasks.install-gecko-driver]
+category = "Web"
+description = "Installs the Firefox (Gecko) test driver"
+condition_sript = ['''
+result = which geckodriver
+if is_empty ${result}
+  exit 1
+else
+  exit 0
+''']
+
+[tasks.install-gecko-driver.mac]
+install_script = ['''
+#!@duckscript
+path = temp_file .tar.gz
+result = wget -O ${path} "https://github.com/mozilla/geckodriver/releases/download/v${GECKODRIVER_VERSION}/geckodriver-v${GECKODRIVER_VERSION}-macos.tar.gz"
+if not ${result}
+    trigger_error "Failed to download geckodriver!"
+    exit 1
+end
+
+result = exec tar -xzvf ${path} "${CARGO_MAKE_CARGO_HOME}/bin/geckodriver"
+if ${result.code}
+  echo ${result.stderr}
+  exit ${result.code}
+end
+exec --fail-with-error geckodriver --version
+''']
+
+[tasks.enable-safari-driver]
+category = "Web"
+description = "Enables the Safari test driver"
+condition = { platforms = ["mac"] }
+command = "sudo"
+args = ["safaridriver", "--enable"]
+
+[tasks.wasm-toolchain]
+category = "Web"
+description = "Sets up the WebAssembly toolchain for development"
+run_task = { name = [
+    "install-wasm-target",
+    "install-wasm-bindgen-cli",
+    "install-wasm-pack",
+    "install-gecko-driver",
+    "install-chrome-driver",
+    "enable-safari-driver"
+  ], parallel = true }
+
+[tasks.test-web]
+category = "Test"
+description = "Runs the web test suite"
+command = "wasm-pack"
+args = ["test", "--headless", "${@}", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/native_implemented/web"]
+dependencies = ["wasm-toolchain"]
+
+[tasks.checkout-interpreter]
+private = true
+category = "Examples"
+condition = { files_not_exist = ["${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/interpreter"] }
+command = "git"
+args = ["clone", "--depth", "1", "--single-branch", "https://github.com/lumen/interpeter", "interpreter"]
+
+[tasks.checkout-examples]
+private = true
+category = "Examples"
+condition = { files_not_exist = ["${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/examples"] }
+command = "git"
+args = ["clone", "--depth", "1", "--branch", "develop", "https://github.com/lumen/examples", "examples"]
+
+[tasks.spawn-chain]
+category = "Examples"
+description = "Builds spawn-chain example program"
+command = "wasm-pack"
+args = ["build", "examples/spawn-chain/wasm"]
+dependencies = ["checkout-interpreter", "checkout-examples"]
+
+[tasks.test-spawn-chain]
+category = "Test"
+description = "Runs the spawn-chain example tests"
+command = "wasm-pack"
+args = ["test", "--headless", "${@}", "examples/spawn-chain/wasm"]
+dependencies = ["spawn-chain"]

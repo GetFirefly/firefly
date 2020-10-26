@@ -50,10 +50,11 @@ fn main() {
     if use_ninja {
         config = config.generator("Ninja");
     }
-    let build_shared = if env::var_os(ENV_LLVM_BUILD_STATIC).is_some() {
-        "OFF"
-    } else {
-        "ON"
+    let build_shared = match env::var_os(ENV_LLVM_BUILD_STATIC) {
+        Some(val) if val == "ON" => "OFF",
+        Some(val) if val == "OFF" => "ON",
+        Some(_) => "ON",
+        None => "ON",
     };
 
     let lumen_llvm_include_dir = env::var("DEP_LUMEN_LLVM_CORE_INCLUDE").unwrap();
@@ -208,10 +209,9 @@ fn lang_start_symbol_name(lang_start_symbol: &str) -> &str {
 }
 
 fn link_libs(libs: &[&str]) {
-    if env::var_os(ENV_LLVM_BUILD_STATIC).is_none() {
-        link_libs_dylib(libs);
-    } else {
-        link_libs_static(libs);
+    match env::var_os(ENV_LLVM_BUILD_STATIC) {
+        Some(val) if val == "ON" => link_libs_static(libs),
+        _ => link_libs_dylib(libs),
     }
 }
 

@@ -8,13 +8,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Install nightly-2020-05-13
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly-2020-05-13
           override: true
-      - name: Install wasm32 Target
-        run: rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-13
       - name: Cache Cargo
         uses: actions/cache@v2
         with:
@@ -22,22 +20,23 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install wasm-bindgen-cli
-        run: cargo +nightly-2020-05-13 install wasm-bindgen-cli
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Install cargo-make
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-make
       - name: Cache LLVM
         id: cache-llvm
         uses: actions/cache@v2
         with:
           path: ~/.local/share/llvm/lumen
-          key: lumen-12.0.0-dev_2020-10-14-apple-darwin19.5.0
+          key: lumen-12.0.0-dev_2020-10-22-apple-darwin19.5.0
       - name: Install LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/.local/share/llvm
           pushd ~/.local/share/llvm
-          wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-10-14/clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
+          wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-10-22/clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
           tar xvfz clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
           mv clang+llvm-12.0.0-x86_64-apple-darwin19.5.0 lumen
           popd
@@ -45,50 +44,13 @@ jobs:
         run: echo "LLVM_PREFIX=$HOME/.local/share/llvm/lumen" >> $GITHUB_ENV
       - name: Install Ninja
         run: brew install ninja
-      - name: Cache Chrome Driver
-        id: cache-chromedriver
-        uses: actions/cache@v2
+      - name: Test Lumen Web
+        uses: actions-rs/cargo@v1
         with:
-          path: /usr/local/bin/chromedriver
-          key: lumen-chromedriver-85.0.4183.87-mac64
-      - name: Install Chrome Driver
-        if: steps.cache-chromedriver.outputs.cache-hit != 'true'
-        run: |
-          wget https://chromedriver.storage.googleapis.com/85.0.4183.87/chromedriver_mac64.zip
-          unzip chromedriver_mac64.zip
-          mv chromedriver /usr/local/bin/
-          rm chromedriver_mac64.zip
-          chromedriver --version
-      - name: Cache Gecko Driver
-        id: cache-geckodriver
-        uses: actions/cache@v2
+          command: make
+          args: test-web chrome safari
+      - name: Test Spawn Chain
+        uses: actions-rs/cargo@v1
         with:
-          path: /usr/local/bin/geckodriver
-          key: lumen-geckodriver-0.27.0-mac64
-      - name: Install Gecko Driver
-        if: steps.cache-geckodriver.outputs.cache-hit != 'true'
-        run: |
-          wget https://github.com/mozilla/geckodriver/releases/download/v0.27.0/geckodriver-v0.27.0-macos.tar.gz
-          tar xvfz geckodriver-v0.27.0-macos.tar.gz
-          mv geckodriver /usr/local/bin/
-          rm geckodriver-v0.27.0-macos.tar.gz
-          geckodriver --version
-      - name: Enable Safari Driver
-        run: sudo safaridriver --enable
-      - name: Build TableGen
-        run: make lumen-tblgen
-      - name: Lumen Web Test
-        run: wasm-pack test --headless --chrome --safari native_implemented/web
-      - name: Interpreter Checkout
-        run: git clone --depth 1 https://github.com/lumen/interpreter interpreter
-      - name: Examples Checkout
-        run: |
-          git init examples
-          cd examples
-          git remote add origin https://github.com/lumen/examples
-          git fetch --no-tags --prune --progress --depth=1 origin +f4f50dcbf5fe158f5c81c62abe57c4b924107745:refs/remotes/origin/spawn-chain-cli
-          git checkout --progress --force -B spawn-chain-cli refs/remotes/origin/spawn-chain-cli
-      - name: Spawn Chain Build
-        run: wasm-pack build examples/spawn-chain/wasm
-      - name: Spawn Chain Test
-        run: wasm-pack test --headless --chrome --safari examples/spawn-chain/wasm
+          command: make
+          args: test-spawn-chain chrome safari

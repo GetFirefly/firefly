@@ -5,7 +5,7 @@ on: push
 jobs:
   lumen-otp:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:7cabc638118f2bae7aecc74c9b48fc89e9c862303d2b18b3c448d998d4e95228
+    container: kronicdeth/lumen-development@sha256:71d03d818e85085995170b6211ec9ad17231bfee5716bda0552e14a7d1979b1b
 
     steps:
       - uses: actions/checkout@v2
@@ -16,8 +16,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Make Build
-        run: make build
+      - name: Build Compiler
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: lumen
       - name: lumen/otp Checkout
         run: |
           cd ..
@@ -36,4 +39,7 @@ jobs:
           cd ../otp
           ./configure
       - name: Test compiling lumen/otp against liblumen_otp
-        run: "cargo test --package liblumen_otp --no-fail-fast lumen::otp::"
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_otp lumen::otp::

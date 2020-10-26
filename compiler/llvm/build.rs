@@ -353,10 +353,9 @@ pub fn output(cmd: &mut Command) -> String {
 
 fn detect_llvm_link() -> (&'static str, &'static str) {
     // Force the link mode we want, preferring static by default, but
-    if env::var_os(ENV_LLVM_BUILD_STATIC).is_some() {
-        ("static", "--link-static")
-    } else {
-        ("dylib", "--link-shared")
+    match env::var_os(ENV_LLVM_BUILD_STATIC) {
+        Some(val) if val == "ON" => ("static", "--link-static"),
+        _ => ("dylib", "--link-shared"),
     }
 }
 

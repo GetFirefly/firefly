@@ -5,7 +5,7 @@ on: push
 jobs:
   formatted:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:7cabc638118f2bae7aecc74c9b48fc89e9c862303d2b18b3c448d998d4e95228
+    container: kronicdeth/lumen-development@sha256:71d03d818e85085995170b6211ec9ad17231bfee5716bda0552e14a7d1979b1b
 
     steps:
       - uses: actions/checkout@v2
@@ -17,11 +17,14 @@ jobs:
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Check Formatted
-        run: cargo fmt -- --check
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: check-format
 
   libraries:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:7cabc638118f2bae7aecc74c9b48fc89e9c862303d2b18b3c448d998d4e95228
+    container: kronicdeth/lumen-development@sha256:71d03d818e85085995170b6211ec9ad17231bfee5716bda0552e14a7d1979b1b
 
     steps:
       - uses: actions/checkout@v2
@@ -32,11 +35,18 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Test liblumen_arena
-        run: cargo test --package liblumen_arena --no-fail-fast
-      - name: Test liblumen_core
-        run: cargo test --package liblumen_core --no-fail-fast
-      - name: Build TableGen
-        run: make lumen-tblgen
-      - name: Test liblumen_alloc
-        run: cargo test --package liblumen_alloc --no-fail-fast
+      - name: Run liblumen_arena tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_arena
+      - name: Run liblumen_core tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_core
+      - name: Run liblumen_alloc tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_alloc

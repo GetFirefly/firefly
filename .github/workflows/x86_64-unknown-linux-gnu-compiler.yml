@@ -5,7 +5,7 @@ on: push
 jobs:
   compiler:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:7cabc638118f2bae7aecc74c9b48fc89e9c862303d2b18b3c448d998d4e95228
+    container: kronicdeth/lumen-development@sha256:71d03d818e85085995170b6211ec9ad17231bfee5716bda0552e14a7d1979b1b
 
     steps:
       - uses: actions/checkout@v2
@@ -16,23 +16,24 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Make Build
-        env:
-          RUST_BACKTRACE: full
+      - name: Build Compiler
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: lumen
+      - name: Add Compiler To Path
         run: |
-          make build
           echo "$PWD/bin" >> $GITHUB_PATH
-      - name: Lumen Test
-        run: cargo test --package lumen --no-fail-fast
-      - name: liblumen_otp Integration Tests
-        run: "cargo test --package liblumen_otp lib:: -- --skip lumen::otp"
-      - name: Examples Checkout
-        run: |
-          git init examples
-          cd examples
-          git remote add origin https://github.com/lumen/examples
-          git fetch --no-tags --no-tags --prune --progress --depth=1 origin +bf390b117c02d58f33eeacca4b203769103c9ea7:refs/remotes/origin/spawn-chain-cli
-          git checkout --progress --force -B spawn-chain-cli refs/remotes/origin/spawn-chain-cli
-      - name: Spawn Chain Test
+      - name: Run baseline tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package lumen
+      - name: Run liblumen_otp integration tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_otp lib:: -- --skip lumen::otp
+      - name: Run spawn-chain tests
         working-directory: examples/spawn-chain/cli
         run: make test

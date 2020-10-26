@@ -33,8 +33,11 @@ fn main() {
         cfg.flag(flag);
     }
 
-    if env::var_os(ENV_LUMEN_LLVM_LTO).is_some() {
-        cfg.flag("-flto=thin");
+    match env::var_os(ENV_LUMEN_LLVM_LTO) {
+        Some(val) if val == "ON" => {
+            cfg.flag("-flto=thin");
+        }
+        _ => {}
     }
 
     if env::var_os("LLVM_NDEBUG").is_some() {
@@ -145,10 +148,9 @@ fn ignore_changes(entry: &DirEntry) -> bool {
 }
 
 fn link_libs(libs: &[&str]) {
-    if env::var_os(ENV_LLVM_BUILD_STATIC).is_none() {
-        link_libs_dylib(libs);
-    } else {
-        link_libs_static(libs);
+    match env::var_os(ENV_LLVM_BUILD_STATIC) {
+        Some(val) if val == "ON" => link_libs_static(libs),
+        _ => link_libs_dylib(libs),
     }
 }
 

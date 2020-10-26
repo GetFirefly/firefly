@@ -20,6 +20,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cargo-make
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-make
       - name: Cache LLVM
         id: cache-llvm
         uses: actions/cache@v2
@@ -39,9 +44,18 @@ jobs:
         run: echo "LLVM_PREFIX=$HOME/.local/share/llvm/lumen" >> $GITHUB_ENV
       - name: Install Ninja
         run: brew install ninja
-      - name: Make Build
-        run: make build
-      - name: Test lumen_rt_full
-        run: cargo test --package lumen_rt_full --no-fail-fast
-      - name: Test liblumen_otp with runtime_full
-        run: "cargo test --package liblumen_otp --no-fail-fast -- --skip lib:: --skip lumen::otp"
+      - name: Build Compiler
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: lumen
+      - name: Run lumen_rt_full tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package lumen_rt_full
+      - name: Run liblumen_otp tests with runtime_full
+        uses: actions-rs/cargo@v1
+        with:
+          command: make
+          args: test -- --package liblumen_otp -- --skip lib:: --skip lumen::otp

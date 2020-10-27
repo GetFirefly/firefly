@@ -72,6 +72,8 @@ CARGO_MAKE_RUST_SCRIPT_PROVIDER = "cargo-script"
 CARGO_MAKE_USE_WORKSPACE_PROFILE = true
 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "--all-features --no-fail-fast"
 CARGO_TARGET_DIR = { value = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target", condition = { env_not_set = ["CARGO_TARGET_DIR"] } }
+CARGO_MAKE_TOOLCHAIN_DEFAULT = { source = "${CARGO_MAKE_CI}", mapping = { "true" = "nightly-2020-05-13", "false" = "nightly" } }
+CARGO_MAKE_TOOLCHAIN = { value = "${CARGO_MAKE_TOOLCHAIN_DEFAULT}", condition = { env_not_set = ["CARGO_MAKE_TOOLCHAIN"] } }
 BACKTRACE_DEFAULT = { source = "${CARGO_MAKE_CI}", mapping = { "true" = "1", "false" = "0" } }
 RUST_BACKTRACE = { value = "${BACKTRACE_DEFAULT}", condition = { env_not_set = ["RUST_BACKTRACE"] } }
 GECKODRIVER_VERSION = "0.27.0"
@@ -248,10 +250,9 @@ dependencies = ["test-rust"]
 [tasks.test-rust]
 category = "Test"
 description = "Runs tests written in Rust"
-toolchain = "nightly"
 env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
-command = "cargo"
-args = ["test", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "@@split(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS, )", "${@}"]
+command = "rustup"
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "test", "--", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "@@split(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS, )", "${@}"]
 dependencies = [
   "require-ninja",
   "require-cmake",
@@ -273,8 +274,8 @@ run_task = { name = ["check-format", "lumen", "test"] }
 category = "Build"
 description = "Runs cargo check"
 condition = { env = {"BUILD_LUMEN" = "false" } }
-command = "cargo"
-args = ["check", "${@}"]
+command = "rustup"
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "check", "--", "${@}"]
 dependencies = [
   "require-ninja",
   "require-cmake",
@@ -294,8 +295,8 @@ run_task = [
 private = true
 description = "Runs cargo build"
 category = "Build"
-command = "cargo"
-args = ["build", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "${@}"]
+command = "rustup"
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "build", "--", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "${@}"]
 dependencies = [
   "require-ninja",
   "require-cmake",
@@ -349,11 +350,10 @@ script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lumen_table
 [tasks.install-wasm-target]
 category = "Web"
 description = "Install wasm32-unknown-unknown target"
-toolchain = "nightly-2020-05-13"
 command = "rustup"
-args = ["target", "add", "wasm32-unknown-unknown"]
+args = ["target", "add", "--toolchain", "${CARGO_MAKE_TOOLCHAIN}", "wasm32-unknown-unknown"]
 condition_script = ['''
-result = exec rustup target list --installed
+result = exec rustup target list --toolchain ${CARGO_MAKE_TOOLCHAIN} --installed
 if ${result.code}
   exit ${result.code}
 end
@@ -408,13 +408,11 @@ script = ["mkdir ${CARGO_TARGET_DIR}/docker/target"]
 [tasks.install-wasm-bindgen-cli]
 category = "Web"
 description = "Install wasm-bindgen"
-toolchain = "nightly-2020-05-13"
 install_crate = { crate_name = "wasm-bindgen-cli", binary = "wasm-bindgen", test_arg = ["--version"] }
 
 [tasks.install-wasm-pack]
 category = "Web"
 description = "Install wasm-pack"
-toolchain = "nightly-2020-05-13"
 install_crate = { crate_name = "wasm-pack", binary = "wasm-pack", test_arg = ["-V"] }
 
 [tasks.install-wasm-pack.linux]

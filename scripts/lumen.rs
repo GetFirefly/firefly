@@ -154,6 +154,8 @@ fn main() {
     let path_var = env::var("PATH").unwrap();
     let path = format!("{}/bin:{}", llvm_prefix.display(), &path_var);
 
+    println!("Starting build..");
+
     let mut cargo_cmd = Command::new("rustup");
     let cargo_cmd = cargo_cmd
         .arg("run")

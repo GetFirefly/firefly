@@ -252,7 +252,7 @@ category = "Test"
 description = "Runs tests written in Rust"
 env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
 command = "rustup"
-args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "test", "--", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "@@split(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS, )", "${@}"]
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "test", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "@@split(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS, )", "${@}"]
 dependencies = [
   "require-ninja",
   "require-cmake",

@@ -48,9 +48,9 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test-web chrome safari
+          args: test-web -- --chrome --safari
       - name: Test Spawn Chain
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test-spawn-chain chrome safari
+          args: test-spawn-chain -- --chrome --safari

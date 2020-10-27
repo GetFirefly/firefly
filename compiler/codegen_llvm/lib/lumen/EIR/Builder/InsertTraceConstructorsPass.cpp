@@ -1,34 +1,32 @@
+#include "llvm/Support/Casting.h"
 #include "lumen/EIR/Builder/Passes.h"
 #include "lumen/EIR/IR/EIRDialect.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
-
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 
-#include "llvm/Support/Casting.h"
-
-using ::mlir::OpBuilder;
-using ::mlir::DialectRegistry;
-using ::mlir::PassWrapper;
-using ::mlir::OperationPass;
 using ::mlir::Block;
 using ::mlir::BlockArgument;
-using ::mlir::Value;
+using ::mlir::DialectRegistry;
 using ::mlir::Location;
+using ::mlir::OpBuilder;
 using ::mlir::Operation;
+using ::mlir::OperationPass;
 using ::mlir::OpOperand;
+using ::mlir::PassWrapper;
+using ::mlir::Value;
 
-using ::llvm::isa;
-using ::llvm::dyn_cast_or_null;
 using ::llvm::cast;
+using ::llvm::dyn_cast_or_null;
+using ::llvm::isa;
 
 namespace {
 
 using namespace ::lumen::eir;
-    
+
 void forAllTraceUses(OpBuilder &, Location, Value, Value, unsigned);
-    
+
 struct InsertTraceConstructorsPass
     : public PassWrapper<InsertTraceConstructorsPass, OperationPass<FuncOp>> {
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -38,13 +36,12 @@ struct InsertTraceConstructorsPass
 
   void runOnOperation() override {
     FuncOp op = getOperation();
-    if (op.isExternal())
-      return;
+    if (op.isExternal()) return;
 
     OpBuilder builder(op.getParentOfType<ModuleOp>());
     op.walk([&](LandingPadOp landingPad) {
-        Value trace = landingPad.trace();
-        forAllTraceUses(builder, landingPad.getLoc(), trace, Value(), 0);
+      Value trace = landingPad.trace();
+      forAllTraceUses(builder, landingPad.getLoc(), trace, Value(), 0);
     });
 
     return;
@@ -170,13 +167,12 @@ void forAllTraceUses(OpBuilder &builder, Location loc, Value root,
     }
   }
 }
-}
-
+}  // namespace
 
 namespace lumen {
 namespace eir {
 std::unique_ptr<mlir::Pass> createInsertTraceConstructorsPass() {
   return std::make_unique<InsertTraceConstructorsPass>();
 }
-}
-}
+}  // namespace eir
+}  // namespace lumen

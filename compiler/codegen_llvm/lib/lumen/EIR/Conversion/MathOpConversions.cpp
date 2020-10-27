@@ -4,15 +4,11 @@ namespace lumen {
 namespace eir {
 
 template <typename Op>
-static void buildDeoptimizationPath(
-  Location loc,
-  RewritePatternContext<Op> &ctx,
-  Op op,
-  OpaqueTermType concreteTy,
-  StringRef intrinsicFn,
-  StringRef runtimeFn,
-  Value lhs, Value rhs) {
-
+static void buildDeoptimizationPath(Location loc,
+                                    RewritePatternContext<Op> &ctx, Op op,
+                                    OpaqueTermType concreteTy,
+                                    StringRef intrinsicFn, StringRef runtimeFn,
+                                    Value lhs, Value rhs) {
   Operation *rawOp = op.getOperation();
   Block *current = rawOp->getBlock();
 
@@ -32,7 +28,8 @@ static void buildDeoptimizationPath(
   auto calleeFn = ctx.getOrInsertFunction(intrinsicFn, resTy, {iFixTy, iFixTy});
   Value lhsTrunc = llvm_trunc(iFixTy, lhsRaw);
   Value rhsTrunc = llvm_trunc(iFixTy, rhsRaw);
-  Operation *callOp = llvm_call(ArrayRef<Type>{resTy}, callee, ArrayRef<Value>{lhsTrunc, rhsTrunc});
+  Operation *callOp = llvm_call(ArrayRef<Type>{resTy}, callee,
+                                ArrayRef<Value>{lhsTrunc, rhsTrunc});
 
   // Extract results
   Value results = callOp->getResult(0);
@@ -69,7 +66,8 @@ static void buildDeoptimizationPath(
   // Handle overflow
   ctx.rewriter.setInsertionPointToStart(overflow);
   auto rtCallee = ctx.rewriter.getSymbolRefAttr(runtimeFn);
-  Operation *rtCallOp = llvm_call(ArrayRef<Type>{termTy}, rtCallee, ArrayRef<Value>{lhs, rhs});
+  Operation *rtCallOp =
+      llvm_call(ArrayRef<Type>{termTy}, rtCallee, ArrayRef<Value>{lhs, rhs});
   llvm_br(rtCallOp->getResults(), cont);
 
   // Replace original op with the final value
@@ -89,10 +87,11 @@ static Value specializeFloatMathOp(Location loc, RewritePatternContext<Op> &ctx,
 
 template <typename Op, typename OperandAdaptor>
 class SpecializedMathOpConversion : public EIROpConversion<Op> {
-public:
-  explicit SpecializedMathOpConversion(MLIRContext *context, EirTypeConverter &converter_,
-                            TargetInfo &targetInfo_,
-                            mlir::PatternBenefit benefit = 1)
+ public:
+  explicit SpecializedMathOpConversion(MLIRContext *context,
+                                       EirTypeConverter &converter_,
+                                       TargetInfo &targetInfo_,
+                                       mlir::PatternBenefit benefit = 1)
       : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
                                              benefit) {}
 
@@ -113,7 +112,8 @@ public:
     // Use specialized lowerings if types are compatible
     if (lhsTy.isa<FixnumType>() && rhsTy.isa<FixnumType>()) {
       auto fixTy = rewriter.getType<FixnumType>();
-      buildDeoptimizationPath(loc, ctx, op, fixTy, intrinsic, builtinSymbol, lhs, rhs);
+      buildDeoptimizationPath(loc, ctx, op, fixTy, intrinsic, builtinSymbol,
+                              lhs, rhs);
       return success();
     }
 
@@ -255,13 +255,11 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
 };
 
 // llvm.sdiv
-struct DivOpConversion
-    : public IntegerMathOpConversion<DivOp, DivOpAdaptor> {
+struct DivOpConversion : public IntegerMathOpConversion<DivOp, DivOpAdaptor> {
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 // llvm.srem
-struct RemOpConversion
-    : public IntegerMathOpConversion<RemOp, RemOpAdaptor> {
+struct RemOpConversion : public IntegerMathOpConversion<RemOp, RemOpAdaptor> {
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 // llvm.and
@@ -270,8 +268,7 @@ struct BandOpConversion
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 // llvm.or
-struct BorOpConversion
-    : public IntegerMathOpConversion<BorOp, BorOpAdaptor> {
+struct BorOpConversion : public IntegerMathOpConversion<BorOp, BorOpAdaptor> {
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 // llvm.xor
@@ -280,13 +277,11 @@ struct BxorOpConversion
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 // llvm.shl
-struct BslOpConversion
-    : public IntegerMathOpConversion<BslOp, BslOpAdaptor> {
+struct BslOpConversion : public IntegerMathOpConversion<BslOp, BslOpAdaptor> {
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 // llvm.ashr
-struct BsrOpConversion
-    : public IntegerMathOpConversion<BsrOp, BsrOpAdaptor> {
+struct BsrOpConversion : public IntegerMathOpConversion<BsrOp, BsrOpAdaptor> {
   using IntegerMathOpConversion::IntegerMathOpConversion;
 };
 
@@ -389,7 +384,8 @@ class LogicalOpConversion : public EIROpConversion<Op> {
     ArrayRef<Value> args({lhs, rhs});
     auto calleeSymbol =
         FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
-    auto callOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol, ArrayRef<Type>{boolTy}, args);
+    auto callOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
+                                                ArrayRef<Type>{boolTy}, args);
     rewriter.replaceOpWithNewOp<CastOp>(op, callOp.getResult(0), i1Ty);
     return success();
   }
@@ -399,7 +395,8 @@ class LogicalOpConversion : public EIROpConversion<Op> {
 };
 
 struct LogicalAndOpConversion
-    : public LogicalOpConversion<LogicalAndOp, LogicalAndOpAdaptor, LLVM::AndOp> {
+    : public LogicalOpConversion<LogicalAndOp, LogicalAndOpAdaptor,
+                                 LLVM::AndOp> {
   using LogicalOpConversion::LogicalOpConversion;
 };
 

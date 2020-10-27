@@ -26,8 +26,7 @@ class FuncOp;
 class ModuleBuilder {
  public:
   ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
-                const llvm::TargetMachine *tm,
-                llvm::Triple::ArchType archType,
+                const llvm::TargetMachine *tm, llvm::Triple::ArchType archType,
                 unsigned immediateBitWidth);
   ~ModuleBuilder();
 
@@ -76,13 +75,13 @@ class ModuleBuilder {
   void build_static_call(Location loc, StringRef target, ArrayRef<Value> args,
                          bool isTail, Block *ok, ArrayRef<Value> okArgs);
 
-  void build_apply_2(Location loc, Value closure, ValueRange args,
-                     bool isTail, Block *ok, ArrayRef<Value> okArgs,
-                     Block *err, ArrayRef<Value> errArgs);
+  void build_apply_2(Location loc, Value closure, ValueRange args, bool isTail,
+                     Block *ok, ArrayRef<Value> okArgs, Block *err,
+                     ArrayRef<Value> errArgs);
 
   void build_apply_3(Location loc, Value mod, Value fun, ValueRange args,
-                     bool isTail, Block *ok, ArrayRef<Value> okArgs,
-                     Block *err, ArrayRef<Value> errArgs);
+                     bool isTail, Block *ok, ArrayRef<Value> okArgs, Block *err,
+                     ArrayRef<Value> errArgs);
 
   Block *build_landing_pad(Location loc, Block *err);
 
@@ -155,8 +154,8 @@ class ModuleBuilder {
 
   mlir::MLIRContext *getContext() { return builder.getContext(); }
 
-  FuncOp getOrDeclareFunction(StringRef symbol, Type resultTy, TypeRange argTypes,
-                              bool isVarArg = false);
+  FuncOp getOrDeclareFunction(StringRef symbol, Type resultTy,
+                              TypeRange argTypes, bool isVarArg = false);
 
   Location getLocation(SourceLocation sloc);
   Location getFusedLocation(ArrayRef<Location> locs);

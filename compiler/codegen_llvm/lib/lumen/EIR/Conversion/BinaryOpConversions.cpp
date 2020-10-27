@@ -82,7 +82,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
     switch (pushType) {
       case BinarySpecifierType::Bytes: {
         unit = static_cast<unsigned>(
-                  op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
+            op.getAttrOfType<IntegerAttr>("unit").getValue().getLimitedValue());
         Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
         if (sizeOpt != nullptr) {
           StringRef symbolName("__lumen_builtin_binary_push_byte_size_unit");

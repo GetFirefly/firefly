@@ -1,11 +1,12 @@
 #ifndef LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 #define LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 
+#include "llvm/Support/Casting.h"
+#include "llvm/Target/TargetMachine.h"
 #include "lumen/EIR/Conversion/TargetInfo.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
-
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -21,15 +22,14 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Support/Casting.h"
-
-using ::llvm::SmallVectorImpl;
-using ::llvm::TargetMachine;
-using ::llvm::StringSwitch;
-using ::llvm::dyn_cast_or_null;
 using ::llvm::cast;
+using ::llvm::dyn_cast_or_null;
 using ::llvm::isa;
+using ::llvm::SmallVectorImpl;
+using ::llvm::StringSwitch;
+using ::llvm::TargetMachine;
+using ::mlir::CallableOpInterface;
+using ::mlir::CallInterfaceCallable;
 using ::mlir::ConversionPatternRewriter;
 using ::mlir::LLVMTypeConverter;
 using ::mlir::LogicalResult;
@@ -40,12 +40,10 @@ using ::mlir::UnitAttr;
 using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ScopedContext;
 using ::mlir::edsc::ValueBuilder;
-using ::mlir::LLVM::LLVMType;
+using ::mlir::LLVM::LLVMArrayType;
 using ::mlir::LLVM::LLVMIntegerType;
 using ::mlir::LLVM::LLVMStructType;
-using ::mlir::LLVM::LLVMArrayType;
-using ::mlir::CallInterfaceCallable;
-using ::mlir::CallableOpInterface;
+using ::mlir::LLVM::LLVMType;
 
 namespace LLVM = ::mlir::LLVM;
 
@@ -123,18 +121,21 @@ struct EirTypeConverter : public mlir::TypeConverter {
   }
 
   /// This function is used to determine which type to cast to when operating
-  /// on values of the given input types. If the types can be operated on directly
-  /// in LLVM IR, then this will return Some(Type) which the caller can then use
-  /// to insert casts where appropriate. If the types cannot be operated on directly
-  /// either due to incomplete type information, or because the types must use
-  /// runtime-provided functionality to operate on, then this will return llvm::None,
-  /// and the caller should cast the types to term type and use an appropriate runtime
-  /// function for whatever operation it is lowering
+  /// on values of the given input types. If the types can be operated on
+  /// directly in LLVM IR, then this will return Some(Type) which the caller can
+  /// then use to insert casts where appropriate. If the types cannot be
+  /// operated on directly either due to incomplete type information, or because
+  /// the types must use runtime-provided functionality to operate on, then this
+  /// will return llvm::None, and the caller should cast the types to term type
+  /// and use an appropriate runtime function for whatever operation it is
+  /// lowering
   Optional<Type> coalesceOperandTypes(Type lhs, Type rhs);
 
   Type packFunctionResults(TargetInfo &targetInfo, ArrayRef<Type> types);
 
-  Optional<Type> deferTypeConversion(Type type) { return typeConverter.convertType(type); }
+  Optional<Type> deferTypeConversion(Type type) {
+    return typeConverter.convertType(type);
+  }
 
  private:
   unsigned pointerSizeInBits;

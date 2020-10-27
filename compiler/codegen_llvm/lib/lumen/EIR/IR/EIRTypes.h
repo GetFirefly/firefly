@@ -278,8 +278,10 @@ class ClosureType : public Type::TypeBase<ClosureType, OpaqueTermType,
   static ClosureType get(MLIRContext *context, size_t envLen);
   static ClosureType get(MLIRContext *context, TypeRange env);
   static ClosureType get(MLIRContext *context, FunctionType functionType);
-  static ClosureType get(MLIRContext *context, FunctionType functionType, size_t envLen);
-  static ClosureType get(MLIRContext *context, FunctionType functionType, TypeRange env);
+  static ClosureType get(MLIRContext *context, FunctionType functionType,
+                         size_t envLen);
+  static ClosureType get(MLIRContext *context, FunctionType functionType,
+                         TypeRange env);
 
   // Verifies construction invariants and issues errors/warnings.
   static LogicalResult verifyConstructionInvariants(

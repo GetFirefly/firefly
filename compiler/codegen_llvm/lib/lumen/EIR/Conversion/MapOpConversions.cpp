@@ -169,9 +169,9 @@ void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,
                                      EirTypeConverter &converter,
                                      TargetInfo &targetInfo) {
-  patterns.insert<MapOpConversion, MapInsertOpConversion,
-                  MapUpdateOpConversion, MapContainsKeyOpConversion,
-                  MapGetKeyOpConversion>(context, converter, targetInfo);
+  patterns.insert<MapOpConversion, MapInsertOpConversion, MapUpdateOpConversion,
+                  MapContainsKeyOpConversion, MapGetKeyOpConversion>(
+      context, converter, targetInfo);
 }
 
 }  // namespace eir

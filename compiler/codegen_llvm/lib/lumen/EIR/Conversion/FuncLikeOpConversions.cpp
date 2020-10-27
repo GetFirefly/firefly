@@ -177,32 +177,36 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
       // Definition - tag
       Value anonTypeConst = llvm_constant(i32Ty, ctx.getI32Attr(1));
       Value defTagIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
-      Value defTagPtrGep = llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defTagIdx});
+      Value defTagPtrGep =
+          llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defTagIdx});
       llvm_store(anonTypeConst, defTagPtrGep);
 
       // Definition - index
       Value indexConst = llvm_constant(termTy, ctx.getIntegerAttr(index));
       Value defIndexIdx = llvm_constant(i32Ty, ctx.getI32Attr(1));
-      Value definitionIndexGep = llvm_gep(termPtrTy, valRef, ValueRange{zero, defIdx, defIndexIdx});
+      Value definitionIndexGep =
+          llvm_gep(termPtrTy, valRef, ValueRange{zero, defIdx, defIndexIdx});
       llvm_store(indexConst, definitionIndexGep);
 
       // Definition - unique
       Value uniqueConst = llvm_constant(uniqueTy, ctx.getStringAttr(unique));
       Value defUniqIdx = llvm_constant(i32Ty, ctx.getI32Attr(2));
-      Value defUniqGep = llvm_gep(uniquePtrTy, valRef, ValueRange{zero, defIdx, defUniqIdx});
+      Value defUniqGep =
+          llvm_gep(uniquePtrTy, valRef, ValueRange{zero, defIdx, defUniqIdx});
       llvm_store(uniqueConst, defUniqGep);
 
       // Definition - old_unique
       Value oldUniqueConst = llvm_constant(i32Ty, ctx.getI32Attr(oldUnique));
       Value defOldUniqIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
       Value defOldUniqGep =
-        llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defOldUniqIdx});
+          llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defOldUniqIdx});
       llvm_store(oldUniqueConst, defOldUniqGep);
     } else {
       // Definition - tag
       Value exportTypeConst = llvm_constant(i32Ty, ctx.getI32Attr(0));
       Value defTagIdx = llvm_constant(i32Ty, ctx.getI32Attr(0));
-      Value defTagPtrGep = llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defTagIdx});
+      Value defTagPtrGep =
+          llvm_gep(i32PtrTy, valRef, ValueRange{zero, defIdx, defTagIdx});
       llvm_store(exportTypeConst, defTagPtrGep);
     }
 
@@ -212,8 +216,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         llvm_addressof(targetType.getPointerTo(), callee.getValue());
     Value codeIdx = llvm_constant(i32Ty, ctx.getI32Attr(4));
     LLVMType opaqueFnPtrTy = opaqueFnTy.getPointerTo();
-    Value codePtrGep =
-      llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef, ValueRange{zero, codeIdx});
+    Value codePtrGep = llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef,
+                                ValueRange{zero, codeIdx});
     llvm_store(llvm_bitcast(opaqueFnPtrTy, codePtr), codePtrGep);
 
     // Env
@@ -221,7 +225,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
     if (isAnonymous) {
       auto opOperands = adaptor.operands();
       if (opOperands.size() > envLen)
-        return op.emitOpError("mismatched closure env signature, expected ") << envLen << ", got " << opOperands.size();
+        return op.emitOpError("mismatched closure env signature, expected ")
+               << envLen << ", got " << opOperands.size();
 
       if (opOperands.size() > 0) {
         Value envIdx = llvm_constant(i32Ty, ctx.getI32Attr(CLOSURE_ENV_INDEX));
@@ -229,7 +234,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         for (auto it : llvm::enumerate(opOperands)) {
           Value operand = it.value();
           Value opIdx = llvm_constant(i32Ty, ctx.getI32Attr(it.index()));
-          Value opPtrGep = llvm_gep(termPtrTy, valRef, ValueRange{zero, envIdx, opIdx});
+          Value opPtrGep =
+              llvm_gep(termPtrTy, valRef, ValueRange{zero, envIdx, opIdx});
           llvm_store(operand, opPtrGep);
         }
       }

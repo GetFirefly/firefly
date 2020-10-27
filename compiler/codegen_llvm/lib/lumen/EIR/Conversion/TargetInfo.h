@@ -92,7 +92,6 @@ class TargetInfo {
   bool is_wasm32() const { return archType == llvm::Triple::ArchType::wasm32; }
   bool requiresPackedFloats() const { return !is_x86_64(); }
 
-
   mlir::LLVM::LLVMType getConsType() { return impl->consTy; }
   mlir::LLVM::LLVMType getFloatType() { return impl->floatTy; }
   mlir::LLVM::LLVMType getDoubleType() { return impl->doubleTy; };

@@ -1,8 +1,4 @@
-#include "lumen/term/Encoding.h"
 #include "lumen/EIR/Builder/ModuleBuilder.h"
-#include "lumen/EIR/IR/EIROps.h"
-#include "lumen/EIR/IR/EIRTypes.h"
-#include "lumen/EIR/Builder/Passes.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -15,7 +11,10 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
-
+#include "lumen/EIR/Builder/Passes.h"
+#include "lumen/EIR/IR/EIROps.h"
+#include "lumen/EIR/IR/EIRTypes.h"
+#include "lumen/term/Encoding.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
@@ -29,6 +28,8 @@ using ::llvm::raw_ostream;
 using ::llvm::StringSwitch;
 using ::llvm::TargetMachine;
 
+using ::mlir::OpPassManager;
+using ::mlir::PassManager;
 using ::mlir::edsc::appendToBlock;
 using ::mlir::edsc::buildInNewBlock;
 using ::mlir::edsc::createBlock;
@@ -38,8 +39,6 @@ using ::mlir::edsc::ValueBuilder;
 using ::mlir::LLVM::LLVMIntegerType;
 using ::mlir::LLVM::LLVMStructType;
 using ::mlir::LLVM::LLVMType;
-using ::mlir::PassManager;
-using ::mlir::OpPassManager;
 using namespace ::mlir::edsc::intrinsics;
 
 namespace LLVM = ::mlir::LLVM;
@@ -152,7 +151,8 @@ Type ModuleBuilder::getArgType(const Arg *arg) {
   return fromRust(builder, &arg->ty);
 }
 
-bool unwrapValues(MLIRValueRef *argv, unsigned argc, SmallVectorImpl<Value> &list) {
+bool unwrapValues(MLIRValueRef *argv, unsigned argc,
+                  SmallVectorImpl<Value> &list) {
   if (argc < 1) {
     return false;
   }
@@ -165,7 +165,8 @@ bool unwrapValues(MLIRValueRef *argv, unsigned argc, SmallVectorImpl<Value> &lis
   return true;
 }
 
-bool unwrapValuesAsTerms(OpBuilder &builder, MLIRValueRef *argv, unsigned argc, SmallVectorImpl<Value> &list) {
+bool unwrapValuesAsTerms(OpBuilder &builder, MLIRValueRef *argv, unsigned argc,
+                         SmallVectorImpl<Value> &list) {
   if (argc < 1) {
     return false;
   }
@@ -212,8 +213,8 @@ extern "C" MLIRModuleBuilderRef MLIRCreateModuleBuilder(
       APInt(64, immediateMask.maxAllowedValue, /*signed=*/false);
   auto immediateBits = maxAllowedImmediateVal.getActiveBits();
   Location loc = mlir::FileLineColLoc::get(filename, sl.line, sl.column, ctx);
-  return wrap(
-      new ModuleBuilder(*ctx, moduleName, loc, targetMachine, archType, immediateBits));
+  return wrap(new ModuleBuilder(*ctx, moduleName, loc, targetMachine, archType,
+                                immediateBits));
 }
 
 ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
@@ -257,8 +258,8 @@ LowerResult ModuleBuilder::finish() {
 
   // Apply some fixup passes to the generated IR
   PassManager pm(builder.getContext(), /*verifyPasses=*/false);
-  //mlir::OpPrintingFlags printerFlags;
-  //pm.enableIRPrinting(
+  // mlir::OpPrintingFlags printerFlags;
+  // pm.enableIRPrinting(
   //    /*shouldPrintBefore=*/[](mlir::Pass *, Operation *) { return true; },
   //    /*shouldPrintAfter=*/ [](mlir::Pass *, Operation *) { return true; },
   //    /*printModuleScopeAlways=*/false,
@@ -339,12 +340,14 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
                                       EirType *resultType) {
   // All generated functions get our custom exception handling personality
   Type i32Ty = builder.getIntegerType(32);
-  auto personalityFn =
-      getOrDeclareFunction("lumen_eh_personality", i32Ty, TypeRange(), /*vararg=*/true);
+  auto personalityFn = getOrDeclareFunction("lumen_eh_personality", i32Ty,
+                                            TypeRange(), /*vararg=*/true);
   auto personalityFnSymbol = builder.getSymbolRefAttr("lumen_eh_personality");
 
-  // If we forward-declared this function but did not fill it out, use that definition
-  Operation *maybeOp = SymbolTable::lookupNearestSymbolFrom(theModule, functionName);
+  // If we forward-declared this function but did not fill it out, use that
+  // definition
+  Operation *maybeOp =
+      SymbolTable::lookupNearestSymbolFrom(theModule, functionName);
   if (maybeOp) {
     // We've previously declared this function, now we're populating it
     FuncOp funcOp = cast<FuncOp>(maybeOp);
@@ -364,7 +367,6 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
     if (!type) return nullptr;
     argTypes.push_back(type);
   }
-
 
   auto personalityAttr =
       builder.getNamedAttr("personality", personalityFnSymbol);
@@ -386,8 +388,7 @@ extern "C" void MLIRAddFunction(MLIRModuleBuilderRef b, MLIRFunctionOpRef f) {
   Operation *op = fun->getOperation();
   // If the function has already been linked to the module,
   // we don't need to try and add it twice
-  if (!op->getParentRegion())
-    builder->add_function(*fun);
+  if (!op->getParentRegion()) builder->add_function(*fun);
 }
 
 void ModuleBuilder::add_function(FuncOp f) { theModule.push_back(f); }
@@ -545,9 +546,11 @@ void ModuleBuilder::build_if(Location loc, Value value, Block *yes, Block *no,
     isTrue = builder.create<CmpEqOp>(loc, value, trueConst, /*strict=*/true);
   }
 
-  // If the value type is a boolean then the value _must_ be either true or false
-  // Likewise, if there was no otherwise branch, then we only need one comparison
-  if (!other || (value.getType().isa<BooleanType>() || value.getType().isInteger(1))) {
+  // If the value type is a boolean then the value _must_ be either true or
+  // false Likewise, if there was no otherwise branch, then we only need one
+  // comparison
+  if (!other ||
+      (value.getType().isa<BooleanType>() || value.getType().isInteger(1))) {
     builder.create<CondBranchOp>(loc, isTrue, yes, yesArgs, no, noArgs);
     return;
   }
@@ -649,7 +652,8 @@ bool ModuleBuilder::build_match(Match op) {
   // We don't use an explicit operation for matches, as currently
   // there isn't enough structure in place to allow nested regions
   // to reference blocks from containing ops
-  return mlir::succeeded(lumen::eir::lowerPatternMatch(builder, loc, selector, branches));
+  return mlir::succeeded(
+      lumen::eir::lowerPatternMatch(builder, loc, selector, branches));
 }
 
 //===----------------------------------------------------------------------===//
@@ -792,16 +796,16 @@ void ModuleBuilder::build_map_update(MapUpdate op) {
         auto op = builder.create<MapInsertOp>(loc, map, key, val);
         Value newMap = op.newMap();
         Value isOk = op.successFlag();
-        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMap},
-                                     err, ValueRange{key});
+        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMap}, err,
+                                     ValueRange{key});
         break;
       }
       case MapActionType::Update: {
         auto op = builder.create<MapUpdateOp>(loc, map, key, val);
         Value newMap = op.newMap();
         Value isOk = op.successFlag();
-        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMap},
-                                     err, ValueRange{key});
+        builder.create<CondBranchOp>(loc, isOk, ok, ValueRange{newMap}, err,
+                                     ValueRange{key});
         break;
       }
       default:
@@ -851,7 +855,8 @@ Value ModuleBuilder::build_is_not_equal(Location loc, Value lhs, Value rhs,
                                         bool isExact) {
   ScopedContext scope(builder, loc);
   Type i1Ty = builder.getI1Type();
-  return eir_cmpeq(eir_cmpeq(lhs, rhs, isExact), eir_bool(i1Ty, false), /*strict=*/true);
+  return eir_cmpeq(eir_cmpeq(lhs, rhs, isExact), eir_bool(i1Ty, false),
+                   /*strict=*/true);
 }
 
 extern "C" MLIRValueRef MLIRBuildLessThanOrEqualOp(MLIRModuleBuilderRef b,
@@ -924,11 +929,13 @@ Value ModuleBuilder::build_is_greater_than(Location loc, Value lhs, Value rhs) {
 
 extern "C" MLIRValueRef MLIRBuildLogicalAndOp(MLIRModuleBuilderRef b,
                                               MLIRLocationRef locref,
-                                              MLIRValueRef *argv, unsigned argc) {
+                                              MLIRValueRef *argv,
+                                              unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
 
-  assert(argc >= 2 && "logical and operation does not have at least 2 operands");
+  assert(argc >= 2 &&
+         "logical and operation does not have at least 2 operands");
   SmallVector<Value, 2> args;
   unwrapValues(argv, argc, args);
 
@@ -949,7 +956,8 @@ Value ModuleBuilder::build_logical_and(Location loc, ArrayRef<Value> args) {
 
 extern "C" MLIRValueRef MLIRBuildLogicalOrOp(MLIRModuleBuilderRef b,
                                              MLIRLocationRef locref,
-                                             MLIRValueRef *argv, unsigned argc) {
+                                             MLIRValueRef *argv,
+                                             unsigned argc) {
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
 
@@ -985,12 +993,12 @@ Value ModuleBuilder::build_logical_or(Location loc, ArrayRef<Value> args) {
     return op.getResult();                                              \
   }
 
-
 #define INTRINSIC_TYPECHECK_BUILDER(Alias, Ty)                          \
   static Optional<Value> Alias(ModuleBuilder *modBuilder, Location loc, \
                                ArrayRef<Value> args) {                  \
     auto builder = modBuilder->getBuilder();                            \
-    assert(args.size() == 1 && "intrinsic type check called with multiple operands"); \
+    assert(args.size() == 1 &&                                          \
+           "intrinsic type check called with multiple operands");       \
     Value in = args.front();                                            \
     auto ty = builder.getType<Ty>();                                    \
     auto op = builder.create<IsTypeOp>(loc, in, ty);                    \
@@ -1019,8 +1027,6 @@ INTRINSIC_BUILDER(buildIntrinsicCmpLtOp, CmpLtOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpLteOp, CmpLteOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpGtOp, CmpGtOp);
 INTRINSIC_BUILDER(buildIntrinsicCmpGteOp, CmpGteOp);
-
-
 
 INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsIntegerOp, IntegerType);
 INTRINSIC_TYPECHECK_BUILDER(buildIntrinsicIsNumberOp, NumberType);
@@ -1314,7 +1320,7 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
   eir_br(ok, ValueRange());
   return true;
 }
-  
+
 void ModuleBuilder::build_static_invoke(Location loc, StringRef target,
                                         ArrayRef<Value> args, bool isTail,
                                         Block *ok, ArrayRef<Value> okArgs,
@@ -1346,9 +1352,9 @@ void ModuleBuilder::build_static_invoke(Location loc, StringRef target,
       callArgs.push_back(castOp.getResult());
     } else {
       callArgs.push_back(arg);
-    }   
+    }
   }
-  
+
   // Set up landing pad in error block
   Block *unwind = build_landing_pad(loc, err);
 
@@ -1416,16 +1422,19 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
     Operation *call;
     if (canMustTail) {
       auto mustTail = builder.getNamedAttr("musttail", builder.getUnitAttr());
-      call = eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{mustTail});
+      call = eir_call(callee, fnResults, callArgs,
+                      ArrayRef<NamedAttribute>{mustTail});
     } else {
       auto tail = builder.getNamedAttr("tail", builder.getUnitAttr());
-      call = eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{tail});
+      call =
+          eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{tail});
     }
     eir_return(call->getResults());
     return;
   }
 
-  // All other calls may be tail callable after optimization, so add the hint anyway
+  // All other calls may be tail callable after optimization, so add the hint
+  // anyway
   auto tail = builder.getNamedAttr("tail", builder.getUnitAttr());
   Operation *call =
       eir_call(callee, fnResults, callArgs, ArrayRef<NamedAttribute>{tail});
@@ -1490,28 +1499,25 @@ extern "C" void MLIRBuildClosureCall(MLIRModuleBuilderRef b,
     // call to the closure with a call directly to the actual function
     auto callee = closureOp.getCallee();
     if (isInvoke) {
-      builder->build_static_invoke(loc, callee.getValue(), args, isTail, ok, okArgs,
-                                   err, errArgs);
+      builder->build_static_invoke(loc, callee.getValue(), args, isTail, ok,
+                                   okArgs, err, errArgs);
     } else {
-      builder->build_static_call(loc, callee.getValue(), args, isTail, ok, okArgs);
+      builder->build_static_call(loc, callee.getValue(), args, isTail, ok,
+                                 okArgs);
     }
   } else {
     // We can't find the original closure definition, so this
     // function cannot be called directly, it must be called through `apply/2`
-    builder->build_apply_2(loc, closure, args, isTail, ok, okArgs, err, errArgs);
+    builder->build_apply_2(loc, closure, args, isTail, ok, okArgs, err,
+                           errArgs);
   }
 }
 
-extern "C" void MLIRBuildGlobalDynamicCall(MLIRModuleBuilderRef b,
-                                           MLIRLocationRef locref,
-                                           MLIRValueRef modRef,
-                                           MLIRValueRef funRef,
-                                           MLIRValueRef *argv, unsigned argc,
-                                           bool isTail,
-                                           MLIRBlockRef okBlock,
-                                           MLIRValueRef *okArgv, unsigned okArgc,
-                                           MLIRBlockRef errBlock,
-                                           MLIRValueRef *errArgv, unsigned errArgc) {
+extern "C" void MLIRBuildGlobalDynamicCall(
+    MLIRModuleBuilderRef b, MLIRLocationRef locref, MLIRValueRef modRef,
+    MLIRValueRef funRef, MLIRValueRef *argv, unsigned argc, bool isTail,
+    MLIRBlockRef okBlock, MLIRValueRef *okArgv, unsigned okArgc,
+    MLIRBlockRef errBlock, MLIRValueRef *errArgv, unsigned errArgc) {
   ModuleBuilder *builder = unwrap(b);
   Location loc = unwrap(locref);
   Value mod = unwrap(modRef);
@@ -1533,20 +1539,21 @@ extern "C" void MLIRBuildGlobalDynamicCall(MLIRModuleBuilderRef b,
   builder->build_apply_3(loc, mod, fun, args, isTail, ok, okArgs, err, errArgs);
 }
 
-void ModuleBuilder::build_apply_2(Location loc, Value cls,
-                                  ValueRange args, bool isTail,
-                                  Block *ok, ArrayRef<Value> okArgs,
-                                  Block *err, ArrayRef<Value> errArgs) {
+void ModuleBuilder::build_apply_2(Location loc, Value cls, ValueRange args,
+                                  bool isTail, Block *ok,
+                                  ArrayRef<Value> okArgs, Block *err,
+                                  ArrayRef<Value> errArgs) {
   ScopedContext scope(builder, loc);
 
   auto termTy = builder.getType<TermType>();
-  
+
   // We need to call apply/2 with the closure, and a list of arguments
   SmallVector<Value, 2> applyArgs;
   applyArgs.push_back(cls);
   applyArgs.push_back(eir_list(args));
 
-  // Then, based on whether this was an invoke or not, call apply/2 appropriately
+  // Then, based on whether this was an invoke or not, call apply/2
+  // appropriately
   bool isInvoke = !isTail && err != nullptr;
   if (isInvoke) {
     build_static_invoke(loc, "erlang:apply/2", applyArgs, isTail, ok, okArgs,
@@ -1558,20 +1565,21 @@ void ModuleBuilder::build_apply_2(Location loc, Value cls,
 }
 
 void ModuleBuilder::build_apply_3(Location loc, Value mod, Value fun,
-                                  ValueRange args, bool isTail,
-                                  Block *ok, ArrayRef<Value> okArgs,
-                                  Block *err, ArrayRef<Value> errArgs) {
+                                  ValueRange args, bool isTail, Block *ok,
+                                  ArrayRef<Value> okArgs, Block *err,
+                                  ArrayRef<Value> errArgs) {
   ScopedContext scope(builder, loc);
 
   auto termTy = builder.getType<TermType>();
-  
+
   // We need to call apply/3, with module/function and a list of arguments
   SmallVector<Value, 3> applyArgs;
   applyArgs.push_back(mod);
   applyArgs.push_back(fun);
   applyArgs.push_back(eir_list(args));
 
-  // Then, based on whether this was an invoke or not, call apply/2 appropriately
+  // Then, based on whether this was an invoke or not, call apply/2
+  // appropriately
   bool isInvoke = !isTail && err != nullptr;
   if (isInvoke) {
     build_static_invoke(loc, "erlang:apply/3", applyArgs, isTail, ok, okArgs,
@@ -1670,12 +1678,14 @@ extern "C" MLIRValueRef MLIRCons(MLIRModuleBuilderRef b, MLIRLocationRef locref,
 Value ModuleBuilder::build_cons(Location loc, Value head, Value tail) {
   Value h = head;
   if (!head.getType().isa<OpaqueTermType>()) {
-    auto castOp = builder.create<CastOp>(loc, head, builder.getType<TermType>());
+    auto castOp =
+        builder.create<CastOp>(loc, head, builder.getType<TermType>());
     h = castOp.getResult();
   }
   Value t = tail;
   if (!tail.getType().isa<OpaqueTermType>()) {
-    auto castOp = builder.create<CastOp>(loc, tail, builder.getType<TermType>());
+    auto castOp =
+        builder.create<CastOp>(loc, tail, builder.getType<TermType>());
     t = castOp.getResult();
   }
 
@@ -1739,8 +1749,7 @@ extern "C" void MLIRBuildBinaryFinish(MLIRModuleBuilderRef b,
 }
 
 void ModuleBuilder::build_binary_finish(Location loc, Block *cont, Value bin) {
-  auto op =
-      builder.create<BinaryFinishOp>(loc, bin);
+  auto op = builder.create<BinaryFinishOp>(loc, bin);
   auto finished = op.getResult();
   auto resultTy = finished.getType();
   // If the continuation is not a block but a return, then cont will be null
@@ -1933,7 +1942,8 @@ void ModuleBuilder::build_receive_wait(Location loc, Block *timeout,
 
   StringRef fatalErrSymbol("__lumen_builtin_fatal_error");
   getOrDeclareFunction(fatalErrSymbol, nullptr, TypeRange());
-  auto calleeSymbol = FlatSymbolRefAttr::get(fatalErrSymbol, builder.getContext());
+  auto calleeSymbol =
+      FlatSymbolRefAttr::get(fatalErrSymbol, builder.getContext());
   auto callOp =
       builder.create<CallOp>(loc, calleeSymbol, ArrayRef<Type>{}, ValueRange());
   callOp.setAttr("tail", builder.getUnitAttr());
@@ -2080,7 +2090,7 @@ Value ModuleBuilder::build_constant_atom(Location loc, StringRef value,
   if (valueId == 0 || valueId == 1) {
     return eir_bool(valueId == 1);
   }
-    
+
   APInt id(immediateBitWidth, valueId, /*isSigned=*/false);
   return eir_atom(id, value);
 }

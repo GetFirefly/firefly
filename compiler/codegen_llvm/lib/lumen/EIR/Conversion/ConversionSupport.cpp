@@ -17,25 +17,27 @@ Optional<Type> EirTypeConverter::coalesceOperandTypes(Type lhs, Type rhs) {
   if (auto lTy = lhs.dyn_cast_or_null<OpaqueTermType>()) {
     if (auto rTy = rhs.dyn_cast_or_null<OpaqueTermType>()) {
       // If either operand is opaque, we have to treat them both as opaque
-      if (lTy.isOpaque() || rTy.isOpaque())
-        return llvm::None;
+      if (lTy.isOpaque() || rTy.isOpaque()) return llvm::None;
 
       // If both operands are booleans, use i1
       if (lTy.isBoolean() && rTy.isBoolean())
         return LLVMType::getInt1Ty(lhs.getContext());
 
       // If we have a boolean and an atom, cast to atom type
-      if ((lTy.isBoolean() && rTy.isAtom()) || (lTy.isAtom() && rTy.isBoolean()))
+      if ((lTy.isBoolean() && rTy.isAtom()) ||
+          (lTy.isAtom() && rTy.isBoolean()))
         return AtomType::get(lhs.getContext());
 
-      // If both types are immediates, use the concrete type if matched, or term type otherwise
+      // If both types are immediates, use the concrete type if matched, or term
+      // type otherwise
       if (lTy.isImmediate() && rTy.isImmediate())
         if (lTy == rTy)
           return lhs;
         else
           return TermType::get(lhs.getContext());
 
-      // If both types are boxed, use the concrete type if matched, or term type otherwise
+      // If both types are boxed, use the concrete type if matched, or term type
+      // otherwise
       if (lTy.isBox() && rTy.isBox()) {
         auto left = lTy.cast<BoxType>();
         auto li = left.getBoxedType();
@@ -48,8 +50,7 @@ Optional<Type> EirTypeConverter::coalesceOperandTypes(Type lhs, Type rhs) {
       }
 
       // Otherwise if both types match, use the matched type
-      if (lTy == rTy)
-        return lhs;
+      if (lTy == rTy) return lhs;
 
       return llvm::None;
     }
@@ -68,12 +69,10 @@ Optional<Type> EirTypeConverter::coalesceOperandTypes(Type lhs, Type rhs) {
     }
 
     // iN can be used with fixed-width integers
-    if (rhs.isInteger(pointerSizeInBits) && lTy.isFixnum())
-      return lhs;
+    if (rhs.isInteger(pointerSizeInBits) && lTy.isFixnum()) return lhs;
 
     // floats can be used with floats
-    if (rhs.isF64() && lTy.isFloat())
-      return lhs;
+    if (rhs.isF64() && lTy.isFloat()) return lhs;
 
     // Handle the case where LLVM types are provided
     if (auto rt = rhs.dyn_cast_or_null<LLVMType>()) {
@@ -90,13 +89,12 @@ Optional<Type> EirTypeConverter::coalesceOperandTypes(Type lhs, Type rhs) {
     return llvm::None;
   }
 
-  // Left-hand side is not a term, if right side is, flip the arguments and recurse
-  if (rhs.isa<OpaqueTermType>())
-    return coalesceOperandTypes(rhs, lhs);
+  // Left-hand side is not a term, if right side is, flip the arguments and
+  // recurse
+  if (rhs.isa<OpaqueTermType>()) return coalesceOperandTypes(rhs, lhs);
 
   // Neither are term types, but the types match, so use the matched type
-  if (lhs == rhs)
-    return lhs;
+  if (lhs == rhs) return lhs;
 
   // Neither type are term types, and they don't match so we can't coalesce them
   return llvm::None;
@@ -104,8 +102,7 @@ Optional<Type> EirTypeConverter::coalesceOperandTypes(Type lhs, Type rhs) {
 
 // Extract an LLVM IR type from the LLVM IR dialect type.
 static LLVM::LLVMType unwrap(Type type) {
-  if (!type)
-    return nullptr;
+  if (!type) return nullptr;
   auto *mlirContext = type.getContext();
   auto wrappedLLVMType = type.dyn_cast<LLVM::LLVMType>();
   if (!wrappedLLVMType)
@@ -114,20 +111,18 @@ static LLVM::LLVMType unwrap(Type type) {
   return wrappedLLVMType;
 }
 
-
 // Create an LLVM IR structure type if there is more than one result.
-Type EirTypeConverter::packFunctionResults(TargetInfo &targetInfo, ArrayRef<Type> types) {
+Type EirTypeConverter::packFunctionResults(TargetInfo &targetInfo,
+                                           ArrayRef<Type> types) {
   assert(!types.empty() && "expected non-empty list of type");
 
-  if (types.size() == 1)
-    return convertType(types.front());
+  if (types.size() == 1) return convertType(types.front());
 
   SmallVector<LLVM::LLVMType, 8> resultTypes;
   resultTypes.reserve(types.size());
   for (auto t : types) {
     auto converted = convertType(t);
-    if (!converted)
-      return {};
+    if (!converted) return {};
 
     resultTypes.push_back(converted.dyn_cast<LLVM::LLVMType>());
   }
@@ -147,8 +142,7 @@ LLVM::LLVMType convertFunctionSignature(
   // Convert argument types one by one and check for errors.
   for (auto &en : llvm::enumerate(type.getInputs())) {
     auto llvmTy = convertType(en.value(), converter, targetInfo);
-    if (!llvmTy.hasValue())
-      return {};
+    if (!llvmTy.hasValue()) return {};
 
     result.addInputs(en.index(), llvmTy.getValue());
   }
@@ -162,12 +156,11 @@ LLVM::LLVMType convertFunctionSignature(
   // If function does not return anything, create the void result type,
   // if it returns on element, convert it, otherwise pack the result types into
   // a struct.
-  LLVM::LLVMType resultType =
-      type.getNumResults() == 0
-          ? LLVM::LLVMType::getVoidTy(type.getContext())
-          : unwrap(converter.packFunctionResults(targetInfo, type.getResults()));
-  if (!resultType)
-    return {};
+  LLVM::LLVMType resultType = type.getNumResults() == 0
+                                  ? LLVM::LLVMType::getVoidTy(type.getContext())
+                                  : unwrap(converter.packFunctionResults(
+                                        targetInfo, type.getResults()));
+  if (!resultType) return {};
   return LLVM::LLVMType::getFunctionTy(resultType, argTypes, isVariadic);
 }
 
@@ -177,17 +170,15 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
   if (isa_llvm_type(type)) return type;
 
   if (auto funTy = type.dyn_cast_or_null<mlir::FunctionType>()) {
-     LLVMTypeConverter::SignatureConversion conversion(funTy.getNumInputs());
-     LLVM::LLVMType converted =
-        convertFunctionSignature(converter, targetInfo, funTy, /*isVariadic=*/false, conversion);
-     if (!converted)
-       return llvm::None;
-     return converted;
+    LLVMTypeConverter::SignatureConversion conversion(funTy.getNumInputs());
+    LLVM::LLVMType converted = convertFunctionSignature(
+        converter, targetInfo, funTy, /*isVariadic=*/false, conversion);
+    if (!converted) return llvm::None;
+    return converted;
   }
 
   // If this isn't otherwise an EIR type, we can't convert it
-  if (!isa_eir_type(type))
-    return converter.deferTypeConversion(type);
+  if (!isa_eir_type(type)) return converter.deferTypeConversion(type);
 
   MLIRContext *context = type.getContext();
   auto termTy = targetInfo.getUsizeType();

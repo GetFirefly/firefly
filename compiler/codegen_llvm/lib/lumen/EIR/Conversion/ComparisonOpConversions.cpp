@@ -83,9 +83,11 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
     bool useICmp = true;
     Value lhsOperand;
     Value rhsOperand;
-    Optional<Type> targetType = ctx.typeConverter.coalesceOperandTypes(lhsType, rhsType);
+    Optional<Type> targetType =
+        ctx.typeConverter.coalesceOperandTypes(lhsType, rhsType);
     if (targetType.hasValue()) {
-      // We were able to decide which type to lower to, insert casts where necessary
+      // We were able to decide which type to lower to, insert casts where
+      // necessary
       auto tt = targetType.getValue();
       if (lhsType != tt)
         lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs, tt);
@@ -100,15 +102,18 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
       if (lhsType.isa<TermType>())
         lhsOperand = lhs;
       else
-        lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs, rewriter.getType<TermType>());
+        lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs,
+                                             rewriter.getType<TermType>());
       if (rhsType.isa<TermType>())
         rhsOperand = rhs;
       else
-        rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs, rewriter.getType<TermType>());
+        rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs,
+                                             rewriter.getType<TermType>());
     }
 
     if (strict && useICmp) {
-      rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq, lhsOperand, rhsOperand);
+      rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
+                                                lhsOperand, rhsOperand);
       return success();
     }
 
@@ -124,7 +129,8 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
 
     auto calleeSymbol =
         FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
-    Operation *callOp = std_call(calleeSymbol, ArrayRef<Type>{i1Ty}, ValueRange{lhs, rhs});
+    Operation *callOp =
+        std_call(calleeSymbol, ArrayRef<Type>{i1Ty}, ValueRange{lhs, rhs});
 
     rewriter.replaceOp(op, callOp->getResult(0));
     return success();
@@ -135,9 +141,9 @@ void populateComparisonOpConversionPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *context,
                                             EirTypeConverter &converter,
                                             TargetInfo &targetInfo) {
-  patterns.insert<CmpEqOpConversion, CmpLtOpConversion,
-                  CmpLteOpConversion, CmpGtOpConversion, CmpGteOpConversion>(
-      context, converter, targetInfo);
+  patterns.insert<CmpEqOpConversion, CmpLtOpConversion, CmpLteOpConversion,
+                  CmpGtOpConversion, CmpGteOpConversion>(context, converter,
+                                                         targetInfo);
 }
 
 }  // namespace eir

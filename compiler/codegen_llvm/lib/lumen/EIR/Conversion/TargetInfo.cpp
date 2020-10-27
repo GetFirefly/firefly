@@ -13,9 +13,9 @@ using ::llvm::ArrayRef;
 using ::llvm::SmallVector;
 using ::llvm::StringRef;
 using ::mlir::MLIRContext;
+using ::mlir::LLVM::LLVMStructType;
 using ::mlir::LLVM::LLVMType;
 using ::mlir::LLVM::LLVMVoidType;
-using ::mlir::LLVM::LLVMStructType;
 
 using ::lumen::Encoding;
 using ::lumen::MaskInfo;
@@ -118,9 +118,9 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
       LLVMType::createStructTy(ctx, ArrayRef<LLVMType>{int8PtrTy, int32Ty},
                                StringRef("lumen.exception"));
 
-  impl->erlangErrorTy =
-    LLVMType::createStructTy(ctx, ArrayRef<LLVMType>{intNTy, intNTy, intNTy, intNPtrTy, int8PtrTy},
-                             StringRef("erlang.exception"));
+  impl->erlangErrorTy = LLVMType::createStructTy(
+      ctx, ArrayRef<LLVMType>{intNTy, intNTy, intNTy, intNPtrTy, int8PtrTy},
+      StringRef("erlang.exception"));
 
   // Tags/boxes
   impl->listTag = lumen_list_tag(&impl->encoding);
@@ -149,9 +149,8 @@ LLVMType TargetInfo::makeTupleType(unsigned arity) {
 
   auto termTy = getUsizeType();
   auto tupleTy = LLVMStructType::getIdentified(termTy.getContext(), typeName);
-  if (tupleTy.isInitialized())
-    return tupleTy;
-  
+  if (tupleTy.isInitialized()) return tupleTy;
+
   if (arity == 0) {
     tupleTy.setBody(ArrayRef<LLVMType>{termTy}, /*packed=*/false);
     return tupleTy;
@@ -187,8 +186,7 @@ LLVMType TargetInfo::makeClosureType(unsigned size) {
   auto defTy = getClosureDefinitionType();
   auto int32Ty = getI32Type();
   auto voidTy = impl->voidTy;
-  auto voidFnPtrTy =
-      LLVMType::getFunctionTy(voidTy, false).getPointerTo();
+  auto voidFnPtrTy = LLVMType::getFunctionTy(voidTy, false).getPointerTo();
   auto envTy = LLVMType::getArrayTy(intNTy, size);
   ArrayRef<LLVMType> fields{intNTy, intNTy, int32Ty, defTy, voidFnPtrTy, envTy};
 
@@ -200,8 +198,7 @@ LLVMType TargetInfo::makeClosureType(unsigned size) {
   StringRef typeName(buffer.data(), strSize);
 
   auto closureTy = LLVMStructType::getIdentified(intNTy.getContext(), typeName);
-  if (closureTy.isInitialized())
-    return closureTy;
+  if (closureTy.isInitialized()) return closureTy;
 
   closureTy.setBody(fields, /*packed=*/false);
   return closureTy;

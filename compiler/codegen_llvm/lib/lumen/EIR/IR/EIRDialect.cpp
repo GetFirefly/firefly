@@ -1,10 +1,9 @@
 #include "lumen/EIR/IR/EIRDialect.h"
+
+#include "llvm/Support/Format.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
-
-#include "llvm/Support/Format.h"
-
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Module.h"
@@ -33,20 +32,10 @@ void eirDialect::initialize() {
 #include "lumen/EIR/IR/EIREncoding.h.inc"
 #undef EIR_TERM_KIND
 #undef FIRST_EIR_TERM_KIND
-    // These types are not term types, so are initialized manually
-    RefType,
-    PtrType,
-    TraceRefType,
-    ReceiveRefType
-    >();
+      // These types are not term types, so are initialized manually
+      RefType, PtrType, TraceRefType, ReceiveRefType>();
 
-  addAttributes<
-    AtomAttr,
-    APIntAttr,
-    APFloatAttr,
-    BinaryAttr,
-    SeqAttr
-    >();
+  addAttributes<AtomAttr, APIntAttr, APFloatAttr, BinaryAttr, SeqAttr>();
 }
 
 Operation *eirDialect::materializeConstant(mlir::OpBuilder &builder,
@@ -55,7 +44,8 @@ Operation *eirDialect::materializeConstant(mlir::OpBuilder &builder,
                                            mlir::Location loc) {
   if (type.isa<BooleanType>() || type.isInteger(1)) {
     if (value.isa<mlir::BoolAttr>())
-      return builder.create<ConstantBoolOp>(loc, type, value.cast<mlir::BoolAttr>());
+      return builder.create<ConstantBoolOp>(loc, type,
+                                            value.cast<mlir::BoolAttr>());
 
     if (auto atomAttr = value.dyn_cast_or_null<AtomAttr>()) {
       auto id = atomAttr.getValue().getLimitedValue();
@@ -116,21 +106,19 @@ Operation *eirDialect::materializeConstant(mlir::OpBuilder &builder,
 
     if (auto fltAttr = value.dyn_cast_or_null<mlir::FloatAttr>()) {
       auto ctx = builder.getContext();
-      return builder.create<ConstantFloatOp>(loc, type, APFloatAttr::get(ctx, fltAttr.getValue()));
+      return builder.create<ConstantFloatOp>(
+          loc, type, APFloatAttr::get(ctx, fltAttr.getValue()));
     }
 
     return nullptr;
   }
 
-  if (type.isa<NilType>())
-    return builder.create<ConstantNilOp>(loc, type);
-  
-  if (type.isa<NoneType>())
-    return builder.create<ConstantNoneOp>(loc, type);
+  if (type.isa<NilType>()) return builder.create<ConstantNilOp>(loc, type);
+
+  if (type.isa<NoneType>()) return builder.create<ConstantNoneOp>(loc, type);
 
   return nullptr;
 }
-
 
 Attribute parseAtomAttr(DialectAsmParser &parser) {
   assert(false && "EIR dialect parsing is not fully implemented");

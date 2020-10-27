@@ -38,11 +38,11 @@ using ::mlir::BlockArgument;
 using ::mlir::BoolAttr;
 using ::mlir::Builder;
 using ::mlir::CallInterfaceCallable;
+using ::mlir::DiagnosticSeverity;
 using ::mlir::FlatSymbolRefAttr;
 using ::mlir::Identifier;
 using ::mlir::IntegerAttr;
 using ::mlir::LogicalResult;
-using ::mlir::DiagnosticSeverity;
 using ::mlir::ModuleOp;
 using ::mlir::MutableDictionaryAttr;
 using ::mlir::MutableOperandRange;
@@ -106,8 +106,8 @@ class MatchBranch {
 };
 
 /// Performs lowering of a match operation
-LogicalResult lowerPatternMatch(::mlir::OpBuilder &builder, Location loc, Value selector,
-                                ArrayRef<MatchBranch> branches);
+LogicalResult lowerPatternMatch(::mlir::OpBuilder &builder, Location loc,
+                                Value selector, ArrayRef<MatchBranch> branches);
 
 }  // namespace eir
 }  // namespace lumen

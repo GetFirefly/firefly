@@ -42,7 +42,8 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
 
     auto matchType = op.getMatchType().cast<OpaqueTermType>();
     // Boxed types and immediate types are dispatched differently
-    if (matchType.isBox() || matchType.isBoxable(ctx.targetInfo.immediateBits())) {
+    if (matchType.isBox() ||
+        matchType.isBoxable(ctx.targetInfo.immediateBits())) {
       OpaqueTermType boxedType;
       if (matchType.isBox()) {
         boxedType = matchType.cast<BoxType>().getBoxedType();
@@ -70,7 +71,8 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
           rewriter.replaceOpWithNewOp<IsTupleOp>(op, adaptor.value(), arity);
           return success();
         } else {
-          rewriter.replaceOpWithNewOp<IsTupleOp>(op, adaptor.value(), llvm::None);
+          rewriter.replaceOpWithNewOp<IsTupleOp>(op, adaptor.value(),
+                                                 llvm::None);
           return success();
         }
       }
@@ -113,8 +115,8 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
         ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
-    Operation *isType = std_call(calleeSymbol, int1Ty,
-                                 ValueRange{matchConst, adaptor.value()});
+    Operation *isType =
+        std_call(calleeSymbol, int1Ty, ValueRange{matchConst, adaptor.value()});
     rewriter.replaceOp(op, isType->getResults());
     return success();
   }
@@ -142,7 +144,8 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
       auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
       auto calleeSymbol =
           FlatSymbolRefAttr::get(symbolName, callee->getContext());
-      Operation *isType = std_call(calleeSymbol, int1Ty, ValueRange{arity, input});
+      Operation *isType =
+          std_call(calleeSymbol, int1Ty, ValueRange{arity, input});
       rewriter.replaceOp(op, isType->getResults());
       return success();
     }
@@ -160,7 +163,7 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
     return success();
   }
 };
- 
+
 struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -183,13 +186,15 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
       auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
       auto calleeSymbol =
           FlatSymbolRefAttr::get(symbolName, callee->getContext());
-      Operation *isType = std_call(calleeSymbol, int1Ty, ValueRange{arity, input});
+      Operation *isType =
+          std_call(calleeSymbol, int1Ty, ValueRange{arity, input});
       rewriter.replaceOp(op, isType->getResults());
       return success();
     }
 
     // Otherwise we fall back to the generic boxed type builtin
-    Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(TypeKind::Closure));
+    Value matchConst =
+        llvm_constant(int32Ty, ctx.getI32Attr(TypeKind::Closure));
     StringRef symbolName("__lumen_builtin_is_boxed_type");
     auto callee =
         ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
@@ -307,12 +312,11 @@ void populateBuiltinOpConversionPatterns(OwningRewritePatternList &patterns,
                                          MLIRContext *context,
                                          EirTypeConverter &converter,
                                          TargetInfo &targetInfo) {
-  patterns
-      .insert<IncrementReductionsOpConversion, IsTypeOpConversion,
-              IsTupleOpConversion, IsFunctionOpConversion,
-              PrintOpConversion, TraceCaptureOpConversion,
-              TraceConstructOpConversion, TracePrintOpConversion>(
-          context, converter, targetInfo);
+  patterns.insert<IncrementReductionsOpConversion, IsTypeOpConversion,
+                  IsTupleOpConversion, IsFunctionOpConversion,
+                  PrintOpConversion, TraceCaptureOpConversion,
+                  TraceConstructOpConversion, TracePrintOpConversion>(
+      context, converter, targetInfo);
 }
 
 }  // namespace eir

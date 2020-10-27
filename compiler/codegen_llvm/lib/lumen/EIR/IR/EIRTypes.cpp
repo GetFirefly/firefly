@@ -62,7 +62,7 @@ struct TupleTypeStorage final
  private:
   unsigned arity;
 };
-} // namespace detail
+}  // namespace detail
 
 TupleType TupleType::get(MLIRContext *context) {
   return Base::get(context, ArrayRef<Type>{});
@@ -115,10 +115,10 @@ LogicalResult TupleType::verifyConstructionInvariants(
     }
     // Allow an exception for TraceRef, since it will be replaced by the
     // InsertTraceConstructors pass
-    if (elementType.isa<TraceRefType>())
-      continue;
+    if (elementType.isa<TraceRefType>()) continue;
 
-    return emitError(loc, "invalid tuple type element at index ") << i << ": " << elementType;
+    return emitError(loc, "invalid tuple type element at index ")
+           << i << ": " << elementType;
   }
 
   return success();
@@ -140,45 +140,48 @@ Type TupleType::getElementType(unsigned index) const {
 // Closure
 namespace detail {
 struct ClosureTypeKey {
-  ClosureTypeKey() : functionType(nullptr), envTypes(nullptr), envLen(llvm::None) {}
-  ClosureTypeKey(FunctionType ft) : functionType(ft), envTypes(nullptr), envLen(llvm::None) {}
-  ClosureTypeKey(size_t len) : functionType(nullptr), envTypes(nullptr), envLen(len) {}
-  ClosureTypeKey(TypeRange env) : functionType(nullptr), envTypes(env), envLen(env.size()) {}
-  ClosureTypeKey(FunctionType ft, size_t len) : functionType(ft), envTypes(nullptr), envLen(len) {}
-  ClosureTypeKey(FunctionType ft, TypeRange env) : functionType(ft), envTypes(env), envLen(env.size()) {}
-  ClosureTypeKey(Optional<FunctionType> ft, Optional<TypeRange> env, Optional<size_t> len)
-    : functionType(ft), envTypes(env), envLen(len) {}
+  ClosureTypeKey()
+      : functionType(nullptr), envTypes(nullptr), envLen(llvm::None) {}
+  ClosureTypeKey(FunctionType ft)
+      : functionType(ft), envTypes(nullptr), envLen(llvm::None) {}
+  ClosureTypeKey(size_t len)
+      : functionType(nullptr), envTypes(nullptr), envLen(len) {}
+  ClosureTypeKey(TypeRange env)
+      : functionType(nullptr), envTypes(env), envLen(env.size()) {}
+  ClosureTypeKey(FunctionType ft, size_t len)
+      : functionType(ft), envTypes(nullptr), envLen(len) {}
+  ClosureTypeKey(FunctionType ft, TypeRange env)
+      : functionType(ft), envTypes(env), envLen(env.size()) {}
+  ClosureTypeKey(Optional<FunctionType> ft, Optional<TypeRange> env,
+                 Optional<size_t> len)
+      : functionType(ft), envTypes(env), envLen(len) {}
   ClosureTypeKey(const ClosureTypeKey &key)
-    : functionType(key.functionType), envTypes(key.envTypes), envLen(key.envLen) {}
+      : functionType(key.functionType),
+        envTypes(key.envTypes),
+        envLen(key.envLen) {}
 
   bool operator==(const ClosureTypeKey &key) const {
     // Fully dynamic closure types are equivalent
-    if (!hasStaticShape() && !key.hasStaticShape())
-      return true;
+    if (!hasStaticShape() && !key.hasStaticShape()) return true;
 
     // Closure types with differing callee types are considered unique
     if (functionType.hasValue() && key.functionType.hasValue()) {
-      if (functionType.getValue() != key.functionType.getValue())
-        return false;
+      if (functionType.getValue() != key.functionType.getValue()) return false;
     } else if (functionType.hasValue() || key.functionType.hasValue()) {
       return false;
     }
 
     // Closure types with differently typed environents are considered unique
     if (envTypes.hasValue() && key.envTypes.hasValue()) {
-      if (envTypes.getValue() != key.envTypes.getValue())
-        return false;
+      if (envTypes.getValue() != key.envTypes.getValue()) return false;
     } else if (envTypes.hasValue() && !key.envTypes.hasValue()) {
       for (auto ty : envTypes.getValue())
-        if (!ty.isa<TermType>())
-          return false;
+        if (!ty.isa<TermType>()) return false;
     } else if (key.envTypes.hasValue() && !envTypes.hasValue()) {
       for (auto ty : key.envTypes.getValue())
-        if (!ty.isa<TermType>())
-          return false;
+        if (!ty.isa<TermType>()) return false;
     } else if (envLen.hasValue() && key.envLen.hasValue()) {
-      if (envLen.getValue() != key.envLen.getValue())
-        return false;
+      if (envLen.getValue() != key.envLen.getValue()) return false;
     } else if (envLen.hasValue() && !key.envLen.hasValue()) {
       return false;
     } else if (!envLen.hasValue() && key.envLen.hasValue()) {
@@ -188,27 +191,32 @@ struct ClosureTypeKey {
     return true;
   }
 
-  inline bool hasStaticShape() const { return envTypes.hasValue() || envLen.hasValue(); }
+  inline bool hasStaticShape() const {
+    return envTypes.hasValue() || envLen.hasValue();
+  }
 
   Optional<FunctionType> functionType;
   Optional<TypeRange> envTypes;
   Optional<size_t> envLen;
 };
-  
+
 struct ClosureTypeStorage final
     : public mlir::TypeStorage,
       public llvm::TrailingObjects<ClosureTypeStorage, Type> {
   using KeyTy = ClosureTypeKey;
 
-  ClosureTypeStorage(Optional<FunctionType> ft, Optional<TypeRange> env, Optional<size_t> len)
+  ClosureTypeStorage(Optional<FunctionType> ft, Optional<TypeRange> env,
+                     Optional<size_t> len)
       : functionType(ft), envTypes(env), envLen(len) {}
 
-  static KeyTy getKey(Optional<FunctionType> functionType, Optional<TypeRange> envTypes, Optional<size_t> envLen) {
+  static KeyTy getKey(Optional<FunctionType> functionType,
+                      Optional<TypeRange> envTypes, Optional<size_t> envLen) {
     return KeyTy(functionType, envTypes, envLen);
   }
 
   /// Construction.
-  static ClosureTypeStorage *construct(mlir::TypeStorageAllocator &allocator, const KeyTy &key) {
+  static ClosureTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
+                                       const KeyTy &key) {
     // Allocate a new storage instance.
     size_t actualEnvLen;
     if (key.envTypes.hasValue())
@@ -220,8 +228,8 @@ struct ClosureTypeStorage final
 
     auto byteSize = ClosureTypeStorage::totalSizeToAlloc<Type>(actualEnvLen);
     auto rawMem = allocator.allocate(byteSize, alignof(ClosureTypeStorage));
-    ClosureTypeStorage *result =
-      ::new (rawMem) ClosureTypeStorage(key.functionType, key.envTypes, key.envLen);
+    ClosureTypeStorage *result = ::new (rawMem)
+        ClosureTypeStorage(key.functionType, key.envTypes, key.envLen);
 
     if (key.envTypes.hasValue()) {
       auto env = key.envTypes.getValue();
@@ -238,31 +246,39 @@ struct ClosureTypeStorage final
   }
 
   static llvm::hash_code hashKey(const KeyTy &key) {
-    Type functionType = key.functionType.hasValue() ? Type(key.functionType.getValue()) : Type();
-    TypeRange envTypes = key.envTypes.hasValue() ? TypeRange(key.envTypes.getValue()) : TypeRange();
+    Type functionType = key.functionType.hasValue()
+                            ? Type(key.functionType.getValue())
+                            : Type();
+    TypeRange envTypes = key.envTypes.hasValue()
+                             ? TypeRange(key.envTypes.getValue())
+                             : TypeRange();
     size_t envLen = key.envLen.hasValue() ? key.envLen.getValue() : 0;
-    return llvm::hash_combine(mlir::hash_value(functionType), mlir::hash_value(envTypes), envLen);
+    return llvm::hash_combine(mlir::hash_value(functionType),
+                              mlir::hash_value(envTypes), envLen);
   }
 
   Optional<FunctionType> getCalleeType() const { return functionType; }
 
   Optional<size_t> arity() const {
-    if (!functionType.hasValue())
-      return llvm::None;
+    if (!functionType.hasValue()) return llvm::None;
     auto fnTy = functionType.getValue();
     return fnTy.getNumInputs();
   }
-  inline size_t getEnvLen() const { return envLen.hasValue() ? envLen.getValue() : 0; }
+  inline size_t getEnvLen() const {
+    return envLen.hasValue() ? envLen.getValue() : 0;
+  }
   inline bool hasTypedEnv() const { return envTypes.hasValue(); }
-  inline bool hasStaticShape() const { return envTypes.hasValue() || envLen.hasValue(); }
-  TypeRange getEnvTypes() const { return TypeRange(ArrayRef<Type>{getTrailingObjects<Type>(), getEnvLen()}); }
+  inline bool hasStaticShape() const {
+    return envTypes.hasValue() || envLen.hasValue();
+  }
+  TypeRange getEnvTypes() const {
+    return TypeRange(ArrayRef<Type>{getTrailingObjects<Type>(), getEnvLen()});
+  }
 
   Type getEnvType(unsigned index) const {
-    if (!hasTypedEnv())
-      return nullptr;
+    if (!hasTypedEnv()) return nullptr;
     auto envTypes = getEnvTypes();
-    if (envTypes.size() > index)
-      return envTypes[index];
+    if (envTypes.size() > index) return envTypes[index];
     return nullptr;
   }
 
@@ -271,7 +287,7 @@ struct ClosureTypeStorage final
   Optional<TypeRange> envTypes;
   Optional<size_t> envLen;
 };
-} // namespace detail
+}  // namespace detail
 
 ClosureType ClosureType::get(MLIRContext *context) {
   return Base::get(context, detail::ClosureTypeStorage::KeyTy());
@@ -289,12 +305,16 @@ ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType) {
   return Base::get(context, detail::ClosureTypeStorage::KeyTy(functionType));
 }
 
-ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType, size_t envLen) {
-  return Base::get(context, detail::ClosureTypeStorage::KeyTy(functionType, envLen));
+ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType,
+                             size_t envLen) {
+  return Base::get(context,
+                   detail::ClosureTypeStorage::KeyTy(functionType, envLen));
 }
 
-ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType, TypeRange env) {
-  return Base::get(context, detail::ClosureTypeStorage::KeyTy(functionType, env));
+ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType,
+                             TypeRange env) {
+  return Base::get(context,
+                   detail::ClosureTypeStorage::KeyTy(functionType, env));
 }
 
 LogicalResult ClosureType::verifyConstructionInvariants(
@@ -303,7 +323,9 @@ LogicalResult ClosureType::verifyConstructionInvariants(
   return success();
 }
 
-Optional<FunctionType> ClosureType::getCalleeType() const { return getImpl()->getCalleeType(); }
+Optional<FunctionType> ClosureType::getCalleeType() const {
+  return getImpl()->getCalleeType();
+}
 
 Optional<size_t> ClosureType::getArity() const { return getImpl()->arity(); }
 
@@ -314,11 +336,9 @@ bool ClosureType::hasStaticShape() const { return getImpl()->hasStaticShape(); }
 bool ClosureType::hasDynamicShape() const { return !hasStaticShape(); }
 
 Type ClosureType::getEnvType(unsigned index) const {
-  if (!getImpl()->hasTypedEnv())
-    return TermType::get(getContext());
+  if (!getImpl()->hasTypedEnv()) return TermType::get(getContext());
   Type result = getImpl()->getEnvType(index);
-  if (result)
-    return result;
+  if (result) return result;
   return NoneType::get(getContext());
 }
 
@@ -341,7 +361,7 @@ struct BoxTypeStorage : public mlir::TypeStorage {
 
   OpaqueTermType boxedType;
 };
-} // namespace detail
+}  // namespace detail
 
 BoxType BoxType::get(OpaqueTermType boxedType) {
   return Base::get(boxedType.getContext(), boxedType);
@@ -377,7 +397,7 @@ struct RefTypeStorage : public mlir::TypeStorage {
 
   OpaqueTermType innerType;
 };
-} // namespace detail
+}  // namespace detail
 
 RefType RefType::get(OpaqueTermType innerType) {
   return Base::get(innerType.getContext(), innerType);
@@ -412,7 +432,7 @@ struct PtrTypeStorage : public mlir::TypeStorage {
 
   Type innerType;
 };
-} // namespace detail
+}  // namespace detail
 
 PtrType PtrType::get(Type innerType) {
   return Base::get(innerType.getContext(), innerType);
@@ -439,7 +459,6 @@ TraceRefType TraceRefType::get(MLIRContext *context) {
 ReceiveRefType ReceiveRefType::get(MLIRContext *context) {
   return Base::get(context);
 }
-
 
 // OpaqueTermType
 
@@ -495,8 +514,7 @@ unsigned OpaqueTermType::isMatch(Type matcher) {
         return 0;
       else
         return 2;
-    }
-    else if (isTuple())
+    } else if (isTuple())
       return 2;
     else
       return 0;
@@ -506,23 +524,19 @@ unsigned OpaqueTermType::isMatch(Type matcher) {
 
 bool OpaqueTermType::canTypeEverBeEqual(Type other) {
   // We have to be pessimistic if this is opaque
-  if (isOpaque())
-    return true;
+  if (isOpaque()) return true;
 
   // Only a limited subset of non-term types can be compared to terms
   if (!other.isa<OpaqueTermType>()) {
     // Primitives
-    if (isBoolean() && other.isInteger(1))
-      return true;
-    if (isNumber() && other.isIntOrFloat())
-      return true;
+    if (isBoolean() && other.isInteger(1)) return true;
+    if (isNumber() && other.isIntOrFloat()) return true;
 
     // Pointer types
     if (auto ptrTy = other.dyn_cast_or_null<PtrType>()) {
       auto innerTy = ptrTy.getInnerType();
       // Equality can never hold against raw pointers
-      if (innerTy.isInteger(1))
-        return false;
+      if (innerTy.isInteger(1)) return false;
 
       // If this is a box, we can compare the inner types,
       // otherwise continue as if this is a boxable type
@@ -554,8 +568,7 @@ bool OpaqueTermType::canTypeEverBeEqual(Type other) {
   auto ty = other.cast<OpaqueTermType>();
 
   // Again, pessimistically assume all opaque terms are equatable
-  if (ty.isOpaque())
-    return true;
+  if (ty.isOpaque()) return true;
 
   // Unwrap boxed types
   if (isBox()) {
@@ -574,37 +587,28 @@ bool OpaqueTermType::canTypeEverBeEqual(Type other) {
   }
 
   // Numbers can only be equal to numbers
-  if (isNumber() && !ty.isNumber())
-    return false;
+  if (isNumber() && !ty.isNumber()) return false;
 
   // Atom-likes can only be equal to atom-likes
-  if (isAtom() && !ty.isAtom())
-    return false;
+  if (isAtom() && !ty.isAtom()) return false;
 
   // Pids can only be equal to pids
-  if (isPid() && !isPid())
-    return false;
+  if (isPid() && !isPid()) return false;
 
   // References can only be equal to referencess
-  if (isReference() && !isReference())
-    return false;
+  if (isReference() && !isReference()) return false;
 
   // Aggregates of each class can only be equal to the same class
-  if (isList() && !ty.isList())
-    return false;
+  if (isList() && !ty.isList()) return false;
 
-  if (isTuple() && !ty.isTuple())
-    return false;
+  if (isTuple() && !ty.isTuple()) return false;
 
-  if (isMap() && !ty.isMap())
-    return false;
+  if (isMap() && !ty.isMap()) return false;
 
-  if (isBinary() && !ty.isBinary())
-    return false;
+  if (isBinary() && !ty.isBinary()) return false;
 
   // Closures can only be equal to closures
-  if (isClosure() && !ty.isClosure())
-    return false;
+  if (isClosure() && !ty.isClosure()) return false;
 
   // Rather than explicitly whitelist valid equality comparisons,
   // we identify comparisons we know can't succeed. If we hit here,

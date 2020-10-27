@@ -29,10 +29,11 @@ struct CondBranchOpConversion : public EIROpConversion<eir::CondBranchOp> {
     if (auto condTy = condType.dyn_cast_or_null<LLVMIntegerType>()) {
       if (condTy.getBitWidth() > 1) {
         auto i1Ty = ctx.getI1Type();
-        Value newCond = rewriter.create<CastOp>(op.getLoc(), adaptor.condition(), i1Ty);
+        Value newCond =
+            rewriter.create<CastOp>(op.getLoc(), adaptor.condition(), i1Ty);
         rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
-          op, newCond, op.trueDest(), adaptor.trueDestOperands(), op.falseDest(), op.falseDestOperands()
-        );
+            op, newCond, op.trueDest(), adaptor.trueDestOperands(),
+            op.falseDest(), op.falseDestOperands());
         return success();
       }
     }
@@ -60,19 +61,20 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
     SmallVector<Type, 1> resultTypes;
     if (op.getNumResults() > 0) {
       for (auto ty : op.getResultTypes()) {
-        if (!ty)
-          return op.emitOpError("invalid result type");
+        if (!ty) return op.emitOpError("invalid result type");
         Type resultType = ctx.typeConverter.convertType(ty);
         if (!resultType)
-          return op.emitOpError("unable to convert type ") << ty << " to llvm type";
+          return op.emitOpError("unable to convert type ")
+                 << ty << " to llvm type";
         resultTypes.push_back(resultType);
       }
     } else {
-      //resultTypes.push_back(ctx.targetInfo.getVoidType());
+      // resultTypes.push_back(ctx.targetInfo.getVoidType());
     }
 
     // Add tail call markers where present
-    Operation *callOp = llvm_call(resultTypes, op.getCalleeAttr(), adaptor.operands());
+    Operation *callOp =
+        llvm_call(resultTypes, op.getCalleeAttr(), adaptor.operands());
     auto attrs = op.getAttrs();
     for (auto attr : op.getAttrs()) {
       callOp->setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
@@ -105,7 +107,9 @@ struct InvokeOpConversion : public EIROpConversion<InvokeOp> {
     ValueRange okArgs = op.okDestOperands();
     auto err = op.errDest();
     ValueRange errArgs = op.errDestOperands();
-    Operation *callOp = llvm_invoke(ArrayRef<Type>{}, op.getCalleeAttr(), adaptor.operands(), ok, okArgs, err, errArgs);
+    Operation *callOp =
+        llvm_invoke(ArrayRef<Type>{}, op.getCalleeAttr(), adaptor.operands(),
+                    ok, okArgs, err, errArgs);
     for (auto attr : op.getAttrs()) {
       callOp->setAttr(std::get<Identifier>(attr), std::get<Attribute>(attr));
     }
@@ -189,8 +193,8 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
         llvm_gep(termPtrTy, erlangErrorPtr, ArrayRef<Value>{zero, reasonIdx});
     Value reason = llvm_load(reasonPtr);
     auto traceIdx = llvm_constant(i32Ty, ctx.getI32Attr(3));
-    auto tracePtr = llvm_gep(termPtrPtrTy, erlangErrorPtr,
-                             ArrayRef<Value>{zero, traceIdx});
+    auto tracePtr =
+        llvm_gep(termPtrPtrTy, erlangErrorPtr, ArrayRef<Value>{zero, traceIdx});
     Value trace = llvm_load(tracePtr);
 
     rewriter.replaceOp(op, {kind, reason, trace});
@@ -233,10 +237,14 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
     // Construct exception
     const char *raiseSymbol = "__lumen_builtin_raise/3";
     ArrayRef<NamedAttribute> raiseAttrs = {
-      rewriter.getNamedAttr("nounwind", rewriter.getUnitAttr()),
+        rewriter.getNamedAttr("nounwind", rewriter.getUnitAttr()),
     };
-    auto raiseCallee = ctx.getOrInsertFunction(raiseSymbol, erlangErrorPtrTy, ArrayRef<LLVMType>{termTy, termTy, termPtrTy}, raiseAttrs);
-    auto raiseOp = rewriter.create<mlir::CallOp>(op.getLoc(), rewriter.getSymbolRefAttr(raiseSymbol), ArrayRef<Type>{erlangErrorPtrTy}, ArrayRef<Value>{kind, reason, trace});
+    auto raiseCallee = ctx.getOrInsertFunction(
+        raiseSymbol, erlangErrorPtrTy,
+        ArrayRef<LLVMType>{termTy, termTy, termPtrTy}, raiseAttrs);
+    auto raiseOp = rewriter.create<mlir::CallOp>(
+        op.getLoc(), rewriter.getSymbolRefAttr(raiseSymbol),
+        ArrayRef<Type>{erlangErrorPtrTy}, ArrayRef<Value>{kind, reason, trace});
     raiseOp.setAttr("tail", rewriter.getUnitAttr());
     raiseOp.setAttr("nounwind", rewriter.getUnitAttr());
 
@@ -416,12 +424,12 @@ void populateControlFlowOpConversionPatterns(OwningRewritePatternList &patterns,
                                              EirTypeConverter &converter,
                                              TargetInfo &targetInfo) {
   patterns.insert<
-      BranchOpConversion, CondBranchOpConversion,
-      CallOpConversion, InvokeOpConversion, LandingPadOpConversion,
-      ReturnOpConversion, ThrowOpConversion, UnreachableOpConversion,
-      YieldOpConversion, YieldCheckOpConversion, ReceiveStartOpConversion,
-      ReceiveWaitOpConversion, ReceiveMessageOpConversion,
-      ReceiveDoneOpConversion>(context, converter, targetInfo);
+      BranchOpConversion, CondBranchOpConversion, CallOpConversion,
+      InvokeOpConversion, LandingPadOpConversion, ReturnOpConversion,
+      ThrowOpConversion, UnreachableOpConversion, YieldOpConversion,
+      YieldCheckOpConversion, ReceiveStartOpConversion, ReceiveWaitOpConversion,
+      ReceiveMessageOpConversion, ReceiveDoneOpConversion>(context, converter,
+                                                           targetInfo);
 }
 
 }  // namespace eir

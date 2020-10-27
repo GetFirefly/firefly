@@ -2,7 +2,7 @@
 
 namespace lumen {
 namespace eir {
-   
+
 struct MallocOpConversion : public EIROpConversion<MallocOp> {
   using EIROpConversion::EIROpConversion;
 
@@ -16,8 +16,7 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
     PtrType ptrTy = op.getAllocType().dyn_cast<PtrType>();
     // The pointee (for now) is expected to be a term type
     OpaqueTermType innerTy = ptrTy.getInnerType().dyn_cast<OpaqueTermType>();
-    if (!innerTy)
-      return op.emitOpError("unsupported target type");
+    if (!innerTy) return op.emitOpError("unsupported target type");
 
     auto ty = ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
 
@@ -85,7 +84,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
         }
         if (ft.isOpaque() && tt.isBox()) {
           auto tbt = ctx.typeConverter.convertType(tt.cast<BoxType>())
-                        .cast<LLVMType>();
+                         .cast<LLVMType>();
           Value cast = llvm_bitcast(tbt, in);
           rewriter.replaceOp(op, cast);
           return success();
@@ -106,12 +105,12 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
         if (fromTy.isa<PtrType>() || fromTy.isa<RefType>()) {
           if (tt.isBox() || tt.isOpaque()) {
             OpaqueTermType innerType;
-            auto tbt = ctx.typeConverter.convertType(tt)
-                          .cast<LLVMType>();
+            auto tbt = ctx.typeConverter.convertType(tt).cast<LLVMType>();
             if (auto ptrTy = fromTy.dyn_cast_or_null<PtrType>())
               innerType = ptrTy.getInnerType().cast<OpaqueTermType>();
             else
-              innerType = fromTy.cast<RefType>().getInnerType().cast<OpaqueTermType>();
+              innerType =
+                  fromTy.cast<RefType>().getInnerType().cast<OpaqueTermType>();
             Value encoded;
             if (innerType.isNonEmptyList())
               encoded = ctx.encodeList(in);
@@ -129,9 +128,11 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           // We are converting an unboxed pointer to a boxed pointer
           auto ptrTy = llvmFromTy.cast<LLVM::LLVMPointerType>();
           auto elTy = ptrTy.getElementType();
-          // If the inner type is not u8 or a struct, then this is not a valid conversion
+          // If the inner type is not u8 or a struct, then this is not a valid
+          // conversion
           if (!elTy.isInteger(8) && !elTy.isStructTy()) {
-            op.emitError("unsupported source type for pointer cast to term type");
+            op.emitError(
+                "unsupported source type for pointer cast to term type");
             return failure();
           }
 
@@ -149,7 +150,9 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
               rewriter.replaceOp(op, boxed);
               return success();
             } else {
-              op.emitError("insufficient target type information for cast from raw pointer");
+              op.emitError(
+                  "insufficient target type information for cast from raw "
+                  "pointer");
               return failure();
             }
           }
@@ -157,13 +160,13 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           // A raw pointer to (presumably) a term structure
           auto structTy = elTy.cast<LLVM::LLVMStructType>();
           auto structName = structTy.getName();
-          auto isCastable =
-            StringSwitch<bool>(structName)
-              .Case("binary", true)
-              .Case("cons", true)
-              .Case("bigint", true)
-              .Case("float", true)
-              .Default(structName.startswith("closure") || structName.startswith("tuple"));
+          auto isCastable = StringSwitch<bool>(structName)
+                                .Case("binary", true)
+                                .Case("cons", true)
+                                .Case("bigint", true)
+                                .Case("float", true)
+                                .Default(structName.startswith("closure") ||
+                                         structName.startswith("tuple"));
           // If we don't recognize the target type, we can't cast, otherwise
           // we box the pointer appropriately
           if (isCastable) {
@@ -180,7 +183,8 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
           }
         }
 
-        if (llvmFromTy.isIntegerTy(1) && (tt.isBoolean() || tt.isAtom() || tt.isOpaque())) {
+        if (llvmFromTy.isIntegerTy(1) &&
+            (tt.isBoolean() || tt.isAtom() || tt.isOpaque())) {
           Value extended = llvm_zext(termTy, in);
           auto atomTy = ctx.rewriter.getType<AtomType>();
           rewriter.replaceOp(op, ctx.encodeImmediate(atomTy, extended));
@@ -216,27 +220,28 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             if (auto ptrTy = toTy.dyn_cast_or_null<PtrType>())
               innerTy = ptrTy.getInnerType().cast<OpaqueTermType>();
             else
-              innerTy = ft.cast<RefType>().getInnerType().cast<OpaqueTermType>();
+              innerTy =
+                  ft.cast<RefType>().getInnerType().cast<OpaqueTermType>();
             Value decoded;
             if (innerTy.isNonEmptyList())
               decoded = ctx.decodeList(in);
             else {
-              auto tbt = ctx.typeConverter.convertType(innerTy)
-                .cast<LLVMType>();
+              auto tbt =
+                  ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
               decoded = ctx.decodeBox(tbt, in);
             }
             rewriter.replaceOp(op, decoded);
             return success();
           }
 
-          op.emitError("unsupported cast to pointer-like type from non-pointer value");
+          op.emitError(
+              "unsupported cast to pointer-like type from non-pointer value");
           return failure();
         }
 
-        // If converting a raw LLVM pointer to Ptr/Ref, we don't need to do anything
-        // other than a bitcast
-        auto fpt = ctx.typeConverter.convertType(fromTy)
-                      .cast<LLVMType>();
+        // If converting a raw LLVM pointer to Ptr/Ref, we don't need to do
+        // anything other than a bitcast
+        auto fpt = ctx.typeConverter.convertType(fromTy).cast<LLVMType>();
         if (fpt.isPointerTy()) {
           Value cast = llvm_bitcast(fpt, in);
           rewriter.replaceOp(op, cast);
@@ -283,7 +288,8 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
     LLVMType basePtrTy = basePtr.getType().cast<LLVMType>();
 
     if (!basePtrTy.isPointerTy())
-      return op.emitOpError("cannot perform this operation on a non-pointer type");
+      return op.emitOpError(
+          "cannot perform this operation on a non-pointer type");
 
     auto index = op.getIndex();
 
@@ -293,12 +299,13 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
       auto elementTys = structTy.getBody();
       if (index >= elementTys.size())
         return op.emitOpError("invalid element index, only ")
-          << elementTys.size() << " fields, but wanted " << index;
+               << elementTys.size() << " fields, but wanted " << index;
       elementTy = elementTys[index];
     } else if (auto arrayTy = baseTy.dyn_cast<LLVMArrayType>()) {
       elementTy = arrayTy.getElementType();
     } else {
-      return op.emitOpError("invalid base pointer type, expected aggregate type");
+      return op.emitOpError(
+          "invalid base pointer type, expected aggregate type");
     }
 
     LLVMType elementPtrTy = elementTy.getPointerTo();
@@ -334,10 +341,9 @@ void populateMemoryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,
                                         EirTypeConverter &converter,
                                         TargetInfo &targetInfo) {
-  patterns
-    .insert<MallocOpConversion, CastOpConversion,
-            GetElementPtrOpConversion, LoadOpConversion>(
-          context, converter, targetInfo);
+  patterns.insert<MallocOpConversion, CastOpConversion,
+                  GetElementPtrOpConversion, LoadOpConversion>(
+      context, converter, targetInfo);
 }
 
 }  // namespace eir

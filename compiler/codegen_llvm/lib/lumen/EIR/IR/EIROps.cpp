@@ -1,7 +1,13 @@
 #include "lumen/EIR/IR/EIROps.h"
+
+#include <iterator>
+#include <vector>
+
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/SMLoc.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIRTypes.h"
-
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -16,22 +22,15 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/SMLoc.h"
-
-#include <iterator>
-#include <vector>
-
 using namespace lumen;
 using namespace lumen::eir;
 
 using ::llvm::ArrayRef;
+using ::llvm::cast;
+using ::llvm::dyn_cast_or_null;
+using ::llvm::isa;
 using ::llvm::SmallVector;
 using ::llvm::StringRef;
-using ::llvm::dyn_cast_or_null;
-using ::llvm::cast;
-using ::llvm::isa;
 using ::mlir::OpOperand;
 
 namespace lumen {
@@ -124,8 +123,7 @@ struct constant_bool_op_binder {
     auto type = op->getResult(0).getType();
 
     if (type.isa<BooleanType>()) {
-      return mlir::detail::attr_value_binder<BoolAttr>(bind_value)
-          .match(attr);
+      return mlir::detail::attr_value_binder<BoolAttr>(bind_value).match(attr);
     }
 
     if (type.isa<AtomType>()) {
@@ -150,8 +148,7 @@ struct constant_bool_op_binder {
       }
 
       // We might have a boolean constant with i1 as type
-      return mlir::detail::attr_value_binder<BoolAttr>(bind_value)
-          .match(attr);
+      return mlir::detail::attr_value_binder<BoolAttr>(bind_value).match(attr);
     }
 
     return false;
@@ -171,13 +168,13 @@ struct constant_atom_op_binder {
     auto type = op->getResult(0).getType();
 
     if (type.isa<AtomType>()) {
-      return mlir::detail::attr_value_binder<AtomAttr>(bind_value)
-          .match(attr);
+      return mlir::detail::attr_value_binder<AtomAttr>(bind_value).match(attr);
     }
 
     if (type.isa<BooleanType>()) {
       if (auto boolAttr = attr.dyn_cast<BoolAttr>()) {
-        *bind_value = APInt(64, (uint64_t)boolAttr.getValue(), /*signed=*/false);
+        *bind_value =
+            APInt(64, (uint64_t)boolAttr.getValue(), /*signed=*/false);
         return true;
       }
       return false;
@@ -187,9 +184,7 @@ struct constant_atom_op_binder {
   }
 };
 
-inline cast_binder m_Cast(Value *bind_value) {
-  return cast_binder(bind_value);
-}
+inline cast_binder m_Cast(Value *bind_value) { return cast_binder(bind_value); }
 
 inline constant_apint_op_binder m_ConstInt(APIntAttr::ValueType *bind_value) {
   return constant_apint_op_binder(bind_value);
@@ -200,20 +195,17 @@ inline constant_apfloat_op_binder m_ConstFloat(
   return constant_apfloat_op_binder(bind_value);
 }
 
-inline constant_bool_op_binder m_ConstBool(
-    BoolAttr::ValueType *bind_value) {
+inline constant_bool_op_binder m_ConstBool(BoolAttr::ValueType *bind_value) {
   return constant_bool_op_binder(bind_value);
 }
 
-inline constant_atom_op_binder m_ConstAtom(
-    AtomAttr::ValueType *bind_value) {
+inline constant_atom_op_binder m_ConstAtom(AtomAttr::ValueType *bind_value) {
   return constant_atom_op_binder(bind_value);
 }
 
 static Value castToTermEquivalent(OpBuilder &builder, Value input) {
   Type inputType = input.getType();
-  if (inputType.isa<OpaqueTermType>())
-    return input;
+  if (inputType.isa<OpaqueTermType>()) return input;
 
   Type targetType;
   if (auto ptrTy = inputType.dyn_cast_or_null<PtrType>()) {
@@ -231,7 +223,6 @@ static Value castToTermEquivalent(OpBuilder &builder, Value input) {
   auto castOp = builder.create<CastOp>(input.getLoc(), input, targetType);
   return castOp.getResult();
 }
-
 
 //===----------------------------------------------------------------------===//
 // eir.func
@@ -302,9 +293,7 @@ LogicalResult FuncOp::verifyType() {
 
 Region *FuncOp::getCallableRegion() { return &body(); }
 
-ArrayRef<Type> FuncOp::getCallableResults() {
-  return getType().getResults();
-}
+ArrayRef<Type> FuncOp::getCallableResults() { return getType().getResults(); }
 
 //===----------------------------------------------------------------------===//
 // eir.br
@@ -354,19 +343,19 @@ static LogicalResult collapseBranch(Block *&successor,
   return success();
 }
 
-void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op, BranchOpInterface branchInterface) {
+void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op,
+                                   BranchOpInterface branchInterface) {
   for (auto sit : llvm::enumerate(op->getSuccessors())) {
-    Optional<MutableOperandRange> maybeOperands = branchInterface.getMutableSuccessorOperands(sit.index());
-    if (!maybeOperands.hasValue())
-      continue;
+    Optional<MutableOperandRange> maybeOperands =
+        branchInterface.getMutableSuccessorOperands(sit.index());
+    if (!maybeOperands.hasValue()) continue;
 
     MutableOperandRange mutableOperands = maybeOperands.getValue();
     OperandRange operands(mutableOperands);
     Block *successor = sit.value();
 
     // If there is a mismatch like this we have to ignore this op, its invalid
-    if (successor->getNumArguments() != operands.size())
-      return;
+    if (successor->getNumArguments() != operands.size()) return;
 
     // If we're the only predecessor, then we can set the type of
     // all block arguments based on the values given as successor operands
@@ -377,15 +366,15 @@ void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op, BranchOpIn
         BlockArgument blockArg = successor->getArgument(it.index());
         Type blockArgType = blockArg.getType();
 
-        if (operandType == blockArgType)
-          continue;
+        if (operandType == blockArgType) continue;
 
         blockArg.setType(operandType);
       }
       continue;
     }
 
-    // Gather all of the operand types for every path which reaches this successor
+    // Gather all of the operand types for every path which reaches this
+    // successor
     SmallVector<TypeRange, 4> successorOperandTypes;
 
     if (successor->getUniquePredecessor()) {
@@ -400,7 +389,8 @@ void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op, BranchOpIn
           continue;
         }
 
-        Optional<OperandRange> maybeSuccOperands = branchInterface.getSuccessorOperands(it.index());
+        Optional<OperandRange> maybeSuccOperands =
+            branchInterface.getSuccessorOperands(it.index());
         auto succOperands = maybeSuccOperands.getValue();
         successorOperandTypes.push_back(TypeRange(succOperands.getTypes()));
       }
@@ -409,16 +399,20 @@ void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op, BranchOpIn
       // check as above, but across all predecessors, not just the
       // current block
       for (auto pred : successor->getPredecessors()) {
-        // Get the terminator, which will always implement BranchOpInterface here
+        // Get the terminator, which will always implement BranchOpInterface
+        // here
         auto terminator = pred->getTerminator();
-        BranchOpInterface termInterface = dyn_cast<BranchOpInterface>(terminator);
-        assert(termInterface && "expected predecessor to be terminated with a branch-like operation");
+        BranchOpInterface termInterface =
+            dyn_cast<BranchOpInterface>(terminator);
+        assert(termInterface &&
+               "expected predecessor to be terminated with a branch-like "
+               "operation");
 
         for (auto sit2 : llvm::enumerate(terminator->getSuccessors())) {
           Block *succ = sit2.value();
-          if (succ != successor)
-            continue;
-          Optional<OperandRange> maybeSuccOperands = termInterface.getSuccessorOperands(sit2.index());
+          if (succ != successor) continue;
+          Optional<OperandRange> maybeSuccOperands =
+              termInterface.getSuccessorOperands(sit2.index());
           auto succOperands = maybeSuccOperands.getValue();
           successorOperandTypes.push_back(TypeRange(succOperands.getTypes()));
         }
@@ -426,15 +420,17 @@ void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op, BranchOpIn
     }
 
     // For each block argument in this successor, if all of the operands that
-    // flow to this argument have the same type, then set the block argument type
-    // to the common type; otherwise, insert a cast at this location if the type does
-    // not match
+    // flow to this argument have the same type, then set the block argument
+    // type to the common type; otherwise, insert a cast at this location if the
+    // type does not match
     for (BlockArgument blockArg : successor->getArguments()) {
       auto argIndex = blockArg.getArgNumber();
       Type baseType = successorOperandTypes.front()[argIndex];
 
-      if (std::all_of(successorOperandTypes.begin(), successorOperandTypes.end(),
-                      [&](TypeRange operandTypes) { return operandTypes[argIndex] == baseType; })) {
+      if (std::all_of(successorOperandTypes.begin(),
+                      successorOperandTypes.end(), [&](TypeRange operandTypes) {
+                        return operandTypes[argIndex] == baseType;
+                      })) {
         blockArg.setType(baseType);
         continue;
       }
@@ -445,20 +441,21 @@ void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op, BranchOpIn
       // if needed
       //
       // NOTE: I imagine there is a clever way to do this such that we can
-      // handle cases where there are differing types, but ones that are castable
-      // to one another, allowing us to keep as much type info as possible, rather
-      // than pessimizing. This doesn't technically pessimize so much as use whatever
-      // type is on the block argument, but since that will almost always be TermType,
-      // that is effectively what all the preds will be cast to.
+      // handle cases where there are differing types, but ones that are
+      // castable to one another, allowing us to keep as much type info as
+      // possible, rather than pessimizing. This doesn't technically pessimize
+      // so much as use whatever type is on the block argument, but since that
+      // will almost always be TermType, that is effectively what all the preds
+      // will be cast to.
       for (auto oit = operands.begin(), oe = operands.end(); oit != oe; ++oit) {
         Value operand = *oit;
         Type operandType = operand.getType();
 
-        if (operandType == baseType)
-          continue;
+        if (operandType == baseType) continue;
 
         builder.setInsertionPoint(op);
-        auto castOp = builder.create<CastOp>(operand.getLoc(), operand, baseType);
+        auto castOp =
+            builder.create<CastOp>(operand.getLoc(), operand, baseType);
         mutableOperands.slice(argIndex, 1).assign(castOp.getResult());
       }
     }
@@ -473,7 +470,8 @@ struct PropagateTypesThroughBr : public OpRewritePattern<OpType> {
   LogicalResult matchAndRewrite(OpType op,
                                 PatternRewriter &rewriter) const override {
     Operation *operation = op.getOperation();
-    canonicalizeBranchOpInterface(rewriter, operation, cast<BranchOpInterface>(operation));
+    canonicalizeBranchOpInterface(rewriter, operation,
+                                  cast<BranchOpInterface>(operation));
     return success();
   }
 };
@@ -528,8 +526,7 @@ struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
 
 void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                            MLIRContext *context) {
-  results.insert<SimplifyBrToBlockWithSinglePred,
-                 SimplifyPassThroughBr,
+  results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr,
                  PropagateTypesThroughBr<BranchOp>>(context);
 }
 
@@ -759,8 +756,7 @@ struct SimplifyCondBranchToUnreachable : public OpRewritePattern<CondBranchOp> {
 
 void CondBranchOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<SimplifyConstCondBranchPred,
-                 SimplifyPassThroughCondBranch,
+  results.insert<SimplifyConstCondBranchPred, SimplifyPassThroughCondBranch,
                  SimplifyCondBranchIdenticalSuccessors,
                  SimplifyCondBranchToUnreachable,
                  PropagateTypesThroughBr<CondBranchOp>>(context);
@@ -789,12 +785,9 @@ struct CanonicalizeCall : public OpRewritePattern<CallOp> {
 
   LogicalResult matchAndRewrite(CallOp op,
                                 PatternRewriter &rewriter) const override {
-
-
     auto operandsMut = op.operandsMutable();
-    if (operandsMut.size() == 0)
-      return success();
-    
+    if (operandsMut.size() == 0) return success();
+
     OperandRange operands(operandsMut);
     auto index = operands.getBeginOperandIndex();
     for (auto operand : op.operands()) {
@@ -810,8 +803,8 @@ struct CanonicalizeCall : public OpRewritePattern<CallOp> {
 };
 }  // end anonymous namespace.
 
-void CallOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
+void CallOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                         MLIRContext *context) {
   results.insert<CanonicalizeCall>(context);
 }
 
@@ -825,12 +818,9 @@ struct CanonicalizeInvoke : public OpRewritePattern<InvokeOp> {
 
   LogicalResult matchAndRewrite(InvokeOp op,
                                 PatternRewriter &rewriter) const override {
-
-
     auto operandsMut = op.operandsMutable();
-    if (operandsMut.size() == 0)
-      return success();
-    
+    if (operandsMut.size() == 0) return success();
+
     OperandRange operands(operandsMut);
     auto index = operands.getBeginOperandIndex();
     for (auto operand : op.operands()) {
@@ -846,8 +836,8 @@ struct CanonicalizeInvoke : public OpRewritePattern<InvokeOp> {
 };
 }  // end anonymous namespace.
 
-void InvokeOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
+void InvokeOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                           MLIRContext *context) {
   results.insert<CanonicalizeInvoke>(context);
 }
 
@@ -880,8 +870,8 @@ struct CanonicalizeThrow : public OpRewritePattern<ThrowOp> {
 };
 }  // end anonymous namespace.
 
-void ThrowOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
+void ThrowOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
   results.insert<CanonicalizeThrow>(context);
 }
 
@@ -916,9 +906,8 @@ struct CanonicalizeReturn : public OpRewritePattern<ReturnOp> {
   LogicalResult matchAndRewrite(ReturnOp op,
                                 PatternRewriter &rewriter) const override {
     auto operandsMut = op.operandsMutable();
-    if (operandsMut.size() == 0)
-      return success();
-    
+    if (operandsMut.size() == 0) return success();
+
     auto funcOp = op.getOperation()->getParentOfType<FuncOp>();
     auto funcType = funcOp.getType();
     auto resultTypes = funcType.getResults();
@@ -929,7 +918,8 @@ struct CanonicalizeReturn : public OpRewritePattern<ReturnOp> {
       Value operand = std::get<0>(it);
       Type expectedType = std::get<1>(it);
       if (operand.getType() != expectedType) {
-        auto castOp = rewriter.create<CastOp>(op.getLoc(), operand, expectedType);
+        auto castOp =
+            rewriter.create<CastOp>(op.getLoc(), operand, expectedType);
         operandsMut.slice(index, 1).assign(castOp.getResult());
       }
       index++;
@@ -940,8 +930,8 @@ struct CanonicalizeReturn : public OpRewritePattern<ReturnOp> {
 };
 }  // end anonymous namespace.
 
-void ReturnOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
+void ReturnOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                           MLIRContext *context) {
   results.insert<CanonicalizeReturn>(context);
 }
 
@@ -978,15 +968,13 @@ OpFoldResult IsTypeOp::fold(ArrayRef<Attribute> operands) {
   }
 
   // Fast path for when the types are obviously the same
-  if (inputType == matchType)
-    return BoolAttr::get(true, getContext());
+  if (inputType == matchType) return BoolAttr::get(true, getContext());
 
   // The match type should always be a term type, but handle it gracefully in
   // the instance where it is not. We should use verify/1 to handle invalid
   // type arguments
   OpaqueTermType expected = matchType.dyn_cast<OpaqueTermType>();
-  if (!expected)
-    return nullptr;
+  if (!expected) return nullptr;
 
   // If the input value is itself an opaque term type, then unwrap it
   // and delegate to the isMatch helper. This handles all term/term comparisons
@@ -1005,8 +993,7 @@ OpFoldResult IsTypeOp::fold(ArrayRef<Attribute> operands) {
   // are not technically term types, however they get coerced to them, so
   // if we have a typecheck on a pointer value, we can resolve that check
   // statically if the pointee type matches the boxed type that is expected
-  if (!expected.isBox() && !expected.isBoxable())
-    return nullptr;
+  if (!expected.isBox() && !expected.isBoxable()) return nullptr;
 
   // Normalize the type which should be compared against the pointee type
   OpaqueTermType boxedTy;
@@ -1049,7 +1036,7 @@ OpFoldResult IsTypeOp::fold(ArrayRef<Attribute> operands) {
   // may change the code enough to provide us with missing information
   return nullptr;
 }
- 
+
 //===----------------------------------------------------------------------===//
 // eir.is_tuple
 //===----------------------------------------------------------------------===//
@@ -1057,15 +1044,15 @@ OpFoldResult IsTypeOp::fold(ArrayRef<Attribute> operands) {
 static LogicalResult verify(IsTupleOp op) {
   auto numOperands = op.getNumOperands();
   if (numOperands < 1 || numOperands > 2)
-    return op.emitOpError("invalid number of operands, expected at least one and no more than 2");
+    return op.emitOpError(
+        "invalid number of operands, expected at least one and no more than 2");
 
   return success();
 }
 
 OpFoldResult IsTupleOp::fold(ArrayRef<Attribute> operands) {
   auto numOperands = getNumOperands();
-  if (numOperands < 1 || numOperands > 2)
-    return nullptr;
+  if (numOperands < 1 || numOperands > 2) return nullptr;
 
   auto input = getOperand(0);
   Type inputType = input.getType();
@@ -1078,8 +1065,7 @@ OpFoldResult IsTupleOp::fold(ArrayRef<Attribute> operands) {
     if (auto tt = ptrType.getInnerType().dyn_cast_or_null<TupleType>())
       if (numOperands == 2 && tt.hasStaticShape()) {
         Attribute arityAttr = operands[1];
-        if (!arityAttr)
-          return nullptr;
+        if (!arityAttr) return nullptr;
 
         if (auto intAttr = arityAttr.dyn_cast_or_null<IntegerAttr>()) {
           auto arity = intAttr.getValue();
@@ -1120,29 +1106,28 @@ OpFoldResult IsTupleOp::fold(ArrayRef<Attribute> operands) {
 static LogicalResult verify(IsFunctionOp op) {
   auto numOperands = op.getNumOperands();
   if (numOperands < 1 || numOperands > 2)
-    return op.emitOpError("invalid number of operands, expected at least one and no more than 2");
+    return op.emitOpError(
+        "invalid number of operands, expected at least one and no more than 2");
 
   return success();
 }
 
 OpFoldResult IsFunctionOp::fold(ArrayRef<Attribute> operands) {
   auto numOperands = getNumOperands();
-  if (numOperands < 1 || numOperands > 2)
-    return nullptr;
+  if (numOperands < 1 || numOperands > 2) return nullptr;
 
   auto input = getOperand(0);
   Type inputType = input.getType();
   if (auto boxType = inputType.dyn_cast_or_null<BoxType>()) {
-    if (auto closureTy = boxType.getBoxedType().dyn_cast_or_null<ClosureType>()) {
-      if (numOperands < 2)
-        return BoolAttr::get(true, getContext());
+    if (auto closureTy =
+            boxType.getBoxedType().dyn_cast_or_null<ClosureType>()) {
+      if (numOperands < 2) return BoolAttr::get(true, getContext());
       auto arityAttr = operands[1];
-      if (!arityAttr)
-        return nullptr;
+      if (!arityAttr) return nullptr;
       auto closureArity = closureTy.getArity();
-      if (!closureArity.hasValue())
-        return nullptr;
-      auto expectedArity = arityAttr.cast<IntegerAttr>().getValue().getLimitedValue();
+      if (!closureArity.hasValue()) return nullptr;
+      auto expectedArity =
+          arityAttr.cast<IntegerAttr>().getValue().getLimitedValue();
       if (expectedArity == closureArity.getValue())
         return BoolAttr::get(true, getContext());
       else
@@ -1151,16 +1136,15 @@ OpFoldResult IsFunctionOp::fold(ArrayRef<Attribute> operands) {
       return BoolAttr::get(false, getContext());
     }
   } else if (auto ptrType = inputType.dyn_cast_or_null<PtrType>()) {
-    if (auto closureTy = ptrType.getInnerType().dyn_cast_or_null<ClosureType>()) {
-      if (numOperands < 2)
-        return BoolAttr::get(true, getContext());
+    if (auto closureTy =
+            ptrType.getInnerType().dyn_cast_or_null<ClosureType>()) {
+      if (numOperands < 2) return BoolAttr::get(true, getContext());
       auto arityAttr = operands[1];
-      if (!arityAttr)
-        return nullptr;
+      if (!arityAttr) return nullptr;
       auto closureArity = closureTy.getArity();
-      if (!closureArity.hasValue())
-        return nullptr;
-      auto expectedArity = arityAttr.cast<IntegerAttr>().getValue().getLimitedValue();
+      if (!closureArity.hasValue()) return nullptr;
+      auto expectedArity =
+          arityAttr.cast<IntegerAttr>().getValue().getLimitedValue();
       if (expectedArity == closureArity.getValue())
         return BoolAttr::get(true, getContext());
       else
@@ -1188,22 +1172,19 @@ OpFoldResult CastOp::fold(ArrayRef<Attribute> operands) {
   Type srcTy = getSourceType();
   Type targetTy = getTargetType();
   // Identity cast
-  if (srcTy == targetTy)
-    return input();
+  if (srcTy == targetTy) return input();
   return nullptr;
 }
 
 static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
   if (destType.isOpaque()) {
     // Casting an immediate to an opaque term is always allowed
-    if (srcType.isImmediate() || srcType.isPid())
-      return true;
+    if (srcType.isImmediate() || srcType.isPid()) return true;
     // Casting a boxed value to an opaque term is always allowed
-    if (srcType.isBox())
-      return true;
-    // This is redundant, but technically allowed and will be eliminated via canonicalization
-    if (srcType.isOpaque())
-      return true;
+    if (srcType.isBox()) return true;
+    // This is redundant, but technically allowed and will be eliminated via
+    // canonicalization
+    if (srcType.isOpaque()) return true;
   }
   // Casting an opaque term to any term type is always allowed
   if (srcType.isOpaque()) return true;
@@ -1236,20 +1217,16 @@ static LogicalResult verify(CastOp op) {
       return success();
     }
 
-    if (resType.isa<PtrType>() || resType.isa<RefType>())
-      return success();
+    if (resType.isa<PtrType>() || resType.isa<RefType>()) return success();
 
-    if (resType.isIntOrFloat())
-      return success();
+    if (resType.isIntOrFloat()) return success();
 
     return op.emitError("invalid cast type, target type is unsupported");
   }
 
-  if (opType.isa<PtrType>() || resType.isa<RefType>())
-    return success();
+  if (opType.isa<PtrType>() || resType.isa<RefType>()) return success();
 
-  if (opType.isIntOrFloat())
-    return success();
+  if (opType.isIntOrFloat()) return success();
 
   return op.emitError("invalid cast type, source type is unsupported");
 }
@@ -1258,7 +1235,8 @@ static LogicalResult verify(CastOp op) {
 // eir.match
 //===----------------------------------------------------------------------===//
 
-LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector,
+LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc,
+                                Value selector,
                                 ArrayRef<MatchBranch> branches) {
   auto numBranches = branches.size();
   assert(numBranches > 0 && "expected at least one branch in a match");
@@ -1359,8 +1337,7 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
       BlockArgument arg = dest->getArgument(i);
       auto destArg = baseDestArgs[i];
       auto destArgTy = destArg.getType();
-      if (arg.getType() != destArgTy)
-        arg.setType(destArgTy);
+      if (arg.getType() != destArgTy) arg.setType(destArgTy);
     }
 
     switch (b.getPatternType()) {
@@ -1393,10 +1370,8 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
         auto castOp =
             builder.create<CastOp>(branchLoc, selectorArg, ptrConsType);
         auto consPtr = castOp.getResult();
-        auto getHeadOp =
-            builder.create<GetElementPtrOp>(branchLoc, consPtr, 0);
-        auto getTailOp =
-            builder.create<GetElementPtrOp>(branchLoc, consPtr, 1);
+        auto getHeadOp = builder.create<GetElementPtrOp>(branchLoc, consPtr, 0);
+        auto getTailOp = builder.create<GetElementPtrOp>(branchLoc, consPtr, 1);
         auto headPointer = getHeadOp.getResult();
         auto tailPointer = getTailOp.getResult();
         auto headLoadOp = builder.create<LoadOp>(branchLoc, headPointer);
@@ -1429,7 +1404,7 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
         auto arity = pattern->getArity();
         auto tupleType = builder.getType<eir::TupleType>(arity);
         auto boxedTupleType = builder.getType<BoxType>(tupleType);
-        auto isTupleOp = 
+        auto isTupleOp =
             builder.create<IsTypeOp>(branchLoc, selectorArg, boxedTupleType);
         auto isTupleCond = isTupleOp.getResult();
         auto ifOp = builder.create<CondBranchOp>(branchLoc, isTupleCond, split,
@@ -1476,19 +1451,19 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
         auto isMapOp =
             builder.create<IsTypeOp>(branchLoc, selectorArg, mapType);
         auto isMapCond = isMapOp.getResult();
-        auto ifOp = builder.create<CondBranchOp>(
-            branchLoc, isMapCond, split, emptyArgs, nextPatternBlock,
-            withSelectorArgs);
+        auto ifOp =
+            builder.create<CondBranchOp>(branchLoc, isMapCond, split, emptyArgs,
+                                         nextPatternBlock, withSelectorArgs);
         // 2. In the split, call runtime function `is_map_key` to confirm
         // existence of the key in the map,
         //    then conditionally branch to the second split if successful,
         //    otherwise the next pattern
         builder.setInsertionPointToEnd(split);
-        auto hasKeyOp = builder.create<MapContainsKeyOp>(branchLoc, selectorArg, key);
+        auto hasKeyOp =
+            builder.create<MapContainsKeyOp>(branchLoc, selectorArg, key);
         auto hasKeyCond = hasKeyOp.getResult();
-        builder.create<CondBranchOp>(branchLoc, hasKeyCond, split2,
-                                     emptyArgs, nextPatternBlock,
-                                     withSelectorArgs);
+        builder.create<CondBranchOp>(branchLoc, hasKeyCond, split2, emptyArgs,
+                                     nextPatternBlock, withSelectorArgs);
         // 3. In the second split, call runtime function `map_get` to obtain the
         // value for the key
         builder.setInsertionPointToEnd(split2);
@@ -1594,7 +1569,8 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
           default: {
             auto diagEngine = &builder.getContext()->getDiagEngine();
             diagEngine->emit(branchLoc, DiagnosticSeverity::Error)
-              << "unknown binary specifier type tag '" << ((unsigned)spec.tag) << "'";
+                << "unknown binary specifier type tag '" << ((unsigned)spec.tag)
+                << "'";
             return failure();
           }
         }
@@ -1615,8 +1591,9 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
 
       default: {
         auto diagEngine = &builder.getContext()->getDiagEngine();
-        diagEngine->emit(branchLoc, DiagnosticSeverity::Error) 
-          << "unknown match pattern type '" << ((unsigned)b.getPatternType()) << "'";
+        diagEngine->emit(branchLoc, DiagnosticSeverity::Error)
+            << "unknown match pattern type '" << ((unsigned)b.getPatternType())
+            << "'";
         return failure();
       }
     }
@@ -1631,8 +1608,7 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc, Value selector
 
 static APInt normalizeAPInt(APInt lhs, unsigned bitWidth) {
   auto lhsBits = lhs.getBitWidth();
-  if (lhsBits >= bitWidth)
-    return lhs;
+  if (lhsBits >= bitWidth) return lhs;
 
   return lhs.sext(bitWidth);
 }
@@ -1642,8 +1618,7 @@ static bool areAPIntsEqual(APInt &lhs, APInt &rhs) {
   auto lhsBits = lhs.getBitWidth();
   auto rhsBits = rhs.getBitWidth();
 
-  if (lhsBits == rhsBits)
-    return lhs == rhs;
+  if (lhsBits == rhsBits) return lhs == rhs;
 
   if (lhsBits < rhsBits) {
     APInt temp = lhs.sext(rhsBits);
@@ -1656,7 +1631,7 @@ static bool areAPIntsEqual(APInt &lhs, APInt &rhs) {
 
 OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 2 && "binary op takes two operands");
-    
+
   Attribute lhsOperand = operands[0];
   Attribute rhsOperand = operands[1];
 
@@ -1686,8 +1661,7 @@ OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
       if (lTy.isa<OpaqueTermType>() && rTy.isa<OpaqueTermType>())
         return nullptr;
       // Term is already on the right
-      if (rTy.isa<OpaqueTermType>())
-        return nullptr;
+      if (rTy.isa<OpaqueTermType>()) return nullptr;
 
       // We have a term on the left, move to the right
       if (lTy.isa<OpaqueTermType>()) {
@@ -1699,8 +1673,7 @@ OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
     }
 
     // If the non-constant operand is already on the right, we're done
-    if (!rhsOperand)
-      return nullptr;
+    if (!rhsOperand) return nullptr;
 
     lhsOperandMut.assign(r);
     rhsOperandMut.assign(l);
@@ -1714,7 +1687,8 @@ OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
       return BoolAttr::get(areEqual, getContext());
     }
     if (auto rhsBool = rhsOperand.dyn_cast_or_null<BoolAttr>()) {
-      bool areEqual = lhsAtom.getValue().getLimitedValue() == (unsigned)(rhsBool.getValue());
+      bool areEqual = lhsAtom.getValue().getLimitedValue() ==
+                      (unsigned)(rhsBool.getValue());
       return BoolAttr::get(areEqual, getContext());
     }
     return nullptr;
@@ -1723,7 +1697,8 @@ OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
   // Boolean-likes
   if (auto lhsBool = lhsOperand.dyn_cast_or_null<BoolAttr>()) {
     if (auto rhsAtom = rhsOperand.dyn_cast_or_null<AtomAttr>()) {
-      bool areEqual = (unsigned)(lhsBool.getValue()) == rhsAtom.getValue().getLimitedValue();
+      bool areEqual = (unsigned)(lhsBool.getValue()) ==
+                      rhsAtom.getValue().getLimitedValue();
       return BoolAttr::get(areEqual, getContext());
     }
     if (auto rhsBool = rhsOperand.dyn_cast_or_null<BoolAttr>()) {
@@ -1762,8 +1737,7 @@ OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
 
 namespace {
 static bool canTypesEverBeEqual(Type lhsTy, Type rhsTy, bool strict) {
-  if (lhsTy == rhsTy)
-    return true;
+  if (lhsTy == rhsTy) return true;
 
   if (lhsTy.isa<OpaqueTermType>()) {
     OpaqueTermType lhs = lhsTy.cast<OpaqueTermType>();
@@ -1774,8 +1748,7 @@ static bool canTypesEverBeEqual(Type lhsTy, Type rhsTy, bool strict) {
     return rhs.canTypeEverBeEqual(lhsTy);
   }
 
-  if (lhsTy.isIntOrFloat() && rhsTy.isIntOrFloat())
-    return true;
+  if (lhsTy.isIntOrFloat() && rhsTy.isIntOrFloat()) return true;
 
   return false;
 }
@@ -1806,7 +1779,8 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
       // Left-side is a constant boolean value, check right side
       if (matchPattern(rhs, rhsBoolPattern)) {
         // Both operands are boolean, constify
-        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsVal == rhsVal);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy,
+                                                    lhsVal == rhsVal);
         return success();
       }
 
@@ -1863,7 +1837,8 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
     if (matchPattern(lhs, m_ConstFloat(&lhsFloat))) {
       APFloat rhsFloat(semantics, APInt::getNullValue(64));
       if (matchPattern(rhs, m_ConstFloat(&rhsFloat))) {
-        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsFloat == rhsFloat);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy,
+                                                    lhsFloat == rhsFloat);
         return success();
       }
     }
@@ -1878,15 +1853,18 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
     bool lhsBool, rhsBool;
     if (matchPattern(lhs, mlir::m_Op<CastOp>(m_ConstBool(&lhsBool)))) {
       if (matchPattern(rhs, mlir::m_Op<CastOp>(m_ConstBool(&rhsBool)))) {
-        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsBool == rhsBool);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy,
+                                                    lhsBool == rhsBool);
         return success();
       } else if (matchPattern(rhs, m_ConstBool(&rhsBool))) {
-        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsBool == rhsBool);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy,
+                                                    lhsBool == rhsBool);
         return success();
       }
     } else if (matchPattern(rhs, mlir::m_Op<CastOp>(m_ConstBool(&rhsBool)))) {
       if (matchPattern(lhs, m_ConstBool(&lhsBool))) {
-        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy, lhsBool == rhsBool);
+        rewriter.replaceOpWithNewOp<ConstantBoolOp>(op, resultTy,
+                                                    lhsBool == rhsBool);
         return success();
       }
     }
@@ -1900,27 +1878,29 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
     if (lhsTy.isInteger(1)) {
       if (rhsTy.isa<BooleanType>()) {
         auto rhsCast = rewriter.create<CastOp>(op.getLoc(), rhs, i1Ty);
-        rewriter.replaceOpWithNewOp<CmpEqOp>(op, lhs, rhsCast.getResult(), strict);
+        rewriter.replaceOpWithNewOp<CmpEqOp>(op, lhs, rhsCast.getResult(),
+                                             strict);
         return success();
       }
     } else if (rhsTy.isInteger(1)) {
       if (lhsTy.isa<BooleanType>()) {
         auto lhsCast = rewriter.create<CastOp>(op.getLoc(), lhs, i1Ty);
-        rewriter.replaceOpWithNewOp<CmpEqOp>(op, lhsCast.getResult(), rhs, strict);
+        rewriter.replaceOpWithNewOp<CmpEqOp>(op, lhsCast.getResult(), rhs,
+                                             strict);
         return success();
       }
     }
 
     /*
     // Another common case is a sequence of:
-    //   
+    //
     //   val/op -> cast \
     //                  cmp.eq
     //   val/op -> cast /
     //
     // The casts are generally to term type, and the original
     // values can be lowered to a primitive comparison instead.
-    // 
+    //
     // The fold operation canonicalizes the order of
     // the operands so we can match these patterns pretty
     // simply.
@@ -1948,15 +1928,15 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
           if (lhsValTy.isInteger(1)) {
             if (rhsValTy.isa<BooleanType>()) {
               auto rhsCast = rewriter.create<CastOp>(op.getLoc(), rhsVal, i1Ty);
-              rewriter.replaceOpWithNewOp<CmpEqOp>(op, resultTy, lhsVal, rhsCast.getResult());
-              return success();
+              rewriter.replaceOpWithNewOp<CmpEqOp>(op, resultTy, lhsVal,
+    rhsCast.getResult()); return success();
             }
           } else if (rhsValTy.isInteger(1)) {
             if (lhsValTy.isa<BooleanType>()) {
               auto lhsCast = rewriter.create<CastOp>(op.getLoc(), lhsVal, i1Ty);
-              rewriter.replaceOpWithNewOp<CmpEqOp>(op, resultTy, lhsCast.getResult(), rhsVal);
-              return success();
-            }           
+              rewriter.replaceOpWithNewOp<CmpEqOp>(op, resultTy,
+    lhsCast.getResult(), rhsVal); return success();
+            }
           }
 
           // Strip redundant casts if sources are of the same type
@@ -1971,7 +1951,8 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
 
     // At this point, one operand is non-constant, or both are constants
     // but do not strictly match. For now, we fall back to calling the
-    // builtin, but in the future we should be reason more about these comparisons
+    // builtin, but in the future we should be reason more about these
+    // comparisons
 
     if (!lhsTy.isa<TermType>()) {
       auto lhsCast = rewriter.create<CastOp>(op.getLoc(), lhs, termTy);
@@ -2000,14 +1981,14 @@ void CmpEqOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 using BinaryIntegerFnT = std::function<Optional<APInt>(APInt &, APInt &)>;
 using BinaryFloatFnT = std::function<Optional<APFloat>(APFloat &, APFloat &)>;
 
-static Optional<APInt> foldBinaryIntegerOp(ArrayRef<Attribute> operands, BinaryIntegerFnT fun) {
+static Optional<APInt> foldBinaryIntegerOp(ArrayRef<Attribute> operands,
+                                           BinaryIntegerFnT fun) {
   assert(operands.size() == 2 && "binary op takes two operands");
-    
+
   Attribute lhsAttr = operands[0];
   Attribute rhsAttr = operands[1];
 
-  if (!lhsAttr || !rhsAttr)
-    return llvm::None;
+  if (!lhsAttr || !rhsAttr) return llvm::None;
 
   APInt lhs;
   APInt rhs;
@@ -2031,20 +2012,20 @@ static Optional<APInt> foldBinaryIntegerOp(ArrayRef<Attribute> operands, BinaryI
   unsigned defaultBitWidth = 64;
   auto bitWidth = std::max({defaultBitWidth, lhsBits, rhsBits});
 
-  APInt left  = normalizeAPInt(lhs, bitWidth);
+  APInt left = normalizeAPInt(lhs, bitWidth);
   APInt right = normalizeAPInt(rhs, bitWidth);
-  
+
   return fun(left, right);
 }
 
-static Optional<APFloat> foldBinaryFloatOp(ArrayRef<Attribute> operands, BinaryFloatFnT fun) {
+static Optional<APFloat> foldBinaryFloatOp(ArrayRef<Attribute> operands,
+                                           BinaryFloatFnT fun) {
   assert(operands.size() == 2 && "binary op takes two operands");
-    
+
   Attribute lhs = operands[0];
   Attribute rhs = operands[1];
 
-  if (!lhs || !rhs)
-    return llvm::None;
+  if (!lhs || !rhs) return llvm::None;
 
   auto &semantics = llvm::APFloatBase::IEEEdouble();
   APFloat left(semantics);
@@ -2056,15 +2037,15 @@ static Optional<APFloat> foldBinaryFloatOp(ArrayRef<Attribute> operands, BinaryF
   } else if (auto lhsInt = lhs.dyn_cast_or_null<APIntAttr>()) {
     APInt li = lhsInt.getValue();
     left = APFloat(semantics, APInt::getNullValue(64));
-    auto status = left.convertFromAPInt(li, /*signed=*/true, APFloat::rmNearestTiesToEven);
-    if (status != APFloat::opStatus::opOK)
-      return llvm::None;
+    auto status = left.convertFromAPInt(li, /*signed=*/true,
+                                        APFloat::rmNearestTiesToEven);
+    if (status != APFloat::opStatus::opOK) return llvm::None;
   } else if (auto lhsInt = lhs.dyn_cast_or_null<IntegerAttr>()) {
     APInt li = lhsInt.getValue();
     left = APFloat(semantics, APInt::getNullValue(64));
-    auto status = left.convertFromAPInt(li, /*signed=*/true, APFloat::rmNearestTiesToEven);
-    if (status != APFloat::opStatus::opOK)
-      return llvm::None;
+    auto status = left.convertFromAPInt(li, /*signed=*/true,
+                                        APFloat::rmNearestTiesToEven);
+    if (status != APFloat::opStatus::opOK) return llvm::None;
   } else {
     return llvm::None;
   }
@@ -2075,21 +2056,20 @@ static Optional<APFloat> foldBinaryFloatOp(ArrayRef<Attribute> operands, BinaryF
   } else if (auto rhsInt = rhs.dyn_cast_or_null<APIntAttr>()) {
     APInt ri = rhsInt.getValue();
     right = APFloat(semantics, APInt::getNullValue(64));
-    auto status = right.convertFromAPInt(ri, /*signed=*/true, APFloat::rmNearestTiesToEven);
-    if (status != APFloat::opStatus::opOK)
-      return llvm::None;
+    auto status = right.convertFromAPInt(ri, /*signed=*/true,
+                                         APFloat::rmNearestTiesToEven);
+    if (status != APFloat::opStatus::opOK) return llvm::None;
   } else if (auto rhsInt = rhs.dyn_cast_or_null<IntegerAttr>()) {
     APInt ri = rhsInt.getValue();
     right = APFloat(semantics, APInt::getNullValue(64));
-    auto status = right.convertFromAPInt(ri, /*signed=*/true, APFloat::rmNearestTiesToEven);
-    if (status != APFloat::opStatus::opOK)
-      return llvm::None;
+    auto status = right.convertFromAPInt(ri, /*signed=*/true,
+                                         APFloat::rmNearestTiesToEven);
+    if (status != APFloat::opStatus::opOK) return llvm::None;
   } else {
     return llvm::None;
   }
 
-  if (left.isNaN() || right.isNaN())
-    return llvm::None;
+  if (left.isNaN() || right.isNaN()) return llvm::None;
 
   return fun(left, right);
 }
@@ -2097,9 +2077,8 @@ static Optional<APFloat> foldBinaryFloatOp(ArrayRef<Attribute> operands, BinaryF
 OpFoldResult NegOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 1 && "unary op takes one operand");
   Attribute attr = operands[0];
-  
-  if (!attr)
-    return nullptr;
+
+  if (!attr) return nullptr;
 
   if (auto valInt = attr.dyn_cast_or_null<APIntAttr>()) {
     auto val = valInt.getValue();
@@ -2120,19 +2099,15 @@ OpFoldResult NegOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult AddOp::fold(ArrayRef<Attribute> operands) {
-  auto intResult =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs + rhs;
-    });
+  auto intResult = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) { return lhs + rhs; });
 
   if (intResult.hasValue()) {
     return APIntAttr::get(getContext(), intResult.getValue());
   }
 
-  auto floatResult =
-    foldBinaryFloatOp(operands, [](APFloat &lhs, APFloat &rhs) {
-      return lhs + rhs;
-    });
+  auto floatResult = foldBinaryFloatOp(
+      operands, [](APFloat &lhs, APFloat &rhs) { return lhs + rhs; });
 
   if (floatResult.hasValue()) {
     return APFloatAttr::get(getContext(), floatResult.getValue());
@@ -2142,19 +2117,15 @@ OpFoldResult AddOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult SubOp::fold(ArrayRef<Attribute> operands) {
-  auto intResult =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs - rhs;
-    });
+  auto intResult = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) { return lhs - rhs; });
 
   if (intResult.hasValue()) {
     return APIntAttr::get(getContext(), intResult.getValue());
   }
 
-  auto floatResult =
-    foldBinaryFloatOp(operands, [](APFloat &lhs, APFloat &rhs) {
-      return lhs - rhs;
-    });
+  auto floatResult = foldBinaryFloatOp(
+      operands, [](APFloat &lhs, APFloat &rhs) { return lhs - rhs; });
 
   if (floatResult.hasValue()) {
     return APFloatAttr::get(getContext(), floatResult.getValue());
@@ -2164,19 +2135,15 @@ OpFoldResult SubOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult MulOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs * rhs;
-    });
+  auto result = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) { return lhs * rhs; });
 
   if (result.hasValue()) {
     return APIntAttr::get(getContext(), result.getValue());
   }
 
-  auto floatResult =
-    foldBinaryFloatOp(operands, [](APFloat &lhs, APFloat &rhs) {
-      return lhs * rhs;
-    });
+  auto floatResult = foldBinaryFloatOp(
+      operands, [](APFloat &lhs, APFloat &rhs) { return lhs * rhs; });
 
   if (floatResult.hasValue()) {
     return APFloatAttr::get(getContext(), floatResult.getValue());
@@ -2186,10 +2153,8 @@ OpFoldResult MulOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult FDivOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryFloatOp(operands, [](APFloat &lhs, APFloat &rhs) {
-      return lhs / rhs;
-    });
+  auto result = foldBinaryFloatOp(
+      operands, [](APFloat &lhs, APFloat &rhs) { return lhs / rhs; });
 
   if (result.hasValue()) {
     return APFloatAttr::get(getContext(), result.getValue());
@@ -2199,10 +2164,8 @@ OpFoldResult FDivOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult DivOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs.sdiv(rhs);
-    });
+  auto result = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) { return lhs.sdiv(rhs); });
 
   if (result.hasValue()) {
     return APIntAttr::get(getContext(), result.getValue());
@@ -2212,10 +2175,8 @@ OpFoldResult DivOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult RemOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs.srem(rhs);
-    });
+  auto result = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) { return lhs.srem(rhs); });
 
   if (result.hasValue()) {
     return APIntAttr::get(getContext(), result.getValue());
@@ -2225,10 +2186,8 @@ OpFoldResult RemOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult BandOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs & rhs;
-    });
+  auto result = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) { return lhs & rhs; });
 
   if (result.hasValue()) {
     return APIntAttr::get(getContext(), result.getValue());
@@ -2238,10 +2197,8 @@ OpFoldResult BandOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult BorOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs | rhs;
-    });
+  auto result = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) { return lhs | rhs; });
 
   if (result.hasValue()) {
     return APIntAttr::get(getContext(), result.getValue());
@@ -2251,10 +2208,8 @@ OpFoldResult BorOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult BxorOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) {
-      return lhs ^ rhs;
-    });
+  auto result = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) { return lhs ^ rhs; });
 
   if (result.hasValue()) {
     return APIntAttr::get(getContext(), result.getValue());
@@ -2264,24 +2219,22 @@ OpFoldResult BxorOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult BslOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) -> Optional<APInt> {
-      // APInt doesn't support some valid Erlang shifts
-      if (rhs.isNegative())
-        return llvm::None;
+  auto result = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) -> Optional<APInt> {
+        // APInt doesn't support some valid Erlang shifts
+        if (rhs.isNegative()) return llvm::None;
 
-      auto shiftWidth = rhs.getLimitedValue();
+        auto shiftWidth = rhs.getLimitedValue();
 
-      // We can't handle shifts larger than this
-      if (shiftWidth > 64)
-        return llvm::None;
+        // We can't handle shifts larger than this
+        if (shiftWidth > 64) return llvm::None;
 
-      // Zero-extend to new width
-      auto lhsBits = lhs.getMinSignedBits();
-      auto requiredBits = lhsBits + shiftWidth;
-      auto newLhs = lhs.zextOrSelf(requiredBits);
-      return newLhs.shl(shiftWidth);
-    });
+        // Zero-extend to new width
+        auto lhsBits = lhs.getMinSignedBits();
+        auto requiredBits = lhsBits + shiftWidth;
+        auto newLhs = lhs.zextOrSelf(requiredBits);
+        return newLhs.shl(shiftWidth);
+      });
 
   if (result.hasValue()) {
     return APIntAttr::get(getContext(), result.getValue());
@@ -2291,13 +2244,12 @@ OpFoldResult BslOp::fold(ArrayRef<Attribute> operands) {
 }
 
 OpFoldResult BsrOp::fold(ArrayRef<Attribute> operands) {
-  auto result =
-    foldBinaryIntegerOp(operands, [](APInt &lhs, APInt &rhs) -> Optional<APInt> {
-      if (rhs.isNegative())
-        return llvm::None;
-      
-      return lhs.lshr(rhs);
-    });
+  auto result = foldBinaryIntegerOp(
+      operands, [](APInt &lhs, APInt &rhs) -> Optional<APInt> {
+        if (rhs.isNegative()) return llvm::None;
+
+        return lhs.lshr(rhs);
+      });
 
   if (result.hasValue()) {
     return APIntAttr::get(getContext(), result.getValue());
@@ -2344,7 +2296,6 @@ OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.empty() && "constant has no operands");
   return getValue();
 }
-
 
 //===----------------------------------------------------------------------===//
 // eir.neg
@@ -2412,13 +2363,17 @@ static LogicalResult verify(MallocOp op) {
     Optional<Value> arityVal = op.arity();
     if (arityVal.hasValue()) {
       if (!termType.hasDynamicExtent())
-        return op.emitOpError("it is invalid to specify arity with statically-sized type");
+        return op.emitOpError(
+            "it is invalid to specify arity with statically-sized type");
     } else {
       if (termType.hasDynamicExtent())
-        return op.emitOpError("cannot malloc a type with dynamic extent without specifying arity");
+        return op.emitOpError(
+            "cannot malloc a type with dynamic extent without specifying "
+            "arity");
     }
   } else {
-    return op.emitOpError("it is currently unsupported to malloc non-term types");
+    return op.emitOpError(
+        "it is currently unsupported to malloc non-term types");
   }
 
   return success();
@@ -2528,9 +2483,8 @@ struct CanonicalizeList : public OpRewritePattern<ListOp> {
     }
 
     auto elementOperandsMut = op.elementsMutable();
-    if (elementOperandsMut.size() == 0)
-      return success();
-    
+    if (elementOperandsMut.size() == 0) return success();
+
     OperandRange elementOperands(elementOperandsMut);
     auto index = elementOperands.getBeginOperandIndex();
     for (auto element : op.elements()) {
@@ -2567,9 +2521,8 @@ struct CanonicalizeTuple : public OpRewritePattern<TupleOp> {
     }
 
     auto elementOperandsMut = op.elementsMutable();
-    if (elementOperandsMut.size() == 0)
-      return success();
-    
+    if (elementOperandsMut.size() == 0) return success();
+
     OperandRange elementOperands(elementOperandsMut);
     auto index = elementOperands.getBeginOperandIndex();
     for (auto element : op.elements()) {
@@ -2606,9 +2559,8 @@ struct CanonicalizeMap : public OpRewritePattern<MapOp> {
     }
 
     auto argsOperandsMut = op.argsMutable();
-    if (argsOperandsMut.size() == 0)
-      return success();
-    
+    if (argsOperandsMut.size() == 0) return success();
+
     OperandRange argsOperands(argsOperandsMut);
     auto index = argsOperands.getBeginOperandIndex();
     for (auto arg : op.args()) {
@@ -2659,7 +2611,6 @@ struct CanonicalizeMapMutation : public OpRewritePattern<OpType> {
   }
 };
 
-
 template <typename OpType>
 struct CanonicalizeMapKeyOp : public OpRewritePattern<OpType> {
   using OpRewritePattern<OpType>::OpRewritePattern;
@@ -2705,8 +2656,8 @@ void MapUpdateOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
   results.insert<CanonicalizeMapMutation<MapUpdateOp>>(context);
 }
 
-void MapContainsKeyOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                   MLIRContext *context) {
+void MapContainsKeyOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeMapKeyOp<MapContainsKeyOp>>(context);
 }
 
@@ -2738,8 +2689,7 @@ struct CanonicalizeBinaryPush : public OpRewritePattern<BinaryPushOp> {
     }
 
     Optional<Value> sizeOpt = op.size();
-    if (!sizeOpt.hasValue())
-      return success();
+    if (!sizeOpt.hasValue()) return success();
 
     Value size = sizeOpt.getValue();
     Value s = castToTermEquivalent(rewriter, size);
@@ -2753,8 +2703,8 @@ struct CanonicalizeBinaryPush : public OpRewritePattern<BinaryPushOp> {
 };
 }  // end anonymous namespace.
 
-void BinaryPushOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                               MLIRContext *context) {
+void BinaryPushOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeBinaryPush>(context);
 }
 
@@ -2782,8 +2732,7 @@ struct CanonicalizeSizedBinaryMatch : public OpRewritePattern<OpType> {
     }
 
     Optional<Value> sizeOpt = op.size();
-    if (!sizeOpt.hasValue())
-      return success();
+    if (!sizeOpt.hasValue()) return success();
 
     Value size = sizeOpt.getValue();
     Value s = castToTermEquivalent(rewriter, size);
@@ -2797,33 +2746,33 @@ struct CanonicalizeSizedBinaryMatch : public OpRewritePattern<OpType> {
 };
 }  // end anonymous namespace.
 
-void BinaryMatchRawOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                   MLIRContext *context) {
+void BinaryMatchRawOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchRawOp>>(context);
 }
 
-void BinaryMatchIntegerOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                       MLIRContext *context) {
+void BinaryMatchIntegerOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchIntegerOp>>(context);
 }
 
-void BinaryMatchFloatOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                     MLIRContext *context) {
+void BinaryMatchFloatOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchFloatOp>>(context);
 }
 
-void BinaryMatchUtf8Op::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                    MLIRContext *context) {
+void BinaryMatchUtf8Op::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchUtf8Op>>(context);
 }
 
-void BinaryMatchUtf16Op::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                     MLIRContext *context) {
+void BinaryMatchUtf16Op::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchUtf16Op>>(context);
 }
 
-void BinaryMatchUtf32Op::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                     MLIRContext *context) {
+void BinaryMatchUtf32Op::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeSizedBinaryMatch<BinaryMatchUtf32Op>>(context);
 }
 
@@ -2854,8 +2803,8 @@ struct CanonicalizeReceiveStart : public OpRewritePattern<ReceiveStartOp> {
 };
 }  // end anonymous namespace.
 
-void ReceiveStartOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                     MLIRContext *context) {
+void ReceiveStartOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<CanonicalizeReceiveStart>(context);
 }
 
@@ -2881,11 +2830,10 @@ struct CanonicalizePrint : public OpRewritePattern<PrintOp> {
 };
 }  // end anonymous namespace.
 
-void PrintOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
+void PrintOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
   results.insert<CanonicalizePrint>(context);
 }
-
 
 }  // namespace eir
 }  // namespace lumen

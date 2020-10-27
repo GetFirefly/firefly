@@ -136,8 +136,8 @@ void populateAggregateOpConversionPatterns(OwningRewritePatternList &patterns,
                                            MLIRContext *context,
                                            EirTypeConverter &converter,
                                            TargetInfo &targetInfo) {
-  patterns.insert<ConsOpConversion, ListOpConversion,
-                  TupleOpConversion>(context, converter, targetInfo);
+  patterns.insert<ConsOpConversion, ListOpConversion, TupleOpConversion>(
+      context, converter, targetInfo);
 }
 
 }  // namespace eir

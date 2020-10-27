@@ -498,7 +498,6 @@ run_task = { name = [
     "install-gecko-driver",
     "install-chrome-driver",
     "enable-safari-driver",
-    "lumen-tblgen"
   ], parallel = true }
 
 [tasks.test-web]
@@ -506,7 +505,7 @@ category = "Test"
 description = "Runs the web test suite"
 command = "wasm-pack"
 args = ["test", "--headless", "${@}", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/native_implemented/web"]
-dependencies = ["wasm-toolchain"]
+dependencies = ["lumen-tblgen", "wasm-toolchain"]
 
 [tasks.checkout-interpreter]
 private = true

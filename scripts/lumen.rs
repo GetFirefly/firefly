@@ -158,15 +158,11 @@ fn main() {
     let cargo_cmd = cargo_cmd
         .arg("run")
         .arg(&toolchain_name)
-        .args(&[
-            "cargo",
-            "--",
-            "rustc",
-            "--message-format=json",
-            "--color=never",
-        ])
+        .args(&["cargo", "rustc"])
+        .args(&["-p", "lumen"])
+        .args(&["--message-format=json", "--color=never"])
         .args(cargo_args.as_slice())
-        .args(&["-p", "lumen", "--"])
+        .arg("--")
         .arg(link_args_string.as_str())
         .args(rustc_args.as_slice())
         .env("PATH", path.as_str())
@@ -207,6 +203,14 @@ fn main() {
 
     let status = child.wait().unwrap();
     if !status.success() {
+        let stderr = child.stderr.as_mut().unwrap();
+        let stderr_reader = BufReader::new(stderr);
+        for line in stderr_reader.lines() {
+            if let Ok(line) = line {
+                io::stdout().write_all(&line.into_bytes()).unwrap();
+            }
+        }
+        io::stdout().write(b"\n").unwrap();
         panic!(
             "command did not execute successfully: {}\n\
              expected success, got: {}",

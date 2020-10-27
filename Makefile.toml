@@ -346,6 +346,7 @@ private = true
 category = "Build"
 condition = { files_not_exist = ["${CARGO_TARGET_DIR}/build/lumen_tblgen/bin/lumen-tblgen"] }
 script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lumen_tablegen.ds", absolute_path = true }
+dependencies = ["require-ninja", "require-cmake"]
 
 [tasks.install-wasm-target]
 category = "Web"
@@ -496,7 +497,8 @@ run_task = { name = [
     "install-wasm-pack",
     "install-gecko-driver",
     "install-chrome-driver",
-    "enable-safari-driver"
+    "enable-safari-driver",
+    "lumen-tblgen"
   ], parallel = true }
 
 [tasks.test-web]
@@ -525,11 +527,11 @@ category = "Examples"
 description = "Builds spawn-chain example program"
 command = "wasm-pack"
 args = ["build", "examples/spawn-chain/wasm"]
-dependencies = ["checkout-interpreter", "checkout-examples"]
+dependencies = ["checkout-interpreter", "checkout-examples", "lumen-tblgen"]
 
 [tasks.test-spawn-chain]
 category = "Test"
 description = "Runs the spawn-chain example tests"
 command = "wasm-pack"
 args = ["test", "--headless", "${@}", "examples/spawn-chain/wasm"]
-dependencies = ["spawn-chain"]
+dependencies = ["lumen-tblgen", "spawn-chain"]

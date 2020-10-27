@@ -42,4 +42,5 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test -- --package liblumen_otp lumen::otp::
+          args: |
+            test -- --package liblumen_otp lumen::otp::

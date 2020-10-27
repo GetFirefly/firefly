@@ -11,10 +11,10 @@ using ::llvm::unwrap;
 using ::mlir::MLIRContext;
 
 extern "C" void MLIRRegisterDialects(MLIRContextRef context) {
-  MLIRContext *ctx = unwrap(context);
+    MLIRContext *ctx = unwrap(context);
 
-  // Register the LLVM and EIR dialects with MLIR
-  ctx->loadDialect<mlir::StandardOpsDialect, mlir::LLVM::LLVMDialect,
-                   lumen::eir::eirDialect>();
-  assert(ctx->getLoadedDialects().size() >= 3 && "failed to load dialects!");
+    // Register the LLVM and EIR dialects with MLIR
+    ctx->loadDialect<mlir::StandardOpsDialect, mlir::LLVM::LLVMDialect,
+                     lumen::eir::eirDialect>();
+    assert(ctx->getLoadedDialects().size() >= 3 && "failed to load dialects!");
 }

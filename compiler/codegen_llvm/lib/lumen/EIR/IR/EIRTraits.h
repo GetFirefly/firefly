@@ -8,10 +8,10 @@ namespace OpTrait {
 
 template <typename ConcreteType>
 class YieldPoint : public mlir::OpTrait::TraitBase<ConcreteType, YieldPoint> {
- public:
-  static mlir::LogicalResult verifyTrait(mlir::Operation *op) {
-    return success();
-  }
+   public:
+    static mlir::LogicalResult verifyTrait(mlir::Operation *op) {
+        return success();
+    }
 };
 
 }  // namespace OpTrait

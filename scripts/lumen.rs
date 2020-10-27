@@ -76,6 +76,7 @@ struct TargetSpec {
 
 fn main() {
     let cargo_profile = env::var("LUMEN_BUILD_PROFILE").unwrap();
+    let toolchain_name = env::var("CARGO_MAKE_TOOLCHAIN").unwrap();
     let rust_target_triple = env::var("CARGO_MAKE_RUST_TARGET_TRIPLE").unwrap();
     let target_triple = get_llvm_target(&rust_target_triple);
     let target_vendor = env::var("CARGO_MAKE_RUST_TARGET_VENDOR").unwrap();
@@ -153,9 +154,17 @@ fn main() {
     let path_var = env::var("PATH").unwrap();
     let path = format!("{}/bin:{}", llvm_prefix.display(), &path_var);
 
-    let mut cargo_cmd = Command::new("cargo");
+    let mut cargo_cmd = Command::new("rustup");
     let cargo_cmd = cargo_cmd
-        .args(&["rustc", "--message-format=json", "--color=never"])
+        .arg("run")
+        .arg(&toolchain_name)
+        .args(&[
+            "cargo",
+            "--",
+            "rustc",
+            "--message-format=json",
+            "--color=never",
+        ])
         .args(cargo_args.as_slice())
         .args(&["-p", "lumen", "--"])
         .arg(link_args_string.as_str())

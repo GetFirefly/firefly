@@ -44,6 +44,12 @@ dependencies for the WebAssembly targets that we make use of.
     
     # or, in case of issues, install the 2020-05-13 nightly to match our CI
     rustup default nightly-2020-05-13
+    
+In order to run various build tasks in the project, you'll need the [cargo-make](https://github.com/sagiegurari/cargo-make) plugin for Cargo. You can install it with:
+
+    cargo install cargo-make
+    
+You can see what tasks are available with `cargo make --print-steps`.
 
 You may also want to install the following tools for editor support (`rustfmt` will be required on
 all pull requests!):
@@ -53,16 +59,6 @@ all pull requests!):
 Next, you will need to install the `wasm32` targets for the toolchain:
 
     rustup target add wasm32-unknown-unknown --toolchain <name of nightly you chose in the previous step>
-
-You will also need to install the `wasm-bindgen** command-line tools:
-
-    cargo install wasm-bindgen-cli
-    
-    # if you did not set the nightly toolchain as your default, you need this instead:
-    cargo +nightly install wasm-bindgen-cli
-
-Finally we will need `wasm-pack`. It is needed to build the examples and get up
-and running. Follow their installation instructions from [the wasm-pack repository](https://github.com/rustwasm/wasm-pack).
 
 #### LLVM
 
@@ -81,19 +77,19 @@ the usual default for this XDG variable.
 
     mkdir -p $XDG_DATA_HOME/llvm/lumen
     cd $XDG_DATA_HOME/llvm/lumen
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-04/clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
-    tar -xz --strip-components 1 -f clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
-    rm clang+llvm-10.0.0-x86_64-linux-gnu.tar.gz
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-10-22/clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
+    tar -xz --strip-components 1 -f clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
+    rm clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
     cd -
 
 ###### MacOS
 
     mkdir -p $XDG_DATA_HOME/llvm/lumen
     cd $XDG_DATA_HOME/llvm/lumen
-    wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-08-04/clang+llvm-10.0.0-x86_64-apple-darwin19.5.0.tar.gz
-    tar -xzf clang+llvm-10.0.0-x86_64-apple-darwin19.5.0.tar.gz
-    rm clang+llvm-10.0.0-x86_64-apple-darwin19.5.0.tar.gz
-    mv clang+llvm-10.0.0-x86_64-apple-darwin19.5.0 lumen
+    wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-10-22/clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
+    tar -xzf clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
+    rm clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
+    mv clang+llvm-12.0.0-x86_64-apple-darwin19.5.0 lumen
     cd -
 
 ###### Other
@@ -113,7 +109,7 @@ We have the build more or less fully automated, just three simple steps:
 
     git clone https://github.com/lumen/llvm-project
     cd llvm-project
-    make llvm
+    make llvm-shared
 
 This will install LLVM to `$XDG_DATA_HOME/llvm/lumen`, or
 `$HOME/.local/share/llvm/lumen`, if `$XDG_DATA_HOME` is not set. It assumes that Ninja and
@@ -129,7 +125,7 @@ likewise you can change the setting to use CCache by removing that option as wel
 
 Once LLVM is installed/built, you can build the `lumen` executable:
 
-    make build
+    cargo make
     
 This will create the compiler executable and associated toolchain for the host
 machine under `bin` in the root of the project. You can invoke `lumen` via the
@@ -139,7 +135,7 @@ symlink `bin/lumen`, e.g.:
     
 You can compile an Erlang file to an executable (on x86_64 only, currently):
 
-    bin/lumen compile --output-dir _build -lc <path/to/source.erl>
+    bin/lumen compile --output-dir _build <path/to/source> [<more paths>..]
     
 This will produce an executable with the same name as the source file in the
 current working directory with the `.out` or `.exe` extension, depending on your
@@ -173,10 +169,7 @@ The Lumen compiler is composed of the following sub-libraries/components:
 - `liblumen_session`, contains state and configuration for a single
   instantiation of the compiler, or "session". This is where you can find the
   bulk of option processing, input/output generation, and related items.
-- `liblumen_incremental`, contains the core of the incremental compilation
-  engine (based on `salsa`). This is where queries for inputs/parsing are
-  defined.
-- `liblumen_compiler`, contains the core of the compiler driver, as well as all
+- `liblumen_compiler`, contains the core of the compiler driver and incremental compilation engine (built on `salsa`), as well as all
   of the higher level queries for generating artifacts from parsed sources.
 - `liblumen_codegen`, contains the code generation backend, which is divided
   into two primary phases: the first handles translation from EIR to 
@@ -188,13 +181,6 @@ The Lumen compiler is composed of the following sub-libraries/components:
 - `liblumen_term`, contains the essential parts of our term encoding scheme, and
   is shared with the runtime libraries. The compiler requires this in order to
   handle encoding constant terms during compilation.
-
-#### Interpreter
-
-The interpreter is an alternative way to test and execute Erlang code, and
-builds on top of EIR similar to how the compiler works, albeit with some
-significant differences due to the nature of interpreting EIR rather than
-translating it for code generation.
 
 #### Runtime(s)
 

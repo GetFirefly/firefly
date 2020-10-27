@@ -178,13 +178,13 @@ fn main() {
     let cmd = format!("{:?}", &cargo_cmd);
     let mut child = cargo_cmd
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::null())
         .spawn()
         .unwrap();
 
     let mut deps: HashMap<String, Vec<String>> = HashMap::new();
     {
-        let child_stdout = child.stdout.as_mut().unwrap();
+        let child_stdout = child.stdout.take().unwrap();
         let mut child_stdout_reader = BufReader::new(child_stdout);
         let stdout = io::stdout();
         let mut handle = stdout.lock();
@@ -285,14 +285,13 @@ fn main() {
 
     println!("Build command completed, waiting for exit..");
 
-    let output = child.wait_with_output().unwrap();
-    if !output.status.success() {
-        println!(
+    let output = child.wait().unwrap();
+    if !output.success() {
+        panic!(
             "command did not execute successfully: {}\n\
             expected success, got: {}",
-            cmd, output.status
+            cmd, output
         );
-        panic!("{}", String::from_utf8_lossy(output.stderr.as_slice()));
     }
 
     println!("Preparing to install Lumen to {}", install_dir.display());

@@ -33,7 +33,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test -- --package liblumen_otp lib:: -- --skip lumen::otp
+          args: |
+            test -- --package liblumen_otp lib:: -- --skip lumen::otp
       - name: Run spawn-chain tests
         working-directory: examples/spawn-chain/cli
         run: make test

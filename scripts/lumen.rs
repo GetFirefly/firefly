@@ -231,9 +231,17 @@ fn main() {
                     }
                     _ => continue,
                 }
+            } else {
+                if let Err(e) = line {
+                    panic!("invalid line error: {}", e);
+                } else {
+                    panic!("wat");
+                }
             }
         }
     }
+
+    println!("Build command completed, waiting for exit..");
 
     let output = child.wait_with_output().unwrap();
     if !output.status.success() {

@@ -11,10 +11,6 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
-#include "lumen/EIR/Builder/Passes.h"
-#include "lumen/EIR/IR/EIROps.h"
-#include "lumen/EIR/IR/EIRTypes.h"
-#include "lumen/term/Encoding.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
@@ -22,6 +18,11 @@
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+
+#include "lumen/EIR/Builder/Passes.h"
+#include "lumen/EIR/IR/EIROps.h"
+#include "lumen/EIR/IR/EIRTypes.h"
+#include "lumen/term/Encoding.h"
 
 using ::llvm::Optional;
 using ::llvm::raw_ostream;

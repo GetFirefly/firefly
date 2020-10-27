@@ -6,6 +6,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Target/TargetMachine.h"
+
 #include "lumen/EIR/IR/EIRTypes.h"
 
 using ::llvm::APInt;

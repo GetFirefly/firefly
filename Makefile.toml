@@ -208,13 +208,13 @@ if is_empty "${result}"
   exit 1
 end
 
-cpp_files = glob_array "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/compiler/codegen_llvm/*.cpp"
-h_files = glob_array "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/compiler/codegen_llvm/*.h"
+cpp_files = glob_array "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/compiler/codegen_llvm/**/*.cpp"
+h_files = glob_array "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/compiler/codegen_llvm/**/*.h"
 files = array_concat ${cpp_files} ${h_files}
 for file in ${files}
     is_cached = contains "${file}" ".ccls-cache"
     if not ${is_cached}
-       result = exec clang-format -i --verbose "${file}"
+       result = exec clang-format -i --style=file --verbose "${file}"
        if ${result.code}
           echo "${result.stderr}"
           exit ${result.code}

@@ -7,10 +7,6 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "lumen/EIR/Builder/ModuleBuilderSupport.h"
-#include "lumen/EIR/IR/EIRAttributes.h"
-#include "lumen/EIR/IR/EIRTraits.h"
-#include "lumen/EIR/IR/EIRTypes.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dialect.h"
@@ -22,6 +18,11 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+
+#include "lumen/EIR/Builder/ModuleBuilderSupport.h"
+#include "lumen/EIR/IR/EIRAttributes.h"
+#include "lumen/EIR/IR/EIRTraits.h"
+#include "lumen/EIR/IR/EIRTypes.h"
 
 using ::llvm::APFloat;
 using ::llvm::APInt;

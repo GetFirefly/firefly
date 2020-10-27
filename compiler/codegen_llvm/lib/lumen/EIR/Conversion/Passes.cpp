@@ -1,12 +1,6 @@
 #include "mlir/Transforms/Passes.h"
 
-#include <memory>
-
 #include "llvm/Target/TargetMachine.h"
-#include "lumen/EIR/Conversion/ConvertEIRToLLVM.h"
-#include "lumen/EIR/IR/EIROps.h"
-#include "lumen/llvm/Target.h"
-#include "lumen/mlir/MLIR.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
@@ -14,6 +8,13 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
+
+#include "lumen/EIR/Conversion/ConvertEIRToLLVM.h"
+#include "lumen/EIR/IR/EIROps.h"
+#include "lumen/llvm/Target.h"
+#include "lumen/mlir/MLIR.h"
+
+#include <memory>
 
 using ::llvm::TargetMachine;
 using ::llvm::unwrap;

@@ -1,4 +1,11 @@
 BasedOnStyle: Google
+AlignAfterOpenBracket: Align
+AlignEscapedNewlines: Left
+BinPackArguments: true
+BinPackParameters: true
+IndentWidth: 4
+ColumnLimit: 80
+IndentCaseLabels: false
 AlwaysBreakTemplateDeclarations: Yes
 SortIncludes: true
 IncludeBlocks: Regroup

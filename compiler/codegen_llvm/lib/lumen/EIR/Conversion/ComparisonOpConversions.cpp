@@ -5,145 +5,146 @@ namespace eir {
 
 template <typename Op, typename OperandAdaptor>
 class ComparisonOpConversion : public EIROpConversion<Op> {
- public:
-  explicit ComparisonOpConversion(MLIRContext *context,
-                                  EirTypeConverter &converter_,
-                                  TargetInfo &targetInfo_,
-                                  mlir::PatternBenefit benefit = 1)
-      : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
-                                             benefit) {}
+   public:
+    explicit ComparisonOpConversion(MLIRContext *context,
+                                    EirTypeConverter &converter_,
+                                    TargetInfo &targetInfo_,
+                                    mlir::PatternBenefit benefit = 1)
+        : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
+                                               benefit) {}
 
-  LogicalResult matchAndRewrite(
-      Op op, ArrayRef<Value> operands,
-      ConversionPatternRewriter &rewriter) const override {
-    OperandAdaptor adaptor(operands);
-    auto ctx = getRewriteContext(op, rewriter);
+    LogicalResult matchAndRewrite(
+        Op op, ArrayRef<Value> operands,
+        ConversionPatternRewriter &rewriter) const override {
+        OperandAdaptor adaptor(operands);
+        auto ctx = getRewriteContext(op, rewriter);
 
-    StringRef builtinSymbol = Op::builtinSymbol();
+        StringRef builtinSymbol = Op::builtinSymbol();
 
-    auto termTy = ctx.getUsizeType();
-    auto int1ty = ctx.getI1Type();
+        auto termTy = ctx.getUsizeType();
+        auto int1ty = ctx.getI1Type();
 
-    auto callee =
-        ctx.getOrInsertFunction(builtinSymbol, int1ty, {termTy, termTy});
+        auto callee =
+            ctx.getOrInsertFunction(builtinSymbol, int1ty, {termTy, termTy});
 
-    Value lhs = adaptor.lhs();
-    Value rhs = adaptor.rhs();
+        Value lhs = adaptor.lhs();
+        Value rhs = adaptor.rhs();
 
-    ArrayRef<Value> args({lhs, rhs});
-    auto calleeSymbol =
-        FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
-    Operation *callOp = std_call(calleeSymbol, ArrayRef<Type>{int1ty}, args);
+        ArrayRef<Value> args({lhs, rhs});
+        auto calleeSymbol =
+            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        Operation *callOp =
+            std_call(calleeSymbol, ArrayRef<Type>{int1ty}, args);
 
-    rewriter.replaceOp(op, callOp->getResult(0));
-    return success();
-  }
+        rewriter.replaceOp(op, callOp->getResult(0));
+        return success();
+    }
 
- private:
-  using EIROpConversion<Op>::getRewriteContext;
+   private:
+    using EIROpConversion<Op>::getRewriteContext;
 };
 
 struct CmpLtOpConversion
     : public ComparisonOpConversion<CmpLtOp, CmpLtOpAdaptor> {
-  using ComparisonOpConversion::ComparisonOpConversion;
+    using ComparisonOpConversion::ComparisonOpConversion;
 };
 struct CmpLteOpConversion
     : public ComparisonOpConversion<CmpLteOp, CmpLteOpAdaptor> {
-  using ComparisonOpConversion::ComparisonOpConversion;
+    using ComparisonOpConversion::ComparisonOpConversion;
 };
 struct CmpGtOpConversion
     : public ComparisonOpConversion<CmpGtOp, CmpGtOpAdaptor> {
-  using ComparisonOpConversion::ComparisonOpConversion;
+    using ComparisonOpConversion::ComparisonOpConversion;
 };
 struct CmpGteOpConversion
     : public ComparisonOpConversion<CmpGteOp, CmpGteOpAdaptor> {
-  using ComparisonOpConversion::ComparisonOpConversion;
+    using ComparisonOpConversion::ComparisonOpConversion;
 };
 
 struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
-  using EIROpConversion::EIROpConversion;
+    using EIROpConversion::EIROpConversion;
 
-  LogicalResult matchAndRewrite(
-      CmpEqOp op, ArrayRef<Value> operands,
-      ConversionPatternRewriter &rewriter) const override {
-    CmpEqOpAdaptor adaptor(operands);
-    auto ctx = getRewriteContext(op, rewriter);
-    auto i1Ty = ctx.getI1Type();
-    auto termTy = ctx.getUsizeType();
+    LogicalResult matchAndRewrite(
+        CmpEqOp op, ArrayRef<Value> operands,
+        ConversionPatternRewriter &rewriter) const override {
+        CmpEqOpAdaptor adaptor(operands);
+        auto ctx = getRewriteContext(op, rewriter);
+        auto i1Ty = ctx.getI1Type();
+        auto termTy = ctx.getUsizeType();
 
-    Value lhs = adaptor.lhs();
-    Value rhs = adaptor.rhs();
-    Type lhsType = op.lhs().getType();
-    Type rhsType = op.rhs().getType();
-    bool strict = false;
-    if (auto attr = op.getAttrOfType<UnitAttr>("is_strict")) {
-      strict = true;
+        Value lhs = adaptor.lhs();
+        Value rhs = adaptor.rhs();
+        Type lhsType = op.lhs().getType();
+        Type rhsType = op.rhs().getType();
+        bool strict = false;
+        if (auto attr = op.getAttrOfType<UnitAttr>("is_strict")) {
+            strict = true;
+        }
+
+        bool useICmp = true;
+        Value lhsOperand;
+        Value rhsOperand;
+        Optional<Type> targetType =
+            ctx.typeConverter.coalesceOperandTypes(lhsType, rhsType);
+        if (targetType.hasValue()) {
+            // We were able to decide which type to lower to, insert casts where
+            // necessary
+            auto tt = targetType.getValue();
+            if (lhsType != tt)
+                lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs, tt);
+            else
+                lhsOperand = lhs;
+            if (rhsType != tt)
+                rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs, tt);
+            else
+                rhsOperand = rhs;
+        } else {
+            useICmp = false;
+            if (lhsType.isa<TermType>())
+                lhsOperand = lhs;
+            else
+                lhsOperand = rewriter.create<CastOp>(
+                    op.getLoc(), lhs, rewriter.getType<TermType>());
+            if (rhsType.isa<TermType>())
+                rhsOperand = rhs;
+            else
+                rhsOperand = rewriter.create<CastOp>(
+                    op.getLoc(), rhs, rewriter.getType<TermType>());
+        }
+
+        if (strict && useICmp) {
+            rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(
+                op, LLVM::ICmpPredicate::eq, lhsOperand, rhsOperand);
+            return success();
+        }
+
+        // If we reach here, fall back to the slow path
+        StringRef builtinSymbol;
+        if (strict)
+            builtinSymbol = "__lumen_builtin_cmp.eq.strict";
+        else
+            builtinSymbol = "__lumen_builtin_cmp.eq";
+
+        auto callee =
+            ctx.getOrInsertFunction(builtinSymbol, i1Ty, {termTy, termTy});
+
+        auto calleeSymbol =
+            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        Operation *callOp =
+            std_call(calleeSymbol, ArrayRef<Type>{i1Ty}, ValueRange{lhs, rhs});
+
+        rewriter.replaceOp(op, callOp->getResult(0));
+        return success();
     }
-
-    bool useICmp = true;
-    Value lhsOperand;
-    Value rhsOperand;
-    Optional<Type> targetType =
-        ctx.typeConverter.coalesceOperandTypes(lhsType, rhsType);
-    if (targetType.hasValue()) {
-      // We were able to decide which type to lower to, insert casts where
-      // necessary
-      auto tt = targetType.getValue();
-      if (lhsType != tt)
-        lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs, tt);
-      else
-        lhsOperand = lhs;
-      if (rhsType != tt)
-        rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs, tt);
-      else
-        rhsOperand = rhs;
-    } else {
-      useICmp = false;
-      if (lhsType.isa<TermType>())
-        lhsOperand = lhs;
-      else
-        lhsOperand = rewriter.create<CastOp>(op.getLoc(), lhs,
-                                             rewriter.getType<TermType>());
-      if (rhsType.isa<TermType>())
-        rhsOperand = rhs;
-      else
-        rhsOperand = rewriter.create<CastOp>(op.getLoc(), rhs,
-                                             rewriter.getType<TermType>());
-    }
-
-    if (strict && useICmp) {
-      rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
-                                                lhsOperand, rhsOperand);
-      return success();
-    }
-
-    // If we reach here, fall back to the slow path
-    StringRef builtinSymbol;
-    if (strict)
-      builtinSymbol = "__lumen_builtin_cmp.eq.strict";
-    else
-      builtinSymbol = "__lumen_builtin_cmp.eq";
-
-    auto callee =
-        ctx.getOrInsertFunction(builtinSymbol, i1Ty, {termTy, termTy});
-
-    auto calleeSymbol =
-        FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
-    Operation *callOp =
-        std_call(calleeSymbol, ArrayRef<Type>{i1Ty}, ValueRange{lhs, rhs});
-
-    rewriter.replaceOp(op, callOp->getResult(0));
-    return success();
-  }
 };
 
 void populateComparisonOpConversionPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *context,
                                             EirTypeConverter &converter,
                                             TargetInfo &targetInfo) {
-  patterns.insert<CmpEqOpConversion, CmpLtOpConversion, CmpLteOpConversion,
-                  CmpGtOpConversion, CmpGteOpConversion>(context, converter,
-                                                         targetInfo);
+    patterns.insert<CmpEqOpConversion, CmpLtOpConversion, CmpLteOpConversion,
+                    CmpGtOpConversion, CmpGteOpConversion>(context, converter,
+                                                           targetInfo);
 }
 
 }  // namespace eir

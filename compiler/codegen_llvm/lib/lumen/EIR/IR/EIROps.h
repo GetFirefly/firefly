@@ -77,33 +77,35 @@ namespace lumen {
 namespace eir {
 
 class MatchBranch {
- public:
-  MatchBranch(Location loc, Block *dest, ArrayRef<Value> destArgs,
-              std::unique_ptr<MatchPattern> pattern)
-      : loc(loc),
-        dest(dest),
-        destArgs(destArgs.begin(), destArgs.end()),
-        pattern(std::move(pattern)) {}
+   public:
+    MatchBranch(Location loc, Block *dest, ArrayRef<Value> destArgs,
+                std::unique_ptr<MatchPattern> pattern)
+        : loc(loc),
+          dest(dest),
+          destArgs(destArgs.begin(), destArgs.end()),
+          pattern(std::move(pattern)) {}
 
-  Location getLoc() const { return loc; }
-  Block *getDest() const { return dest; }
-  ArrayRef<Value> getDestArgs() const { return destArgs; }
-  MatchPatternType getPatternType() const { return pattern->getKind(); }
-  bool isCatchAll() const { return getPatternType() == MatchPatternType::Any; }
+    Location getLoc() const { return loc; }
+    Block *getDest() const { return dest; }
+    ArrayRef<Value> getDestArgs() const { return destArgs; }
+    MatchPatternType getPatternType() const { return pattern->getKind(); }
+    bool isCatchAll() const {
+        return getPatternType() == MatchPatternType::Any;
+    }
 
-  MatchPattern *getPattern() const { return pattern.get(); }
+    MatchPattern *getPattern() const { return pattern.get(); }
 
-  template <typename T>
-  T *getPatternTypeOrNull() const {
-    T *result = dyn_cast<T>(getPattern());
-    return result;
-  }
+    template <typename T>
+    T *getPatternTypeOrNull() const {
+        T *result = dyn_cast<T>(getPattern());
+        return result;
+    }
 
- private:
-  Location loc;
-  Block *dest;
-  SmallVector<Value, 3> destArgs;
-  std::unique_ptr<MatchPattern> pattern;
+   private:
+    Location loc;
+    Block *dest;
+    SmallVector<Value, 3> destArgs;
+    std::unique_ptr<MatchPattern> pattern;
 };
 
 /// Performs lowering of a match operation

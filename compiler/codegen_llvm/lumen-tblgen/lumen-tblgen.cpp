@@ -18,33 +18,33 @@ static llvm::ManagedStatic<std::vector<GenInfo>> generatorRegistry;
 
 mlir::GenRegistration::GenRegistration(StringRef arg, StringRef description,
                                        GenFunction function) {
-  generatorRegistry->emplace_back(arg, description, function);
+    generatorRegistry->emplace_back(arg, description, function);
 }
 
 GenNameParser::GenNameParser(llvm::cl::Option &opt)
     : llvm::cl::parser<const GenInfo *>(opt) {
-  for (const auto &kv : *generatorRegistry) {
-    addLiteralOption(kv.getGenArgument(), &kv, kv.getGenDescription());
-  }
+    for (const auto &kv : *generatorRegistry) {
+        addLiteralOption(kv.getGenArgument(), &kv, kv.getGenDescription());
+    }
 }
 
 void GenNameParser::printOptionInfo(const llvm::cl::Option &O,
                                     size_t GlobalWidth) const {
-  GenNameParser *TP = const_cast<GenNameParser *>(this);
-  llvm::array_pod_sort(TP->Values.begin(), TP->Values.end(),
-                       [](const GenNameParser::OptionInfo *VT1,
-                          const GenNameParser::OptionInfo *VT2) {
-                         return VT1->Name.compare(VT2->Name);
-                       });
-  using llvm::cl::parser;
-  parser<const GenInfo *>::printOptionInfo(O, GlobalWidth);
+    GenNameParser *TP = const_cast<GenNameParser *>(this);
+    llvm::array_pod_sort(TP->Values.begin(), TP->Values.end(),
+                         [](const GenNameParser::OptionInfo *VT1,
+                            const GenNameParser::OptionInfo *VT2) {
+                             return VT1->Name.compare(VT2->Name);
+                         });
+    using llvm::cl::parser;
+    parser<const GenInfo *>::printOptionInfo(O, GlobalWidth);
 }
 
 // Generator that prints records.
 GenRegistration printRecords("print-records", "Print all records to stdout",
                              [](const RecordKeeper &records, raw_ostream &os) {
-                               os << records;
-                               return false;
+                                 os << records;
+                                 return false;
                              });
 
 // Generator to invoke.
@@ -53,19 +53,19 @@ const mlir::GenInfo *generator;
 // TableGenMain requires a function pointer so this function is passed in which
 // simply wraps the call to the generator.
 static bool LumenTableGenMain(raw_ostream &os, RecordKeeper &records) {
-  if (!generator) {
-    os << records;
-    return false;
-  }
-  return generator->invoke(records, os);
+    if (!generator) {
+        os << records;
+        return false;
+    }
+    return generator->invoke(records, os);
 }
 
 int main(int argc, char **argv) {
-  llvm::InitLLVM y(argc, argv);
-  llvm::cl::opt<const mlir::GenInfo *, false, mlir::GenNameParser> generator(
-      "", llvm::cl::desc("Generator to run"));
-  cl::ParseCommandLineOptions(argc, argv);
-  ::generator = generator.getValue();
+    llvm::InitLLVM y(argc, argv);
+    llvm::cl::opt<const mlir::GenInfo *, false, mlir::GenNameParser> generator(
+        "", llvm::cl::desc("Generator to run"));
+    cl::ParseCommandLineOptions(argc, argv);
+    ::generator = generator.getValue();
 
-  return TableGenMain(argv[0], &LumenTableGenMain);
+    return TableGenMain(argv[0], &LumenTableGenMain);
 }

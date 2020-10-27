@@ -8,8 +8,10 @@
 //! features = ["derive"]
 //! ```
 #![feature(drain_filter)]
+#![feature(slice_internals)]
 #![allow(non_snake_case)]
 
+extern crate core;
 extern crate serde;
 extern crate serde_json;
 extern crate walkdir;
@@ -175,7 +177,6 @@ fn main() {
 
     let cmd = format!("{:?}", &cargo_cmd);
     let mut child = cargo_cmd
-        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -184,59 +185,100 @@ fn main() {
     let mut deps: HashMap<String, Vec<String>> = HashMap::new();
     {
         let child_stdout = child.stdout.as_mut().unwrap();
-        let child_stdout_reader = BufReader::new(child_stdout);
+        let mut child_stdout_reader = BufReader::new(child_stdout);
         let stdout = io::stdout();
         let mut handle = stdout.lock();
 
-        for line in child_stdout_reader.lines() {
-            if let Ok(line) = line {
-                match serde_json::from_str(&line).unwrap() {
-                    Item::Message { ref message } => {
-                        let message = format!("{}", message);
-                        handle.write_all(message.as_bytes()).unwrap()
-                    }
-                    Item::Artifact {
-                        target, package_id, ..
-                    } if target.name == "build-script-build" => {
-                        let message = format!("Building {}\n", &package_id);
-                        handle.write_all(message.as_bytes()).unwrap();
-                        continue;
-                    }
-                    Item::BuildScriptExecuted { package_id, .. } => {
-                        let message = format!("Build script executed for {}\n", &package_id);
-                        handle.write_all(message.as_bytes()).unwrap();
-                        continue;
-                    }
-                    Item::Artifact {
-                        target,
-                        package_id,
-                        mut filenames,
-                    } => {
-                        let message = format!("Compiled {}\n", &package_id);
-                        handle.write_all(message.as_bytes()).unwrap();
-                        let files = filenames
-                            .drain_filter(|f| f.ends_with(".a") || f.ends_with(".rlib"))
-                            .collect::<Vec<_>>();
-                        if !files.is_empty() {
-                            deps.insert(target.name, files);
+        let mut read = 0;
+        let mut buf = Vec::new();
+        loop {
+            use core::slice::memchr;
+            use std::io::ErrorKind;
+
+            let bytes = match child_stdout_reader.fill_buf() {
+                Ok(b) => b,
+                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
+                Err(e) => panic!("failed to read output from build command: {}", e),
+            };
+            if bytes.is_empty() {
+                // We've reached EOF, but have unflushed data in the buffer, so flush it
+                if read > 0 {
+                    handle.write_all(&buf[..]).unwrap();
+                }
+                break;
+            }
+            // Search for newline to break up our input into individual JSON messages
+            let (has_line, used) = match memchr::memchr(b'\n', bytes) {
+                Some(i) => {
+                    buf.extend_from_slice(&bytes[..=i]);
+                    (true, i + 1)
+                }
+                None => {
+                    buf.extend_from_slice(bytes);
+                    (false, bytes.len())
+                }
+            };
+            child_stdout_reader.consume(used);
+            read += used;
+
+            if buf.ends_with(&[b'\n']) {
+                buf.pop();
+                if buf.ends_with(&[b'\r']) {
+                    buf.pop();
+                }
+            }
+
+            if has_line {
+                match serde_json::from_slice(&buf[..]) {
+                    Ok(item) => match item {
+                        Item::Message { ref message } => {
+                            let message = format!("{}", message);
+                            handle.write_all(message.as_bytes()).unwrap()
                         }
+                        Item::Artifact {
+                            target, package_id, ..
+                        } if target.name == "build-script-build" => {
+                            let message = format!("Building {}\n", &package_id);
+                            handle.write_all(message.as_bytes()).unwrap();
+                        }
+                        Item::BuildScriptExecuted { package_id, .. } => {
+                            let message = format!("Build script executed for {}\n", &package_id);
+                            handle.write_all(message.as_bytes()).unwrap();
+                        }
+                        Item::Artifact {
+                            target,
+                            package_id,
+                            mut filenames,
+                        } => {
+                            let message = format!("Compiled {}\n", &package_id);
+                            handle.write_all(message.as_bytes()).unwrap();
+                            let files = filenames
+                                .drain_filter(|f| f.ends_with(".a") || f.ends_with(".rlib"))
+                                .collect::<Vec<_>>();
+                            if !files.is_empty() {
+                                deps.insert(target.name, files);
+                            }
+                        }
+                        Item::BuildFinished { success } => {
+                            let message = if success {
+                                format!("Build completed successfully!\n")
+                            } else {
+                                format!("Build finished with errors!\n")
+                            };
+                            handle.write_all(message.as_bytes()).unwrap();
+                        }
+                        _ => {}
+                    },
+                    Err(e) => {
+                        handle.write_all(&buf[..]).unwrap();
+                        handle.write(b"\n").unwrap();
+                        panic!("JSON parsing error: {}", e);
                     }
-                    Item::BuildFinished { success } => {
-                        let message = if success {
-                            format!("Build completed successfully!\n")
-                        } else {
-                            format!("Build finished with errors!\n")
-                        };
-                        handle.write_all(message.as_bytes()).unwrap();
-                    }
-                    _ => continue,
                 }
-            } else {
-                if let Err(e) = line {
-                    panic!("invalid line error: {}", e);
-                } else {
-                    panic!("wat");
-                }
+
+                // Reset buffer
+                read = 0;
+                buf.truncate(0);
             }
         }
     }
@@ -245,15 +287,12 @@ fn main() {
 
     let output = child.wait_with_output().unwrap();
     if !output.status.success() {
-        let stdout = io::stdout();
-        let mut handle = stdout.lock();
-        handle.write_all(output.stderr.as_slice()).unwrap();
-        handle.write(b"\n").unwrap();
-        panic!(
+        println!(
             "command did not execute successfully: {}\n\
             expected success, got: {}",
             cmd, output.status
         );
+        panic!("{}", String::from_utf8_lossy(output.stderr.as_slice()));
     }
 
     println!("Preparing to install Lumen to {}", install_dir.display());

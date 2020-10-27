@@ -23,6 +23,6 @@ jobs:
       - name: Own Home
         run: chown -R $(whoami) $HOME
       - name: Lumen Web Test
-        run: cargo make test-web chrome firefox
+        run: cargo make test-web -- --chrome --firefox
       - name: Spawn Chain Test
-        run: cargo make test-spawn-chain chrome firefox
+        run: cargo make test-spawn-chain -- --chrome --firefox

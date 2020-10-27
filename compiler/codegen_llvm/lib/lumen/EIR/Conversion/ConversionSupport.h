@@ -3,10 +3,6 @@
 
 #include "llvm/Support/Casting.h"
 #include "llvm/Target/TargetMachine.h"
-#include "lumen/EIR/Conversion/TargetInfo.h"
-#include "lumen/EIR/IR/EIRAttributes.h"
-#include "lumen/EIR/IR/EIROps.h"
-#include "lumen/EIR/IR/EIRTypes.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -21,6 +17,11 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
+
+#include "lumen/EIR/Conversion/TargetInfo.h"
+#include "lumen/EIR/IR/EIRAttributes.h"
+#include "lumen/EIR/IR/EIROps.h"
+#include "lumen/EIR/IR/EIRTypes.h"
 
 using ::llvm::cast;
 using ::llvm::dyn_cast_or_null;

@@ -4,8 +4,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
-#include "lumen/EIR/IR/EIRDialect.h"
-#include "lumen/EIR/IR/EIREnums.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
@@ -13,6 +11,9 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/Parser.h"
+
+#include "lumen/EIR/IR/EIRDialect.h"
+#include "lumen/EIR/IR/EIREnums.h"
 
 using ::llvm::SmallVector;
 using ::llvm::StringRef;

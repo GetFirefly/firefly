@@ -1,10 +1,11 @@
 #include "llvm/Support/Casting.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+
 #include "lumen/EIR/Builder/Passes.h"
 #include "lumen/EIR/IR/EIRDialect.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 using ::mlir::Block;
 using ::mlir::BlockArgument;

@@ -1,3 +1,19 @@
 BasedOnStyle: Google
 AlwaysBreakTemplateDeclarations: Yes
-IncludeBlocks: Preserve
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^"(llvm|llvm-c|mlir|mlir-c|clang|clang-c)/'
+    Priority:        2
+    SortPriority:    2
+  - Regex:           '^"(lumen)/'
+    Priority:        3
+    SortPriority:    3
+  - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
+    Priority:        4
+    Priority:        4
+  - Regex:           '<[[:alnum:].]+>'
+    Priority:        5
+  - Regex:           '.*'
+    Priority:        6
+    SortPriority:    0

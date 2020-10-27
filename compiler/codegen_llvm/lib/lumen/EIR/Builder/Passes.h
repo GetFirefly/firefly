@@ -1,9 +1,9 @@
 #ifndef LUMEN_BUILDER_PASSES_H
 #define LUMEN_BUILDER_PASSES_H
 
-#include <memory>
-
 #include "mlir/Pass/Pass.h"
+
+#include <memory>
 
 namespace lumen {
 namespace eir {

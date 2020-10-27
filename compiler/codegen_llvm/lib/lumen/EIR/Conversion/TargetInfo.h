@@ -3,9 +3,10 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Triple.h"
-#include "lumen/term/Encoding.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/MLIRContext.h"
+
+#include "lumen/term/Encoding.h"
 
 using ::mlir::LLVM::LLVMType;
 

@@ -1,11 +1,12 @@
 #ifndef LUMEN_MODULEBUILDER_H
 #define LUMEN_MODULEBUILDER_H
 
+#include "mlir/Support/LLVM.h"
+
 #include "lumen/EIR/Builder/ModuleBuilderSupport.h"
 #include "lumen/llvm/Target.h"
 #include "lumen/mlir/IR.h"
 #include "lumen/mlir/MLIR.h"
-#include "mlir/Support/LLVM.h"
 
 using ::llvm::APFloat;
 using ::llvm::APInt;

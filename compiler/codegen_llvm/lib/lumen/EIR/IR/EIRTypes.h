@@ -1,15 +1,11 @@
 #ifndef EIR_TYPES_H
 #define EIR_TYPES_H
 
-#include <vector>
-
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
-#include "lumen/EIR/IR/EIRDialect.h"
-#include "lumen/EIR/IR/EIREnums.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/StandardTypes.h"
@@ -17,6 +13,11 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
+
+#include "lumen/EIR/IR/EIRDialect.h"
+#include "lumen/EIR/IR/EIREnums.h"
+
+#include <vector>
 
 using ::llvm::ArrayRef;
 using ::llvm::Optional;

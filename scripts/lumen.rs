@@ -33,13 +33,16 @@ enum Item {
     #[serde(rename = "compiler-artifact")]
     Artifact {
         target: Target,
+        package_id: String,
         filenames: Vec<String>,
     },
     #[serde(rename = "build-script-executed")]
-    #[allow(unused)]
-    BuildScriptExecuted { package_id: String, out_dir: String },
+    BuildScriptExecuted {
+        package_id: String,
+        #[allow(unused)]
+        out_dir: String,
+    },
     #[serde(rename = "build-finished")]
-    #[allow(unused)]
     BuildFinished { success: bool },
     #[serde(other)]
     #[allow(unused)]
@@ -180,17 +183,37 @@ fn main() {
 
     let mut deps: HashMap<String, Vec<String>> = HashMap::new();
     {
-        let stdout = child.stdout.as_mut().unwrap();
-        let stdout_reader = BufReader::new(stdout);
+        let child_stdout = child.stdout.as_mut().unwrap();
+        let child_stdout_reader = BufReader::new(child_stdout);
+        let stdout = io::stdout();
+        let mut handle = stdout.lock();
 
-        for line in stdout_reader.lines() {
+        for line in child_stdout_reader.lines() {
             if let Ok(line) = line {
                 match serde_json::from_str(&line).unwrap() {
-                    Item::Message { ref message } => print!("{}", message),
+                    Item::Message { ref message } => {
+                        let message = format!("{}", message);
+                        handle.write_all(message.as_bytes()).unwrap()
+                    }
+                    Item::Artifact {
+                        target, package_id, ..
+                    } if target.name == "build-script-build" => {
+                        let message = format!("Building {}\n", &package_id);
+                        handle.write_all(message.as_bytes()).unwrap();
+                        continue;
+                    }
+                    Item::BuildScriptExecuted { package_id, .. } => {
+                        let message = format!("Build script executed for {}\n", &package_id);
+                        handle.write_all(message.as_bytes()).unwrap();
+                        continue;
+                    }
                     Item::Artifact {
                         target,
+                        package_id,
                         mut filenames,
                     } => {
+                        let message = format!("Compiled {}\n", &package_id);
+                        handle.write_all(message.as_bytes()).unwrap();
                         let files = filenames
                             .drain_filter(|f| f.ends_with(".a") || f.ends_with(".rlib"))
                             .collect::<Vec<_>>();
@@ -198,26 +221,30 @@ fn main() {
                             deps.insert(target.name, files);
                         }
                     }
+                    Item::BuildFinished { success } => {
+                        let message = if success {
+                            format!("Build completed successfully!\n")
+                        } else {
+                            format!("Build finished with errors!\n")
+                        };
+                        handle.write_all(message.as_bytes()).unwrap();
+                    }
                     _ => continue,
                 }
             }
         }
     }
 
-    let status = child.wait().unwrap();
-    if !status.success() {
-        let stderr = child.stderr.as_mut().unwrap();
-        let stderr_reader = BufReader::new(stderr);
-        for line in stderr_reader.lines() {
-            if let Ok(line) = line {
-                io::stdout().write_all(&line.into_bytes()).unwrap();
-            }
-        }
-        io::stdout().write(b"\n").unwrap();
+    let output = child.wait_with_output().unwrap();
+    if !output.status.success() {
+        let stdout = io::stdout();
+        let mut handle = stdout.lock();
+        handle.write_all(output.stderr.as_slice()).unwrap();
+        handle.write(b"\n").unwrap();
         panic!(
             "command did not execute successfully: {}\n\
-             expected success, got: {}",
-            cmd, status
+            expected success, got: {}",
+            cmd, output.status
         );
     }
 

@@ -51,7 +51,11 @@ jobs:
           args: lumen
       - name: Add Compiler To Path
         run: |
-          echo "$PWD/bin" >> $GITHUB_PATH
+          if [ -n "${GITHUB_PATH}" ]; then
+            echo "$PWD/bin" >> $GITHUB_PATH
+          else
+            echo "::add-path::${PWD}/bin"
+          fi
       - name: Run baseline tests
         uses: actions-rs/cargo@v1
         with:

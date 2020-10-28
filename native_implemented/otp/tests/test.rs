@@ -170,6 +170,7 @@ where
     let directory_path = relative_file_path.parent().unwrap();
     let file_stem = file_path.file_stem().unwrap();
     let test_directory_path = directory_path.join(file_stem).join(name);
+    let file_build_path = build_path.join(file_stem).join(name);
 
     let mut command = Command::new("../../bin/lumen");
 
@@ -177,6 +178,8 @@ where
         .arg("compile")
         .arg("--output")
         .arg(&bin_path)
+        .arg("--output-dir")
+        .arg(&file_build_path)
         .arg("-O0");
 
     if std::env::var_os("DEBUG").is_some() {

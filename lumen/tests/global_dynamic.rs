@@ -5,7 +5,7 @@ use std::sync::Once;
 fn without_arguments_calls_global_dynamic_functions() {
     ensure_compiled();
 
-    let cli_output = Command::new("./global_dynamic")
+    let cli_output = Command::new("tests/_build/global_dynamic")
         .stdin(Stdio::null())
         .output()
         .unwrap();
@@ -31,14 +31,14 @@ fn ensure_compiled() {
 }
 
 fn compile() {
+    std::fs::create_dir_all("tests/_build").unwrap();
+
     let mut command = Command::new("../bin/lumen");
 
     command
         .arg("compile")
-        .arg("--output-dir")
-        .arg("_build")
         .arg("--output")
-        .arg("global_dynamic")
+        .arg("tests/_build/global_dynamic")
         // Turn off optimizations as work-around for debug info bug in EIR
         .arg("-O0");
 

@@ -3,6 +3,7 @@
 !/.vscode/tasks.json
 !/.vscode/launch.json
 /.vscode/*
+_build
 
 *.beam
 .#*

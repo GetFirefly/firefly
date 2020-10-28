@@ -246,7 +246,7 @@ args = ["clean"]
 [tasks.test]
 category = "Test"
 description = "Runs all tests"
-dependencies = ["test-rust"]
+dependencies = ["test-rust", "test-cleanup"]
 
 [tasks.test-rust]
 category = "Test"
@@ -259,6 +259,16 @@ dependencies = [
   "require-cmake",
   "lumen-tblgen",
 ]
+
+[tasks.test-cleanup]
+private = true
+#condition = { env = { CARGO_MAKE_CI = "true" } }
+script = ['''
+#!@duckscript
+
+rm -r ${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/lumen/tests/_build
+rm -r ${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/native_implemented/otp/tests/_build
+''']
 
 [tasks.rebuild]
 command = "cargo"
@@ -522,14 +532,22 @@ condition = { files_not_exist = ["${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/exam
 command = "git"
 args = ["clone", "--depth", "1", "--branch", "develop", "https://github.com/lumen/examples", "examples"]
 
-[tasks.spawn-chain]
+[tasks.spawn-chain-web]
 category = "Examples"
-description = "Builds spawn-chain example program"
+description = "Builds spawn-chain example program (wasm32)"
 command = "wasm-pack"
 args = ["build", "examples/spawn-chain/wasm"]
 dependencies = ["checkout-interpreter", "checkout-examples", "lumen-tblgen"]
 
 [tasks.test-spawn-chain]
+category = "Examples"
+description = "Tests spawn-chain example program (x86_64)"
+cwd = "examples/spawn-chain/cli"
+command = "make"
+args = ["test"]
+dependencies = ["checkout-interpreter", "checkout-examples", "lumen-tblgen"]
+
+[tasks.test-spawn-chain-wasm]
 category = "Test"
 description = "Runs the spawn-chain example tests"
 command = "wasm-pack"

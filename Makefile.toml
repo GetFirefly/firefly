@@ -523,7 +523,7 @@ private = true
 category = "Examples"
 condition = { files_not_exist = ["${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/interpreter"] }
 command = "git"
-args = ["clone", "--depth", "1", "--single-branch", "https://github.com/lumen/interpeter", "interpreter"]
+args = ["clone", "--depth", "1", "--single-branch", "https://github.com/lumen/interpreter", "interpreter"]
 
 [tasks.checkout-examples]
 private = true
@@ -552,4 +552,4 @@ category = "Test"
 description = "Runs the spawn-chain example tests"
 command = "wasm-pack"
 args = ["test", "--headless", "${@}", "examples/spawn-chain/wasm"]
-dependencies = ["lumen-tblgen", "spawn-chain"]
+dependencies = ["lumen-tblgen", "spawn-chain-web"]

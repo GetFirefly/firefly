@@ -53,7 +53,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test -- --package lumen_rt_full
+          args: |
+            test -- --package lumen_rt_full
       - name: Run liblumen_otp tests with runtime_full
         uses: actions-rs/cargo@v1
         with:

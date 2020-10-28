@@ -25,4 +25,4 @@ jobs:
       - name: Lumen Web Test
         run: cargo make test-web -- --chrome --firefox
       - name: Spawn Chain Test
-        run: cargo make test-spawn-chain -- --chrome --firefox
+        run: cargo make test-spawn-chain-wasm -- --chrome --firefox

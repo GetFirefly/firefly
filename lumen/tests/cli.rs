@@ -6,7 +6,10 @@ mod cli {
     fn without_arguments_prints_nothing_to_say() {
         ensure_compiled();
 
-        let cli_output = Command::new("./cli").stdin(Stdio::null()).output().unwrap();
+        let cli_output = Command::new("tests/_build/cli")
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
 
         let stdout = String::from_utf8_lossy(&cli_output.stdout);
         let stderr = String::from_utf8_lossy(&cli_output.stderr);
@@ -24,7 +27,7 @@ mod cli {
     fn with_false_argument_prints_nothing_to_say() {
         ensure_compiled();
 
-        let cli_output = Command::new("./cli")
+        let cli_output = Command::new("tests/_build/cli")
             .arg("false")
             .stdin(Stdio::null())
             .output()
@@ -44,7 +47,7 @@ mod cli {
     fn with_true_argument_prints_nothing_to_say() {
         ensure_compiled();
 
-        let cli_output = Command::new("./cli")
+        let cli_output = Command::new("tests/_build/cli")
             .arg("true")
             .stdin(Stdio::null())
             .output()
@@ -73,10 +76,8 @@ mod cli {
 
         command
             .arg("compile")
-            .arg("--output-dir")
-            .arg("_build")
             .arg("--output")
-            .arg("cli")
+            .arg("tests/_build/cli")
             // Turn off optimizations as work-around for debug info bug in EIR
             .arg("-O0");
 

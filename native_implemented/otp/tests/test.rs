@@ -159,6 +159,10 @@ fn compile<F>(file: &str, name: &str, compilation_mutator: F) -> Result<PathBuf,
 where
     F: FnOnce(Compilation),
 {
+    let cwd = std::env::current_dir().unwrap();
+    let build_path = cwd.join("tests/_build");
+    let bin_path = build_path.join(name);
+
     // `file!()` starts with path relative to workspace root, but the `current_dir` will be inside
     // the crate root, so need to strip the relative crate root.
     let file_path = Path::new(file);
@@ -167,35 +171,24 @@ where
     let file_stem = file_path.file_stem().unwrap();
     let test_directory_path = directory_path.join(file_stem).join(name);
 
-    let build_path_buf = test_directory_path.join("_build");
-
     let mut command = Command::new("../../bin/lumen");
-
-    let bin_path_buf = test_directory_path.join("bin");
-    let output_path_buf = bin_path_buf.join(name);
 
     command
         .arg("compile")
-        .arg("--output-dir")
-        .arg(build_path_buf)
         .arg("--output")
-        .arg(&output_path_buf)
-        // Turn off optimizations as work-around for debug info bug in EIR
-        .arg("-O0")
-        .arg("--emit=all");
+        .arg(&bin_path)
+        .arg("-O0");
+
+    if std::env::var_os("DEBUG").is_some() {
+        command.arg("--emit=all");
+    }
 
     compilation_mutator(Compilation {
         command: &mut command,
         test_directory_path: &test_directory_path,
     });
 
-    timeout(
-        "Compilation",
-        std::env::current_dir().unwrap(),
-        command,
-        Duration::from_secs(30),
-    )
-    .map(|_| output_path_buf)
+    timeout("Compilation", cwd, command, Duration::from_secs(30)).map(|_| bin_path)
 }
 
 pub fn timeout(
@@ -259,7 +252,7 @@ pub fn output(file: &str, name: &str) -> (Command, Output) {
         },
     );
 
-    let mut command = Command::new(bin_path_buf);
+    let mut command = Command::new(&bin_path_buf);
 
     let process = command
         .stdin(Stdio::null())
@@ -275,6 +268,8 @@ pub fn output(file: &str, name: &str) -> (Command, Output) {
         .wait()
         .unwrap()
         .unwrap();
+
+    std::fs::remove_file(&bin_path_buf).ok();
 
     (command, output)
 }

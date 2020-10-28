@@ -3,14 +3,14 @@ mod hello_world {
 
     #[test]
     fn prints_hello_world() {
+        std::fs::create_dir_all("tests/_build").unwrap();
+
         let mut command = Command::new("../bin/lumen");
 
         command
             .arg("compile")
-            .arg("--output-dir")
-            .arg("_build")
             .arg("--output")
-            .arg("hello_world")
+            .arg("tests/_build/hello_world")
             // Turn off optimizations as work-around for debug info bug in EIR
             .arg("-O0");
 
@@ -27,7 +27,7 @@ mod hello_world {
             String::from_utf8_lossy(&compile_output.stderr)
         );
 
-        let hello_world_output = Command::new("./hello_world").output().unwrap();
+        let hello_world_output = Command::new("tests/_build/hello_world").output().unwrap();
         let hello_world_stdout = String::from_utf8_lossy(&hello_world_output.stdout);
         let hello_world_stderr = String::from_utf8_lossy(&hello_world_output.stderr);
 

@@ -75,8 +75,8 @@ is recommended to export XDG variables in general, but if you have not, just
 replace the usages of `$XDG_DATA_HOME` below with `$HOME/.local/share`, which is
 the usual default for this XDG variable.
 
-    mkdir -p $XDG_DATA_HOME/llvm/lumen
-    cd $XDG_DATA_HOME/llvm/lumen
+    mkdir -p $XDG_DATA_HOME/llvm/
+    cd $XDG_DATA_HOME/llvm/
     wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-10-22/clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
     tar -xz --strip-components 1 -f clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
     rm clang+llvm-12.0.0-x86_64-linux-gnu.tar.gz
@@ -84,8 +84,8 @@ the usual default for this XDG variable.
 
 ###### MacOS
 
-    mkdir -p $XDG_DATA_HOME/llvm/lumen
-    cd $XDG_DATA_HOME/llvm/lumen
+    mkdir -p $XDG_DATA_HOME/llvm/
+    cd $XDG_DATA_HOME/llvm/
     wget https://github.com/lumen/llvm-project/releases/download/lumen-12.0.0-dev_2020-10-22/clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
     tar -xzf clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
     rm clang+llvm-12.0.0-x86_64-apple-darwin19.5.0.tar.gz
@@ -125,7 +125,7 @@ likewise you can change the setting to use CCache by removing that option as wel
 
 Once LLVM is installed/built, you can build the `lumen` executable:
 
-    cargo make
+    LLVM_PREFIX=$XDG_DATA_HOME/llvm/lumen cargo make
     
 This will create the compiler executable and associated toolchain for the host
 machine under `bin` in the root of the project. You can invoke `lumen` via the

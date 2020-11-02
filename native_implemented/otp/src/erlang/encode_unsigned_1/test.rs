@@ -34,6 +34,25 @@ fn smallest_big_int() {
 }
 
 #[test]
+fn negative_integer() {
+    run!(
+        |arc_process| {
+            (
+                Just(arc_process.clone()),
+                strategy::term::integer::negative(arc_process.clone())
+            )
+        },
+        |(arc_process, non_int)| {
+            prop_assert_badarg!(
+                result(&arc_process, non_int),
+                "invalid integer conversion"
+            );
+            Ok(())
+        },
+    );
+}
+
+#[test]
 fn not_integer() {
     run!(
         |arc_process| {

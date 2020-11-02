@@ -49,6 +49,7 @@ pub mod display_1;
 pub mod div_2;
 pub mod divide_2;
 pub mod element_2;
+pub mod encode_unsigned_1;
 pub mod erase_0;
 pub mod erase_1;
 pub mod error_1;

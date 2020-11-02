@@ -3,4 +3,4 @@
 -import(erlang, [display/1]).
 
 start() ->
-  display(erlang:encode_unsigned(11111111)).
+  display(binary:encode_unsigned(11111111)).

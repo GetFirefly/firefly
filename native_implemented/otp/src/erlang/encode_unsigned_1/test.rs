@@ -1,8 +1,8 @@
 use crate::erlang::encode_unsigned_1::result;
 use crate::test::with_process;
+use crate::test::*;
 use liblumen_alloc::erts::term::prelude::*;
 use num_bigint::BigInt;
-use crate::test::*;
 use proptest::strategy::Just;
 
 // 1> binary:encode_unsigned(11111111).
@@ -12,7 +12,7 @@ fn otp_doctest() {
     with_process(|process| {
         assert_eq!(
             result(process, process.integer(11111111)),
-            Ok(process.binary_from_bytes(&[169,138,199]))
+            Ok(process.binary_from_bytes(&[169, 138, 199]))
         )
     });
 }
@@ -39,14 +39,11 @@ fn negative_integer() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::integer::negative(arc_process.clone())
+                strategy::term::integer::negative(arc_process.clone()),
             )
         },
         |(arc_process, non_int)| {
-            prop_assert_badarg!(
-                result(&arc_process, non_int),
-                "invalid integer conversion"
-            );
+            prop_assert_badarg!(result(&arc_process, non_int), "invalid integer conversion");
             Ok(())
         },
     );
@@ -58,14 +55,11 @@ fn not_integer() {
         |arc_process| {
             (
                 Just(arc_process.clone()),
-                strategy::term::is_not_integer(arc_process.clone())
+                strategy::term::is_not_integer(arc_process.clone()),
             )
         },
         |(arc_process, non_int)| {
-            prop_assert_badarg!(
-                result(&arc_process, non_int),
-                "invalid integer conversion"
-            );
+            prop_assert_badarg!(result(&arc_process, non_int), "invalid integer conversion");
             Ok(())
         },
     );

@@ -1,4 +1,5 @@
 pub mod to_term;
+pub mod encode_unsigned_1;
 
 use std::backtrace::Backtrace;
 use std::convert::TryInto;
@@ -10,6 +11,14 @@ use thiserror::Error;
 use liblumen_alloc::erts::exception::{self, ArcError, Exception, InternalException};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Process;
+
+pub fn module() -> Atom {
+    Atom::from_str("binary")
+}
+
+pub fn module_id() -> usize {
+    module().id()
+}
 
 pub struct PartRange {
     pub byte_offset: usize,

@@ -1,4 +1,4 @@
-use crate::erlang::encode_unsigned_1::result;
+use crate::binary::encode_unsigned_1::result;
 use crate::test::with_process;
 use crate::test::*;
 use liblumen_alloc::erts::term::prelude::*;

@@ -10,7 +10,7 @@ use num_bigint::Sign;
 
 /// Returns the smallest possible representation in a binary digit representation for the given big
 /// endian unsigned integer.
-#[native_implemented::function(erlang:encode_unsigned/1)]
+#[native_implemented::function(binary:encode_unsigned/1)]
 pub fn result(process: &Process, term: Term) -> exception::Result<Term> {
     match term.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {

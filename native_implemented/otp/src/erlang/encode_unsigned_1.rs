@@ -37,7 +37,7 @@ pub fn result(process: &Process, term: Term) -> exception::Result<Term> {
 
             Ok(process.binary_from_bytes(&bytes))
         },
-        _ => Err(TypeError)
+        _ => Err(TryIntoIntegerError::Type)
             .context(term_is_not_integer(
                 "encoded_unsigned",
                 term

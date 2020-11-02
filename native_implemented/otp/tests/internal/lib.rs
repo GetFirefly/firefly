@@ -1,3 +1,5 @@
+#[path = "lib/binary.rs"]
+pub mod binary;
 #[path = "lib/erlang.rs"]
 pub mod erlang;
 #[path = "lib/maps.rs"]

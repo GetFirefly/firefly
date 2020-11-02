@@ -1,5 +1,5 @@
-pub mod to_term;
 pub mod encode_unsigned_1;
+pub mod to_term;
 
 use std::backtrace::Backtrace;
 use std::convert::TryInto;

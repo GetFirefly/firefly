@@ -33,11 +33,8 @@ pub fn result(process: &Process, term: Term) -> exception::Result<Term> {
             }
 
             let bytes: Vec<u8> = big_integer.to_signed_bytes_be();
-            let first_nonzero_index_from_left = bytes.iter().position(|&b| b != 0).unwrap_or(0);
-            let first_nonzero_index_from_right = bytes.iter().rposition(|&b| b != 0).unwrap_or(0);
-            Ok(process.binary_from_bytes(
-                &bytes[first_nonzero_index_from_left..(first_nonzero_index_from_right + 1)],
-            ))
+            let first_nonzero_index = bytes.iter().position(|&b| b != 0).unwrap_or(0);
+            Ok(process.binary_from_bytes(&bytes[first_nonzero_index..]))
         }
         _ => Err(TryIntoIntegerError::Type)
             .context(term_is_not_integer("encoded_unsigned", term))

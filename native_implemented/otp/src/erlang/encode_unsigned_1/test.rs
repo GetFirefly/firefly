@@ -28,7 +28,7 @@ fn smallest_big_int() {
     with_process(|process| {
         assert_eq!(
             result(process, process.integer(smallest_big_int)),
-            Ok(process.binary_from_bytes(&[64]))
+            Ok(process.binary_from_bytes(&[64, 0, 0, 0, 0, 0]))
         )
     });
 }

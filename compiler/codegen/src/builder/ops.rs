@@ -35,9 +35,9 @@ pub enum OpKind {
     MapPut(MapPuts),
     BinOp(BinaryOperator),
     LogicOp(LogicalOperator),
-    #[allow(dead_code)]
+    #[allow(unused)]
     Constant(Constant),
-    #[allow(dead_code)]
+    #[allow(unused)]
     FunctionRef(FunctionRef),
     Tuple(Tuple),
     Cons(Cons),

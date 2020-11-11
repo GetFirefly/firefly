@@ -1290,6 +1290,7 @@ fn add_late_link_args(
     if let Some(args) = options.target.options.late_link_args.get(&flavor) {
         cmd.args(args);
     }
+    //let any_dynamic_deps = false; // linkage == Linkage::Dynamic
     let any_dynamic_crate = project_type == ProjectType::Dylib;
     if any_dynamic_crate {
         if let Some(args) = options.target.options.late_link_args_dynamic.get(&flavor) {

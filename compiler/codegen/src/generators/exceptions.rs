@@ -9,7 +9,6 @@ use liblumen_llvm::builder::ModuleBuilder;
 use liblumen_llvm::enums::Linkage;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_session::{Input, Options, OutputType};
-use liblumen_term::{Encoding, Encoding32, Encoding64, Encoding64Nanboxed, EncodingType, Tag};
 
 use crate::meta::CompiledModule;
 use crate::Result;
@@ -446,94 +445,4 @@ fn generate_wasm32(
         obj_path,
         None,
     )))
-}
-
-#[allow(dead_code)]
-fn build_constant_box_tag<'a>(
-    builder: &'a ModuleBuilder<'a>,
-    ty: llvm::Type,
-    options: &Options,
-) -> Option<llvm::Value> {
-    match options.target.options.encoding {
-        // In this encoding scheme, boxes are always pointers
-        EncodingType::Encoding64Nanboxed => None,
-        // For all other encoding schemes, we unmask the pointer first
-        EncodingType::Encoding64 => {
-            Some(builder.build_constant_uint(ty, Encoding64::TAG_BOXED as u64))
-        }
-        EncodingType::Encoding32 => {
-            Some(builder.build_constant_uint(ty, Encoding32::TAG_BOXED as u64))
-        }
-        EncodingType::Default if options.target.target_pointer_width == 64 => {
-            Some(builder.build_constant_uint(ty, Encoding64::TAG_BOXED as u64))
-        }
-        EncodingType::Default if options.target.target_pointer_width == 32 => {
-            Some(builder.build_constant_uint(ty, Encoding32::TAG_BOXED as u64))
-        }
-        _ => unreachable!(),
-    }
-}
-
-#[allow(dead_code)]
-fn build_constant_atom<'a>(
-    builder: &'a ModuleBuilder<'a>,
-    id: usize,
-    options: &Options,
-) -> llvm::Value {
-    let usize_type = builder.get_usize_type();
-    match options.target.options.encoding {
-        EncodingType::Encoding64Nanboxed => {
-            let tagged = Encoding64Nanboxed::encode_immediate_with_tag(id as u64, Tag::Atom);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        EncodingType::Encoding64 => {
-            let tagged = Encoding64::encode_immediate_with_tag(id as u64, Tag::Atom);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        EncodingType::Encoding32 => {
-            let tagged = Encoding32::encode_immediate_with_tag(id as u32, Tag::Atom);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        EncodingType::Default if options.target.target_pointer_width == 64 => {
-            let tagged = Encoding64::encode_immediate_with_tag(id as u64, Tag::Atom);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        EncodingType::Default if options.target.target_pointer_width == 32 => {
-            let tagged = Encoding32::encode_immediate_with_tag(id as u32, Tag::Atom);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        _ => unreachable!(),
-    }
-}
-
-#[allow(dead_code)]
-fn build_tuple_header<'a>(
-    builder: &'a ModuleBuilder<'a>,
-    arity: usize,
-    options: &Options,
-) -> llvm::Value {
-    let usize_type = builder.get_usize_type();
-    match options.target.options.encoding {
-        EncodingType::Encoding64Nanboxed => {
-            let tagged = Encoding64Nanboxed::encode_header_with_tag(arity as u64, Tag::Tuple);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        EncodingType::Encoding64 => {
-            let tagged = Encoding64::encode_header_with_tag(arity as u64, Tag::Tuple);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        EncodingType::Encoding32 => {
-            let tagged = Encoding32::encode_header_with_tag(arity as u32, Tag::Tuple);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        EncodingType::Default if options.target.target_pointer_width == 64 => {
-            let tagged = Encoding64::encode_header_with_tag(arity as u64, Tag::Tuple);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        EncodingType::Default if options.target.target_pointer_width == 32 => {
-            let tagged = Encoding32::encode_header_with_tag(arity as u32, Tag::Tuple);
-            builder.build_constant_uint(usize_type, tagged as u64)
-        }
-        _ => unreachable!(),
-    }
 }

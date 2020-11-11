@@ -275,9 +275,6 @@ extern "C" {
         num_locs: libc::c_uint,
     ) -> LocationRef;
 
-    #[allow(dead_code)]
-    pub fn MLIRUnknownLocation(builder: ModuleBuilderRef) -> LocationRef;
-
     //---------------
     // Functions
     //---------------

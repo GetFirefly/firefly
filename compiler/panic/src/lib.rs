@@ -57,6 +57,7 @@ pub struct ErlangPanic {
 
 extern "C" {
     // See `ErlangException` in liblumen_alloc
+    #[allow(improper_ctypes)]
     #[link_name = "__lumen_cleanup_exception"]
     fn cleanup(ptr: *mut ErlangPanic);
 }

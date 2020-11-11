@@ -50,7 +50,7 @@ pub struct Context {
     target_machine: TargetMachineRef,
     opt: CodeGenOptLevel,
     size: CodeGenOptSize,
-    #[allow(dead_code)]
+    #[allow(unused)]
     context_options: ContextOptions,
 }
 unsafe impl Send for Context {}

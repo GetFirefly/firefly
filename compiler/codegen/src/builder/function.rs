@@ -186,7 +186,6 @@ impl<'a, 'm, 'f> FunctionBuilder<'a, 'm, 'f> {
             source_file: self.builder.source_file().clone(),
             filename: self.builder.filename().as_ptr(),
             func,
-            func_entry: func_entry.entry,
             func_loc,
             eir,
             mlir,
@@ -207,8 +206,6 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     filename: *const libc::c_char,
     source_file: Arc<SourceFile>,
     func: Function,
-    #[allow(dead_code)]
-    func_entry: ir::Block,
     func_loc: LocationRef,
     eir: &'f ir::Function,
     mlir: FunctionOpRef,

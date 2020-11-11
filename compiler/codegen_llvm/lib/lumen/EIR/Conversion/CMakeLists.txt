@@ -1,5 +1,6 @@
 lumen_cc_library(
   HDRS
+    "AnnotateGCLeafPass.h"
     "AggregateOpConversions.h"
     "BinaryOpConversions.h"
     "BuiltinOpConversions.h"
@@ -14,6 +15,7 @@ lumen_cc_library(
     "MemoryOpConversions.h"
     "TargetInfo.h"
   SRCS
+    "AnnotateGCLeafPass.cpp"
     "AggregateOpConversions.cpp"
     "BinaryOpConversions.cpp"
     "BuiltinOpConversions.cpp"

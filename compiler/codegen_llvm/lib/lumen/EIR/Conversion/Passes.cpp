@@ -9,6 +9,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
 
+#include "lumen/EIR/Conversion/AnnotateGCLeafPass.h"
 #include "lumen/EIR/Conversion/ConvertEIRToLLVM.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/llvm/Target.h"
@@ -87,6 +88,11 @@ extern "C" MLIRPassManagerRef MLIRCreatePassManager(
 
     // Convert EIR to LLVM dialect
     pm->addPass(::lumen::eir::createConvertEIRToLLVMPass(targetMachine));
+
+    // Decorate functions that do not allocate or call a runtime
+    // function that allocates with 'gc-leaf-function'
+    pm->addNestedPass<::mlir::LLVM::LLVMFuncOp>(
+        ::lumen::eir::createAnnotateGCLeafPass());
 
     // Canonicalize
     pm->addNestedPass<::mlir::LLVM::LLVMFuncOp>(

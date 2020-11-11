@@ -12,6 +12,7 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
         MallocOpAdaptor adaptor(operands);
         auto ctx = getRewriteContext(op, rewriter);
 
+        auto immedTy = ctx.getOpaqueImmediateType();
         // We're expecting malloc target type to always be of PtrType
         PtrType ptrTy = op.getAllocType().dyn_cast<PtrType>();
         // The pointee (for now) is expected to be a term type
@@ -27,7 +28,7 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
             rewriter.replaceOp(op, allocPtr);
         } else {
             Value zero =
-                llvm_constant(ctx.getUsizeType(), ctx.getIntegerAttr(0));
+                llvm_constant(immedTy, ctx.getIntegerAttr(0));
             Value allocPtr =
                 ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(), zero);
             rewriter.replaceOp(op, allocPtr);
@@ -48,7 +49,8 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
 
         Value in = adaptor.input();
 
-        auto termTy = ctx.getUsizeType();
+        auto immedTy = ctx.getOpaqueImmediateType();
+        auto termTy = ctx.getOpaqueTermType();
         TypeAttr fromAttr = op.getAttrOfType<TypeAttr>("from");
         assert(fromAttr && "expected cast to contain 'from' attribute!");
         TypeAttr toAttr = op.getAttrOfType<TypeAttr>("to");
@@ -196,7 +198,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
 
                 if (llvmFromTy.isIntegerTy(1) &&
                     (tt.isBoolean() || tt.isAtom() || tt.isOpaque())) {
-                    Value extended = llvm_zext(termTy, in);
+                    Value extended = llvm_zext(immedTy, in);
                     auto atomTy = ctx.rewriter.getType<AtomType>();
                     rewriter.replaceOp(op,
                                        ctx.encodeImmediate(atomTy, extended));
@@ -211,7 +213,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                 // Standard dialect booleans may occasionally need
                 // casting to our boolean type, or promoted to an atom
                 if (tt.isBoolean() || tt.isAtom() || tt.isOpaque()) {
-                    Value extended = llvm_zext(termTy, in);
+                    Value extended = llvm_zext(immedTy, in);
                     auto atomTy = ctx.rewriter.getType<AtomType>();
                     rewriter.replaceOp(op,
                                        ctx.encodeImmediate(atomTy, extended));

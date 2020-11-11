@@ -17,6 +17,9 @@
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
+#include "llvm/Transforms/Scalar.h"
+//#include "llvm/Transforms/Scalar/PlaceSafepoints.h"
+#include "llvm/Transforms/Scalar/RewriteStatepointsForGC.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Support/Error.h"
@@ -333,6 +336,10 @@ LLVMLumenOptimize(LLVMModuleRef m,
   }
 
   ModulePassManager mpm(debug);
+
+  // Add passes to generate safepoints/stack maps
+  //mpm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::PlaceSafepoints()));
+  mpm.addPass(llvm::RewriteStatepointsForGC());
 
   // If there is a pipeline provided, parse it and populate the pass manager with it
   if (config.passPipeline) {

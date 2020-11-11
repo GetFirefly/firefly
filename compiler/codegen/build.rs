@@ -92,7 +92,12 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}/lib", outdir.display());
 
-    link_libs(&["lumen_EIR_IR", "lumen_EIR_Conversion", "lumen_EIR_Builder"]);
+    link_libs(&[
+        "lumen_EIR_IR",
+        "lumen_EIR_Conversion",
+        "lumen_EIR_Builder",
+        "lumen_GC",
+    ]);
 
     // Get demangled lang_start_internal name
 

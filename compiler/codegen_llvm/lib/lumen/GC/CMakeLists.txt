@@ -1,0 +1,9 @@
+lumen_cc_library(
+  SRCS
+    "GC.cpp"
+  LLVM_COMPONENTS
+    LLVMSupport
+    LLVMCodeGen
+    LLVMTarget
+  PUBLIC
+)

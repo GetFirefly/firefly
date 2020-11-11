@@ -99,7 +99,6 @@ struct InvokeOpConversion : public EIROpConversion<InvokeOp> {
         ConversionPatternRewriter &rewriter) const override {
         InvokeOpAdaptor adaptor(op);
         auto ctx = getRewriteContext(op, rewriter);
-        auto termTy = ctx.getUsizeType();
 
         // Always increment reduction count when performing a call
         rewriter.create<IncrementReductionsOp>(op.getLoc());
@@ -144,7 +143,7 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
         auto i8PtrPtrTy = i8PtrTy.getPointerTo();
         auto i64Ty = ctx.getI64Type();
         auto i32Ty = ctx.getI32Type();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto termPtrTy = termTy.getPointerTo();
         auto termPtrPtrTy = termPtrTy.getPointerTo();
         auto exceptionTy = ctx.targetInfo.getExceptionType();
@@ -184,7 +183,7 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
                                     ArrayRef<LLVMType>{i8PtrTy}, calleeAttrs);
         auto callOp = rewriter.create<mlir::CallOp>(
             op.getLoc(), rewriter.getSymbolRefAttr(symbolName),
-            ArrayRef<Type>{erlangErrorPtrTy}, ArrayRef<Value>{exPtr});
+            ArrayRef<Type>{erlangErrorPtrTy}, ValueRange{exPtr});
         callOp.setAttr("tail", rewriter.getUnitAttr());
         Value erlangErrorPtr = callOp.getResult(0);
         // Extract exception values
@@ -227,7 +226,7 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
         ThrowOpAdaptor adaptor(operands);
         auto ctx = getRewriteContext(op, rewriter);
         auto loc = op.getLoc();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto termPtrTy = termTy.getPointerTo();
         auto i8PtrTy = ctx.targetInfo.getI8Type().getPointerTo();
         auto i32Ty = ctx.getI32Type();
@@ -267,7 +266,7 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
 
         auto callOp = rewriter.create<mlir::CallOp>(
             op.getLoc(), rewriter.getSymbolRefAttr(symbolName),
-            ArrayRef<Type>{}, ArrayRef<Value>{exception});
+            ArrayRef<Type>{}, ValueRange{exception});
         callOp.setAttr("tail", rewriter.getUnitAttr());
         callOp.setAttr("noreturn", rewriter.getUnitAttr());
         rewriter.replaceOpWithNewOp<LLVM::UnreachableOp>(op);
@@ -294,7 +293,7 @@ struct YieldOpConversion : public EIROpConversion<YieldOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto voidTy = LLVMType::getVoidTy(ctx.context);
+        auto voidTy = ctx.getVoidType();
         const char *symbolName = "__lumen_builtin_yield";
         auto callee = ctx.getOrInsertFunction(symbolName, voidTy, {});
 
@@ -340,7 +339,7 @@ struct ReceiveStartOpConversion : public EIROpConversion<ReceiveStartOp> {
         auto ctx = getRewriteContext(op, rewriter);
         ReceiveStartOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto recvRefTy = ctx.targetInfo.getReceiveRefType();
 
         StringRef symbolName("__lumen_builtin_receive_start");
@@ -387,7 +386,7 @@ struct ReceiveMessageOpConversion : public EIROpConversion<ReceiveMessageOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto recvRefTy = ctx.targetInfo.getReceiveRefType();
 
         StringRef symbolName("__lumen_builtin_receive_message");
@@ -395,7 +394,7 @@ struct ReceiveMessageOpConversion : public EIROpConversion<ReceiveMessageOp> {
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
-        ArrayRef<Value> args{op.recvRef()};
+        ValueRange args{op.recvRef()};
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
                                                   args);
         return success();
@@ -412,7 +411,7 @@ struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
         ReceiveDoneOpAdaptor adaptor(operands);
 
         auto recvRefTy = ctx.targetInfo.getReceiveRefType();
-        auto voidTy = LLVMType::getVoidTy(ctx.context);
+        auto voidTy = ctx.getVoidType();
 
         StringRef symbolName("__lumen_builtin_receive_done");
 
@@ -422,7 +421,7 @@ struct ReceiveDoneOpConversion : public EIROpConversion<ReceiveDoneOp> {
 
         Value recvRef = adaptor.recvRef();
         rewriter.replaceOpWithNewOp<mlir::CallOp>(
-            op, calleeSymbol, ArrayRef<Type>{}, ArrayRef<Value>{recvRef});
+            op, calleeSymbol, ArrayRef<Type>{}, ValueRange{recvRef});
         return success();
     }
 };

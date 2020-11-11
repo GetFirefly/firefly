@@ -43,11 +43,11 @@ struct ConstantAtomOpConversion : public EIROpConversion<ConstantAtomOp> {
             Value val = llvm_constant(i1Ty, ctx.getIntegerAttr(id));
             rewriter.replaceOp(op, {val});
         } else {
-            // Lower to termTy
-            auto termTy = ctx.getUsizeType();
+            // Lower to term
+            auto immedTy = ctx.getOpaqueImmediateType();
             auto taggedAtom =
                 ctx.targetInfo.encodeImmediate(TypeKind::Atom, id);
-            Value val = llvm_constant(termTy, ctx.getIntegerAttr(taggedAtom));
+            Value val = llvm_constant(immedTy, ctx.getIntegerAttr(taggedAtom));
             rewriter.replaceOp(op, {val});
         }
 
@@ -69,7 +69,7 @@ struct ConstantBoolOpConversion : public EIROpConversion<ConstantBoolOp> {
 
         // Can be lowered to atoms
         if (valType.isa<AtomType>() || valType.isa<BooleanType>()) {
-            auto ty = ctx.getUsizeType();
+            auto ty = ctx.getOpaqueImmediateType();
             auto taggedAtom = ctx.targetInfo.encodeImmediate(
                 TypeKind::Atom, (unsigned)(isTrue));
             Value val = llvm_constant(ty, ctx.getIntegerAttr(taggedAtom));
@@ -102,7 +102,8 @@ struct ConstantBigIntOpConversion : public EIROpConversion<ConstantBigIntOp> {
 
         auto bigIntAttr = op.getValue().cast<APIntAttr>();
         auto bigIntStr = bigIntAttr.getValueAsString();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
+        auto usizeTy = ctx.getUsizeType();
         auto i8Ty = ctx.getI8Type();
         auto i8PtrTy = i8Ty.getPointerTo();
 
@@ -114,11 +115,11 @@ struct ConstantBigIntOpConversion : public EIROpConversion<ConstantBigIntOp> {
         // constant string
         auto globalPtr = llvm_bitcast(i8PtrTy, llvm_addressof(bytesGlobal));
         Value size =
-            llvm_constant(termTy, ctx.getIntegerAttr(bigIntStr.size()));
+            llvm_constant(usizeTy, ctx.getIntegerAttr(bigIntStr.size()));
 
         StringRef symbolName("__lumen_builtin_bigint_from_cstr");
         auto callee =
-            ctx.getOrInsertFunction(symbolName, termTy, {i8PtrTy, termTy});
+            ctx.getOrInsertFunction(symbolName, termTy, {i8PtrTy, usizeTy});
 
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
@@ -141,7 +142,7 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
         auto bytes = binAttr.getValue();
         auto byteSize = bytes.size();
         auto ty = ctx.targetInfo.getBinaryType();
-        auto termTy = ctx.getUsizeType();
+        auto usizeTy = ctx.getUsizeType();
 
         // We use the SHA-1 hash of the value as the name of the global,
         // this provides a nice way to de-duplicate constant strings while
@@ -166,9 +167,9 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
             auto globalPtr = llvm_addressof(bytesGlobal);
             Value zero = llvm_constant(i64Ty, ctx.getIntegerAttr(0));
             Value headerTerm =
-                llvm_constant(termTy, ctx.getIntegerAttr(binAttr.getHeader()));
+                llvm_constant(usizeTy, ctx.getIntegerAttr(binAttr.getHeader()));
             Value flags =
-                llvm_constant(termTy, ctx.getIntegerAttr(binAttr.getFlags()));
+                llvm_constant(usizeTy, ctx.getIntegerAttr(binAttr.getFlags()));
             Value header = llvm_undef(ty);
             Value address =
                 llvm_gep(i8PtrTy, globalPtr, ArrayRef<Value>{zero, zero});
@@ -203,7 +204,8 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
 
         auto attr = op.getValue().cast<APFloatAttr>();
         auto apVal = attr.getValue();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
+        auto immedTy = ctx.getOpaqueImmediateType();
 
         // On nanboxed targets, floats are treated normally
         if (!ctx.targetInfo.requiresPackedFloats()) {
@@ -211,7 +213,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
             // The magic constant here is MIN_DOUBLE, as defined in the term
             // encoding in Rust
             auto val = llvm_constant(
-                termTy, ctx.getIntegerAttr(f.getLimitedValue() + MIN_DOUBLE));
+                immedTy, ctx.getIntegerAttr(f.getLimitedValue() + MIN_DOUBLE));
             rewriter.replaceOp(op, {val});
             return success();
         }
@@ -247,7 +249,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
             APInt headerTermVal =
                 ctx.targetInfo.encodeHeader(TypeKind::Float, 2);
             Value headerTerm = llvm_constant(
-                termTy, ctx.getIntegerAttr(headerTermVal.getLimitedValue()));
+                immedTy, ctx.getIntegerAttr(headerTermVal.getLimitedValue()));
             Value floatVal = llvm_constant(
                 f64Ty, rewriter.getF64FloatAttr(apVal.convertToDouble()));
             Value header = llvm_undef(floatTy);
@@ -275,12 +277,12 @@ struct ConstantIntOpConversion : public EIROpConversion<ConstantIntOp> {
         auto ctx = getRewriteContext(op, rewriter);
 
         auto attr = op.getValue().cast<APIntAttr>();
-        auto termTy = ctx.getUsizeType();
+        auto immedTy = ctx.getOpaqueImmediateType();
         auto value = attr.getValue();
         if (ctx.targetInfo.isValidImmediateValue(value)) {
             auto taggedInt = ctx.targetInfo.encodeImmediate(
                 TypeKind::Fixnum, value.getLimitedValue());
-            auto val = llvm_constant(termTy, ctx.getIntegerAttr(taggedInt));
+            auto val = llvm_constant(immedTy, ctx.getIntegerAttr(taggedInt));
 
             rewriter.replaceOp(op, {val});
         } else {
@@ -299,9 +301,9 @@ struct ConstantNilOpConversion : public EIROpConversion<ConstantNilOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
+        auto immedTy = ctx.getOpaqueImmediateType();
         auto val = llvm_constant(
-            termTy, ctx.getIntegerAttr(ctx.targetInfo.getNilValue()));
+            immedTy, ctx.getIntegerAttr(ctx.targetInfo.getNilValue()));
 
         rewriter.replaceOp(op, {val});
         return success();
@@ -316,9 +318,9 @@ struct ConstantNoneOpConversion : public EIROpConversion<ConstantNoneOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
+        auto immedTy = ctx.getOpaqueImmediateType();
         auto val = llvm_constant(
-            termTy, ctx.getIntegerAttr(ctx.targetInfo.getNoneValue()));
+            immedTy, ctx.getIntegerAttr(ctx.targetInfo.getNoneValue()));
 
         rewriter.replaceOp(op, {val});
         return success();
@@ -363,7 +365,6 @@ struct ConstantMapOpConversion : public EIROpConversion<ConstantMapOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
         auto attr = op.getValue().cast<SeqAttr>();
         auto elementAttrs = attr.getValue();
 
@@ -389,7 +390,6 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
         auto attr = op.getValue().cast<SeqAttr>();
         auto elementAttrs = attr.getValue();
 
@@ -411,7 +411,7 @@ struct ConstantTupleOpConversion : public EIROpConversion<ConstantTupleOp> {
 template <typename Op>
 static Value lowerElementValue(RewritePatternContext<Op> &ctx,
                                Attribute elementAttr) {
-    auto termTy = ctx.getUsizeType();
+    auto termTy = ctx.getOpaqueTermType();
     auto eirTermType = ctx.rewriter.template getType<TermType>();
 
     // Symbols

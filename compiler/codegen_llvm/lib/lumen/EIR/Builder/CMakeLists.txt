@@ -8,6 +8,7 @@ lumen_cc_library(
     "ModuleBuilder.cpp"
     "ModuleBuilderSupport.cpp"
     "InsertTraceConstructorsPass.cpp"
+    "ScheduleOperationsPass.cpp"
   DEPS
     lumen::EIR::IR
     MLIRIR

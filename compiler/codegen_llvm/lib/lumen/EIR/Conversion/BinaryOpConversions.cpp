@@ -11,7 +11,7 @@ struct BinaryStartOpConversion : public EIROpConversion<BinaryStartOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         StringRef symbolName("__lumen_builtin_binary_start");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
 
@@ -31,7 +31,7 @@ struct BinaryFinishOpConversion : public EIROpConversion<BinaryFinishOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         StringRef symbolName("__lumen_builtin_binary_finish");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy});
 
@@ -52,7 +52,10 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         auto ctx = getRewriteContext(op, rewriter);
         BinaryPushOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
+        auto immedTy = ctx.getOpaqueImmediateType();
+        auto termTy = ctx.getOpaqueTermType();
+        auto termTyAddr0 = ctx.getOpaqueTermTypeAddr0();
+        auto termPtrTy = termTy.getPointerTo();
 
         Value bin = adaptor.bin();
         Value value = adaptor.value();
@@ -61,7 +64,8 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         if (sizeOpt == nullptr) {
             auto taggedSize =
                 ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, 0);
-            size = llvm_constant(termTy, ctx.getIntegerAttr(taggedSize));
+            auto tagged = llvm_constant(immedTy, ctx.getIntegerAttr(taggedSize));
+            size = llvm_addrspacecast(termTy, llvm_inttoptr(termTyAddr0, tagged));
         } else {
             size = sizeOpt;
         }
@@ -73,7 +77,6 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         auto endianness = Endianness::Big;
         bool isSigned = false;
 
-        auto termPtrTy = termTy.getPointerTo();
         auto i1Ty = ctx.getI1Type();
         auto i8Ty = ctx.getI8Type();
         auto i32Ty = ctx.getI32Type();
@@ -278,9 +281,7 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
                                      TargetInfo &targetInfo,
                                      mlir::PatternBenefit benefit = 1)
         : EIROpConversion<Op>::EIROpConversion(context, converter, targetInfo,
-                                               benefit) {
-        _termTy = targetInfo.getUsizeType();
-    }
+                                               benefit) {}
 
     LogicalResult matchAndRewrite(
         Op op, ArrayRef<Value> operands,
@@ -288,7 +289,9 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
         OperandAdaptor adaptor(operands);
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
+        auto immedTy = ctx.getOpaqueImmediateType();
+        auto termTy = ctx.getOpaqueTermType();
+        auto termTyAddr0 = ctx.getOpaqueTermTypeAddr0();
         auto matchResultTy = ctx.targetInfo.getMatchResultType();
         auto i1Ty = ctx.getI1Type();
         auto i8Ty = ctx.getI8Type();
@@ -320,9 +323,10 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
                    "unexpected extra arguments to binary_match.raw");
             size = opArgs.front();
         } else {
-            size = llvm_constant(
-                termTy, ctx.getIntegerAttr(
+            auto sizeRaw = llvm_constant(immedTy,
+                                         ctx.getIntegerAttr(
                             ctx.targetInfo.getNoneValue().getLimitedValue()));
+            size = llvm_addrspacecast(termTy, llvm_inttoptr(termTyAddr0, sizeRaw));
         }
 
         SmallVector<Value, 5> args;
@@ -361,8 +365,6 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
 
    private:
     using EIROpConversion<Op>::getRewriteContext;
-
-    Type _termTy;
 };
 
 struct BinaryMatchRawOpConversion

@@ -36,9 +36,13 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
         IsTypeOpAdaptor adaptor(operands);
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
+        auto immedTy = ctx.getOpaqueImmediateType();
+        auto termTy = ctx.getOpaqueTermType();
+        auto termTyAddr0 = ctx.getOpaqueTermTypeAddr0();
         auto int1Ty = ctx.getI1Type();
         auto int32Ty = ctx.getI32Type();
+
+        Value input = adaptor.value();
 
         auto matchType = op.getMatchType().cast<OpaqueTermType>();
         // Boxed types and immediate types are dispatched differently
@@ -55,10 +59,11 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
             // call
             if (boxedType.isa<ConsType>()) {
                 Value listTag = llvm_constant(
-                    termTy, ctx.getIntegerAttr(ctx.targetInfo.listTag()));
+                    immedTy, ctx.getIntegerAttr(ctx.targetInfo.listTag()));
                 Value listMask = llvm_constant(
-                    termTy, ctx.getIntegerAttr(ctx.targetInfo.listMask()));
-                Value masked = llvm_and(adaptor.value(), listMask);
+                    immedTy, ctx.getIntegerAttr(ctx.targetInfo.listMask()));
+                Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, input));
+                Value masked = llvm_and(llvm_ptrtoint(immedTy, addr0), listMask);
                 rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(
                     op, LLVM::ICmpPredicate::eq, listTag, masked);
                 return success();
@@ -68,7 +73,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
             if (auto tupleType = boxedType.dyn_cast_or_null<eir::TupleType>()) {
                 if (tupleType.hasStaticShape()) {
                     Value arity = llvm_constant(
-                        termTy, ctx.getIntegerAttr(tupleType.getArity()));
+                        immedTy, ctx.getIntegerAttr(tupleType.getArity()));
                     rewriter.replaceOpWithNewOp<IsTupleOp>(op, adaptor.value(),
                                                            arity);
                     return success();
@@ -99,12 +104,9 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
                 llvm_constant(int32Ty, ctx.getI32Attr(matchKind));
             auto callee =
                 ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
-            Value input = adaptor.value();
             auto calleeSymbol =
                 FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            Operation *isType =
-                std_call(calleeSymbol, int1Ty, ValueRange{matchConst, input});
-            rewriter.replaceOp(op, isType->getResults());
+            rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
             return success();
         }
 
@@ -120,9 +122,7 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
-        Operation *isType = std_call(calleeSymbol, int1Ty,
-                                     ValueRange{matchConst, adaptor.value()});
-        rewriter.replaceOp(op, isType->getResults());
+        rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
         return success();
     }
 };
@@ -138,7 +138,7 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
 
         Value input = adaptor.value();
         Value arity = adaptor.arity();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto int1Ty = ctx.getI1Type();
         auto int32Ty = ctx.getI32Type();
 
@@ -149,9 +149,7 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
             auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
             auto calleeSymbol =
                 FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            Operation *isType =
-                std_call(calleeSymbol, int1Ty, ValueRange{arity, input});
-            rewriter.replaceOp(op, isType->getResults());
+            rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{arity, input});
             return success();
         }
 
@@ -163,9 +161,7 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
-        Operation *isType =
-            std_call(calleeSymbol, int1Ty, ValueRange{matchConst, input});
-        rewriter.replaceOp(op, isType->getResults());
+        rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
         return success();
     }
 };
@@ -181,7 +177,7 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
 
         Value input = adaptor.value();
         Value arity = adaptor.arity();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto int1Ty = ctx.getI1Type();
         auto int32Ty = ctx.getI32Type();
 
@@ -192,9 +188,7 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
             auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
             auto calleeSymbol =
                 FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            Operation *isType =
-                std_call(calleeSymbol, int1Ty, ValueRange{arity, input});
-            rewriter.replaceOp(op, isType->getResults());
+            rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{arity, input});
             return success();
         }
 
@@ -206,9 +200,7 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
-        Operation *isType =
-            std_call(calleeSymbol, int1Ty, ValueRange{matchConst, input});
-        rewriter.replaceOp(op, isType->getResults());
+        rewriter.replaceOpWithNewOp<mlir::CallOp>(op, int1Ty, calleeSymbol, ValueRange{matchConst, input});
         return success();
     }
 };
@@ -227,7 +219,7 @@ struct PrintOpConversion : public EIROpConversion<PrintOp> {
             return success();
         }
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         StringRef symbolName("__lumen_builtin_printf");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy});
 
@@ -247,15 +239,14 @@ struct TraceCaptureOpConversion : public EIROpConversion<TraceCaptureOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto termTy = ctx.getUsizeType();
-        auto termPtrTy = termTy.getPointerTo();
+        auto termTy = ctx.getOpaqueTermType();
         StringRef symbolName("__lumen_builtin_trace.capture");
-        auto callee = ctx.getOrInsertFunction(symbolName, termPtrTy, {});
+        auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
 
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
-                                                  ArrayRef<Type>{termPtrTy});
+                                                  ArrayRef<Type>{termTy});
         return success();
     }
 };
@@ -273,13 +264,12 @@ struct TracePrintOpConversion : public EIROpConversion<TracePrintOp> {
         Value reason = adaptor.reason();
         Value traceRef = adaptor.traceRef();
 
-        auto termTy = ctx.getUsizeType();
-        auto termPtrTy = termTy.getPointerTo();
-        auto voidTy = LLVMType::getVoidTy(ctx.context);
+        auto termTy = ctx.getOpaqueTermType();
+        auto voidTy = ctx.getVoidType();
 
         StringRef symbolName("__lumen_builtin_trace.print");
         auto callee = ctx.getOrInsertFunction(symbolName, voidTy,
-                                              {termTy, termTy, termPtrTy});
+                                              {termTy, termTy, termTy});
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
         rewriter.replaceOpWithNewOp<mlir::CallOp>(
@@ -300,11 +290,10 @@ struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
 
         Value traceRef = adaptor.traceRef();
 
-        auto termTy = ctx.getUsizeType();
-        auto termPtrTy = termTy.getPointerTo();
+        auto termTy = ctx.getOpaqueTermType();
 
         StringRef symbolName("__lumen_builtin_trace.construct");
-        auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termPtrTy});
+        auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy});
 
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());

@@ -12,8 +12,9 @@ struct ConsOpConversion : public EIROpConversion<ConsOp> {
         auto ctx = getRewriteContext(op, rewriter);
         ConsOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
-        auto termPtrTy = termTy.getPointerTo();
+        auto immedTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
+        auto termPtrTy = termTy.getPointerTo(1);
         auto i32Ty = ctx.getI32Type();
         auto consTy = ctx.targetInfo.getConsType();
 
@@ -24,7 +25,7 @@ struct ConsOpConversion : public EIROpConversion<ConsOp> {
         OpaqueTermType kind = rewriter.getType<ConsType>();
         Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
         Value one = llvm_constant(i32Ty, ctx.getI32Attr(1));
-        Value arity = llvm_zext(termTy, zero);
+        Value arity = llvm_zext(immedTy, zero);
         // TODO(pauls): We should optimize this for allocating multiple
         // cells by providing an optional pointer and index at which to
         // allocate this cell, by offsetting the pointer by `index *
@@ -98,15 +99,16 @@ struct TupleOpConversion : public EIROpConversion<TupleOp> {
         auto ctx = getRewriteContext(op, rewriter);
         TupleOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
-        auto termPtrTy = termTy.getPointerTo();
+        auto immedTy = ctx.getOpaqueImmediateType();
+        auto termTy = ctx.getOpaqueTermType();
+        auto termPtrTy = termTy.getPointerTo(1);
         auto i32Ty = ctx.getI32Type();
         auto elements = adaptor.elements();
         auto numElements = elements.size();
         auto tupleTy = ctx.getTupleType(numElements);
 
         // Allocate header on heap, write values to header, then box
-        Value arity = llvm_constant(termTy, ctx.getIntegerAttr(numElements));
+        Value arity = llvm_constant(immedTy, ctx.getIntegerAttr(numElements));
         Value ptr = ctx.buildMalloc(tupleTy, TypeKind::Tuple, arity);
 
         Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));

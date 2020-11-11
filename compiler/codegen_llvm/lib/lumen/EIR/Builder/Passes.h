@@ -8,6 +8,7 @@
 namespace lumen {
 namespace eir {
 std::unique_ptr<mlir::Pass> createInsertTraceConstructorsPass();
+std::unique_ptr<mlir::Pass> createScheduleOperationsPass();
 }
 }  // namespace lumen
 

@@ -183,7 +183,8 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     if (!isa_eir_type(type)) return converter.deferTypeConversion(type);
 
     MLIRContext *context = type.getContext();
-    auto termTy = targetInfo.getUsizeType();
+    auto termTy = targetInfo.getUsizeType().getPointerTo(1);
+    auto immediateTy = targetInfo.getUsizeType();
 
     if (auto ptrTy = type.dyn_cast_or_null<PtrType>()) {
         auto innerTy =
@@ -212,7 +213,8 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     }
 
     OpaqueTermType ty = type.cast<OpaqueTermType>();
-    if (ty.isOpaque() || ty.isImmediate()) return termTy;
+    if (ty.isImmediate()) return immediateTy;
+    if (ty.isOpaque()) return termTy;
 
     if (ty.isNonEmptyList()) return targetInfo.getConsType();
 
@@ -309,8 +311,8 @@ LLVM::GlobalOp OpConversionContext::getOrInsertGlobalString(
 
 Value OpConversionContext::buildMalloc(ModuleOp mod, LLVMType ty,
                                        unsigned allocTy, Value arity) const {
-    auto i8PtrTy = targetInfo.getI8Type().getPointerTo();
-    auto ptrTy = ty.getPointerTo();
+    auto i8PtrTy = targetInfo.getI8Type().getPointerTo(1);
+    auto ptrTy = ty.getPointerTo(1);
     auto i32Ty = targetInfo.getI32Type();
     auto usizeTy = getUsizeType();
     StringRef symbolName("__lumen_builtin_malloc");
@@ -325,48 +327,69 @@ Value OpConversionContext::buildMalloc(ModuleOp mod, LLVMType ty,
 }
 
 Value OpConversionContext::encodeList(Value cons, bool isLiteral) const {
-    auto termTy = getUsizeType();
-    Value ptrInt = llvm_ptrtoint(termTy, cons);
+    // TODO: Possibly use ptrmask intrinsic
+    auto immedTy = getUsizeType();
+    auto termTy = getOpaqueTermType();
+    auto termTyAddr0 = getOpaqueTermTypeAddr0();
+    Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, cons));
+    Value ptrInt = llvm_ptrtoint(immedTy, addr0);
     Value tag;
     if (isLiteral) {
         Value listTag =
-            llvm_constant(termTy, getIntegerAttr(targetInfo.listTag()));
+            llvm_constant(immedTy, getIntegerAttr(targetInfo.listTag()));
         Value literalTag =
-            llvm_constant(termTy, getIntegerAttr(targetInfo.literalTag()));
+            llvm_constant(immedTy, getIntegerAttr(targetInfo.literalTag()));
         tag = llvm_or(listTag, literalTag);
     } else {
-        tag = llvm_constant(termTy, getIntegerAttr(targetInfo.listTag()));
+        tag = llvm_constant(immedTy, getIntegerAttr(targetInfo.listTag()));
     }
-    return llvm_or(ptrInt, tag);
+    Value taggedAddr0 = llvm_inttoptr(termTyAddr0, llvm_or(ptrInt, tag));
+    return llvm_addrspacecast(termTy, taggedAddr0);
 }
 
 Value OpConversionContext::encodeBox(Value val) const {
+    // TODO: Possibly use ptrmask intrinsic
     auto rawTag = targetInfo.boxTag();
-    auto termTy = getUsizeType();
+    auto termTy = getOpaqueTermType();
     // No boxing required, pointers are pointers
     if (rawTag == 0) {
-        return llvm_ptrtoint(termTy, val);
+        // No boxing required, pointers are pointers,
+        // we should be operating on an addrspace(1) pointer
+        // here, so all we need is a bitcast to term type.
+        return llvm_bitcast(termTy, val);
     } else {
-        Value ptrInt = llvm_ptrtoint(termTy, val);
+        auto immedTy = getOpaqueImmediateType();
+        auto termTyAddr0 = getOpaqueTermTypeAddr0();
+        // We need to tag the pointer, so that means casting to addrspace(0),
+        // bitcasting to term type, then ptrtoint, then back again at the end
+        Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, val));
+        Value ptrInt = llvm_ptrtoint(immedTy, addr0);
         Value tag = llvm_constant(termTy, getIntegerAttr(rawTag));
-        return llvm_or(ptrInt, tag);
+        Value taggedAddr0 = llvm_inttoptr(termTyAddr0, llvm_or(ptrInt, tag));
+        return llvm_addrspacecast(termTy, taggedAddr0);
     }
 }
 
 Value OpConversionContext::encodeLiteral(Value val) const {
+    // TODO: Possibly use ptrmask intrinsic
     auto rawTag = targetInfo.literalTag();
-    auto termTy = getUsizeType();
-    Value ptrInt = llvm_ptrtoint(termTy, val);
+    auto immedTy = getOpaqueImmediateType();
+    auto termTy = getOpaqueTermType();
+    auto termTyAddr0 = getOpaqueTermTypeAddr0();
+    Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, val));
+    Value ptrInt = llvm_ptrtoint(immedTy, addr0);
     Value tag = llvm_constant(termTy, getIntegerAttr(rawTag));
-    return llvm_or(ptrInt, tag);
+    Value taggedAddr0 = llvm_inttoptr(termTyAddr0, llvm_or(ptrInt, tag));
+    return llvm_addrspacecast(termTy, taggedAddr0);
 }
 
 Value OpConversionContext::encodeImmediate(ModuleOp mod, Location loc,
                                            OpaqueTermType ty, Value val) const {
-    auto termTy = getUsizeType();
+    auto immedTy = getOpaqueImmediateType();
+    auto termTy = getOpaqueTermType();
     auto i32Ty = getI32Type();
     StringRef symbolName("__lumen_builtin_encode_immediate");
-    auto callee = getOrInsertFunction(mod, symbolName, termTy, {i32Ty, termTy});
+    auto callee = getOrInsertFunction(mod, symbolName, termTy, {i32Ty, immedTy});
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
@@ -377,37 +400,54 @@ Value OpConversionContext::encodeImmediate(ModuleOp mod, Location loc,
 }
 
 Value OpConversionContext::decodeBox(LLVMType innerTy, Value box) const {
-    auto termTy = getUsizeType();
+    // TODO: Possibly use ptrmask intrinsic
+    auto immedTy = getOpaqueImmediateType();
+    auto termTy = getOpaqueTermType();
+    auto termTyAddr0 = getOpaqueTermTypeAddr0();
     auto boxTy = box.getType().cast<LLVMType>();
     assert(boxTy == termTy && "expected boxed pointer type");
     auto rawTag = targetInfo.boxTag();
     // No unboxing required, pointers are pointers
     if (rawTag == 0) {
-        return llvm_inttoptr(innerTy.getPointerTo(), box);
+        return llvm_bitcast(innerTy.getPointerTo(1), box);
     } else {
-        Value tag = llvm_constant(termTy, getIntegerAttr(rawTag));
-        Value neg1 = llvm_constant(termTy, getIntegerAttr(-1));
-        Value untagged = llvm_and(box, llvm_xor(tag, neg1));
-        return llvm_inttoptr(innerTy.getPointerTo(), untagged);
+        Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, box));
+        Value ptrInt = llvm_ptrtoint(immedTy, addr0);
+        Value tag = llvm_constant(immedTy, getIntegerAttr(rawTag));
+        Value neg1 = llvm_constant(immedTy, getIntegerAttr(-1));
+        Value untagged = llvm_and(ptrInt, llvm_xor(tag, neg1));
+        Value untaggedAddr0 = llvm_inttoptr(innerTy.getPointerTo(), untagged);
+        return llvm_addrspacecast(innerTy.getPointerTo(1), untaggedAddr0);
     }
 }
 
 Value OpConversionContext::decodeList(Value box) const {
-    auto termTy = targetInfo.getUsizeType();
-    Value mask = llvm_constant(termTy, getIntegerAttr(targetInfo.listMask()));
-    Value neg1 = llvm_constant(termTy, getIntegerAttr(-1));
-    Value untagged = llvm_and(box, llvm_xor(mask, neg1));
-    return llvm_inttoptr(targetInfo.getConsType().getPointerTo(), untagged);
+    // TODO: Possibly use ptrmask intrinsic
+    auto immedTy = getOpaqueImmediateType();
+    auto termTy = getOpaqueTermType();
+    auto termTyAddr0 = getOpaqueTermTypeAddr0();
+    auto consTy = targetInfo.getConsType();
+    Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, box));
+    Value ptrInt = llvm_ptrtoint(immedTy, addr0);
+    Value mask = llvm_constant(immedTy, getIntegerAttr(targetInfo.listMask()));
+    Value neg1 = llvm_constant(immedTy, getIntegerAttr(-1));
+    Value untagged = llvm_and(ptrInt, llvm_xor(mask, neg1));
+    Value untaggedAddr0 = llvm_inttoptr(consTy.getPointerTo(), untagged);
+    return llvm_addrspacecast(consTy.getPointerTo(1), untaggedAddr0);
 }
 
 Value OpConversionContext::decodeImmediate(Value val) const {
-    auto termTy = getUsizeType();
+    auto immedTy = getOpaqueImmediateType();
+    auto termTy = getOpaqueTermType();
+    auto termTyAddr0 = getOpaqueTermTypeAddr0();
     auto maskInfo = targetInfo.immediateMask();
 
-    Value mask = llvm_constant(termTy, getIntegerAttr(maskInfo.mask));
-    Value masked = llvm_and(val, mask);
+    Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, val));
+    Value ptrInt = llvm_ptrtoint(immedTy, addr0);
+    Value mask = llvm_constant(immedTy, getIntegerAttr(maskInfo.mask));
+    Value masked = llvm_and(ptrInt, mask);
     if (maskInfo.requiresShift()) {
-        Value shift = llvm_constant(termTy, getIntegerAttr(maskInfo.shift));
+        Value shift = llvm_constant(immedTy, getIntegerAttr(maskInfo.shift));
         return llvm_shr(masked, shift);
     } else {
         return masked;

@@ -45,6 +45,8 @@ using ::mlir::LLVM::LLVMArrayType;
 using ::mlir::LLVM::LLVMIntegerType;
 using ::mlir::LLVM::LLVMStructType;
 using ::mlir::LLVM::LLVMType;
+using ::mlir::LLVM::LLVMTokenType;
+using ::mlir::LLVM::LLVMVoidType;
 
 namespace LLVM = ::mlir::LLVM;
 
@@ -57,6 +59,7 @@ using llvm_xor = ValueBuilder<LLVM::XOrOp>;
 using llvm_shl = ValueBuilder<LLVM::ShlOp>;
 using llvm_shr = ValueBuilder<LLVM::LShrOp>;
 using llvm_bitcast = ValueBuilder<LLVM::BitcastOp>;
+using llvm_addrspacecast = ValueBuilder<LLVM::AddrSpaceCastOp>;
 using llvm_zext = ValueBuilder<LLVM::ZExtOp>;
 using llvm_sext = ValueBuilder<LLVM::SExtOp>;
 using llvm_trunc = ValueBuilder<LLVM::TruncOp>;
@@ -161,7 +164,12 @@ class ConversionContext {
     EirTypeConverter &typeConverter;
     MLIRContext *context;
 
+    LLVMType getTokenType() const { return LLVMTokenType::get(context); }
+    LLVMType getVoidType() const { return LLVMVoidType::get(context); }
     LLVMType getUsizeType() const { return targetInfo.getUsizeType(); }
+    LLVMType getOpaqueTermType() const { return targetInfo.getUsizeType().getPointerTo(1); }
+    LLVMType getOpaqueTermTypeAddr0() const { return targetInfo.getUsizeType().getPointerTo(0); }
+    LLVMType getOpaqueImmediateType() const { return targetInfo.getUsizeType(); }
     LLVMType getI1Type() const { return targetInfo.getI1Type(); }
     LLVMType getI8Type() const { return targetInfo.getI8Type(); }
     LLVMType getI32Type() const { return targetInfo.getI32Type(); }
@@ -195,6 +203,9 @@ class OpConversionContext : public ConversionContext {
     using ConversionContext::context;
     using ConversionContext::encodeHeaderConstant;
     using ConversionContext::encodeImmediateConstant;
+    using ConversionContext::getOpaqueTermType;
+    using ConversionContext::getOpaqueTermTypeAddr0;
+    using ConversionContext::getOpaqueImmediateType;
     using ConversionContext::getDoubleType;
     using ConversionContext::getI1Type;
     using ConversionContext::getI32Type;
@@ -202,8 +213,10 @@ class OpConversionContext : public ConversionContext {
     using ConversionContext::getI8Type;
     using ConversionContext::getNilValue;
     using ConversionContext::getNoneValue;
+    using ConversionContext::getTokenType;
     using ConversionContext::getTupleType;
     using ConversionContext::getUsizeType;
+    using ConversionContext::getVoidType;
     using ConversionContext::targetInfo;
     using ConversionContext::typeConverter;
 
@@ -367,6 +380,9 @@ class RewritePatternContext : public OpConversionContext {
     using OpConversionContext::encodeImmediateConstant;
     using OpConversionContext::encodeList;
     using OpConversionContext::encodeLiteral;
+    using OpConversionContext::getOpaqueTermType;
+    using OpConversionContext::getOpaqueTermTypeAddr0;
+    using OpConversionContext::getOpaqueImmediateType;
     using OpConversionContext::getDoubleType;
     using OpConversionContext::getI1Attr;
     using OpConversionContext::getI1Type;
@@ -380,8 +396,10 @@ class RewritePatternContext : public OpConversionContext {
     using OpConversionContext::getNilValue;
     using OpConversionContext::getNoneValue;
     using OpConversionContext::getStringAttr;
+    using OpConversionContext::getTokenType;
     using OpConversionContext::getTupleType;
     using OpConversionContext::getUsizeType;
+    using OpConversionContext::getVoidType;
     using OpConversionContext::rewriter;
     using OpConversionContext::targetInfo;
     using OpConversionContext::typeConverter;

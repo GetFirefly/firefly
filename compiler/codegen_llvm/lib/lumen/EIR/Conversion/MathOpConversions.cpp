@@ -18,7 +18,8 @@ static void buildDeoptimizationPath(Location loc,
     // Build math op with overflow/underflow intrinsic
     auto callee = ctx.rewriter.getSymbolRefAttr(intrinsicFn);
     auto i1Ty = ctx.getI1Type();
-    auto termTy = ctx.getUsizeType();
+    auto immedTy = ctx.getOpaqueImmediateType();
+    auto termTy = ctx.getOpaqueTermType();
     auto i64Ty = ctx.getI64Type();
     // TODO: Need to handle 32-bit or non-nanboxed 64 arches here
     auto iFixTy = LLVMType::getIntNTy(ctx.rewriter.getContext(), 46);
@@ -61,7 +62,7 @@ static void buildDeoptimizationPath(Location loc,
 
     // Handle normal
     ctx.rewriter.setInsertionPointToEnd(normal);
-    Value extended = llvm_zext(termTy, resultFix);
+    Value extended = llvm_zext(immedTy, resultFix);
     Value encoded = ctx.encodeImmediate(concreteTy, extended);
     llvm_br(ValueRange(encoded), cont);
 
@@ -120,7 +121,7 @@ class SpecializedMathOpConversion : public EIROpConversion<Op> {
         }
 
         // Call builtin function
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto callee =
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
@@ -159,7 +160,7 @@ class MathOpConversion : public EIROpConversion<Op> {
 
         // Call builtin function
         StringRef builtinSymbol = Op::builtinSymbol();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto callee =
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
@@ -191,7 +192,7 @@ struct NegOpConversion : public EIROpConversion<NegOp> {
 
         // Call builtin function
         StringRef builtinSymbol("erlang:-/1");
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto callee = ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy});
 
         ArrayRef<Value> args({rhs});
@@ -241,7 +242,7 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
 
         // Call builtin function
         StringRef builtinSymbol = Op::builtinSymbol();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto callee =
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
@@ -320,7 +321,7 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
 
         // Call builtin function
         StringRef builtinSymbol = Op::builtinSymbol();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto callee =
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
@@ -381,7 +382,7 @@ class LogicalOpConversion : public EIROpConversion<Op> {
 
         // Call builtin function
         StringRef builtinSymbol = Op::builtinSymbol();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto callee =
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 

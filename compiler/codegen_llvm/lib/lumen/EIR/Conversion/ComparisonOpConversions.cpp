@@ -21,7 +21,7 @@ class ComparisonOpConversion : public EIROpConversion<Op> {
 
         StringRef builtinSymbol = Op::builtinSymbol();
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto int1ty = ctx.getI1Type();
 
         auto callee =
@@ -70,7 +70,7 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
         CmpEqOpAdaptor adaptor(operands);
         auto ctx = getRewriteContext(op, rewriter);
         auto i1Ty = ctx.getI1Type();
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
 
         Value lhs = adaptor.lhs();
         Value rhs = adaptor.rhs();

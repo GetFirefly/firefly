@@ -1,5 +1,5 @@
 pub mod exceptions;
-//pub mod gc;
+pub mod gc;
 pub mod receive;
 
 use std::convert::TryInto;

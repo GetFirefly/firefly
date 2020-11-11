@@ -73,7 +73,7 @@ struct TargetSpec {
     llvm_target: String,
 }
 
-fn main() {
+fn main() -> Result<(), ()> {
     let cargo_profile = env::var("LUMEN_BUILD_PROFILE").unwrap();
     let toolchain_name = env::var("CARGO_MAKE_TOOLCHAIN").unwrap();
     let rust_target_triple = env::var("CARGO_MAKE_RUST_TARGET_TRIPLE").unwrap();
@@ -161,7 +161,7 @@ fn main() {
         .arg(&toolchain_name)
         .args(&["cargo", "rustc"])
         .args(&["-p", "lumen"])
-        .args(&["--message-format=json", "--color=never"])
+        .args(&["--message-format=json", "--color=never", "-vv"])
         .args(cargo_args.as_slice())
         .arg("--")
         .arg(link_args_string.as_str())
@@ -263,10 +263,10 @@ fn main() {
                         }
                         _ => {}
                     },
-                    Err(e) => {
+                    Err(_e) => {
                         handle.write_all(&buf[..]).unwrap();
                         handle.write(b"\n").unwrap();
-                        panic!("JSON parsing error: {}", e);
+                        //panic!("JSON parsing error: {}", e);
                     }
                 }
 
@@ -281,11 +281,12 @@ fn main() {
 
     let output = child.wait().unwrap();
     if !output.success() {
-        panic!(
+        eprintln!(
             "command did not execute successfully: {}\n\
             expected success, got: {}",
             cmd, output
         );
+        return Err(());
     }
 
     println!("Preparing to install Lumen to {}", install_dir.display());
@@ -431,6 +432,7 @@ fn main() {
     }
 
     println!("Install complete!");
+    return Ok(());
 }
 
 fn get_llvm_target(target: &str) -> String {

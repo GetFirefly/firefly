@@ -13,7 +13,7 @@ struct MapOpConversion : public EIROpConversion<MapOp> {
         auto loc = op.getLoc();
         MapOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         StringRef symbolName("__lumen_builtin_map.new");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
 
@@ -44,7 +44,7 @@ struct MapOpConversion : public EIROpConversion<MapOp> {
 
             auto insertMapOp = rewriter.create<mlir::CallOp>(
                 loc, insertCalleeSymbol, termTy,
-                ArrayRef<Value>{newMap, key, val});
+                ValueRange{newMap, key, val});
             newMap = insertMapOp.getResult(0);
         }
 
@@ -63,7 +63,7 @@ struct MapInsertOpConversion : public EIROpConversion<MapInsertOp> {
         auto loc = op.getLoc();
         MapInsertOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         StringRef symbolName("__lumen_builtin_map.insert");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy,
                                               {termTy, termTy, termTy});
@@ -74,7 +74,7 @@ struct MapInsertOpConversion : public EIROpConversion<MapInsertOp> {
         Value key = adaptor.key();
         Value value = adaptor.val();
         auto newMapOp = rewriter.create<mlir::CallOp>(
-            loc, calleeSymbol, termTy, ArrayRef<Value>{map, key, value});
+            loc, calleeSymbol, termTy, ValueRange{map, key, value});
         Value newMap = newMapOp.getResult(0);
         Value noneVal = llvm_constant(
             termTy, ctx.getIntegerAttr(
@@ -96,7 +96,7 @@ struct MapUpdateOpConversion : public EIROpConversion<MapUpdateOp> {
         auto loc = op.getLoc();
         MapUpdateOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         StringRef symbolName("__lumen_builtin_map.update");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy,
                                               {termTy, termTy, termTy});
@@ -107,7 +107,7 @@ struct MapUpdateOpConversion : public EIROpConversion<MapUpdateOp> {
         Value key = adaptor.key();
         Value value = adaptor.val();
         auto newMapOp = rewriter.create<mlir::CallOp>(
-            loc, calleeSymbol, termTy, ArrayRef<Value>{map, key, value});
+            loc, calleeSymbol, termTy, ValueRange{map, key, value});
         Value newMap = newMapOp.getResult(0);
         Value noneVal = llvm_constant(
             termTy, ctx.getIntegerAttr(
@@ -128,7 +128,7 @@ struct MapContainsKeyOpConversion : public EIROpConversion<MapContainsKeyOp> {
         auto ctx = getRewriteContext(op, rewriter);
         MapContainsKeyOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         auto i1Ty = ctx.getI1Type();
         StringRef symbolName("__lumen_builtin_map.is_key");
         auto callee =
@@ -153,7 +153,7 @@ struct MapGetKeyOpConversion : public EIROpConversion<MapGetKeyOp> {
         auto ctx = getRewriteContext(op, rewriter);
         MapGetKeyOpAdaptor adaptor(operands);
 
-        auto termTy = ctx.getUsizeType();
+        auto termTy = ctx.getOpaqueTermType();
         StringRef symbolName("__lumen_builtin_map.get");
         auto callee =
             ctx.getOrInsertFunction(symbolName, termTy, {termTy, termTy});

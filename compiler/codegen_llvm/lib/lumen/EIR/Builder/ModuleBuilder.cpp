@@ -269,6 +269,7 @@ LowerResult ModuleBuilder::finish() {
 
     OpPassManager &fm = pm.nest<::lumen::eir::FuncOp>();
     fm.addPass(::lumen::eir::createInsertTraceConstructorsPass());
+    fm.addPass(::lumen::eir::createScheduleOperationsPass());
     fm.addPass(::mlir::createCanonicalizerPass());
 
     mlir::OwningModuleRef owned(mod);
@@ -344,6 +345,8 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
     auto personalityFn = getOrDeclareFunction("lumen_eh_personality", i32Ty,
                                               TypeRange(), /*vararg=*/true);
     auto personalityFnSymbol = builder.getSymbolRefAttr("lumen_eh_personality");
+    // TODO: May need to update this to refer to our own GC strategy later
+    auto gcAttrSymbol = builder.getStringAttr("statepoint-example");
 
     // If we forward-declared this function but did not fill it out, use that
     // definition
@@ -358,6 +361,8 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
         // Make sure attributes we would normally set, are set
         if (!funcOp.getAttr("personality"))
             funcOp.setAttr("personality", personalityFnSymbol);
+        if (!funcOp.getAttr("gc"))
+            funcOp.setAttr("gc", gcAttrSymbol);
 
         return funcOp;
     }
@@ -372,7 +377,8 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
 
     auto personalityAttr =
         builder.getNamedAttr("personality", personalityFnSymbol);
-    ArrayRef<NamedAttribute> attrs({personalityAttr});
+    auto gcAttr = builder.getNamedAttr("gc", gcAttrSymbol);
+    ArrayRef<NamedAttribute> attrs({personalityAttr, gcAttr});
 
     if (resultType->any.tag == EirTypeTag::None) {
         auto fnType = builder.getFunctionType(argTypes, llvm::None);

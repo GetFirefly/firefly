@@ -51,7 +51,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
     LLVMType int64Ty = LLVMType::getInt64Ty(ctx);
     LLVMType int8PtrTy = LLVMType::getInt8PtrTy(ctx);
     LLVMType f64Ty = LLVMType::getDoubleTy(ctx);
-    LLVMType termTy = intNTy.getPointerTo();
+    LLVMType termTy = intNTy.getPointerTo(1);
     impl->voidTy = voidTy;
     impl->pointerWidthIntTy = intNTy;
     impl->i1Ty = int1Ty;
@@ -77,7 +77,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
 
     // Cons
     impl->consTy = LLVMType::createStructTy(
-        ctx, ArrayRef<LLVMType>({intNTy, intNTy}), StringRef("cons"));
+        ctx, ArrayRef<LLVMType>({termTy, termTy}), StringRef("cons"));
 
     // Nil
     auto nilTypeKind = TypeKind::Nil;
@@ -98,7 +98,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
         ctx, pushResultFields, StringRef("binary.pushed"));
 
     // Match Result
-    ArrayRef<LLVMType> matchResultFields({intNTy, intNTy, int1Ty});
+    ArrayRef<LLVMType> matchResultFields({termTy, termTy, int1Ty});
     impl->matchResultTy = LLVMType::createStructTy(ctx, matchResultFields,
                                                    StringRef("match.result"));
 
@@ -120,7 +120,7 @@ TargetInfo::TargetInfo(llvm::TargetMachine *targetMachine, MLIRContext *ctx)
                                  StringRef("lumen.exception"));
 
     impl->erlangErrorTy = LLVMType::createStructTy(
-        ctx, ArrayRef<LLVMType>{intNTy, intNTy, intNTy, intNPtrTy, int8PtrTy},
+        ctx, ArrayRef<LLVMType>{intNTy, termTy, termTy, intNPtrTy, int8PtrTy},
         StringRef("erlang.exception"));
 
     // Tags/boxes
@@ -148,7 +148,7 @@ LLVMType TargetInfo::makeTupleType(unsigned arity) {
     int strSize = std::snprintf(buffer.data(), buffer.size(), fmt, arity);
     StringRef typeName(buffer.data(), strSize);
 
-    auto termTy = getUsizeType();
+    auto termTy = getUsizeType().getPointerTo(1);
     auto tupleTy = LLVMStructType::getIdentified(termTy.getContext(), typeName);
     if (tupleTy.isInitialized()) return tupleTy;
 
@@ -188,7 +188,7 @@ LLVMType TargetInfo::makeClosureType(unsigned size) {
     auto int32Ty = getI32Type();
     auto voidTy = impl->voidTy;
     auto voidFnPtrTy = LLVMType::getFunctionTy(voidTy, false).getPointerTo();
-    auto envTy = LLVMType::getArrayTy(intNTy, size);
+    auto envTy = LLVMType::getArrayTy(intNTy.getPointerTo(1), size);
     ArrayRef<LLVMType> fields{intNTy, intNTy,      int32Ty,
                               defTy,  voidFnPtrTy, envTy};
 

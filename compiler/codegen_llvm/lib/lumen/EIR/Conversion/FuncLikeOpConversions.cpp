@@ -100,10 +100,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         LLVMType termPtrTy = termTy.getPointerTo();
         LLVMType immedTy = ctx.getOpaqueImmediateType();
         LLVMType i8Ty = ctx.getI8Type();
-        LLVMType i8PtrTy = i8Ty.getPointerTo();
         LLVMType i32Ty = ctx.getI32Type();
         LLVMType i32PtrTy = i32Ty.getPointerTo();
-        auto indexTy = rewriter.getIndexType();
 
         // Look for the callee, if it doesn't exist, create a default
         // declaration
@@ -112,12 +110,12 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         if (envLen > 0) {
             argTypes.push_back(termPtrTy);
             unsigned withEnvArity = arity > 0 ? arity - 1 : 0;
-            for (auto i = 0; i < withEnvArity; i++) {
+            for (unsigned i = 0; i < withEnvArity; i++) {
                 argTypes.push_back(termTy);
             }
         } else {
             // Otherwise, all arguments, if any, will be terms
-            for (auto i = 0; i < arity; i++) {
+            for (unsigned i = 0; i < arity; i++) {
                 argTypes.push_back(termTy);
             }
         }
@@ -136,14 +134,10 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         }
 
         LLVMType opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
-        LLVMType closureTy = ctx.targetInfo.makeClosureType(envLen);
         LLVMType uniqueTy = ctx.targetInfo.getClosureUniqueType();
         LLVMType uniquePtrTy = uniqueTy.getPointerTo();
-        LLVMType defTy = ctx.targetInfo.getClosureDefinitionType();
 
         // Allocate closure header block
-        auto boxedClosureTy =
-            BoxType::get(rewriter.getType<ClosureType>(envLen));
         auto closurePtrTy = PtrType::get(rewriter.getType<ClosureType>(envLen));
         auto headerArity = ctx.targetInfo.closureHeaderArity(envLen);
         Value headerArityConst =
@@ -170,7 +164,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
             immedTy,
             ctx.getIntegerAttr(op.module().getValue().getLimitedValue()));
         Value modIdx = llvm_constant(i32Ty, ctx.getI32Attr(1));
-        Value modPtrGep = llvm_gep(immedTy.getPointerTo(), valRef, ValueRange{zero, modIdx});
+        Value modPtrGep =
+            llvm_gep(immedTy.getPointerTo(), valRef, ValueRange{zero, modIdx});
         llvm_store(mod, modPtrGep);
 
         // Arity
@@ -192,7 +187,8 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
             llvm_store(anonTypeConst, defTagPtrGep);
 
             // Definition - index
-            Value indexConst = llvm_constant(immedTy, ctx.getIntegerAttr(index));
+            Value indexConst =
+                llvm_constant(immedTy, ctx.getIntegerAttr(index));
             Value defIndexIdx = llvm_constant(i32Ty, ctx.getI32Attr(1));
             Value definitionIndexGep = llvm_gep(
                 termPtrTy, valRef, ValueRange{zero, defIdx, defIndexIdx});

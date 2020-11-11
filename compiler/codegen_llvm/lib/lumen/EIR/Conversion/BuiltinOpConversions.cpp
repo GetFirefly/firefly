@@ -11,7 +11,6 @@ struct IncrementReductionsOpConversion
         IncrementReductionsOp op, ArrayRef<Value> operands,
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
-        ModuleOp mod = ctx.getModule();
 
         auto i32Ty = ctx.getI32Type();
 
@@ -62,8 +61,10 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
                     immedTy, ctx.getIntegerAttr(ctx.targetInfo.listTag()));
                 Value listMask = llvm_constant(
                     immedTy, ctx.getIntegerAttr(ctx.targetInfo.listMask()));
-                Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, input));
-                Value masked = llvm_and(llvm_ptrtoint(immedTy, addr0), listMask);
+                Value addr0 = llvm_addrspacecast(termTyAddr0,
+                                                 llvm_bitcast(termTy, input));
+                Value masked =
+                    llvm_and(llvm_ptrtoint(immedTy, addr0), listMask);
                 rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(
                     op, LLVM::ICmpPredicate::eq, listTag, masked);
                 return success();
@@ -106,7 +107,8 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
                 ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
             auto calleeSymbol =
                 FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
+            rewriter.replaceOpWithNewOp<mlir::CallOp>(
+                op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
             return success();
         }
 
@@ -122,7 +124,8 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
-        rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
+        rewriter.replaceOpWithNewOp<mlir::CallOp>(
+            op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
         return success();
     }
 };
@@ -149,7 +152,8 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
             auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
             auto calleeSymbol =
                 FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{arity, input});
+            rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty,
+                                                      ValueRange{arity, input});
             return success();
         }
 
@@ -161,7 +165,8 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
-        rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
+        rewriter.replaceOpWithNewOp<mlir::CallOp>(
+            op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
         return success();
     }
 };
@@ -188,7 +193,8 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
             auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
             auto calleeSymbol =
                 FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty, ValueRange{arity, input});
+            rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty,
+                                                      ValueRange{arity, input});
             return success();
         }
 
@@ -200,7 +206,8 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
         auto calleeSymbol =
             FlatSymbolRefAttr::get(symbolName, callee->getContext());
-        rewriter.replaceOpWithNewOp<mlir::CallOp>(op, int1Ty, calleeSymbol, ValueRange{matchConst, input});
+        rewriter.replaceOpWithNewOp<mlir::CallOp>(
+            op, int1Ty, calleeSymbol, ValueRange{matchConst, input});
         return success();
     }
 };

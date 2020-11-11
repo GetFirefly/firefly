@@ -1,5 +1,7 @@
 #include "lumen/EIR/Conversion/ConvertEIRToLLVM.h"
 
+#include "mlir/Rewrite/FrozenRewritePatternList.h"
+
 #include "lumen/EIR/Conversion/AggregateOpConversions.h"
 #include "lumen/EIR/Conversion/BinaryOpConversions.h"
 #include "lumen/EIR/Conversion/BuiltinOpConversions.h"
@@ -12,6 +14,8 @@
 #include "lumen/EIR/Conversion/MathOpConversions.h"
 #include "lumen/EIR/Conversion/MemoryOpConversions.h"
 
+using ::mlir::FrozenRewritePatternList;
+
 namespace lumen {
 namespace eir {
 
@@ -21,14 +25,14 @@ class ConvertEIRToLLVMPass
                                mlir::OperationPass<ModuleOp>> {
    public:
     ConvertEIRToLLVMPass(TargetMachine *targetMachine_)
-        : targetMachine(targetMachine_),
-          mlir::PassWrapper<ConvertEIRToLLVMPass,
-                            mlir::OperationPass<ModuleOp>>() {}
+        : mlir::PassWrapper<ConvertEIRToLLVMPass,
+                            mlir::OperationPass<ModuleOp>>(),
+          targetMachine(targetMachine_) {}
 
     ConvertEIRToLLVMPass(const ConvertEIRToLLVMPass &other)
-        : targetMachine(other.targetMachine),
-          mlir::PassWrapper<ConvertEIRToLLVMPass,
-                            mlir::OperationPass<ModuleOp>>() {}
+        : mlir::PassWrapper<ConvertEIRToLLVMPass,
+                            mlir::OperationPass<ModuleOp>>(),
+          targetMachine(other.targetMachine) {}
 
     void getDependentDialects(mlir::DialectRegistry &registry) const override {
         registry.insert<mlir::StandardOpsDialect, mlir::LLVM::LLVMDialect,
@@ -91,7 +95,9 @@ class ConvertEIRToLLVMPass
         conversionTarget.addLegalOp<ModuleOp, mlir::ModuleTerminatorOp>();
 
         mlir::ModuleOp moduleOp = getOperation();
-        if (failed(applyFullConversion(moduleOp, conversionTarget, patterns))) {
+        FrozenRewritePatternList frozenPatterns(std::move(patterns));
+        if (failed(applyFullConversion(moduleOp, conversionTarget,
+                                       frozenPatterns))) {
             return signalPassFailure();
         }
     }

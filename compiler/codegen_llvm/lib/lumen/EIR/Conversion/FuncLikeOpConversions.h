@@ -5,9 +5,9 @@
 
 namespace lumen {
 namespace eir {
-class FuncOpConversion;
-class ClosureOpConversion;
-class UnpackEnvOpConversion;
+struct FuncOpConversion;
+struct ClosureOpConversion;
+struct UnpackEnvOpConversion;
 
 void populateFuncLikeOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,

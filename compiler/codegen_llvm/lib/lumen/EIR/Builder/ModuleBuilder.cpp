@@ -7,6 +7,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
@@ -24,6 +25,8 @@
 #include "lumen/EIR/IR/EIRTypes.h"
 #include "lumen/term/Encoding.h"
 
+using ::llvm::cast;
+using ::llvm::dyn_cast_or_null;
 using ::llvm::Optional;
 using ::llvm::raw_ostream;
 using ::llvm::StringSwitch;
@@ -100,7 +103,6 @@ inline raw_ostream &operator<<(raw_ostream &os, EirTypeTag::TypeTag tag) {
 
 static Type fromRust(Builder &builder, const EirType *wrapper) {
     EirTypeTag::TypeTag t = wrapper->any.tag;
-    auto *context = builder.getContext();
     switch (t) {
     case EirTypeTag::None:
         return builder.getType<NoneType>();
@@ -222,10 +224,10 @@ ModuleBuilder::ModuleBuilder(MLIRContext &context, StringRef name, Location loc,
                              const TargetMachine *targetMachine,
                              llvm::Triple::ArchType archType,
                              unsigned immediateBits)
-    : builder(&context),
-      targetMachine(targetMachine),
+    : immediateBitWidth(immediateBits),
       archType(archType),
-      immediateBitWidth(immediateBits) {
+      targetMachine(targetMachine),
+      builder(&context) {
     // Create an empty module into which we can codegen functions
     theModule = builder.create<mlir::ModuleOp>(loc, name);
     assert(theModule != nullptr);
@@ -258,7 +260,8 @@ LowerResult ModuleBuilder::finish() {
     std::swap(mod, theModule);
 
     // Apply some fixup passes to the generated IR
-    PassManager pm(builder.getContext(), /*verifyPasses=*/false);
+    PassManager pm(builder.getContext());
+    pm.enableVerifier(false);
     // mlir::OpPrintingFlags printerFlags;
     // pm.enableIRPrinting(
     //    /*shouldPrintBefore=*/[](mlir::Pass *, Operation *) { return true; },
@@ -342,8 +345,8 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
                                       EirType *resultType) {
     // All generated functions get our custom exception handling personality
     Type i32Ty = builder.getIntegerType(32);
-    auto personalityFn = getOrDeclareFunction("lumen_eh_personality", i32Ty,
-                                              TypeRange(), /*vararg=*/true);
+    getOrDeclareFunction("lumen_eh_personality", i32Ty, TypeRange(),
+                         /*vararg=*/true);
     auto personalityFnSymbol = builder.getSymbolRefAttr("lumen_eh_personality");
     // TODO: May need to update this to refer to our own GC strategy later
     auto gcAttrSymbol = builder.getStringAttr("statepoint-example");
@@ -361,8 +364,7 @@ FuncOp ModuleBuilder::create_function(Location loc, StringRef functionName,
         // Make sure attributes we would normally set, are set
         if (!funcOp.getAttr("personality"))
             funcOp.setAttr("personality", personalityFnSymbol);
-        if (!funcOp.getAttr("gc"))
-            funcOp.setAttr("gc", gcAttrSymbol);
+        if (!funcOp.getAttr("gc")) funcOp.setAttr("gc", gcAttrSymbol);
 
         return funcOp;
     }
@@ -425,7 +427,7 @@ extern "C" bool MLIRBuildUnpackEnv(MLIRModuleBuilderRef b,
     auto opBuilder = builder->getBuilder();
     Value env = opBuilder.create<CastOp>(
         loc, envBox, PtrType::get(opBuilder.getType<ClosureType>(numValues)));
-    for (auto i = 0; i < numValues; i++) {
+    for (unsigned i = 0; i < numValues; i++) {
         values[i] = wrap(builder->build_unpack_op(loc, env, i));
     }
     return true;
@@ -545,7 +547,6 @@ void ModuleBuilder::build_if(Location loc, Value value, Block *yes, Block *no,
                              SmallVectorImpl<Value> &noArgs,
                              SmallVectorImpl<Value> &otherArgs) {
     //  Create the `if`, if necessary
-    bool withOtherwiseRegion = other != nullptr;
     Value isTrue = value;
     Type i1Ty = builder.getI1Type();
     if (!value.getType().isa<BooleanType>() && !value.getType().isInteger(1)) {
@@ -597,8 +598,6 @@ std::unique_ptr<MatchPattern> ModuleBuilder::convertMatchPattern(
     const MLIRMatchPattern &inPattern) {
     auto tag = inPattern.tag;
     switch (tag) {
-    default:
-        llvm_unreachable("unrecognized match pattern tag!");
     case MatchPatternType::Any:
         return std::unique_ptr<AnyPattern>(new AnyPattern());
     case MatchPatternType::Cons:
@@ -1302,7 +1301,6 @@ bool ModuleBuilder::maybe_build_intrinsic(Location loc, StringRef target,
 
     if (isThrow) return true;
 
-    auto termTy = builder.getType<TermType>();
     // Tail calls directly return to caller
     if (isTail) {
         if (resultOpt) {
@@ -1346,7 +1344,7 @@ void ModuleBuilder::build_static_invoke(Location loc, StringRef target,
 
     // These are placeholder argument types if the function is not defined
     SmallVector<Type, 2> argTypes;
-    for (auto arg : args) {
+    for (auto _arg : args) {
         argTypes.push_back(termType);
     }
 
@@ -1400,7 +1398,7 @@ void ModuleBuilder::build_static_call(Location loc, StringRef target,
 
     // These are placeholder argument types if the function is not defined
     SmallVector<Type, 2> argTypes;
-    for (auto arg : args) {
+    for (auto _arg : args) {
         argTypes.push_back(termType);
     }
     // Declare the callee, or get existing declaration
@@ -1563,8 +1561,6 @@ void ModuleBuilder::build_apply_2(Location loc, Value cls, ValueRange args,
                                   ArrayRef<Value> errArgs) {
     ScopedContext scope(builder, loc);
 
-    auto termTy = builder.getType<TermType>();
-
     // We need to call apply/2 with the closure, and a list of arguments
     SmallVector<Value, 2> applyArgs;
     applyArgs.push_back(cls);
@@ -1587,8 +1583,6 @@ void ModuleBuilder::build_apply_3(Location loc, Value mod, Value fun,
                                   ArrayRef<Value> okArgs, Block *err,
                                   ArrayRef<Value> errArgs) {
     ScopedContext scope(builder, loc);
-
-    auto termTy = builder.getType<TermType>();
 
     // We need to call apply/3, with module/function and a list of arguments
     SmallVector<Value, 3> applyArgs;
@@ -1864,8 +1858,6 @@ void ModuleBuilder::build_binary_push(Location loc, Value bin, Value value,
         attrs.push_back({builder.getIdentifier("endianness"),
                          builder.getI8IntegerAttr(spec->payload.f.endianness)});
         break;
-    default:
-        llvm_unreachable("invalid binary specifier type");
     }
     auto op = builder.create<BinaryPushOp>(loc, bin, value, size, attrs);
     auto newBin = op.getResult(0);
@@ -1895,7 +1887,6 @@ void ModuleBuilder::build_receive_start(Location loc, Block *cont,
     ScopedContext scope(builder, loc);
     // Make sure continuation block has correct type for ReceiveRef argument
     auto arg = cont->getArgument(0);
-    auto recvRefType = builder.getType<ReceiveRefType>();
     arg.setType(builder.getType<ReceiveRefType>());
     // Create op
     auto op = builder.create<ReceiveStartOp>(loc, timeout);
@@ -2223,7 +2214,6 @@ extern "C" MLIRValueRef MLIRBuildConstantList(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_constant_list(Location loc,
                                          ArrayRef<Attribute> elements) {
     ScopedContext scope(builder, loc);
-    auto termTy = builder.getType<TermType>();
     return eir_constant_list(elements);
 }
 
@@ -2271,7 +2261,6 @@ extern "C" MLIRValueRef MLIRBuildConstantMap(MLIRModuleBuilderRef b,
 Value ModuleBuilder::build_constant_map(Location loc,
                                         ArrayRef<Attribute> elements) {
     ScopedContext scope(builder, loc);
-    auto termTy = builder.getType<TermType>();
     return eir_constant_map(elements);
 }
 

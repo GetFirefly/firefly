@@ -53,7 +53,6 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
         ConversionPatternRewriter &rewriter) const override {
         CallOpAdaptor adaptor(operands);
         auto ctx = getRewriteContext(op, rewriter);
-        auto termTy = ctx.getUsizeType();
 
         // Always increment reduction count when performing a call
         rewriter.create<IncrementReductionsOp>(op.getLoc());
@@ -76,7 +75,6 @@ struct CallOpConversion : public EIROpConversion<CallOp> {
         // Add tail call markers where present
         Operation *callOp =
             llvm_call(resultTypes, op.getCalleeAttr(), adaptor.operands());
-        auto attrs = op.getAttrs();
         for (auto attr : op.getAttrs()) {
             callOp->setAttr(std::get<Identifier>(attr),
                             std::get<Attribute>(attr));
@@ -140,15 +138,11 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
         // i32 - a "selector" indicating which landing pad clause the
         //       exception type matched. Like Rust, we ignore this
         auto i8PtrTy = ctx.targetInfo.getI8Type().getPointerTo();
-        auto i8PtrPtrTy = i8PtrTy.getPointerTo();
-        auto i64Ty = ctx.getI64Type();
         auto i32Ty = ctx.getI32Type();
         auto termTy = ctx.getOpaqueTermType();
         auto termPtrTy = termTy.getPointerTo();
         auto termPtrPtrTy = termPtrTy.getPointerTo();
         auto exceptionTy = ctx.targetInfo.getExceptionType();
-        auto voidTy = LLVMType::getVoidTy(ctx.context);
-        auto tupleTy = ctx.getTupleType({termTy, termTy, termPtrTy});
         auto erlangErrorTy = ctx.targetInfo.getErlangErrorType();
         auto erlangErrorPtrTy = erlangErrorTy.getPointerTo();
 
@@ -165,8 +159,7 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
         // Extract the exception object (a pointer to the raw exception object)
         Value exPtr = llvm_extractvalue(i8PtrTy, obj, ctx.getI64ArrayAttr(0));
 
-        auto canHandleBrOp =
-            rewriter.create<LLVM::BrOp>(loc, ValueRange{}, canHandleBlock);
+        rewriter.create<LLVM::BrOp>(loc, ValueRange{}, canHandleBlock);
 
         // If we can, then extract the error value from the exception
         rewriter.setInsertionPointToStart(canHandleBlock);
@@ -178,9 +171,8 @@ struct LandingPadOpConversion : public EIROpConversion<LandingPadOp> {
             rewriter.getNamedAttr("readonly", rewriter.getUnitAttr()),
             rewriter.getNamedAttr("argmemonly", rewriter.getUnitAttr()),
         };
-        auto callee =
-            ctx.getOrInsertFunction(symbolName, erlangErrorPtrTy,
-                                    ArrayRef<LLVMType>{i8PtrTy}, calleeAttrs);
+        ctx.getOrInsertFunction(symbolName, erlangErrorPtrTy,
+                                ArrayRef<LLVMType>{i8PtrTy}, calleeAttrs);
         auto callOp = rewriter.create<mlir::CallOp>(
             op.getLoc(), rewriter.getSymbolRefAttr(symbolName),
             ArrayRef<Type>{erlangErrorPtrTy}, ValueRange{exPtr});
@@ -225,11 +217,8 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
         ConversionPatternRewriter &rewriter) const override {
         ThrowOpAdaptor adaptor(operands);
         auto ctx = getRewriteContext(op, rewriter);
-        auto loc = op.getLoc();
         auto termTy = ctx.getOpaqueTermType();
         auto termPtrTy = termTy.getPointerTo();
-        auto i8PtrTy = ctx.targetInfo.getI8Type().getPointerTo();
-        auto i32Ty = ctx.getI32Type();
         auto voidTy = LLVMType::getVoidTy(ctx.context);
         auto erlangErrorTy = ctx.targetInfo.getErlangErrorType();
         auto erlangErrorPtrTy = erlangErrorTy.getPointerTo();
@@ -243,9 +232,9 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
         ArrayRef<NamedAttribute> raiseAttrs = {
             rewriter.getNamedAttr("nounwind", rewriter.getUnitAttr()),
         };
-        auto raiseCallee = ctx.getOrInsertFunction(
-            raiseSymbol, erlangErrorPtrTy,
-            ArrayRef<LLVMType>{termTy, termTy, termPtrTy}, raiseAttrs);
+        ctx.getOrInsertFunction(raiseSymbol, erlangErrorPtrTy,
+                                ArrayRef<LLVMType>{termTy, termTy, termPtrTy},
+                                raiseAttrs);
         auto raiseOp = rewriter.create<mlir::CallOp>(
             op.getLoc(), rewriter.getSymbolRefAttr(raiseSymbol),
             ArrayRef<Type>{erlangErrorPtrTy},
@@ -260,9 +249,9 @@ struct ThrowOpConversion : public EIROpConversion<ThrowOp> {
         ArrayRef<NamedAttribute> calleeAttrs = {
             rewriter.getNamedAttr("noreturn", rewriter.getUnitAttr()),
         };
-        auto callee = ctx.getOrInsertFunction(
-            symbolName, voidTy, ArrayRef<LLVMType>{erlangErrorPtrTy},
-            calleeAttrs);
+        ctx.getOrInsertFunction(symbolName, voidTy,
+                                ArrayRef<LLVMType>{erlangErrorPtrTy},
+                                calleeAttrs);
 
         auto callOp = rewriter.create<mlir::CallOp>(
             op.getLoc(), rewriter.getSymbolRefAttr(symbolName),
@@ -295,7 +284,7 @@ struct YieldOpConversion : public EIROpConversion<YieldOp> {
 
         auto voidTy = ctx.getVoidType();
         const char *symbolName = "__lumen_builtin_yield";
-        auto callee = ctx.getOrInsertFunction(symbolName, voidTy, {});
+        ctx.getOrInsertFunction(symbolName, voidTy, {});
 
         rewriter.replaceOpWithNewOp<mlir::CallOp>(
             op, rewriter.getSymbolRefAttr(symbolName), ArrayRef<Type>{});
@@ -310,7 +299,6 @@ struct YieldCheckOpConversion : public EIROpConversion<YieldCheckOp> {
         YieldCheckOp op, ArrayRef<Value> operands,
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
-        ModuleOp mod = ctx.getModule();
 
         auto i32Ty = ctx.getI32Type();
         auto reductionCountGlobal = ctx.getOrInsertGlobal(

@@ -22,7 +22,6 @@ struct ConsOpConversion : public EIROpConversion<ConsOp> {
         auto tail = adaptor.tail();
 
         // Allocate header on heap, write values to header, then box
-        OpaqueTermType kind = rewriter.getType<ConsType>();
         Value zero = llvm_constant(i32Ty, ctx.getI32Attr(0));
         Value one = llvm_constant(i32Ty, ctx.getI32Attr(1));
         Value arity = llvm_zext(immedTy, zero);
@@ -70,7 +69,6 @@ struct ListOpConversion : public EIROpConversion<ListOp> {
             return success();
         }
 
-        unsigned cellsRequired = numElements;
         unsigned currentIndex = numElements;
 
         Value list;
@@ -119,7 +117,7 @@ struct TupleOpConversion : public EIROpConversion<TupleOp> {
         llvm_store(llvm_constant(termTy, ctx.getIntegerAttr(headerRaw)),
                    headerTermPtr);
 
-        for (auto i = 0; i < numElements; i++) {
+        for (unsigned i = 0; i < numElements; i++) {
             auto element = elements[i];
             auto elementTy = tupleTy.getStructElementType(i + 1).getPointerTo();
             auto idx = llvm_constant(i32Ty, ctx.getI32Attr(i + 1));

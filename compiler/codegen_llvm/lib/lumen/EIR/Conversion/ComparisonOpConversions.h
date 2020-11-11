@@ -5,11 +5,11 @@
 
 namespace lumen {
 namespace eir {
-class CmpEqOpConversion;
-class CmpLtOpConversion;
-class CmpLteOpConversion;
-class CmpGtOpConversion;
-class CmpGteOpConversion;
+struct CmpEqOpConversion;
+struct CmpLtOpConversion;
+struct CmpLteOpConversion;
+struct CmpGtOpConversion;
+struct CmpGteOpConversion;
 
 void populateComparisonOpConversionPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *context,

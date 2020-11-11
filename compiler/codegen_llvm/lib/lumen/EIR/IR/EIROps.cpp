@@ -1271,7 +1271,6 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc,
     auto numBranches = branches.size();
     assert(numBranches > 0 && "expected at least one branch in a match");
 
-    auto *context = builder.getContext();
     auto *currentBlock = builder.getInsertionBlock();
     auto *region = currentBlock->getParent();
     auto selectorType = selector.getType();
@@ -1317,8 +1316,6 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc,
     auto finalIp = builder.saveInsertionPoint();
 
     // Common types used below
-    auto termType = builder.getType<TermType>();
-    auto i1Ty = builder.getI1Type();
 
     // Used whenever we need a set of empty args below
     ArrayRef<Value> emptyArgs{};
@@ -1391,9 +1388,9 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc,
             auto isConsOp =
                 builder.create<IsTypeOp>(branchLoc, selectorArg, boxedConsType);
             auto isConsCond = isConsOp.getResult();
-            auto ifOp = builder.create<CondBranchOp>(
-                branchLoc, isConsCond, split, emptyArgs, nextPatternBlock,
-                withSelectorArgs);
+            builder.create<CondBranchOp>(branchLoc, isConsCond, split,
+                                         emptyArgs, nextPatternBlock,
+                                         withSelectorArgs);
             // 2. In the split, extract head and tail values of the cons cell
             builder.setInsertionPointToEnd(split);
             auto ptrConsType = builder.getType<PtrType>(consType);
@@ -1439,9 +1436,9 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc,
             auto isTupleOp = builder.create<IsTypeOp>(branchLoc, selectorArg,
                                                       boxedTupleType);
             auto isTupleCond = isTupleOp.getResult();
-            auto ifOp = builder.create<CondBranchOp>(
-                branchLoc, isTupleCond, split, emptyArgs, nextPatternBlock,
-                withSelectorArgs);
+            builder.create<CondBranchOp>(branchLoc, isTupleCond, split,
+                                         emptyArgs, nextPatternBlock,
+                                         withSelectorArgs);
             // 2. In the split, extract the tuple elements as values
             builder.setInsertionPointToEnd(split);
             auto ptrTupleType = builder.getType<PtrType>(tupleType);
@@ -1484,9 +1481,8 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc,
             auto isMapOp =
                 builder.create<IsTypeOp>(branchLoc, selectorArg, mapType);
             auto isMapCond = isMapOp.getResult();
-            auto ifOp = builder.create<CondBranchOp>(
-                branchLoc, isMapCond, split, emptyArgs, nextPatternBlock,
-                withSelectorArgs);
+            builder.create<CondBranchOp>(branchLoc, isMapCond, split, emptyArgs,
+                                         nextPatternBlock, withSelectorArgs);
             // 2. In the split, call runtime function `is_map_key` to confirm
             // existence of the key in the map,
             //    then conditionally branch to the second split if successful,
@@ -1605,13 +1601,6 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc,
                                                       payload.unit, size);
                 break;
             }
-            default: {
-                auto diagEngine = &builder.getContext()->getDiagEngine();
-                diagEngine->emit(branchLoc, DiagnosticSeverity::Error)
-                    << "unknown binary specifier type tag '"
-                    << ((unsigned)spec.tag) << "'";
-                return failure();
-            }
             }
             Value matched = op->getResult(0);
             Value rest = op->getResult(1);
@@ -1626,14 +1615,6 @@ LogicalResult lowerPatternMatch(OpBuilder &builder, Location loc,
             builder.create<CondBranchOp>(branchLoc, success, dest, destArgs,
                                          nextPatternBlock, withSelectorArgs);
             break;
-        }
-
-        default: {
-            auto diagEngine = &builder.getContext()->getDiagEngine();
-            diagEngine->emit(branchLoc, DiagnosticSeverity::Error)
-                << "unknown match pattern type '"
-                << ((unsigned)b.getPatternType()) << "'";
-            return failure();
         }
         }
     }
@@ -1843,8 +1824,6 @@ struct CanonicalizeEqualityComparison : public OpRewritePattern<CmpEqOp> {
             }
         }
 
-        auto lhsIsConst = matchPattern(lhs, mlir::m_Constant());
-        auto rhsIsConst = matchPattern(rhs, mlir::m_Constant());
         auto lhsTy = lhs.getType();
         auto rhsTy = rhs.getType();
         auto termTy = rewriter.getType<TermType>();

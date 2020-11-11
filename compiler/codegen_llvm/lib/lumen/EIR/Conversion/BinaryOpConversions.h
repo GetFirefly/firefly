@@ -5,15 +5,15 @@
 
 namespace lumen {
 namespace eir {
-class BinaryStartOpConversion;
-class BinaryFinishOpConversion;
-class BinaryPushOpConversion;
-class BinaryMatchRawOpConversion;
-class BinaryMatchIntegerOpConversion;
-class BinaryMatchFloatOpConversion;
-class BinaryMatchUtf8OpConversion;
-class BinaryMatchUtf16OpConversion;
-class BinaryMatchUtf32OpConversion;
+struct BinaryStartOpConversion;
+struct BinaryFinishOpConversion;
+struct BinaryPushOpConversion;
+struct BinaryMatchRawOpConversion;
+struct BinaryMatchIntegerOpConversion;
+struct BinaryMatchFloatOpConversion;
+struct BinaryMatchUtf8OpConversion;
+struct BinaryMatchUtf16OpConversion;
+struct BinaryMatchUtf32OpConversion;
 
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,

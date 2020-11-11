@@ -55,7 +55,6 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         auto immedTy = ctx.getOpaqueImmediateType();
         auto termTy = ctx.getOpaqueTermType();
         auto termTyAddr0 = ctx.getOpaqueTermTypeAddr0();
-        auto termPtrTy = termTy.getPointerTo();
 
         Value bin = adaptor.bin();
         Value value = adaptor.value();
@@ -64,8 +63,10 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         if (sizeOpt == nullptr) {
             auto taggedSize =
                 ctx.targetInfo.encodeImmediate(TypeKind::Fixnum, 0);
-            auto tagged = llvm_constant(immedTy, ctx.getIntegerAttr(taggedSize));
-            size = llvm_addrspacecast(termTy, llvm_inttoptr(termTyAddr0, tagged));
+            auto tagged =
+                llvm_constant(immedTy, ctx.getIntegerAttr(taggedSize));
+            size =
+                llvm_addrspacecast(termTy, llvm_inttoptr(termTyAddr0, tagged));
         } else {
             size = sizeOpt;
         }
@@ -294,7 +295,6 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
         auto termTyAddr0 = ctx.getOpaqueTermTypeAddr0();
         auto matchResultTy = ctx.targetInfo.getMatchResultType();
         auto i1Ty = ctx.getI1Type();
-        auto i8Ty = ctx.getI8Type();
 
         // Define match function to be called
         // __lumen_builtin_binary_match.<type>(bin, ..args.., size) ->
@@ -323,10 +323,11 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
                    "unexpected extra arguments to binary_match.raw");
             size = opArgs.front();
         } else {
-            auto sizeRaw = llvm_constant(immedTy,
-                                         ctx.getIntegerAttr(
-                            ctx.targetInfo.getNoneValue().getLimitedValue()));
-            size = llvm_addrspacecast(termTy, llvm_inttoptr(termTyAddr0, sizeRaw));
+            auto sizeRaw = llvm_constant(
+                immedTy, ctx.getIntegerAttr(
+                             ctx.targetInfo.getNoneValue().getLimitedValue()));
+            size =
+                llvm_addrspacecast(termTy, llvm_inttoptr(termTyAddr0, sizeRaw));
         }
 
         SmallVector<Value, 5> args;

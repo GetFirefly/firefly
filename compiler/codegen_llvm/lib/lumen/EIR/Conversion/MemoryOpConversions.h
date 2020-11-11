@@ -5,10 +5,10 @@
 
 namespace lumen {
 namespace eir {
-class CastOpConversion;
-class GetElementPtrOpConversion;
-class LoadOpConversion;
-class MallocOpConversion;
+struct CastOpConversion;
+struct GetElementPtrOpConversion;
+struct LoadOpConversion;
+struct MallocOpConversion;
 
 void populateMemoryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,

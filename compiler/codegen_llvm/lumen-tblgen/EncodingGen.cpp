@@ -19,7 +19,6 @@ bool emitEncodingDefs(const llvm::RecordKeeper &recordKeeper,
     llvm::emitSourceFileHeader("EIR Term Encoding Definitions", os);
 
     auto flags = recordKeeper.getAllDerivedDefinitions("eir_EC");
-    auto numFlags = flags.size();
 
     os << "#ifndef EIR_ENCODING_FLAG\n";
     os << "#define EIR_ENCODING_FLAG(FLAG, VAL)\n";

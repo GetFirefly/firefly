@@ -5,19 +5,19 @@
 
 namespace lumen {
 namespace eir {
-class NullOpConversion;
-class ConstantAtomOpConversion;
-class ConstantBoolOpConversion;
-class ConstantBigIntOpConversion;
-class ConstantBinaryOpConversion;
-class ConstantFloatOpConversion;
-class ConstantFloatOpToStdConversion;
-class ConstantIntOpConversion;
-class ConstantListOpConversion;
-class ConstantMapOpConversion;
-class ConstantNilOpConversion;
-class ConstantNoneOpConversion;
-class ConstantTupleOpConversion;
+struct NullOpConversion;
+struct ConstantAtomOpConversion;
+struct ConstantBoolOpConversion;
+struct ConstantBigIntOpConversion;
+struct ConstantBinaryOpConversion;
+struct ConstantFloatOpConversion;
+struct ConstantFloatOpToStdConversion;
+struct ConstantIntOpConversion;
+struct ConstantListOpConversion;
+struct ConstantMapOpConversion;
+struct ConstantNilOpConversion;
+struct ConstantNoneOpConversion;
+struct ConstantTupleOpConversion;
 
 void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,

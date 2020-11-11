@@ -72,7 +72,6 @@ fn main() {
 
     link_libs(&[
         "MLIRAnalysis",
-        "MLIRAffineOps",
         "MLIRCallInterfaces",
         "MLIRControlFlowInterfaces",
         "MLIRCopyOpInterface",
@@ -85,12 +84,11 @@ fn main() {
         "MLIRLLVMIRTransforms",
         "MLIRLoopAnalysis",
         "MLIRLoopLikeInterface",
-        "MLIROpenMP",
         "MLIRParser",
         "MLIRPass",
         "MLIRSideEffectInterfaces",
-        "MLIRStandardOps",
-        "MLIRStandardOpsTransforms",
+        "MLIRStandard",
+        "MLIRStandardTransforms",
         "MLIRStandardToLLVM",
         "MLIRSupport",
         "MLIRTargetLLVMIR",

@@ -54,7 +54,8 @@ extern "C" MLIRPassManagerRef MLIRCreatePassManager(
     bool printBeforePass = options->printBeforePass;
     bool printAfterPass = options->printAfterPass;
 
-    auto pm = new PassManager(ctx, /*verifyPasses=*/true);
+    auto pm = new PassManager(ctx);
+    pm->enableVerifier(true);
 
     // Configure IR printing
     OpPrintingFlags printerFlags;

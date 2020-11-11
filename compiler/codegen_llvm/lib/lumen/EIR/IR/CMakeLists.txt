@@ -75,7 +75,7 @@ lumen_cc_library(
     lumen::EIR::IR::EIREncodingGen
     MLIRIR
     MLIRParser
-    MLIRStandardOps
+    MLIRStandard
     MLIRSupport
     MLIRTransformUtils
   LLVM_COMPONENTS

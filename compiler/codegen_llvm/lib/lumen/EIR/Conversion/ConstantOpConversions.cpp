@@ -140,7 +140,6 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
 
         auto binAttr = op.getValue().cast<BinaryAttr>();
         auto bytes = binAttr.getValue();
-        auto byteSize = bytes.size();
         auto ty = ctx.targetInfo.getBinaryType();
         auto usizeTy = ctx.getUsizeType();
 
@@ -163,7 +162,7 @@ struct ConstantBinaryOpConversion : public EIROpConversion<ConstantBinaryOp> {
             headerConst = ctx.getOrInsertGlobalConstantOp(headerName, ty);
 
             auto &initRegion = headerConst.getInitializerRegion();
-            auto *initBlock = rewriter.createBlock(&initRegion);
+            rewriter.createBlock(&initRegion);
             auto globalPtr = llvm_addressof(bytesGlobal);
             Value zero = llvm_constant(i64Ty, ctx.getIntegerAttr(0));
             Value headerTerm =
@@ -204,7 +203,6 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
 
         auto attr = op.getValue().cast<APFloatAttr>();
         auto apVal = attr.getValue();
-        auto termTy = ctx.getOpaqueTermType();
         auto immedTy = ctx.getOpaqueImmediateType();
 
         // On nanboxed targets, floats are treated normally
@@ -236,15 +234,13 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
             auto i64Ty = ctx.getI64Type();
             auto f64Ty = ctx.getDoubleType();
             auto i8Ty = ctx.getI8Type();
-            auto i8PtrTy = i8Ty.getPointerTo();
 
             PatternRewriter::InsertionGuard insertGuard(rewriter);
             rewriter.setInsertionPointToStart(mod.getBody());
             headerConst = ctx.getOrInsertGlobalConstantOp(headerName, floatTy);
 
             auto &initRegion = headerConst.getInitializerRegion();
-            auto *initBlock = rewriter.createBlock(&initRegion);
-            Value zero = llvm_constant(i64Ty, ctx.getIntegerAttr(0));
+            rewriter.createBlock(&initRegion);
 
             APInt headerTermVal =
                 ctx.targetInfo.encodeHeader(TypeKind::Float, 2);

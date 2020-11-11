@@ -187,7 +187,6 @@ void eirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
             os << '"' << s << '"';
         } else {
             auto bin = binAttr.getValue();
-            auto size = bin.size();
             os << "0x";
             for (char c : bin.bytes()) {
                 os << llvm::format_hex_no_prefix(c, 2, true);
@@ -201,7 +200,6 @@ void eirDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
         auto count = seqAttr.size();
         if (count > 0) {
             auto elements = seqAttr.getValue();
-            bool printSeparator = count > 1;
             for (unsigned i = 0; i < count; i++) {
                 p.printAttribute(elements[i]);
                 if (i != (count - 1)) os << ", ";

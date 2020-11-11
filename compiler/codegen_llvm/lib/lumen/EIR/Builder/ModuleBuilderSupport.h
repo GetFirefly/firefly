@@ -297,7 +297,7 @@ class ValuePattern : public MatchPattern {
 class BinaryPattern : public MatchPattern {
    public:
     BinaryPattern(BinarySpecifier spec, llvm::Optional<Value> size = llvm::None)
-        : MatchPattern(MatchPatternType::Binary), spec(spec), size(size) {}
+        : MatchPattern(MatchPatternType::Binary), size(size), spec(spec) {}
 
     llvm::Optional<Value> getSize() { return size; }
     BinarySpecifier &getSpec() { return spec; }

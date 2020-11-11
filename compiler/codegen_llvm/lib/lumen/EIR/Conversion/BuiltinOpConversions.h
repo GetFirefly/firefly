@@ -5,14 +5,14 @@
 
 namespace lumen {
 namespace eir {
-class IncrementReductionsOpConversion;
-class IsTypeOpConversion;
-class IsTupleOpConversion;
-class IsFunctionOpConversion;
-class PrintOpConversion;
-class TraceCaptureOpConversion;
-class TraceConstructOpConversion;
-class TracePrintOpConversion;
+struct IncrementReductionsOpConversion;
+struct IsTypeOpConversion;
+struct IsTupleOpConversion;
+struct IsFunctionOpConversion;
+struct PrintOpConversion;
+struct TraceCaptureOpConversion;
+struct TraceConstructOpConversion;
+struct TracePrintOpConversion;
 
 void populateBuiltinOpConversionPatterns(OwningRewritePatternList &patterns,
                                          MLIRContext *context,

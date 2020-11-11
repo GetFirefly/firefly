@@ -36,7 +36,7 @@ lumen_cc_library(
     MLIRLLVMIR
     MLIRIR
     MLIRPass
-    MLIRStandardOps
+    MLIRStandard
     MLIRSupport
     MLIRTransforms
     MLIRTransformUtils

@@ -2,6 +2,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Casting.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -16,6 +17,7 @@ using ::mlir::OperationPass;
 using ::mlir::PassWrapper;
 using ::mlir::WalkResult;
 
+using ::llvm::dyn_cast_or_null;
 using ::llvm::StringRef;
 using ::llvm::StringSwitch;
 

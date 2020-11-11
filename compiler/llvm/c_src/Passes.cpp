@@ -1,52 +1,52 @@
 #include "lumen/llvm/Target.h"
 
-#include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/InitializePasses.h"
+#include "llvm/Pass.h"
+#include "llvm/PassRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/StandardInstrumentations.h"
-#include "llvm/PassRegistry.h"
-#include "llvm/Pass.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/FunctionImport.h"
-#include "llvm/Transforms/Utils/FunctionImportUtils.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
-#include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
+#include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/FunctionImportUtils.h"
 //#include "llvm/Transforms/Scalar/PlaceSafepoints.h"
+#include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/TimeProfiler.h"
+#include "llvm/Support/Timer.h"
 #include "llvm/Transforms/Scalar/RewriteStatepointsForGC.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
-#include "llvm/Support/Error.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Timer.h"
-#include "llvm/Support/TimeProfiler.h"
-#include "llvm/Support/CBindingWrapping.h"
 
+#include <set>
 #include <stdio.h>
 #include <vector>
-#include <set>
 
-using ::llvm::StringRef;
+using ::llvm::any_cast;
+using ::llvm::any_isa;
+using ::llvm::CGSCCAnalysisManager;
+using ::llvm::FunctionAnalysisManager;
+using ::llvm::FunctionPassManager;
+using ::llvm::LoopAnalysisManager;
 using ::llvm::Module;
-using ::llvm::TargetMachine;
+using ::llvm::ModuleAnalysisManager;
+using ::llvm::ModulePassManager;
 using ::llvm::Pass;
 using ::llvm::PassBuilder;
 using ::llvm::PassInstrumentationCallbacks;
-using ::llvm::ModulePassManager;
-using ::llvm::ModuleAnalysisManager;
-using ::llvm::FunctionPassManager;
-using ::llvm::FunctionAnalysisManager;
-using ::llvm::CGSCCAnalysisManager;
-using ::llvm::LoopAnalysisManager;
+using ::llvm::StringRef;
+using ::llvm::TargetMachine;
 using ::llvm::unwrap;
-using ::llvm::any_isa;
-using ::llvm::any_cast;
 
 typedef struct _Pass *LLVMPassRef;
 typedef struct _ModulePassManager *ModulePassManagerRef;
@@ -76,7 +76,8 @@ extern "C" void LLVMLumenInitializePasses() {
 }
 
 extern "C" void LLVMTimeTraceProfilerInitialize() {
-  llvm::timeTraceProfilerInitialize(/*timeTraceGranularity*/0, /*procName*/"lumen");
+  llvm::timeTraceProfilerInitialize(/*timeTraceGranularity*/ 0,
+                                    /*procName*/ "lumen");
 }
 
 extern "C" void LLVMTimeTraceProfilerFinish(const char *fileName) {
@@ -109,12 +110,12 @@ extern "C" void LLVMLumenPrintPasses() {
   registry->enumerateWith(&listener);
 }
 
-extern "C" typedef 
-void (*LLVMLumenSelfProfileBeforePassCallback)(void*,        // profiler
-                                               const char*,  // pass name
-                                               const char*); // IR name
-extern "C" typedef 
-void (*LLVMLumenSelfProfileAfterPassCallback)(/*profiler*/void*);
+extern "C" typedef void (*LLVMLumenSelfProfileBeforePassCallback)(
+    void *,        // profiler
+    const char *,  // pass name
+    const char *); // IR name
+extern "C" typedef void (*LLVMLumenSelfProfileAfterPassCallback)(
+    /*profiler*/ void *);
 
 std::string getWrappedIRName(const llvm::Any &wrappedIR) {
   if (any_isa<const Module *>(wrappedIR))
@@ -129,33 +130,34 @@ std::string getWrappedIRName(const llvm::Any &wrappedIR) {
 }
 
 void LLVMSelfProfileInitializeCallbacks(
-    PassInstrumentationCallbacks* pic, void* selfProfiler,
+    PassInstrumentationCallbacks *pic, void *selfProfiler,
     LLVMLumenSelfProfileBeforePassCallback beforePassCallback,
     LLVMLumenSelfProfileAfterPassCallback afterPassCallback) {
-  pic->registerBeforePassCallback([selfProfiler, beforePassCallback](
-                                     StringRef pass, llvm::Any ir) {
-    std::string passName = pass.str();
-    std::string irName = getWrappedIRName(ir);
-    beforePassCallback(selfProfiler, passName.c_str(), irName.c_str());
-    return true;
-  });
+  pic->registerBeforeNonSkippedPassCallback(
+      [selfProfiler, beforePassCallback](StringRef pass, llvm::Any ir) {
+        std::string passName = pass.str();
+        std::string irName = getWrappedIRName(ir);
+        beforePassCallback(selfProfiler, passName.c_str(), irName.c_str());
+      });
 
   pic->registerAfterPassCallback(
-      [selfProfiler, afterPassCallback](StringRef pass, llvm::Any ir, const llvm::PreservedAnalyses &) {
+      [selfProfiler, afterPassCallback](StringRef pass, llvm::Any ir,
+                                        const llvm::PreservedAnalyses &) {
         afterPassCallback(selfProfiler);
       });
 
   pic->registerAfterPassInvalidatedCallback(
-      [selfProfiler, afterPassCallback](StringRef pass, const llvm::PreservedAnalyses &) {
+      [selfProfiler, afterPassCallback](StringRef pass,
+                                        const llvm::PreservedAnalyses &) {
         afterPassCallback(selfProfiler);
       });
 
-  pic->registerBeforeAnalysisCallback([selfProfiler, beforePassCallback](
-                                         StringRef pass, llvm::Any ir) {
-    std::string passName = pass.str();
-    std::string irName = getWrappedIRName(ir);
-    beforePassCallback(selfProfiler, passName.c_str(), irName.c_str());
-  });
+  pic->registerBeforeAnalysisCallback(
+      [selfProfiler, beforePassCallback](StringRef pass, llvm::Any ir) {
+        std::string passName = pass.str();
+        std::string irName = getWrappedIRName(ir);
+        beforePassCallback(selfProfiler, passName.c_str(), irName.c_str());
+      });
 
   pic->registerAfterAnalysisCallback(
       [selfProfiler, afterPassCallback](StringRef pass, llvm::Any ir) {
@@ -174,7 +176,8 @@ enum Level {
 };
 }
 
-static PassBuilder::OptimizationLevel fromRust(LLVMLumenPassBuilderOptLevel::Level level) {
+static PassBuilder::OptimizationLevel
+fromRust(LLVMLumenPassBuilderOptLevel::Level level) {
   switch (level) {
   case LLVMLumenPassBuilderOptLevel::O0:
     return PassBuilder::OptimizationLevel::O0;
@@ -227,17 +230,14 @@ struct OptimizerConfig {
   bool emitSummaryIndex;
   bool emitModuleHash;
   bool preserveUseListOrder;
-  void* profiler;
+  void *profiler;
   LLVMLumenSelfProfileBeforePassCallback beforePass;
   LLVMLumenSelfProfileAfterPassCallback afterPass;
 };
 
-extern "C" bool 
-LLVMLumenOptimize(LLVMModuleRef m,
-                  LLVMTargetMachineRef tm,
-                  OptimizerConfig *conf,
-                  char **errorMessage) {
-  TargetMachine *targetMachine = unwrap(tm); 
+extern "C" bool LLVMLumenOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
+                                  OptimizerConfig *conf, char **errorMessage) {
+  TargetMachine *targetMachine = unwrap(tm);
   Module *mod = unwrap(m);
   OptimizerConfig config = *conf;
 
@@ -255,16 +255,18 @@ LLVMLumenOptimize(LLVMModuleRef m,
 
   auto pic = std::make_unique<llvm::PassInstrumentationCallbacks>();
   // Populate the analysis managers with their respective passes
-  PassBuilder pb(targetMachine, tuningOpts, llvm::None, pic.get());
+  PassBuilder pb(debug, targetMachine, tuningOpts, llvm::None, pic.get());
 
   // Enable standard instrumentation callbacks
   llvm::StandardInstrumentations si(debug);
-  llvm::PassInstrumentationCallbacks &passCallbacks = *pb.getPassInstrumentationCallbacks();
+  llvm::PassInstrumentationCallbacks &passCallbacks =
+      *pb.getPassInstrumentationCallbacks();
   si.registerCallbacks(passCallbacks);
 
   auto *profiler = config.profiler;
   if (profiler) {
-    LLVMSelfProfileInitializeCallbacks(&passCallbacks, profiler, config.beforePass, config.afterPass);
+    LLVMSelfProfileInitializeCallbacks(&passCallbacks, profiler,
+                                       config.beforePass, config.afterPass);
   }
 
   LoopAnalysisManager lam(debug);
@@ -275,7 +277,8 @@ LLVMLumenOptimize(LLVMModuleRef m,
   fam.registerPass([&] { return pb.buildDefaultAAPipeline(); });
 
   auto triple = targetMachine->getTargetTriple();
-  std::unique_ptr<llvm::TargetLibraryInfoImpl> tlii(new llvm::TargetLibraryInfoImpl(triple));
+  std::unique_ptr<llvm::TargetLibraryInfoImpl> tlii(
+      new llvm::TargetLibraryInfoImpl(triple));
   if (config.disableSimplifyLibCalls)
     tlii->disableAllFunctions();
   fam.registerPass([&] { return llvm::TargetLibraryAnalysis(*tlii); });
@@ -286,73 +289,94 @@ LLVMLumenOptimize(LLVMModuleRef m,
   pb.registerLoopAnalyses(lam);
   pb.crossRegisterProxies(lam, fam, cam, mam);
 
-  // We manually collect pipeline callbacks so we can apply them at O0, where the
-  // PassBuilder does not create a pipeline.
-  std::vector<std::function<void(ModulePassManager &)>> pipelineStartEPCallbacks;
-  std::vector<std::function<void(ModulePassManager &, PassBuilder::OptimizationLevel)>>
+  // We manually collect pipeline callbacks so we can apply them at O0, where
+  // the PassBuilder does not create a pipeline.
+  std::vector<
+      std::function<void(ModulePassManager &, PassBuilder::OptimizationLevel)>>
+      pipelineStartEPCallbacks;
+  std::vector<
+      std::function<void(ModulePassManager &, PassBuilder::OptimizationLevel)>>
       optimizerLastEPCallbacks;
 
   if (verify) {
-    pipelineStartEPCallbacks.push_back([verify](ModulePassManager &pm) {
-        pm.addPass(llvm::VerifierPass());
-    });
+    pipelineStartEPCallbacks.push_back(
+        [verify](ModulePassManager &pm, PassBuilder::OptimizationLevel _level) {
+          pm.addPass(llvm::VerifierPass());
+        });
   }
 
   auto sanitizer = config.sanitizer;
   if (sanitizerEnabled(sanitizer)) {
-      if (sanitizer.memory) {
-          llvm::MemorySanitizerOptions mso(sanitizer.memoryTrackOrigins, sanitizer.recover, /*compilerKernel=*/false);
-          pipelineStartEPCallbacks.push_back([mso](ModulePassManager &pm) {
+    if (sanitizer.memory) {
+      llvm::MemorySanitizerOptions mso(sanitizer.memoryTrackOrigins,
+                                       sanitizer.recover,
+                                       /*compilerKernel=*/false);
+      pipelineStartEPCallbacks.push_back(
+          [mso](ModulePassManager &pm, PassBuilder::OptimizationLevel _level) {
             pm.addPass(llvm::MemorySanitizerPass(mso));
           });
-          optimizerLastEPCallbacks.push_back([mso](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
-            pm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::MemorySanitizerPass(mso)));
+      optimizerLastEPCallbacks.push_back(
+          [mso](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
+            pm.addPass(llvm::createModuleToFunctionPassAdaptor(
+                llvm::MemorySanitizerPass(mso)));
           });
-      }
-      if (sanitizer.thread) {
-          pipelineStartEPCallbacks.push_back([](ModulePassManager &pm) {
+    }
+    if (sanitizer.thread) {
+      pipelineStartEPCallbacks.push_back(
+          [](ModulePassManager &pm, PassBuilder::OptimizationLevel _level) {
             pm.addPass(llvm::ThreadSanitizerPass());
           });
-          optimizerLastEPCallbacks.push_back([](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
+      optimizerLastEPCallbacks.push_back(
+          [](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
             pm.addPass(llvm::ThreadSanitizerPass());
-            pm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::ThreadSanitizerPass()));
+            pm.addPass(llvm::createModuleToFunctionPassAdaptor(
+                llvm::ThreadSanitizerPass()));
           });
-      }
-      if (sanitizer.address) {
-          pipelineStartEPCallbacks.push_back([&](ModulePassManager &pm) {
-            pm.addPass(llvm::RequireAnalysisPass<llvm::ASanGlobalsMetadataAnalysis, Module>());
+    }
+    if (sanitizer.address) {
+      pipelineStartEPCallbacks.push_back(
+          [&](ModulePassManager &pm, PassBuilder::OptimizationLevel _level) {
+            pm.addPass(
+                llvm::RequireAnalysisPass<llvm::ASanGlobalsMetadataAnalysis,
+                                          Module>());
           });
-          optimizerLastEPCallbacks.push_back(
-            [sanitizer](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
-              pm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::AddressSanitizerPass(
+      optimizerLastEPCallbacks.push_back(
+          [sanitizer](ModulePassManager &pm,
+                      PassBuilder::OptimizationLevel level) {
+            pm.addPass(llvm::createModuleToFunctionPassAdaptor(
+                llvm::AddressSanitizerPass(
                     /*compileKernel=*/false, sanitizer.recover,
                     /*useAfterScope=*/true)));
           });
-          pipelineStartEPCallbacks.push_back([sanitizer](ModulePassManager &pm) {
+      pipelineStartEPCallbacks.push_back(
+          [sanitizer](ModulePassManager &pm,
+                      PassBuilder::OptimizationLevel _level) {
             pm.addPass(llvm::ModuleAddressSanitizerPass(
-                    /*compileKernel=*/false, sanitizer.recover));
+                /*compileKernel=*/false, sanitizer.recover));
           });
-      }
+    }
   }
 
   ModulePassManager mpm(debug);
 
   // Add passes to generate safepoints/stack maps
-  //mpm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::PlaceSafepoints()));
+  // mpm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::PlaceSafepoints()));
   mpm.addPass(llvm::RewriteStatepointsForGC());
 
-  // If there is a pipeline provided, parse it and populate the pass manager with it
+  // If there is a pipeline provided, parse it and populate the pass manager
+  // with it
   if (config.passPipeline) {
     std::string error;
-    if (auto err = pb.parsePassPipeline(mpm, config.passPipeline, verify, debug)) {
+    if (auto err = pb.parsePassPipeline(mpm, config.passPipeline)) {
       error = "unable to parse pass pipeline description '" +
-            std::string(config.passPipeline) + "': " + llvm::toString(std::move(err));
+              std::string(config.passPipeline) +
+              "': " + llvm::toString(std::move(err));
       *errorMessage = strdup(error.c_str());
       return true;
     }
   } else if (optLevel == PassBuilder::OptimizationLevel::O0) {
     for (const auto &c : pipelineStartEPCallbacks)
-      c(mpm);
+      c(mpm, optLevel);
 
     if (!optimizerLastEPCallbacks.empty()) {
       for (const auto &c : optimizerLastEPCallbacks)
@@ -369,26 +393,26 @@ LLVMLumenOptimize(LLVMModuleRef m,
     }
 
     switch (config.stage) {
-      case OptStage::PreLinkNoLTO:
-        mpm = pb.buildPerModuleDefaultPipeline(optLevel, debug, /*ltoPreLink=*/false);
-        break;
-      case OptStage::PreLinkThinLTO:
-        mpm = pb.buildThinLTOPreLinkDefaultPipeline(optLevel, debug);
-        break;
-      case OptStage::PreLinkFatLTO:
-        mpm = pb.buildLTOPreLinkDefaultPipeline(optLevel, debug);
-        break;
-      case OptStage::ThinLTO:
-        mpm = pb.buildThinLTODefaultPipeline(optLevel, debug, nullptr);
-        break;
-      case OptStage::FatLTO:
-        mpm = pb.buildLTODefaultPipeline(optLevel, debug, nullptr);
-        break;
+    case OptStage::PreLinkNoLTO:
+      mpm = pb.buildPerModuleDefaultPipeline(optLevel, /*ltoPreLink=*/false);
+      break;
+    case OptStage::PreLinkThinLTO:
+      mpm = pb.buildThinLTOPreLinkDefaultPipeline(optLevel);
+      break;
+    case OptStage::PreLinkFatLTO:
+      mpm = pb.buildLTOPreLinkDefaultPipeline(optLevel);
+      break;
+    case OptStage::ThinLTO:
+      mpm = pb.buildThinLTODefaultPipeline(optLevel, nullptr);
+      break;
+    case OptStage::FatLTO:
+      mpm = pb.buildLTODefaultPipeline(optLevel, nullptr);
+      break;
     }
 
     if (config.useThinLTOBuffers) {
-        mpm.addPass(llvm::CanonicalizeAliasesPass());
-        mpm.addPass(llvm::NameAnonGlobalPass());
+      mpm.addPass(llvm::CanonicalizeAliasesPass());
+      mpm.addPass(llvm::NameAnonGlobalPass());
     }
 
     mpm.run(*mod, mam);

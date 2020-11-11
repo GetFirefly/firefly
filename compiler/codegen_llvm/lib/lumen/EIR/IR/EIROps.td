@@ -29,11 +29,9 @@ def eir_FuncOp : eir_Op<"func", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, StringRef name,
-      FunctionType type, ArrayRef<NamedAttribute> attrs = {},
-      ArrayRef<MutableDictionaryAttr> argAttrs = {}
-    }]>,
+    OpBuilderDAG<(ins "StringRef":$name, "FunctionType":$type,
+                      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs,
+                      CArg<"ArrayRef<MutableDictionaryAttr>", "{}">:$argAttrs)>
   ];
 
   let verifier = ?;
@@ -89,23 +87,20 @@ def eir_ClosureOp : eir_Op<"closure", []> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, eir::Closure *closure, ValueRange operands = {}
-    }], [{
-      auto termTy = builder.getType<TermType>();
-      auto i8Ty = builder.getIntegerType(8);
-      auto i32Ty = builder.getIntegerType(32);
-      auto callee = builder.getSymbolRefAttr(StringRef(closure->name));
-      result.addAttribute("callee", callee);
-      result.addAttribute("module", Attribute::getFromOpaquePointer(closure->module));
-      result.addAttribute("arity", builder.getIntegerAttr(i8Ty, closure->arity));
-      result.addAttribute("env_len", builder.getIntegerAttr(i8Ty, closure->envLen));
-      result.addAttribute("index", builder.getIntegerAttr(i32Ty, closure->index));
-      result.addAttribute("old_unique", builder.getIntegerAttr(i32Ty, closure->index));
+    OpBuilderDAG<(ins "eir::Closure *":$closure, CArg<"ValueRange", "{}">:$operands), [{
+      auto i8Ty = $_builder.getIntegerType(8);
+      auto i32Ty = $_builder.getIntegerType(32);
+      auto callee = $_builder.getSymbolRefAttr(StringRef(closure->name));
+      $_state.addAttribute("callee", callee);
+      $_state.addAttribute("module", Attribute::getFromOpaquePointer(closure->module));
+      $_state.addAttribute("arity", $_builder.getIntegerAttr(i8Ty, closure->arity));
+      $_state.addAttribute("env_len", $_builder.getIntegerAttr(i8Ty, closure->envLen));
+      $_state.addAttribute("index", $_builder.getIntegerAttr(i32Ty, closure->index));
+      $_state.addAttribute("old_unique", $_builder.getIntegerAttr(i32Ty, closure->index));
       StringRef unique(&closure->unique[0], 16);
-      result.addAttribute("unique", builder.getStringAttr(unique));
-      result.addOperands(operands);
-      result.addTypes(PtrType::get(builder.getType<ClosureType>(closure->envLen)));
+      $_state.addAttribute("unique", $_builder.getStringAttr(unique));
+      $_state.addOperands(operands);
+      $_state.addTypes(PtrType::get($_builder.getType<ClosureType>(closure->envLen)));
     }]>
   ];
 
@@ -142,12 +137,10 @@ def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value env, unsigned index",
-    [{
-      result.addOperands(env);
-      result.addTypes(builder.getType<TermType>());
-      result.addAttribute("index", builder.getI32IntegerAttr(index));
+    OpBuilderDAG<(ins "Value":$env, "unsigned":$index), [{
+      $_state.addOperands(env);
+      $_state.addTypes($_builder.getType<TermType>());
+      $_state.addAttribute("index", $_builder.getI32IntegerAttr(index));
     }]>
   ];
 
@@ -183,13 +176,10 @@ def eir_IsTypeOp : eir_Op<"typeof", [NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, "
-    "Value value, Type matchType",
-    [{
-      result.addOperands(value);
-      result.addTypes(builder.getI1Type());
-      result.addAttribute("type", TypeAttr::get(matchType));
+    OpBuilderDAG<(ins "Value":$value, "Type":$matchType), [{
+      $_state.addOperands(value);
+      $_state.addTypes($_builder.getI1Type());
+      $_state.addAttribute("type", TypeAttr::get(matchType));
     }]>
   ];
 
@@ -222,21 +212,16 @@ def eir_IsTupleOp : eir_Op<"is_tuple", [NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, "
-    "Value value, Optional<Value> arity",
-    [{
-      result.addOperands(value);
+    OpBuilderDAG<(ins "Value":$value, "Optional<Value>":$arity), [{
+      $_state.addOperands(value);
       if (arity.hasValue()) {
-        result.addOperands(arity.getValue());
+        $_state.addOperands(arity.getValue());
       }
-      result.addTypes(builder.getI1Type());
+      $_state.addTypes($_builder.getI1Type());
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange operands",
-    [{
-      result.addOperands(operands);
-      result.addTypes(builder.getI1Type());
+    OpBuilderDAG<(ins "ValueRange":$operands), [{
+      $_state.addOperands(operands);
+      $_state.addTypes($_builder.getI1Type());
     }]>
   ];
 }
@@ -262,21 +247,16 @@ def eir_IsFunctionOp : eir_Op<"is_function", [NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, "
-    "Value value, Optional<Value> arity",
-    [{
-      result.addOperands(value);
+    OpBuilderDAG<(ins "Value":$value, "Optional<Value>":$arity), [{
+      $_state.addOperands(value);
       if (arity.hasValue()) {
-        result.addOperands(arity.getValue());
+        $_state.addOperands(arity.getValue());
       }
-      result.addTypes(builder.getI1Type());
+      $_state.addTypes($_builder.getI1Type());
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange operands",
-    [{
-      result.addOperands(operands);
-      result.addTypes(builder.getI1Type());
+    OpBuilderDAG<(ins "ValueRange":$operands), [{
+      $_state.addOperands(operands);
+      $_state.addTypes($_builder.getI1Type());
     }]>
   ];
 }
@@ -299,13 +279,10 @@ class eir_UnaryOperator<string mnemonic, Type right, Type result, list<OpTrait> 
   let verifier = ?;
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Type resultTy, Value rhs,"
-    "ArrayRef<NamedAttribute> attrs = {}",
-    [{
-      result.addOperands(rhs);
-      result.addTypes(resultTy);
-      result.addAttributes(attrs);
+    OpBuilderDAG<(ins "Type":$resultTy, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+      $_state.addOperands(rhs);
+      $_state.addTypes(resultTy);
+      $_state.addAttributes(attrs);
     }]>
   ];
 
@@ -336,13 +313,10 @@ class eir_BinaryOperator<string mnemonic, Type left, Type right, Type result, li
   }];
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Type resultTy, Value lhs, Value rhs,"
-    "ArrayRef<NamedAttribute> attrs = {}",
-    [{
-      result.addOperands(ValueRange({lhs, rhs}));
-      result.addTypes(resultTy);
-      result.addAttributes(attrs);
+    OpBuilderDAG<(ins "Type":$resultTy, "Value":$lhs, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+      $_state.addOperands(ValueRange({lhs, rhs}));
+      $_state.addTypes(resultTy);
+      $_state.addAttributes(attrs);
     }]>
   ];
 
@@ -367,14 +341,12 @@ class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
     eir_BinaryOperator<mnemonic, type, type, I1, !listconcat(traits, [NoSideEffect])> {
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs",
-    [{ build(builder, result, builder.getType<BooleanType>(), lhs, rhs); }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange args",
-    [{
-      result.addOperands(args);
-      result.addTypes(builder.getI1Type());
+    OpBuilderDAG<(ins "Value":$lhs, "Value":$rhs), [{
+      build($_builder, $_state, $_builder.getType<BooleanType>(), lhs, rhs);
+    }]>,
+    OpBuilderDAG<(ins "ValueRange":$args), [{
+      $_state.addOperands(args);
+      $_state.addTypes($_builder.getI1Type());
     }]>
   ];
 }
@@ -420,19 +392,15 @@ class eir_BinaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = 
   }];
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange args",
-    [{
+    OpBuilderDAG<(ins "ValueRange":$args), [{
       assert(args.size() == 2 && "expected binary operator to receive 2 arguments");
       Value lhs = args[0];
       Value rhs = args[1];
-      build(builder, result, lhs, rhs);
+      build($_builder, $_state, lhs, rhs);
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, bool strict = false",
-    [{
-      auto boolType = builder.getI1Type();
-      build(builder, result, boolType, lhs, rhs, strict ? builder.getUnitAttr() : nullptr);
+    OpBuilderDAG<(ins "Value":$lhs, "Value":$rhs, CArg<"bool", "false">:$strict), [{
+      auto boolType = $_builder.getI1Type();
+      build($_builder, $_state, boolType, lhs, rhs, strict ? $_builder.getUnitAttr() : nullptr);
     }]>
   ];
 }
@@ -458,27 +426,20 @@ def eir_CmpEqOp : eir_Op<"cmp.eq", [Commutative, NoSideEffect]> {
   }];
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs,"
-    "ArrayRef<NamedAttribute> attrs = {}",
-    [{
-      result.addOperands(ValueRange({lhs, rhs}));
-      result.addTypes(builder.getI1Type());
-      result.addAttributes(attrs);
+    OpBuilderDAG<(ins "Value":$lhs, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+      $_state.addOperands(ValueRange({lhs, rhs}));
+      $_state.addTypes($_builder.getI1Type());
+      $_state.addAttributes(attrs);
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange args",
-    [{
+    OpBuilderDAG<(ins "ValueRange":$args), [{
       assert(args.size() == 2 && "expected binary operator to receive 2 arguments");
       Value lhs = args[0];
       Value rhs = args[1];
-      build(builder, result, lhs, rhs, /*strict=*/false);
+      build($_builder, $_state, lhs, rhs, /*strict=*/false);
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value lhs, Value rhs, bool strict = false",
-    [{
-      auto boolType = builder.getI1Type();
-      build(builder, result, boolType, lhs, rhs, strict ? builder.getUnitAttr() : nullptr);
+    OpBuilderDAG<(ins "Value":$lhs, "Value":$rhs, CArg<"bool", "false">:$strict), [{
+      auto boolType = $_builder.getI1Type();
+      build($_builder, $_state, boolType, lhs, rhs, strict ? $_builder.getUnitAttr() : nullptr);
     }]>
   ];
 }
@@ -512,13 +473,11 @@ class eir_UnaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = [
   let summary = "Peform the specified arithmetic operation on one operand";
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange args",
-    [{
+    OpBuilderDAG<(ins "ValueRange":$args), [{
       assert(args.size() == 1 && "expected exactly one argument for arithmetic operator");
       Value rhs = args[0];
       Type resultTy = rhs.getType();
-      build(builder, result, resultTy, rhs);
+      build($_builder, $_state, resultTy, rhs);
     }]>
   ];
 }
@@ -528,14 +487,12 @@ class eir_BinaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = 
   let summary = "Peform the specified arithmetic operation over two operands";
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange args",
-    [{
+    OpBuilderDAG<(ins "ValueRange":$args), [{
       assert(args.size() == 2 && "expected exactly two arguments for arithmetic operator");
       Value lhs = args[0];
       Value rhs = args[1];
       Type resultTy = lhs.getType();
-      build(builder, result, resultTy, lhs, rhs);
+      build($_builder, $_state, resultTy, lhs, rhs);
     }]>
   ];
 }
@@ -545,14 +502,12 @@ class eir_SpecializedBinaryArithmeticOp<Type type, string mnemonic, list<OpTrait
   let summary = "Peform the specified specializable arithmetic operation over two operands";
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange args",
-    [{
+    OpBuilderDAG<(ins "ValueRange":$args), [{
       assert(args.size() == 2 && "expected exactly two arguments for arithmetic operator");
       Value lhs = args[0];
       Value rhs = args[1];
       Type resultTy = lhs.getType();
-      build(builder, result, resultTy, lhs, rhs);
+      build($_builder, $_state, resultTy, lhs, rhs);
     }]>
   ];
 }
@@ -657,12 +612,9 @@ def eir_BranchOp : eir_Op<"br",
   let successors = (successor AnySuccessor:$dest);
 
   let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, Block *dest,
-      ValueRange destOperands = {}
-    }], [{
-      result.addSuccessors(dest);
-      result.addOperands(destOperands);
+    OpBuilderDAG<(ins "Block *":$dest, CArg<"ValueRange", "{}">:$destOperands), [{
+      $_state.addSuccessors(dest);
+      $_state.addOperands(destOperands);
     }]>,
    ];
 
@@ -711,12 +663,10 @@ def eir_CondBranchOp : eir_Op<"cond_br",
   let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
 
   let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, Value condition,
-      Block *trueDest, ValueRange trueOperands,
-      Block *falseDest, ValueRange falseOperands
-    }], [{
-      build(builder, result, condition, trueOperands, falseOperands, trueDest, falseDest);
+    OpBuilderDAG<(ins "Value":$condition,
+                      "Block *":$trueDest, "ValueRange":$trueOperands,
+                      "Block *":$falseDest, "ValueRange":$falseOperands), [{
+      build($_builder, $_state, condition, trueOperands, falseOperands, trueDest, falseDest);
     }]>,
   ];
 
@@ -838,29 +788,20 @@ def eir_CallOp : eir_CallBaseOp<"call"> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, eir::FuncOp callee,
-      ValueRange operands, ArrayRef<NamedAttribute> attrs = {}
-    }], [{
-      result.addOperands(operands);
-      result.addAttribute("callee", builder.getSymbolRefAttr(callee));
-      result.addAttributes(attrs);
-      result.addTypes(callee.getType().getResults());
+    OpBuilderDAG<(ins "eir::FuncOp":$callee, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+      $_state.addOperands(operands);
+      $_state.addAttribute("callee", $_builder.getSymbolRefAttr(callee));
+      $_state.addAttributes(attrs);
+      $_state.addTypes(callee.getType().getResults());
     }]>,
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, FlatSymbolRefAttr callee,
-      ArrayRef<Type> resultTypes, ValueRange operands, ArrayRef<NamedAttribute> attrs = {}
-    }], [{
-      result.addOperands(operands);
-      result.addAttribute("callee", callee);
-      result.addAttributes(attrs);
-      result.addTypes(resultTypes);
+    OpBuilderDAG<(ins "FlatSymbolRefAttr":$callee, "ArrayRef<Type>":$resultTypes, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+      $_state.addOperands(operands);
+      $_state.addAttribute("callee", callee);
+      $_state.addAttributes(attrs);
+      $_state.addTypes(resultTypes);
     }]>,
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, StringRef callee,
-      ArrayRef<Type> resultTypes, ValueRange operands, ArrayRef<NamedAttribute> attrs = {}
-    }], [{
-      build(builder, result, builder.getSymbolRefAttr(callee),
+    OpBuilderDAG<(ins "StringRef":$callee, "ArrayRef<Type>":$resultTypes, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+      build($_builder, $_state, $_builder.getSymbolRefAttr(callee),
             resultTypes, operands, attrs);
     }]>,
   ];
@@ -972,31 +913,22 @@ def eir_InvokeOp : eir_InvokeBaseOp<"invoke", []> {
   }];
 
   let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result,
-      eir::FuncOp callee, ValueRange operands,
-      Block *okDest, ValueRange okDestOperands,
-      Block *errDest, ValueRange errDestOperands
-    }], [{
-      build(builder, result, builder.getSymbolRefAttr(callee),
+    OpBuilderDAG<(ins "eir::FuncOp":$callee, "ValueRange":$operands,
+                      "Block *":$okDest, "ValueRange":$okDestOperands,
+                      "Block *":$errDest, "ValueRange":$errDestOperands), [{
+      build($_builder, $_state, $_builder.getSymbolRefAttr(callee),
             operands, okDestOperands, errDestOperands, okDest, errDest);
     }]>,
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result,
-      FlatSymbolRefAttr callee, ValueRange operands,
-      Block *okDest, ValueRange okDestOperands,
-      Block *errDest, ValueRange errDestOperands
-    }], [{
-      build(builder, result, callee,
+    OpBuilderDAG<(ins "FlatSymbolRefAttr":$callee, "ValueRange":$operands,
+                      "Block *":$okDest, "ValueRange":$okDestOperands,
+                      "Block *":$errDest, "ValueRange":$errDestOperands), [{
+      build($_builder, $_state, callee,
             operands, okDestOperands, errDestOperands, okDest, errDest);
     }]>,
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result,
-      StringRef callee, ValueRange operands,
-      Block *okDest, ValueRange okOperands,
-      Block *errDest, ValueRange errOperands
-    }], [{
-      build(builder, result, builder.getSymbolRefAttr(callee),
+    OpBuilderDAG<(ins "StringRef":$callee, "ValueRange":$operands,
+                      "Block *":$okDest, "ValueRange":$okOperands,
+                      "Block *":$errDest, "ValueRange":$errOperands), [{
+      build($_builder, $_state, $_builder.getSymbolRefAttr(callee),
             operands, okOperands, errOperands, okDest, errDest);
     }]>,
   ];
@@ -1044,17 +976,15 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
   let verifier = ?;
 
   let builders = [
-    OpBuilder<
-        "OpBuilder &builder, OperationState &result, ValueRange catchClauses", [{
-        Type termTy = builder.getType<TermType>();
-        Type traceTy = builder.getType<TraceRefType>();
-        build(builder, result, ArrayRef<Type>{termTy, termTy, traceTy}, catchClauses);
+    OpBuilderDAG<(ins "ValueRange":$catchClauses), [{
+        Type termTy = $_builder.getType<TermType>();
+        Type traceTy = $_builder.getType<TraceRefType>();
+        build($_builder, $_state, ArrayRef<Type>{termTy, termTy, traceTy}, catchClauses);
     }]>,
-    OpBuilder<
-        "OpBuilder &builder, OperationState &result, Value catchClause", [{
-        Type termTy = builder.getType<TermType>();
-        Type traceTy = builder.getType<TraceRefType>();
-        build(builder, result, ArrayRef<Type>{termTy, termTy, traceTy}, ValueRange{catchClause});
+    OpBuilderDAG<(ins "Value":$catchClause), [{
+        Type termTy = $_builder.getType<TermType>();
+        Type traceTy = $_builder.getType<TraceRefType>();
+        build($_builder, $_state, ArrayRef<Type>{termTy, termTy, traceTy}, ValueRange{catchClause});
     }]>,
   ];
 }
@@ -1077,10 +1007,8 @@ def eir_ReturnOp : eir_Op<"return", [NoSideEffect, Terminator, ReturnLike]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result, ValueRange operands = ValueRange()
-    }], [{
-      result.addOperands(operands);
+    OpBuilderDAG<(ins CArg<"ValueRange", "{}">:$operands), [{
+      $_state.addOperands(operands);
     }]>
   ];
 
@@ -1112,13 +1040,10 @@ def eir_YieldCheckOp : eir_Op<"yield.check",
   let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
 
   let builders = [
-    OpBuilder<[{
-      OpBuilder &builder, OperationState &result,
-      Value maxReductions,
-      Block *trueDest, ValueRange trueOperands,
-      Block *falseDest, ValueRange falseOperands
-    }], [{
-      build(builder, result, maxReductions,
+    OpBuilderDAG<(ins "Value":$maxReductions,
+                      "Block *":$trueDest, "ValueRange":$trueOperands,
+                      "Block *":$falseDest, "ValueRange":$falseOperands), [{
+      build($_builder, $_state, maxReductions,
             trueOperands, falseOperands, trueDest, falseDest);
     }]>,
   ];
@@ -1264,19 +1189,17 @@ def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value source, Type destType",
-    [{
-      result.addOperands(source);
-      result.addAttribute("from", TypeAttr::get(source.getType()));
-      result.addAttribute("to", TypeAttr::get(destType));
-      result.addTypes(destType);
+    OpBuilderDAG<(ins "Value":$source, "Type":$destType), [{
+      $_state.addOperands(source);
+      $_state.addAttribute("from", TypeAttr::get(source.getType()));
+      $_state.addAttribute("to", TypeAttr::get(destType));
+      $_state.addTypes(destType);
     }]>,
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value source, Type srcType, Type destType",
-    [{
-      result.addOperands(source);
-      result.addAttribute("from", TypeAttr::get(srcType));
-      result.addAttribute("to", TypeAttr::get(destType));
-      result.addTypes(destType);
+    OpBuilderDAG<(ins "Value":$source, "Type":$srcType, "Type":$destType), [{
+      $_state.addOperands(source);
+      $_state.addAttribute("from", TypeAttr::get(srcType));
+      $_state.addAttribute("to", TypeAttr::get(destType));
+      $_state.addTypes(destType);
     }]>
   ];
 
@@ -1325,20 +1248,16 @@ def eir_MallocOp : eir_Op<"malloc"> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, PtrType ptrType, "
-              "mlir::IntegerAttr alignment = mlir::IntegerAttr()",
-    [{
-       build(builder, result, ptrType, llvm::None, alignment);
+    OpBuilderDAG<(ins "PtrType":$ptrType, CArg<"mlir::IntegerAttr", "{}">:$alignment), [{
+       build($_builder, $_state, ptrType, llvm::None, alignment);
     }]>,
-    OpBuilder<"OpBuilder &builder, OperationState &result, PtrType ptrType, "
-              "Optional<Value> arity, "
-              "mlir::IntegerAttr alignment = mlir::IntegerAttr()",
-    [{
-       result.addTypes(ptrType);
+    OpBuilderDAG<(ins "PtrType":$ptrType, "Optional<Value>":$arity,
+                      CArg<"mlir::IntegerAttr", "{}">:$alignment), [{
+       $_state.addTypes(ptrType);
        if (arity.hasValue())
-         result.addOperands(arity.getValue());
+         $_state.addOperands(arity.getValue());
        if (alignment)
-         result.addAttribute(getAlignmentAttrName(), alignment);
+         $_state.addAttribute(getAlignmentAttrName(), alignment);
     }]>
   ];
 
@@ -1372,19 +1291,18 @@ def eir_LoadOp : eir_Op<"load", []> {
   let arguments = (ins eir_PointerLike:$ref);
   let results = (outs eir_AnyType:$out);
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value refVal",
-    [{
-      result.addOperands(refVal);
+  let builders = [
+    OpBuilderDAG<(ins "Value":$refVal), [{
+      $_state.addOperands(refVal);
       auto refType = refVal.getType();
       if (auto boxed = refType.dyn_cast_or_null<BoxType>()) {
-        result.addTypes(boxed.getBoxedType());
+        $_state.addTypes(boxed.getBoxedType());
       } else if (auto ptr = refType.dyn_cast_or_null<RefType>()) {
-        result.addTypes(ptr.getInnerType());
+        $_state.addTypes(ptr.getInnerType());
       } else if (auto ptr = refType.dyn_cast_or_null<PtrType>()){
-        result.addTypes(ptr.getInnerType());
+        $_state.addTypes(ptr.getInnerType());
       } else {
-        result.addTypes(refType);
+        $_state.addTypes(refType);
       }
     }]
   >];
@@ -1417,29 +1335,27 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value base, int64_t index",
-    [{
-      auto indexTy = builder.getIndexType();
-      result.addAttribute("index", builder.getIntegerAttr(indexTy, index));
-      result.addOperands(base);
+    OpBuilderDAG<(ins "Value":$base, "int64_t":$index), [{
+      auto indexTy = $_builder.getIndexType();
+      $_state.addAttribute("index", $_builder.getIntegerAttr(indexTy, index));
+      $_state.addOperands(base);
 
       auto valueType = base.getType();
       if (auto ptrType = valueType.dyn_cast_or_null<PtrType>()) {
         auto innerType = ptrType.getInnerType();
         if (auto tupleTy = innerType.dyn_cast_or_null<TupleType>()) {
-          if (tupleTy.hasStaticShape() && tupleTy.getArity() > index) {
-            result.addTypes(builder.getType<PtrType>(tupleTy.getElementType(index)));
+          if (tupleTy.hasStaticShape() && tupleTy.getArity() > (size_t)(index)) {
+            $_state.addTypes($_builder.getType<PtrType>(tupleTy.getElementType(index)));
           } else {
-            result.addTypes(builder.getType<PtrType>(builder.getType<TermType>()));
+            $_state.addTypes($_builder.getType<PtrType>($_builder.getType<TermType>()));
           }
         } else if (innerType.isa<ConsType>()) {
-          result.addTypes(builder.getType<PtrType>(builder.getType<TermType>()));
+          $_state.addTypes($_builder.getType<PtrType>($_builder.getType<TermType>()));
         } else {
-          result.addTypes(builder.getType<NoneType>());
+          $_state.addTypes($_builder.getType<NoneType>());
         }
       } else {
-        result.addTypes(builder.getType<NoneType>());
+        $_state.addTypes($_builder.getType<NoneType>());
       }
     }]>
   ];
@@ -1475,15 +1391,11 @@ def eir_PrintOp : eir_Op<"print"> {
   let results = (outs eir_AnyTerm:$result);
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value arg",
-    [{
-      build(builder, result, builder.getType<TermType>(), arg);
+    OpBuilderDAG<(ins "Value":$arg), [{
+      build($_builder, $_state, $_builder.getType<TermType>(), arg);
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ValueRange args",
-    [{
-      build(builder, result, builder.getType<TermType>(), args.front());
+    OpBuilderDAG<(ins "ValueRange":$args), [{
+      build($_builder, $_state, $_builder.getType<TermType>(), args.front());
     }]>
   ];
 
@@ -1523,14 +1435,12 @@ class eir_ConstantOp<Type type, Attr attr, string mnemonic, list<OpTrait> traits
   // Require each constant op to define its builders
   let skipDefaultBuilders = 1;
 
-  list<OpBuilder> extraBuilders = [];
+  list<OpBuilderDAG> extraBuilders = [];
 
   let builders = !listconcat([
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Type type, Attribute val",
-    [{
-      result.addAttribute("value", val);
-      result.addTypes(type);
+    OpBuilderDAG<(ins "Type":$type, "Attribute":$val), [{
+      $_state.addAttribute("value", val);
+      $_state.addTypes(type);
     }]>
   ], extraBuilders);
 
@@ -1554,12 +1464,10 @@ class eir_ConstantOp<Type type, Attr attr, string mnemonic, list<OpTrait> traits
 
 def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, APFloatAttr, "constant.float", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, APFloat &value",
-    [{
-      auto type = builder.getType<eir::FloatType>();
-      auto attr = APFloatAttr::get(builder.getContext(), value);
-      build(builder, result, type, attr);
+    OpBuilderDAG<(ins "APFloat &":$value), [{
+      auto type = $_builder.getType<eir::FloatType>();
+      auto attr = APFloatAttr::get($_builder.getContext(), value);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 
@@ -1568,21 +1476,17 @@ def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, APFloatAttr, "constant.f
 
 def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, FixnumAttr, "constant.int", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, int64_t value",
-    [{
-      auto type = builder.getType<FixnumType>();
+    OpBuilderDAG<(ins "int64_t":$value), [{
+      auto type = $_builder.getType<FixnumType>();
       auto n = static_cast<uint64_t>(value);
       APInt ap(64, n, /*isSigned=*/true);
-      auto attr = APIntAttr::get(builder.getContext(), type, ap);
-      build(builder, result, type, attr);
+      auto attr = APIntAttr::get($_builder.getContext(), type, ap);
+      build($_builder, $_state, type, attr);
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, APInt &value",
-    [{
-      auto type = builder.getType<FixnumType>();
-      auto attr = APIntAttr::get(builder.getContext(), type, value);
-      build(builder, result, type, attr);
+    OpBuilderDAG<(ins "APInt &":$value), [{
+      auto type = $_builder.getType<FixnumType>();
+      auto attr = APIntAttr::get($_builder.getContext(), type, value);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 
@@ -1591,13 +1495,11 @@ def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, FixnumAttr, "constant.int
 
 def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, BigIntAttr, "constant.bigint", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, APInt &value",
-    [{
-      auto bigIntType = builder.getType<BigIntType>();
-      auto type = builder.getType<eir::BoxType>(bigIntType);
-      auto attr = APIntAttr::get(builder.getContext(), bigIntType, value);
-      build(builder, result, type, attr);
+    OpBuilderDAG<(ins "APInt &":$value), [{
+      auto bigIntType = $_builder.getType<BigIntType>();
+      auto type = $_builder.getType<eir::BoxType>(bigIntType);
+      auto attr = APIntAttr::get($_builder.getContext(), bigIntType, value);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 
@@ -1606,15 +1508,11 @@ def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, BigIntAttr, "constant.big
 
 def eir_ConstantBoolOp : eir_ConstantOp<eir_BoolLike, BoolAttr, "constant.bool", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, bool truth",
-    [{
-      build(builder, result, builder.getType<BooleanType>(), builder.getBoolAttr(truth));
+    OpBuilderDAG<(ins "bool":$truth), [{
+      build($_builder, $_state, $_builder.getType<BooleanType>(), $_builder.getBoolAttr(truth));
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Type type, bool truth",
-    [{
-      build(builder, result, type, builder.getBoolAttr(truth));
+    OpBuilderDAG<(ins "Type":$type, "bool":$truth), [{
+      build($_builder, $_state, type, $_builder.getBoolAttr(truth));
     }]>,
   ];
 
@@ -1623,18 +1521,14 @@ def eir_ConstantBoolOp : eir_ConstantOp<eir_BoolLike, BoolAttr, "constant.bool",
 
 def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, AtomAttr, "constant.atom", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, APInt id, StringRef name",
-    [{
-      auto type = builder.getType<AtomType>();
-      auto attr = AtomAttr::get(builder.getContext(), id, name);
-      build(builder, result, type, attr);
+    OpBuilderDAG<(ins "APInt":$id, "StringRef":$name), [{
+      auto type = $_builder.getType<AtomType>();
+      auto attr = AtomAttr::get($_builder.getContext(), id, name);
+      build($_builder, $_state, type, attr);
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Type type, APInt id, StringRef name",
-    [{
-      auto attr = AtomAttr::get(builder.getContext(), id, name);
-      build(builder, result, type, attr);
+    OpBuilderDAG<(ins "Type":$type, "APInt":$id, "StringRef":$name), [{
+      auto attr = AtomAttr::get($_builder.getContext(), id, name);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 
@@ -1643,32 +1537,25 @@ def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, AtomAttr, "constant.atom",
 
 def eir_ConstantBinaryOp : eir_ConstantOp<eir_BoxType, BinaryAttr, "constant.binary"> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result,"
-    "StringRef value, uint64_t header, uint64_t flags",
-    [{
-      auto binType = builder.getType<eir::BinaryType>();
-      auto type = builder.getType<eir::BoxType>(binType);
+    OpBuilderDAG<(ins "StringRef":$value, "uint64_t":$header, "uint64_t":$flags), [{
+      auto binType = $_builder.getType<eir::BinaryType>();
+      auto type = $_builder.getType<eir::BoxType>(binType);
       auto attr = BinaryAttr::get(type, value, header, flags);
-      build(builder, result, type, attr);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 }
 
 def eir_ConstantNilOp : eir_ConstantOp<eir_AnyType, TypeAttr, "constant.nil", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Type type",
-    [{
+    OpBuilderDAG<(ins "Type":$type), [{
       auto attr = TypeAttr::get(type);
-      build(builder, result, type, attr);
+      build($_builder, $_state, type, attr);
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result",
-    [{
-      auto type = builder.getType<NilType>();
+    OpBuilderDAG<(ins), [{
+      auto type = $_builder.getType<NilType>();
       auto attr = TypeAttr::get(type);
-      build(builder, result, type, attr);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 
@@ -1681,17 +1568,13 @@ def eir_ConstantNilOp : eir_ConstantOp<eir_AnyType, TypeAttr, "constant.nil", [C
 
 def eir_ConstantNoneOp : eir_ConstantOp<eir_AnyTerm, TypeAttr, "constant.none", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Type type",
-    [{
+    OpBuilderDAG<(ins "Type":$type), [{
       auto attr = TypeAttr::get(type);
-      build(builder, result, type, attr);
+      build($_builder, $_state, type, attr);
     }]>,
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result",
-    [{
-      auto type = builder.getType<eir::NoneType>();
-      build(builder, result, type);
+    OpBuilderDAG<(ins), [{
+      auto type = $_builder.getType<eir::NoneType>();
+      build($_builder, $_state, type);
     }]>
   ];
 
@@ -1704,9 +1587,7 @@ def eir_ConstantNoneOp : eir_ConstantOp<eir_AnyTerm, TypeAttr, "constant.none", 
 
 def eir_ConstantTupleOp : eir_ConstantOp<eir_BoxType, SeqAttr, "constant.tuple"> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ArrayRef<Attribute> elements",
-    [{
+    OpBuilderDAG<(ins "ArrayRef<Attribute>":$elements), [{
       std::vector<Type> types;
       types.reserve(elements.size());
       for (auto element : elements) {
@@ -1716,36 +1597,32 @@ def eir_ConstantTupleOp : eir_ConstantOp<eir_BoxType, SeqAttr, "constant.tuple">
         }
         types.push_back(element.getType());
       }
-      auto tupleType = builder.getType<eir::TupleType>(types);
-      auto type = builder.getType<eir::BoxType>(tupleType);
+      auto tupleType = $_builder.getType<eir::TupleType>(types);
+      auto type = $_builder.getType<eir::BoxType>(tupleType);
       auto attr = SeqAttr::get(type, elements);
-      build(builder, result, type, attr);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 }
 
 def eir_ConstantListOp : eir_ConstantOp<eir_BoxType, SeqAttr, "constant.list"> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ArrayRef<Attribute> elements",
-    [{
-      auto consType = builder.getType<ConsType>();
-      auto type = builder.getType<eir::BoxType>(consType);
+    OpBuilderDAG<(ins "ArrayRef<Attribute>":$elements), [{
+      auto consType = $_builder.getType<ConsType>();
+      auto type = $_builder.getType<eir::BoxType>(consType);
       auto attr = SeqAttr::get(type, elements);
-      build(builder, result, type, attr);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 }
 
 def eir_ConstantMapOp : eir_ConstantOp<eir_BoxType, SeqAttr, "constant.map"> {
   let extraBuilders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, ArrayRef<Attribute> elements",
-    [{
-      auto mapType = builder.getType<MapType>();
-      auto type = builder.getType<eir::BoxType>(mapType);
+    OpBuilderDAG<(ins "ArrayRef<Attribute>":$elements), [{
+      auto mapType = $_builder.getType<MapType>();
+      auto type = $_builder.getType<eir::BoxType>(mapType);
       auto attr = SeqAttr::get(type, elements);
-      build(builder, result, type, attr);
+      build($_builder, $_state, type, attr);
     }]>
   ];
 }
@@ -1764,13 +1641,12 @@ def eir_ConsOp : eir_Op<"cons"> {
   let results = (outs eir_BoxType:$out);
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value head, Value tail, bool alloca = false",
-    [{
-      result.addOperands(head);
-      result.addOperands(tail);
-      result.addTypes(BoxType::get(builder.getType<ConsType>()));
+    OpBuilderDAG<(ins "Value":$head, "Value":$tail, CArg<"bool", "false">:$alloca), [{
+      $_state.addOperands(head);
+      $_state.addOperands(tail);
+      $_state.addTypes(BoxType::get($_builder.getType<ConsType>()));
       if (alloca)
-        result.addAttribute("alloca", builder.getUnitAttr());
+        $_state.addAttribute("alloca", $_builder.getUnitAttr());
     }]>
   ];
 
@@ -1796,13 +1672,12 @@ def eir_ListOp : eir_Op<"list"> {
   let results = (outs eir_BoxType:$out);
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, ValueRange elements, bool alloca = false",
-    [{
-      result.addOperands(elements);
-      auto listType = builder.getType<eir::ListType>();
-      result.addTypes(BoxType::get(listType));
+    OpBuilderDAG<(ins "ValueRange":$elements, CArg<"bool", "false">:$alloca), [{
+      $_state.addOperands(elements);
+      auto listType = $_builder.getType<eir::ListType>();
+      $_state.addTypes(BoxType::get(listType));
       if (alloca)
-        result.addAttribute("alloca", builder.getUnitAttr());
+        $_state.addAttribute("alloca", $_builder.getUnitAttr());
     }]>
   ];
 
@@ -1828,23 +1703,22 @@ def eir_TupleOp : eir_Op<"tuple"> {
   let results = (outs eir_BoxType:$out);
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, ArrayRef<Value> elements, bool alloca = false",
-    [{
+    OpBuilderDAG<(ins "ArrayRef<Value>":$elements, CArg<"bool", "false">:$alloca), [{
       SmallVector<Type, 1> elementTypes;
       for (auto val : elements) {
         auto valType = val.getType();
         if (valType.isa<OpaqueTermType>())
           elementTypes.push_back(valType);
         else if (valType.isInteger(1))
-          elementTypes.push_back(builder.getType<AtomType>());
+          elementTypes.push_back($_builder.getType<AtomType>());
         else
-          elementTypes.push_back(builder.getType<TermType>());
+          elementTypes.push_back($_builder.getType<TermType>());
       }
-      result.addOperands(elements);
-      auto tupleType = builder.getType<eir::TupleType>(elementTypes);
-      result.addTypes(BoxType::get(tupleType));
+      $_state.addOperands(elements);
+      auto tupleType = $_builder.getType<eir::TupleType>(elementTypes);
+      $_state.addTypes(BoxType::get(tupleType));
       if (alloca)
-        result.addAttribute("alloca", builder.getUnitAttr());
+        $_state.addAttribute("alloca", $_builder.getUnitAttr());
     }]>
   ];
 
@@ -1916,10 +1790,9 @@ def eir_TraceConstructOp : eir_Op<"trace_construct"> {
   }];
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value traceRef",
-    [{
-      result.addOperands(traceRef);
-      result.addTypes(BoxType::get(builder.getType<ConsType>()));
+    OpBuilderDAG<(ins "Value":$traceRef), [{
+      $_state.addOperands(traceRef);
+      $_state.addTypes(BoxType::get($_builder.getType<ConsType>()));
     }]>
   ];
 }
@@ -1937,18 +1810,16 @@ def eir_MapOp : eir_Op<"map.new"> {
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, ArrayRef<Value> elements",
-    [{
-      result.addOperands(elements);
-      result.addTypes(BoxType::get(builder.getType<MapType>()));
+    OpBuilderDAG<(ins "ArrayRef<Value>":$elements), [{
+      $_state.addOperands(elements);
+      $_state.addTypes(BoxType::get($_builder.getType<MapType>()));
     }]>,
-    OpBuilder<"OpBuilder &builder, OperationState &result, ArrayRef<eir::MapEntry> entries",
-    [{
+    OpBuilderDAG<(ins "ArrayRef<eir::MapEntry>":$entries), [{
       for (auto &entry : entries) {
-        result.addOperands(Value::getFromOpaquePointer(entry.key));
-        result.addOperands(Value::getFromOpaquePointer(entry.value));
+        $_state.addOperands(Value::getFromOpaquePointer(entry.key));
+        $_state.addOperands(Value::getFromOpaquePointer(entry.value));
       }
-      result.addTypes(BoxType::get(builder.getType<MapType>()));
+      $_state.addTypes(BoxType::get($_builder.getType<MapType>()));
     }]>
   ];
 
@@ -1979,14 +1850,11 @@ def eir_MapInsertOp : eir_Op<"map.insert", []> {
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value map, Value key, Value value",
-    [{
-      auto mapType = builder.getType<BoxType>(builder.getType<MapType>());
-      auto termType = builder.getType<TermType>();
-      auto i1Ty = builder.getI1Type();
-      result.addTypes({mapType, i1Ty});
-      result.addOperands({map, key, value});
+    OpBuilderDAG<(ins "Value":$map, "Value":$key, "Value":$value), [{
+      auto mapType = $_builder.getType<BoxType>($_builder.getType<MapType>());
+      auto i1Ty = $_builder.getI1Type();
+      $_state.addTypes({mapType, i1Ty});
+      $_state.addOperands({map, key, value});
     }]>
   ];
 
@@ -2017,14 +1885,11 @@ def eir_MapUpdateOp : eir_Op<"map.update", []> {
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value map, Value key, Value value",
-    [{
-      auto mapType = builder.getType<BoxType>(builder.getType<MapType>());
-      auto termType = builder.getType<TermType>();
-      auto i1Ty = builder.getI1Type();
-      result.addTypes({mapType, i1Ty});
-      result.addOperands({map, key, value});
+    OpBuilderDAG<(ins "Value":$map, "Value":$key, "Value":$value), [{
+      auto mapType = $_builder.getType<BoxType>($_builder.getType<MapType>());
+      auto i1Ty = $_builder.getI1Type();
+      $_state.addTypes({mapType, i1Ty});
+      $_state.addOperands({map, key, value});
     }]>
   ];
 
@@ -2043,12 +1908,10 @@ def eir_MapContainsKeyOp : eir_Op<"map.contains", [NoSideEffect]> {
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value map, Value key",
-    [{
-      auto i1Ty = builder.getI1Type();
-      result.addTypes({i1Ty});
-      result.addOperands({map, key});
+    OpBuilderDAG<(ins "Value":$map, "Value":$key), [{
+      auto i1Ty = $_builder.getI1Type();
+      $_state.addTypes({i1Ty});
+      $_state.addOperands({map, key});
     }]>
   ];
 
@@ -2067,12 +1930,10 @@ def eir_MapGetKeyOp : eir_Op<"map.get", []> {
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value map, Value key",
-    [{
-      auto termType = builder.getType<TermType>();
-      result.addTypes(termType);
-      result.addOperands({map, key});
+    OpBuilderDAG<(ins "Value":$map, "Value":$key), [{
+      auto termType = $_builder.getType<TermType>();
+      $_state.addTypes(termType);
+      $_state.addOperands({map, key});
     }]>
   ];
 
@@ -2107,11 +1968,10 @@ def eir_BinaryFinishOp : eir_Op<"binary.finish"> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result, Value binRef",
-    [{
-      auto binaryTy = builder.getType<BoxType>(builder.getType<BinaryType>());
-      result.addTypes(binaryTy);
-      result.addOperands(binRef);
+    OpBuilderDAG<(ins "Value":$binRef), [{
+      auto binaryTy = $_builder.getType<BoxType>($_builder.getType<BinaryType>());
+      $_state.addTypes(binaryTy);
+      $_state.addOperands(binRef);
     }]>
   ];
 }
@@ -2140,18 +2000,16 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value bin, Value value, Value size, ArrayRef<NamedAttribute> attrs",
-    [{
+    OpBuilderDAG<(ins "Value":$bin, "Value":$value, "Value":$size, "ArrayRef<NamedAttribute>":$attrs), [{
       if (size == nullptr) {
-        result.addOperands({bin, value});
+        $_state.addOperands({bin, value});
       } else {
-        result.addOperands({bin, value, size});
+        $_state.addOperands({bin, value, size});
       }
       auto binTy = bin.getType();
-      auto i1Ty = builder.getI1Type();
-      result.addTypes({binTy, i1Ty});
-      result.addAttributes(attrs);
+      auto i1Ty = $_builder.getI1Type();
+      $_state.addTypes({binTy, i1Ty});
+      $_state.addAttributes(attrs);
     }]>
   ];
 }
@@ -2185,18 +2043,16 @@ def eir_BinaryMatchRawOp : eir_BinaryMatchOp<"binary.match.raw", []> {
   let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, OptionalAttr<I64Attr>:$unit);
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value bin, int64_t unit, Optional<Value> size",
-    [{
-      result.addOperands(bin);
+    OpBuilderDAG<(ins "Value":$bin, "int64_t":$unit, "Optional<Value>":$size), [{
+      $_state.addOperands(bin);
       if (size.hasValue()) {
-        result.addOperands(size.getValue());
+        $_state.addOperands(size.getValue());
       }
-      auto termTy = builder.getType<TermType>();
-      auto i1Ty = builder.getI1Type();
-      auto i8Ty = builder.getIntegerType(8);
-      result.addTypes({termTy, termTy, i1Ty});
-      result.addAttribute("unit", builder.getIntegerAttr(i8Ty, unit));
+      auto termTy = $_builder.getType<TermType>();
+      auto i1Ty = $_builder.getI1Type();
+      auto i8Ty = $_builder.getIntegerType(8);
+      $_state.addTypes({termTy, termTy, i1Ty});
+      $_state.addAttribute("unit", $_builder.getIntegerAttr(i8Ty, unit));
     }]>
   ];
 }
@@ -2207,21 +2063,19 @@ def eir_BinaryMatchIntegerOp : eir_BinaryMatchOp<"binary.match.integer", []> {
   let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, BoolAttr:$is_signed, I8Attr:$endianness, OptionalAttr<I64Attr>:$unit);
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value bin, bool isSigned,"
-    "Endianness::Type endianness, int64_t unit, Optional<Value> size",
-    [{
-      result.addOperands(bin);
+    OpBuilderDAG<(ins "Value":$bin, "bool":$isSigned, "Endianness::Type":$endianness,
+                      "int64_t":$unit, "Optional<Value>":$size), [{
+      $_state.addOperands(bin);
       if (size.hasValue()) {
-        result.addOperands(size.getValue());
+        $_state.addOperands(size.getValue());
       }
-      auto termTy = builder.getType<TermType>();
-      auto i1Ty = builder.getI1Type();
-      auto i8Ty = builder.getIntegerType(8);
-      result.addTypes({termTy, termTy, i1Ty});
-      result.addAttribute("is_signed", builder.getBoolAttr(isSigned));
-      result.addAttribute("endianness", builder.getIntegerAttr(i8Ty, (unsigned)endianness));
-      result.addAttribute("unit", builder.getIntegerAttr(i8Ty, unit));
+      auto termTy = $_builder.getType<TermType>();
+      auto i1Ty = $_builder.getI1Type();
+      auto i8Ty = $_builder.getIntegerType(8);
+      $_state.addTypes({termTy, termTy, i1Ty});
+      $_state.addAttribute("is_signed", $_builder.getBoolAttr(isSigned));
+      $_state.addAttribute("endianness", $_builder.getIntegerAttr(i8Ty, (unsigned)endianness));
+      $_state.addAttribute("unit", $_builder.getIntegerAttr(i8Ty, unit));
     }]>
   ];
 }
@@ -2232,20 +2086,17 @@ def eir_BinaryMatchFloatOp : eir_BinaryMatchOp<"binary.match.float", []> {
   let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, I8Attr:$endianness, OptionalAttr<I64Attr>:$unit);
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value bin,"
-    "Endianness::Type endianness, int64_t unit, Optional<Value> size",
-    [{
-      result.addOperands(bin);
+    OpBuilderDAG<(ins "Value":$bin, "Endianness::Type":$endianness, "int64_t":$unit, "Optional<Value>":$size), [{
+      $_state.addOperands(bin);
       if (size.hasValue()) {
-        result.addOperands(size.getValue());
+        $_state.addOperands(size.getValue());
       }
-      auto termTy = builder.getType<TermType>();
-      auto i1Ty = builder.getI1Type();
-      auto i8Ty = builder.getIntegerType(8);
-      result.addTypes({termTy, termTy, i1Ty});
-      result.addAttribute("endianness", builder.getIntegerAttr(i8Ty, (unsigned)endianness));
-      result.addAttribute("unit", builder.getIntegerAttr(i8Ty, unit));
+      auto termTy = $_builder.getType<TermType>();
+      auto i1Ty = $_builder.getI1Type();
+      auto i8Ty = $_builder.getIntegerType(8);
+      $_state.addTypes({termTy, termTy, i1Ty});
+      $_state.addAttribute("endianness", $_builder.getIntegerAttr(i8Ty, (unsigned)endianness));
+      $_state.addAttribute("unit", $_builder.getIntegerAttr(i8Ty, unit));
     }]>
   ];
 }
@@ -2256,16 +2107,14 @@ def eir_BinaryMatchUtf8Op : eir_BinaryMatchOp<"binary.match.utf8", []> {
   let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size);
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value bin, Optional<Value> size",
-    [{
-      result.addOperands(bin);
+    OpBuilderDAG<(ins "Value":$bin, "Optional<Value>":$size), [{
+      $_state.addOperands(bin);
       if (size.hasValue()) {
-        result.addOperands(size.getValue());
+        $_state.addOperands(size.getValue());
       }
-      auto termTy = builder.getType<TermType>();
-      auto i1Ty = builder.getI1Type();
-      result.addTypes({termTy, termTy, i1Ty});
+      auto termTy = $_builder.getType<TermType>();
+      auto i1Ty = $_builder.getI1Type();
+      $_state.addTypes({termTy, termTy, i1Ty});
     }]>
   ];
 }
@@ -2276,19 +2125,16 @@ def eir_BinaryMatchUtf16Op : eir_BinaryMatchOp<"binary.match.utf16", []> {
   let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, I8Attr:$endianness);
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value bin,"
-    "Endianness::Type endianness, Optional<Value> size",
-    [{
-      result.addOperands(bin);
+    OpBuilderDAG<(ins "Value":$bin, "Endianness::Type":$endianness, "Optional<Value>":$size), [{
+      $_state.addOperands(bin);
       if (size.hasValue()) {
-        result.addOperands(size.getValue());
+        $_state.addOperands(size.getValue());
       }
-      auto termTy = builder.getType<TermType>();
-      auto i1Ty = builder.getI1Type();
-      auto i8Ty = builder.getIntegerType(8);
-      result.addTypes({termTy, termTy, i1Ty});
-      result.addAttribute("endianness", builder.getIntegerAttr(i8Ty, (unsigned)endianness));
+      auto termTy = $_builder.getType<TermType>();
+      auto i1Ty = $_builder.getI1Type();
+      auto i8Ty = $_builder.getIntegerType(8);
+      $_state.addTypes({termTy, termTy, i1Ty});
+      $_state.addAttribute("endianness", $_builder.getIntegerAttr(i8Ty, (unsigned)endianness));
     }]>
   ];
 }
@@ -2299,19 +2145,16 @@ def eir_BinaryMatchUtf32Op : eir_BinaryMatchOp<"binary.match.utf32", []> {
   let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, I8Attr:$endianness);
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value bin,"
-    "Endianness::Type endianness, Optional<Value> size",
-    [{
-      result.addOperands(bin);
+    OpBuilderDAG<(ins "Value":$bin, "Endianness::Type":$endianness, "Optional<Value>":$size), [{
+      $_state.addOperands(bin);
       if (size.hasValue()) {
-        result.addOperands(size.getValue());
+        $_state.addOperands(size.getValue());
       }
-      auto termTy = builder.getType<TermType>();
-      auto i1Ty = builder.getI1Type();
-      auto i8Ty = builder.getIntegerType(8);
-      result.addTypes({termTy, termTy, i1Ty});
-      result.addAttribute("endianness", builder.getIntegerAttr(i8Ty, (unsigned)endianness));
+      auto termTy = $_builder.getType<TermType>();
+      auto i1Ty = $_builder.getI1Type();
+      auto i8Ty = $_builder.getIntegerType(8);
+      $_state.addTypes({termTy, termTy, i1Ty});
+      $_state.addAttribute("endianness", $_builder.getIntegerAttr(i8Ty, (unsigned)endianness));
     }]>
   ];
 }
@@ -2327,11 +2170,9 @@ def eir_ReceiveStartOp : eir_Op<"receive.start", []> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value timeout",
-    [{
-      result.addOperands(timeout);
-      result.addTypes(builder.getType<ReceiveRefType>());
+    OpBuilderDAG<(ins "Value":$timeout), [{
+      $_state.addOperands(timeout);
+      $_state.addTypes($_builder.getType<ReceiveRefType>());
     }]>
   ];
 
@@ -2349,11 +2190,9 @@ def eir_ReceiveWaitOp : eir_Op<"receive.wait", []> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value recvRef",
-    [{
-      result.addOperands(recvRef);
-      result.addTypes(builder.getIntegerType(8));
+    OpBuilderDAG<(ins "Value":$recvRef), [{
+      $_state.addOperands(recvRef);
+      $_state.addTypes($_builder.getIntegerType(8));
     }]>
   ];
 
@@ -2370,11 +2209,9 @@ def eir_ReceiveMessageOp : eir_Op<"receive.message", []> {
   let verifier = ?;
 
   let builders = [
-    OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value recvRef",
-    [{
-      result.addOperands(recvRef);
-      result.addTypes(builder.getType<TermType>());
+    OpBuilderDAG<(ins "Value":$recvRef), [{
+      $_state.addOperands(recvRef);
+      $_state.addTypes($_builder.getType<TermType>());
     }]>
   ];
 

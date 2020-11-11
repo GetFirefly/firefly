@@ -5,11 +5,11 @@
 
 namespace lumen {
 namespace eir {
-class MapOpConversion;
-class MapInsertOpConversion;
-class MapUpdateOpConversion;
-class MapContainsKeyOpConversion;
-class MapGetKeyOpConversion;
+struct MapOpConversion;
+struct MapInsertOpConversion;
+struct MapUpdateOpConversion;
+struct MapContainsKeyOpConversion;
+struct MapGetKeyOpConversion;
 
 void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,

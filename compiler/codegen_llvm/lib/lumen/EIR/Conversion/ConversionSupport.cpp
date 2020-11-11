@@ -30,11 +30,13 @@ Optional<Type> EirTypeConverter::coalesceOperandTypes(Type lhs, Type rhs) {
 
             // If both types are immediates, use the concrete type if matched,
             // or term type otherwise
-            if (lTy.isImmediate() && rTy.isImmediate())
-                if (lTy == rTy)
+            if (lTy.isImmediate() && rTy.isImmediate()) {
+                if (lTy == rTy) {
                     return lhs;
-                else
+                } else {
                     return TermType::get(lhs.getContext());
+                }
+            }
 
             // If both types are boxed, use the concrete type if matched, or
             // term type otherwise
@@ -182,7 +184,6 @@ Optional<Type> convertType(Type type, EirTypeConverter &converter,
     // If this isn't otherwise an EIR type, we can't convert it
     if (!isa_eir_type(type)) return converter.deferTypeConversion(type);
 
-    MLIRContext *context = type.getContext();
     auto termTy = targetInfo.getUsizeType().getPointerTo(1);
     auto immediateTy = targetInfo.getUsizeType();
 
@@ -288,7 +289,6 @@ LLVM::GlobalOp OpConversionContext::getOrInsertGlobalString(
         auto i8Ty = getI8Type();
         auto i8PtrTy = i8Ty.getPointerTo();
         auto i64Ty = LLVMType::getInt64Ty(context);
-        auto strTy = LLVMType::getArrayTy(i8Ty, value.size());
 
         PatternRewriter::InsertionGuard insertGuard(rewriter);
         // Make sure we insert this global after the definition of the constant
@@ -298,7 +298,7 @@ LLVM::GlobalOp OpConversionContext::getOrInsertGlobalString(
         // Initialize the global with a pointer to the first char of the
         // constant string
         auto &initRegion = global.getInitializerRegion();
-        auto *initBlock = rewriter.createBlock(&initRegion);
+        rewriter.createBlock(&initRegion);
         auto globalPtr = llvm_addressof(globalConst);
         Value zero = llvm_constant(i64Ty, getIntegerAttr(0));
         ArrayRef<Value> indices{zero, zero};
@@ -362,7 +362,8 @@ Value OpConversionContext::encodeBox(Value val) const {
         auto termTyAddr0 = getOpaqueTermTypeAddr0();
         // We need to tag the pointer, so that means casting to addrspace(0),
         // bitcasting to term type, then ptrtoint, then back again at the end
-        Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, val));
+        Value addr0 =
+            llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, val));
         Value ptrInt = llvm_ptrtoint(immedTy, addr0);
         Value tag = llvm_constant(termTy, getIntegerAttr(rawTag));
         Value taggedAddr0 = llvm_inttoptr(termTyAddr0, llvm_or(ptrInt, tag));
@@ -389,7 +390,8 @@ Value OpConversionContext::encodeImmediate(ModuleOp mod, Location loc,
     auto termTy = getOpaqueTermType();
     auto i32Ty = getI32Type();
     StringRef symbolName("__lumen_builtin_encode_immediate");
-    auto callee = getOrInsertFunction(mod, symbolName, termTy, {i32Ty, immedTy});
+    auto callee =
+        getOrInsertFunction(mod, symbolName, termTy, {i32Ty, immedTy});
     auto calleeSymbol =
         FlatSymbolRefAttr::get(symbolName, callee->getContext());
 
@@ -411,7 +413,8 @@ Value OpConversionContext::decodeBox(LLVMType innerTy, Value box) const {
     if (rawTag == 0) {
         return llvm_bitcast(innerTy.getPointerTo(1), box);
     } else {
-        Value addr0 = llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, box));
+        Value addr0 =
+            llvm_addrspacecast(termTyAddr0, llvm_bitcast(termTy, box));
         Value ptrInt = llvm_ptrtoint(immedTy, addr0);
         Value tag = llvm_constant(immedTy, getIntegerAttr(rawTag));
         Value neg1 = llvm_constant(immedTy, getIntegerAttr(-1));

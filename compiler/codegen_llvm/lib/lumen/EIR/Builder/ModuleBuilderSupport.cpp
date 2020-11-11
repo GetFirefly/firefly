@@ -22,7 +22,6 @@ Operation *getDefinition(Value val) {
             auto index = arg.getArgNumber();
             Operation *found = nullptr;
             pred->walk([&](BranchOpInterface branchInterface) {
-                auto op = branchInterface.getOperation();
                 for (auto it = pred->succ_begin(), e = pred->succ_end();
                      it != e; ++it) {
                     // If the successor isn't our block, we don't care
@@ -40,6 +39,7 @@ Operation *getDefinition(Value val) {
                     if (found && def != found) return WalkResult::interrupt();
                     found = def;
                 }
+                return WalkResult::advance();
             });
             // If this result doesn't match the last, we've found a conflict
             if (result && found != result) return nullptr;

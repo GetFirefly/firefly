@@ -16,7 +16,7 @@ test_compiles_lumen_otp!(mnesia_ext_sup);
 test_compiles_lumen_otp!(mnesia_frag);
 test_compiles_lumen_otp!(mnesia_frag_hash);
 test_compiles_lumen_otp!(mnesia_index);
-test_compiles_lumen_otp!(mnesia_kernel_sup imports "lib/stdlib/src/supervisor", "lib/stdlib/src/timer.erl");
+test_compiles_lumen_otp!(mnesia_kernel_sup imports "lib/stdlib/src/supervisor", "lib/stdlib/src/timer");
 test_compiles_lumen_otp!(mnesia_late_loader);
 test_compiles_lumen_otp!(mnesia_lib);
 test_compiles_lumen_otp!(mnesia_loader);

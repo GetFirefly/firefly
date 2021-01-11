@@ -116,7 +116,7 @@ impl<H: Histogram + Clone + Default> fmt::Display for Statistics<H> {
 
 unsafe impl<T: AllocRef, H: Histogram + Clone + Default> AllocRef for StatsAlloc<T, H> {
     #[inline]
-    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
+    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocError> {
         let size = layout.size();
         let align = layout.align();
         match self.allocator.alloc(layout, init) {
@@ -144,7 +144,7 @@ unsafe impl<T: AllocRef, H: Histogram + Clone + Default> AllocRef for StatsAlloc
         new_size: usize,
         placement: ReallocPlacement,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         let old_ptr = ptr.as_ptr();
         let old_size = layout.size();
         let align = layout.align();
@@ -187,7 +187,7 @@ unsafe impl<T: AllocRef, H: Histogram + Clone + Default> AllocRef for StatsAlloc
         layout: Layout,
         new_size: usize,
         placement: ReallocPlacement,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         let old_ptr = ptr.as_ptr();
         let old_size = layout.size();
         let align = layout.align();

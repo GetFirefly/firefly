@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::{AllocError, Layout};
 use core::mem;
 use core::ptr::{self, NonNull};
 
@@ -26,7 +26,7 @@ use crate::sys::sysconf;
 // e.g., result in VirtualAlloc being called with invalid arguments). This isn't ideal, but
 // during debugging, error codes can be printed here, so it's not the end of the world.
 #[inline]
-pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocError> {
     let page_size = sysconf::pagesize();
     let align = layout.align();
 
@@ -40,7 +40,7 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
             MEM_COMMIT | MEM_RESERVE,
             PAGE_READWRITE,
         );
-        return NonNull::new(ptr as *mut u8).ok_or(AllocErr);
+        return NonNull::new(ptr as *mut u8).ok_or(AllocError);
     }
 
     // We have to handle alignment ourselves, so we reserve a larger region
@@ -54,7 +54,7 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
 
     let ptr = VirtualAlloc(ptr::null_mut(), padded, MEM_RESERVE, PAGE_NOACCESS);
     if ptr.is_null() {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
 
     // Calculate aligned address
@@ -153,7 +153,7 @@ pub unsafe fn remap(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<NonNull<u8>, AllocError> {
     let old_size = layout.size();
     let page_size = sysconf::pagesize();
 
@@ -193,7 +193,7 @@ unsafe fn remap_fallback(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<NonNull<u8>, AllocError> {
     use core::cmp;
 
     // Create new mapping

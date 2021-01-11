@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, AllocInit, Layout, MemoryBlock, ReallocPlacement};
+use core::alloc::{AllocError, AllocInit, Layout, MemoryBlock, ReallocPlacement};
 
 use core::ptr::NonNull;
 
@@ -7,22 +7,22 @@ use crate::locks::SpinLock;
 static SYS_ALLOC_LOCK: SpinLock<dlmalloc::Dlmalloc> = SpinLock::new(dlmalloc::DLMALLOC_INIT);
 
 #[inline]
-pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
+pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocError> {
     let mut allocator = SYS_ALLOC_LOCK.lock();
     let layout_size = layout.size();
     let ptr = unsafe { (*allocator).malloc(layout_size, layout.align()) };
-    NonNull::new(ptr).ok_or(AllocErr).map(|ptr| MemoryBlock {
+    NonNull::new(ptr).ok_or(AllocError).map(|ptr| MemoryBlock {
         ptr,
         size: layout_size,
     })
 }
 
 #[inline]
-pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocErr> {
+pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocError> {
     let mut allocator = SYS_ALLOC_LOCK.lock();
     let layout_size = layout.size();
     let ptr = unsafe { (*allocator).calloc(layout_size, layout.align()) };
-    NonNull::new(ptr).ok_or(AllocErr).map(|ptr| MemoryBlock {
+    NonNull::new(ptr).ok_or(AllocError).map(|ptr| MemoryBlock {
         ptr,
         size: layout_size,
     })
@@ -35,7 +35,7 @@ pub unsafe fn grow(
     new_size: usize,
     placement: ReallocPlacement,
     init: AllocInit,
-) -> Result<MemoryBlock, AllocErr> {
+) -> Result<MemoryBlock, AllocError> {
     let old_size = layout.size();
     let block = self::realloc(ptr, layout, new_size, placement)?;
     AllocInit::init_offset(init, block, old_size);
@@ -48,7 +48,7 @@ pub unsafe fn shrink(
     layout: Layout,
     new_size: usize,
     placement: ReallocPlacement,
-) -> Result<MemoryBlock, AllocErr> {
+) -> Result<MemoryBlock, AllocError> {
     self::realloc(ptr, layout, new_size, placement)
 }
 
@@ -58,16 +58,16 @@ pub unsafe fn realloc(
     layout: Layout,
     new_size: usize,
     placement: ReallocPlacement,
-) -> Result<MemoryBlock, AllocErr> {
+) -> Result<MemoryBlock, AllocError> {
     if placement != ReallocPlacement::MayMove {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
 
     let mut allocator = SYS_ALLOC_LOCK.lock();
     let layout_size = layout.size();
     let new_ptr = (*allocator).realloc(ptr, layout_size, layout.align(), new_size);
     NonNull::new(new_ptr)
-        .ok_or(AllocErr)
+        .ok_or(AllocError)
         .map(|ptr| MemoryBlock {
             ptr,
             size: layout_size,

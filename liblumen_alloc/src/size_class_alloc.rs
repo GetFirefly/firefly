@@ -93,11 +93,11 @@ impl SizeClassAlloc {
         &self,
         layout: Layout,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let size = layout.size();
         if unlikely(size > self.max_size_class.to_bytes()) {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
         let (index, size_class) =
             binary_search_next_largest(&self.size_classes, |sc| sc.to_bytes().cmp(&size)).unwrap();
@@ -139,9 +139,9 @@ impl SizeClassAlloc {
         new_size: usize,
         placement: ReallocPlacement,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         if unlikely(new_size > self.max_size_class.to_bytes()) {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
         let size = layout.size();
         let size_class = self.size_class_for_unchecked(size);
@@ -156,7 +156,7 @@ impl SizeClassAlloc {
         // Otherwise we have to allocate in the new size class,
         // copy to that new block, and deallocate the original block
         if placement != ReallocPlacement::MayMove {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
         let align = layout.align();
         let new_layout = Layout::from_size_align_unchecked(new_size, align);
@@ -191,7 +191,7 @@ impl SizeClassAlloc {
     /// allocator, or it will not be used, and will not be freed
     unsafe fn create_carrier(
         size_class: SizeClass,
-    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
+    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocError> {
         let size = SUPERALIGNED_CARRIER_SIZE;
         assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
@@ -206,7 +206,7 @@ impl SizeClassAlloc {
 
 unsafe impl AllocRef for SizeClassAlloc {
     #[inline]
-    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
+    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocError> {
         unsafe { self.allocate(layout, init) }
     }
 
@@ -218,7 +218,7 @@ unsafe impl AllocRef for SizeClassAlloc {
         new_size: usize,
         placement: ReallocPlacement,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         self.reallocate(ptr, layout, new_size, placement, init)
     }
 
@@ -229,7 +229,7 @@ unsafe impl AllocRef for SizeClassAlloc {
         layout: Layout,
         new_size: usize,
         placement: ReallocPlacement,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         self.reallocate(ptr, layout, new_size, placement, AllocInit::Uninitialized)
     }
 

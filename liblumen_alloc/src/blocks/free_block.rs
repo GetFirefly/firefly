@@ -9,7 +9,7 @@ use intrusive_collections::container_of;
 use intrusive_collections::RBTreeLink;
 
 use liblumen_core::alloc::utils as alloc_utils;
-use liblumen_core::alloc::{AllocErr, Layout};
+use liblumen_core::alloc::{AllocError, Layout};
 
 use crate::sorted::{SortKey, SortOrder, Sortable};
 
@@ -169,14 +169,14 @@ impl FreeBlock {
     /// NOTE: If the allocator changes such that blocks can be accessed by more
     /// than one thread, the `Block` internals will need to be refactored to handle
     /// that, it is _only_ designed to be accessed by one thread at a time.
-    pub fn try_alloc(&mut self, layout: &Layout) -> Result<NonNull<u8>, AllocErr> {
+    pub fn try_alloc(&mut self, layout: &Layout) -> Result<NonNull<u8>, AllocError> {
         // This is here as a safety against trying to use a FreeBlock twice
         if unlikely!(!self.header.is_free()) {
             debug_assert!(
                 !self.header.is_free(),
                 "tried to allocate a free block twice"
             );
-            return Err(AllocErr);
+            return Err(AllocError);
         }
 
         let mut ptr = unsafe { self.header.data() as *mut u8 };
@@ -194,14 +194,14 @@ impl FreeBlock {
             let padding = (aligned_ptr as usize) - (ptr as usize);
             if self.usable_size() < size + padding {
                 // No good
-                return Err(AllocErr);
+                return Err(AllocError);
             }
             ptr = aligned_ptr
         } else {
             // Alignment is good, check size
             if self.usable_size() < size {
                 // No good
-                return Err(AllocErr);
+                return Err(AllocError);
             }
         }
 

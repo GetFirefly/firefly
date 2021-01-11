@@ -28,7 +28,7 @@ impl SysAlloc {
 
 unsafe impl AllocRef for SysAlloc {
     #[inline]
-    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
+    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocError> {
         match init {
             AllocInit::Uninitialized => sys_alloc::alloc(layout),
             AllocInit::Zeroed => sys_alloc::alloc_zeroed(layout),
@@ -48,7 +48,7 @@ unsafe impl AllocRef for SysAlloc {
         new_size: usize,
         placement: ReallocPlacement,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         sys_alloc::grow(ptr.as_ptr(), layout, new_size, placement, init)
     }
 
@@ -59,7 +59,7 @@ unsafe impl AllocRef for SysAlloc {
         layout: Layout,
         new_size: usize,
         placement: ReallocPlacement,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         sys_alloc::shrink(ptr.as_ptr(), layout, new_size, placement)
     }
 }
@@ -111,7 +111,7 @@ pub unsafe fn realloc_fallback(
     ptr: *mut u8,
     old_layout: Layout,
     new_size: usize,
-) -> Result<MemoryBlock, AllocErr> {
+) -> Result<MemoryBlock, AllocError> {
     use core::intrinsics::unlikely;
 
     let old_size = old_layout.size();

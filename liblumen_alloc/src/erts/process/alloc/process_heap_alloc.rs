@@ -105,7 +105,7 @@ impl ProcessHeapAlloc {
         heap: *mut Term,
         size: usize,
         new_size: usize,
-    ) -> Result<*mut Term, AllocErr> {
+    ) -> Result<*mut Term, AllocError> {
         // Nothing to do if the size didn't change
         if size == new_size {
             return Ok(heap);
@@ -121,7 +121,7 @@ impl ProcessHeapAlloc {
             if new_size < size {
                 return Ok(heap);
             }
-            return Err(AllocErr);
+            return Err(AllocError);
         }
 
         let layout = self.heap_layout(size);
@@ -149,7 +149,7 @@ impl ProcessHeapAlloc {
             }
         }
 
-        Err(AllocErr)
+        Err(AllocError)
     }
 
     /// Deallocate a process heap, releasing the memory back to the operating system

@@ -11,6 +11,8 @@ rustversion = "1.0"
 cfg-if = "0.1"
 lazy_static = "1.2"
 liblumen_core_macros = { path = "../liblumen_core_macros" }
+lock_api = "0.4.2"
+parking_lot = "0.11.1"
 
 # On wasm32-unknown-unknown, use dlmalloc for malloc/free
 [target.'cfg(all(target_arch = "wasm32", target_vendor = "unknown"))'.dependencies.dlmalloc]
@@ -30,21 +32,6 @@ version = "0.2"
 default-features = false
 features = ["align"]
 version = "0.2"
-
-[dependencies.lock_api]
-git = "https://github.com/KronicDeth/parking_lot.git"
-branch = "wasm32-time_web_sys"
-features = ["nightly"]
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.parking_lot]
-git = "https://github.com/KronicDeth/parking_lot.git"
-branch = "wasm32-time_web_sys"
-features = ["nightly"]
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.parking_lot]
-git = "https://github.com/KronicDeth/parking_lot.git"
-branch = "wasm32-time_web_sys"
-features = ["nightly", "time_web_sys"]
 
 # Windows also requires additional APis for implementing mmap
 [target.'cfg(windows)'.dependencies.winapi]

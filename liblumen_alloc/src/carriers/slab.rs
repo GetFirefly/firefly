@@ -2,7 +2,7 @@ use core::mem;
 use core::ptr::{self, NonNull};
 
 use liblumen_core::alloc::size_classes::SizeClass;
-use liblumen_core::alloc::AllocErr;
+use liblumen_core::alloc::AllocError;
 
 use crate::blocks::{BlockBitSet, BlockBitSubset};
 use crate::sorted::Link;
@@ -80,7 +80,7 @@ where
     }
 
     /// Allocates a block within this carrier, if one is available
-    pub unsafe fn alloc_block(&self) -> Result<NonNull<u8>, AllocErr> {
+    pub unsafe fn alloc_block(&self) -> Result<NonNull<u8>, AllocError> {
         match self.block_bit_set().alloc_block() {
             Ok(index) => {
                 // We were able to mark this block allocated
@@ -95,7 +95,7 @@ where
                 Ok(NonNull::new_unchecked(block))
             }
             // No space available
-            Err(AllocErr) => Err(AllocErr),
+            Err(AllocError) => Err(AllocError),
         }
     }
 

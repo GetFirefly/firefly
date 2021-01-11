@@ -323,7 +323,7 @@ impl StandardAlloc {
                 AllocInit::init(init, block);
                 Ok(block)
             }
-            Err(AllocErr) => Err(alloc!()),
+            Err(AllocError) => Err(alloc!()),
         }
     }
 
@@ -389,8 +389,8 @@ impl StandardAlloc {
 }
 unsafe impl AllocRef for StandardAlloc {
     #[inline]
-    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
-        unsafe { self.allocate(layout, init).map_err(|_| AllocErr) }
+    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocError> {
+        unsafe { self.allocate(layout, init).map_err(|_| AllocError) }
     }
 
     #[inline]
@@ -401,9 +401,9 @@ unsafe impl AllocRef for StandardAlloc {
         new_size: usize,
         placement: ReallocPlacement,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         self.reallocate(ptr, layout, new_size, placement, init)
-            .map_err(|_| AllocErr)
+            .map_err(|_| AllocError)
     }
 
     #[inline]
@@ -413,9 +413,9 @@ unsafe impl AllocRef for StandardAlloc {
         layout: Layout,
         new_size: usize,
         placement: ReallocPlacement,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         self.reallocate(ptr, layout, new_size, placement, AllocInit::Uninitialized)
-            .map_err(|_| AllocErr)
+            .map_err(|_| AllocError)
     }
 
     #[inline]
@@ -491,7 +491,7 @@ unsafe fn create_multi_block_carrier() -> AllocResult<UnsafeRef<MultiBlockCarrie
             // Return an unsafe ref to this carrier back to the caller
             Ok(UnsafeRef::from_raw(carrier))
         }
-        Err(AllocErr) => Err(alloc!()),
+        Err(AllocError) => Err(alloc!()),
     }
 }
 

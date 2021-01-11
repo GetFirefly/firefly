@@ -72,7 +72,7 @@ impl SegmentedAlloc {
     /// allocator, or it will not be used, and will not be freed
     unsafe fn create_carrier(
         size_class: SizeClass,
-    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
+    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocError> {
         let size = SUPERALIGNED_CARRIER_SIZE;
         assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
@@ -87,7 +87,7 @@ impl SegmentedAlloc {
 
 unsafe impl AllocRef for SegmentedAlloc {
     #[inline]
-    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
+    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocError> {
         if layout.size() >= self.sbc_threshold {
             return unsafe { self.alloc_large(layout, init) };
         }
@@ -102,7 +102,7 @@ unsafe impl AllocRef for SegmentedAlloc {
         new_size: usize,
         placement: ReallocPlacement,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         if layout.size() >= self.sbc_threshold {
             // This was a single-block carrier
             //
@@ -122,7 +122,7 @@ unsafe impl AllocRef for SegmentedAlloc {
         layout: Layout,
         new_size: usize,
         placement: ReallocPlacement,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         if layout.size() >= self.sbc_threshold {
             // This was a single-block carrier
             //
@@ -152,7 +152,7 @@ impl SegmentedAlloc {
         &mut self,
         layout: Layout,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let data_layout = layout.clone();
         let data_layout_size = data_layout.size();
@@ -198,9 +198,9 @@ impl SegmentedAlloc {
         new_size: usize,
         placement: ReallocPlacement,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         if placement != ReallocPlacement::MayMove {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
 
         // Allocate new carrier
@@ -263,7 +263,7 @@ impl SegmentedAlloc {
     /// allocator, or it will not be used, and will not be freed
     unsafe fn create_slab_carrier(
         size_class: SizeClass,
-    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
+    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocError> {
         let size = SUPERALIGNED_CARRIER_SIZE;
         assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
@@ -280,11 +280,11 @@ impl SegmentedAlloc {
         &mut self,
         layout: Layout,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let size = layout.size();
         if unlikely(size > Self::MAX_SIZE_CLASS.to_bytes()) {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
         let size_class = self.size_class_for_unchecked(size);
         let index = self.index_for(size_class);
@@ -327,9 +327,9 @@ impl SegmentedAlloc {
         new_size: usize,
         placement: ReallocPlacement,
         init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    ) -> Result<MemoryBlock, AllocError> {
         if unlikely(new_size > Self::MAX_SIZE_CLASS.to_bytes()) {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
         let size = layout.size();
         let size_class = self.size_class_for_unchecked(size);
@@ -344,7 +344,7 @@ impl SegmentedAlloc {
         // Otherwise we have to allocate in the new size class,
         // copy to that new block, and deallocate the original block
         if placement != ReallocPlacement::MayMove {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
         let align = layout.align();
         let new_layout = Layout::from_size_align_unchecked(new_size, align);

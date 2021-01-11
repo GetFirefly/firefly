@@ -4,11 +4,11 @@ use crate::alloc::{prelude::*, realloc_fallback};
 use crate::sys::sysconf::MIN_ALIGN;
 
 #[inline]
-pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
+pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocError> {
     let layout_size = layout.size();
     if layout.align() <= MIN_ALIGN && layout.align() <= layout_size {
         NonNull::new(unsafe { libc::malloc(layout_size) as *mut u8 })
-            .ok_or(AllocErr)
+            .ok_or(AllocError)
             .map(|ptr| MemoryBlock {
                 ptr,
                 size: layout_size,
@@ -17,7 +17,7 @@ pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
         #[cfg(target_os = "macos")]
         {
             if layout.align() > (1 << 31) {
-                return Err(AllocErr);
+                return Err(AllocError);
             }
         }
         unsafe { aligned_alloc(&layout) }
@@ -25,11 +25,11 @@ pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
 }
 
 #[inline]
-pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocErr> {
+pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocError> {
     let layout_size = layout.size();
     if layout.align() <= MIN_ALIGN && layout.align() <= layout_size {
         NonNull::new(unsafe { libc::calloc(layout_size, 1) as *mut u8 })
-            .ok_or(AllocErr)
+            .ok_or(AllocError)
             .map(|ptr| MemoryBlock {
                 ptr,
                 size: layout_size,
@@ -49,14 +49,14 @@ pub unsafe fn grow(
     new_size: usize,
     placement: ReallocPlacement,
     _init: AllocInit,
-) -> Result<MemoryBlock, AllocErr> {
+) -> Result<MemoryBlock, AllocError> {
     if placement != ReallocPlacement::MayMove {
         // We can't guarantee the allocation won't move
-        return Err(AllocErr);
+        return Err(AllocError);
     }
     if layout.align() <= MIN_ALIGN && layout.align() <= new_size {
         NonNull::new(libc::realloc(ptr as *mut libc::c_void, new_size) as *mut u8)
-            .ok_or(AllocErr)
+            .ok_or(AllocError)
             .map(|ptr| MemoryBlock {
                 ptr,
                 size: new_size,
@@ -72,14 +72,14 @@ pub unsafe fn shrink(
     layout: Layout,
     new_size: usize,
     placement: ReallocPlacement,
-) -> Result<MemoryBlock, AllocErr> {
+) -> Result<MemoryBlock, AllocError> {
     if placement != ReallocPlacement::MayMove {
         // We can't guarantee the allocation won't move
-        return Err(AllocErr);
+        return Err(AllocError);
     }
     if layout.align() <= MIN_ALIGN && layout.align() <= new_size {
         NonNull::new(libc::realloc(ptr as *mut libc::c_void, new_size) as *mut u8)
-            .ok_or(AllocErr)
+            .ok_or(AllocError)
             .map(|ptr| MemoryBlock {
                 ptr,
                 size: new_size,
@@ -95,12 +95,12 @@ pub unsafe fn free(ptr: *mut u8, _layout: Layout) {
 }
 
 #[inline]
-unsafe fn aligned_alloc(layout: &Layout) -> Result<MemoryBlock, AllocErr> {
+unsafe fn aligned_alloc(layout: &Layout) -> Result<MemoryBlock, AllocError> {
     let mut ptr = ptr::null_mut();
     let layout_size = layout.size();
     let result = libc::posix_memalign(&mut ptr, layout.align(), layout_size);
     if result != 0 {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
     Ok(MemoryBlock {
         ptr: NonNull::new_unchecked(ptr as *mut u8),

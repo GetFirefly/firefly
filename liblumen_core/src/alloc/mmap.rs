@@ -14,21 +14,21 @@ use crate::sys::mmap;
 /// Creates a memory mapping for the given `Layout`
 #[cfg(has_mmap)]
 #[inline]
-pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocError> {
     mmap::map(layout).map(|(ptr, _)| ptr)
 }
 
 /// Creates a memory mapping for the given `Layout`
 #[cfg(not(has_mmap))]
 #[inline]
-pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocError> {
     sys_alloc::alloc(layout).map(|memory_block| memory_block.ptr)
 }
 
 /// Creates a memory mapping specifically set up to behave like a stack
 #[cfg(has_mmap)]
 #[inline]
-pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocError> {
     mmap::map_stack(pages)
 }
 
@@ -38,7 +38,7 @@ pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
 /// and it is implemented the same as `map`
 #[cfg(not(has_mmap))]
 #[inline]
-pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocError> {
     let page_size = crate::sys::sysconf::pagesize();
     let (layout, _offset) = Layout::from_size_align(page_size, page_size)
         .unwrap()
@@ -55,7 +55,7 @@ pub unsafe fn remap(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<NonNull<u8>, AllocError> {
     mmap::remap(ptr, layout, new_size).map(|(ptr, _)| ptr)
 }
 
@@ -66,7 +66,7 @@ pub unsafe fn remap(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<NonNull<u8>, AllocError> {
     sys_alloc::realloc(ptr, layout, new_size, ReallocPlacement::MayMove)
         .map(|memory_block| memory_block.ptr)
 }

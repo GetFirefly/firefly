@@ -13,10 +13,10 @@ use crate::sys::sysconf::MIN_ALIGN;
 struct Header(*mut u8);
 
 #[inline]
-pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
+pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocError> {
     let layout_size = layout.size();
     NonNull::new(alloc_with_flags(layout, 0))
-        .ok_or(AllocErr)
+        .ok_or(AllocError)
         .map(|ptr| MemoryBlock {
             ptr,
             size: layout_size,
@@ -24,9 +24,9 @@ pub fn alloc(layout: Layout) -> Result<MemoryBlock, AllocErr> {
 }
 
 #[inline]
-pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocErr> {
+pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocError> {
     NonNull::new(alloc_with_flags(layout, HEAP_ZERO_MEMORY))
-        .ok_or(AllocErr)
+        .ok_or(AllocError)
         .map(|ptr| MemoryBlock {
             ptr,
             size: layout_size,
@@ -40,7 +40,7 @@ pub unsafe fn grow(
     new_size: usize,
     placement: ReallocPlacement,
     init: AllocInit,
-) -> Result<MemoryBlock, AllocErr> {
+) -> Result<MemoryBlock, AllocError> {
     let old_size = layout.size();
     let block = self::realloc(ptr, layout, new_size, placement)?;
     AllocInit::init_offset(init, block, old_size);
@@ -53,7 +53,7 @@ pub unsafe fn shrink(
     layout: Layout,
     new_size: usize,
     placement: ReallocPlacement,
-) -> Result<MemoryBlock, AllocErr> {
+) -> Result<MemoryBlock, AllocError> {
     self::realloc(ptr, layout, new_size, placement)
 }
 
@@ -63,14 +63,14 @@ unsafe fn realloc(
     layout: Layout,
     new_size: usize,
     placement: ReallocPlacement,
-) -> Result<(NonNull<u8>, usize), AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocError> {
     if placement != ReallocPlacement::MayMove {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
 
     if layout.align() <= MIN_ALIGN {
         NonNull::new(HeapReAlloc(GetProcessHeap(), 0, ptr as LPVOID, new_size) as *mut u8)
-            .ok_or(AllocErr)
+            .ok_or(AllocError)
             .map(|ptr| MemoryBlock {
                 ptr,
                 size: new_size,

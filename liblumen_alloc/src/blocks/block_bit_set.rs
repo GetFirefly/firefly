@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use core::mem;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use liblumen_core::alloc::AllocErr;
+use liblumen_core::alloc::AllocError;
 
 use crate::mem::bit_size_of;
 
@@ -15,7 +15,7 @@ pub trait BlockBitSubset: Default {
     /// and when you tried to allocate it, or a neighboring bit in the subset was flipped. You may
     /// retry, or try searching for another block, or simply fail the allocation request. It is up
     /// to the allocator.
-    fn alloc_block(&self, bit_len: usize) -> Result<usize, AllocErr>;
+    fn alloc_block(&self, bit_len: usize) -> Result<usize, AllocError>;
 
     /// Return a count of the allocated blocks managed by this subset
     fn count_allocated(&self) -> usize;
@@ -29,7 +29,7 @@ pub trait BlockBitSubset: Default {
 pub struct ThreadSafeBlockBitSubset(AtomicUsize);
 
 impl BlockBitSubset for ThreadSafeBlockBitSubset {
-    fn alloc_block(&self, bit_len: usize) -> Result<usize, AllocErr> {
+    fn alloc_block(&self, bit_len: usize) -> Result<usize, AllocError> {
         assert!(bit_len <= bit_size_of::<Self>());
 
         // On x86 this could use `bsf*` (Bit Scan Forward) instructions
@@ -51,7 +51,7 @@ impl BlockBitSubset for ThreadSafeBlockBitSubset {
             }
         }
 
-        Err(AllocErr)
+        Err(AllocError)
     }
 
     fn count_allocated(&self) -> usize {
@@ -187,11 +187,11 @@ impl<S: BlockBitSubset> BlockBitSet<S> {
     /// Try to allocate block.
     ///
     /// NOTE: This operation can fail, primarily in multi-threaded scenarios
-    /// with atomics in play. If `Err(AllocErr)` is returned, it means that either all blocks were
+    /// with atomics in play. If `Err(AllocError)` is returned, it means that either all blocks were
     /// already allocated or a neighboring bit that was in the same subset
     /// represented by `S` was flipped. You may retry or simply fail the allocation request. It is
     /// up to the allocator.
-    pub fn alloc_block(&self) -> Result<usize, AllocErr> {
+    pub fn alloc_block(&self) -> Result<usize, AllocError> {
         for subset_index in 0..self.subset_len() {
             let subset = unsafe { self.subset(subset_index) };
             let subset_bit_len = self.subset_bit_len(subset_index);
@@ -202,11 +202,11 @@ impl<S: BlockBitSubset> BlockBitSet<S> {
 
                     return Ok(set_bit);
                 }
-                Err(AllocErr) => continue,
+                Err(AllocError) => continue,
             }
         }
 
-        Err(AllocErr)
+        Err(AllocError)
     }
 
     /// Free the block represented by the given bit index

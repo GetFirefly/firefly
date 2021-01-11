@@ -18,7 +18,7 @@ pub use self::term_alloc::TermAlloc;
 pub use self::virtual_alloc::{VirtualAlloc, VirtualAllocator, VirtualHeap};
 pub use self::virtual_binary_heap::VirtualBinaryHeap;
 
-use core::alloc::{AllocErr, Layout};
+use core::alloc::{AllocError, Layout};
 use core::ffi::c_void;
 use core::mem::transmute;
 use core::ptr;
@@ -165,13 +165,13 @@ pub fn stack(num_pages: usize) -> AllocResult<Stack> {
 /// Reallocate a process heap, in place
 ///
 /// If reallocating and trying to grow the heap, if the allocation cannot be done
-/// in place, then `Err(AllocErr)` will be returned
+/// in place, then `Err(AllocError)` will be returned
 #[inline]
 pub unsafe fn realloc(
     heap: *mut Term,
     size: usize,
     new_size: usize,
-) -> Result<*mut Term, AllocErr> {
+) -> Result<*mut Term, AllocError> {
     PROC_ALLOC.realloc_in_place(heap, size, new_size)
 }
 

@@ -32,11 +32,11 @@ liblumen_core = { path = "../../liblumen_core" }
 liblumen_llvm = { path = "../llvm" }
 liblumen_mlir = { path = "../mlir" }
 
-libeir_frontend = { git = "https://github.com/eirproject/eir", branch = "lumen" }
-libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
-libeir_intern = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
-libeir_passes = { git = "https://github.com/eirproject/eir", branch = "lumen" }
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_frontend = { git = "https://github.com/eirproject/eir" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git" }
+libeir_intern = { git = "https://github.com/eirproject/eir.git" }
+libeir_passes = { git = "https://github.com/eirproject/eir" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
 
 [build-dependencies]
 which = "4.0"

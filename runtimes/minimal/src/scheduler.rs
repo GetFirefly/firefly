@@ -828,5 +828,4 @@ unsafe extern "C" fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const Cal
     :
     : "volatile", "alignstack"
     );
-    core::intrinsics::unreachable();
 }

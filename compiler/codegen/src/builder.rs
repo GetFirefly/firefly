@@ -12,8 +12,6 @@ use std::collections::HashSet;
 use std::ffi::{CStr, CString};
 use std::sync::Arc;
 
-use anyhow::anyhow;
-
 use log::debug;
 
 use libeir_intern::Symbol;

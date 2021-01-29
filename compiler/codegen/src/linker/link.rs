@@ -19,8 +19,8 @@ use thiserror::private::PathAsDisplay;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 use liblumen_session::filesearch;
 use liblumen_session::search_paths::PathKind;
-use liblumen_session::{CFGuard, DebugInfo, Options, ProjectType, Sanitizer};
-use liblumen_target::crt_objects::{CrtObjects, CrtObjectsFallback};
+use liblumen_session::{CFGuard, DebugInfo, Options, ProjectType};
+use liblumen_target::crt_objects::CrtObjectsFallback;
 use liblumen_target::{
     LinkOutputKind, LinkerFlavor, LldFlavor, PanicStrategy, RelocModel, RelroLevel,
 };

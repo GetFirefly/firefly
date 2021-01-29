@@ -3,8 +3,6 @@ use std::path::Path;
 use std::ptr;
 use std::sync::Arc;
 
-use libeir_intern::Symbol;
-
 use liblumen_llvm as llvm;
 use liblumen_llvm::attributes::Attribute;
 use liblumen_llvm::builder::ModuleBuilder;
@@ -12,7 +10,7 @@ use liblumen_llvm::enums::Linkage;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_session::{Input, Options, OutputType};
 use liblumen_term::{
-    Encoding, Encoding32, Encoding64, Encoding64Nanboxed, EncodingType, Tag, TermKind,
+    Encoding, Encoding32, Encoding64, Encoding64Nanboxed, EncodingType, Tag
 };
 
 use crate::meta::CompiledModule;

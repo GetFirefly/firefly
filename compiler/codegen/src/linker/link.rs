@@ -1281,7 +1281,7 @@ fn add_late_link_args(
     options: &Options,
     flavor: LinkerFlavor,
     project_type: ProjectType,
-    codegen_results: &CodegenResults,
+    _codegen_results: &CodegenResults,
 ) {
     if let Some(args) = options.target.options.late_link_args.get(&flavor) {
         cmd.args(args);
@@ -1319,7 +1319,7 @@ fn add_local_crate_regular_objects(cmd: &mut dyn Linker, codegen_results: &Codeg
 fn link_local_crate_native_libs_and_dependent_crate_libs<'a>(
     cmd: &mut dyn Linker,
     options: &'a Options,
-    project_type: ProjectType,
+    _project_type: ProjectType,
     codegen_results: &CodegenResults,
     tmpdir: &Path,
 ) {

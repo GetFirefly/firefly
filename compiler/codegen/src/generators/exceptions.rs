@@ -450,6 +450,7 @@ fn generate_wasm32(
     )))
 }
 
+#[allow(dead_code)]
 fn build_constant_box_tag<'a>(
     builder: &'a ModuleBuilder<'a>,
     ty: llvm::Type,
@@ -475,6 +476,7 @@ fn build_constant_box_tag<'a>(
     }
 }
 
+#[allow(dead_code)]
 fn build_constant_atom<'a>(
     builder: &'a ModuleBuilder<'a>,
     id: usize,
@@ -506,6 +508,7 @@ fn build_constant_atom<'a>(
     }
 }
 
+#[allow(dead_code)]
 fn build_tuple_header<'a>(
     builder: &'a ModuleBuilder<'a>,
     arity: usize,

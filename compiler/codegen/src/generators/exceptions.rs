@@ -40,7 +40,6 @@ fn generate_standard(
 
     // Define LLVM types used during generation
     let usize_type = builder.get_usize_type();
-    let i1_type = builder.get_integer_type(1);
     let i8_type = builder.get_i8_type();
     let i8_ptr_type = builder.get_pointer_type(i8_type);
     let i32_type = builder.get_i32_type();
@@ -251,7 +250,6 @@ fn generate_wasm32(
 
     // Define LLVM types used during generation
     let usize_type = builder.get_usize_type();
-    let i1_type = builder.get_integer_type(1);
     let i8_type = builder.get_i8_type();
     let i8_ptr_type = builder.get_pointer_type(i8_type);
     let i32_type = builder.get_i32_type();

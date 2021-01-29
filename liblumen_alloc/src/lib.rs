@@ -1,6 +1,8 @@
 #![deny(warnings)]
 // Do not fail the build when feature flags are stabilized on recent nightlies, just warn
 #![allow(stable_features)]
+// allow for incomplete `specialization`
+#![allow(incomplete_features)]
 // Support backtraces in errors
 #![feature(backtrace)]
 #![feature(const_fn)]

@@ -1,7 +1,6 @@
 use liblumen_core::sys::dynamic_call::DynamicCallee;
 
 use liblumen_alloc::erts;
-use liblumen_alloc::erts::process::Native;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 

@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 use std::panic;
-use std::ptr;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;

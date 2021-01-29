@@ -2,8 +2,6 @@
 #![deny(warnings)]
 #![feature(backtrace)]
 #![feature(thread_local)]
-// for `liblumen_otp/src/erlang/subtract_list_2`.
-#![feature(vec_remove_item)]
 #![feature(unwind_attributes)]
 
 #[macro_use]

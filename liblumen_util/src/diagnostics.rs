@@ -194,7 +194,7 @@ impl<'h> InFlightDiagnostic<'h> {
     }
 
     /// Emit the diagnostic via the DiagnosticHandler
-    pub fn emit(mut self) {
+    pub fn emit(self) {
         self.handler.emit(&self.diagnostic);
     }
 }

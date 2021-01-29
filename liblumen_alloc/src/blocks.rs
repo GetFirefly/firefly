@@ -14,7 +14,6 @@ pub use self::free_block_tree::{FreeBlockTree, FreeBlocks};
 
 #[cfg(test)]
 mod tests {
-    use core::alloc::AllocInit;
     use core::mem;
     use core::ptr;
 
@@ -31,7 +30,7 @@ mod tests {
         let usable = size - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
         let alloc_block = SysAlloc::get_mut()
-            .alloc(layout.clone(), AllocInit::Uninitialized)
+            .alloc(layout.clone())
             .expect("unable to map memory");
         let raw = alloc_block.ptr.as_ptr() as *mut Block;
         unsafe {
@@ -73,7 +72,7 @@ mod tests {
         let usable = size - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
         let alloc_block = SysAlloc::get_mut()
-            .alloc(layout.clone(), AllocInit::Uninitialized)
+            .alloc(layout.clone())
             .expect("unable to map memory");
         let raw = alloc_block.ptr.as_ptr() as *mut FreeBlock;
         // Block is free, and last
@@ -121,7 +120,7 @@ mod tests {
         let usable = sysconf::pagesize() - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
         let alloc_block = SysAlloc::get_mut()
-            .alloc(layout.clone(), AllocInit::Uninitialized)
+            .alloc(layout.clone())
             .expect("unable to map memory");
         // Get pointers to both blocks
         let raw = alloc_block.ptr.as_ptr() as *mut FreeBlock;

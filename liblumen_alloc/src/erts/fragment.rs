@@ -69,8 +69,8 @@ impl HeapFragment {
         let (full_layout, offset) = Layout::new::<Self>().extend(layout.clone()).unwrap();
         let size = layout.size();
         let align = layout.align();
-        let block = std_alloc::alloc(full_layout, AllocInit::Uninitialized)?;
-        let ptr = block.ptr.as_ptr() as *mut Self;
+        let non_null_byte_slice = std_alloc::allocate(full_layout)?;
+        let ptr = non_null_byte_slice.as_mut_ptr() as *mut Self;
         let data = unsafe { (ptr as *mut u8).add(offset) };
         let top = data;
         unsafe {
@@ -87,7 +87,7 @@ impl HeapFragment {
                 },
             );
         }
-        Ok(block.ptr.cast())
+        Ok(non_null_byte_slice.cast())
     }
 
     pub fn new_from_word_size(word_size: usize) -> AllocResult<NonNull<Self>> {
@@ -405,7 +405,7 @@ impl Drop for HeapFragment {
         let (layout, _offset) = Layout::new::<Self>().extend(self.raw.layout()).unwrap();
         unsafe {
             let ptr = NonNull::new_unchecked(self as *const _ as *mut u8);
-            std_alloc::dealloc(ptr, layout);
+            std_alloc::deallocate(ptr, layout);
         }
     }
 }

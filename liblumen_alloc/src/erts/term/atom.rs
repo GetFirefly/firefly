@@ -15,6 +15,7 @@ use thiserror::Error;
 
 use liblumen_arena::DroplessArena;
 
+use liblumen_core::alloc::prelude::*;
 use liblumen_core::atoms::ConstantAtom;
 use liblumen_core::locks::RwLock;
 
@@ -432,7 +433,8 @@ impl AtomTable {
 
         let s = if size > 0 {
             // Copy string into arena
-            let ptr = self.arena.alloc_raw(size, mem::align_of::<u8>());
+            let layout = Layout::from_size_align_unchecked(size, mem::align_of::<u8>());
+            let ptr = self.arena.alloc_raw(layout);
             ptr::copy_nonoverlapping(name as *const _ as *const u8, ptr, size);
             let bytes = slice::from_raw_parts(ptr, size);
 

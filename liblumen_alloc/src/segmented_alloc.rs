@@ -85,58 +85,17 @@ impl SegmentedAlloc {
     }
 }
 
-unsafe impl AllocRef for SegmentedAlloc {
+unsafe impl Allocator for SegmentedAlloc {
     #[inline]
-    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocError> {
+    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         if layout.size() >= self.sbc_threshold {
-            return unsafe { self.alloc_large(layout, init) };
+            return unsafe { self.alloc_large(layout) };
         }
-        unsafe { self.alloc_sized(layout, init) }
+        unsafe { self.alloc_sized(layout) }
     }
 
     #[inline]
-    unsafe fn grow(
-        &mut self,
-        ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocError> {
-        if layout.size() >= self.sbc_threshold {
-            // This was a single-block carrier
-            //
-            // Even if the new size would fit in a multi-block carrier, we're going
-            // to keep the allocation in the single-block carrier, to avoid the extra
-            // complexity, as there is little payoff
-            return self.realloc_large(ptr, layout, new_size, placement, init);
-        }
-
-        self.realloc_sized(ptr, layout, new_size, placement, init)
-    }
-
-    #[inline]
-    unsafe fn shrink(
-        &mut self,
-        ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-    ) -> Result<MemoryBlock, AllocError> {
-        if layout.size() >= self.sbc_threshold {
-            // This was a single-block carrier
-            //
-            // Even if the new size would fit in a multi-block carrier, we're going
-            // to keep the allocation in the single-block carrier, to avoid the extra
-            // complexity, as there is little payoff
-            return self.realloc_large(ptr, layout, new_size, placement, AllocInit::Uninitialized);
-        }
-
-        self.realloc_sized(ptr, layout, new_size, placement, AllocInit::Uninitialized)
-    }
-
-    #[inline]
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         if layout.size() >= self.sbc_threshold {
             // This block would have to be in a single-block carrier
             return self.dealloc_large(ptr.as_ptr());
@@ -144,15 +103,49 @@ unsafe impl AllocRef for SegmentedAlloc {
 
         self.dealloc_sized(ptr, layout);
     }
+
+    #[inline]
+    unsafe fn grow(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        if old_layout.size() >= self.sbc_threshold {
+            // This was a single-block carrier
+            //
+            // Even if the new size would fit in a multi-block carrier, we're going
+            // to keep the allocation in the single-block carrier, to avoid the extra
+            // complexity, as there is little payoff
+            return self.realloc_large(ptr, old_layout, new_layout);
+        }
+
+        self.realloc_sized(ptr, old_layout, new_layout)
+    }
+
+    #[inline]
+    unsafe fn shrink(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        if old_layout.size() >= self.sbc_threshold {
+            // This was a single-block carrier
+            //
+            // Even if the new size would fit in a multi-block carrier, we're going
+            // to keep the allocation in the single-block carrier, to avoid the extra
+            // complexity, as there is little payoff
+            return self.realloc_large(ptr, old_layout, new_layout);
+        }
+
+        self.realloc_sized(ptr, old_layout, new_layout)
+    }
 }
 
 impl SegmentedAlloc {
     /// This function handles allocations which exceed the single-block carrier threshold
-    unsafe fn alloc_large(
-        &mut self,
-        layout: Layout,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocError> {
+    unsafe fn alloc_large(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let data_layout = layout.clone();
         let data_layout_size = data_layout.size();
@@ -181,45 +174,37 @@ impl SegmentedAlloc {
         let mut sbc = self.sbc.write();
         sbc.push_front(carrier);
 
-        let block = MemoryBlock {
-            ptr: NonNull::new_unchecked(data),
-            size: data_layout_size,
-        };
-        AllocInit::init(init, block);
+        let non_null_byte_slice =
+            NonNull::slice_from_raw_parts(NonNull::new_unchecked(data), data_layout_size);
 
         // Return data pointer
-        Ok(block)
+        Ok(non_null_byte_slice)
     }
 
     unsafe fn realloc_large(
-        &mut self,
+        &self,
         ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocError> {
-        if placement != ReallocPlacement::MayMove {
-            return Err(AllocError);
-        }
-
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
         // Allocate new carrier
-        let block = self.alloc_large(
-            Layout::from_size_align_unchecked(new_size, layout.align()),
-            init,
-        )?;
+        let non_null_byte_slice = self.alloc_large(new_layout)?;
         // Copy old data into new carrier
         let old_ptr = ptr.as_ptr();
-        let old_size = layout.size();
-        ptr::copy_nonoverlapping(old_ptr, block.ptr.as_ptr(), cmp::min(old_size, block.size));
+        let old_size = old_layout.size();
+        ptr::copy_nonoverlapping(
+            old_ptr,
+            non_null_byte_slice.as_mut_ptr(),
+            cmp::min(old_size, non_null_byte_slice.len()),
+        );
         // Free old carrier
         self.dealloc_large(old_ptr);
         // Return new carrier
-        Ok(block)
+        Ok(non_null_byte_slice)
     }
 
     /// This function handles allocations which exceed the single-block carrier threshold
-    unsafe fn dealloc_large(&mut self, ptr: *const u8) {
+    unsafe fn dealloc_large(&self, ptr: *const u8) {
         // In the case of single-block carriers,
         // we must walk the list until we find the owning carrier
         let mut sbc = self.sbc.write();
@@ -276,11 +261,7 @@ impl SegmentedAlloc {
     }
 
     #[inline]
-    unsafe fn alloc_sized(
-        &mut self,
-        layout: Layout,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocError> {
+    unsafe fn alloc_sized(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let size = layout.size();
         if unlikely(size > Self::MAX_SIZE_CLASS.to_bytes()) {
@@ -291,12 +272,7 @@ impl SegmentedAlloc {
         let carriers = self.classes[index].read();
         for carrier in carriers.iter() {
             if let Ok(ptr) = carrier.alloc_block() {
-                let block = MemoryBlock {
-                    ptr,
-                    size: size_class.to_bytes(),
-                };
-                AllocInit::init(init, block);
-                return Ok(block);
+                return Ok(NonNull::slice_from_raw_parts(ptr, size_class.to_bytes()));
             }
         }
         drop(carriers);
@@ -311,55 +287,44 @@ impl SegmentedAlloc {
         let result = carrier.alloc_block();
         debug_assert!(result.is_ok());
         carriers.push_front(UnsafeRef::from_raw(carrier_ptr));
-        let block = result.map(|ptr| MemoryBlock {
-            ptr,
-            size: size_class.to_bytes(),
-        })?;
-        AllocInit::init(init, block);
-        Ok(block)
+        result.map(|data| NonNull::slice_from_raw_parts(data, size_class.to_bytes()))
     }
 
     #[inline]
     unsafe fn realloc_sized(
-        &mut self,
+        &self,
         ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocError> {
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        let new_size = new_layout.size();
         if unlikely(new_size > Self::MAX_SIZE_CLASS.to_bytes()) {
             return Err(AllocError);
         }
-        let size = layout.size();
-        let size_class = self.size_class_for_unchecked(size);
+        let old_size = old_layout.size();
+        let old_size_class = self.size_class_for_unchecked(old_size);
+        let new_size = new_layout.size();
         let new_size_class = self.size_class_for_unchecked(new_size);
         // If the size is in the same size class, we don't have to do anything
-        if size_class == new_size_class {
-            return Ok(MemoryBlock {
+        if old_size_class == new_size_class {
+            return Ok(NonNull::slice_from_raw_parts(
                 ptr,
-                size: size_class.to_bytes(),
-            });
+                old_size_class.to_bytes(),
+            ));
         }
         // Otherwise we have to allocate in the new size class,
         // copy to that new block, and deallocate the original block
-        if placement != ReallocPlacement::MayMove {
-            return Err(AllocError);
-        }
-        let align = layout.align();
-        let new_layout = Layout::from_size_align_unchecked(new_size, align);
-        let block = self.alloc(new_layout, init)?;
+        let non_null_byte_slice = self.allocate(new_layout)?;
         // Copy
-        let copy_size = cmp::min(size, block.size);
-        ptr::copy_nonoverlapping(ptr.as_ptr(), block.ptr.as_ptr(), copy_size);
+        let copy_size = cmp::min(old_size, non_null_byte_slice.len());
+        ptr::copy_nonoverlapping(ptr.as_ptr(), non_null_byte_slice.as_mut_ptr(), copy_size);
         // Deallocate the original block
-        self.dealloc(ptr, layout);
+        self.deallocate(ptr, old_layout);
         // Return new block
-        AllocInit::init_offset(init, block, copy_size);
-        Ok(block)
+        Ok(non_null_byte_slice)
     }
 
-    unsafe fn dealloc_sized(&mut self, ptr: NonNull<u8>, _layout: Layout) {
+    unsafe fn dealloc_sized(&self, ptr: NonNull<u8>, _layout: Layout) {
         // Locate the owning carrier and deallocate with it
         let raw = ptr.as_ptr();
         // Since the slabs are super-aligned, we can mask off the low

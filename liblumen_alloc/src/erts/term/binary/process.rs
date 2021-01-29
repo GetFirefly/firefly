@@ -137,10 +137,10 @@ impl ProcBin {
         let layout = unpadded_layout.pad_to_align();
 
         unsafe {
-            let block = sys_alloc::alloc(layout)?;
+            let non_null_byte_slice = sys_alloc::allocate(layout)?;
             let len = s.len();
 
-            let ptr: *mut u8 = block.ptr.as_ptr();
+            let ptr: *mut u8 = non_null_byte_slice.as_mut_ptr();
             ptr::write(ptr as *mut AtomicUsize, AtomicUsize::new(1));
             let flags_ptr = ptr.offset(flags_offset as isize) as *mut BinaryFlags;
             let flags = BinaryFlags::new(encoding).set_size(len);
@@ -170,8 +170,9 @@ impl ProcBin {
         if self.inner().refc.fetch_sub(1, atomic::Ordering::Release) == 1 {
             atomic::fence(atomic::Ordering::Acquire);
             let inner = self.inner.as_ref();
+            let inner_non_null = NonNull::new_unchecked(inner as *const _ as *mut u8);
             let layout = Layout::for_value(&inner);
-            sys_alloc::free(inner as *const _ as *mut u8, layout);
+            sys_alloc::deallocate(inner_non_null, layout);
         }
     }
 

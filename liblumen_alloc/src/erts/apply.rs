@@ -16,6 +16,7 @@ use crate::erts::term::prelude::Atom;
 #[cfg(all(unix, target_arch = "x86_64"))]
 use crate::erts::term::prelude::{Encoded, Term};
 use crate::erts::ModuleFunctionArity;
+use liblumen_core::alloc::Layout;
 
 /// Dynamically invokes the function mapped to the given symbol.
 ///
@@ -161,10 +162,9 @@ impl SymbolTable {
             let function = Atom::from_id(*function);
             let callee = *ptr;
             let size = mem::size_of::<ModuleFunctionArity>();
-            let ptr = table
-                .arena
-                .alloc_raw(size, mem::align_of::<ModuleFunctionArity>())
-                as *mut ModuleFunctionArity;
+            let align = mem::align_of::<ModuleFunctionArity>();
+            let layout = Layout::from_size_align(size, align)?;
+            let ptr = table.arena.alloc_raw(layout) as *mut ModuleFunctionArity;
             ptr.write(ModuleFunctionArity {
                 module,
                 function,

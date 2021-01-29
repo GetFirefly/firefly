@@ -1,4 +1,4 @@
-use core::alloc::{AllocError, AllocInit, Layout, MemoryBlock, ReallocPlacement};
+use core::alloc::{AllocError, Layout, MemoryBlock};
 
 use core::ptr::NonNull;
 
@@ -33,11 +33,9 @@ pub unsafe fn grow(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-    placement: ReallocPlacement,
-    init: AllocInit,
 ) -> Result<MemoryBlock, AllocError> {
     let old_size = layout.size();
-    let block = self::realloc(ptr, layout, new_size, placement)?;
+    let block = self::realloc(ptr, layout, new_size)?;
     AllocInit::init_offset(init, block, old_size);
     Ok(block)
 }
@@ -47,7 +45,6 @@ pub unsafe fn shrink(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-    placement: ReallocPlacement,
 ) -> Result<MemoryBlock, AllocError> {
     self::realloc(ptr, layout, new_size, placement)
 }
@@ -57,12 +54,7 @@ pub unsafe fn realloc(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-    placement: ReallocPlacement,
 ) -> Result<MemoryBlock, AllocError> {
-    if placement != ReallocPlacement::MayMove {
-        return Err(AllocError);
-    }
-
     let mut allocator = SYS_ALLOC_LOCK.lock();
     let layout_size = layout.size();
     let new_ptr = (*allocator).realloc(ptr, layout_size, layout.align(), new_size);

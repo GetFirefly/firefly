@@ -91,12 +91,15 @@ impl YoungHeap {
 
         // Reallocate the heap to shrink it, if the heap is moved, there is a bug
         // in the allocator which must have been introduced in a recent change
-        let new_heap =
-            process::alloc::realloc(old_start, total_size, new_size).unwrap_or(old_start);
+        let old_start_non_null = NonNull::new(old_start).unwrap();
+        let new_heap_non_null =
+            process::alloc::shrink(NonNull::new(old_start).unwrap(), total_size, new_size).unwrap();
         assert_eq!(
-            new_heap, old_start,
+            new_heap_non_null, old_start_non_null,
             "expected reallocation of heap during shrink to occur in-place!"
         );
+
+        let new_heap = new_heap_non_null.as_ptr();
 
         self.end = new_heap.add(new_size);
         self.stack_end = self.end;

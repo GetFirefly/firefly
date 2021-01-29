@@ -21,7 +21,7 @@ pub use self::virtual_binary_heap::VirtualBinaryHeap;
 use core::alloc::{AllocError, Layout};
 use core::ffi::c_void;
 use core::mem::transmute;
-use core::ptr;
+use core::ptr::{self, NonNull};
 
 use lazy_static::lazy_static;
 
@@ -162,17 +162,17 @@ pub fn stack(num_pages: usize) -> AllocResult<Stack> {
     Ok(Stack::new(ptr.as_ptr(), num_pages))
 }
 
-/// Reallocate a process heap, in place
+/// Shrink a process heap
 ///
 /// If reallocating and trying to grow the heap, if the allocation cannot be done
 /// in place, then `Err(AllocError)` will be returned
 #[inline]
-pub unsafe fn realloc(
-    heap: *mut Term,
-    size: usize,
+pub unsafe fn shrink(
+    heap: NonNull<Term>,
+    old_size: usize,
     new_size: usize,
-) -> Result<*mut Term, AllocError> {
-    PROC_ALLOC.realloc_in_place(heap, size, new_size)
+) -> Result<NonNull<Term>, AllocError> {
+    PROC_ALLOC.shrink(heap, old_size, new_size)
 }
 
 /// Deallocate a heap previously allocated via `heap`

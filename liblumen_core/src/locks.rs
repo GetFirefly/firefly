@@ -82,7 +82,7 @@ unsafe impl RawMutex for RawSpinLock {
     }
 
     #[inline]
-    fn unlock(&self) {
+    unsafe fn unlock(&self) {
         self.0.store(false, Ordering::Release);
     }
 }

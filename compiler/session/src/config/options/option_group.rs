@@ -23,7 +23,7 @@ impl ShowOptionGroupHelp {
         } else if self.0 == DebuggingOptions::option_group_prefix() {
             DebuggingOptions::print_help();
         } else {
-            panic!("unexpected option group prefix '{}', this is a bug");
+            panic!("{}", "unexpected option group prefix '{}', this is a bug");
         }
     }
 }

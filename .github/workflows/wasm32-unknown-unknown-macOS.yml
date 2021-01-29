@@ -11,7 +11,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2020-05-13
+          toolchain: nightly-2021-01-29
           override: true
       - name: Cache Cargo
         uses: actions/cache@v2

@@ -1,3 +1,4 @@
+#![deny(warnings)]
 #![feature(extern_types)]
 #![feature(const_cstr_unchecked)]
 #![feature(crate_visibility_modifier)]

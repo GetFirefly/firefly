@@ -899,6 +899,7 @@ impl<'a> Linker for MsvcLinker<'a> {
 pub struct EmLinker<'a> {
     cmd: Command,
     options: &'a Options,
+    #[allow(dead_code)]
     diagnostics: &'a DiagnosticsHandler,
     info: &'a LinkerInfo,
 }
@@ -1062,6 +1063,7 @@ impl<'a> Linker for EmLinker<'a> {
 pub struct WasmLd<'a> {
     cmd: Command,
     options: &'a Options,
+    #[allow(dead_code)]
     diagnostics: &'a DiagnosticsHandler,
     info: &'a LinkerInfo,
 }
@@ -1268,6 +1270,7 @@ impl<'a> Linker for WasmLd<'a> {
 pub struct PtxLinker<'a> {
     cmd: Command,
     options: &'a Options,
+    #[allow(dead_code)]
     diagnostics: &'a DiagnosticsHandler,
 }
 

@@ -662,7 +662,7 @@ impl Scheduler {
                 // This can be used to push items on the process
                 // stack before it starts executing. For now that
                 // is not being done
-                let mut sp = StackPointer(stack.top as *mut u64);
+                let sp = StackPointer(stack.top as *mut u64);
 
                 // Update process stack pointer
                 let s_top = &stack.top as *const _ as *mut _;

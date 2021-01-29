@@ -9,9 +9,7 @@ use liblumen_llvm::builder::ModuleBuilder;
 use liblumen_llvm::enums::Linkage;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_session::{Input, Options, OutputType};
-use liblumen_term::{
-    Encoding, Encoding32, Encoding64, Encoding64Nanboxed, EncodingType, Tag
-};
+use liblumen_term::{Encoding, Encoding32, Encoding64, Encoding64Nanboxed, EncodingType, Tag};
 
 use crate::meta::CompiledModule;
 use crate::Result;

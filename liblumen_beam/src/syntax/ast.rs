@@ -12,7 +12,6 @@
 //!
 //!     let ast = AST::from_beam_file("tests/testdata/ast/test.beam").unwrap();
 //!     println!("{:?}", ast);
-//!
 pub mod ast;
 pub mod error;
 pub mod format;

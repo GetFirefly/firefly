@@ -10,7 +10,6 @@
 //! This crate implements `TypedArena`, a simple arena that can only hold
 //! objects of a single type.
 
-
 use core::cell::{Cell, RefCell};
 use core::cmp;
 use core::marker::{PhantomData, Send};
@@ -49,7 +48,10 @@ struct TypedArenaChunk<T> {
 impl<T> TypedArenaChunk<T> {
     #[inline]
     unsafe fn new(capacity: usize) -> TypedArenaChunk<T> {
-        TypedArenaChunk { storage: Box::new_uninit_slice(capacity), entries: 0 }
+        TypedArenaChunk {
+            storage: Box::new_uninit_slice(capacity),
+            entries: 0,
+        }
     }
 
     /// Destroys this arena chunk.
@@ -119,7 +121,8 @@ impl<T> TypedArena<T> {
 
         unsafe {
             if mem::size_of::<T>() == 0 {
-                self.ptr.set((self.ptr.get() as *mut u8).wrapping_offset(1) as *mut T);
+                self.ptr
+                    .set((self.ptr.get() as *mut u8).wrapping_offset(1) as *mut T);
                 let ptr = mem::align_of::<T>() as *mut T;
                 // Don't drop the object. This `write` is equivalent to `forget`.
                 ptr::write(ptr, object);
@@ -408,7 +411,6 @@ impl DroplessArena {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests;

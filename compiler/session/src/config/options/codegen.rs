@@ -25,14 +25,14 @@ pub struct CodegenOptions {
         hidden(true)
     )]
     /**
-     ** Use Windows Control Flow Guard:
-     **     checks   = emit metadata and checks
-     **     nochecks = emit metadata but no checks
-     **     disabled = do not emit metadata or checks
-     **     true     = alias for `checks`
-     **     false    = alias for `disabled`
-     **     _
-     **/
+     * Use Windows Control Flow Guard:
+     *     checks   = emit metadata and checks
+     *     nochecks = emit metadata but no checks
+     *     disabled = do not emit metadata or checks
+     *     true     = alias for `checks`
+     *     false    = alias for `disabled`
+     *     _
+     */
     pub control_flow_guard: CFGuard,
     #[option]
     /// Enable debug assertions
@@ -44,12 +44,12 @@ pub struct CodegenOptions {
         possible_values("0", "1", "2")
     )]
     /**
-     ** Debug info emission level
-     **     0 = no debug info
-     **     1 = line tables only,
-     **     2 = full debug info with variable and type information
-     **     _
-     **/
+     * Debug info emission level
+     *     0 = no debug info
+     *     1 = line tables only,
+     *     2 = full debug info with variable and type information
+     *     _
+     */
     pub debuginfo: Option<DebugInfo>,
     #[option(default_value("false"))]
     /// Allow the linker to link its default libraries
@@ -79,12 +79,12 @@ pub struct CodegenOptions {
         hidden(true)
     )]
     /**
-     ** Generate build artifacts that are compatible with linker-based LTO
-     **     auto     = let the compiler choose
-     **     disabled = do not build LTO-compatible artifacts (default)
-     **     false    = alias for 'disabled'
-     **     _
-     **/
+     * Generate build artifacts that are compatible with linker-based LTO
+     *     auto     = let the compiler choose
+     *     disabled = do not build LTO-compatible artifacts (default)
+     *     false    = alias for 'disabled'
+     *     _
+     */
     pub linker_plugin_lto: LinkerPluginLto,
     #[option]
     /// Prevent the linker from stripping dead code (useful for code coverage)

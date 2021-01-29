@@ -1238,18 +1238,22 @@ fn add_link_script(
     match (project_type, &options.target.options.link_script) {
         (ProjectType::Cdylib | ProjectType::Executable, Some(script)) => {
             if !options.target.options.linker_is_gnu {
-                diagnostics.fatal("can only use link script when linking with GNU-like linker").raise();
+                diagnostics
+                    .fatal("can only use link script when linking with GNU-like linker")
+                    .raise();
             }
 
             let file_name = ["lumen", &options.target.llvm_target, "linkfile.ld"].join("-");
 
             let path = tmpdir.join(file_name);
             if let Err(e) = fs::write(&path, script) {
-                diagnostics.fatal(&format!(
-                    "failed to write link script to {}: {}",
-                    path.display(),
-                    e
-                )).raise();
+                diagnostics
+                    .fatal(&format!(
+                        "failed to write link script to {}: {}",
+                        path.display(),
+                        e
+                    ))
+                    .raise();
             }
 
             cmd.arg("--script");

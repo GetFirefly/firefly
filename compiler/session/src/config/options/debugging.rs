@@ -100,12 +100,12 @@ pub struct DebuggingOptions {
         possible_values("none", "debuginfo", "symbols")
     )]
     /**
-     ** Tell the linker which information to strip:
-     **     none      = do not strip anything
-     **     debuginfo = strip debugging information
-     **     symbols   = strip debugging symbols wh
-     **     _
-     **/
+     * Tell the linker which information to strip:
+     *     none      = do not strip anything
+     *     debuginfo = strip debugging information
+     *     symbols   = strip debugging symbols wh
+     *     _
+     */
     pub strip: Strip,
     #[option(hidden(true))]
     /// Enable ThinLTO when possible

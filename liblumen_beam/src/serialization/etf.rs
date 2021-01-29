@@ -23,7 +23,6 @@
 //! # Reference
 //!
 //! - [Erlang External Term Format](http://erlang.org/doc/apps/erts/erl_ext_dist.html)
-//!
 mod codec;
 pub mod convert;
 pub mod pattern;

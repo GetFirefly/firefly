@@ -1,10 +1,8 @@
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::ffi::CStr;
 use std::fmt;
 use std::ops::Deref;
 use std::slice;
-use std::string::FromUtf8Error;
 
 extern "C" {
     pub type Twine;

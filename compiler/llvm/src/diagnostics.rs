@@ -5,9 +5,7 @@ use std::path::{Path, PathBuf};
 use std::slice;
 
 use liblumen_session::Options;
-use liblumen_util::diagnostics::{
-    DiagnosticsHandler, FileName, InFlightDiagnostic, LabelStyle, Severity,
-};
+use liblumen_util::diagnostics::{DiagnosticsHandler, FileName, InFlightDiagnostic, Severity};
 
 use crate::sys::{self as llvm_sys, LLVMDiagnosticInfo};
 use crate::utils::strings::{self, RustString};

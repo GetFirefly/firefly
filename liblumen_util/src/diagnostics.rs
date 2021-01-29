@@ -171,7 +171,7 @@ impl<'h> InFlightDiagnostic<'h> {
         style: LabelStyle,
         file_id: Option<SourceId>,
         line: u32,
-        column: u32,
+        _column: u32,
         message: Option<String>,
     ) {
         if let Some(id) = file_id {

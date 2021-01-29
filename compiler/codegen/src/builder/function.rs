@@ -207,6 +207,7 @@ pub struct ScopedFunctionBuilder<'f, 'o> {
     filename: *const libc::c_char,
     source_file: Arc<SourceFile>,
     func: Function,
+    #[allow(dead_code)]
     func_entry: ir::Block,
     func_loc: LocationRef,
     eir: &'f ir::Function,

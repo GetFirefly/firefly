@@ -1238,7 +1238,7 @@ fn add_link_script(
     match (project_type, &options.target.options.link_script) {
         (ProjectType::Cdylib | ProjectType::Executable, Some(script)) => {
             if !options.target.options.linker_is_gnu {
-                diagnostics.fatal("can only use link script when linking with GNU-like linker");
+                diagnostics.fatal("can only use link script when linking with GNU-like linker").raise();
             }
 
             let file_name = ["lumen", &options.target.llvm_target, "linkfile.ld"].join("-");
@@ -1249,7 +1249,7 @@ fn add_link_script(
                     "failed to write link script to {}: {}",
                     path.display(),
                     e
-                ));
+                )).raise();
             }
 
             cmd.arg("--script");
@@ -1355,7 +1355,7 @@ fn link_local_crate_native_libs_and_dependent_crate_libs<'a>(
     // external build system already has the native dependencies defined, and it
     // will provide them to the linker itself.
     if options.debugging_opts.link_native_libraries {
-        add_local_native_libraries(cmd, options, codegen_results, tmpdir);
+        add_local_native_libraries(cmd, options, codegen_results, tmpdir).unwrap();
     }
     //if options.debugging_opts.link_native_libraries {
     //    add_upstream_native_libraries(cmd, options, codegen_results, project_type);

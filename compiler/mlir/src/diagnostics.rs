@@ -1,11 +1,8 @@
-use std::borrow::Cow;
 use std::mem::MaybeUninit;
 use std::path::{Path, PathBuf};
 
 use liblumen_llvm::utils::{strings, RustString};
-use liblumen_util::diagnostics::{
-    DiagnosticsHandler, FileName, InFlightDiagnostic, LabelStyle, SourceId,
-};
+use liblumen_util::diagnostics::{DiagnosticsHandler, FileName, InFlightDiagnostic, LabelStyle};
 
 use crate::ContextRef;
 
@@ -101,7 +98,7 @@ pub(crate) extern "C" fn on_diagnostic(
     info: &DiagnosticInfo,
     handler: &DiagnosticsHandler,
 ) -> bool {
-    use liblumen_util::diagnostics::{LabelStyle, Severity};
+    use liblumen_util::diagnostics::Severity;
     let mut ifd = match info.severity() {
         ffi::Severity::Note | ffi::Severity::Remark => handler.diagnostic(Severity::Note),
         ffi::Severity::Warning => handler.diagnostic(Severity::Warning),

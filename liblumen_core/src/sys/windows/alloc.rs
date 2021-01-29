@@ -36,13 +36,11 @@ pub fn alloc_zeroed(layout: Layout) -> Result<MemoryBlock, AllocError> {
 #[inline]
 pub unsafe fn grow(
     ptr: *mut u8,
-    layout: Layout,
+    layout: Layou,
     new_size: usize,
-    placement: ReallocPlacement,
-    init: AllocInit,
 ) -> Result<MemoryBlock, AllocError> {
     let old_size = layout.size();
-    let block = self::realloc(ptr, layout, new_size, placement)?;
+    let block = self::realloc(ptr, layout, new_size)?;
     AllocInit::init_offset(init, block, old_size);
     Ok(block)
 }
@@ -52,9 +50,8 @@ pub unsafe fn shrink(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-    placement: ReallocPlacement,
 ) -> Result<MemoryBlock, AllocError> {
-    self::realloc(ptr, layout, new_size, placement)
+    self::realloc(ptr, layout, new_size)
 }
 
 #[inline]
@@ -62,12 +59,7 @@ unsafe fn realloc(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-    placement: ReallocPlacement,
 ) -> Result<(NonNull<u8>, usize), AllocError> {
-    if placement != ReallocPlacement::MayMove {
-        return Err(AllocError);
-    }
-
     if layout.align() <= MIN_ALIGN {
         NonNull::new(HeapReAlloc(GetProcessHeap(), 0, ptr as LPVOID, new_size) as *mut u8)
             .ok_or(AllocError)

@@ -17,12 +17,15 @@
 #![feature(specialization)]
 // Support SliceIndex trait
 #![feature(slice_index_methods)]
+#![feature(slice_ptr_get)]
 #![feature(trait_alias)]
 #![feature(raw_vec_internals)]
 // Support external thread locals
 #![feature(thread_local)]
 #![feature(weak_into_raw)]
 #![feature(unwind_attributes)]
+#![feature(slice_ptr_len)]
+#![feature(nonnull_slice_from_raw_parts)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

@@ -12,7 +12,8 @@ mod internal {
             tag: String,
             old_size: usize,
             new_size: usize,
-            align: usize,
+            old_align: usize,
+            new_align: usize,
             old_ptr: *mut u8,
             new_ptr: *mut u8,
         );
@@ -32,7 +33,8 @@ mod internal {
         _tag: String,
         _old_size: usize,
         _new_size: usize,
-        _align: usize,
+        _old_align: usize,
+        _new_align: usize,
         _old_ptr: *mut u8,
         _new_ptr: *mut u8,
     ) {

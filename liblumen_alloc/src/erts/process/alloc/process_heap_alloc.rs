@@ -74,11 +74,11 @@ impl ProcessHeapAlloc {
         match unsafe {
             self.alloc
                 .as_mut()
-                .allocate(layout, AllocInit::Uninitialized)
-                .map(|block| block.ptr)
+                .allocate(layout)
+                .map(|non_null_byte_slice| non_null_byte_slice.as_mut_ptr())
         } {
-            Ok(non_null) => {
-                let ptr = non_null.as_ptr() as *mut Term;
+            Ok(byte_ptr) => {
+                let ptr = byte_ptr as *mut Term;
 
                 // Return pointer to the heap
                 Ok(ptr)
@@ -100,56 +100,37 @@ impl ProcessHeapAlloc {
     }
 
     #[inline]
-    pub fn realloc_in_place(
+    pub fn shrink(
         &self,
-        heap: *mut Term,
-        size: usize,
+        heap: NonNull<Term>,
+        old_size: usize,
         new_size: usize,
-    ) -> Result<*mut Term, AllocError> {
+    ) -> Result<NonNull<Term>, AllocError> {
+        assert!(old_size <= new_size);
+
+        if
         // Nothing to do if the size didn't change
-        if size == new_size {
+        (old_size == new_size) ||
+            // For now we are not going to support shrinking via realloc_in_place of oversized heaps.
+            // but we'll allow consumers of this API to believe that the realloc was successful,
+            // this just means that there is now wastage of that unused space. Ideally we would
+            // use mremap or its equivalent to handle this, but due to wide variance in support
+            // and behaviour across platforms, it is easier now to just avoid shrinking. For growth,
+            // consumers will need to do their own remapping by allocating a new heap, etc.
+            (old_size > self.oversized_threshold)
+        {
             return Ok(heap);
         }
 
-        // For now we are not going to support shrinking via realloc_in_place of oversized heaps.
-        // but we'll allow consumers of this API to believe that the realloc was successful,
-        // this just means that there is now wastage of that unused space. Ideally we would
-        // use mremap or its equivalent to handle this, but due to wide variance in support
-        // and behaviour across platforms, it is easier now to just avoid shrinking. For growth,
-        // consumers will need to do their own remapping by allocating a new heap, etc.
-        if size > self.oversized_threshold {
-            if new_size < size {
-                return Ok(heap);
-            }
-            return Err(AllocError);
+        let old_layout = self.heap_layout(old_size);
+        let new_layout = self.heap_layout(new_size);
+
+        unsafe {
+            self.alloc
+                .as_mut()
+                .shrink(heap.cast(), old_layout, new_layout)
+                .map(|non_null_byte_size| non_null_byte_size.cast())
         }
-
-        let layout = self.heap_layout(size);
-        let ptr = unsafe { NonNull::new_unchecked(heap as *mut u8) };
-
-        if new_size < size {
-            if let Ok(_) = unsafe {
-                self.alloc
-                    .as_mut()
-                    .shrink(ptr, layout, new_size, ReallocPlacement::InPlace)
-            } {
-                return Ok(heap);
-            }
-        } else {
-            if let Ok(_) = unsafe {
-                self.alloc.as_mut().grow(
-                    ptr,
-                    layout,
-                    new_size,
-                    ReallocPlacement::InPlace,
-                    AllocInit::Uninitialized,
-                )
-            } {
-                return Ok(heap);
-            }
-        }
-
-        Err(AllocError)
     }
 
     /// Deallocate a process heap, releasing the memory back to the operating system
@@ -162,7 +143,7 @@ impl ProcessHeapAlloc {
         } else {
             self.alloc
                 .as_mut()
-                .dealloc(NonNull::new_unchecked(heap as *mut u8), layout);
+                .deallocate(NonNull::new_unchecked(heap as *mut u8), layout);
         }
     }
 

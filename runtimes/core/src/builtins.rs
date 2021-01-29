@@ -285,9 +285,7 @@ pub extern "C" fn builtin_trace_construct(_trace_ref: Term) -> Term {
 
 #[export_name = "__lumen_builtin_fatal_error"]
 pub extern "C" fn builtin_fatal_error() -> ! {
-    unsafe {
-        core::intrinsics::abort();
-    }
+    core::intrinsics::abort();
 }
 
 /// Binary Construction

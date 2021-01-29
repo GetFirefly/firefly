@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 mod context;
 mod diagnostics;
 mod dialect;

@@ -199,7 +199,7 @@ macro_rules! math_builtin {
                 Term::NONE
             }
         }
-    }
+    };
 }
 
 macro_rules! integer_math_builtin {
@@ -221,7 +221,7 @@ macro_rules! integer_math_builtin {
                 Term::NONE
             }
         }
-    }
+    };
 }
 
 #[export_name = "__lumen_builtin_math.add"]

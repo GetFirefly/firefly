@@ -19,6 +19,7 @@ extern "C" {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReceiveState {
     // Indicates to the caller that an unrecoverable error occurred
+    #[allow(dead_code)]
     Error = 0,
     // Used to indicate initialized state, prior to first attempt to receive
     Ready = 1,

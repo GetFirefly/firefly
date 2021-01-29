@@ -1,3 +1,4 @@
+#![deny(warnings)]
 // Layout helpers
 #![feature(alloc_layout_extra)]
 #![feature(backtrace)]

@@ -1,3 +1,4 @@
+#![deny(warnings)]
 #![feature(alloc_layout_extra)]
 #![feature(llvm_asm)]
 #![feature(naked_functions)]

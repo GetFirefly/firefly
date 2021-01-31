@@ -856,8 +856,8 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.9.1"
-source = "git+https://github.com/rust-lang/hashbrown.git#39d6351e3c725ebe7329dd894221d210edc98163"
+version = "0.10.0"
+source = "git+https://github.com/rust-lang/hashbrown.git#83ac6fd0d364bc220f7d24cc234bc0c4ab30b3ae"
 dependencies = [
  "ahash 0.6.2",
 ]
@@ -1010,7 +1010,7 @@ checksum = "a2f02823cf78b754822df5f7f268fb59822e7296276d3e069d8e8cb26a14bd10"
 [[package]]
 name = "libeir_diagnostics"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "anyhow",
  "codespan",
@@ -1024,7 +1024,7 @@ dependencies = [
 [[package]]
 name = "libeir_frontend"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "libeir_diagnostics",
  "libeir_ir",
@@ -1036,7 +1036,7 @@ dependencies = [
 [[package]]
 name = "libeir_intern"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "lazy_static 1.4.0",
  "libeir_diagnostics",
@@ -1046,19 +1046,20 @@ dependencies = [
 [[package]]
 name = "libeir_ir"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "bumpalo 3.4.0 (git+https://github.com/hansihe/bumpalo)",
  "cranelift-bforest",
  "cranelift-entity 0.56.0",
  "fnv",
- "hashbrown 0.9.1",
+ "hashbrown 0.10.0",
  "itertools",
  "lalrpop",
  "lalrpop-util",
  "lazy_static 1.4.0",
  "libeir_diagnostics",
  "libeir_intern",
+ "libeir_util_binary",
  "libeir_util_datastructures",
  "libeir_util_dot_graph",
  "libeir_util_number",
@@ -1078,7 +1079,7 @@ dependencies = [
 [[package]]
 name = "libeir_lowerutils"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "cranelift-entity 0.56.0",
  "libeir_ir",
@@ -1088,13 +1089,13 @@ dependencies = [
 [[package]]
 name = "libeir_passes"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "bumpalo 3.4.0 (git+https://github.com/hansihe/bumpalo)",
  "cranelift-bforest",
  "cranelift-entity 0.56.0",
  "fnv",
- "hashbrown 0.9.1",
+ "hashbrown 0.10.0",
  "libeir_diagnostics",
  "libeir_intern",
  "libeir_ir",
@@ -1109,7 +1110,7 @@ dependencies = [
 [[package]]
 name = "libeir_syntax_erl"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "bumpalo 3.4.0 (git+https://github.com/hansihe/bumpalo)",
  "codespan-reporting",
@@ -1123,6 +1124,7 @@ dependencies = [
  "libeir_diagnostics",
  "libeir_intern",
  "libeir_ir",
+ "libeir_util_binary",
  "libeir_util_datastructures",
  "libeir_util_number",
  "libeir_util_parse",
@@ -1133,25 +1135,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "libeir_util_binary"
+version = "0.1.0"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
+dependencies = [
+ "num-bigint 0.2.2",
+ "num-traits",
+]
+
+[[package]]
 name = "libeir_util_datastructures"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "cranelift-bforest",
  "cranelift-entity 0.56.0",
- "hashbrown 0.9.1",
+ "hashbrown 0.10.0",
 ]
 
 [[package]]
 name = "libeir_util_dot_graph"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 
 [[package]]
 name = "libeir_util_number"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
+ "libeir_util_binary",
  "num-bigint 0.2.2",
  "num-traits",
 ]
@@ -1159,7 +1171,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "codespan-reporting",
  "libeir_diagnostics",
@@ -1170,7 +1182,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse_listing"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -1183,7 +1195,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_pattern_compiler"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
  "derivative 1.0.4",
  "either",
@@ -1672,9 +1684,9 @@ dependencies = [
 [[package]]
 name = "meta_table"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 dependencies = [
- "hashbrown 0.9.1",
+ "hashbrown 0.10.0",
 ]
 
 [[package]]
@@ -2500,7 +2512,7 @@ checksum = "ea6a9290e3c9cf0f18145ef7ffa62d68ee0bf5fcd651017e586dc7fd5da448c2"
 [[package]]
 name = "scoped_cell"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#7a36f0aac66bf3b59f8175ebebdc7b6b4f56db0e"
+source = "git+https://github.com/eirproject/eir.git#7843e658c8ed6553bccdb290237f94d96a906916"
 
 [[package]]
 name = "scopeguard"

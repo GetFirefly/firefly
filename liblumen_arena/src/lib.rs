@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![feature(test)]
 // Used for #[may_dangle] on TypedArena
 #![feature(dropck_eyepatch)]

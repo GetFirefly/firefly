@@ -280,12 +280,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::alloc::AllocRef;
+    use core::alloc::Allocator;
 
     use super::*;
 
     use intrusive_collections::RBTreeLink;
-    use liblumen_core::alloc::{prelude::*, SysAlloc};
+    use liblumen_core::alloc::SysAlloc;
 
     use crate::blocks::FreeBlockRef;
     use crate::carriers::SUPERALIGNED_CARRIER_SIZE;
@@ -296,9 +296,9 @@ mod tests {
         let size = SUPERALIGNED_CARRIER_SIZE;
         let carrier_layout = Layout::from_size_align(size, size).unwrap();
         // Allocate region
-        let alloc_block = SysAlloc::get_mut().alloc(carrier_layout).unwrap();
+        let non_null_byte_slice = SysAlloc::get_mut().allocate(carrier_layout).unwrap();
         // Get pointer to carrier header location
-        let carrier = alloc_block.ptr.as_ptr() as *mut MultiBlockCarrier<RBTreeLink>;
+        let carrier = non_null_byte_slice.as_mut_ptr().cast();
         // Write initial carrier header
         unsafe {
             ptr::write(
@@ -341,6 +341,6 @@ mod tests {
         assert_eq!(mbc.num_blocks(), 1);
         // Cleanup
         drop(mbc);
-        unsafe { SysAlloc::get_mut().dealloc(alloc_block.ptr, carrier_layout) };
+        unsafe { SysAlloc::get_mut().deallocate(non_null_byte_slice.cast(), carrier_layout) };
     }
 }

@@ -498,13 +498,13 @@ mod tests {
 
     #[test]
     fn std_alloc_small_test() {
-        let mut allocator = StandardAlloc::new();
+        let allocator = StandardAlloc::new();
 
         // Allocate an object on the heap
         {
             let phrase = "just a test";
             let len = phrase.bytes().len();
-            let foo = RawVec::with_capacity_zeroed_in(len, &mut allocator);
+            let foo = RawVec::with_capacity_zeroed_in(len, &allocator);
 
             unsafe {
                 ptr::copy_nonoverlapping(phrase.as_ptr(), foo.ptr(), len);
@@ -523,11 +523,11 @@ mod tests {
 
     #[test]
     fn std_alloc_large_test() {
-        let mut allocator = StandardAlloc::new();
+        let allocator = StandardAlloc::new();
 
         // Allocate a large object on the heap
         {
-            let foo = RawVec::with_capacity_in(StandardAlloc::MAX_SIZE_CLASS + 1, &mut allocator);
+            let foo = RawVec::with_capacity_in(StandardAlloc::MAX_SIZE_CLASS + 1, &allocator);
             let ptr: *mut i32 = foo.ptr();
 
             let bytes = unsafe {

@@ -29,10 +29,10 @@ mod tests {
         let size = sysconf::pagesize();
         let usable = size - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let alloc_block = SysAlloc::get_mut()
-            .alloc(layout.clone())
+        let non_null_byte_slice = SysAlloc::get_mut()
+            .allocate(layout.clone())
             .expect("unable to map memory");
-        let raw = alloc_block.ptr.as_ptr() as *mut Block;
+        let raw = non_null_byte_slice.as_mut_ptr().cast();
         unsafe {
             ptr::write(raw, Block::new(usable));
         }
@@ -63,7 +63,7 @@ mod tests {
         assert_eq!(block.next(), None);
 
         // Cleanup
-        unsafe { SysAlloc::get_mut().dealloc(alloc_block.ptr, layout) };
+        unsafe { SysAlloc::get_mut().deallocate(non_null_byte_slice.cast(), layout) };
     }
 
     #[test]
@@ -71,10 +71,10 @@ mod tests {
         let size = sysconf::pagesize();
         let usable = size - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let alloc_block = SysAlloc::get_mut()
-            .alloc(layout.clone())
+        let non_null_byte_slice = SysAlloc::get_mut()
+            .allocate(layout.clone())
             .expect("unable to map memory");
-        let raw = alloc_block.ptr.as_ptr() as *mut FreeBlock;
+        let raw = non_null_byte_slice.as_mut_ptr().cast();
         // Block is free, and last
         let mut header = Block::new(usable);
         header.set_free();
@@ -109,7 +109,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Cleanup
-        unsafe { SysAlloc::get_mut().dealloc(alloc_block.ptr, layout) };
+        unsafe { SysAlloc::get_mut().deallocate(non_null_byte_slice.cast(), layout) };
     }
 
     #[test]
@@ -119,11 +119,11 @@ mod tests {
         let size = sysconf::pagesize() * 2;
         let usable = sysconf::pagesize() - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let alloc_block = SysAlloc::get_mut()
-            .alloc(layout.clone())
+        let non_null_byte_slice = SysAlloc::get_mut()
+            .allocate(layout.clone())
             .expect("unable to map memory");
         // Get pointers to both blocks
-        let raw = alloc_block.ptr.as_ptr() as *mut FreeBlock;
+        let raw = non_null_byte_slice.as_mut_ptr().cast();
         let raw2 = unsafe { (raw as *mut u8).add(sysconf::pagesize()) as *mut FreeBlock };
         // Write block headers
         unsafe {
@@ -164,6 +164,6 @@ mod tests {
                 fblock2.as_ptr() as *const u8
             );
         }
-        unsafe { SysAlloc::get_mut().dealloc(alloc_block.ptr, layout) };
+        unsafe { SysAlloc::get_mut().deallocate(non_null_byte_slice.cast(), layout) };
     }
 }

@@ -1,4 +1,3 @@
-use core::alloc::MemoryBlock;
 use core::fmt;
 use core::mem;
 use core::ptr::NonNull;
@@ -28,7 +27,7 @@ pub(in crate::erts) const DEFAULT_HEAP_SIZE: usize = mem::size_of::<Term>() * 32
 /// parameter. It releases allocated memory when dropped.
 pub struct RegionHeap {
     layout: Layout,
-    ptr: NonNull<u8>,
+    ptr: NonNull<[u8]>,
     end: *mut u8,
     top: *mut u8,
     high_water_mark: *mut u8,
@@ -38,14 +37,13 @@ impl RegionHeap {
     /// Creates a new scratch heap from the given layout
     pub fn new(layout: Layout) -> Self {
         let size = layout.size();
-        let MemoryBlock { ptr, .. } =
-            sys_alloc::alloc(layout.clone()).expect("unable to allocate scratch heap!");
-        let raw = ptr.as_ptr();
-        let end = unsafe { raw.add(size) };
-        let top = raw;
+        let non_null_byte_slice =
+            sys_alloc::allocate(layout.clone()).expect("unable to allocate scratch heap!");
+        let top = non_null_byte_slice.as_mut_ptr();
+        let end = unsafe { top.add(size) };
         Self {
             layout,
-            ptr,
+            ptr: non_null_byte_slice,
             end,
             top,
             high_water_mark: top,
@@ -210,7 +208,7 @@ impl fmt::Debug for RegionHeap {
 impl Drop for RegionHeap {
     fn drop(&mut self) {
         unsafe {
-            sys_alloc::free(self.ptr.as_ptr(), self.layout.clone());
+            sys_alloc::deallocate(self.ptr.cast(), self.layout.clone());
         }
     }
 }

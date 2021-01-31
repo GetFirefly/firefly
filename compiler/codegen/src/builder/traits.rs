@@ -233,7 +233,8 @@ impl AsValueRef for BinaryTerm {
     ) -> Result<ValueRef> {
         use liblumen_term::*;
 
-        let slice = self.value();
+        let bit_vec = self.value();
+        let slice = bit_vec.as_ref();
         let encoding_type = options.target.options.encoding;
         let pointer_width = options.target.target_pointer_width;
         let (header, flags) = match encoding_type {
@@ -466,7 +467,8 @@ impl AsAttributeRef for BinaryTerm {
     ) -> Result<AttributeRef> {
         use liblumen_term::*;
 
-        let slice = self.value();
+        let bit_vec = self.value();
+        let slice = bit_vec.as_ref();
         let encoding_type = options.target.options.encoding;
         let pointer_width = options.target.target_pointer_width;
         let (header, flags) = match encoding_type {

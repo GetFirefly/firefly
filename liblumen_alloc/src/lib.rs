@@ -53,12 +53,7 @@ pub mod std_alloc;
 #[cfg(test)]
 mod test;
 
-/// The system allocator. Can be used with `#[global_allocator]`, like so:
-///
-/// ```ignore
-/// #[global_allocator]
-/// pub static ALLOC: SysAlloc = SysAlloc;
-/// ```
+/// The system allocator.
 pub use liblumen_core::alloc::SysAlloc;
 
 /// A tracing allocator for tracking statistics about the allocator it wraps

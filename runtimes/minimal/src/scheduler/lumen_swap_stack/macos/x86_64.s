@@ -60,7 +60,7 @@ ___lumen_swap_stack:
     jne      L_resume
 
     # Ensure we never perform initialization twice
-    movq  $$0x0, %r13
+    movq  $0x0, %r13
     # Store the original base pointer at the top of the stack
     pushq %rcx
     # Followed by the return address
@@ -104,7 +104,7 @@ L_resume:
     # We land here only on a context switch, and since the last switch _away_ from
     # this process pushed %rbp on to the stack, and we don't need that value, we
     # adjust the stack pointer accordingly.
-    add $$8, %rsp
+    add $8, %rsp
 
     # At this point we will return back to where execution left off:
     # For the 'root' (scheduler) process, this returns back into `swap_process`;

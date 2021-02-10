@@ -21,8 +21,6 @@
 #![feature(untagged_unions)]
 // for `crate::distribution::nodes::insert`
 #![feature(option_unwrap_none)]
-// for `crate::list::Cons::subtract`.
-#![feature(vec_remove_item)]
 // `crate::registry::<Registered as PartialEq>::eq`
 #![feature(weak_ptr_eq)]
 // Layout helpers

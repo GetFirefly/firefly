@@ -40,9 +40,15 @@ pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::
                     Ok(mut minuend_vec) => {
                         for result in subtrahend_cons.into_iter() {
                             match result {
-                                Ok(subtrahend_element) => minuend_vec.retain(|minuend_element| {
-                                    minuend_element != &subtrahend_element
-                                }),
+                                Ok(subtrahend_element) => {
+                                    if let Some(index) =
+                                        minuend_vec.iter().position(|minuend_element| {
+                                            *minuend_element == subtrahend_element
+                                        })
+                                    {
+                                        minuend_vec.remove(index);
+                                    }
+                                }
                                 Err(ImproperList { .. }) => {
                                     return Err(ImproperListError)
                                         .context(is_not_a_proper_list("subtrahend", subtrahend))

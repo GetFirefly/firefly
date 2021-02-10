@@ -12,7 +12,7 @@ ___lumen_swap_stack:
     #
 
     # Save the return address to a register
-    leaq    0f(%rip),   %rax
+    leaq  L_ret(%rip),  %rax
 
     # Save the parent base pointer for when control returns to this call frame.
     # CFA directives will inform the unwinder to expect %rbp at the bottom of the
@@ -106,6 +106,7 @@ L_resume:
     # adjust the stack pointer accordingly.
     add $8, %rsp
 
+L_ret:
     # At this point we will return back to where execution left off:
     # For the 'root' (scheduler) process, this returns back into `swap_process`;
     # for all other processes, this returns to the code which was executing when

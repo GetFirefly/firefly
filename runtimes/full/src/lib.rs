@@ -1,7 +1,7 @@
 //#![deny(warnings)]
 #![allow(stable_features)]
 // `rand` has link errors
-#![allow(intra_doc_link_resolution_failure)]
+#![allow(broken_intra_doc_links)]
 // For allocating multiple contiguous terms, like for Tuples.
 #![feature(allocator_api)]
 #![feature(backtrace)]

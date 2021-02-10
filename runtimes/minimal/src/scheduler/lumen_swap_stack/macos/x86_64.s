@@ -1,10 +1,9 @@
     .p2align 4
     .global ___lumen_swap_stack
 ___lumen_swap_stack:
-L_lumen_swap_stack_begin:
     .cfi_startproc
     .cfi_personality 155, _rust_eh_personality
-    .cfi_lsda 16, L_lumen_swap_stack_lsda
+    .cfi_lsda 255
     # At this point the following registers are bound:
     #
     #   %rdi <- prev: *mut CalleeSavedRegisters
@@ -115,30 +114,4 @@ L_resume:
     popq %rax
     jmpq *%rax
 
-L_swap_stack_end:
     .cfi_endproc
-
-    # The following is the LSDA metadata for exception handling
-    .section __TEXT,__gcc_except_tag
-    .p2align 2
-L_swap_stack_lsda:
-    # Landing pad encoding (DW_EH_PE_omit) = omit
-    .byte 255
-    # DWARF encoding of type entries in types table = no type entries
-    .byte 255
- L_swap_stack_cst_header:
-    # Call site encoding = uleb128
-    .byte 1
-    # Size of call site table
-    .uleb128 L_swap_stack_cst_end-L_stack_stack_cst_begin
- L_swap_stack_cst_begin:
-     # Call site entry for the dynamic callee (offset, size, pad, action)
-     #  call occurs between L_swap_stack_exec and L_swap_stack_ret
-     .uleb128 L_swap_stack_exec-L_swap_stack_begin
-     .uleb128 L_swap_stack_ret-L_swap_stack_exec
-     #  no landing pad, the unwinder will skip over us
-     .byte 0
-     #  offset into action table (0 is no action)
-     .byte 0
- L_swap_stack_cst_end:
-     .p2align 2

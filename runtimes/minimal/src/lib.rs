@@ -1,6 +1,6 @@
 #![deny(warnings)]
 #![feature(alloc_layout_extra)]
-#![feature(asm)]
+#![feature(global_asm)]
 #![feature(naked_functions)]
 #![feature(termination_trait_lib)]
 #![feature(thread_local)]

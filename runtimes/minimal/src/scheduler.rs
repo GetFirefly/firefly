@@ -715,7 +715,11 @@ const FIRST_SWAP: u64 = 0xdeadbeef;
 extern "C" {
     #[unwind(allowed)]
     #[link_name = "__lumen_swap_stack"]
-    pub fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters, first_swap: u64);
+    pub fn swap_stack(
+        prev: *mut CalleeSavedRegisters,
+        new: *const CalleeSavedRegisters,
+        first_swap: u64,
+    );
 }
 
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]

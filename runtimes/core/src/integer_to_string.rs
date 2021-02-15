@@ -7,7 +7,7 @@ use radix_fmt::radix;
 use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::term::prelude::*;
 
-use crate::erlang::base::Base;
+use crate::base::Base;
 
 pub fn base_integer_to_string(base: Term, integer: Term) -> InternalResult<String> {
     let base: Base = base.try_into()?;

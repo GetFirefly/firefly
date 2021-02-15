@@ -455,11 +455,14 @@ pub extern "C" fn builtin_binary_push_bits_size_unit(
 
 #[export_name = "__lumen_builtin_binary_push_bits_unit"]
 pub extern "C" fn builtin_binary_push_bits_unit(
-    _builder: &mut BinaryBuilder,
-    _value: Term,
-    _unit: u8,
+    builder: &mut BinaryBuilder,
+    value: Term,
+    unit: u8,
 ) -> BinaryPushResult {
-    unimplemented!();
+    BinaryPushResult {
+        builder,
+        success: builder.push_bits_unit(value, unit).is_ok(),
+    }
 }
 
 #[export_name = "__lumen_builtin_binary_push_string"]

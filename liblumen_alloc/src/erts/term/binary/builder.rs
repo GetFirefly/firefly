@@ -506,6 +506,20 @@ impl BinaryBuilder {
         Ok(())
     }
 
+    pub fn push_bits_unit(&mut self, value: Term, unit: u8) -> Result<(), ()> {
+        match value.decode().unwrap() {
+            TypedTerm::BinaryLiteral(binary_literal) => {
+                assert_eq!(unit, 1);
+                self.push_string(binary_literal.as_bytes())
+            }
+            TypedTerm::HeapBinary(heap_binary) => {
+                assert_eq!(unit, 1);
+                self.push_string(heap_binary.as_bytes())
+            }
+            _ => unimplemented!("pushing value ({}) as bits with unit ({})", value, unit),
+        }
+    }
+
     pub fn push_byte_unit(&mut self, value: Term, unit: u8) -> Result<(), ()> {
         match value.decode().unwrap() {
             TypedTerm::SmallInteger(small_integer) => {

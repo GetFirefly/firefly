@@ -15,7 +15,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-${{ github.job }}-toolchain-nightly-2021-01-29-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Check Formatted
         uses: actions-rs/cargo@v1
         with:

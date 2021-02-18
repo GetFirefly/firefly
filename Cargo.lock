@@ -565,8 +565,9 @@ dependencies = [
 
 [[package]]
 name = "dlmalloc"
-version = "0.1.3"
-source = "git+https://github.com/lumen/dlmalloc-rs.git?branch=nightly-2020-05-13#9bd34e6c3007cc8b453908135983ba7437a15da0"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "332570860c2edf2d57914987bf9e24835425f75825086b6ba7d1e6a3e4f1f254"
 dependencies = [
  "libc",
 ]

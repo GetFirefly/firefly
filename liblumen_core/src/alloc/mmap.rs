@@ -22,7 +22,7 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocError> {
 #[cfg(not(has_mmap))]
 #[inline]
 pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocError> {
-    sys_alloc::alloc(layout).map(|memory_block| memory_block.ptr)
+    sys_alloc::allocate(layout).map(|ptr| ptr.cast())
 }
 
 /// Creates a memory mapping specifically set up to behave like a stack
@@ -45,7 +45,7 @@ pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocError> {
         .repeat(pages)
         .unwrap();
 
-    sys_alloc::alloc(layout).map(|memory_block| memory_block.ptr)
+    sys_alloc::allocate(layout).map(|ptr| ptr.cast())
 }
 
 /// Remaps a mapping given a pointer to the mapping, the layout which created it, and the new size
@@ -67,7 +67,17 @@ pub unsafe fn remap(
     layout: Layout,
     new_size: usize,
 ) -> Result<NonNull<u8>, AllocError> {
-    sys_alloc::realloc(ptr, layout, new_size).map(|memory_block| memory_block.ptr)
+    let old_layout = layout;
+    let new_layout =
+        Layout::from_size_align(new_size, old_layout.align()).map_err(|_| AllocError)?;
+    let non_null = NonNull::new(ptr).ok_or(AllocError)?;
+
+    if layout.size() < new_size {
+        sys_alloc::grow(non_null, old_layout, new_layout)
+    } else {
+        sys_alloc::shrink(non_null, old_layout, new_layout)
+    }
+    .map(|ptr| ptr.cast())
 }
 
 /// Destroys a mapping given a pointer to the mapping and the layout which created it
@@ -81,5 +91,5 @@ pub unsafe fn unmap(ptr: *mut u8, layout: Layout) {
 #[cfg(not(has_mmap))]
 #[inline]
 pub unsafe fn unmap(ptr: *mut u8, layout: Layout) {
-    sys_alloc::free(ptr, layout);
+    sys_alloc::deallocate(NonNull::new(ptr).unwrap(), layout);
 }

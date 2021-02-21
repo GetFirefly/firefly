@@ -33,10 +33,9 @@ features = ["nightly"]
 version = "0.8"
 features = ["nightly"]
 
-[dependencies.parking_lot_core]
-git = "https://github.com/KronicDeth/parking_lot.git"
-branch = "wasm32-time_web_sys"
-features = ["nightly"]
+[dependencies.parking_lot]
+version = "0.11.1"
+features = ["nightly", "wasm-bindgen"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.70"
@@ -47,4 +46,4 @@ version = "0.3.20"
 features = ['console']
 
 [features]
-time_web_sys = ["parking_lot_core/time_web_sys"]
+time_web_sys = []

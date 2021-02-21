@@ -484,7 +484,7 @@ if not ${result}
     exit 1
 end
 
-result = exec tar -xzvf ${path} "${CARGO_MAKE_CARGO_HOME}/bin/geckodriver"
+result = exec tar -xzvf ${path} -C "${CARGO_MAKE_CARGO_HOME}/bin"
 if ${result.code}
   echo ${result.stderr}
   exit ${result.code}

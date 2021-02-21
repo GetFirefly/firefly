@@ -489,7 +489,13 @@ if ${result.code}
   echo ${result.stderr}
   exit ${result.code}
 end
-exec --fail-with-error geckodriver --version
+
+result = which geckodriver
+if is_empty ${result}
+  exit 1
+else
+  exit 0
+end
 ''']
 
 [tasks.enable-safari-driver]

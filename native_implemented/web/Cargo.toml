@@ -28,7 +28,7 @@ version = "0.2.48"
 features = ["nightly"]
 
 [dependencies.web-sys]
-version = "0.3.25"
+version = "0.3.47"
 features = ["Document", "DomException", "Element", "Event", "EventListener", "EventTarget", "HtmlCollection",
             "HtmlBodyElement", "HtmlElement", "HtmlFormElement", "HtmlInputElement", "HtmlTableElement", "Node", "Text",
             "WebSocket", "Window"]

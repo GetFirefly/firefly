@@ -53,4 +53,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test-spawn-chain-wasm -- --chrome --firefox --safari
+          args: test-spawn-chain-wasm -- --firefox --safari

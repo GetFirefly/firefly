@@ -2,6 +2,9 @@ name: wasm32-unknown-unknown (Linux)
 
 on: push
 
+env:
+  TOOLCHAIN: nightly-2021-01-29
+
 jobs:
   wasm:
     runs-on: ubuntu-latest
@@ -16,7 +19,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-toolchain-nightly-2021-01-29-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-${{ github.job }}-toolchain-${{ env.TOOLCHAIN }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
       # $HOME is owned by user id 1001.  `container` `options` `--user 1001` doesn't work because dependencies can't be
       # installed, so make root own the directory instead, so that Firefox doesn't complain that root is using a profile
       # for a different user.

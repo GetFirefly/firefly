@@ -2,6 +2,9 @@ name: x86_64-apple-darwin lumen/otp
 
 on: push
 
+env:
+  TOOLCHAIN: nightly-2021-01-29
+
 jobs:
   lumen-otp:
     runs-on: macos-latest
@@ -11,7 +14,7 @@ jobs:
       - name: Install nightly-2021-01-29
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2021-01-29
+          toolchain: ${{ env.TOOLCHAIN }}
           override: true
       - name: Cache Cargo
         uses: actions/cache@v2
@@ -19,7 +22,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-toolchain-nightly-2021-01-29-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-${{ github.job }}-toolchain-${{ env.TOOLCHAIN }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-make
         uses: actions-rs/cargo@v1
         with:

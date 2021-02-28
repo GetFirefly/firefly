@@ -1237,7 +1237,7 @@ dependencies = [
  "liblumen_core",
  "liblumen_term",
  "log",
- "num-bigint 0.2.6",
+ "num-bigint 0.3.1",
  "num-traits",
  "once_cell",
  "pretty_assertions",
@@ -1300,7 +1300,7 @@ dependencies = [
  "liblumen_term",
  "liblumen_util",
  "log",
- "num-bigint 0.2.6",
+ "num-bigint 0.3.1",
  "tempfile",
  "thiserror",
  "walkdir",
@@ -1429,7 +1429,7 @@ dependencies = [
  "lumen_rt_core",
  "lumen_rt_full",
  "native_implemented",
- "num-bigint 0.2.6",
+ "num-bigint 0.3.1",
  "num-traits",
  "panic-control",
  "process_control",
@@ -1573,7 +1573,7 @@ dependencies = [
  "liblumen_alloc",
  "liblumen_core",
  "log",
- "num-bigint 0.2.6",
+ "num-bigint 0.3.1",
  "num-traits",
  "num_enum",
  "parking_lot",
@@ -1600,7 +1600,7 @@ dependencies = [
  "liblumen_core",
  "log",
  "lumen_rt_core",
- "num-bigint 0.2.6",
+ "num-bigint 0.3.1",
  "num-traits",
  "num_enum",
  "proptest",
@@ -1738,6 +1738,17 @@ name = "num-bigint"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "090c7f9998ee0ff65aa5b723e4009f7b217707f1fb5ea551329cc4d6231fb304"
+dependencies = [
+ "autocfg 1.0.0",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
+name = "num-bigint"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e9a41747ae4633fce5adffb4d2e81ffc5e89593cb19917f8fb2cc5ff76507bf"
 dependencies = [
  "autocfg 1.0.0",
  "num-integer",

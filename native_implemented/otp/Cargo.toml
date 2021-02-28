@@ -15,7 +15,7 @@ liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
 lumen_rt_core = { path = "../../runtimes/core" }
 native_implemented = { path = "../macro" }
-num-bigint = "0.2"
+num-bigint = "0.3"
 num-traits = "0.2"
 radix_fmt = "1.0.0"
 thiserror = "1.0"

@@ -11,7 +11,7 @@ cc = "1.0.35"
 anyhow = "1.0"
 thiserror = "1.0"
 tempfile = "3.1"
-num-bigint = "0.2"
+num-bigint = "0.3"
 log = "0.4"
 cranelift-entity = "0.56.0"
 cranelift-bforest = { git = "https://github.com/hansihe/wasmtime.git", branch = "main" }

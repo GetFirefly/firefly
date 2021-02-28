@@ -3,12 +3,12 @@ name: x86_64-unknown-linux-gnu Runtime Full
 on: push
 
 env:
-  TOOLCHAIN: nightly-2021-01-29
+  TOOLCHAIN: nightly-2021-02-28
 
 jobs:
   runtime:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:2809805464d685940b58765a634fa23a5fd1a62c65710cfa43a8791cd50fbecd
+    container: kronicdeth/lumen-development@sha256:fa3b5af44249c8f1e4f03485584f1343089120eeb6766c97e6010fdd39ddafbc
 
     steps:
       - uses: actions/checkout@v2

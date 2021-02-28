@@ -27,8 +27,8 @@ RUN \
 
 
 # Set up base Rust, our build script will take care of most things
-RUN rustup default nightly-2021-01-29 \
-  && rustup target add wasm32-unknown-unknown --toolchain nightly-2021-01-29 \
+RUN rustup default nightly-2021-02-28 \
+  && rustup target add wasm32-unknown-unknown --toolchain nightly-2021-02-28 \
   && cargo install cargo-make
 
 # Install Firefox

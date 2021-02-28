@@ -72,7 +72,7 @@ CARGO_MAKE_RUST_SCRIPT_PROVIDER = "cargo-play"
 CARGO_MAKE_USE_WORKSPACE_PROFILE = true
 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "--no-fail-fast"
 CARGO_TARGET_DIR = { value = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target", condition = { env_not_set = ["CARGO_TARGET_DIR"] } }
-CARGO_MAKE_TOOLCHAIN_DEFAULT = { source = "${CARGO_MAKE_CI}", default_value = "nightly", mapping = { "true" = "nightly-2021-01-29", "false" = "nightly" } }
+CARGO_MAKE_TOOLCHAIN_DEFAULT = { source = "${CARGO_MAKE_CI}", default_value = "nightly", mapping = { "true" = "nightly-2021-02-28", "false" = "nightly" } }
 CARGO_MAKE_TOOLCHAIN = { value = "${CARGO_MAKE_TOOLCHAIN_DEFAULT}", condition = { env_not_set = ["CARGO_MAKE_TOOLCHAIN"] } }
 BACKTRACE_DEFAULT = { source = "${CARGO_MAKE_CI}", mapping = { "true" = "1", "false" = "0" } }
 RUST_BACKTRACE = { value = "${BACKTRACE_DEFAULT}", condition = { env_not_set = ["RUST_BACKTRACE"] } }

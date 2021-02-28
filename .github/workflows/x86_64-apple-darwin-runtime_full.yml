@@ -3,7 +3,7 @@ name: x86_64-apple-darwin Runtime Full
 on: push
 
 env:
-  TOOLCHAIN: nightly-2021-01-29
+  TOOLCHAIN: nightly-2021-02-28
 
 jobs:
   runtime:
@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: Install nightly-2021-01-29
+      - name: Install nightly-2021-02-28
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.TOOLCHAIN }}

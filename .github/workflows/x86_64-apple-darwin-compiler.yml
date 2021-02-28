@@ -3,7 +3,7 @@ name: x86_64-apple-darwin compiler
 on: push
 
 env:
-  TOOLCHAIN: nightly-2021-01-29
+  TOOLCHAIN: nightly-2021-02-28
 
 jobs:
   compiler:

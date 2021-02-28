@@ -334,7 +334,7 @@ impl Process {
 
                 t
             }
-            Err(alloc) => panic!(alloc),
+            Err(alloc) => std::panic::panic_any(alloc),
         }
     }
 

@@ -3,7 +3,7 @@ name: wasm32-unknown-unknown (macOS)
 on: push
 
 env:
-  TOOLCHAIN: nightly-2021-01-29
+  TOOLCHAIN: nightly-2021-02-28
 
 jobs:
   wasm:

@@ -331,7 +331,16 @@ version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ebaf6bb6a863ad6aa3a18729e9710c53d75df03306714d9cc1f7357a00cd789"
 dependencies = [
- "codespan-reporting",
+ "codespan-reporting 0.9.5",
+]
+
+[[package]]
+name = "codespan"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3362992a0d9f1dd7c3d0e89e0ab2bb540b7a95fea8cd798090e758fda2899b5e"
+dependencies = [
+ "codespan-reporting 0.11.1",
 ]
 
 [[package]]
@@ -339,6 +348,16 @@ name = "codespan-reporting"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e0762455306b1ed42bc651ef6a2197aabda5e1d4a43c34d5eab5c1a3634e81d"
+dependencies = [
+ "termcolor 1.1.0",
+ "unicode-width",
+]
+
+[[package]]
+name = "codespan-reporting"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
 dependencies = [
  "termcolor 1.1.0",
  "unicode-width",
@@ -1022,8 +1041,8 @@ version = "0.1.0"
 source = "git+https://github.com/eirproject/eir.git#a615a9d41563f2632a0e51bcdb99fba673b380cc"
 dependencies = [
  "anyhow",
- "codespan",
- "codespan-reporting",
+ "codespan 0.9.5",
+ "codespan-reporting 0.9.5",
  "dashmap",
  "itertools",
  "thiserror",
@@ -1122,7 +1141,7 @@ version = "0.1.0"
 source = "git+https://github.com/eirproject/eir.git#a615a9d41563f2632a0e51bcdb99fba673b380cc"
 dependencies = [
  "bumpalo 3.4.0 (git+https://github.com/hansihe/bumpalo)",
- "codespan-reporting",
+ "codespan-reporting 0.9.5",
  "cranelift-entity 0.56.0",
  "either",
  "glob 0.2.11",
@@ -1182,7 +1201,7 @@ name = "libeir_util_parse"
 version = "0.1.0"
 source = "git+https://github.com/eirproject/eir.git#a615a9d41563f2632a0e51bcdb99fba673b380cc"
 dependencies = [
- "codespan-reporting",
+ "codespan-reporting 0.9.5",
  "libeir_diagnostics",
  "scoped_cell",
  "snafu",
@@ -1465,8 +1484,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "codespan",
- "codespan-reporting",
+ "codespan 0.11.1",
+ "codespan-reporting 0.11.1",
  "libeir_ir",
  "libeir_syntax_erl",
  "liblumen_compiler_macros",
@@ -1548,7 +1567,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "codespan-reporting",
+ "codespan-reporting 0.11.1",
  "env_logger",
  "human-panic",
  "liblumen_compiler",

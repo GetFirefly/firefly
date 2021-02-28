@@ -8,8 +8,8 @@ publish = false
 [dependencies]
 anyhow = "1.0"
 clap = "2.33.0"
-codespan = "0.9.3"
-codespan-reporting = "0.9.3"
+codespan = "0.11.1"
+codespan-reporting = "0.11.1"
 log = "0.4"
 termcolor = "1.1.0"
 thiserror = "1.0"

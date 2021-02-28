@@ -1,12 +1,6 @@
-//! ```cargo
-//! [dependencies]
-//! serde_json = "1.0"
-//! walkdir = "*"
-//!
-//! [dependencies.serde]
-//! version = "1.0"
-//! features = ["derive"]
-//! ```
+//# serde = { version = "1.0", features = ["derive"] }
+//# serde_json = "1.0"
+//# walkdir = "*"
 #![feature(drain_filter)]
 #![feature(slice_internals)]
 #![allow(non_snake_case)]

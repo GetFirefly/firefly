@@ -21,7 +21,7 @@ radix_fmt = "1.0.0"
 thiserror = "1.0"
 
 [dependencies.hashbrown]
-version = "0.7"
+version = "0.9"
 features = ["nightly"]
 
 [target.'cfg(unix)'.dependencies]

@@ -7,4 +7,4 @@ edition = "2018"
 [dependencies]
 cfg-if = "1.0"
 lazy_static = "1.4"
-hashbrown = "0.8"
+hashbrown = "0.9"

@@ -25,7 +25,7 @@ lumen_rt_core = { path = "../core" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
 
 [dependencies.hashbrown]
-version = "0.7"
+version = "0.9"
 features = ["nightly"]
 
 [target.'cfg(unix)'.dependencies]

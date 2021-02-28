@@ -28,7 +28,7 @@ version = "3.11"
 features = ["no_std"]
 
 [dependencies.hashbrown]
-version = "0.7"
+version = "0.9"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]

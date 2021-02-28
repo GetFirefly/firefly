@@ -1226,7 +1226,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "backtrace",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "dashmap",
  "hashbrown 0.7.2",
  "heapless",
@@ -1353,7 +1353,7 @@ dependencies = [
 name = "liblumen_core"
 version = "0.1.0"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "dlmalloc",
  "lazy_static 1.4.0",
  "libc",
@@ -1447,7 +1447,7 @@ dependencies = [
  "anyhow",
  "bitflags",
  "byteorder",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "fxhash",
  "log",
  "memmap",
@@ -1493,7 +1493,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "atty",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "glob 0.3.0",
  "libc",
  "libeir_diagnostics",
@@ -1562,7 +1562,7 @@ name = "lumen_rt_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "chrono",
  "dashmap",
  "hashbrown 0.7.2",
@@ -1589,7 +1589,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bus",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "chrono",
  "clap",
  "colored",
@@ -1619,7 +1619,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bus",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "clap",
  "env_logger",
  "hashbrown 0.7.2",
@@ -1885,7 +1885,7 @@ dependencies = [
 name = "panic"
 version = "0.1.0"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "libc",
  "unwind",
 ]
@@ -2582,7 +2582,7 @@ checksum = "86d5e1dc9a5f4ac56709c87eeeacd25cb58eca03f4d6a3103ef65b6beb9307eb"
 name = "stackmaps"
 version = "0.1.0"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "hashbrown 0.8.1",
  "lazy_static 1.4.0",
 ]
@@ -2838,7 +2838,7 @@ name = "unwind"
 version = "0.1.0"
 dependencies = [
  "cc",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "libc",
 ]
 

@@ -11,7 +11,7 @@ doc = false
 
 [dependencies]
 libc = "0.2"
-cfg-if = "0.1.8"
+cfg-if = "1.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.unwind]
 path = "../unwind"

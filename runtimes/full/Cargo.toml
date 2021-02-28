@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 bus = "2.0"
-cfg-if = "0.1.7"
+cfg-if = "1.0"
 clap = "2.32.0"
 colored = "1.6"
 anyhow = "1.0"

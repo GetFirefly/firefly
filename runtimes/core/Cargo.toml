@@ -6,10 +6,12 @@ publish = false
 edition = "2018"
 
 [dependencies]
+# Errors
 anyhow = "1.0"
 thiserror = "1.0"
+
+cfg-if = "1.0"
 log = "0.4"
-cfg-if = "0.1.7"
 lazy_static = "1.4"
 libc = "0.2"
 num-bigint = "0.3"

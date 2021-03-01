@@ -31,7 +31,7 @@ features = ["nightly"]
 [target.'cfg(unix)'.dependencies]
 proptest = "1.0"
 rand = "0.8"
-signal-hook = "0.1"
+signal-hook = "0.3"
 xorshift = "0.1"
 
 [target.'cfg(windows)'.dependencies]

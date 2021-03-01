@@ -8,5 +8,5 @@ publish = false
 [dependencies]
 byteorder = "1.2"
 libflate = "1.0"
-num = "0.2"
+num = "0.3"
 failure = "0.1"

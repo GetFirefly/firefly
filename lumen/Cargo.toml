@@ -15,7 +15,7 @@ build = "build.rs"
 anyhow = "1.0"
 clap = "2.33.0"
 codespan-reporting = "0.11.1"
-env_logger = "0.7"
+env_logger = "0.8"
 human-panic = "1.0"
 log = "0.4"
 

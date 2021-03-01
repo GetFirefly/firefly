@@ -89,6 +89,7 @@ impl Emitter for NullEmitter {
 pub struct InFlightDiagnostic<'h> {
     handler: &'h DiagnosticsHandler,
     file_id: Option<SourceId>,
+    #[allow(dead_code)]
     filename: Option<FileName>,
     diagnostic: Diagnostic,
     severity: Severity,

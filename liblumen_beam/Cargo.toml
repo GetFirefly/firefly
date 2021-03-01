@@ -7,6 +7,6 @@ publish = false
 
 [dependencies]
 byteorder = "1.2"
-libflate = "0.1"
+libflate = "1.0"
 num = "0.2"
 failure = "0.1"

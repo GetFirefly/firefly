@@ -16,7 +16,7 @@ lazy_static = "1.4"
 libc = "0.2"
 num-bigint = "0.3"
 num-traits = "0.2"
-num_enum = "0.4.2"
+num_enum = "0.5"
 radix_fmt = "1.0.0"
 chrono = "0.4"
 

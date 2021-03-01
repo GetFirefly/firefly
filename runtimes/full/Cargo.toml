@@ -29,13 +29,13 @@ version = "0.9"
 features = ["nightly"]
 
 [target.'cfg(unix)'.dependencies]
-proptest = "0.9.3"
+proptest = "1.0"
 rand = "0.8"
 signal-hook = "0.1"
 xorshift = "0.1"
 
 [target.'cfg(windows)'.dependencies]
-proptest = "0.9.3"
+proptest = "1.0"
 rand = "0.8"
 xorshift = "0.1"
 

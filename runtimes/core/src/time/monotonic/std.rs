@@ -6,11 +6,7 @@ use lazy_static::lazy_static;
 use super::Monotonic;
 
 pub fn freeze() -> Monotonic {
-    FROZEN.with(|frozen| {
-        *frozen
-            .borrow_mut()
-            .get_or_insert_with(|| elapsed())
-    })
+    FROZEN.with(|frozen| *frozen.borrow_mut().get_or_insert_with(|| elapsed()))
 }
 
 pub fn freeze_at(monotonic: Monotonic) {
@@ -18,11 +14,7 @@ pub fn freeze_at(monotonic: Monotonic) {
 }
 
 pub fn time() -> Monotonic {
-    FROZEN.with(|frozen| {
-        frozen
-            .borrow()
-            .unwrap_or_else(|| elapsed())
-    })
+    FROZEN.with(|frozen| frozen.borrow().unwrap_or_else(|| elapsed()))
 }
 
 fn elapsed() -> Monotonic {

@@ -84,4 +84,3 @@ unsafe fn reallocate(
         .ok_or(AllocError)
         .map(|ptr| NonNull::slice_from_raw_parts(ptr, new_size))
 }
-

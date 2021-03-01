@@ -88,7 +88,13 @@ impl Trace {
     }
 
     #[inline]
-    pub fn print(&self, process: &Process, kind: Term, reason: Term, source: Option<ArcError>) -> std::io::Result<()> {
+    pub fn print(
+        &self,
+        process: &Process,
+        kind: Term,
+        reason: Term,
+        source: Option<ArcError>,
+    ) -> std::io::Result<()> {
         format::print(self, process, kind, reason, source)
     }
 

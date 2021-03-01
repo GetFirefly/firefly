@@ -49,7 +49,7 @@ impl Trace {
         Arc::new(Self {
             frames: Default::default(),
             fragment: ThreadLocalCell::new(Some(fragment)),
-            term: ThreadLocalCell::new(Some(fragment_term))
+            term: ThreadLocalCell::new(Some(fragment_term)),
         })
     }
 
@@ -65,12 +65,25 @@ impl Trace {
     }
 
     #[inline]
-    pub fn print(&self, process: &Process, kind: Term, reason: Term, source: Option<ArcError>) -> std::io::Result<()> {
+    pub fn print(
+        &self,
+        process: &Process,
+        kind: Term,
+        reason: Term,
+        source: Option<ArcError>,
+    ) -> std::io::Result<()> {
         format::print(self, process, kind, reason, source)
     }
 
     #[inline]
-    pub fn format(&self, f: &mut fmt::Formatter, process: Option<&Process>, kind: Term, reason: Term, source: Option<ArcError>) -> std::io::Result<()> {
+    pub fn format(
+        &self,
+        f: &mut fmt::Formatter,
+        process: Option<&Process>,
+        kind: Term,
+        reason: Term,
+        source: Option<ArcError>,
+    ) -> std::io::Result<()> {
         format::format(self, f, process, kind, reason, source)
     }
 
@@ -195,10 +208,8 @@ impl Trace {
 }
 
 pub(super) fn resolve_frame(frame: &Frame) -> Option<Symbolication> {
-    Some(
-        Symbolication {
-            mfa: Some(frame.mfa),
-            ..Default::default()
-        }
-    )
+    Some(Symbolication {
+        mfa: Some(frame.mfa),
+        ..Default::default()
+    })
 }

@@ -52,15 +52,19 @@ pub unsafe fn grow(
 }
 
 #[inline]
-pub unsafe fn grow_zeroed(ptr: NonNull<u8>, old_layout: Layout, new_layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-  reallocate(ptr, old_layout, new_layout).map(|ptr| {
-      let old_size = old_layout.size();
-      let dst = ptr.as_mut_ptr().add(old_size);
-      let count = new_layout.size() - old_size;
-      ptr::write_bytes(dst, 0, count);
+pub unsafe fn grow_zeroed(
+    ptr: NonNull<u8>,
+    old_layout: Layout,
+    new_layout: Layout,
+) -> Result<NonNull<[u8]>, AllocError> {
+    reallocate(ptr, old_layout, new_layout).map(|ptr| {
+        let old_size = old_layout.size();
+        let dst = ptr.as_mut_ptr().add(old_size);
+        let count = new_layout.size() - old_size;
+        ptr::write_bytes(dst, 0, count);
 
-      ptr
-  })
+        ptr
+    })
 }
 
 #[inline]
@@ -72,7 +76,11 @@ pub unsafe fn shrink(
     reallocate(ptr, old_layout, new_layout)
 }
 
-unsafe fn reallocate(ptr: NonNull<u8>, old_layout: Layout, new_layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
+unsafe fn reallocate(
+    ptr: NonNull<u8>,
+    old_layout: Layout,
+    new_layout: Layout,
+) -> Result<NonNull<[u8]>, AllocError> {
     // TODO handle changed align
     assert!(old_layout.align() == new_layout.align());
     let new_size = new_layout.size();
@@ -94,5 +102,8 @@ unsafe fn aligned_alloc(layout: &Layout) -> Result<NonNull<[u8]>, AllocError> {
     if result != 0 {
         return Err(AllocError);
     }
-    Ok(NonNull::slice_from_raw_parts(NonNull::new_unchecked(ptr as *mut u8), layout_size))
+    Ok(NonNull::slice_from_raw_parts(
+        NonNull::new_unchecked(ptr as *mut u8),
+        layout_size,
+    ))
 }

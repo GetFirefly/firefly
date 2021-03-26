@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::{AllocError, Layout};
 #[cfg(all(
     not(target_os = "linux"),
     not(target_os = "emscripten"),
@@ -64,7 +64,7 @@ const STACK_FLAGS: libc::c_int = MMAP_FLAGS;
 /// If `hint_ptr` is not a null pointer, it will be used to hint to the OS
 /// where we would like the region mapped.
 #[inline]
-pub unsafe fn map(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
+pub unsafe fn map(layout: Layout) -> Result<(NonNull<u8>, usize), AllocError> {
     let page_size = sysconf::pagesize();
     let size = alloc_utils::round_up_to_multiple_of(layout.size(), page_size);
     let align = layout.align();
@@ -104,7 +104,7 @@ pub unsafe fn map(layout: Layout) -> Result<(NonNull<u8>, usize), AllocErr> {
 }
 
 #[inline]
-pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocError> {
     // Stacks must be at least 1 page + 1 guard page
     let page_size = sysconf::pagesize();
     let stack_size = page_size * (pages + 1);
@@ -120,19 +120,19 @@ pub unsafe fn map_stack(pages: usize) -> Result<NonNull<u8>, AllocErr> {
     );
 
     if res == MAP_FAILED {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
 
     // Set up guard page
     if 0 == libc::mprotect(res as *mut libc::c_void, page_size, GUARD_PROT) {
         Ok(NonNull::new_unchecked(res as *mut u8))
     } else {
-        Err(AllocErr)
+        Err(AllocError)
     }
 }
 
 #[inline(always)]
-unsafe fn map_internal(hint_ptr: *mut u8, size: usize) -> Result<(NonNull<u8>, usize), AllocErr> {
+unsafe fn map_internal(hint_ptr: *mut u8, size: usize) -> Result<(NonNull<u8>, usize), AllocError> {
     let res = libc::mmap(
         hint_ptr as *mut libc::c_void,
         size,
@@ -142,7 +142,7 @@ unsafe fn map_internal(hint_ptr: *mut u8, size: usize) -> Result<(NonNull<u8>, u
         0,
     );
     if res == MAP_FAILED {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
 
     Ok((NonNull::new_unchecked(res as *mut u8), size))
@@ -179,7 +179,7 @@ pub unsafe fn remap(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<(NonNull<u8>, usize), AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocError> {
     let old_size = layout.size();
     let align = layout.align();
     let new_size = alloc_utils::round_up_to_multiple_of(new_size, align);
@@ -198,10 +198,10 @@ unsafe fn remap_internal(
     old_size: usize,
     _align: usize,
     new_size: usize,
-) -> Result<(NonNull<u8>, usize), AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocError> {
     let new_seg = libc::mremap(ptr as *mut _, old_size, new_size, libc::MREMAP_MAYMOVE);
     if new_seg == MAP_FAILED {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
     Ok((NonNull::new_unchecked(new_seg as *mut _), new_size))
 }
@@ -216,10 +216,10 @@ unsafe fn remap_internal(
     old_size: usize,
     _align: usize,
     new_size: usize,
-) -> Result<(NonNull<u8>, usize), AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocError> {
     let new_seg = libc::mremap(ptr as *mut _, old_size, 0, new_size, 0 as libc::c_int);
     if new_seg == MAP_FAILED {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
     Ok((NonNull::new_unchecked(new_seg as *mut _), new_size))
 }
@@ -240,7 +240,7 @@ unsafe fn remap_internal(
     old_size: usize,
     align: usize,
     new_size: usize,
-) -> Result<(NonNull<u8>, usize), AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocError> {
     // Try and map the extra space at the end of the old mapping
     let hint_ptr = ((ptr as usize) + old_size) as *mut libc::c_void;
     let extend_size = new_size - old_size;
@@ -255,7 +255,7 @@ unsafe fn remap_internal(
 
     // Unable to map any new memory
     if ret == MAP_FAILED {
-        return Err(AllocErr);
+        return Err(AllocError);
     }
 
     // We have the memory, but not where we wanted it
@@ -283,7 +283,7 @@ unsafe fn remap_fallback(
     ptr: *mut u8,
     layout: Layout,
     new_size: usize,
-) -> Result<(NonNull<u8>, usize), AllocErr> {
+) -> Result<(NonNull<u8>, usize), AllocError> {
     // Allocate new mapping
     let new_layout = Layout::from_size_align(new_size, layout.align()).expect("invalid layout");
     let (new_ptr, new_ptr_size) = map(new_layout)?;

@@ -18,17 +18,17 @@ RUN apt-get update \
 
 # Our version of LLDB requires the following python3.5 libs
 RUN \
-  wget -q http://security.debian.org/debian-security/pool/updates/main/p/python3.5/libpython3.5-minimal_3.5.3-1+deb9u2_amd64.deb \
-  && wget -q http://security.debian.org/debian-security/pool/updates/main/p/python3.5/libpython3.5-stdlib_3.5.3-1+deb9u2_amd64.deb \
-  && wget -q http://security.debian.org/debian-security/pool/updates/main/p/python3.5/libpython3.5_3.5.3-1+deb9u2_amd64.deb \
-  && dpkg -i libpython3.5-minimal_3.5.3-1+deb9u2_amd64.deb \
-  && dpkg -i libpython3.5-stdlib_3.5.3-1+deb9u2_amd64.deb \
-  && dpkg -i libpython3.5_3.5.3-1+deb9u2_amd64.deb
-  
+  wget -q http://security.debian.org/debian-security/pool/updates/main/p/python3.5/libpython3.5-minimal_3.5.3-1+deb9u3_amd64.deb \
+  && wget -q http://security.debian.org/debian-security/pool/updates/main/p/python3.5/libpython3.5-stdlib_3.5.3-1+deb9u3_amd64.deb \
+  && wget -q http://security.debian.org/debian-security/pool/updates/main/p/python3.5/libpython3.5_3.5.3-1+deb9u3_amd64.deb \
+  && dpkg -i libpython3.5-minimal_3.5.3-1+deb9u3_amd64.deb \
+  && dpkg -i libpython3.5-stdlib_3.5.3-1+deb9u3_amd64.deb \
+  && dpkg -i libpython3.5_3.5.3-1+deb9u3_amd64.deb
+
 
 # Set up base Rust, our build script will take care of most things
-RUN rustup default nightly-2020-05-13 \
-  && rustup target add wasm32-unknown-unknown --toolchain nightly-2020-05-13 \
+RUN rustup default nightly-2021-01-29 \
+  && rustup target add wasm32-unknown-unknown --toolchain nightly-2021-01-29 \
   && cargo install cargo-make
 
 # Install Firefox

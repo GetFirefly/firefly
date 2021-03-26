@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 pub mod argparser;
 mod commands;
 mod compiler;

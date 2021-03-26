@@ -1,4 +1,4 @@
-use core::sync::atomic::spin_loop_hint;
+use core::hint::spin_loop;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use lock_api::{GuardSend, RawMutex};
@@ -53,7 +53,7 @@ impl RawSpinLock {
                 counter = 10;
             }
             for _ in 0..(1 << counter) {
-                spin_loop_hint();
+                spin_loop();
             }
         }
     }
@@ -82,7 +82,7 @@ unsafe impl RawMutex for RawSpinLock {
     }
 
     #[inline]
-    fn unlock(&self) {
+    unsafe fn unlock(&self) {
         self.0.store(false, Ordering::Release);
     }
 }

@@ -89,27 +89,18 @@ impl SizeClassAlloc {
         self.max_size_class.to_bytes()
     }
 
-    pub unsafe fn allocate(
-        &self,
-        layout: Layout,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+    pub unsafe fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let size = layout.size();
         if unlikely(size > self.max_size_class.to_bytes()) {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
         let (index, size_class) =
             binary_search_next_largest(&self.size_classes, |sc| sc.to_bytes().cmp(&size)).unwrap();
         let carriers = self.carriers[index].read();
         for carrier in carriers.iter() {
-            if let Ok(ptr) = carrier.alloc_block() {
-                let block = MemoryBlock {
-                    ptr,
-                    size: size_class.to_bytes(),
-                };
-                AllocInit::init(init, block);
-                return Ok(block);
+            if let Ok(data) = carrier.alloc_block() {
+                return Ok(NonNull::slice_from_raw_parts(data, size_class.to_bytes()));
             }
         }
         drop(carriers);
@@ -124,51 +115,37 @@ impl SizeClassAlloc {
         let result = carrier.alloc_block();
         debug_assert!(result.is_ok());
         carriers.push_front(UnsafeRef::from_raw(carrier_ptr));
-        let block = result.map(|ptr| MemoryBlock {
-            ptr,
-            size: size_class.to_bytes(),
-        })?;
-        AllocInit::init(init, block);
-        Ok(block)
+
+        result.map(|data| NonNull::slice_from_raw_parts(data, size_class.to_bytes()))
     }
 
     pub unsafe fn reallocate(
         &self,
         ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        let new_size = new_layout.size();
         if unlikely(new_size > self.max_size_class.to_bytes()) {
-            return Err(AllocErr);
+            return Err(AllocError);
         }
-        let size = layout.size();
-        let size_class = self.size_class_for_unchecked(size);
+        let old_size = old_layout.size();
+        let old_size_class = self.size_class_for_unchecked(old_size);
         let new_size_class = self.size_class_for_unchecked(new_size);
         // If the size is in the same size class, we don't have to do anything
-        if size_class == new_size_class {
-            return Ok(MemoryBlock {
-                ptr,
-                size: size_class.to_bytes(),
-            });
+        if old_size_class == new_size_class {
+            return Ok(NonNull::slice_from_raw_parts(ptr, new_size));
         }
         // Otherwise we have to allocate in the new size class,
         // copy to that new block, and deallocate the original block
-        if placement != ReallocPlacement::MayMove {
-            return Err(AllocErr);
-        }
-        let align = layout.align();
-        let new_layout = Layout::from_size_align_unchecked(new_size, align);
-        let block = self.allocate(new_layout, init)?;
+        let non_null_byte_size = self.allocate(new_layout)?;
         // Copy
-        let copy_size = cmp::min(size, block.size);
-        ptr::copy_nonoverlapping(ptr.as_ptr(), block.ptr.as_ptr(), copy_size);
+        let copy_size = cmp::min(old_size, non_null_byte_size.len());
+        ptr::copy_nonoverlapping(ptr.as_ptr(), non_null_byte_size.as_mut_ptr(), copy_size);
         // Deallocate the original block
-        self.deallocate(ptr, layout);
+        self.deallocate(ptr, old_layout);
         // Return new block
-        AllocInit::init_offset(init, block, copy_size);
-        Ok(block)
+        Ok(non_null_byte_size)
     }
 
     pub unsafe fn deallocate(&self, ptr: NonNull<u8>, _layout: Layout) {
@@ -191,7 +168,7 @@ impl SizeClassAlloc {
     /// allocator, or it will not be used, and will not be freed
     unsafe fn create_carrier(
         size_class: SizeClass,
-    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
+    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocError> {
         let size = SUPERALIGNED_CARRIER_SIZE;
         assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
@@ -204,38 +181,35 @@ impl SizeClassAlloc {
     }
 }
 
-unsafe impl AllocRef for SizeClassAlloc {
+unsafe impl Allocator for SizeClassAlloc {
     #[inline]
-    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
-        unsafe { self.allocate(layout, init) }
+    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
+        unsafe { self.allocate(layout) }
+    }
+
+    #[inline]
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
+        self.deallocate(ptr, layout);
     }
 
     #[inline]
     unsafe fn grow(
-        &mut self,
+        &self,
         ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
-        self.reallocate(ptr, layout, new_size, placement, init)
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        self.reallocate(ptr, old_layout, new_layout)
     }
 
     #[inline]
     unsafe fn shrink(
-        &mut self,
+        &self,
         ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-    ) -> Result<MemoryBlock, AllocErr> {
-        self.reallocate(ptr, layout, new_size, placement, AllocInit::Uninitialized)
-    }
-
-    #[inline]
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        self.deallocate(ptr, layout);
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        self.reallocate(ptr, old_layout, new_layout)
     }
 }
 

@@ -38,7 +38,7 @@ version = "0.8"
 features = ["nightly"]
 
 [dependencies.parking_lot_core]
-version = "0.7"
+version = "0.8.3"
 features = ["nightly"]
 
 [features]

@@ -161,25 +161,30 @@ where
 {
     let cwd = std::env::current_dir().unwrap();
     let build_path = cwd.join("tests/_build");
-    let bin_path = build_path.join(name);
 
     // `file!()` starts with path relative to workspace root, but the `current_dir` will be inside
     // the crate root, so need to strip the relative crate root.
     let file_path = Path::new(file);
-    let relative_file_path = file_path.strip_prefix("native_implemented/otp").unwrap();
-    let directory_path = relative_file_path.parent().unwrap();
+    let crate_relative_file_path = file_path.strip_prefix("native_implemented/otp").unwrap();
+    let crate_relative_directory_path = crate_relative_file_path.parent().unwrap();
+    let tests_relative_directory_path =
+        crate_relative_directory_path.strip_prefix("tests").unwrap();
     let file_stem = file_path.file_stem().unwrap();
-    let test_directory_path = directory_path.join(file_stem).join(name);
-    let file_build_path = build_path.join(file_stem).join(name);
+    let output_directory_path = build_path
+        .join(tests_relative_directory_path)
+        .join(file_stem)
+        .join(name);
+    let output_path = output_directory_path.join("bin").join(name);
+    let test_directory_path = crate_relative_directory_path.join(file_stem).join(name);
 
     let mut command = Command::new("../../bin/lumen");
 
     command
         .arg("compile")
         .arg("--output")
-        .arg(&bin_path)
+        .arg(&output_path)
         .arg("--output-dir")
-        .arg(&file_build_path)
+        .arg(&output_directory_path)
         .arg("-O0");
 
     if std::env::var_os("DEBUG").is_some() {
@@ -191,7 +196,7 @@ where
         test_directory_path: &test_directory_path,
     });
 
-    timeout("Compilation", cwd, command, Duration::from_secs(30)).map(|_| bin_path)
+    timeout("Compilation", cwd, command, Duration::from_secs(30)).map(|_| output_path)
 }
 
 pub fn timeout(
@@ -262,7 +267,8 @@ pub fn output(file: &str, name: &str) -> (Command, Output) {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .unwrap();
+        .unwrap_or_else(|error| panic!("Could not run {:?}: {:?}", bin_path_buf, error));
+
     let time_limit = Duration::from_secs(10);
 
     let output = process

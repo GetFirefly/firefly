@@ -1,6 +1,8 @@
 #![deny(warnings)]
 // Do not fail the build when feature flags are stabilized on recent nightlies, just warn
 #![allow(stable_features)]
+// allow for incomplete `specialization`
+#![allow(incomplete_features)]
 // Support backtraces in errors
 #![feature(backtrace)]
 #![feature(const_fn)]
@@ -15,12 +17,15 @@
 #![feature(specialization)]
 // Support SliceIndex trait
 #![feature(slice_index_methods)]
+#![feature(slice_ptr_get)]
 #![feature(trait_alias)]
 #![feature(raw_vec_internals)]
 // Support external thread locals
 #![feature(thread_local)]
 #![feature(weak_into_raw)]
 #![feature(unwind_attributes)]
+#![feature(slice_ptr_len)]
+#![feature(nonnull_slice_from_raw_parts)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;
@@ -48,12 +53,7 @@ pub mod std_alloc;
 #[cfg(test)]
 mod test;
 
-/// The system allocator. Can be used with `#[global_allocator]`, like so:
-///
-/// ```ignore
-/// #[global_allocator]
-/// pub static ALLOC: SysAlloc = SysAlloc;
-/// ```
+/// The system allocator.
 pub use liblumen_core::alloc::SysAlloc;
 
 /// A tracing allocator for tracking statistics about the allocator it wraps

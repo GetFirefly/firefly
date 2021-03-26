@@ -19,8 +19,8 @@ use thiserror::private::PathAsDisplay;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 use liblumen_session::filesearch;
 use liblumen_session::search_paths::PathKind;
-use liblumen_session::{CFGuard, DebugInfo, Options, ProjectType, Sanitizer};
-use liblumen_target::crt_objects::{CrtObjects, CrtObjectsFallback};
+use liblumen_session::{CFGuard, DebugInfo, Options, ProjectType};
+use liblumen_target::crt_objects::CrtObjectsFallback;
 use liblumen_target::{
     LinkOutputKind, LinkerFlavor, LldFlavor, PanicStrategy, RelocModel, RelroLevel,
 };
@@ -1238,18 +1238,22 @@ fn add_link_script(
     match (project_type, &options.target.options.link_script) {
         (ProjectType::Cdylib | ProjectType::Executable, Some(script)) => {
             if !options.target.options.linker_is_gnu {
-                diagnostics.fatal("can only use link script when linking with GNU-like linker");
+                diagnostics
+                    .fatal("can only use link script when linking with GNU-like linker")
+                    .raise();
             }
 
             let file_name = ["lumen", &options.target.llvm_target, "linkfile.ld"].join("-");
 
             let path = tmpdir.join(file_name);
             if let Err(e) = fs::write(&path, script) {
-                diagnostics.fatal(&format!(
-                    "failed to write link script to {}: {}",
-                    path.display(),
-                    e
-                ));
+                diagnostics
+                    .fatal(&format!(
+                        "failed to write link script to {}: {}",
+                        path.display(),
+                        e
+                    ))
+                    .raise();
             }
 
             cmd.arg("--script");
@@ -1281,12 +1285,11 @@ fn add_late_link_args(
     options: &Options,
     flavor: LinkerFlavor,
     project_type: ProjectType,
-    codegen_results: &CodegenResults,
+    _codegen_results: &CodegenResults,
 ) {
     if let Some(args) = options.target.options.late_link_args.get(&flavor) {
         cmd.args(args);
     }
-    let any_dynamic_deps = false; // linkage == Linkage::Dynamic
     let any_dynamic_crate = project_type == ProjectType::Dylib;
     if any_dynamic_crate {
         if let Some(args) = options.target.options.late_link_args_dynamic.get(&flavor) {
@@ -1320,7 +1323,7 @@ fn add_local_crate_regular_objects(cmd: &mut dyn Linker, codegen_results: &Codeg
 fn link_local_crate_native_libs_and_dependent_crate_libs<'a>(
     cmd: &mut dyn Linker,
     options: &'a Options,
-    project_type: ProjectType,
+    _project_type: ProjectType,
     codegen_results: &CodegenResults,
     tmpdir: &Path,
 ) {
@@ -1355,7 +1358,7 @@ fn link_local_crate_native_libs_and_dependent_crate_libs<'a>(
     // external build system already has the native dependencies defined, and it
     // will provide them to the linker itself.
     if options.debugging_opts.link_native_libraries {
-        add_local_native_libraries(cmd, options, codegen_results, tmpdir);
+        add_local_native_libraries(cmd, options, codegen_results, tmpdir).unwrap();
     }
     //if options.debugging_opts.link_native_libraries {
     //    add_upstream_native_libraries(cmd, options, codegen_results, project_type);

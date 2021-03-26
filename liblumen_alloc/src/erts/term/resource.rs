@@ -94,7 +94,8 @@ impl Resource {
             mem::forget(self);
             // Just free the allocation for the ResourceInner,
             // which is separate from that of the Box value
-            sys_alloc::free(ptr, layout);
+            let non_null = NonNull::new_unchecked(ptr);
+            sys_alloc::deallocate(non_null, layout);
             // Cast and return the value
             Ok(value.downcast::<T>().unwrap())
         }
@@ -134,7 +135,8 @@ impl Resource {
             ptr::drop_in_place(&mut inner.resource);
             // Free the allocation for the ResourceInner struct
             let layout = Layout::for_value(&inner);
-            sys_alloc::free(inner as *const _ as *mut u8, layout);
+            let non_null_inner = NonNull::new_unchecked(inner as *const _ as *mut u8);
+            sys_alloc::deallocate(non_null_inner, layout);
         }
     }
 }
@@ -281,8 +283,7 @@ impl ResourceInner {
         let layout = Layout::new::<Self>();
 
         unsafe {
-            let ptr = sys_alloc::alloc(layout)
-                .map(|block| block.ptr)
+            let ptr = sys_alloc::allocate(layout)
                 .map_err(|_| alloc!())?
                 .cast::<Self>()
                 .as_ptr();

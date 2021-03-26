@@ -141,13 +141,13 @@ where
     pub unsafe fn realloc_block(
         &self,
         ptr: *mut u8,
-        layout: &Layout,
-        new_size: usize,
+        old_layout: &Layout,
+        new_layout: &Layout,
     ) -> Option<NonNull<u8>> {
         // Locate the given block
         // The pointer given is for the aligned data region, so we need
         // to find the block which contains this pointer
-        let old_size = layout.size();
+        let old_size = old_layout.size();
         let mut result = Some(self.head());
         loop {
             if result.is_none() {
@@ -156,6 +156,7 @@ where
             let mut block = result.unwrap();
             let blk = block.as_mut();
             if blk.owns(ptr) {
+                let new_size = new_layout.size();
                 if old_size <= new_size {
                     // Try to grow in place, otherwise proceed to realloc
                     if blk.grow_in_place(new_size) {
@@ -179,8 +180,7 @@ where
         let blk = block.as_mut();
 
         // Unable to alloc in previous block, so this requires a new allocation
-        let layout = Layout::from_size_align_unchecked(new_size, layout.align());
-        let new_block = self.alloc_block(&layout)?;
+        let new_block = self.alloc_block(&new_layout)?;
         let new_ptr = new_block.as_ptr();
         // Copy old data into new block
         ptr::copy_nonoverlapping(ptr, new_ptr, old_size);
@@ -280,12 +280,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::alloc::AllocRef;
+    use core::alloc::Allocator;
 
     use super::*;
 
     use intrusive_collections::RBTreeLink;
-    use liblumen_core::alloc::{prelude::*, SysAlloc};
+    use liblumen_core::alloc::SysAlloc;
 
     use crate::blocks::FreeBlockRef;
     use crate::carriers::SUPERALIGNED_CARRIER_SIZE;
@@ -296,11 +296,9 @@ mod tests {
         let size = SUPERALIGNED_CARRIER_SIZE;
         let carrier_layout = Layout::from_size_align(size, size).unwrap();
         // Allocate region
-        let alloc_block = SysAlloc::get_mut()
-            .alloc(carrier_layout, AllocInit::Uninitialized)
-            .unwrap();
+        let non_null_byte_slice = SysAlloc::get_mut().allocate(carrier_layout).unwrap();
         // Get pointer to carrier header location
-        let carrier = alloc_block.ptr.as_ptr() as *mut MultiBlockCarrier<RBTreeLink>;
+        let carrier = non_null_byte_slice.as_mut_ptr().cast();
         // Write initial carrier header
         unsafe {
             ptr::write(
@@ -343,6 +341,6 @@ mod tests {
         assert_eq!(mbc.num_blocks(), 1);
         // Cleanup
         drop(mbc);
-        unsafe { SysAlloc::get_mut().dealloc(alloc_block.ptr, carrier_layout) };
+        unsafe { SysAlloc::get_mut().deallocate(non_null_byte_slice.cast(), carrier_layout) };
     }
 }

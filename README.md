@@ -35,15 +35,15 @@ In order to build Lumen, or make changes to it, you'll need the following instal
 First, you will need to install [rustup](https://rustup.rs/). Follow the instructions at that link.
 
 Once you have installed `rustup`, you will need to install the nightly version
-of Rust (currently our CI builds against the 2020-05-13 nightly). We require
+of Rust (currently our CI builds against the 2021-01-29 nightly). We require
 nightly due to a large number of nightly features we use, as well as some
 dependencies for the WebAssembly targets that we make use of.
 
     # to use the latest nightly
     rustup default nightly
     
-    # or, in case of issues, install the 2020-05-13 nightly to match our CI
-    rustup default nightly-2020-05-13
+    # or, in case of issues, install the 2021-01-29 nightly to match our CI
+    rustup default nightly-2021-01-29
     
 In order to run various build tasks in the project, you'll need the [cargo-make](https://github.com/sagiegurari/cargo-make) plugin for Cargo. You can install it with:
 

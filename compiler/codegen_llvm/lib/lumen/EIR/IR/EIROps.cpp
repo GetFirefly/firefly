@@ -2414,8 +2414,10 @@ static LogicalResult verify(MallocOp op) {
         if (!termType.isBoxable())
             return op.emitOpError("cannot malloc an unboxable term type");
 
-        Optional<Value> arityVal = op.arity();
-        if (arityVal.hasValue()) {
+        // Optional<arity> in `arguments` is `Value()`, that is `Value(nullptr)` if not given and not an
+        // `Optional<Value>`.  MLIR `arguments` `Optional` is unfortunately not related to `llvm::Optional`.
+        Value arityVal = op.arity();
+        if (arityVal != nullptr) {
             if (!termType.hasDynamicExtent())
                 return op.emitOpError(
                     "it is invalid to specify arity with statically-sized "
@@ -2744,10 +2746,11 @@ struct CanonicalizeBinaryPush : public OpRewritePattern<BinaryPushOp> {
             valueOperand.assign(v);
         }
 
-        Optional<Value> sizeOpt = op.size();
-        if (!sizeOpt.hasValue()) return success();
+        // Optional<size> in `arguments` is `Value()`, that is `Value(nullptr)` if not given and not an
+        // `Optional<Value>`.  MLIR `arguments` `Optional` is unfortunately not related to `llvm::Optional`.
+        Value size = op.size();
+        if (size == nullptr) return success();
 
-        Value size = sizeOpt.getValue();
         Value s = castToTermEquivalent(rewriter, size);
         if (s != size) {
             auto sizeOperand = op.sizeMutable();

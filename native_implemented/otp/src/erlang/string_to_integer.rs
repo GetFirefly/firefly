@@ -7,7 +7,7 @@ use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::erlang::base::Base;
+use crate::runtime::base::Base;
 use crate::runtime::context;
 
 pub fn base_string_to_integer(

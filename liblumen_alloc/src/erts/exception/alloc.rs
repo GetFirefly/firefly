@@ -1,5 +1,5 @@
 use alloc::sync::Arc;
-use core::alloc::AllocErr;
+use core::alloc::AllocError;
 
 use thiserror::Error;
 
@@ -33,9 +33,9 @@ impl PartialEq for Alloc {
     }
 }
 
-impl From<AllocErr> for Alloc {
+impl From<AllocError> for Alloc {
     #[inline(always)]
-    fn from(_: AllocErr) -> Self {
+    fn from(_: AllocError) -> Self {
         Self::new()
     }
 }

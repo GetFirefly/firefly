@@ -2,6 +2,9 @@ name: wasm32-unknown-unknown (macOS)
 
 on: push
 
+env:
+  TOOLCHAIN: nightly-2021-01-29
+
 jobs:
   wasm:
     runs-on: macos-latest
@@ -11,7 +14,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2020-05-13
+          toolchain: ${{ env.TOOLCHAIN }}
           override: true
       - name: Cache Cargo
         uses: actions/cache@v2
@@ -19,7 +22,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-${{ github.job }}-toolchain-${{ env.TOOLCHAIN }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-make
         uses: actions-rs/cargo@v1
         with:
@@ -48,9 +51,9 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test-web -- --chrome --safari
+          args: test-web -- --chrome --firefox --safari
       - name: Test Spawn Chain
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test-spawn-chain-wasm -- --chrome --safari
+          args: test-spawn-chain-wasm -- --firefox --safari

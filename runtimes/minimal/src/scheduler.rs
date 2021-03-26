@@ -406,7 +406,7 @@ impl Scheduler {
         let scheduler_ctx = &self.root.registers as *const _ as *mut _;
         let process_ctx = &self.current.registers as *const _ as *mut _;
         unsafe {
-            swap_stack(process_ctx, scheduler_ctx);
+            swap_stack(process_ctx, scheduler_ctx, FIRST_SWAP);
         }
         true
     }
@@ -584,7 +584,7 @@ impl Scheduler {
         // When swapping to a previously spawned process, we return to the end
         // of `process_yield`, which is what the process last called before the
         // scheduler was swapped in.
-        swap_stack(prev_ctx, new_ctx);
+        swap_stack(prev_ctx, new_ctx, FIRST_SWAP);
     }
 
     // Root process uses the original thread stack, no initialization required.
@@ -662,7 +662,7 @@ impl Scheduler {
                 // This can be used to push items on the process
                 // stack before it starts executing. For now that
                 // is not being done
-                let mut sp = StackPointer(stack.top as *mut u64);
+                let sp = StackPointer(stack.top as *mut u64);
 
                 // Update process stack pointer
                 let s_top = &stack.top as *const _ as *mut _;
@@ -687,7 +687,7 @@ impl Scheduler {
                 // function to perform some initial one-time setup to link
                 // call frames for the unwinder and call __lumen_trap_exceptions
                 let r13 = &process.registers.r13 as *const u64 as *mut _;
-                ptr::write(r13, 0xdeadbeef as u64);
+                ptr::write(r13, FIRST_SWAP);
 
                 // The function that __lumen_trap_exceptions will call as entry
                 let r14 = &process.registers.r14 as *const u64 as *mut _;
@@ -710,123 +710,19 @@ fn reset_reduction_counter() -> u64 {
     //CURRENT_REDUCTION_COUNT.swap(0, Ordering::Relaxed)
 }
 
-/// This function uses inline assembly to save the callee-saved registers for the outgoing
-/// process, and restore them for the incoming process. When this function returns, it will
-/// resume execution where `swap_stack` was called previously.
-#[naked]
-#[inline(never)]
-#[unwind(allowed)]
-#[cfg(all(unix, target_arch = "x86_64"))]
-unsafe extern "C" fn swap_stack(prev: *mut CalleeSavedRegisters, new: *const CalleeSavedRegisters) {
-    const FIRST_SWAP: u64 = 0xdeadbeef;
-    llvm_asm!("
-       # Save the return address to a register
-        leaq     0f(%rip),  %rax
+const FIRST_SWAP: u64 = 0xdeadbeef;
 
-       # Save the parent base pointer for when control returns to this call frame.
-       # CFA directives will inform the unwinder to expect %rbp at the bottom of the
-       # stack for this frame, so this should be the last value on the stack in the caller
-        pushq    %rbp
-
-       # We also save %rbp and %rsp to registers so that we can setup CFA directives if this
-       # is the first swap for the target process
-        movq     %rbp, %rcx
-        movq     %rsp, %r9
-
-       # Save the stack pointer, and callee-saved registers of `prev`
-        movq     %rsp, ($0)
-        movq     %r15, 8($0)
-        movq     %r14, 16($0)
-        movq     %r13, 24($0)
-        movq     %r12, 32($0)
-        movq     %rbx, 40($0)
-        movq     %rbp, 48($0)
-
-       # Restore the stack pointer, and callee-saved registers of `new`
-        movq     ($1),   %rsp
-        movq     8($1),  %r15
-        movq     16($1), %r14
-        movq     24($1), %r13
-        movq     32($1), %r12
-        movq     40($1), %rbx
-        movq     48($1), %rbp
-
-       # The value of all the callee-saved registers has changed, so we
-       # need to inform the unwinder of that fact before proceeding
-        .cfi_restore %rsp
-        .cfi_restore %r15
-        .cfi_restore %r14
-        .cfi_restore %r13
-        .cfi_restore %r12
-        .cfi_restore %rbx
-        .cfi_restore %rbp
-
-       # If this is the first time swapping to this process,
-       # we need to to perform some one-time initialization to
-       # link the stack to the original parent stack (i.e. the scheduler),
-       # which is important for the unwinder
-        cmpq     %r13, $2
-        jne      ${:private}_resume
-
-       # Ensure we never perform initialization twice
-        movq  $$0x0, %r13
-       # Store the original base pointer at the top of the stack
-        pushq %rcx
-       # Followed by the return address
-        pushq %rax
-       # Finally we store a pointer to the bottom of the stack in the
-       # parent call frame. The unwinder will expect to restore %rbp
-       # from this address
-        pushq %r9
-
-       # These CFI directives inform the unwinder of where it can expect
-       # to find the CFA relative to %rbp. This matches how we've laid out the stack.
-       #
-       # - The current %rbp is now 24 bytes (3 words) above %rsp.
-       # - 16 bytes _down_ from the current %rbp is the value from %r9 that
-       # we pushed, containing the parent call frame's stack pointer.
-       #
-       # The first directive tells the unwinder that it can expect to find the
-       # CFA (call frame address) 16 bytes above %rbp. The second directive then
-       # tells the unwinder that it can find the previous %rbp 16 bytes _down_
-       # from the current %rbp. The result is that the unwinder will restore %rbp
-       # from that stack slot, and will then expect to find the previous CFA 16 bytes
-       # above that address, allowing the unwinder to walk back into the parent frame
-        .cfi_def_cfa %rbp, 16
-        .cfi_offset %rbp, -16
-
-       # Now that the frames are linked, we can call the entry point. For now, this
-       # is __lumen_trap_exceptions, which expects to receive two arguments: the function
-       # being wrapped by the exception handler, and the value of the closure environment,
-       # _if_ it is a closure being called, otherwise the value of that argument is Term::NONE
-        movq  %r14, %rdi
-        movq  %r12, %rsi
-       # We have already set up the stack precisely, so we don't use callq here, instead
-       # we go ahead and jump straight to the beginning of the entry function.
-       # NOTE: This call never truly returns, as the exception handler calls __lumen_builtin_exit
-       # with the return value of the 'real' entry function, or with an exception if one
-       # is caught. However, swap_stack _does_ return for all other swaps, just not the first.
-        jmpq *%r15
-
-     ${:private}_resume:
-       # We land here only on a context switch, and since the last switch _away_ from
-       # this process pushed %rbp on to the stack, and we don't need that value, we
-       # adjust the stack pointer accordingly.
-        add $$8, %rsp
-
-       # At this point we will return back to where execution left off:
-       # For the 'root' (scheduler) process, this returns back into `swap_process`;
-       # for all other processes, this returns to the code which was executing when
-       # it yielded, the address of which is 8 bytes above the current stack pointer.
-       # We pop and jmp rather than ret to avoid branch mispredictions.
-        popq %rax
-        jmpq *%rax
-     0:
-    "
-    :
-    : "{rdi}"(prev), "{rsi}"(new), "{rdx}"(FIRST_SWAP)
-    :
-    : "volatile", "alignstack"
+extern "C" {
+    #[unwind(allowed)]
+    #[link_name = "__lumen_swap_stack"]
+    pub fn swap_stack(
+        prev: *mut CalleeSavedRegisters,
+        new: *const CalleeSavedRegisters,
+        first_swap: u64,
     );
-    core::intrinsics::unreachable();
 }
+
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+global_asm!(include_str!("scheduler/lumen_swap_stack/macos/x86_64.s"));
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+global_asm!(include_str!("scheduler/lumen_swap_stack/linux/x86_64.s"));

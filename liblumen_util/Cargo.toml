@@ -12,4 +12,4 @@ thiserror = "1.0"
 libc = "0.2"
 glob = "0.3"
 atty = "0.2"
-libeir_diagnostics = { git = "https://github.com/eirproject/eir", branch = "lumen" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir" }

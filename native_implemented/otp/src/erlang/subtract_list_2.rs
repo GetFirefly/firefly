@@ -41,7 +41,13 @@ pub fn result(process: &Process, minuend: Term, subtrahend: Term) -> exception::
                         for result in subtrahend_cons.into_iter() {
                             match result {
                                 Ok(subtrahend_element) => {
-                                    minuend_vec.remove_item(&subtrahend_element)
+                                    if let Some(index) =
+                                        minuend_vec.iter().position(|minuend_element| {
+                                            *minuend_element == subtrahend_element
+                                        })
+                                    {
+                                        minuend_vec.remove(index);
+                                    }
                                 }
                                 Err(ImproperList { .. }) => {
                                     return Err(ImproperListError)

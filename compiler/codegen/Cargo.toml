@@ -28,13 +28,13 @@ liblumen_core = { path = "../../liblumen_core" }
 liblumen_compiler_macros = { path = "../macros" }
 
 # eirproject/eir crates
-libeir_diagnostics = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
-libeir_intern = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
-libeir_ir = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
-libeir_lowerutils = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
-libeir_util_datastructures = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
-libeir_util_number = { git = "https://github.com/eirproject/eir.git", branch = "lumen" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
+libeir_intern = { git = "https://github.com/eirproject/eir.git" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git" }
+libeir_lowerutils = { git = "https://github.com/eirproject/eir.git" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
+libeir_util_datastructures = { git = "https://github.com/eirproject/eir.git" }
+libeir_util_number = { git = "https://github.com/eirproject/eir.git" }
 
 # llvm crates
 [build-dependencies]

@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
 
-use crate::erlang::integer_to_string::decimal_integer_to_string;
+use crate::runtime::integer_to_string::decimal_integer_to_string;
 
 #[native_implemented::function(erlang:integer_to_list/1)]
 pub fn result(process: &Process, integer: Term) -> exception::Result<Term> {

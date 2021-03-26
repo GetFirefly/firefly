@@ -2,11 +2,14 @@ name: wasm32-unknown-unknown (Linux)
 
 on: push
 
+env:
+  TOOLCHAIN: nightly-2021-01-29
+
 jobs:
   wasm:
     runs-on: ubuntu-latest
     container:
-      image: kronicdeth/lumen-development@sha256:71d03d818e85085995170b6211ec9ad17231bfee5716bda0552e14a7d1979b1b
+      image: kronicdeth/lumen-development@sha256:2809805464d685940b58765a634fa23a5fd1a62c65710cfa43a8791cd50fbecd
 
     steps:
       - uses: actions/checkout@v2
@@ -16,7 +19,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-${{ github.job }}-toolchain-${{ env.TOOLCHAIN }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
       # $HOME is owned by user id 1001.  `container` `options` `--user 1001` doesn't work because dependencies can't be
       # installed, so make root own the directory instead, so that Firefox doesn't complain that root is using a profile
       # for a different user.
@@ -25,4 +28,4 @@ jobs:
       - name: Lumen Web Test
         run: cargo make test-web -- --chrome --firefox
       - name: Spawn Chain Test
-        run: cargo make test-spawn-chain-wasm -- --chrome --firefox
+        run: cargo make test-spawn-chain-wasm -- --firefox

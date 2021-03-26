@@ -83,8 +83,8 @@ impl<T: Default, H: Histogram + Clone + Default> Default for StatsAlloc<T, H> {
         Self::new(T::default())
     }
 }
-unsafe impl<T: AllocRef + Sync, H: Histogram + Clone + Default> Sync for StatsAlloc<T, H> {}
-unsafe impl<T: AllocRef + Send, H: Histogram + Clone + Default> Send for StatsAlloc<T, H> {}
+unsafe impl<T: Allocator + Sync, H: Histogram + Clone + Default> Sync for StatsAlloc<T, H> {}
+unsafe impl<T: Allocator + Send, H: Histogram + Clone + Default> Send for StatsAlloc<T, H> {}
 
 /// This struct represents a snapshot of the stats gathered
 /// by an instances of `StatsAlloc`, and is used for display
@@ -114,124 +114,134 @@ impl<H: Histogram + Clone + Default> fmt::Display for Statistics<H> {
     }
 }
 
-unsafe impl<T: AllocRef, H: Histogram + Clone + Default> AllocRef for StatsAlloc<T, H> {
+unsafe impl<T: Allocator, H: Histogram + Clone + Default> Allocator for StatsAlloc<T, H> {
     #[inline]
-    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
+    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         let size = layout.size();
         let align = layout.align();
-        match self.allocator.alloc(layout, init) {
+        match self.allocator.allocate(layout) {
             err @ Err(_) => {
                 hooks::on_alloc(self.tag.to_owned(), size, align, ptr::null_mut());
                 err
             }
-            Ok(block) => {
+            Ok(non_null_byte_slice) => {
                 self.alloc_calls.fetch_add(1, Ordering::SeqCst);
                 self.total_bytes_alloced.fetch_add(size, Ordering::SeqCst);
                 let mut h = self.histogram.write();
-                h.add(block.size as u64).ok();
+                h.add(size as u64).ok();
                 drop(h);
-                hooks::on_alloc(self.tag.to_owned(), block.size, align, block.ptr.as_ptr());
-                Ok(block)
+                hooks::on_alloc(
+                    self.tag.to_owned(),
+                    size,
+                    align,
+                    non_null_byte_slice.as_mut_ptr(),
+                );
+                Ok(non_null_byte_slice)
             }
         }
     }
 
     #[inline]
-    unsafe fn grow(
-        &mut self,
-        ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-        init: AllocInit,
-    ) -> Result<MemoryBlock, AllocErr> {
-        let old_ptr = ptr.as_ptr();
-        let old_size = layout.size();
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
+        let size = layout.size();
         let align = layout.align();
-        match self.allocator.grow(ptr, layout, new_size, placement, init) {
+        let freed = ptr.as_ptr();
+        self.allocator.deallocate(ptr, layout);
+        self.dealloc_calls.fetch_add(1, Ordering::SeqCst);
+        self.total_bytes_freed.fetch_add(size, Ordering::SeqCst);
+        hooks::on_dealloc(self.tag.to_owned(), size, align, freed);
+    }
+
+    #[inline]
+    unsafe fn grow(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        let old_ptr = ptr.as_ptr();
+        let old_size = old_layout.size();
+        let old_align = old_layout.align();
+        let new_size = new_layout.size();
+        let new_align = new_layout.align();
+        match self.allocator.grow(ptr, old_layout, new_layout) {
             err @ Err(_) => {
                 hooks::on_realloc(
                     self.tag.to_owned(),
                     old_size,
                     new_size,
-                    align,
+                    old_align,
+                    new_align,
                     old_ptr,
                     ptr::null_mut(),
                 );
                 err
             }
-            Ok(block) => {
+            Ok(non_null_byte_slice) => {
                 self.realloc_calls.fetch_add(1, Ordering::SeqCst);
-                let diff = block.size - old_size;
+                let diff = new_size - old_size;
                 self.total_bytes_alloced.fetch_add(diff, Ordering::SeqCst);
                 let mut h = self.histogram.write();
-                h.add(block.size as u64).ok();
+                h.add(new_size as u64).ok();
                 drop(h);
                 hooks::on_realloc(
                     self.tag.to_owned(),
                     old_size,
-                    block.size,
-                    align,
+                    new_size,
+                    old_align,
+                    new_align,
                     old_ptr,
-                    block.ptr.as_ptr(),
+                    non_null_byte_slice.as_mut_ptr(),
                 );
-                Ok(block)
+                Ok(non_null_byte_slice)
             }
         }
     }
 
     #[inline]
     unsafe fn shrink(
-        &mut self,
+        &self,
         ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-        placement: ReallocPlacement,
-    ) -> Result<MemoryBlock, AllocErr> {
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
         let old_ptr = ptr.as_ptr();
-        let old_size = layout.size();
-        let align = layout.align();
-        match self.allocator.shrink(ptr, layout, new_size, placement) {
+        let old_size = old_layout.size();
+        let old_align = old_layout.align();
+        let new_size = new_layout.size();
+        let new_align = new_layout.align();
+        match self.allocator.shrink(ptr, old_layout, new_layout) {
             err @ Err(_) => {
                 hooks::on_realloc(
                     self.tag.to_owned(),
                     old_size,
                     new_size,
-                    align,
+                    old_align,
+                    new_align,
                     old_ptr,
                     ptr::null_mut(),
                 );
                 err
             }
-            Ok(block) => {
+            Ok(non_null_byte_slice) => {
                 self.realloc_calls.fetch_add(1, Ordering::SeqCst);
-                let diff = old_size - block.size;
+                let diff = old_size - non_null_byte_slice.len();
                 self.total_bytes_alloced.fetch_sub(diff, Ordering::SeqCst);
                 let mut h = self.histogram.write();
-                h.add(block.size as u64).ok();
+                h.add(non_null_byte_slice.len() as u64).ok();
                 drop(h);
                 hooks::on_realloc(
                     self.tag.to_owned(),
                     old_size,
-                    block.size,
-                    align,
+                    new_size,
+                    old_align,
+                    new_align,
                     old_ptr,
-                    block.ptr.as_ptr(),
+                    non_null_byte_slice.as_mut_ptr(),
                 );
-                Ok(block)
+                Ok(non_null_byte_slice)
             }
         }
-    }
-
-    #[inline]
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        let size = layout.size();
-        let align = layout.align();
-        let freed = ptr.as_ptr();
-        self.allocator.dealloc(ptr, layout);
-        self.dealloc_calls.fetch_add(1, Ordering::SeqCst);
-        self.total_bytes_freed.fetch_add(size, Ordering::SeqCst);
-        hooks::on_dealloc(self.tag.to_owned(), size, align, freed);
     }
 }
 
@@ -257,14 +267,23 @@ unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for Stat
     }
 
     #[inline]
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        let old_size = layout.size();
-        let align = layout.align();
+    unsafe fn realloc(&self, old_ptr: *mut u8, old_layout: Layout, new_size: usize) -> *mut u8 {
+        let old_size = old_layout.size();
+        let old_align = old_layout.align();
+        let new_align = old_align;
 
-        let result = self.allocator.realloc(ptr, layout, new_size);
-        if result.is_null() {
-            hooks::on_realloc(self.tag.to_owned(), old_size, new_size, align, ptr, result);
-            return result;
+        let new_ptr = self.allocator.realloc(old_ptr, old_layout, new_size);
+        if new_ptr.is_null() {
+            hooks::on_realloc(
+                self.tag.to_owned(),
+                old_size,
+                new_size,
+                old_align,
+                new_align,
+                old_ptr,
+                new_ptr,
+            );
+            return new_ptr;
         }
 
         self.realloc_calls.fetch_add(1, Ordering::SeqCst);
@@ -278,9 +297,17 @@ unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for Stat
         let mut h = self.histogram.write();
         h.add(new_size as u64).ok();
         drop(h);
-        hooks::on_realloc(self.tag.to_owned(), old_size, new_size, align, ptr, result);
+        hooks::on_realloc(
+            self.tag.to_owned(),
+            old_size,
+            new_size,
+            old_align,
+            new_align,
+            old_ptr,
+            new_ptr,
+        );
 
-        result
+        new_ptr
     }
 
     #[inline]

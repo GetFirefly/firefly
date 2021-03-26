@@ -1,10 +1,13 @@
+#![deny(warnings)]
 #![cfg_attr(not(test), no_std)]
 #![feature(test)]
 #![feature(core_intrinsics)]
 // Used for allocators
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
-#![feature(ptr_offset_from)]
+#![feature(nonnull_slice_from_raw_parts)]
+#![feature(slice_ptr_get)]
+#![feature(slice_ptr_len)]
 // Dynamic dispatch intrinsics
 #![feature(llvm_asm)]
 #![feature(naked_functions)]

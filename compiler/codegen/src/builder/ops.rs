@@ -37,6 +37,7 @@ pub enum OpKind {
     LogicOp(LogicalOperator),
     #[allow(dead_code)]
     Constant(Constant),
+    #[allow(dead_code)]
     FunctionRef(FunctionRef),
     Tuple(Tuple),
     Cons(Cons),

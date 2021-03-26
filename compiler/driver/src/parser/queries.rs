@@ -6,7 +6,7 @@ use libeir_syntax_erl::ParseConfig;
 
 use liblumen_session::{IRModule, Input, InputType};
 use liblumen_util::diagnostics::FileName;
-use liblumen_util::{seq, seq::Seq};
+use liblumen_util::seq::Seq;
 
 use super::prelude::*;
 

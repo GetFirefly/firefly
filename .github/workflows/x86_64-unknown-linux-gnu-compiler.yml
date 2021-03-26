@@ -2,10 +2,13 @@ name: x86_64-unknown-linux-gnu compiler
 
 on: push
 
+env:
+  TOOLCHAIN: nightly-2021-01-29
+
 jobs:
   compiler:
     runs-on: ubuntu-latest
-    container: kronicdeth/lumen-development@sha256:71d03d818e85085995170b6211ec9ad17231bfee5716bda0552e14a7d1979b1b
+    container: kronicdeth/lumen-development@sha256:2809805464d685940b58765a634fa23a5fd1a62c65710cfa43a8791cd50fbecd
 
     steps:
       - uses: actions/checkout@v2
@@ -15,7 +18,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ github.workflow }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-${{ github.job }}-toolchain-${{ env.TOOLCHAIN }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build Compiler
         uses: actions-rs/cargo@v1
         with:

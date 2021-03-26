@@ -27,7 +27,6 @@
 //!     let mut beam = RawBeamFile::new();
 //!     beam.push_chunk(chunk);
 //!     beam.to_file("my.beam").unwrap();
-//!
 pub mod chunk;
 pub mod parts;
 

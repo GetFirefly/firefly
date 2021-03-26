@@ -199,7 +199,7 @@ macro_rules! math_builtin {
                 Term::NONE
             }
         }
-    }
+    };
 }
 
 macro_rules! integer_math_builtin {
@@ -221,7 +221,7 @@ macro_rules! integer_math_builtin {
                 Term::NONE
             }
         }
-    }
+    };
 }
 
 #[export_name = "__lumen_builtin_math.add"]
@@ -285,9 +285,7 @@ pub extern "C" fn builtin_trace_construct(_trace_ref: Term) -> Term {
 
 #[export_name = "__lumen_builtin_fatal_error"]
 pub extern "C" fn builtin_fatal_error() -> ! {
-    unsafe {
-        core::intrinsics::abort();
-    }
+    core::intrinsics::abort();
 }
 
 /// Binary Construction
@@ -457,11 +455,14 @@ pub extern "C" fn builtin_binary_push_bits_size_unit(
 
 #[export_name = "__lumen_builtin_binary_push_bits_unit"]
 pub extern "C" fn builtin_binary_push_bits_unit(
-    _builder: &mut BinaryBuilder,
-    _value: Term,
-    _unit: u8,
+    builder: &mut BinaryBuilder,
+    value: Term,
+    unit: u8,
 ) -> BinaryPushResult {
-    unimplemented!();
+    BinaryPushResult {
+        builder,
+        success: builder.push_bits_unit(value, unit).is_ok(),
+    }
 }
 
 #[export_name = "__lumen_builtin_binary_push_string"]

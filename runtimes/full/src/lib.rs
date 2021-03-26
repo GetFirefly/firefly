@@ -1,7 +1,7 @@
 //#![deny(warnings)]
 #![allow(stable_features)]
 // `rand` has link errors
-#![allow(intra_doc_link_resolution_failure)]
+#![allow(broken_intra_doc_links)]
 // For allocating multiple contiguous terms, like for Tuples.
 #![feature(allocator_api)]
 #![feature(backtrace)]
@@ -21,8 +21,6 @@
 #![feature(untagged_unions)]
 // for `crate::distribution::nodes::insert`
 #![feature(option_unwrap_none)]
-// for `crate::list::Cons::subtract`.
-#![feature(vec_remove_item)]
 // `crate::registry::<Registered as PartialEq>::eq`
 #![feature(weak_ptr_eq)]
 // Layout helpers
@@ -39,7 +37,8 @@ extern crate cfg_if;
 extern crate chrono;
 
 pub use lumen_rt_core::{
-    binary_to_string, context, distribution, proplist, registry, send, test, time, timer,
+    base, binary_to_string, context, distribution, integer_to_string, proplist, registry, send,
+    test, time, timer,
 };
 
 #[cfg(not(any(test, target_arch = "wasm32")))]

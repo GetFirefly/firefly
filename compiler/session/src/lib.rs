@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 mod config;
 pub mod filesearch;
 pub mod search_paths;

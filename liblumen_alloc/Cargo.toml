@@ -51,7 +51,7 @@ features = ["nightly"]
 
 # for debugging
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3.20"
+version = "0.3.47"
 features = ['console']
 
 [dev-dependencies]

@@ -3,17 +3,13 @@ use std::path::Path;
 use std::ptr;
 use std::sync::Arc;
 
-use libeir_intern::Symbol;
-
 use liblumen_llvm as llvm;
 use liblumen_llvm::attributes::Attribute;
 use liblumen_llvm::builder::ModuleBuilder;
 use liblumen_llvm::enums::Linkage;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_session::{Input, Options, OutputType};
-use liblumen_term::{
-    Encoding, Encoding32, Encoding64, Encoding64Nanboxed, EncodingType, Tag, TermKind,
-};
+use liblumen_term::{Encoding, Encoding32, Encoding64, Encoding64Nanboxed, EncodingType, Tag};
 
 use crate::meta::CompiledModule;
 use crate::Result;
@@ -42,7 +38,6 @@ fn generate_standard(
 
     // Define LLVM types used during generation
     let usize_type = builder.get_usize_type();
-    let i1_type = builder.get_integer_type(1);
     let i8_type = builder.get_i8_type();
     let i8_ptr_type = builder.get_pointer_type(i8_type);
     let i32_type = builder.get_i32_type();
@@ -253,7 +248,6 @@ fn generate_wasm32(
 
     // Define LLVM types used during generation
     let usize_type = builder.get_usize_type();
-    let i1_type = builder.get_integer_type(1);
     let i8_type = builder.get_i8_type();
     let i8_ptr_type = builder.get_pointer_type(i8_type);
     let i32_type = builder.get_i32_type();
@@ -454,6 +448,7 @@ fn generate_wasm32(
     )))
 }
 
+#[allow(dead_code)]
 fn build_constant_box_tag<'a>(
     builder: &'a ModuleBuilder<'a>,
     ty: llvm::Type,
@@ -479,6 +474,7 @@ fn build_constant_box_tag<'a>(
     }
 }
 
+#[allow(dead_code)]
 fn build_constant_atom<'a>(
     builder: &'a ModuleBuilder<'a>,
     id: usize,
@@ -510,6 +506,7 @@ fn build_constant_atom<'a>(
     }
 }
 
+#[allow(dead_code)]
 fn build_tuple_header<'a>(
     builder: &'a ModuleBuilder<'a>,
     arity: usize,

@@ -1,9 +1,7 @@
 use std::cell::RefCell;
-use std::ffi::c_void;
 use std::fmt;
-use std::mem::{self, MaybeUninit};
+use std::mem::MaybeUninit;
 use std::os;
-use std::ptr;
 
 use anyhow::anyhow;
 

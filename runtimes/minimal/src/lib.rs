@@ -1,5 +1,6 @@
+#![deny(warnings)]
 #![feature(alloc_layout_extra)]
-#![feature(llvm_asm)]
+#![feature(global_asm)]
 #![feature(naked_functions)]
 #![feature(termination_trait_lib)]
 #![feature(thread_local)]
@@ -26,7 +27,8 @@ pub mod sys;
 use liblumen_alloc::erts::process::alloc::default_heap_size;
 
 pub use lumen_rt_core::{
-    binary_to_string, context, distribution, proplist, registry, send, time, timer,
+    base, binary_to_string, context, distribution, integer_to_string, proplist, registry, send,
+    time, timer,
 };
 
 use bus::Bus;

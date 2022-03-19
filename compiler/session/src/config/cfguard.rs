@@ -6,7 +6,7 @@ use crate::config::options::{invalid_value, required_option_missing};
 use crate::config::options::{OptionInfo, ParseOption};
 
 /// The different settings that the `-C control-flow-guard` flag can have.
-#[derive(Clone, Copy, PartialEq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum CFGuard {
     /// Do not emit Control Flow Guard metadata or checks.
     Disabled,
@@ -26,11 +26,11 @@ impl Default for CFGuard {
 impl FromStr for CFGuard {
     type Err = ();
 
-    fn from_str(s: &str) -> Result<CFGuard, ()> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "disabled" | "false" => Ok(CFGuard::Disabled),
-            "nochecks" => Ok(CFGuard::NoChecks),
-            "true" | "checks" => Ok(CFGuard::Checks),
+            "disabled" | "false" => Ok(Self::Disabled),
+            "nochecks" => Ok(Self::NoChecks),
+            "true" | "checks" => Ok(Self::Checks),
             _ => Err(()),
         }
     }

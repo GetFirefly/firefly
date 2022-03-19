@@ -28,39 +28,52 @@ impl Default for Timeout {
     }
 }
 
+/// This is a more compact encoding of Timeout
+///
+/// * A value of 0 is Immediate
+/// * A value of u64::MAX is infinity
+/// * Any other value is the monotonic clock instant at which the timeout occurs
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReceiveTimeout {
-    Immediate,
-    Absolute(Monotonic),
-    Infinity,
-}
+#[repr(transparent)]
+pub struct ReceiveTimeout(u64);
 impl ReceiveTimeout {
+    const IMMEDIATE: Self = Self(0);
+    const INFINITY: Self = Self(u64::MAX);
+
+    /// Creates a new absolute timeout from a monotonic clock
+    pub const fn absolute(value: Monotonic) -> Self {
+        Self(value.0)
+    }
+
+    /// Creates a new receive timeout based on the current monotonic clock and the given timeout
     pub fn new(monotonic: Monotonic, timeout: Timeout) -> Self {
         match timeout {
-            Timeout::Immediate => Self::Immediate,
-            Timeout::Duration(milliseconds) => Self::Absolute(monotonic + milliseconds),
-            Timeout::Infinity => Self::Infinity,
+            Timeout::Immediate => Self::IMMEDIATE,
+            Timeout::Infinity => Self::INFINITY,
+            Timeout::Duration(ms) => Self(monotonic.0 + ms.0),
         }
     }
 
-    pub fn monotonic(&self) -> Option<Monotonic> {
+    /// Returns this timeout as a monotonic clock value, if applicable
+    pub const fn monotonic(self) -> Option<Monotonic> {
         match self {
-            Self::Absolute(monotonic) => Some(*monotonic),
-            _ => None,
+            Self::IMMEDIATE | Self::INFINITY => None,
+            Self(value) => Some(Monotonic(value)),
         }
     }
 
-    pub fn is_timed_out(&self, time: Monotonic) -> bool {
+    /// Returns true if this timeout should be considered expired relative to the given monotonic clock time
+    pub fn is_timed_out(self, time: Monotonic) -> bool {
         match self {
-            Self::Immediate => true,
-            Self::Absolute(end) => *end <= time,
-            Self::Infinity => false,
+            Self::IMMEDIATE => true,
+            Self::INFINITY => false,
+            Self(value) => value <= time.0,
         }
     }
 }
 impl Default for ReceiveTimeout {
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
-        Self::Infinity
+        Self::INFINITY
     }
 }

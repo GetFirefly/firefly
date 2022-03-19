@@ -83,9 +83,8 @@ pub unsafe fn panic(data: *mut ErlangPanic) -> u32 {
 
 // Entry point for re-raising an exception, just delegates to the platform-specific implementation.
 #[allow(unreachable_code)]
-#[unwind(allowed)]
 #[no_mangle]
-pub unsafe fn __lumen_rethrow(ptr: *mut u8) -> ! {
+pub unsafe extern "C-unwind" fn __lumen_rethrow(ptr: *mut u8) -> ! {
     let exception = &mut *(ptr as *mut Exception);
 
     // If this is non-forced and a stopping place was found, then this is a
@@ -352,8 +351,7 @@ unsafe fn find_eh_action(
     target_env = "gnu"
 ))]
 #[no_mangle]
-#[unwind(allowed)]
-pub unsafe extern "C" fn lumen_eh_unwind_resume(panic_ctx: *mut u8) -> ! {
+pub unsafe extern "C-unwind" fn lumen_eh_unwind_resume(panic_ctx: *mut u8) -> ! {
     uw::_Unwind_Resume(panic_ctx as *mut uw::_Unwind_Exception);
 }
 

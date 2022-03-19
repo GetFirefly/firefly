@@ -1,8 +1,7 @@
 //! All modules under the `liblumen_otp` crate should mirror modules shipped with C-BEAM OTP
-#![deny(warnings)]
 #![feature(backtrace)]
 #![feature(thread_local)]
-#![feature(unwind_attributes)]
+#![feature(c_unwind)]
 
 #[macro_use]
 mod macros;

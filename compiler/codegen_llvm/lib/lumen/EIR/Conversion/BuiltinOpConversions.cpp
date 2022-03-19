@@ -43,13 +43,14 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
 
         Value input = adaptor.value();
 
-        auto matchType = op.getMatchType().cast<OpaqueTermType>();
+        auto matchType = op.getMatchType();
+        auto matchTypeInfo = cast<TermTypeInterface>(matchType);
         // Boxed types and immediate types are dispatched differently
-        if (matchType.isBox() ||
-            matchType.isBoxable(ctx.targetInfo.immediateBits())) {
-            OpaqueTermType boxedType;
-            if (matchType.isBox()) {
-                boxedType = matchType.cast<BoxType>().getBoxedType();
+        if (matchType.isa<BoxType>() ||
+            matchTypeInfo.isBoxable(ctx.targetInfo.immediateBits())) {
+            Type boxedType;
+            if (auto box = matchType.dyn_cast<BoxType>()) {
+                boxedType = box.getPointeeType();
             } else {
                 boxedType = matchType;
             }
@@ -72,9 +73,10 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
 
             // For tuples we have a dedicated op
             if (auto tupleType = boxedType.dyn_cast_or_null<eir::TupleType>()) {
-                if (tupleType.hasStaticShape()) {
-                    Value arity = llvm_constant(
-                        immedTy, ctx.getIntegerAttr(tupleType.getArity()));
+                auto size = tupleType.size();
+                if (size > 0) {
+                    Value arity =
+                        llvm_constant(immedTy, ctx.getIntegerAttr(size));
                     rewriter.replaceOpWithNewOp<IsTupleOp>(op, adaptor.value(),
                                                            arity);
                     return success();
@@ -92,21 +94,16 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
                 return success();
             }
 
-            StringRef symbolName("__lumen_builtin_is_boxed_type");
-            // If we're matching floats but the target doesn't use boxed floats,
-            // use the correct type check function
-            if (boxedType.isa<FloatType>() &&
-                !ctx.targetInfo.requiresPackedFloats())
-                symbolName = StringRef("__lumen_builtin_is_type");
-
             // For all other boxed types, the check is performed via builtin
-            auto matchKind = boxedType.getTypeKind().getValue();
+            StringRef symbolName("__lumen_builtin_is_boxed_type");
+
+            auto boxedTypeInfo = cast<TermTypeInterface>(boxedType);
+            auto matchKind = boxedTypeInfo.getTypeKind().getValue();
             Value matchConst =
                 llvm_constant(int32Ty, ctx.getI32Attr(matchKind));
             auto callee =
                 ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
-            auto calleeSymbol =
-                FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
             rewriter.replaceOpWithNewOp<mlir::CallOp>(
                 op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
             return success();
@@ -117,13 +114,12 @@ struct IsTypeOpConversion : public EIROpConversion<IsTypeOp> {
         // TODO: With some additional foundation-laying, we could lower
         // these checks to precise bit masking/shift operations, rather
         // than a function call
-        auto matchKind = matchType.getTypeKind().getValue();
+        auto matchKind = matchTypeInfo.getTypeKind().getValue();
         Value matchConst = llvm_constant(int32Ty, ctx.getI32Attr(matchKind));
         StringRef symbolName("__lumen_builtin_is_type");
         auto callee =
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(
             op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
         return success();
@@ -147,11 +143,10 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
 
         // When an arity is given, we use a special builtin
         if (arity) {
-            ArrayRef<LLVMType> argTypes({termTy, termTy});
+            ArrayRef<Type> argTypes({termTy, termTy});
             StringRef symbolName("__lumen_builtin_is_tuple");
             auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
-            auto calleeSymbol =
-                FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
             rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty,
                                                       ValueRange{arity, input});
             return success();
@@ -163,8 +158,7 @@ struct IsTupleOpConversion : public EIROpConversion<IsTupleOp> {
         StringRef symbolName("__lumen_builtin_is_boxed_type");
         auto callee =
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(
             op, calleeSymbol, int1Ty, ValueRange{matchConst, input});
         return success();
@@ -188,11 +182,10 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
 
         // When an arity is given, we use a special builtin
         if (arity) {
-            ArrayRef<LLVMType> argTypes({termTy, termTy});
+            ArrayRef<Type> argTypes({termTy, termTy});
             StringRef symbolName("__lumen_builtin_is_function");
             auto callee = ctx.getOrInsertFunction(symbolName, int1Ty, argTypes);
-            auto calleeSymbol =
-                FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
             rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, int1Ty,
                                                       ValueRange{arity, input});
             return success();
@@ -204,8 +197,7 @@ struct IsFunctionOpConversion : public EIROpConversion<IsFunctionOp> {
         StringRef symbolName("__lumen_builtin_is_boxed_type");
         auto callee =
             ctx.getOrInsertFunction(symbolName, int1Ty, {int32Ty, termTy});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(
             op, int1Ty, calleeSymbol, ValueRange{matchConst, input});
         return success();
@@ -230,8 +222,7 @@ struct PrintOpConversion : public EIROpConversion<PrintOp> {
         StringRef symbolName("__lumen_builtin_printf");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy});
 
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
                                                   operands);
         return success();
@@ -250,8 +241,7 @@ struct TraceCaptureOpConversion : public EIROpConversion<TraceCaptureOp> {
         StringRef symbolName("__lumen_builtin_trace.capture");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
 
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                                   ArrayRef<Type>{termTy});
         return success();
@@ -277,8 +267,7 @@ struct TracePrintOpConversion : public EIROpConversion<TracePrintOp> {
         StringRef symbolName("__lumen_builtin_trace.print");
         auto callee = ctx.getOrInsertFunction(symbolName, voidTy,
                                               {termTy, termTy, termTy});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(
             op, calleeSymbol, ArrayRef<Type>{},
             ArrayRef<Value>{kind, reason, traceRef});
@@ -302,8 +291,7 @@ struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
         StringRef symbolName("__lumen_builtin_trace.construct");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy});
 
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
                                                   ValueRange(traceRef));
         return success();
@@ -313,12 +301,12 @@ struct TraceConstructOpConversion : public EIROpConversion<TraceConstructOp> {
 void populateBuiltinOpConversionPatterns(OwningRewritePatternList &patterns,
                                          MLIRContext *context,
                                          EirTypeConverter &converter,
-                                         TargetInfo &targetInfo) {
+                                         TargetPlatform &platform) {
     patterns.insert<IncrementReductionsOpConversion, IsTypeOpConversion,
                     IsTupleOpConversion, IsFunctionOpConversion,
                     PrintOpConversion, TraceCaptureOpConversion,
                     TraceConstructOpConversion, TracePrintOpConversion>(
-        context, converter, targetInfo);
+        context, converter, platform);
 }
 
 }  // namespace eir

@@ -1,18 +1,15 @@
-#![deny(warnings)]
 #![feature(alloc_layout_extra)]
-#![feature(global_asm)]
-#![feature(naked_functions)]
 #![feature(termination_trait_lib)]
+#![feature(process_exitcode_placeholder)]
 #![feature(thread_local)]
 #![feature(crate_visibility_modifier)]
 #![feature(core_intrinsics)]
-#![feature(unwind_attributes)]
+#![feature(c_unwind)]
 
-#[cfg(not(all(unix, target_arch = "x86_64")))]
+#[cfg(not(all(unix, any(target_arch = "x86_64", target_arch = "aarch64"))))]
 compile_error!("lumen_rt_minimal does not currently support this architecture!");
 
 extern crate liblumen_crt;
-extern crate panic;
 
 #[macro_use]
 mod macros;
@@ -31,6 +28,7 @@ pub use lumen_rt_core::{
     time, timer,
 };
 
+use anyhow::anyhow;
 use bus::Bus;
 use log::Level;
 
@@ -38,19 +36,21 @@ use self::config::Config;
 use self::sys::break_handler::{self, Signal};
 
 #[liblumen_core::entry]
-fn main() -> impl ::std::process::Termination + 'static {
+fn main() -> i32 {
+    use std::process::Termination;
+
     let name = env!("CARGO_PKG_NAME");
     let version = env!("CARGO_PKG_VERSION");
-    main_internal(name, version, Vec::new())
+    main_internal(name, version, Vec::new()).report().to_i32()
 }
 
-fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()> {
+fn main_internal(name: &str, version: &str, argv: Vec<String>) -> anyhow::Result<()> {
     self::env::init_argv_from_slice(std::env::args_os()).unwrap();
     // Load system configuration
     let _config = match Config::from_argv(name.to_string(), version.to_string(), argv) {
         Ok(config) => config,
         Err(err) => {
-            panic!("Config error: {}", err);
+            return Err(anyhow!(err));
         }
     };
 
@@ -77,8 +77,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
                 Signal::INT => {
                     // If an error occurs, report it before shutdown
                     if let Err(err) = scheduler.shutdown() {
-                        eprintln!("System error: {}", err);
-                        return Err(());
+                        return Err(anyhow!(err));
                     } else {
                         break;
                     }
@@ -88,7 +87,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
                 // we handle them explicitly by immediately terminating, so
                 // that we are good citizens of the operating system
                 sig if sig.should_terminate() => {
-                    return Err(());
+                    return Ok(());
                 }
                 // All other signals can be surfaced to other parts of the
                 // system for custom use, e.g. SIGCHLD, SIGALRM, SIGUSR1/2
@@ -106,9 +105,6 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
 
     match scheduler.shutdown() {
         Ok(_) => Ok(()),
-        Err(err) => {
-            eprintln!("{}", err);
-            Err(())
-        }
+        Err(err) => Err(anyhow!(err)),
     }
 }

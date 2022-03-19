@@ -6,9 +6,15 @@ set(LLVM_LINK_COMPONENTS
 add_tablegen(lumen-tblgen LUMEN
     lumen-tblgen.cpp
     EncodingGen.cpp
+    JSON.cpp
+    StructsGen.cpp
     )
 
-target_link_libraries(lumen-tblgen PRIVATE MLIRTableGen)
+target_link_libraries(lumen-tblgen
+  PRIVATE
+  MLIRSupportIndentedOstream
+  MLIRTableGen)
+
 llvm_update_compile_flags(lumen-tblgen)
 
 set_property(TARGET lumen-tblgen PROPERTY CXX_STANDARD ${LUMEN_CXX_STANDARD})

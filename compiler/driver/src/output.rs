@@ -5,13 +5,18 @@ use anyhow::*;
 
 use thiserror::private::PathAsDisplay;
 
-use liblumen_session::{Emit, Options, OutputType};
+use liblumen_session::{Options, OutputType};
+use liblumen_util::emit::Emit;
 
 use crate::diagnostics::*;
 use crate::interner::{InternedInput, Interner};
 
 pub trait CompilerOutput: CompilerDiagnostics + Interner {
-    fn maybe_emit_file<E>(&self, input: InternedInput, emit: &E) -> QueryResult<Option<PathBuf>>
+    fn maybe_emit_file<E>(
+        &self,
+        input: InternedInput,
+        emit: &E,
+    ) -> Result<Option<PathBuf>, ErrorReported>
     where
         E: Emit;
 
@@ -20,7 +25,7 @@ pub trait CompilerOutput: CompilerDiagnostics + Interner {
         input: InternedInput,
         output_type: OutputType,
         callback: F,
-    ) -> QueryResult<Option<PathBuf>>
+    ) -> Result<Option<PathBuf>, ErrorReported>
     where
         F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>;
 
@@ -29,7 +34,7 @@ pub trait CompilerOutput: CompilerDiagnostics + Interner {
         options: &Options,
         input: InternedInput,
         emit: &E,
-    ) -> QueryResult<Option<PathBuf>>
+    ) -> Result<Option<PathBuf>, ErrorReported>
     where
         E: Emit;
 
@@ -39,11 +44,15 @@ pub trait CompilerOutput: CompilerDiagnostics + Interner {
         input: InternedInput,
         output_type: OutputType,
         callback: F,
-    ) -> QueryResult<Option<PathBuf>>
+    ) -> Result<Option<PathBuf>, ErrorReported>
     where
         F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>;
 
-    fn emit_file_with_callback<F>(&self, outfile: PathBuf, callback: F) -> QueryResult<PathBuf>
+    fn emit_file_with_callback<F>(
+        &self,
+        outfile: PathBuf,
+        callback: F,
+    ) -> Result<PathBuf, ErrorReported>
     where
         F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
     {
@@ -71,7 +80,7 @@ pub trait CompilerOutput: CompilerDiagnostics + Interner {
         self.to_query_result(result)
     }
 
-    fn emit_file<E>(&self, outfile: PathBuf, output: &E) -> QueryResult<PathBuf>
+    fn emit_file<E>(&self, outfile: PathBuf, output: &E) -> Result<PathBuf, ErrorReported>
     where
         E: Emit,
     {

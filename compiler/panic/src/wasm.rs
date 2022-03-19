@@ -38,7 +38,6 @@ pub unsafe fn cleanup(ptr: *mut u8) {
 }
 
 #[no_mangle]
-#[unwind(allowed)]
-pub unsafe extern "C" fn lumen_eh_unwind_resume(_panic_ctx: *mut u8) -> ! {
+pub unsafe extern "C-unwind" fn lumen_eh_unwind_resume(_panic_ctx: *mut u8) -> ! {
     wasm_rethrow()
 }

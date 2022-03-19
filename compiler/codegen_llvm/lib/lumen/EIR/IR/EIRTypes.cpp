@@ -5,10 +5,10 @@
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/Parser.h"
 
@@ -18,880 +18,246 @@
 using ::llvm::SmallVector;
 using ::llvm::StringRef;
 using ::mlir::TypeRange;
-using ::mlir::LLVM::LLVMType;
 
 //===----------------------------------------------------------------------===//
-// Type Implementations
+// Tablegen Type and Type Interface Definitions
+//===----------------------------------------------------------------------===//
+
+#include "lumen/EIR/IR/EIRTypeInterfaces.h.inc"
+#include "lumen/EIR/IR/EIRTypes.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// Support
 //===----------------------------------------------------------------------===//
 
 namespace lumen {
 namespace eir {
 
-// Tuple<T>
-namespace detail {
-struct TupleTypeStorage final
-    : public mlir::TypeStorage,
-      public llvm::TrailingObjects<TupleTypeStorage, Type> {
-    using KeyTy = TypeRange;
-
-    TupleTypeStorage(unsigned arity) : arity(arity) {}
-
-    /// Construction.
-    static TupleTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                       TypeRange key) {
-        // Allocate a new storage instance.
-        auto byteSize = TupleTypeStorage::totalSizeToAlloc<Type>(key.size());
-        auto rawMem = allocator.allocate(byteSize, alignof(TupleTypeStorage));
-        auto result = ::new (rawMem) TupleTypeStorage(key.size());
-
-        // Copy in the element types into the trailing storage.
-        std::uninitialized_copy(key.begin(), key.end(),
-                                result->getTrailingObjects<Type>());
-        return result;
-    }
-
-    bool operator==(const KeyTy &key) const { return key == getTypes(); }
-
-    /// Return the number of held types.
-    unsigned size() const { return arity; }
-
-    /// Return the held types.
-    ArrayRef<Type> getTypes() const {
-        return {getTrailingObjects<Type>(), size()};
-    }
-
-   private:
-    unsigned arity;
-};
-}  // namespace detail
-
-TupleType TupleType::get(MLIRContext *context) {
-    return Base::get(context, ArrayRef<Type>{});
-}
-
-TupleType TupleType::get(MLIRContext *context, ArrayRef<Type> elementTypes) {
-    return Base::get(context, elementTypes);
-}
-
-TupleType TupleType::get(MLIRContext *context, unsigned arity) {
-    return TupleType::get(context, arity, TermType::get(context));
-}
-
-TupleType TupleType::get(MLIRContext *context, unsigned arity,
-                         Type elementType) {
-    SmallVector<Type, 4> elementTypes;
-    for (unsigned i = 0; i < arity; i++) {
-        elementTypes.push_back(elementType);
-    }
-    return Base::get(context, elementTypes);
-}
-
-TupleType TupleType::get(unsigned arity, Type elementType) {
-    return TupleType::get(elementType.getContext(), arity, elementType);
-}
-
-TupleType TupleType::get(ArrayRef<Type> elementTypes) {
-    auto context = elementTypes.front().getContext();
-    return Base::get(context, elementTypes);
-}
-
-LogicalResult TupleType::verifyConstructionInvariants(
-    Location loc, ArrayRef<Type> elementTypes) {
-    auto arity = elementTypes.size();
-    if (arity < 1) {
-        // If this is dynamically-shaped, then there is nothing to verify
-        return success();
-    }
-
-    // Make sure elements are word-sized/immediates, and valid
-    unsigned numElements = elementTypes.size();
-    for (unsigned i = 0; i < numElements; i++) {
-        Type elementType = elementTypes[i];
-        if (auto termType = elementType.dyn_cast_or_null<OpaqueTermType>()) {
-            if (termType.isOpaque() || termType.isImmediate() ||
-                termType.isBox())
-                continue;
-        }
-        if (auto llvmType = elementType.dyn_cast_or_null<LLVMType>()) {
-            if (llvmType.isIntegerTy()) continue;
-        }
-        // Allow an exception for TraceRef, since it will be replaced by the
-        // InsertTraceConstructors pass
-        if (elementType.isa<TraceRefType>()) continue;
-
-        return emitError(loc, "invalid tuple type element at index ")
-               << i << ": " << elementType;
-    }
-
-    return success();
-}
-
-size_t TupleType::getArity() const { return getImpl()->size(); }
-size_t TupleType::getSizeInBytes() const {
-    auto arity = getArity();
-    if (arity < 0) return -1;
-    // Header word is always present, each element is one word
-    return 8 + (arity * 8);
-};
-bool TupleType::hasStaticShape() const { return getArity() != 0; }
-bool TupleType::hasDynamicShape() const { return getArity() == 0; }
-Type TupleType::getElementType(unsigned index) const {
-    return getImpl()->getTypes()[index];
-}
-
-// Closure
-namespace detail {
-struct ClosureTypeKey {
-    ClosureTypeKey()
-        : functionType(nullptr), envTypes(nullptr), envLen(llvm::None) {}
-    ClosureTypeKey(FunctionType ft)
-        : functionType(ft), envTypes(nullptr), envLen(llvm::None) {}
-    ClosureTypeKey(size_t len)
-        : functionType(nullptr), envTypes(nullptr), envLen(len) {}
-    ClosureTypeKey(TypeRange env)
-        : functionType(nullptr), envTypes(env), envLen(env.size()) {}
-    ClosureTypeKey(FunctionType ft, size_t len)
-        : functionType(ft), envTypes(nullptr), envLen(len) {}
-    ClosureTypeKey(FunctionType ft, TypeRange env)
-        : functionType(ft), envTypes(env), envLen(env.size()) {}
-    ClosureTypeKey(Optional<FunctionType> ft, Optional<TypeRange> env,
-                   Optional<size_t> len)
-        : functionType(ft), envTypes(env), envLen(len) {}
-    ClosureTypeKey(const ClosureTypeKey &key)
-        : functionType(key.functionType),
-          envTypes(key.envTypes),
-          envLen(key.envLen) {}
-
-    bool operator==(const ClosureTypeKey &key) const {
-        // Fully dynamic closure types are equivalent
-        if (!hasStaticShape() && !key.hasStaticShape()) return true;
-
-        // Closure types with differing callee types are considered unique
-        if (functionType.hasValue() && key.functionType.hasValue()) {
-            if (functionType.getValue() != key.functionType.getValue())
-                return false;
-        } else if (functionType.hasValue() || key.functionType.hasValue()) {
-            return false;
-        }
-
-        // Closure types with differently typed environents are considered
-        // unique
-        if (envTypes.hasValue() && key.envTypes.hasValue()) {
-            if (envTypes.getValue() != key.envTypes.getValue()) return false;
-        } else if (envTypes.hasValue() && !key.envTypes.hasValue()) {
-            for (auto ty : envTypes.getValue())
-                if (!ty.isa<TermType>()) return false;
-        } else if (key.envTypes.hasValue() && !envTypes.hasValue()) {
-            for (auto ty : key.envTypes.getValue())
-                if (!ty.isa<TermType>()) return false;
-        } else if (envLen.hasValue() && key.envLen.hasValue()) {
-            if (envLen.getValue() != key.envLen.getValue()) return false;
-        } else if (envLen.hasValue() && !key.envLen.hasValue()) {
-            return false;
-        } else if (!envLen.hasValue() && key.envLen.hasValue()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    inline bool hasStaticShape() const {
-        return envTypes.hasValue() || envLen.hasValue();
-    }
-
-    Optional<FunctionType> functionType;
-    Optional<TypeRange> envTypes;
-    Optional<size_t> envLen;
-};
-
-struct ClosureTypeStorage final
-    : public mlir::TypeStorage,
-      public llvm::TrailingObjects<ClosureTypeStorage, Type> {
-    using KeyTy = ClosureTypeKey;
-
-    ClosureTypeStorage(Optional<FunctionType> ft, Optional<TypeRange> env,
-                       Optional<size_t> len)
-        : functionType(ft), envTypes(env), envLen(len) {}
-
-    static KeyTy getKey(Optional<FunctionType> functionType,
-                        Optional<TypeRange> envTypes, Optional<size_t> envLen) {
-        return KeyTy(functionType, envTypes, envLen);
-    }
-
-    /// Construction.
-    static ClosureTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                         const KeyTy &key) {
-        // Allocate a new storage instance.
-        size_t actualEnvLen;
-        if (key.envTypes.hasValue())
-            actualEnvLen = key.envTypes.getValue().size();
-        else if (key.envLen.hasValue())
-            actualEnvLen = key.envLen.getValue();
-        else
-            actualEnvLen = 0;
-
-        auto byteSize =
-            ClosureTypeStorage::totalSizeToAlloc<Type>(actualEnvLen);
-        auto rawMem = allocator.allocate(byteSize, alignof(ClosureTypeStorage));
-        ClosureTypeStorage *result = ::new (rawMem)
-            ClosureTypeStorage(key.functionType, key.envTypes, key.envLen);
-
-        if (key.envTypes.hasValue()) {
-            auto env = key.envTypes.getValue();
-            // Copy in the element types into the trailing storage.
-            std::uninitialized_copy(env.begin(), env.end(),
-                                    result->getTrailingObjects<Type>());
-        }
-
-        return result;
-    }
-
-    bool operator==(const KeyTy &key) const {
-        return key == getKey(functionType, envTypes, envLen);
-    }
-
-    static llvm::hash_code hashKey(const KeyTy &key) {
-        Type functionType = key.functionType.hasValue()
-                                ? Type(key.functionType.getValue())
-                                : Type();
-        TypeRange envTypes = key.envTypes.hasValue()
-                                 ? TypeRange(key.envTypes.getValue())
-                                 : TypeRange();
-        size_t envLen = key.envLen.hasValue() ? key.envLen.getValue() : 0;
-        return llvm::hash_combine(mlir::hash_value(functionType),
-                                  mlir::hash_value(envTypes), envLen);
-    }
-
-    Optional<FunctionType> getCalleeType() const { return functionType; }
-
-    Optional<size_t> arity() const {
-        if (!functionType.hasValue()) return llvm::None;
-        auto fnTy = functionType.getValue();
-        return fnTy.getNumInputs();
-    }
-    inline size_t getEnvLen() const {
-        return envLen.hasValue() ? envLen.getValue() : 0;
-    }
-    inline bool hasTypedEnv() const { return envTypes.hasValue(); }
-    inline bool hasStaticShape() const {
-        return envTypes.hasValue() || envLen.hasValue();
-    }
-    TypeRange getEnvTypes() const {
-        return TypeRange(
-            ArrayRef<Type>{getTrailingObjects<Type>(), getEnvLen()});
-    }
-
-    Type getEnvType(unsigned index) const {
-        if (!hasTypedEnv()) return nullptr;
-        auto envTypes = getEnvTypes();
-        if (envTypes.size() > index) return envTypes[index];
-        return nullptr;
-    }
-
-   private:
-    Optional<FunctionType> functionType;
-    Optional<TypeRange> envTypes;
-    Optional<size_t> envLen;
-};
-}  // namespace detail
-
-ClosureType ClosureType::get(MLIRContext *context) {
-    return Base::get(context, detail::ClosureTypeStorage::KeyTy());
-}
-
-ClosureType ClosureType::get(MLIRContext *context, size_t envLen) {
-    return Base::get(context, detail::ClosureTypeStorage::KeyTy(envLen));
-}
-
-ClosureType ClosureType::get(MLIRContext *context, TypeRange env) {
-    return Base::get(context, detail::ClosureTypeStorage::KeyTy(env));
-}
-
-ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType) {
-    return Base::get(context, detail::ClosureTypeStorage::KeyTy(functionType));
-}
-
-ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType,
-                             size_t envLen) {
-    return Base::get(context,
-                     detail::ClosureTypeStorage::KeyTy(functionType, envLen));
-}
-
-ClosureType ClosureType::get(MLIRContext *context, FunctionType functionType,
-                             TypeRange env) {
-    return Base::get(context,
-                     detail::ClosureTypeStorage::KeyTy(functionType, env));
-}
-
-LogicalResult ClosureType::verifyConstructionInvariants(
-    Location loc, const detail::ClosureTypeStorage::KeyTy &key) {
-    // TODO
-    return success();
-}
-
-Optional<FunctionType> ClosureType::getCalleeType() const {
-    return getImpl()->getCalleeType();
-}
-
-Optional<size_t> ClosureType::getArity() const { return getImpl()->arity(); }
-
-size_t ClosureType::getEnvLen() const { return getImpl()->getEnvLen(); }
-
-bool ClosureType::hasStaticShape() const { return getImpl()->hasStaticShape(); }
-
-bool ClosureType::hasDynamicShape() const { return !hasStaticShape(); }
-
-Type ClosureType::getEnvType(unsigned index) const {
-    if (!getImpl()->hasTypedEnv()) return TermType::get(getContext());
-    Type result = getImpl()->getEnvType(index);
-    if (result) return result;
-    return NoneType::get(getContext());
-}
-
-// Box<T>
-namespace detail {
-struct BoxTypeStorage : public mlir::TypeStorage {
-    using KeyTy = Type;
-
-    BoxTypeStorage(Type boxedType)
-        : boxedType(boxedType.cast<OpaqueTermType>()) {}
-
-    /// The hash key used for uniquing.
-    bool operator==(const KeyTy &key) const { return key == boxedType; }
-
-    static BoxTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                     const KeyTy &key) {
-        // Initialize the memory using placement new.
-        return new (allocator.allocate<BoxTypeStorage>()) BoxTypeStorage(key);
-    }
-
-    OpaqueTermType boxedType;
-};
-}  // namespace detail
-
-BoxType BoxType::get(OpaqueTermType boxedType) {
-    return Base::get(boxedType.getContext(), boxedType);
-}
-
-BoxType BoxType::get(MLIRContext *context, OpaqueTermType boxedType) {
-    return Base::get(context, boxedType);
-}
-
-BoxType BoxType::getChecked(Type type, Location location) {
-    return Base::getChecked(location, type);
-}
-
-OpaqueTermType BoxType::getBoxedType() const { return getImpl()->boxedType; }
-
-// Ref<T>
-
-namespace detail {
-struct RefTypeStorage : public mlir::TypeStorage {
-    using KeyTy = Type;
-
-    RefTypeStorage(Type innerType)
-        : innerType(innerType.cast<OpaqueTermType>()) {}
-
-    /// The hash key used for uniquing.
-    bool operator==(const KeyTy &key) const { return key == innerType; }
-
-    static RefTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                     const KeyTy &key) {
-        // Initialize the memory using placement new.
-        return new (allocator.allocate<RefTypeStorage>()) RefTypeStorage(key);
-    }
-
-    OpaqueTermType innerType;
-};
-}  // namespace detail
-
-RefType RefType::get(OpaqueTermType innerType) {
-    return Base::get(innerType.getContext(), innerType);
-}
-
-RefType RefType::get(MLIRContext *context, OpaqueTermType innerType) {
-    return Base::get(context, innerType);
-}
-
-RefType RefType::getChecked(Type type, Location location) {
-    return Base::getChecked(location, type);
-}
-
-OpaqueTermType RefType::getInnerType() const { return getImpl()->innerType; }
-
-// Ptr<T>
-
-namespace detail {
-struct PtrTypeStorage : public mlir::TypeStorage {
-    using KeyTy = Type;
-
-    PtrTypeStorage(Type innerType) : innerType(innerType) {}
-
-    /// The hash key used for uniquing.
-    bool operator==(const KeyTy &key) const { return key == innerType; }
-
-    static PtrTypeStorage *construct(mlir::TypeStorageAllocator &allocator,
-                                     const KeyTy &key) {
-        // Initialize the memory using placement new.
-        return new (allocator.allocate<PtrTypeStorage>()) PtrTypeStorage(key);
-    }
-
-    Type innerType;
-};
-}  // namespace detail
-
-PtrType PtrType::get(Type innerType) {
-    return Base::get(innerType.getContext(), innerType);
-}
-
-PtrType PtrType::get(MLIRContext *context) {
-    return PtrType::get(context, mlir::IntegerType::get(8, context));
-}
-
-PtrType PtrType::get(MLIRContext *context, Type innerType) {
-    return Base::get(context, innerType);
-}
-
-Type PtrType::getInnerType() const { return getImpl()->innerType; }
-
-// TraceRef
-
-TraceRefType TraceRefType::get(MLIRContext *context) {
-    return Base::get(context);
-}
-
-// ReceiveRef
-
-ReceiveRefType ReceiveRefType::get(MLIRContext *context) {
-    return Base::get(context);
-}
-
-// OpaqueTermType
-
-unsigned OpaqueTermType::isMatch(Type matcher) {
-    auto matcherBase = matcher.dyn_cast_or_null<OpaqueTermType>();
+unsigned isMatch(Type type, Type matcher) {
+    // Special case handling for none
+    if (type.isa<NoneType>()) return matcher.isa<NoneType>() ? 1 : 0;
+
+    auto matcherBase = matcher.dyn_cast_or_null<TermTypeInterface>();
     if (!matcherBase) return 2;
 
-    auto typeId = getTypeID();
+    // Get the term type interface for convenience methods
+    auto typeBase = type.cast<TermTypeInterface>();
+
+    auto typeId = type.getTypeID();
     auto matcherTypeId = matcher.getTypeID();
 
     // Unresolvable statically
-    if (isOpaque() || matcherBase.isOpaque()) return 2;
+    if (type.isa<TermType>() || matcherBase.isa<TermType>()) return 2;
 
     // Guaranteed to match
     if (typeId == matcherTypeId) return 1;
 
     // Handle boxed types if the matcher is a box type
-    if (matcherBase.isBox() && isBox()) {
-        auto expected = matcher.cast<BoxType>().getBoxedType();
-        auto inner = cast<BoxType>().getBoxedType();
-        return inner.isMatch(expected);
+    if (matcherBase.isa<BoxType>() && type.isa<BoxType>()) {
+        auto expected = matcher.cast<BoxType>().getPointeeType();
+        auto inner = type.cast<BoxType>().getPointeeType();
+        return isMatch(inner, expected);
     }
 
     // If the matcher is not a box, but is a boxable type, handle
     // comparing types correctly (i.e. if this is a boxed type, then
     // compare the boxed type)
-    if (matcherBase.isBoxable() && isBox()) {
-        auto inner = cast<BoxType>().getBoxedType();
-        return inner.isMatch(matcher);
+    if (type.isa<BoxType>()) {
+        auto inner = type.cast<BoxType>().getPointeeType();
+        return isMatch(inner, matcher);
     }
 
     // Generic matches
-    if (matcher.isa<AtomType>()) return isAtom() ? 1 : 0;
-    if (matcher.isa<BooleanType>())
-        if (isBoolean())
-            return 1;
-        else if (isAtom())
-            return 2;
-        else
-            return 0;
-    if (matcher.isa<NumberType>()) return isNumber() ? 1 : 0;
-    if (matcher.isa<IntegerType>()) return isInteger() ? 1 : 0;
-    if (matcher.isa<FloatType>()) return isFloat() ? 1 : 0;
-    if (matcher.isa<BinaryType>()) return isBinary() ? 1 : 0;
-    if (matcher.isa<ListType>()) return isList() ? 1 : 0;
-    if (matcher.isa<MapType>()) return isMap() ? 1 : 0;
-    if (matcher.isa<ClosureType>()) return isClosure() ? 2 : 0;
+    if (matcherBase.isAtomLike()) return typeBase.isAtomLike() ? 1 : 0;
+    if (matcherBase.isListLike()) return typeBase.isListLike() ? 1 : 0;
 
-    if (auto tupleTy = matcher.dyn_cast_or_null<TupleType>())
-        if (tupleTy.hasStaticShape() && isTuple()) {
-            auto tt = cast<TupleType>();
-            if (tt.hasStaticShape() && tt.getArity() != tupleTy.getArity())
-                return 0;
-            else
-                return 2;
-        } else if (isTuple())
-            return 2;
-        else
+    if (matcher.isa<IntegerType>()) return type.isa<IntegerType>() ? 1 : 0;
+    if (matcher.isa<FloatType>()) return type.isa<FloatType>() ? 1 : 0;
+    if (matcher.isa<BinaryType>()) return type.isa<BinaryType>() ? 1 : 0;
+    if (matcher.isa<MapType>()) return type.isa<MapType>() ? 1 : 0;
+    if (matcher.isa<ClosureType>()) return type.isa<ClosureType>() ? 2 : 0;
+
+    if (auto tupleTy = matcher.dyn_cast_or_null<TupleType>()) {
+        auto elementTypes = tupleTy.getTypes();
+        auto isDynamic = elementTypes.size() == 0;
+        if (auto tt = type.dyn_cast_or_null<TupleType>()) {
+            auto arity = tt.size();
+            if (isDynamic || arity == 0) return 2;
+            if (arity == elementTypes.size()) return 2;
             return 0;
+        }
+        return 0;
+    }
 
     return 0;
 }
 
-bool OpaqueTermType::canTypeEverBeEqual(Type other) {
-    // We have to be pessimistic if this is opaque
-    if (isOpaque()) return true;
+bool canTypeEverBeEqual(Type a, Type b, bool strict) {
+    // If the types are the same, this is trivially true
+    if (a == b) return true;
 
-    // Only a limited subset of non-term types can be compared to terms
-    if (!other.isa<OpaqueTermType>()) {
-        // Primitives
-        if (isBoolean() && other.isInteger(1)) return true;
-        if (isNumber() && other.isIntOrFloat()) return true;
+    // If types are opaque, we are optimistic and try the comparison anyway
+    // This is very common, so we handle it before anything else
+    if (a.isa<TermType>() || b.isa<TermType>()) return true;
 
-        // Pointer types
-        if (auto ptrTy = other.dyn_cast_or_null<PtrType>()) {
-            auto innerTy = ptrTy.getInnerType();
-            // Equality can never hold against raw pointers
-            if (innerTy.isInteger(1)) return false;
+    // Get the type interfaces for convenience
+    auto ai = a.cast<TermTypeInterface>();
+    auto bi = b.dyn_cast_or_null<TermTypeInterface>();
 
-            // If this is a box, we can compare the inner types,
-            // otherwise continue as if this is a boxable type
-            if (isBox()) {
-                auto boxedTy = cast<BoxType>().getBoxedType();
-                return boxedTy.canTypeEverBeEqual(innerTy);
-            } else {
-                return canTypeEverBeEqual(innerTy);
-            }
+    // Numeric
+    if (ai.isNumber()) {
+        // If the other type is non-numeric, these can never compare equal
+        if (bi) {
+            if (!bi.isNumber()) return false;
+        } else {
+            if (!b.isIntOrFloat()) return false;
+        }
+        // If strict=false, numeric comparisons can always produce equality
+        if (!strict) return true;
+        // Otherwise, things are type-sensitive
+        if (bi) {
+            if (a.isa<IntegerType>() && b.isa<IntegerType>()) return true;
+            if (a.isa<FloatType>() && b.isa<FloatType>()) return true;
+        } else {
+            if (a.isa<IntegerType>() && b.isIntOrIndex()) return true;
+            if (a.isa<FloatType>() && b.isa<::mlir::FloatType>()) return true;
+        }
+        return false;
+    }
+
+    // Atoms
+    if (ai.isAtomLike()) {
+        // If a is a boolean, it may compare equal to other atoms, booleans and
+        // i1 if strict=false, otherwise, if strict, it must match against a
+        // boolean or i1
+        if (a.isa<BooleanType>()) {
+            if (strict)
+                return b.isa<BooleanType>() || b.isInteger(1);
+            else
+                return (bi && bi.isAtomLike()) || b.isInteger(1);
+        }
+        // Otherwise, the type must be atom-like
+        return (bi && bi.isAtomLike());
+    }
+
+    // Boxed Terms
+    if (auto abox = a.dyn_cast_or_null<BoxType>()) {
+        auto ap = abox.getPointeeType();
+        if (auto bbox = b.dyn_cast_or_null<BoxType>()) {
+            auto bp = bbox.getPointeeType();
+            return canTypeEverBeEqual(ap, bp, strict);
+        }
+        return canTypeEverBeEqual(ap, b, strict);
+    }
+
+    // Tuples and closures are parameterized, so we have to evaluate them
+    // manually
+    if (auto at = a.dyn_cast_or_null<TupleType>()) {
+        if (auto bt = a.dyn_cast_or_null<TupleType>()) {
+            // If this isn't a strict comparison, skip the element-wise check
+            if (!strict) return true;
+            auto as = at.getTypes();
+            auto bs = bt.getTypes();
+            // If either tuple has unknown shape, assume they can compare equal
+            if (as.size() == 0 || bs.size() == 0) return true;
+            // If the arity differs, we know they can't compare equal
+            if (as.size() != bs.size()) return false;
+            // TODO: While we could check the element types here, we don't
+            // currently propagate enough type information to benefit from the
+            // extra work, so we assume that if the arity of the tuples is the
+            // same, they can compare equal
+            return true;
+        }
+        return false;
+    }
+
+    if (auto at = a.dyn_cast_or_null<ClosureType>()) {
+        auto asig = at.getSignatureType();
+        auto as = at.getEnvTypes();
+        auto aarity = as.size();
+
+        if (auto bt = b.dyn_cast_or_null<ClosureType>()) {
+            auto bsig = bt.getSignatureType();
+            auto bs = at.getEnvTypes();
+            auto barity = bs.size();
+
+            // If we don't have both a signature and env arity to compare,
+            // assume they could equate, unless we have arity for both
+            // environments, in which case we can return false if the envs are
+            // of different arity
+            if (!asig.hasValue() || !bsig.hasValue())
+                if (aarity == 0 || barity == 0)
+                    return true;
+                else
+                    return aarity == barity;
+
+            // Mismatched env arity can never compare equal
+            if (aarity != 0 && barity != 0 && aarity != barity) return false;
+
+            // If the signatures have the same number of inputs/results, assume
+            // they can equate
+            auto afun = asig.getValue();
+            auto bfun = bsig.getValue();
+
+            auto ainputs = afun.getInputs();
+            auto binputs = bfun.getInputs();
+            if (ainputs.size() != binputs.size()) return false;
+
+            auto aresults = afun.getResults();
+            auto bresults = bfun.getResults();
+            if (aresults.size() != bresults.size()) return false;
+
+            return true;
         }
 
-        if (auto refTy = other.dyn_cast_or_null<RefType>()) {
-            auto innerTy = refTy.getInnerType();
+        // ClosureType and FunctionType can compare equal if both signatures
+        // match and the envs are zero; OR we don't have enough information to
+        // say
+        if (auto bt = b.dyn_cast_or_null<FunctionType>()) {
+            if (!asig.hasValue()) return true;
+            if (aarity != 0) return false;
 
-            // If this is a box, we can compare the inner types,
-            // otherwise continue as if this is a boxable type
-            if (isBox()) {
-                auto boxedTy = cast<BoxType>().getBoxedType();
-                return boxedTy.canTypeEverBeEqual(innerTy);
-            } else {
-                return canTypeEverBeEqual(innerTy);
-            }
+            auto afun = asig.getValue();
+            auto ainputs = afun.getInputs();
+            auto binputs = bt.getInputs();
+            if (ainputs.size() != binputs.size()) return false;
+
+            auto aresults = afun.getResults();
+            auto bresults = bfun.getResults();
+            if (aresults.size() != bresults.size()) return false;
+
+            return true;
         }
 
         return false;
     }
 
-    // Once we reach here, we're comparing terms
-    auto ty = other.cast<OpaqueTermType>();
-
-    // Again, pessimistically assume all opaque terms are equatable
-    if (ty.isOpaque()) return true;
-
-    // Unwrap boxed types
-    if (isBox()) {
-        auto lhs = cast<BoxType>().getBoxedType();
-
-        if (ty.isBox()) {
-            auto rhs = ty.cast<BoxType>().getBoxedType();
-            return lhs.canTypeEverBeEqual(rhs);
-        }
-
-        return lhs.canTypeEverBeEqual(other);
-    }
-    if (ty.isBox()) {
-        auto rhs = ty.cast<BoxType>().getBoxedType();
-        return canTypeEverBeEqual(rhs);
-    }
-
-    // Numbers can only be equal to numbers
-    if (isNumber() && !ty.isNumber()) return false;
-
-    // Atom-likes can only be equal to atom-likes
-    if (isAtom() && !ty.isAtom()) return false;
-
-    // Pids can only be equal to pids
-    if (isPid() && !isPid()) return false;
-
-    // References can only be equal to referencess
-    if (isReference() && !isReference()) return false;
-
-    // Aggregates of each class can only be equal to the same class
-    if (isList() && !ty.isList()) return false;
-
-    if (isTuple() && !ty.isTuple()) return false;
-
-    if (isMap() && !ty.isMap()) return false;
-
-    if (isBinary() && !ty.isBinary()) return false;
-
-    // Closures can only be equal to closures
-    if (isClosure() && !ty.isClosure()) return false;
-
-    // Rather than explicitly whitelist valid equality comparisons,
-    // we identify comparisons we know can't succeed. If we hit here,
-    // we're saying that we pessimistically assume equality is possible,
-    // but its possible that the operands would never compare equal, we
-    // just haven't explicitly identified that case above
-    return true;
-}
-
-}  // namespace eir
-}  // namespace lumen
-
-//===----------------------------------------------------------------------===//
-// Parsing
-//===----------------------------------------------------------------------===//
-
-namespace lumen {
-namespace eir {
-
-template <typename TYPE>
-TYPE parseTypeSingleton(mlir::MLIRContext *context,
-                        mlir::DialectAsmParser &parser) {
-    Type ty;
-    if (parser.parseLess() || parser.parseType(ty) || parser.parseGreater()) {
-        parser.emitError(parser.getCurrentLocation(), "type expected");
-        return {};
-    }
-    if (auto innerTy = ty.dyn_cast_or_null<OpaqueTermType>())
-        return TYPE::get(innerTy);
-    else
-        return {};
-}
-
-struct Shape {
-    Shape() { arity = -1; }
-    Shape(std::vector<Type> elementTypes)
-        : arity(elementTypes.size()), elementTypes(elementTypes) {}
-    int arity;
-    std::vector<Type> elementTypes;
-};
-
-template <typename ShapedType>
-ShapedType parseShapedType(mlir::MLIRContext *context,
-                           mlir::DialectAsmParser &parser, bool allowAny) {
-    // Check for '*'
-    llvm::SMLoc anyLoc;
-    bool isAny = !parser.parseOptionalStar();
-    if (allowAny && isAny) {
-        // This is an "any" shape, i.e. entirely dynamic
-        return ShapedType::get(context);
-    } else if (!allowAny && isAny) {
-        parser.emitError(anyLoc, "'*' is not allowed here");
-        return nullptr;
-    }
-
-    // No '*', check for dimensions
-    assert(!isAny);
-
-    SmallVector<int64_t, 1> dims;
-    llvm::SMLoc countLoc = parser.getCurrentLocation();
-    if (parser.parseDimensionList(dims, /*allowDynamic=*/false)) {
-        // No bounds, must be a element type list
-        std::vector<Type> elementTypes;
-        while (true) {
-            Type eleTy;
-            if (parser.parseType(eleTy)) {
-                break;
-            }
-            elementTypes.push_back(eleTy);
-            if (parser.parseOptionalComma()) {
-                break;
-            }
-        }
-        if (elementTypes.size() == 0) {
-            parser.emitError(parser.getNameLoc(),
-                             "expected comma-separated list of element types");
-            return nullptr;
-        }
-        return ShapedType::get(ArrayRef(elementTypes));
-    } else {
-        if (dims.size() != 1) {
-            parser.emitError(countLoc,
-                             "expected single integer for element count");
-            return nullptr;
-        }
-        int64_t len = dims[0];
-        if (len < 0) {
-            parser.emitError(countLoc, "element count cannot be negative");
-            return nullptr;
-        }
-        if (len >= std::numeric_limits<unsigned>::max()) {
-            parser.emitError(countLoc, "element count overflow");
-            return nullptr;
-        }
-        unsigned ulen = static_cast<unsigned>(len);
-        if (parser.parseOptionalQuestion()) {
-            Type eleTy;
-            if (parser.parseType(eleTy)) {
-                parser.emitError(parser.getNameLoc(), "expecting element type");
-                return nullptr;
-            }
-            return ShapedType::get(ulen, eleTy);
-        } else {
-            Type defaultType = TermType::get(context);
-            return ShapedType::get(ulen, defaultType);
-        }
-    }
-
-    return ShapedType::get(context);
-}
-
-// `tuple` `<` shape `>`
-//   shape ::= `*` | bounds | type_list
-//   type_list ::= type (`,` type)*
-//   bounds ::= dim `x` type
-//   dim ::= `?` | integer
-Type parseTuple(MLIRContext *context, mlir::DialectAsmParser &parser) {
-    Shape shape;
-    if (parser.parseLess()) {
-        parser.emitError(parser.getNameLoc(), "expected tuple shape");
-        return {};
-    }
-
-    TupleType result =
-        parseShapedType<TupleType>(context, parser, /*allowAny=*/true);
-
-    if (parser.parseGreater()) {
-        parser.emitError(parser.getNameLoc(), "expected tuple shape");
-        return {};
-    }
-
-    return result;
+    // At this point any other term/term comparisons won't succeed, and all
+    // other type combinations are in theory unequatable, but this is an
+    // optimistic predicate, so in the case where we don't know for sure that a
+    // type combination can't compare equal, we assume they could, unless
+    // strict=true.
+    return !strict && bi == nullptr;
 }
 
 Type eirDialect::parseType(mlir::DialectAsmParser &parser) const {
-    StringRef typeNameLit;
-    if (failed(parser.parseKeyword(&typeNameLit))) return {};
-
-    auto loc = parser.getNameLoc();
-    auto context = getContext();
-    // `term`
-    if (typeNameLit == "term") return TermType::get(context);
-    // `list`
-    if (typeNameLit == "list") return ListType::get(context);
-    // `pid`
-    if (typeNameLit == "pid") return PidType::get(context);
-    // `reference`
-    if (typeNameLit == "reference") return ReferenceType::get(context);
-    // `number`
-    if (typeNameLit == "number") return NumberType::get(context);
-    // `integer`
-    if (typeNameLit == "integer") return IntegerType::get(context);
-    // `float`
-    if (typeNameLit == "float") return FloatType::get(context);
-    // `atom`
-    if (typeNameLit == "atom") return AtomType::get(context);
-    // `boolean`
-    if (typeNameLit == "boolean") return BooleanType::get(context);
-    // `fixnum`
-    if (typeNameLit == "fixnum") return FixnumType::get(context);
-    // `bigint`
-    if (typeNameLit == "bigint") return BigIntType::get(context);
-    // `nil`
-    if (typeNameLit == "nil") return NilType::get(context);
-    // `cons`
-    if (typeNameLit == "cons") return ConsType::get(context);
-    // `map`
-    if (typeNameLit == "map") return MapType::get(context);
-    // `closure`
-    if (typeNameLit == "closure") return ClosureType::get(context);
-    // `binary`
-    if (typeNameLit == "binary") return BinaryType::get(context);
-    // `heapbin`
-    if (typeNameLit == "heapbin") return HeapBinType::get(context);
-    // `procbin`
-    if (typeNameLit == "procbin") return ProcBinType::get(context);
-    // See parseTuple
-    if (typeNameLit == "tuple") return parseTuple(context, parser);
-    // `box` `<` type `>`
-    if (typeNameLit == "box")
-        return parseTypeSingleton<BoxType>(context, parser);
-    // `trace_ref`
-    if (typeNameLit == "trace_ref") return TraceRefType::get(context);
-    // `receive_ref`
-    if (typeNameLit == "receive_ref") return ReceiveRefType::get(context);
-
-    parser.emitError(loc, "unknown EIR type " + typeNameLit);
-    return {};
+    StringRef mnemonic;
+    if (failed(parser.parseKeyword(&mnemonic))) {
+        parser.emitError(parser.currentLocation(),
+                         "expected operation mnemonic");
+        return Type();
+    }
+    return generatedTypeParser(getContext(), parser, mnemonic);
 }
 
 //===----------------------------------------------------------------------===//
 // Printing
 //===----------------------------------------------------------------------===//
 
-void printTuple(TupleType type, llvm::raw_ostream &os,
-                mlir::DialectAsmPrinter &p) {
-    os << "tuple<";
-    if (type.hasDynamicShape()) {
-        os << '*';
-    }
-    auto arity = type.getArity();
-    // Single element is always uniform
-    if (arity == 0) {
-        os << "0x?";
-        return;
-    }
-    if (arity == 1) {
-        os << "1x";
-        p.printType(type.getElementType(0));
-        return;
-    }
-    // Check for uniformity to print more compact representation
-    Type ty = type.getElementType(0);
-    bool uniform = true;
-    for (unsigned i = 1; i < arity; i++) {
-        auto elementType = type.getElementType(i);
-        if (elementType != ty) {
-            uniform = false;
-            break;
-        }
-    }
-    if (uniform) {
-        os << arity << 'x';
-        p.printType(ty);
-        return;
-    }
-
-    for (unsigned i = 0; i < arity; i++) {
-        p.printType(type.getElementType(i));
-        if (i + 1 < arity) {
-            os << ", ";
-        }
-    }
-    os << ">";
-}
-
 void eirDialect::printType(Type ty, mlir::DialectAsmPrinter &p) const {
-    auto &os = p.getStream();
-    TypeSwitch<Type>(ty)
-        .Case<NoneType>([&](Type) { os << "none"; })
-        .Case<TermType>([&](Type) { os << "term"; })
-        .Case<ListType>([&](Type) { os << "list"; })
-        .Case<PidType>([&](Type) { os << "pid"; })
-        .Case<ReferenceType>([&](Type) { os << "reference"; })
-        .Case<NumberType>([&](Type) { os << "number"; })
-        .Case<IntegerType>([&](Type) { os << "integer"; })
-        .Case<FloatType>([&](Type) { os << "float"; })
-        .Case<AtomType>([&](Type) { os << "atom"; })
-        .Case<BooleanType>([&](Type) { os << "bool"; })
-        .Case<FixnumType>([&](Type) { os << "fixnum"; })
-        .Case<BigIntType>([&](Type) { os << "bigint"; })
-        .Case<NilType>([&](Type) { os << "nil"; })
-        .Case<ConsType>([&](Type) { os << "cons"; })
-        .Case<MapType>([&](Type) { os << "map"; })
-        .Case<ClosureType>([&](Type) { os << "closure"; })
-        .Case<BinaryType>([&](Type) { os << "binary"; })
-        .Case<HeapBinType>([&](Type) { os << "heapbin"; })
-        .Case<ProcBinType>([&](Type) { os << "procbin"; })
-        .Case<TupleType>([&](Type) { printTuple(ty.cast<TupleType>(), os, p); })
-        .Case<BoxType>([&](Type) {
-            os << "box<";
-            p.printType(ty.cast<BoxType>().getBoxedType());
-            os << ">";
-        })
-        .Case<RefType>([&](Type) {
-            os << "ref<";
-            p.printType(ty.cast<RefType>().getInnerType());
-            os << ">";
-        })
-        .Case<PtrType>([&](Type) {
-            os << "ptr<";
-            p.printType(ty.cast<PtrType>().getInnerType());
-            os << ">";
-        })
-        .Case<TraceRefType>([&](Type) { os << "trace_ref"; })
-        .Case<ReceiveRefType>([&](Type) { os << "receive_ref"; })
-        .Default([](Type) { llvm_unreachable("unknown eir type"); });
+    if (mlir::succeeded(generatedTypePrinter(ty, printer))) return;
+    ty.dump();
+    llvm::report_fatal_error("unrecognized dialect type!");
 }
 
 }  // namespace eir

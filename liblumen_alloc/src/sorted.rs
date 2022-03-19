@@ -8,12 +8,17 @@ use core::cmp::Ordering;
 use core::marker::PhantomData;
 
 use intrusive_collections::{Adapter, KeyAdapter, UnsafeRef};
-use intrusive_collections::{LinkedListLink, RBTreeLink};
+use intrusive_collections::{DefaultPointerOps, LinkOps, LinkedListLink, PointerOps, RBTreeLink};
 
-/// A simple marker trait for intrusive collection links
-pub trait Link: Default {}
-impl Link for RBTreeLink {}
-impl Link for LinkedListLink {}
+pub trait Link: Default + Clone {
+    type LinkOps: LinkOps + Default + Clone;
+}
+impl Link for RBTreeLink {
+    type LinkOps = intrusive_collections::rbtree::LinkOps;
+}
+impl Link for LinkedListLink {
+    type LinkOps = intrusive_collections::linked_list::LinkOps;
+}
 
 /// This trait is used to make the sorted key adapter more general
 /// by delegating some of the work to the type being stored in the
@@ -25,13 +30,19 @@ pub trait Sortable {
     ///
     /// The sort order used for the container is given and is used
     /// to differentiate between links if many are present
-    fn get_value(link: *const Self::Link, order: SortOrder) -> *const Self;
+    fn get_value(
+        link: <<Self::Link as Link>::LinkOps as LinkOps>::LinkPtr,
+        order: SortOrder,
+    ) -> *const Self;
 
     /// Get a link pointer from the given value.
     ///
     /// The sort order used for the container is given and is used
     /// to differentiate between links if many are present
-    fn get_link(value: *const Self, order: SortOrder) -> *const Self::Link;
+    fn get_link(
+        value: *const Self,
+        order: SortOrder,
+    ) -> <<Self::Link as Link>::LinkOps as LinkOps>::LinkPtr;
 
     /// Get the sort key to use for this value.
     ///
@@ -94,6 +105,8 @@ where
     T: Sortable,
 {
     order: SortOrder,
+    link_ops: <<T as Sortable>::Link as Link>::LinkOps,
+    pointer_ops: DefaultPointerOps<UnsafeRef<T>>,
     _phantom: PhantomData<UnsafeRef<T>>,
 }
 
@@ -104,6 +117,8 @@ where
     pub fn new(order: SortOrder) -> Self {
         Self {
             order,
+            link_ops: Default::default(),
+            pointer_ops: Default::default(),
             _phantom: PhantomData,
         }
     }
@@ -112,16 +127,17 @@ where
 unsafe impl<T> Send for SortedKeyAdapter<T> where T: Sortable {}
 unsafe impl<T> Sync for SortedKeyAdapter<T> where T: Sortable {}
 
-impl<T> Copy for SortedKeyAdapter<T> where T: Sortable + Copy {}
-
-impl<T> Clone for SortedKeyAdapter<T>
+impl<T, L> Clone for SortedKeyAdapter<T>
 where
-    T: Sortable + Clone,
+    L: Link,
+    T: Sortable<Link = L> + Clone,
 {
     fn clone(&self) -> Self {
         let order = self.order;
         SortedKeyAdapter {
             order,
+            link_ops: self.link_ops.clone(),
+            pointer_ops: self.pointer_ops.clone(),
             _phantom: PhantomData,
         }
     }
@@ -130,33 +146,48 @@ where
 #[allow(dead_code, unsafe_code)]
 unsafe impl<T> Adapter for SortedKeyAdapter<T>
 where
-    T: Sortable<Link = RBTreeLink>,
+    T: Sortable,
 {
     // Currently the only sorted collection is RBTree
-    type Link = <T as Sortable>::Link;
-    // The value type actually referenced by nodes
-    type Value = T;
-    // The type of pointer stored in the tree
-    type Pointer = UnsafeRef<T>;
+    type LinkOps = <<T as Sortable>::Link as Link>::LinkOps;
+    type PointerOps = DefaultPointerOps<UnsafeRef<T>>;
 
     #[inline]
-    unsafe fn get_value(&self, link: *const Self::Link) -> *const Self::Value {
+    unsafe fn get_value(
+        &self,
+        link: <Self::LinkOps as LinkOps>::LinkPtr,
+    ) -> *const <Self::PointerOps as PointerOps>::Value {
         <T as Sortable>::get_value(link, self.order)
     }
 
     #[inline]
-    unsafe fn get_link(&self, value: *const Self::Value) -> *const Self::Link {
+    unsafe fn get_link(
+        &self,
+        value: *const <Self::PointerOps as PointerOps>::Value,
+    ) -> <Self::LinkOps as LinkOps>::LinkPtr {
         <T as Sortable>::get_link(value, self.order)
+    }
+
+    fn link_ops(&self) -> &Self::LinkOps {
+        &self.link_ops
+    }
+
+    fn link_ops_mut(&mut self) -> &mut Self::LinkOps {
+        &mut self.link_ops
+    }
+
+    fn pointer_ops(&self) -> &Self::PointerOps {
+        &self.pointer_ops
     }
 }
 
 impl<'a, T> KeyAdapter<'a> for SortedKeyAdapter<T>
 where
-    T: Sortable<Link = RBTreeLink>,
+    T: Sortable,
 {
     type Key = SortKey;
 
-    fn get_key(&self, value: &'a Self::Value) -> Self::Key {
+    fn get_key(&self, value: &'a <Self::PointerOps as PointerOps>::Value) -> Self::Key {
         value.sort_key(self.order)
     }
 }

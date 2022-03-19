@@ -1,18 +1,16 @@
 #![deny(warnings)]
 #![cfg_attr(not(test), no_std)]
 #![feature(test)]
+// Used for unlikely intrinsic
 #![feature(core_intrinsics)]
 // Used for allocators
 #![feature(allocator_api)]
-#![feature(alloc_layout_extra)]
 #![feature(nonnull_slice_from_raw_parts)]
 #![feature(slice_ptr_get)]
 #![feature(slice_ptr_len)]
 // Dynamic dispatch intrinsics
-#![feature(llvm_asm)]
+#![feature(c_unwind)]
 #![feature(naked_functions)]
-#![feature(unwind_attributes)]
-#![feature(global_asm)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc as core_alloc;

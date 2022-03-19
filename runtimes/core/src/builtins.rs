@@ -23,7 +23,7 @@ extern "C" {
     fn erlang_bxor_2(left: Term, right: Term) -> Term;
     #[link_name = "erlang:div/2"]
     fn erlang_div_2(dividend: Term, divisor: Term) -> Term;
-    #[link_name = "erlang://2"]
+    #[link_name = "erlang:fdiv/2"]
     fn erlang_divide_2(dividend: Term, divisor: Term) -> Term;
 }
 
@@ -267,20 +267,6 @@ pub extern "C" fn builtin_math_bor(left: Term, right: Term) -> Term {
 #[export_name = "__lumen_builtin_math.bxor"]
 pub extern "C" fn builtin_math_bxor(left: Term, right: Term) -> Term {
     unsafe { erlang_bxor_2(left, right) }
-}
-
-/// Capture the data needed to construct a stack trace later
-#[export_name = "__lumen_builtin_trace_capture"]
-pub extern "C" fn builtin_trace_capture() -> Term {
-    // HACK(pauls): For now our reference is just nil
-    Term::NIL
-}
-
-/// Construct or return the stack trace for the given reference
-#[export_name = "__lumen_builtin_trace_construct"]
-pub extern "C" fn builtin_trace_construct(_trace_ref: Term) -> Term {
-    // HACK(pauls): For now we just return an empty list
-    Term::NIL
 }
 
 #[export_name = "__lumen_builtin_fatal_error"]

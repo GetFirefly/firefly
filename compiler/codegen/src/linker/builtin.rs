@@ -1,22 +1,23 @@
-use std::os;
-use std::io;
 use std::ffi::CString;
+use std::io;
+use std::os;
+use std::os::raw::{c_char, c_int};
 
 use liblumen_util::fs;
 
 extern "C" {
     #[cfg(windows)]
     pub fn LLVMLumenLink(
-        argc: libc::c_int,
-        argv: *const *const libc::c_char,
+        argc: c_int,
+        argv: *const *const c_char,
         stdout: os::windows::io::RawHandle,
         stderr: os::windows::io::RawHandle,
     ) -> bool;
 
     #[cfg(not(windows))]
     pub fn LLVMLumenLink(
-        argc: libc::c_int,
-        argv: *const *const libc::c_char,
+        argc: c_int,
+        argv: *const *const c_char,
         stdout: os::unix::io::RawFd,
         stderr: os::unix::io::RawFd,
     ) -> bool;
@@ -40,9 +41,7 @@ pub fn link(argv: &[CString]) -> Result<(), ()> {
     for arg in argv {
         c_argv.push(arg.as_ptr());
     }
-    let is_ok = unsafe {
-        LLVMLumenLink(argc as libc::c_int, c_argv.as_ptr(), stdout_fd, stderr_fd)
-    };
+    let is_ok = unsafe { LLVMLumenLink(argc as c_int, c_argv.as_ptr(), stdout_fd, stderr_fd) };
 
     if is_ok {
         Ok(())

@@ -1,2 +1,2 @@
-add_subdirectory(EIR)
-add_subdirectory(GC)
+add_subdirectory(CIR)
+#add_subdirectory(GC)

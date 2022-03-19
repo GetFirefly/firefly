@@ -3,7 +3,7 @@ authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
 name = "unwind"
 version = "0.1.0"
 build = "build.rs"
-edition = "2018"
+edition = "2021"
 
 [lib]
 test = false
@@ -12,7 +12,7 @@ doc = false
 
 [dependencies]
 libc = "0.2"
-cfg-if = "0.1.8"
+cfg-if = "1.0"
 
 [build-dependencies]
 cc = "1.0"

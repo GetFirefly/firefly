@@ -13,6 +13,7 @@ enum class DiagnosticKind {
   ResourceLimit,
   StackSize,
   Linker,
+  Lowering,
   DebugMetadataVersion,
   DebugMetadataInvalid,
   ISelFallback,
@@ -28,13 +29,14 @@ enum class DiagnosticKind {
   MachineOptimizationRemarkMissed,
   MIRParser,
   PGOProfile,
-  MisExpect,
   Unsupported,
+  SrcMgr,
+  DontCall,
   Other,
 };
 
 static DiagnosticKind toDiagnosticKind(llvm::DiagnosticKind Kind);
 
-}  // namespace lumen
+} // namespace lumen
 
 #endif

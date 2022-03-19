@@ -7,7 +7,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/CBindingWrapping.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
@@ -15,7 +14,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -25,13 +24,13 @@
 #include "lumen/EIR/IR/EIRTypes.h"
 #include "lumen/term/Encoding.h"
 
-using ::llvm::cast;
-using ::llvm::dyn_cast_or_null;
 using ::llvm::Optional;
 using ::llvm::raw_ostream;
 using ::llvm::StringSwitch;
 using ::llvm::TargetMachine;
 
+using ::mlir::cast;
+using ::mlir::dyn_cast_or_null;
 using ::mlir::OpPassManager;
 using ::mlir::PassManager;
 using ::mlir::edsc::appendToBlock;
@@ -40,9 +39,9 @@ using ::mlir::edsc::createBlock;
 using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ScopedContext;
 using ::mlir::edsc::ValueBuilder;
-using ::mlir::LLVM::LLVMIntegerType;
+using ::mlir::LLVM::LLVMArrayType;
+using ::mlir::LLVM::LLVMPointerType;
 using ::mlir::LLVM::LLVMStructType;
-using ::mlir::LLVM::LLVMType;
 using namespace ::mlir::edsc::intrinsics;
 
 namespace LLVM = ::mlir::LLVM;
@@ -121,9 +120,9 @@ static Type fromRust(Builder &builder, const EirType *wrapper) {
     case EirTypeTag::Boolean:
         return builder.getType<BooleanType>();
     case EirTypeTag::Fixnum:
-        return builder.getType<FixnumType>();
+        return builder.getType<IntegerType>();
     case EirTypeTag::BigInt:
-        return builder.getType<BigIntType>();
+        return builder.getType<IntegerType>();
     case EirTypeTag::Nil:
         return builder.getType<NilType>();
     case EirTypeTag::Cons:
@@ -190,8 +189,8 @@ bool unwrapValuesAsTerms(OpBuilder &builder, MLIRValueRef *argv, unsigned argc,
 }
 
 static Value getOrInsertGlobal(OpBuilder &builder, ModuleOp &mod, Location loc,
-                               StringRef name, LLVMType valueTy,
-                               bool isConstant, LLVM::Linkage linkage,
+                               StringRef name, Type valueTy, bool isConstant,
+                               LLVM::Linkage linkage,
                                LLVM::ThreadLocalMode tlsMode, Attribute value);
 
 //===----------------------------------------------------------------------===//
@@ -748,7 +747,8 @@ extern "C" MLIRValueRef MLIRBuildTraceConstructOp(MLIRModuleBuilderRef b,
 }
 
 Value ModuleBuilder::build_trace_construct_op(Location loc, Value trace) {
-    builder.create<TraceConstructOp>(loc, trace);
+    auto op = builder.create<TraceConstructOp>(loc, trace);
+    return op.trace();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1176,8 +1176,7 @@ static Optional<Value> buildIntrinsicFailOp(ModuleBuilder *modBuilder,
                                             ArrayRef<Value> args) {
     auto builder = modBuilder->getBuilder();
     assert(args.size() == 1 && "expected fail/1 to receive one operand");
-    auto calleeSymbol =
-        FlatSymbolRefAttr::get("__lumen_builtin_fail/1", builder.getContext());
+    auto calleeSymbol = builder.getSymbolRefAttr("__lumen_builtin_fail/1");
     auto termTy = builder.getType<TermType>();
     SmallVector<Type, 1> resultTypes{termTy};
     auto op = builder.create<CallOp>(loc, calleeSymbol, resultTypes, args);
@@ -1608,8 +1607,8 @@ Block *ModuleBuilder::build_landing_pad(Location loc, Block *err) {
     // ensure that exception unwinding is handled properly
     Block *unwind = builder.createBlock(err);
 
-    LLVMType i8Ty = builder.getType<LLVMIntegerType>(8);
-    LLVMType i8PtrTy = i8Ty.getPointerTo();
+    Type i8Ty = builder.getIntegerType(8);
+    Type i8PtrTy = LLVMPointerType::get(i8Ty);
 
     // Obtain catch type value from entry block
     Region *funcRegion = unwind->getParent();
@@ -1636,12 +1635,13 @@ Block *ModuleBuilder::build_landing_pad(Location loc, Block *err) {
                 catchType = llvm_bitcast(i8PtrTy, llvm_addressof(global));
             } else {
                 // type_name = lumen_panic\0
-                LLVMType typeNameTy = LLVMType::getArrayTy(i8Ty, 12);
-                LLVMType typeInfoTy = LLVMType::createStructTy(
-                    builder.getContext(),
-                    ArrayRef<LLVMType>{i8PtrTy, i8PtrTy,
-                                       typeNameTy.getPointerTo()},
-                    StringRef("type_info"));
+                Type typeNameTy = LLVMArrayType::get(i8Ty, 12);
+                Type typeInfoTy = LLVMStructType::getIdentified(
+                    builder.getContext(), StringRef("type_info"));
+                typeInfoTy.setBody(
+                    ArrayRef<Type>{i8PtrTy, i8PtrTy,
+                                   LLVMPointerType::get(typeNameTy)},
+                    /*packed=*/false);
                 Value catchTypeGlobal = getOrInsertGlobal(
                     builder, theModule, loc, typeInfoName, typeInfoTy, false,
                     LLVM::Linkage::External,
@@ -1956,8 +1956,7 @@ void ModuleBuilder::build_receive_wait(Location loc, Block *timeout,
 
     StringRef fatalErrSymbol("__lumen_builtin_fatal_error");
     getOrDeclareFunction(fatalErrSymbol, nullptr, TypeRange());
-    auto calleeSymbol =
-        FlatSymbolRefAttr::get(fatalErrSymbol, builder.getContext());
+    auto calleeSymbol = builder.getSymbolRefAttr(fatalErrSymbol);
     auto callOp = builder.create<CallOp>(loc, calleeSymbol, ArrayRef<Type>{},
                                          ValueRange());
     callOp.setAttr("tail", builder.getUnitAttr());
@@ -2044,7 +2043,7 @@ extern "C" MLIRAttributeRef MLIRBuildIntAttr(MLIRModuleBuilderRef b,
 
 Attribute ModuleBuilder::build_int_attr(uint64_t value) {
     APInt i(immediateBitWidth, value, /*signed=*/true);
-    auto intType = builder.getType<FixnumType>();
+    auto intType = builder.getType<IntegerType>();
     return APIntAttr::get(builder.getContext(), intType, i);
 }
 
@@ -2336,8 +2335,8 @@ extern "C" MLIRAttributeRef MLIRBuildMapAttr(MLIRModuleBuilderRef b,
 //===----------------------------------------------------------------------===//
 
 static Value getOrInsertGlobal(OpBuilder &builder, ModuleOp &mod, Location loc,
-                               StringRef name, LLVMType valueTy,
-                               bool isConstant, LLVM::Linkage linkage,
+                               StringRef name, Type valueTy, bool isConstant,
+                               LLVM::Linkage linkage,
                                LLVM::ThreadLocalMode tlsMode,
                                Attribute value = Attribute()) {
     ScopedContext scope(builder, loc);
@@ -2430,8 +2429,8 @@ DEFINE_IS_TYPE_OP(MLIRBuildIsTypeNil, NilType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeMap, MapType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeNumber, NumberType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeInteger, IntegerType);
-DEFINE_IS_TYPE_OP(MLIRBuildIsTypeFixnum, FixnumType);
-DEFINE_IS_TYPE_OP(MLIRBuildIsTypeBigInt, BigIntType);
+DEFINE_IS_TYPE_OP(MLIRBuildIsTypeFixnum, IntegerType);
+DEFINE_IS_TYPE_OP(MLIRBuildIsTypeBigInt, IntegerType);
 DEFINE_IS_TYPE_OP(MLIRBuildIsTypeFloat, FloatType);
 
 //===----------------------------------------------------------------------===//

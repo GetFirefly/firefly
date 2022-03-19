@@ -2,9 +2,9 @@ use core::mem;
 use core::ptr::NonNull;
 
 #[cfg(target_pointer_width = "64")]
-use heapless::consts::U152 as UHEAP_SIZES_LEN;
+const UHEAP_SIZES_LEN: usize = 152;
 #[cfg(target_pointer_width = "32")]
-use heapless::consts::U57 as UHEAP_SIZES_LEN;
+const UHEAP_SIZES_LEN: usize = 57;
 use heapless::Vec;
 
 use liblumen_alloc_macros::generate_heap_sizes;

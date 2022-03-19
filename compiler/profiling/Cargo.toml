@@ -2,7 +2,7 @@
 name = "liblumen_profiling"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]

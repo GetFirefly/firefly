@@ -27,18 +27,28 @@ where
     F: FnOnce() -> R + Send,
     R: Send,
 {
-    struct Ptr(*mut ());
-    unsafe impl Send for Ptr {}
-    unsafe impl Sync for Ptr {}
+    struct UnsafePtr(*mut ());
+    unsafe impl Send for UnsafePtr {}
+    unsafe impl Sync for UnsafePtr {}
+    impl UnsafePtr {
+        unsafe fn take<T>(self) -> Option<T> {
+            let opt = &mut *(self.0 as *mut Option<T>);
+            opt.take()
+        }
+
+        unsafe fn as_mut<T>(&mut self) -> &mut Option<T> {
+            &mut *(self.0 as *mut Option<T>)
+        }
+    }
 
     let mut f = Some(f);
-    let run = Ptr(&mut f as *mut _ as *mut ());
     let mut result = None;
-    let result_ptr = Ptr(&mut result as *mut _ as *mut ());
+    let run = UnsafePtr(&mut f as *mut _ as *mut ());
+    let mut result_ptr = UnsafePtr(&mut result as *mut _ as *mut ());
 
     let thread = builder.spawn(move || {
-        let run = unsafe { (*(run.0 as *mut Option<F>)).take().unwrap() };
-        let result = unsafe { &mut *(result_ptr.0 as *mut Option<R>) };
+        let run = unsafe { run.take::<F>().unwrap() };
+        let result = unsafe { result_ptr.as_mut::<R>() };
         *result = Some(run());
     });
 

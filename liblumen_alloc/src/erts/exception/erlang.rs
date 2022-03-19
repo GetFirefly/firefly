@@ -52,6 +52,25 @@ pub struct ErlangException {
     fragment: Option<NonNull<HeapFragment>>,
 }
 
+#[export_name = "__lumen_build_stacktrace"]
+pub extern "C" fn capture_trace() -> *mut Trace {
+    let trace = Trace::capture();
+    Trace::into_raw(trace)
+}
+
+#[export_name = "__lumen_stacktrace_to_term"]
+pub extern "C" fn trace_to_term(trace: *mut Trace) -> Term {
+    if trace.is_null() {
+        return Term::NIL;
+    }
+    let trace = unsafe { Trace::from_raw(trace) };
+    if let Ok(term) = trace.as_term() {
+        term
+    } else {
+        Term::NIL
+    }
+}
+
 #[export_name = "__lumen_builtin_raise/2"]
 pub extern "C" fn capture_and_raise(kind: Term, reason: Term) -> *mut ErlangException {
     let err = ErlangException::new(kind, reason, Trace::capture());

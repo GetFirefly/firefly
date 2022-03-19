@@ -3,23 +3,22 @@ name = "liblumen_core"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
 publish = false
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 
 [dependencies]
-rustversion = "1.0"
-cfg-if = "0.1"
-lazy_static = "1.2"
+cfg-if = "1.0"
+lazy_static = "1.4"
 liblumen_core_macros = { path = "../liblumen_core_macros" }
-parking_lot = "0.11.1"
+parking_lot = "0.12"
 
 [dependencies.lock_api]
-version = "0.4.2"
+version = "0.4"
 features = ["nightly"]
 
 # On wasm32-unknown-unknown, use dlmalloc for malloc/free
 [target.'cfg(all(target_arch = "wasm32", target_vendor = "unknown"))'.dependencies.dlmalloc]
-version = "0.2.1"
+version = "0.2"
 
 # We use libc for all platforms except wasm32-unknown-unknown
 # NOTE: On win32 we use libc for malloc/free

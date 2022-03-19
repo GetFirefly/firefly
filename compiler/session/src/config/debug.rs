@@ -12,6 +12,11 @@ pub enum DebugInfo {
     Limited,
     Full,
 }
+impl Default for DebugInfo {
+    fn default() -> Self {
+        Self::Full
+    }
+}
 impl FromStr for DebugInfo {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -25,10 +30,10 @@ impl FromStr for DebugInfo {
 }
 impl ParseOption for DebugInfo {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
-        matches.value_of(info.name).map_or_else(
-            || Err(required_option_missing(info)),
-            |s| Self::from_str(s).map_err(|_| invalid_value(info, "invalid debug info level")),
-        )
+        matches
+            .value_of(info.name)
+            .map_or(Ok(DebugInfo::Full), |s| s.parse())
+            .map_err(|_| invalid_value(info, &format!("expected debug level 0-2")))
     }
 }
 

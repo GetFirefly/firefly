@@ -2,7 +2,7 @@
 name = "liblumen_util"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]
@@ -12,4 +12,4 @@ thiserror = "1.0"
 libc = "0.2"
 glob = "0.3"
 atty = "0.2"
-libeir_diagnostics = { git = "https://github.com/eirproject/eir" }
+liblumen_diagnostics = { path = "../compiler/diagnostics" }

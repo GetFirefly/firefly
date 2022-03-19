@@ -1,0 +1,29 @@
+#ifndef CIR_PASSES_TD
+#define CIR_PASSES_TD
+
+include "mlir/Pass/PassBase.td"
+
+def InjectYields : InterfacePass<"inject-yields", "FunctionOpInterface"> {
+    let summary = "Injects yield points for scheduling/garbage-collection at appropriate points in each function";
+    let constructor = "mlir::cir::createInjectYieldPointsPass()";
+    let dependentDialects = ["CIRDialect"];
+}
+
+def ConvertCIRToLLVM : Pass<"convert-cir-to-llvm", "ModuleOp"> {
+    let summary = "Convert CIR dialect to LLVM dialect";
+    let description = [{
+      This pass converts supported CIR ops to LLVM dialect instructions.
+    }];
+    let constructor = "mlir::cir::createConvertCIRToLLVMPass()";
+    let dependentDialects = ["LLVM::LLVMDialect"];
+    let options = [
+      Option<"enableNanboxing", "enable-nanboxing", "bool",
+             /*default=*/"false",
+             "When enabled, terms are encoded using a nanboxed representation if the data layout supports it">,
+      Option<"dataLayout", "data-layout", "std::string",
+             /*default=*/"\"\"",
+             "String description (LLVM format) of the data layout that is expected on the produced module">
+    ];
+}
+
+#endif

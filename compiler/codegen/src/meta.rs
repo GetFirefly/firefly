@@ -1,20 +1,22 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use liblumen_intern::Symbol;
 use liblumen_session::{Options, PathKind};
 use liblumen_util::fs::NativeLibraryKind;
 
 use crate::linker::LinkerInfo;
 
+/// Represents the results of compiling a single module
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledModule {
-    name: String,
+    name: Symbol,
     object: Option<PathBuf>,
     bytecode: Option<PathBuf>,
     bytecode_compressed: Option<PathBuf>,
 }
 impl CompiledModule {
-    pub fn new(name: String, object: Option<PathBuf>, bytecode: Option<PathBuf>) -> Self {
+    pub fn new(name: Symbol, object: Option<PathBuf>, bytecode: Option<PathBuf>) -> Self {
         Self {
             name,
             object,
@@ -23,8 +25,8 @@ impl CompiledModule {
         }
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn name(&self) -> Symbol {
+        self.name
     }
 
     pub fn object(&self) -> Option<&Path> {
@@ -40,10 +42,11 @@ impl CompiledModule {
     }
 }
 
+/// Represents the result of compiling a single application
 #[derive(Debug)]
 pub struct CodegenResults {
-    pub project_name: String,
-    pub modules: Vec<Arc<CompiledModule>>,
+    pub app_name: Symbol,
+    pub modules: Vec<CompiledModule>,
     pub windows_subsystem: Option<String>,
     pub linker_info: LinkerInfo,
     pub project_info: ProjectInfo,

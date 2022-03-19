@@ -63,8 +63,8 @@ impl From<Monotonic> for Milliseconds {
 
 /// The absolute time
 #[derive(Clone, Copy, Eq, Debug, Ord, PartialEq, PartialOrd)]
+#[repr(transparent)]
 pub struct Monotonic(pub u64);
-
 impl Monotonic {
     pub fn from_millis<T: Into<u64>>(to: T) -> Self {
         Self(to.into())
@@ -76,6 +76,16 @@ impl Monotonic {
 
     pub fn round_down(&self, divisor: u64) -> Self {
         Self((self.0 / divisor) * divisor)
+    }
+}
+impl PartialEq<u64> for Monotonic {
+    fn eq(&self, other: &u64) -> bool {
+        self.0.eq(other)
+    }
+}
+impl PartialOrd<u64> for Monotonic {
+    fn partial_cmp(&self, other: &u64) -> Option<std::cmp::Ordering> {
+        Some(self.0.cmp(other))
     }
 }
 

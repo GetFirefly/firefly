@@ -5,7 +5,7 @@ members = [
   "liblumen_*", 
   "lumen", 
   "native_implemented/*", 
-  "runtimes/*" 
+  "runtimes/*",
 ]
 
 default-members = [ 
@@ -22,18 +22,3 @@ exclude = [
 # `lto`s (true and false) for `examples/spawn-chain/pkg/spawn_chaing_bg.wasm`
 opt-level = 2
 lto = false
-
-#[patch."https://github.com/eirproject/eir"]
-#libeir_diagnostics = { path = "../eir/libeir_diagnostics" }
-#libeir_frontend = { path = "../eir/libeir_frontend" }
-#libeir_syntax_erl = { path = "../eir/libeir_syntax_erl" }
-#libeir_ir = { path = "../eir/libeir_ir" }
-#libeir_intern = { path = "../eir/libeir_intern" }
-#libeir_lowerutils = { path = "../eir/libeir_lowerutils" }
-#libeir_passes = { path = "../eir/libeir_passes" }
-#libeir_util_datastructures = { path = "../eir/util/libeir_util_datastructures" }
-#libeir_util_dot_graph = { path = "../eir/util/libeir_util_dot_graph" }
-#libeir_util_number = { path = "../eir/util/libeir_util_number" }
-#libeir_util_parse = { path = "../eir/util/libeir_util_parse" }
-#libeir_util_parse_listing = { path = "../eir/util/libeir_util_parse_listing" }
-#libeir_util_pattern_compiler = { path = "../eir/util/libeir_util_pattern_compiler" }

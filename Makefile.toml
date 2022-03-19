@@ -68,11 +68,11 @@ init_task = "init"
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
 CARGO_MAKE_CARGO_VERBOSE_FLAGS = { source = "${CARGO_MAKE_CI}", default_value = "", mapping = { "true" = "--verbose" } }
-CARGO_MAKE_RUST_SCRIPT_PROVIDER = "cargo-play"
+CARGO_MAKE_RUST_SCRIPT_PROVIDER = "rust-script"
 CARGO_MAKE_USE_WORKSPACE_PROFILE = true
 CARGO_MAKE_CARGO_BUILD_TEST_FLAGS = "--no-fail-fast"
 CARGO_TARGET_DIR = { value = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target", condition = { env_not_set = ["CARGO_TARGET_DIR"] } }
-CARGO_MAKE_TOOLCHAIN_DEFAULT = { source = "${CARGO_MAKE_CI}", default_value = "nightly", mapping = { "true" = "nightly-2021-01-29", "false" = "nightly" } }
+CARGO_MAKE_TOOLCHAIN_DEFAULT = { source = "${CARGO_MAKE_CI}", default_value = "nightly", mapping = { "true" = "nightly", "false" = "nightly" } }
 CARGO_MAKE_TOOLCHAIN = { value = "${CARGO_MAKE_TOOLCHAIN_DEFAULT}", condition = { env_not_set = ["CARGO_MAKE_TOOLCHAIN"] } }
 BACKTRACE_DEFAULT = { source = "${CARGO_MAKE_CI}", mapping = { "true" = "1", "false" = "0" } }
 RUST_BACKTRACE = { value = "${BACKTRACE_DEFAULT}", condition = { env_not_set = ["RUST_BACKTRACE"] } }
@@ -253,11 +253,10 @@ category = "Test"
 description = "Runs tests written in Rust"
 env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
 command = "rustup"
-args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "test", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "@@split(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS, )", "${@}"]
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "extra-link-arg", "test", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "@@split(CARGO_MAKE_CARGO_BUILD_TEST_FLAGS, )", "${@}"]
 dependencies = [
   "require-ninja",
   "require-cmake",
-  "lumen-tblgen",
 ]
 
 [tasks.test-cleanup]
@@ -285,12 +284,12 @@ run_task = { name = ["check-format", "lumen", "test"] }
 category = "Build"
 description = "Runs cargo check"
 condition = { env = {"BUILD_LUMEN" = "false" } }
+env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
 command = "rustup"
-args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "check", "--", "${@}"]
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "extra-link-arg", "check", "${@}"]
 dependencies = [
   "require-ninja",
   "require-cmake",
-  "lumen-tblgen",
 ]
 
 [tasks.build]
@@ -307,23 +306,23 @@ private = true
 description = "Runs cargo build"
 category = "Build"
 command = "rustup"
-args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "build", "--", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "${@}"]
+env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
+args = ["run", "${CARGO_MAKE_TOOLCHAIN}", "cargo", "-Z", "extra-link-arg", "build", "--", "@@remove-empty(CARGO_MAKE_CARGO_VERBOSE_FLAGS)", "${@}"]
 dependencies = [
   "require-ninja",
   "require-cmake",
-  "lumen-tblgen",
 ]
 
 [tasks.lumen]
 category = "Build"
 description = "Builds the Lumen compiler"
 condition = { env = { "BUILD_LUMEN" = "true" } }
+env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
 script_runner = "@rust"
 script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lumen.rs", absolute_path = true }
 dependencies = [
   "require-ninja",
   "require-cmake",
-  "lumen-tblgen",
 ]
 
 [tasks.require-ninja]
@@ -351,13 +350,6 @@ else
   exit 0
 end
 ''']
-
-[tasks.lumen-tblgen]
-private = true
-category = "Build"
-condition = { files_not_exist = ["${CARGO_TARGET_DIR}/build/lumen_tblgen/bin/lumen-tblgen"] }
-script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lumen_tablegen.ds", absolute_path = true }
-dependencies = ["require-ninja", "require-cmake"]
 
 [tasks.install-wasm-target]
 category = "Web"
@@ -522,7 +514,7 @@ category = "Test"
 description = "Runs the web test suite"
 command = "wasm-pack"
 args = ["test", "--headless", "${@}", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/native_implemented/web"]
-dependencies = ["lumen-tblgen", "wasm-toolchain"]
+dependencies = ["wasm-toolchain"]
 
 [tasks.checkout-interpreter]
 private = true
@@ -543,7 +535,7 @@ category = "Examples"
 description = "Builds spawn-chain example program (wasm32)"
 command = "wasm-pack"
 args = ["build", "examples/spawn-chain/wasm"]
-dependencies = ["checkout-interpreter", "checkout-examples", "lumen-tblgen"]
+dependencies = ["checkout-interpreter", "checkout-examples"]
 
 [tasks.test-spawn-chain]
 category = "Examples"
@@ -551,11 +543,11 @@ description = "Tests spawn-chain example program (x86_64)"
 cwd = "examples/spawn-chain/cli"
 command = "make"
 args = ["test"]
-dependencies = ["checkout-interpreter", "checkout-examples", "lumen-tblgen"]
+dependencies = ["checkout-interpreter", "checkout-examples"]
 
 [tasks.test-spawn-chain-wasm]
 category = "Test"
 description = "Runs the spawn-chain example tests"
 command = "wasm-pack"
 args = ["test", "--headless", "${@}", "examples/spawn-chain/wasm"]
-dependencies = ["lumen-tblgen", "spawn-chain-web"]
+dependencies = ["spawn-chain-web"]

@@ -1,0 +1,921 @@
+use liblumen_binary::BinaryEntrySpecifier;
+use liblumen_diagnostics::SourceSpan;
+use liblumen_intern::Symbol;
+use liblumen_number::{BigInt, Integer};
+
+use super::*;
+
+pub trait InstBuilderBase<'f>: Sized {
+    fn data_flow_graph(&self) -> &DataFlowGraph;
+    fn data_flow_graph_mut(&mut self) -> &mut DataFlowGraph;
+    fn build(self, data: InstData, ty: Type, span: SourceSpan) -> (Inst, &'f mut DataFlowGraph);
+}
+
+macro_rules! binary_op {
+    ($name:ident, $op:expr) => {
+        paste::paste! {
+            fn $name(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+                let ty = self.data_flow_graph().value_type(lhs);
+                let (inst, dfg) = self.Binary($op, ty, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _imm>](self, lhs: Value, rhs: Immediate, span: SourceSpan) -> Value {
+                let ty = self.data_flow_graph().value_type(lhs);
+                let (inst, dfg) = self.BinaryImm($op, ty, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _const>](self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
+                let ty = self.data_flow_graph().value_type(lhs);
+                let (inst, dfg) = self.BinaryConst($op, ty, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+        }
+    };
+}
+macro_rules! binary_bool_op {
+    ($name:ident, $op:expr) => {
+        paste::paste! {
+            fn $name(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+                let (inst, dfg) = self.Binary($op, Type::Bool, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _imm>](self, lhs: Value, rhs: bool, span: SourceSpan) -> Value {
+                let (inst, dfg) = self.BinaryImm($op, Type::Bool, lhs, Immediate::Bool(rhs), span);
+                dfg.first_result(inst)
+            }
+        }
+    };
+}
+macro_rules! binary_int_op {
+    ($name:ident, $op:expr) => {
+        paste::paste! {
+            fn $name(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+                let (inst, dfg) = self.Binary($op, Type::Integer, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _imm>](self, lhs: Value, rhs: i64, span: SourceSpan) -> Value {
+                let (inst, dfg) = self.BinaryImm($op, Type::Integer, lhs, Immediate::Integer(rhs), span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _const>](self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
+                let ty = self.data_flow_graph().constant_type(rhs);
+                assert_eq!(ty, Type::Integer, "invalid constant value type for integer op");
+                let (inst, dfg) = self.BinaryConst($op, ty, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+        }
+    };
+}
+macro_rules! binary_numeric_op {
+    ($name:ident, $op:expr) => {
+        paste::paste! {
+            fn $name(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+                let lty = self.data_flow_graph().value_type(lhs);
+                let rty = self.data_flow_graph().value_type(lhs);
+                let ty = lty.coerce_to_numeric_with(rty);
+                let (inst, dfg) = self.Binary($op, ty, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _imm>](self, lhs: Value, rhs: Immediate, span: SourceSpan) -> Value {
+                let lty = self.data_flow_graph().value_type(lhs);
+                let rty = rhs.ty();
+                assert!(rty.is_numeric(), "invalid immediate value type for arithmetic op");
+                let ty = lty.coerce_to_numeric_with(rty);
+                let (inst, dfg) = self.BinaryImm($op, ty, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _const>](self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
+                let lty = self.data_flow_graph().value_type(lhs);
+                let rty = self.data_flow_graph().constant_type(rhs);
+                assert!(rty.is_numeric(), "invalid constant value type for arithmetic op");
+                let ty = lty.coerce_to_numeric_with(rty);
+                let (inst, dfg) = self.BinaryConst($op, ty, lhs, rhs, span);
+                dfg.first_result(inst)
+            }
+        }
+    };
+}
+macro_rules! unary_bool_op {
+    ($name:ident, $op:expr) => {
+        paste::paste! {
+            fn $name(self, arg: Value, span: SourceSpan) -> Value {
+                let (inst, dfg) = self.Unary($op, Type::Bool, arg, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _imm>](self, imm: bool, span: SourceSpan) -> Value {
+                let (inst, dfg) = self.UnaryImm($op, Type::Bool, Immediate::Bool(imm), span);
+                dfg.first_result(inst)
+            }
+        }
+    };
+}
+macro_rules! unary_int_op {
+    ($name:ident, $op:expr) => {
+        paste::paste! {
+            fn $name(self, arg: Value, span: SourceSpan) -> Value {
+                let (inst, dfg) = self.Unary($op, Type::Integer, arg, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _imm>](self, imm: i64, span: SourceSpan) -> Value {
+                let (inst, dfg) = self.UnaryImm($op, Type::Integer, Immediate::Integer(imm), span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _const>](self, imm: Constant, span: SourceSpan) -> Value {
+                let ty = self.data_flow_graph().constant_type(imm);
+                assert_eq!(ty, Type::Integer, "invalid constant value for integer op");
+                let (inst, dfg) = self.UnaryConst($op, ty, imm, span);
+                dfg.first_result(inst)
+            }
+        }
+    };
+}
+macro_rules! unary_numeric_op {
+    ($name:ident, $op:expr) => {
+        paste::paste! {
+            fn $name(self, arg: Value, span: SourceSpan) -> Value {
+                let ty = self.data_flow_graph().value_type(arg);
+                let (inst, dfg) = self.Unary($op, ty.coerce_to_numeric(), arg, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _imm>](self, imm: Immediate, span: SourceSpan) -> Value {
+                let ty = imm.ty();
+                assert!(ty.is_numeric(), "invalid immediate value for arithmetic op");
+                let (inst, dfg) = self.UnaryImm($op, ty, imm, span);
+                dfg.first_result(inst)
+            }
+            fn [<$name _const>](self, imm: Constant, span: SourceSpan) -> Value {
+                let ty = self.data_flow_graph().constant_type(imm);
+                assert!(ty.is_numeric(), "invalid constant value for arithmetic op");
+                let (inst, dfg) = self.UnaryConst($op, ty, imm, span);
+                dfg.first_result(inst)
+            }
+        }
+    };
+}
+
+pub trait InstBuilder<'f>: InstBuilderBase<'f> {
+    fn int(self, i: i64, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(Opcode::ImmInt, Type::Integer, Immediate::Integer(i), span);
+        dfg.first_result(inst)
+    }
+
+    fn bigint(mut self, i: BigInt, span: SourceSpan) -> Value {
+        let constant = {
+            self.data_flow_graph_mut()
+                .make_constant(ConstantItem::Integer(Integer::Big(i)))
+        };
+        let (inst, dfg) = self.UnaryConst(Opcode::ConstBigInt, Type::Integer, constant, span);
+        dfg.first_result(inst)
+    }
+
+    fn character(self, c: char, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::ImmInt,
+            Type::Integer,
+            Immediate::Integer((c as u32).try_into().unwrap()),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn float(self, f: f64, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(Opcode::ImmFloat, Type::Float, Immediate::Float(f), span);
+        dfg.first_result(inst)
+    }
+
+    fn bool(self, b: bool, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(Opcode::ImmBool, Type::Bool, Immediate::Bool(b), span);
+        dfg.first_result(inst)
+    }
+
+    fn atom(self, a: Symbol, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(Opcode::ImmAtom, Type::Atom, Immediate::Atom(a), span);
+        dfg.first_result(inst)
+    }
+
+    fn nil(self, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(Opcode::ImmNil, Type::Nil, Immediate::Nil, span);
+        dfg.first_result(inst)
+    }
+
+    fn none(self, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(Opcode::ImmNone, Type::Term, Immediate::None, span);
+        dfg.first_result(inst)
+    }
+
+    fn binary_from_str(self, s: &str, span: SourceSpan) -> Value {
+        self.binary_from_bytes(s.as_bytes(), span)
+    }
+
+    fn binary_from_bytes(mut self, bytes: &[u8], span: SourceSpan) -> Value {
+        let constant = {
+            self.data_flow_graph_mut()
+                .make_constant(ConstantItem::Binary(bytes.to_vec().into()))
+        };
+        let (inst, dfg) = self.UnaryConst(Opcode::ConstBinary, Type::Binary, constant, span);
+        dfg.first_result(inst)
+    }
+
+    fn tuple_const(mut self, elements: &[Constant], span: SourceSpan) -> Value {
+        let constant = {
+            self.data_flow_graph_mut()
+                .make_constant(ConstantItem::Tuple(elements.to_vec()))
+        };
+        let (inst, dfg) = self.UnaryConst(Opcode::ConstTuple, Type::Tuple(None), constant, span);
+        dfg.first_result(inst)
+    }
+
+    fn list_const(mut self, elements: &[Constant], span: SourceSpan) -> Value {
+        let constant = {
+            self.data_flow_graph_mut()
+                .make_constant(ConstantItem::List(elements.to_vec()))
+        };
+        let (inst, dfg) = self.UnaryConst(Opcode::ConstList, Type::List(None), constant, span);
+        dfg.first_result(inst)
+    }
+
+    fn map_const(mut self, pairs: &[(Constant, Constant)], span: SourceSpan) -> Value {
+        let constant = {
+            self.data_flow_graph_mut()
+                .make_constant(ConstantItem::Map(pairs.to_vec()))
+        };
+        let (inst, dfg) = self.UnaryConst(Opcode::ConstMap, Type::Map(None), constant, span);
+        dfg.first_result(inst)
+    }
+
+    fn var(self, block: Block, name: Symbol) -> Value {
+        if let Some(value) = self.data_flow_graph().get_var(block, name) {
+            value
+        } else {
+            panic!(
+                "reference to undefined variable '{}' in block {:?}",
+                name, block,
+            );
+        }
+    }
+
+    fn assign(mut self, block: Block, name: Symbol, value: Value) -> Value {
+        self.data_flow_graph_mut().define_var(block, name, value);
+        value
+    }
+
+    fn br(mut self, block: Block, args: &[Value], span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.extend(args.iter().copied(), pool);
+        }
+        self.Br(Opcode::Br, Type::Invalid, block, vlist, span).0
+    }
+
+    fn br_if(mut self, cond: Value, block: Block, args: &[Value], span: SourceSpan) -> Inst {
+        let ty = self.data_flow_graph().value_type(cond);
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(cond, pool);
+            vlist.extend(args.iter().copied(), pool);
+        }
+        self.Br(Opcode::BrIf, ty, block, vlist, span).0
+    }
+
+    fn br_unless(mut self, cond: Value, block: Block, args: &[Value], span: SourceSpan) -> Inst {
+        let ty = self.data_flow_graph().value_type(cond);
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(cond, pool);
+            vlist.extend(args.iter().copied(), pool);
+        }
+        self.Br(Opcode::BrUnless, ty, block, vlist, span).0
+    }
+
+    fn ret(self, returning: Value, exception: Value, span: SourceSpan) -> Inst {
+        self.Ret(returning, exception, span).0
+    }
+
+    fn ret_imm(self, returning: Value, exception: Immediate, span: SourceSpan) -> Inst {
+        self.RetImm(returning, exception, span).0
+    }
+
+    fn call(mut self, callee: FuncRef, args: &[Value], span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.extend(args.iter().copied(), pool);
+        }
+        self.Call(callee, vlist, span).0
+    }
+
+    fn call_indirect(mut self, callee: Value, args: &[Value], span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.extend(args.iter().copied(), pool);
+        }
+        self.CallIndirect(callee, vlist, span).0
+    }
+
+    fn is_type(self, ty: Type, value: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.IsType(ty, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn cons(self, head: Value, tail: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(Opcode::Cons, Type::List(None), head, tail, span);
+        dfg.first_result(inst)
+    }
+
+    fn cons_imm(self, head: Value, tail: Immediate, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(Opcode::Cons, Type::List(None), head, tail, span);
+        dfg.first_result(inst)
+    }
+
+    fn cons_const(self, head: Value, tail: Constant, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryConst(Opcode::Cons, Type::List(None), head, tail, span);
+        dfg.first_result(inst)
+    }
+
+    fn head(self, list: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Unary(Opcode::Head, Type::Term, list, span);
+        dfg.first_result(inst)
+    }
+
+    fn tail(self, list: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Unary(Opcode::Tail, Type::MaybeImproperList, list, span);
+        dfg.first_result(inst)
+    }
+
+    fn tuple_imm(self, arity: usize, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::Tuple,
+            Type::Tuple(None),
+            Immediate::Integer(arity.try_into().unwrap()),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn map(self, span: SourceSpan) -> Value {
+        let vlist = ValueList::default();
+        let (inst, dfg) = self.PrimOp(Opcode::Map, Type::Map(None), vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn map_put(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.MapUpdate(Opcode::MapPut, map, key, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn map_update(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.MapUpdate(Opcode::MapUpdate, map, key, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn get_element(self, tuple: Value, index: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(Opcode::GetElement, Type::Term, tuple, index, span);
+        dfg.first_result(inst)
+    }
+
+    fn get_element_imm(self, tuple: Value, index: Immediate, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(Opcode::GetElement, Type::Term, tuple, index, span);
+        dfg.first_result(inst)
+    }
+
+    fn set_element(self, tuple: Value, index: Value, value: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.SetElement(tuple, index, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn set_element_imm(
+        self,
+        tuple: Value,
+        index: usize,
+        value: Immediate,
+        span: SourceSpan,
+    ) -> Value {
+        let index = Immediate::Integer(index.try_into().unwrap());
+        let (inst, dfg) = self.SetElementImm(tuple, index, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn set_element_const(
+        self,
+        tuple: Value,
+        index: usize,
+        value: Constant,
+        span: SourceSpan,
+    ) -> Value {
+        let index = Immediate::Integer(index.try_into().unwrap());
+        let (inst, dfg) = self.SetElementConst(tuple, index, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn match_fail(mut self, value: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(value, pool);
+        }
+        self.PrimOp(Opcode::MatchFail, Type::Invalid, vlist, span).0
+    }
+
+    fn match_fail_imm(self, reason: Immediate, span: SourceSpan) -> Inst {
+        let vlist = ValueList::default();
+        self.PrimOpImm(Opcode::MatchFail, Type::Invalid, reason, vlist, span)
+            .0
+    }
+
+    fn recv_start(mut self, timeout: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(timeout, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::RecvStart, Type::RecvContext, vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn recv_next(mut self, recv_context: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(recv_context, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::RecvNext, Type::RecvState, vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn recv_peek(mut self, recv_context: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(recv_context, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::RecvPeek, Type::Term, vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn recv_pop(mut self, recv_context: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(recv_context, pool);
+        }
+        self.PrimOp(Opcode::RecvPop, Type::Invalid, vlist, span).0
+    }
+
+    fn recv_wait(mut self, recv_context: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(recv_context, pool);
+        }
+        self.PrimOp(Opcode::RecvWait, Type::Invalid, vlist, span).0
+    }
+
+    fn bs_init_writable(mut self, size: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(size, pool);
+        }
+        self.PrimOp(Opcode::BitsInitWritable, Type::Bitstring, vlist, span)
+            .0
+    }
+
+    fn bs_init_writable_imm(self, size: usize, span: SourceSpan) -> Inst {
+        let vlist = ValueList::default();
+        self.PrimOpImm(
+            Opcode::BitsInitWritable,
+            Type::Bitstring,
+            Immediate::Integer(size.try_into().unwrap()),
+            vlist,
+            span,
+        )
+        .0
+    }
+
+    fn bs_close_writable(mut self, bin: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(bin, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::BitsCloseWritable, Type::Bitstring, vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn bs_match(
+        mut self,
+        spec: BinaryEntrySpecifier,
+        bin: Value,
+        size: Value,
+        span: SourceSpan,
+    ) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(bin, pool);
+            vlist.push(size, pool);
+        }
+        self.BitsMatch(spec, vlist, span).0
+    }
+
+    fn bs_push(
+        mut self,
+        spec: BinaryEntrySpecifier,
+        bin: Value,
+        value: Value,
+        span: SourceSpan,
+    ) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(bin, pool);
+            vlist.push(value, pool);
+        }
+        self.BitsPush(spec, vlist, span).0
+    }
+
+    fn raise(mut self, class: Value, error: Value, trace: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(class, pool);
+            vlist.push(error, pool);
+            vlist.push(trace, pool);
+        }
+        self.PrimOp(Opcode::Raise, Type::Invalid, vlist, span).0
+    }
+
+    fn build_stacktrace(self, span: SourceSpan) -> Value {
+        let vlist = ValueList::default();
+        let (inst, dfg) = self.PrimOp(Opcode::BuildStacktrace, Type::Term, vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn exception_class(mut self, exception: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(exception, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::ExceptionClass, Type::Atom, vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn exception_reason(mut self, exception: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(exception, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::ExceptionReason, Type::Term, vlist, span);
+        dfg.first_result(inst)
+    }
+
+    fn exception_trace(mut self, exception: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(exception, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::ExceptionTrace, Type::List(None), vlist, span);
+        dfg.first_result(inst)
+    }
+
+    binary_op!(is_tagged_tuple, Opcode::IsTaggedTuple);
+    binary_op!(eq, Opcode::Eq);
+    binary_op!(eq_exact, Opcode::EqExact);
+    binary_op!(neq, Opcode::Neq);
+    binary_op!(neq_exact, Opcode::NeqExact);
+    binary_op!(gt, Opcode::Gt);
+    binary_op!(gte, Opcode::Gte);
+    binary_op!(lt, Opcode::Lt);
+    binary_op!(lte, Opcode::Lte);
+    binary_bool_op!(and, Opcode::And);
+    binary_bool_op!(andalso, Opcode::AndAlso);
+    binary_bool_op!(or, Opcode::Or);
+    binary_bool_op!(orelse, Opcode::OrElse);
+    binary_bool_op!(xor, Opcode::Xor);
+    binary_int_op!(band, Opcode::Band);
+    binary_int_op!(bor, Opcode::Bor);
+    binary_int_op!(bxor, Opcode::Bxor);
+    binary_int_op!(div, Opcode::Div);
+    binary_int_op!(rem, Opcode::Rem);
+    binary_int_op!(bsl, Opcode::Bsl);
+    binary_int_op!(bsr, Opcode::Bsr);
+    binary_numeric_op!(add, Opcode::Add);
+    binary_numeric_op!(sub, Opcode::Sub);
+    binary_numeric_op!(mul, Opcode::Mul);
+    binary_numeric_op!(fdiv, Opcode::Fdiv);
+    unary_numeric_op!(neg, Opcode::Neg);
+    unary_bool_op!(not, Opcode::Not);
+    unary_int_op!(bnot, Opcode::Bnot);
+
+    fn list_concat(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(Opcode::ListConcat, Type::List(None), lhs, rhs, span);
+        dfg.first_result(inst)
+    }
+
+    fn list_concat_const(self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
+        let ty = self.data_flow_graph().constant_type(rhs);
+        assert!(
+            ty.is_list(),
+            "invalid constant value type for list concatenation"
+        );
+        let (inst, dfg) = self.BinaryConst(Opcode::ListConcat, Type::List(None), lhs, rhs, span);
+        dfg.first_result(inst)
+    }
+
+    fn list_subtract(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(Opcode::ListSubtract, Type::List(None), lhs, rhs, span);
+        dfg.first_result(inst)
+    }
+
+    fn list_subtract_const(self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
+        let ty = self.data_flow_graph().constant_type(rhs);
+        assert!(
+            ty.is_list(),
+            "invalid constant value type for list subtraction"
+        );
+        let (inst, dfg) = self.BinaryConst(Opcode::ListSubtract, Type::List(None), lhs, rhs, span);
+        dfg.first_result(inst)
+    }
+
+    #[allow(non_snake_case)]
+    fn Br(
+        self,
+        op: Opcode,
+        ty: Type,
+        destination: Block,
+        args: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::Br(Br {
+            op,
+            destination,
+            args,
+        });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn Ret(
+        self,
+        returning: Value,
+        exception: Value,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::Ret(Ret {
+            op: Opcode::Ret,
+            args: [returning, exception],
+        });
+        self.build(data, Type::Invalid, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn RetImm(
+        self,
+        returning: Value,
+        exception: Immediate,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::RetImm(RetImm {
+            op: Opcode::Ret,
+            arg: returning,
+            imm: exception,
+        });
+        self.build(data, Type::Invalid, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn Call(
+        self,
+        callee: FuncRef,
+        args: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::Call(Call { callee, args });
+        self.build(data, Type::Invalid, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn CallIndirect(
+        self,
+        callee: Value,
+        args: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::CallIndirect(CallIndirect { callee, args });
+        self.build(data, Type::Invalid, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn IsType(self, ty: Type, arg: Value, span: SourceSpan) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::IsType(IsType { arg, ty });
+        self.build(data, Type::Bool, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn Binary(
+        self,
+        op: Opcode,
+        ty: Type,
+        lhs: Value,
+        rhs: Value,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::BinaryOp(BinaryOp {
+            op,
+            args: [lhs, rhs],
+        });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn BinaryImm(
+        self,
+        op: Opcode,
+        ty: Type,
+        arg: Value,
+        imm: Immediate,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::BinaryOpImm(BinaryOpImm { op, arg, imm });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn BinaryConst(
+        self,
+        op: Opcode,
+        ty: Type,
+        arg: Value,
+        imm: Constant,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::BinaryOpConst(BinaryOpConst { op, arg, imm });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn Unary(
+        self,
+        op: Opcode,
+        ty: Type,
+        arg: Value,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::UnaryOp(UnaryOp { op, arg });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn UnaryImm(
+        self,
+        op: Opcode,
+        ty: Type,
+        imm: Immediate,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::UnaryOpImm(UnaryOpImm { op, imm });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn UnaryConst(
+        self,
+        op: Opcode,
+        ty: Type,
+        imm: Constant,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::UnaryOpConst(UnaryOpConst { op, imm });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn PrimOp(
+        self,
+        op: Opcode,
+        ty: Type,
+        args: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::PrimOp(PrimOp { op, args });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn PrimOpImm(
+        self,
+        op: Opcode,
+        ty: Type,
+        imm: Immediate,
+        args: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::PrimOpImm(PrimOpImm { op, imm, args });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn BitsMatch(
+        self,
+        spec: BinaryEntrySpecifier,
+        args: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let ty = match spec {
+            BinaryEntrySpecifier::Integer { .. } => Type::Integer,
+            BinaryEntrySpecifier::Float { .. } => Type::Float,
+            BinaryEntrySpecifier::Utf8
+            | BinaryEntrySpecifier::Utf16 { .. }
+            | BinaryEntrySpecifier::Utf32 { .. } => Type::Integer,
+            BinaryEntrySpecifier::Bits { .. } => Type::Bitstring,
+            BinaryEntrySpecifier::Bytes { .. } => Type::Binary,
+        };
+        let data = InstData::BitsMatch(BitsMatch { spec, args });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn BitsPush(
+        self,
+        spec: BinaryEntrySpecifier,
+        args: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::BitsPush(BitsPush { spec, args });
+        self.build(data, Type::Bitstring, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn SetElement(
+        self,
+        tuple: Value,
+        index: Value,
+        value: Value,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::SetElement(SetElement {
+            op: Opcode::SetElement,
+            args: [tuple, index, value],
+        });
+        self.build(data, Type::Tuple(None), span)
+    }
+
+    #[allow(non_snake_case)]
+    fn SetElementImm(
+        self,
+        tuple: Value,
+        index: Immediate,
+        value: Immediate,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::SetElementImm(SetElementImm {
+            op: Opcode::SetElement,
+            arg: tuple,
+            index,
+            value,
+        });
+        self.build(data, Type::Tuple(None), span)
+    }
+
+    #[allow(non_snake_case)]
+    fn SetElementConst(
+        self,
+        tuple: Value,
+        index: Immediate,
+        value: Constant,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::SetElementConst(SetElementConst {
+            op: Opcode::SetElement,
+            arg: tuple,
+            index,
+            value,
+        });
+        self.build(data, Type::Tuple(None), span)
+    }
+
+    #[allow(non_snake_case)]
+    fn MapUpdate(
+        self,
+        op: Opcode,
+        map: Value,
+        key: Value,
+        value: Value,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::MapUpdate(MapUpdate {
+            op,
+            args: [map, key, value],
+        });
+        self.build(data, Type::Map(None), span)
+    }
+}
+
+impl<'f, T: InstBuilderBase<'f>> InstBuilder<'f> for T {}

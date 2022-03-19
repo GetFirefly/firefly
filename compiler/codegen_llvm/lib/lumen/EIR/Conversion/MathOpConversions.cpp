@@ -6,9 +6,8 @@ namespace eir {
 template <typename Op>
 static void buildDeoptimizationPath(Location loc,
                                     RewritePatternContext<Op> &ctx, Op op,
-                                    OpaqueTermType concreteTy,
-                                    StringRef intrinsicFn, StringRef runtimeFn,
-                                    Value lhs, Value rhs) {
+                                    Type concreteTy, StringRef intrinsicFn,
+                                    StringRef runtimeFn, Value lhs, Value rhs) {
     Operation *rawOp = op.getOperation();
     Block *current = rawOp->getBlock();
 
@@ -22,10 +21,10 @@ static void buildDeoptimizationPath(Location loc,
     auto termTy = ctx.getOpaqueTermType();
     auto i64Ty = ctx.getI64Type();
     // TODO: Need to handle 32-bit or non-nanboxed 64 arches here
-    auto iFixTy = LLVMType::getIntNTy(ctx.rewriter.getContext(), 46);
-    auto resTy = LLVMType::getStructTy(ctx.rewriter.getContext(),
-                                       ArrayRef<LLVMType>{iFixTy, i1Ty},
-                                       /*packed=*/false);
+    auto iFixTy = ctx.getIntegerType(46);
+    auto resTy = LLVMStructType::getLiteral(ctx.rewriter.getContext(),
+                                            ArrayRef<Type>{iFixTy, i1Ty},
+                                            /*packed=*/false);
     auto calleeFn =
         ctx.getOrInsertFunction(intrinsicFn, resTy, {iFixTy, iFixTy});
     Value lhsTrunc = llvm_trunc(iFixTy, lhsRaw);
@@ -81,10 +80,10 @@ static void buildDeoptimizationPath(Location loc,
 template <typename Op, typename T>
 static Value specializeFloatMathOp(Location loc, RewritePatternContext<Op> &ctx,
                                    Value lhs, Value rhs) {
-    auto fpTy = ctx.getDoubleType();
+    auto fpTy = ctx.template getType<Float64Type>();
     Value l = eir_cast(lhs, fpTy);
     Value r = eir_cast(rhs, fpTy);
-    auto fpOp = ctx.rewriter.template create<T>(loc, l, r);
+    auto fpOp = ctx.template create<T>(loc, fpTy, ValueRange{l, r});
     return fpOp.getResult();
 }
 
@@ -93,9 +92,9 @@ class SpecializedMathOpConversion : public EIROpConversion<Op> {
    public:
     explicit SpecializedMathOpConversion(MLIRContext *context,
                                          EirTypeConverter &converter_,
-                                         TargetInfo &targetInfo_,
+                                         TargetPlatform &platform_,
                                          mlir::PatternBenefit benefit = 1)
-        : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
+        : EIROpConversion<Op>::EIROpConversion(context, converter_, platform_,
                                                benefit) {}
 
     LogicalResult matchAndRewrite(
@@ -113,12 +112,21 @@ class SpecializedMathOpConversion : public EIROpConversion<Op> {
         StringRef builtinSymbol = Op::builtinSymbol();
 
         // Use specialized lowerings if types are compatible
+        // NOTE: This has been removed since we're currently not using
+        // types to distinguish between big and small integers, so
+        // specialization can only occur with materialized type checks at
+        // runtime, thus making this less useful. That said, I've left it here
+        // as an example of how it was intended to work, so we can perhaps
+        // re-enable it in some form in the future. If things change
+        // significantly, we should just remove this entirely
+        /*
         if (lhsTy.isa<FixnumType>() && rhsTy.isa<FixnumType>()) {
             auto fixTy = rewriter.getType<FixnumType>();
             buildDeoptimizationPath(loc, ctx, op, fixTy, intrinsic,
                                     builtinSymbol, lhs, rhs);
             return success();
         }
+        */
 
         // Call builtin function
         auto termTy = ctx.getOpaqueTermType();
@@ -126,8 +134,7 @@ class SpecializedMathOpConversion : public EIROpConversion<Op> {
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
         ArrayRef<Value> args({lhs, rhs});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(builtinSymbol);
 
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                                   ArrayRef<Type>{termTy}, args);
@@ -143,9 +150,9 @@ class MathOpConversion : public EIROpConversion<Op> {
    public:
     explicit MathOpConversion(MLIRContext *context,
                               EirTypeConverter &converter_,
-                              TargetInfo &targetInfo_,
+                              TargetPlatform &platform_,
                               mlir::PatternBenefit benefit = 1)
-        : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
+        : EIROpConversion<Op>::EIROpConversion(context, converter_, platform_,
                                                benefit) {}
 
     LogicalResult matchAndRewrite(
@@ -165,8 +172,7 @@ class MathOpConversion : public EIROpConversion<Op> {
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
         ArrayRef<Value> args({lhs, rhs});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(builtinSymbol);
 
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                                   ArrayRef<Type>{termTy}, args);
@@ -196,8 +202,7 @@ struct NegOpConversion : public EIROpConversion<NegOp> {
         auto callee = ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy});
 
         ArrayRef<Value> args({rhs});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(builtinSymbol);
 
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                                   ArrayRef<Type>{termTy}, args);
@@ -223,9 +228,9 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
    public:
     explicit IntegerMathOpConversion(MLIRContext *context,
                                      EirTypeConverter &converter_,
-                                     TargetInfo &targetInfo_,
+                                     TargetPlatform &platform_,
                                      mlir::PatternBenefit benefit = 1)
-        : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
+        : EIROpConversion<Op>::EIROpConversion(context, converter_, platform_,
                                                benefit) {}
 
     LogicalResult matchAndRewrite(
@@ -247,8 +252,7 @@ class IntegerMathOpConversion : public EIROpConversion<Op> {
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
         ArrayRef<Value> args({lhs, rhs});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(builtinSymbol);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                                   ArrayRef<Type>{termTy}, args);
         return success();
@@ -294,9 +298,9 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
    public:
     explicit FloatMathOpConversion(MLIRContext *context,
                                    EirTypeConverter &converter_,
-                                   TargetInfo &targetInfo_,
+                                   TargetPlatform &platform_,
                                    mlir::PatternBenefit benefit = 1)
-        : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
+        : EIROpConversion<Op>::EIROpConversion(context, converter_, platform_,
                                                benefit) {}
 
     LogicalResult matchAndRewrite(
@@ -326,8 +330,7 @@ class FloatMathOpConversion : public EIROpConversion<Op> {
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
         ArrayRef<Value> args({lhs, rhs});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(builtinSymbol);
 
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol,
                                                   ArrayRef<Type>{termTy}, args);
@@ -348,9 +351,9 @@ class LogicalOpConversion : public EIROpConversion<Op> {
    public:
     explicit LogicalOpConversion(MLIRContext *context,
                                  EirTypeConverter &converter_,
-                                 TargetInfo &targetInfo_,
+                                 TargetPlatform &platform_,
                                  mlir::PatternBenefit benefit = 1)
-        : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
+        : EIROpConversion<Op>::EIROpConversion(context, converter_, platform_,
                                                benefit) {}
 
     LogicalResult matchAndRewrite(
@@ -387,8 +390,7 @@ class LogicalOpConversion : public EIROpConversion<Op> {
             ctx.getOrInsertFunction(builtinSymbol, termTy, {termTy, termTy});
 
         ArrayRef<Value> args({lhs, rhs});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(builtinSymbol);
         auto callOp = rewriter.create<mlir::CallOp>(
             op.getLoc(), calleeSymbol, ArrayRef<Type>{boolTy}, args);
         rewriter.replaceOpWithNewOp<CastOp>(op, callOp.getResult(0), i1Ty);
@@ -413,13 +415,13 @@ struct LogicalOrOpConversion
 void populateMathOpConversionPatterns(OwningRewritePatternList &patterns,
                                       MLIRContext *context,
                                       EirTypeConverter &converter,
-                                      TargetInfo &targetInfo) {
+                                      TargetPlatform &platform) {
     patterns.insert<AddOpConversion, SubOpConversion, NegOpConversion,
                     MulOpConversion, DivOpConversion, FDivOpConversion,
                     RemOpConversion, BslOpConversion, BsrOpConversion,
                     BandOpConversion, BorOpConversion, BxorOpConversion,
                     LogicalAndOpConversion, LogicalOrOpConversion>(
-        context, converter, targetInfo);
+        context, converter, platform);
 }
 
 }  // namespace eir

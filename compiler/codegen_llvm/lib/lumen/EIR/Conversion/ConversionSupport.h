@@ -2,23 +2,19 @@
 #define LUMEN_EIR_CONVERSION_CONVERSION_SUPPORT_H
 
 #include "llvm/Support/Casting.h"
-#include "llvm/Target/TargetMachine.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-#include "lumen/EIR/Conversion/TargetInfo.h"
+#include "lumen/EIR/Conversion/TargetPlatformBuilder.h"
 #include "lumen/EIR/IR/EIRAttributes.h"
 #include "lumen/EIR/IR/EIROps.h"
 #include "lumen/EIR/IR/EIRTypes.h"
@@ -28,10 +24,10 @@ using ::llvm::dyn_cast_or_null;
 using ::llvm::isa;
 using ::llvm::SmallVectorImpl;
 using ::llvm::StringSwitch;
-using ::llvm::TargetMachine;
 using ::mlir::CallableOpInterface;
 using ::mlir::CallInterfaceCallable;
 using ::mlir::ConversionPatternRewriter;
+using ::mlir::Float64Type;
 using ::mlir::LLVMTypeConverter;
 using ::mlir::LogicalResult;
 using ::mlir::PatternRewriter;
@@ -42,11 +38,12 @@ using ::mlir::edsc::OperationBuilder;
 using ::mlir::edsc::ScopedContext;
 using ::mlir::edsc::ValueBuilder;
 using ::mlir::LLVM::LLVMArrayType;
-using ::mlir::LLVM::LLVMIntegerType;
+using ::mlir::LLVM::LLVMPointerType;
 using ::mlir::LLVM::LLVMStructType;
-using ::mlir::LLVM::LLVMType;
 using ::mlir::LLVM::LLVMTokenType;
 using ::mlir::LLVM::LLVMVoidType;
+
+using SignednessSemantics = ::mlir::IntegerType::SignednessSemantics;
 
 namespace LLVM = ::mlir::LLVM;
 
@@ -135,11 +132,15 @@ struct EirTypeConverter : public mlir::TypeConverter {
     /// operation it is lowering
     Optional<Type> coalesceOperandTypes(Type lhs, Type rhs);
 
-    Type packFunctionResults(TargetInfo &targetInfo, ArrayRef<Type> types);
+    Type packFunctionResults(TargetPlatform &platform, ArrayRef<Type> types);
 
     Optional<Type> deferTypeConversion(Type type) {
         return typeConverter.convertType(type);
     }
+
+    MLIRContext &getContext() { return typeConverter.getContext(); }
+
+    inline unsigned getPointerWidth() { return pointerSizeInBits; }
 
    private:
     unsigned pointerSizeInBits;
@@ -147,273 +148,136 @@ struct EirTypeConverter : public mlir::TypeConverter {
 };
 
 Optional<Type> convertType(Type type, EirTypeConverter &converter,
-                           TargetInfo &targetInfo);
+                           TargetPlatform &platform);
 
-class ConversionContext {
+class OpConversionContext : public TargetPlatformBuilder {
    public:
-    explicit ConversionContext(MLIRContext *ctx, EirTypeConverter &tc,
-                               TargetInfo &ti)
-        : targetInfo(ti), typeConverter(tc), context(ctx) {}
-
-    ConversionContext(const ConversionContext &ctx)
-        : targetInfo(ctx.targetInfo),
-          typeConverter(ctx.typeConverter),
-          context(ctx.context) {}
-
-    TargetInfo &targetInfo;
-    EirTypeConverter &typeConverter;
-    MLIRContext *context;
-
-    LLVMType getTokenType() const { return LLVMTokenType::get(context); }
-    LLVMType getVoidType() const { return LLVMVoidType::get(context); }
-    LLVMType getUsizeType() const { return targetInfo.getUsizeType(); }
-    LLVMType getOpaqueTermType() const { return targetInfo.getUsizeType().getPointerTo(1); }
-    LLVMType getOpaqueTermTypeAddr0() const { return targetInfo.getUsizeType().getPointerTo(0); }
-    LLVMType getOpaqueImmediateType() const { return targetInfo.getUsizeType(); }
-    LLVMType getI1Type() const { return targetInfo.getI1Type(); }
-    LLVMType getI8Type() const { return targetInfo.getI8Type(); }
-    LLVMType getI32Type() const { return targetInfo.getI32Type(); }
-    LLVMType getI64Type() const { return targetInfo.getI64Type(); }
-    LLVMType getDoubleType() const { return targetInfo.getDoubleType(); }
-    LLVMType getTupleType(unsigned arity) const {
-        return targetInfo.makeTupleType(arity);
-    }
-    LLVMType getTupleType(ArrayRef<LLVMType> elementTypes) const {
-        return targetInfo.makeTupleType(elementTypes);
-    }
-
-    APInt encodeImmediateConstant(uint32_t type, uint64_t value);
-    APInt encodeHeaderConstant(uint32_t type, uint64_t arity);
-
-    APInt &getNilValue() const { return targetInfo.getNilValue(); }
-    APInt &getNoneValue() const { return targetInfo.getNoneValue(); }
-};
-
-class OpConversionContext : public ConversionContext {
-   public:
-    explicit OpConversionContext(const ConversionContext &ctx,
-                                 ConversionPatternRewriter &cpr)
-        : ConversionContext(ctx), rewriter(cpr) {}
+    explicit OpConversionContext(ConversionPatternRewriter &cpr,
+                                 TargetPlatform &platform,
+                                 EirTypeConverter &typeConverter)
+        : TargetPlatformBuilder(cpr, platform), typeConverter(typeConverter) {}
 
     OpConversionContext(const OpConversionContext &ctx)
-        : ConversionContext(ctx), rewriter(ctx.rewriter) {}
+        : TargetPlatformBuilder(ctx), typeConverter(ctx.typeConverter) {}
 
-    ConversionPatternRewriter &rewriter;
+    EirTypeConverter typeConverter;
 
-    using ConversionContext::context;
-    using ConversionContext::encodeHeaderConstant;
-    using ConversionContext::encodeImmediateConstant;
-    using ConversionContext::getOpaqueTermType;
-    using ConversionContext::getOpaqueTermTypeAddr0;
-    using ConversionContext::getOpaqueImmediateType;
-    using ConversionContext::getDoubleType;
-    using ConversionContext::getI1Type;
-    using ConversionContext::getI32Type;
-    using ConversionContext::getI64Type;
-    using ConversionContext::getI8Type;
-    using ConversionContext::getNilValue;
-    using ConversionContext::getNoneValue;
-    using ConversionContext::getTokenType;
-    using ConversionContext::getTupleType;
-    using ConversionContext::getUsizeType;
-    using ConversionContext::getVoidType;
-    using ConversionContext::targetInfo;
-    using ConversionContext::typeConverter;
-
-    Type getIntegerType(unsigned bitWidth = 0) const {
-        if (bitWidth == 0)
-            return rewriter.getIntegerType(targetInfo.pointerSizeInBits);
-        else
-            return rewriter.getIntegerType(bitWidth);
+    inline IntegerAttr getI1Attr(int64_t i) {
+        return getIntegerAttr(getI1Type(), i);
     }
 
-    inline IntegerAttr getIntegerAttr(int64_t i) const {
-        return rewriter.getIntegerAttr(getIntegerType(), i);
+    inline IntegerAttr getI8Attr(int8_t i) { return getI8IntegerAttr(i); }
+
+    inline IntegerAttr getI32Attr(int32_t i) { return getI32IntegerAttr(i); }
+
+    inline ::mlir::StringAttr getStringAttr(StringRef str) {
+        return getStringAttr(str);
     }
 
-    inline IntegerAttr getIntegerAttr(APInt &i) const {
-        return rewriter.getIntegerAttr(getIntegerType(), i);
-    }
-
-    inline IntegerAttr getI1Attr(int64_t i) const {
-        return rewriter.getIntegerAttr(rewriter.getI1Type(), i);
-    }
-
-    inline IntegerAttr getI8Attr(int64_t i) const {
-        return rewriter.getIntegerAttr(getIntegerType(8), i);
-    }
-
-    inline IntegerAttr getI32Attr(int32_t i) const {
-        return rewriter.getIntegerAttr(getIntegerType(32), i);
-    }
-
-    inline IntegerAttr getU32Attr(int32_t i) const {
-        return rewriter.getIntegerAttr(getIntegerType(32),
-                                       APInt(32, i, /*signed=*/false));
-    }
-
-    inline ArrayAttr getI64ArrayAttr(unsigned i) const {
-        return rewriter.getI64ArrayAttr(i);
-    }
-
-    inline StringAttr getStringAttr(StringRef str) const {
-        return rewriter.getStringAttr(str);
-    }
-
-    Operation *getOrInsertFunction(ModuleOp mod, StringRef symbol,
-                                   LLVMType resultTy,
-                                   ArrayRef<LLVMType> argTypes,
-                                   ArrayRef<NamedAttribute> attrs = {}) const;
-
-    Value getOrInsertGlobal(ModuleOp mod, StringRef name, LLVMType valueType,
-                            Attribute value = Attribute(),
-                            LLVM::Linkage linkage = LLVM::Linkage::Internal,
-                            LLVM::ThreadLocalMode tlsMode =
-                                LLVM::ThreadLocalMode::NotThreadLocal) const {
+    Value getOrInsertGlobal(
+        ModuleOp mod, StringRef name, Type valueType,
+        Attribute value = Attribute(),
+        LLVM::Linkage linkage = LLVM::Linkage::Internal,
+        LLVM::ThreadLocalMode tlsMode = LLVM::ThreadLocalMode::NotThreadLocal) {
         return getOrInsertGlobal(mod, name, valueType, value, linkage, tlsMode,
                                  /*isConstant=*/false);
     }
-    Value getOrInsertGlobal(ModuleOp mod, StringRef name, LLVMType valueType,
+    Value getOrInsertGlobal(ModuleOp mod, StringRef name, Type valueType,
                             Attribute value, LLVM::Linkage linkage,
-                            LLVM::ThreadLocalMode tlsMode,
-                            bool isConstant) const {
-        auto savePoint = rewriter.saveInsertionPoint();
-        rewriter.setInsertionPointToStart(mod.getBody());
+                            LLVM::ThreadLocalMode tlsMode, bool isConstant) {
+        auto savePoint = saveInsertionPoint();
+        auto &body = mod.body();
+        setInsertionPointToStart(&body.front());
         auto global = getOrInsertGlobalOp(mod, name, valueType, value, linkage,
                                           tlsMode, isConstant);
-        rewriter.restoreInsertionPoint(savePoint);
+        restoreInsertionPoint(savePoint);
         return llvm_addressof(global);
     }
     Value getOrInsertGlobalConstant(
-        ModuleOp mod, StringRef name, LLVMType valueType,
+        ModuleOp mod, StringRef name, Type valueType,
         Attribute value = Attribute(),
         LLVM::Linkage linkage = LLVM::Linkage::Internal,
-        LLVM::ThreadLocalMode tlsMode =
-            LLVM::ThreadLocalMode::NotThreadLocal) const {
+        LLVM::ThreadLocalMode tlsMode = LLVM::ThreadLocalMode::NotThreadLocal) {
         return getOrInsertGlobal(mod, name, valueType, value, linkage, tlsMode,
                                  /*isConstant=*/true);
     }
     LLVM::GlobalOp getOrInsertGlobalOp(
-        ModuleOp mod, StringRef name, LLVMType valueType,
+        ModuleOp mod, StringRef name, Type valueType,
         Attribute value = Attribute(),
         LLVM::Linkage linkage = LLVM::Linkage::Internal,
-        LLVM::ThreadLocalMode tlsMode =
-            LLVM::ThreadLocalMode::NotThreadLocal) const {
+        LLVM::ThreadLocalMode tlsMode = LLVM::ThreadLocalMode::NotThreadLocal) {
         return getOrInsertGlobalOp(mod, name, valueType, value, linkage,
                                    tlsMode,
                                    /*isConstant=*/false);
     }
     LLVM::GlobalOp getOrInsertGlobalConstantOp(
-        ModuleOp mod, StringRef name, LLVMType valueType,
+        ModuleOp mod, StringRef name, Type valueType,
         Attribute value = Attribute(),
         LLVM::Linkage linkage = LLVM::Linkage::Internal,
-        LLVM::ThreadLocalMode tlsMode =
-            LLVM::ThreadLocalMode::NotThreadLocal) const {
+        LLVM::ThreadLocalMode tlsMode = LLVM::ThreadLocalMode::NotThreadLocal) {
         return getOrInsertGlobalOp(mod, name, valueType, value, linkage,
                                    tlsMode,
                                    /*isConstant=*/true);
     }
     LLVM::GlobalOp getOrInsertGlobalOp(ModuleOp mod, StringRef name,
-                                       LLVMType valueTy, Attribute value,
+                                       Type valueTy, Attribute value,
                                        LLVM::Linkage linkage,
                                        LLVM::ThreadLocalMode tlsMode,
-                                       bool isConstant) const {
+                                       bool isConstant) {
         if (auto global = mod.lookupSymbol<LLVM::GlobalOp>(name)) return global;
 
-        auto global = rewriter.create<LLVM::GlobalOp>(
-            mod.getLoc(), valueTy, isConstant, linkage, tlsMode, name, value);
+        auto global = create<LLVM::GlobalOp>(mod.getLoc(), valueTy, isConstant,
+                                             linkage, tlsMode, name, value);
         return global;
     }
     LLVM::GlobalOp getOrInsertConstantString(ModuleOp mod, StringRef name,
-                                             StringRef value) const {
+                                             StringRef value) {
         assert(!name.empty() && "cannot create unnamed global string!");
 
         // Create the global at the entry of the module.
         LLVM::GlobalOp global = mod.lookupSymbol<LLVM::GlobalOp>(name);
         if (!global) {
-            auto strTy = LLVMType::getArrayTy(getI8Type(), value.size());
+            auto strTy = LLVMArrayType::get(getI8Type(), value.size());
 
-            PatternRewriter::InsertionGuard insertGuard(rewriter);
-            rewriter.setInsertionPointToStart(mod.getBody());
+            auto ip = saveInsertionPoint();
+            auto &body = mod.body();
+            setInsertionPointToStart(&body.front());
             global = getOrInsertGlobalConstantOp(mod, name, strTy,
                                                  getStringAttr(value));
+            restoreInsertionPoint(ip);
         }
 
         return global;
     }
     LLVM::GlobalOp getOrInsertGlobalString(ModuleOp mod, StringRef name,
                                            StringRef value) const;
-
-    Value buildMalloc(ModuleOp mod, LLVMType ty, unsigned allocTy,
-                      Value arity) const;
-
-    Value encodeList(Value cons, bool isLiteral = false) const;
-    Value encodeBox(Value val) const;
-    Value encodeLiteral(Value val) const;
-    Value encodeImmediate(ModuleOp mod, Location loc, OpaqueTermType ty,
-                          Value val) const;
-    Value decodeBox(LLVMType innerTy, Value box) const;
-    Value decodeList(Value box) const;
-    Value decodeImmediate(Value val) const;
 };
 
 template <typename Op>
 class RewritePatternContext : public OpConversionContext {
    public:
-    explicit RewritePatternContext(const ConversionContext &ctx, Op &op,
-                                   ConversionPatternRewriter &cpr)
-        : OpConversionContext(ctx, cpr),
+    explicit RewritePatternContext(Op &op, ConversionPatternRewriter &cpr,
+                                   TargetPlatform &platform,
+                                   EirTypeConverter &typeConverter)
+        : OpConversionContext(cpr, platform, typeConverter),
           op(op),
-          parentModule(op.template getParentOfType<ModuleOp>()),
+          parentModule(op->template getParentOfType<ModuleOp>()),
           scope(cpr, op.getLoc()) {}
 
     Op &op;
     ModuleOp parentModule;
     ScopedContext scope;
 
-    using OpConversionContext::context;
-    using OpConversionContext::decodeBox;
-    using OpConversionContext::decodeImmediate;
-    using OpConversionContext::decodeList;
-    using OpConversionContext::encodeBox;
-    using OpConversionContext::encodeHeaderConstant;
-    using OpConversionContext::encodeImmediateConstant;
-    using OpConversionContext::encodeList;
-    using OpConversionContext::encodeLiteral;
-    using OpConversionContext::getOpaqueTermType;
-    using OpConversionContext::getOpaqueTermTypeAddr0;
-    using OpConversionContext::getOpaqueImmediateType;
-    using OpConversionContext::getDoubleType;
-    using OpConversionContext::getI1Attr;
-    using OpConversionContext::getI1Type;
-    using OpConversionContext::getI32Attr;
-    using OpConversionContext::getI32Type;
-    using OpConversionContext::getI64ArrayAttr;
-    using OpConversionContext::getI64Type;
-    using OpConversionContext::getI8Attr;
-    using OpConversionContext::getI8Type;
-    using OpConversionContext::getIntegerAttr;
-    using OpConversionContext::getNilValue;
-    using OpConversionContext::getNoneValue;
-    using OpConversionContext::getStringAttr;
-    using OpConversionContext::getTokenType;
-    using OpConversionContext::getTupleType;
-    using OpConversionContext::getUsizeType;
-    using OpConversionContext::getVoidType;
-    using OpConversionContext::rewriter;
-    using OpConversionContext::targetInfo;
-    using OpConversionContext::typeConverter;
-
     inline const ModuleOp &getModule() const { return parentModule; }
 
-    Operation *getOrInsertFunction(StringRef symbol, LLVMType resultTy,
-                                   ArrayRef<LLVMType> argTypes,
-                                   ArrayRef<NamedAttribute> attrs = {}) const {
+    Operation *getOrInsertFunction(StringRef symbol, Type resultTy,
+                                   ArrayRef<Type> argTypes,
+                                   ArrayRef<NamedAttribute> attrs = {}) {
         ModuleOp mod = getModule();
         return OpConversionContext::getOrInsertFunction(mod, symbol, resultTy,
                                                         argTypes, attrs);
     }
-    Value getOrInsertGlobal(StringRef name, LLVMType valueType, Attribute value,
+    Value getOrInsertGlobal(StringRef name, Type valueType, Attribute value,
                             LLVM::Linkage linkage,
                             LLVM::ThreadLocalMode tlsMode,
                             bool isConstant) const {
@@ -421,17 +285,16 @@ class RewritePatternContext : public OpConversionContext {
         return OpConversionContext::getOrInsertGlobal(
             mod, name, valueType, value, linkage, tlsMode, isConstant);
     }
-    Value getOrInsertGlobal(StringRef name, LLVMType valueType,
-                            Attribute value = Attribute(),
-                            LLVM::Linkage linkage = LLVM::Linkage::Internal,
-                            LLVM::ThreadLocalMode tlsMode =
-                                LLVM::ThreadLocalMode::NotThreadLocal) const {
+    Value getOrInsertGlobal(
+        StringRef name, Type valueType, Attribute value = Attribute(),
+        LLVM::Linkage linkage = LLVM::Linkage::Internal,
+        LLVM::ThreadLocalMode tlsMode = LLVM::ThreadLocalMode::NotThreadLocal) {
         ModuleOp mod = getModule();
         return OpConversionContext::getOrInsertGlobal(mod, name, valueType,
                                                       value, linkage, tlsMode);
     }
     Value getOrInsertGlobalConstant(
-        StringRef name, LLVMType valueType, Attribute value = Attribute(),
+        StringRef name, Type valueType, Attribute value = Attribute(),
         LLVM::Linkage linkage = LLVM::Linkage::Internal,
         LLVM::ThreadLocalMode tlsMode =
             LLVM::ThreadLocalMode::NotThreadLocal) const {
@@ -441,47 +304,43 @@ class RewritePatternContext : public OpConversionContext {
     }
 
     LLVM::GlobalOp getOrInsertGlobalOp(
-        StringRef name, LLVMType valueType, Attribute value = Attribute(),
+        StringRef name, Type valueType, Attribute value = Attribute(),
         LLVM::Linkage linkage = LLVM::Linkage::Internal,
-        LLVM::ThreadLocalMode tlsMode =
-            LLVM::ThreadLocalMode::NotThreadLocal) const {
+        LLVM::ThreadLocalMode tlsMode = LLVM::ThreadLocalMode::NotThreadLocal) {
         ModuleOp mod = getModule();
         return OpConversionContext::getOrInsertGlobalOp(mod, name, valueType,
                                                         value, linkage, tlsMode,
                                                         /*isConstant=*/false);
     }
     LLVM::GlobalOp getOrInsertGlobalConstantOp(
-        StringRef name, LLVMType valueType, Attribute value = Attribute(),
+        StringRef name, Type valueType, Attribute value = Attribute(),
         LLVM::Linkage linkage = LLVM::Linkage::Internal,
-        LLVM::ThreadLocalMode tlsMode =
-            LLVM::ThreadLocalMode::NotThreadLocal) const {
+        LLVM::ThreadLocalMode tlsMode = LLVM::ThreadLocalMode::NotThreadLocal) {
         ModuleOp mod = getModule();
         return OpConversionContext::getOrInsertGlobalOp(
             mod, name, valueType, value, linkage, tlsMode, /*isConstant=*/true);
     }
-    LLVM::GlobalOp getOrInsertGlobalOp(StringRef name, LLVMType valueTy,
+    LLVM::GlobalOp getOrInsertGlobalOp(StringRef name, Type valueTy,
                                        Attribute value, LLVM::Linkage linkage,
                                        LLVM::ThreadLocalMode tlsMode,
-                                       bool isConstant) const {
+                                       bool isConstant) {
         ModuleOp mod = getModule();
         return OpConversionContext::getOrInsertGlobalOp(
             mod, name, valueTy, value, linkage, tlsMode, isConstant);
     }
-    LLVM::GlobalOp getOrInsertConstantString(StringRef name,
-                                             StringRef value) const {
+    LLVM::GlobalOp getOrInsertConstantString(StringRef name, StringRef value) {
         ModuleOp mod = getModule();
         return OpConversionContext::getOrInsertConstantString(mod, name, value);
     }
-    LLVM::GlobalOp getOrInsertGlobalString(StringRef name,
-                                           StringRef value) const {
+    LLVM::GlobalOp getOrInsertGlobalString(StringRef name, StringRef value) {
         ModuleOp mod = getModule();
         return OpConversionContext::getOrInsertGlobalString(mod, name, value);
     }
-    Value buildMalloc(LLVMType ty, unsigned allocTy, Value arity) const {
+    Value buildMalloc(Type ty, unsigned allocTy, Value arity) {
         ModuleOp mod = getModule();
         return OpConversionContext::buildMalloc(mod, ty, allocTy, arity);
     }
-    Value encodeImmediate(OpaqueTermType ty, Value val) const {
+    Value encodeImmediate(Type ty, Value val) {
         ModuleOp mod = getModule();
         return OpConversionContext::encodeImmediate(mod, val.getLoc(), ty, val);
     }
@@ -491,19 +350,25 @@ template <typename Op>
 class EIROpConversion : public mlir::OpConversionPattern<Op> {
    public:
     explicit EIROpConversion(MLIRContext *context, EirTypeConverter &tc,
-                             TargetInfo &ti, mlir::PatternBenefit benefit = 1)
+                             TargetPlatform &platform,
+                             mlir::PatternBenefit benefit = 1)
         : mlir::OpConversionPattern<Op>::OpConversionPattern(context, benefit),
-          ctx(context, tc, ti) {}
+          platform(platform),
+          typeConverter(tc) {}
 
    private:
-    ConversionContext ctx;
+    TargetPlatform platform;
+    EirTypeConverter typeConverter;
 
    protected:
-    ConversionContext const &getContext() const { return ctx; }
+    const TargetPlatform &getPlatform() const { return platform; }
+    const EirTypeConverter &getTypeConverter() const { return typeConverter; }
 
     RewritePatternContext<Op> getRewriteContext(
         Op op, ConversionPatternRewriter &rewriter) const {
-        return RewritePatternContext<Op>(ctx, op, rewriter);
+        TargetPlatform p(platform);
+        EirTypeConverter tc(typeConverter);
+        return RewritePatternContext<Op>(op, rewriter, p, tc);
     }
 };
 

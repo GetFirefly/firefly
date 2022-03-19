@@ -3,56 +3,53 @@ name = "liblumen_alloc"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
 publish = false
-edition = "2018"
+edition = "2021"
 
 [features]
 # Turns on allocation instrumentation
 instrument = []
 
 [dependencies]
-log = "0.4"
-cfg-if = "0.1"
-lazy_static = "1.2"
-once_cell = "1.3"
 anyhow = "1.0"
-thiserror = "1.0"
-num-traits = "0.2"
-num-bigint = "0.2"
-heapless = { git = "https://github.com/japaric/heapless" }
-static_assertions = "1.0.0"
-backtrace = "0.3.35"
+backtrace = "0.3"
+cfg-if = "1.0"
+dashmap = "5.2"
+heapless = "0.7"
+lazy_static = "1.4"
 liblumen_core = { path = "../liblumen_core" }
 liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
 liblumen_term = { path = "../compiler/term" }
+log = "0.4"
+num-traits = "0.2"
+num-bigint = "0.4"
+once_cell = "1.10"
+static_assertions = "1.1"
 termcolor = "1.1"
-
-[dependencies.dashmap]
-version = "3.11"
-features = ["no_std"]
+thiserror = "1.0"
 
 [dependencies.hashbrown]
-version = "0.7"
+version = "0.12"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]
-version = "0.8"
+version = "0.9"
 features = ["nightly"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 backtrace = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen-test = "0.3.17"
+wasm-bindgen-test = "0.3.29"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
-version = "0.2.48"
+version = "0.2.79"
 features = ["nightly"]
 
 # for debugging
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3.47"
+version = "0.3.56"
 features = ['console']
 
 [dev-dependencies]
-pretty_assertions = "0.6"
+pretty_assertions = "1.2"

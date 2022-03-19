@@ -16,8 +16,10 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 
+use anyhow::bail;
 use clap::ArgMatches;
 
+use liblumen_intern::Symbol;
 use liblumen_target::spec::{CodeModel, PanicStrategy, RelocModel, TlsModel};
 use liblumen_target::{self as target, Target};
 use liblumen_util::diagnostics::{ColorArg, ColorChoice, FileName};
@@ -44,8 +46,8 @@ impl Define {
 // The top-level command-line options struct.
 #[derive(Clone, Debug)]
 pub struct Options {
-    pub project_name: String,
-    pub project_type: ProjectType,
+    pub app: App,
+    pub app_type: ProjectType,
     pub output_types: OutputTypes,
     pub color: ColorChoice,
     pub warnings_as_errors: bool,
@@ -67,7 +69,7 @@ pub struct Options {
     pub debugging_opts: DebuggingOptions,
 
     pub current_dir: PathBuf,
-    pub input_files: Option<Vec<FileName>>,
+    pub input_files: Vec<FileName>,
     pub output_file: Option<PathBuf>,
     pub output_dir: Option<PathBuf>,
     // Remap source path prefixes in all output (messages, object files, debug, etc.).
@@ -79,59 +81,82 @@ pub struct Options {
 
     pub cli_forced_thinlto_off: bool,
 }
+
 macro_rules! option {
     ($name:expr) => {
         OptionInfo::from_name($name)
     };
 }
+
 impl Options {
     pub fn new<'a>(
-        mut codegen_opts: CodegenOptions,
+        codegen_opts: CodegenOptions,
         debugging_opts: DebuggingOptions,
         cwd: PathBuf,
         args: &ArgMatches<'a>,
-    ) -> Result<Self, anyhow::Error> {
-        let input_files: Option<Vec<FileName>> = match args.values_of_os("inputs") {
-            None => None,
+    ) -> anyhow::Result<Self> {
+        let input_files = match args.values_of_os("inputs") {
+            None => {
+                // By default treat the current working directory as a standard Erlang app
+                vec![FileName::Real(cwd.clone())]
+            }
             Some(mut input_args) => {
-                let option_first_input_arg = input_args.next();
+                let num_inputs = input_args.len();
+                let first_os = input_args.next().unwrap();
+                let first = first_os.to_str();
 
                 // Check the input argument first to see if help was requested
-                if let Some(first_input_arg) = option_first_input_arg {
-                    let first_file_name = match first_input_arg.to_str() {
-                        Some("help") => return Err(HelpRequested("compile", None).into()),
-                        Some("-") => "stdin".into(),
-                        Some(path) => PathBuf::from(path).into(),
-                        None => PathBuf::from(first_input_arg).into(),
-                    };
+                let first_filename = match first {
+                    Some("help") => return Err(HelpRequested("compile", None).into()),
+                    Some("-") => "stdin".into(),
+                    Some(path) => PathBuf::from(path).into(),
+                    None => PathBuf::from(first_os).into(),
+                };
 
-                    let mut file_name_vec: Vec<FileName> = vec![first_file_name];
-
-                    file_name_vec.extend(input_args.map(|input_arg| match input_arg.to_str() {
-                        Some("-") => "stdin".into(),
-                        Some(path) => PathBuf::from(path).into(),
-                        None => PathBuf::from(input_arg).into(),
-                    }));
-
-                    Some(file_name_vec)
-                } else {
-                    None
+                // Make sure stdin is not combined with other inputs
+                if num_inputs > 1 && first == Some("-") {
+                    bail!("stdin as an input cannot be combined with other inputs");
                 }
+
+                let mut filenames: Vec<FileName> = Vec::with_capacity(num_inputs);
+                filenames.push(first_filename);
+
+                for input_arg in input_args {
+                    match input_arg.to_str() {
+                        Some("-") => {
+                            bail!("stdin as an input cannot be combined with other inputs")
+                        }
+                        Some(path) => filenames.push(PathBuf::from(path).into()),
+                        None => filenames.push(PathBuf::from(input_arg).into()),
+                    }
+                }
+
+                // Perform initial validation of inputs
+                //
+                // The full expansion of given inputs is deferred to later, but we want to make sure
+                // we catch obviously bad things like missing paths, etc.
+                for filename in filenames.iter() {
+                    match filename {
+                        FileName::Real(ref path) if !path.exists() => {
+                            bail!(
+                                "invalid input path, no such file or directory: {}",
+                                path.display()
+                            );
+                        }
+                        _ => (),
+                    }
+                }
+
+                filenames
             }
         };
 
-        if let Some(extra_args) = args.values_of("raw") {
-            for arg in extra_args {
-                codegen_opts.llvm_args.push(arg.to_string());
-            }
-        }
-
-        let project_name = detect_project_name(args, cwd.as_path(), input_files.as_deref());
-        let project_type_opt: Option<ProjectType> =
-            ParseOption::parse_option(&option!("project-type"), &args)?;
-        let project_type = project_type_opt.unwrap_or(ProjectType::Executable);
+        // Output/artifacts
+        let app = detect_app(args, cwd.as_path(), input_files.as_slice())?;
+        let app_type_opt: Option<ProjectType> =
+            ParseOption::parse_option(&option!("app-type"), &args)?;
+        let app_type = app_type_opt.unwrap_or(ProjectType::Executable);
         let output_types = OutputTypes::parse_option(&option!("emit"), &args)?;
-
         let color_arg = ColorArg::parse_option(&option!("color"), &args)?;
 
         let maybe_sysroot: Option<PathBuf> = ParseOption::parse_option(&option!("sysroot"), &args)?;
@@ -166,10 +191,15 @@ impl Options {
 
         let mut defines = default_configuration(&target);
 
-        let opt_level = if args.is_present("no-optimize") {
-            OptLevel::No
+        let opt_level = if args.is_present("opt-level") {
+            if codegen_opts.opt_level.is_some() {
+                // Prefer more precise option
+                codegen_opts.opt_level.unwrap()
+            } else {
+                ParseOption::parse_option(&option!("opt-level"), &args)?
+            }
         } else {
-            ParseOption::parse_option(&option!("opt-level"), &args)?
+            codegen_opts.opt_level.unwrap_or_default()
         };
 
         let debug_info = if args.is_present("debug") {
@@ -177,16 +207,17 @@ impl Options {
                 // Prefer more precise option
                 codegen_opts.debuginfo.clone().unwrap()
             } else {
-                DebugInfo::Full
+                ParseOption::parse_option(&option!("debug"), &args)?
             }
         } else {
-            codegen_opts.debuginfo.clone().unwrap_or(DebugInfo::None)
+            if codegen_opts.debuginfo.is_none() && opt_level > OptLevel::Default {
+                DebugInfo::None
+            } else {
+                codegen_opts.debuginfo.unwrap_or_default()
+            }
         };
 
-        // The `-g` and `-C debuginfo` flags specify the same setting
-        let debug_assertions = codegen_opts
-            .debug_assertions
-            .unwrap_or(opt_level == OptLevel::No);
+        let debug_assertions = codegen_opts.debug_assertions.unwrap_or(false);
 
         if debug_assertions {
             defines.insert("DEBUG".to_string(), None);
@@ -219,10 +250,17 @@ impl Options {
                 );
             }
         }
-        let warnings_as_errors = args.is_present("warnings-as-errors");
-        let no_warn = args.is_present("no-warn");
+        let (warnings_as_errors, no_warn) = match args.value_of("warn") {
+            Some("0") | Some("none") => (false, true),
+            Some("error") => (true, false),
+            None | Some(_) => (false, false),
+        };
         let verbosity = Verbosity::from_level(args.occurrences_of("verbose") as isize);
         let mut include_path = VecDeque::new();
+        let local_include_path = cwd.join("include");
+        if local_include_path.exists() && local_include_path.is_dir() {
+            include_path.push_front(local_include_path);
+        }
         if let Some(values) = args.values_of_os("include-paths") {
             for value in values {
                 include_path.push_front(PathBuf::from(value));
@@ -230,8 +268,8 @@ impl Options {
         }
 
         Ok(Self {
-            project_name,
-            project_type,
+            app,
+            app_type,
             output_types,
             color: color_arg.into(),
             warnings_as_errors,
@@ -271,9 +309,10 @@ impl Options {
         debugging_opts: DebuggingOptions,
         cwd: PathBuf,
         args: &ArgMatches<'a>,
-    ) -> Result<Self, anyhow::Error> {
-        let basename = cwd.file_name().unwrap();
-        let project_name = basename.to_str().unwrap().to_owned();
+    ) -> anyhow::Result<Self> {
+        let input_files = vec![FileName::Real(cwd.clone())];
+        let app = detect_app(args, &cwd, input_files.as_slice())?;
+        let app_type = ProjectType::Executable;
 
         let target_opt: Option<Target> = ParseOption::parse_option(&option!("target"), &args)?;
         let target = target_opt.unwrap_or_else(|| {
@@ -307,8 +346,8 @@ impl Options {
         };
 
         Ok(Self {
-            project_name,
-            project_type: ProjectType::Executable,
+            app,
+            app_type,
             output_types: OutputTypes::default(),
             color: ColorChoice::Auto,
             warnings_as_errors: false,
@@ -326,7 +365,7 @@ impl Options {
             codegen_opts,
             debugging_opts,
             current_dir: cwd,
-            input_files: None,
+            input_files,
             output_file: None,
             output_dir: None,
             source_path_prefix: vec![],
@@ -402,7 +441,7 @@ impl Options {
     }
 
     /// Check whether this compile session and crate type use static crt.
-    pub fn crt_static(&self, _project_type: Option<ProjectType>) -> bool {
+    pub fn crt_static(&self, _app_type: Option<ProjectType>) -> bool {
         if !self.target.options.crt_static_respected {
             // If the target does not opt in to crt-static support, use its default.
             return self.target.options.crt_static_default;
@@ -462,33 +501,95 @@ impl Options {
     }
 }
 
-fn detect_project_name<'a>(
-    args: &ArgMatches<'a>,
-    cwd: &Path,
-    option_input_file_names: Option<&[FileName]>,
-) -> String {
-    // If explicitly set, use the provided name
-    if let Some(name) = args.value_of("name") {
-        return name.to_owned();
-    }
-    if let Some(input_file_names) = option_input_file_names {
-        if input_file_names.len() == 1 {
-            if let FileName::Real(ref path) = input_file_names[0] {
-                // If we have a single input file, name the project after it
-                // If we have an input directory, name the project after the directory
-                if path.exists() && (path.is_dir() || path.is_file()) {
-                    return path
-                        .file_stem()
-                        .unwrap()
-                        .to_str()
-                        .expect("invalid utf-8 in input file name")
-                        .to_owned();
+/// Fetch the application metadata for the given src directory
+///
+/// If there is no .app/.app.src file in the given directory, returns Ok(None).
+/// If there is a .app/.app.src file in the given directory, but it is invalid, returns Err.
+/// Otherwise returns Ok(Some(app))
+///
+/// NOTE: Assumes that srcdir exists, will panic otherwise
+fn try_load_app<'a>(srcdir: &Path) -> anyhow::Result<Option<App>> {
+    // Locate the default .app file for the given src directory
+    let default_appsrc = {
+        srcdir.read_dir().unwrap().find_map(|entry| {
+            if let Ok(entry) = entry {
+                let path = entry.path();
+                if !path.is_file() {
+                    return None;
+                }
+                if path.ends_with(".app") || path.ends_with(".app.src") {
+                    return Some(path.canonicalize().unwrap());
                 }
             }
-        }
+
+            None
+        })
+    };
+
+    if let Some(path) = default_appsrc {
+        Ok(Some(App::parse(&path)?))
+    } else {
+        Ok(None)
     }
-    // Fallback to using the current working directory name
-    cwd.file_name().unwrap().to_str().unwrap().to_owned()
+}
+
+/// Fetch or generate application metadata based on the provided inputs
+fn detect_app<'a>(
+    args: &ArgMatches<'a>,
+    cwd: &Path,
+    input_file_names: &[FileName],
+) -> anyhow::Result<App> {
+    // If an path was explicitly provided, always prefer it
+    if let Some(appsrc) = args.value_of("app") {
+        let path = Path::new(appsrc);
+        if !path.exists() || !path.is_file() {
+            bail!("invalid application resource file: {}", path.display());
+        }
+        return App::parse(path);
+    }
+
+    // For the remaining variations, the version is always handled the same
+    let version = args.value_of("app-version").map(|v| v.to_string());
+
+    // If the application name was manually specified, use it
+    if let Some(name) = args.value_of("app-name") {
+        let name = Symbol::intern(name);
+        let mut app = App::new(name);
+        app.version = version;
+        return Ok(app);
+    }
+
+    // We're left with inferring the application metadata.
+    //
+    // If we have a single input, and it's a:
+    //
+    // * directory: try to treat that directory as a standard Erlang application
+    // * file: use the file name as the name of the application
+    //
+    // Otherwise, if we have multiple inputs, we use the name
+    // of the current working directory as the application name.
+    if input_file_names.len() == 1 {
+        let input = &input_file_names[0];
+        if input.is_dir() {
+            let input_dir: &Path = input.as_ref();
+            let srcdir = input_dir.join("src");
+            if let Ok(Some(app)) = try_load_app(&srcdir) {
+                return Ok(app);
+            }
+        }
+        let name = match input {
+            FileName::Real(ref path) => Symbol::intern(path.file_stem().unwrap().to_str().unwrap()),
+            FileName::Virtual(ref name) => Symbol::intern(name.as_ref()),
+        };
+        let mut app = App::new(name);
+        app.version = version;
+        Ok(app)
+    } else {
+        let name = Symbol::intern(cwd.file_name().unwrap().to_str().unwrap());
+        let mut app = App::new(name);
+        app.version = version;
+        Ok(app)
+    }
 }
 
 /// Generate a default project configuration for the current session

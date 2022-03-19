@@ -78,7 +78,6 @@ impl Encoding64Nanboxed {
     // const FLAG_FLOAT: u64 = u64::max_value();
 
     // Tags
-    pub const TAG_BOXED: u64 = 0;
     pub const TAG_NONE: u64 = 0;
     pub const TAG_SMALL_INTEGER: u64 = 1 << TAG_SHIFT;
     pub const TAG_NIL: u64 = 2 << TAG_SHIFT;
@@ -194,7 +193,7 @@ impl Encoding for Encoding64Nanboxed {
     fn header_mask_info() -> MaskInfo {
         MaskInfo {
             shift: 0,
-            mask: MAX_HEADER_VALUE,
+            mask: !SUBTAG_MASK,
             max_allowed_value: MAX_HEADER_VALUE,
         }
     }
@@ -218,6 +217,41 @@ impl Encoding for Encoding64Nanboxed {
             Tag::Nil => Self::NIL,
             Tag::None => Self::NONE,
             _ => panic!("called encode_immediate_with_tag using non-immediate tag"),
+        }
+    }
+
+    #[inline]
+    fn immediate_tag(tag: Tag<u64>) -> u64 {
+        match tag {
+            Tag::Atom => Self::TAG_ATOM,
+            Tag::Pid => Self::TAG_PID,
+            Tag::Port => Self::TAG_PORT,
+            Tag::SmallInteger => Self::TAG_SMALL_INTEGER,
+            Tag::Nil => Self::NIL,
+            Tag::None => Self::NONE,
+            Tag::List => Self::TAG_LIST,
+            Tag::Float | Tag::Box => 0,
+            _ => panic!("called immediate_tag using non-immediate tag"),
+        }
+    }
+
+    #[inline]
+    fn header_tag(tag: Tag<u64>) -> u64 {
+        match tag {
+            Tag::BigInteger => Self::TAG_BIG_INTEGER,
+            Tag::Tuple => Self::TAG_TUPLE,
+            Tag::Map => Self::TAG_MAP,
+            Tag::Closure => Self::TAG_CLOSURE,
+            Tag::ProcBin => Self::TAG_PROCBIN,
+            Tag::HeapBinary => Self::TAG_HEAPBIN,
+            Tag::SubBinary => Self::TAG_SUBBINARY,
+            Tag::MatchContext => Self::TAG_MATCH_CTX,
+            Tag::ExternalPid => Self::TAG_EXTERN_PID,
+            Tag::ExternalPort => Self::TAG_EXTERN_PORT,
+            Tag::ExternalReference => Self::TAG_EXTERN_REF,
+            Tag::Reference => Self::TAG_REFERENCE,
+            Tag::ResourceReference => Self::TAG_RESOURCE_REFERENCE,
+            _ => panic!("called header_tag using non-boxable tag"),
         }
     }
 
@@ -266,7 +300,7 @@ impl Encoding for Encoding64Nanboxed {
             value <= MAX_ADDR,
             "cannot encode pointers using more than 48 bits of addressable memory"
         );
-        value | Self::TAG_BOXED
+        value
     }
 
     #[inline]
@@ -276,7 +310,7 @@ impl Encoding for Encoding64Nanboxed {
             value <= MAX_ADDR,
             "cannot encode pointers using more than 48 bits of addressable memory"
         );
-        value | Self::TAG_LITERAL | Self::TAG_BOXED
+        value | Self::TAG_LITERAL
     }
 
     #[inline]

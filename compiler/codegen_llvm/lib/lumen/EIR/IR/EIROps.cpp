@@ -4,14 +4,10 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/SMLoc.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/Attributes.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/OperationSupport.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
@@ -25,14 +21,6 @@
 
 using namespace lumen;
 using namespace lumen::eir;
-
-using ::llvm::ArrayRef;
-using ::llvm::cast;
-using ::llvm::dyn_cast_or_null;
-using ::llvm::isa;
-using ::llvm::SmallVector;
-using ::llvm::StringRef;
-using ::mlir::OpOperand;
 
 namespace lumen {
 namespace eir {
@@ -69,18 +57,13 @@ struct constant_apint_op_binder {
             return false;
         auto type = op->getResult(0).getType();
 
-        if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
-            if (opaque.isFixnum())
+        if (type.isa<IntegerType>())
+            return mlir::detail::attr_value_binder<APIntAttr>(bind_value)
+                .match(attr);
+        if (auto box = type.dyn_cast<BoxType>())
+            if (box.getPointeeType().isa<IntegerType>())
                 return mlir::detail::attr_value_binder<APIntAttr>(bind_value)
                     .match(attr);
-            if (opaque.isBox()) {
-                auto box = type.cast<BoxType>();
-                if (box.getBoxedType().isInteger())
-                    return mlir::detail::attr_value_binder<APIntAttr>(
-                               bind_value)
-                        .match(attr);
-            }
-        }
 
         return false;
     }
@@ -100,11 +83,9 @@ struct constant_apfloat_op_binder {
             return false;
         auto type = op->getResult(0).getType();
 
-        if (auto opaque = type.dyn_cast_or_null<OpaqueTermType>()) {
-            if (opaque.isFloat())
-                return mlir::detail::attr_value_binder<APFloatAttr>(bind_value)
-                    .match(attr);
-        }
+        if (type.isa<FloatType>())
+            return mlir::detail::attr_value_binder<APFloatAttr>(bind_value)
+                .match(attr);
 
         return false;
     }
@@ -210,18 +191,15 @@ inline constant_atom_op_binder m_ConstAtom(AtomAttr::ValueType *bind_value) {
 
 static Value castToTermEquivalent(OpBuilder &builder, Value input) {
     Type inputType = input.getType();
-    if (inputType.isa<OpaqueTermType>()) return input;
+    if (inputType.isa<TermType>()) return input;
 
     Type targetType;
     if (auto ptrTy = inputType.dyn_cast_or_null<PtrType>()) {
-        Type innerTy = ptrTy.getInnerType();
-        if (innerTy.isa<OpaqueTermType>())
-            targetType =
-                builder.getType<BoxType>(innerTy.cast<OpaqueTermType>());
+        Type innerTy = ptrTy.getPointeeType();
+        if (dyn_cast<TermTypeInterface>(innerTy))
+            targetType = builder.getType<BoxType>(innerTy);
         else
             targetType = builder.getType<TermType>();
-    } else if (auto refTy = inputType.dyn_cast_or_null<RefType>()) {
-        targetType = builder.getType<BoxType>(refTy.getInnerType());
     } else {
         targetType = builder.getType<TermType>();
     }
@@ -260,7 +238,7 @@ FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
 
 void FuncOp::build(OpBuilder &builder, OperationState &result, StringRef name,
                    FunctionType type, ArrayRef<NamedAttribute> attrs,
-                   ArrayRef<MutableDictionaryAttr> argAttrs) {
+                   ArrayRef<DictionaryAttr> argAttrs) {
     result.addRegion();
     result.addAttribute(SymbolTable::getSymbolAttrName(),
                         builder.getStringAttr(name));
@@ -300,504 +278,6 @@ LogicalResult FuncOp::verifyType() {
 Region *FuncOp::getCallableRegion() { return &body(); }
 
 ArrayRef<Type> FuncOp::getCallableResults() { return getType().getResults(); }
-
-//===----------------------------------------------------------------------===//
-// eir.br
-//===----------------------------------------------------------------------===//
-
-/// Given a successor, try to collapse it to a new destination if it only
-/// contains a passthrough unconditional branch. If the successor is
-/// collapsable, `successor` and `successorOperands` are updated to reference
-/// the new destination and values. `argStorage` is an optional storage to use
-/// if operands to the collapsed successor need to be remapped.
-static LogicalResult collapseBranch(Block *&successor,
-                                    ValueRange &successorOperands,
-                                    SmallVectorImpl<Value> &argStorage) {
-    // Check that the successor only contains a unconditional branch.
-    if (std::next(successor->begin()) != successor->end()) return failure();
-    // Check that the terminator is an unconditional branch.
-    BranchOp successorBranch = dyn_cast<BranchOp>(successor->getTerminator());
-    if (!successorBranch) return failure();
-    // Check that the arguments are only used within the terminator.
-    for (BlockArgument arg : successor->getArguments()) {
-        for (Operation *user : arg.getUsers())
-            if (user != successorBranch) return failure();
-    }
-    // Don't try to collapse branches to infinite loops.
-    Block *successorDest = successorBranch.getDest();
-    if (successorDest == successor) return failure();
-
-    // Update the operands to the successor. If the branch parent has no
-    // arguments, we can use the branch operands directly.
-    OperandRange operands = successorBranch.getOperands();
-    if (successor->args_empty()) {
-        successor = successorDest;
-        successorOperands = operands;
-        return success();
-    }
-
-    // Otherwise, we need to remap any argument operands.
-    for (Value operand : operands) {
-        BlockArgument argOperand = operand.dyn_cast<BlockArgument>();
-        if (argOperand && argOperand.getOwner() == successor)
-            argStorage.push_back(successorOperands[argOperand.getArgNumber()]);
-        else
-            argStorage.push_back(operand);
-    }
-    successor = successorDest;
-    successorOperands = argStorage;
-    return success();
-}
-
-void canonicalizeBranchOpInterface(OpBuilder &builder, Operation *op,
-                                   BranchOpInterface branchInterface) {
-    for (auto sit : llvm::enumerate(op->getSuccessors())) {
-        Optional<MutableOperandRange> maybeOperands =
-            branchInterface.getMutableSuccessorOperands(sit.index());
-        if (!maybeOperands.hasValue()) continue;
-
-        MutableOperandRange mutableOperands = maybeOperands.getValue();
-        OperandRange operands(mutableOperands);
-        Block *successor = sit.value();
-
-        // If there is a mismatch like this we have to ignore this op, its
-        // invalid
-        if (successor->getNumArguments() != operands.size()) return;
-
-        // If we're the only predecessor, then we can set the type of
-        // all block arguments based on the values given as successor operands
-        if (successor->getSinglePredecessor()) {
-            for (auto it : llvm::enumerate(operands)) {
-                Value operand = it.value();
-                Type operandType = operand.getType();
-                BlockArgument blockArg = successor->getArgument(it.index());
-                Type blockArgType = blockArg.getType();
-
-                if (operandType == blockArgType) continue;
-
-                blockArg.setType(operandType);
-            }
-            continue;
-        }
-
-        // Gather all of the operand types for every path which reaches this
-        // successor
-        SmallVector<TypeRange, 4> successorOperandTypes;
-
-        if (successor->getUniquePredecessor()) {
-            // We're the only predecessor, but this branch references the
-            // successor multiple times, so we have to confirm for each operand
-            // whether the type can be set, or whether a cast is needed, for
-            // each reference
-            for (auto it : llvm::enumerate(op->getSuccessors())) {
-                Block *succ = it.value();
-
-                if (succ != successor) {
-                    continue;
-                }
-
-                Optional<OperandRange> maybeSuccOperands =
-                    branchInterface.getSuccessorOperands(it.index());
-                auto succOperands = maybeSuccOperands.getValue();
-                successorOperandTypes.push_back(
-                    TypeRange(succOperands.getTypes()));
-            }
-        } else {
-            // There are many predecessors, so we need to perform the same
-            // check as above, but across all predecessors, not just the
-            // current block
-            for (auto pred : successor->getPredecessors()) {
-                // Get the terminator, which will always implement
-                // BranchOpInterface here
-                auto terminator = pred->getTerminator();
-                BranchOpInterface termInterface =
-                    dyn_cast<BranchOpInterface>(terminator);
-                assert(
-                    termInterface &&
-                    "expected predecessor to be terminated with a branch-like "
-                    "operation");
-
-                for (auto sit2 : llvm::enumerate(terminator->getSuccessors())) {
-                    Block *succ = sit2.value();
-                    if (succ != successor) continue;
-                    Optional<OperandRange> maybeSuccOperands =
-                        termInterface.getSuccessorOperands(sit2.index());
-                    auto succOperands = maybeSuccOperands.getValue();
-                    successorOperandTypes.push_back(
-                        TypeRange(succOperands.getTypes()));
-                }
-            }
-        }
-
-        // For each block argument in this successor, if all of the operands
-        // that flow to this argument have the same type, then set the block
-        // argument type to the common type; otherwise, insert a cast at this
-        // location if the type does not match
-        for (BlockArgument blockArg : successor->getArguments()) {
-            auto argIndex = blockArg.getArgNumber();
-            Type baseType = successorOperandTypes.front()[argIndex];
-
-            if (std::all_of(successorOperandTypes.begin(),
-                            successorOperandTypes.end(),
-                            [&](TypeRange operandTypes) {
-                                return operandTypes[argIndex] == baseType;
-                            })) {
-                blockArg.setType(baseType);
-                continue;
-            }
-
-            // If we reach here, a cast is required on any path which does not
-            // have a type that matches the block argument type. So for each
-            // path that reaches this successor, make sure a cast is inserted
-            // if needed
-            //
-            // NOTE: I imagine there is a clever way to do this such that we can
-            // handle cases where there are differing types, but ones that are
-            // castable to one another, allowing us to keep as much type info as
-            // possible, rather than pessimizing. This doesn't technically
-            // pessimize so much as use whatever type is on the block argument,
-            // but since that will almost always be TermType, that is
-            // effectively what all the preds will be cast to.
-            for (auto oit = operands.begin(), oe = operands.end(); oit != oe;
-                 ++oit) {
-                Value operand = *oit;
-                Type operandType = operand.getType();
-
-                if (operandType == baseType) continue;
-
-                builder.setInsertionPoint(op);
-                auto castOp =
-                    builder.create<CastOp>(operand.getLoc(), operand, baseType);
-                mutableOperands.slice(argIndex, 1).assign(castOp.getResult());
-            }
-        }
-    }
-}
-
-namespace {
-template <typename OpType>
-struct PropagateTypesThroughBr : public OpRewritePattern<OpType> {
-    using OpRewritePattern<OpType>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(OpType op,
-                                  PatternRewriter &rewriter) const override {
-        Operation *operation = op.getOperation();
-        canonicalizeBranchOpInterface(rewriter, operation,
-                                      cast<BranchOpInterface>(operation));
-        return success();
-    }
-};
-
-/// Simplify a branch to a block that has a single predecessor. This effectively
-/// merges the two blocks.
-struct SimplifyBrToBlockWithSinglePred : public OpRewritePattern<BranchOp> {
-    using OpRewritePattern<BranchOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(BranchOp op,
-                                  PatternRewriter &rewriter) const override {
-        // Check that the successor block has a single predecessor.
-        Block *succ = op.getDest();
-        Block *opParent = op.getOperation()->getBlock();
-        if (succ == opParent ||
-            !llvm::hasSingleElement(succ->getPredecessors()))
-            return failure();
-
-        // Merge the successor into the current block and erase the branch.
-        rewriter.mergeBlocks(succ, opParent, op.getOperands());
-        rewriter.eraseOp(op);
-        return success();
-    }
-};
-
-///   br ^bb1
-/// ^bb1
-///   br ^bbN(...)
-///
-///  -> br ^bbN(...)
-///
-struct SimplifyPassThroughBr : public OpRewritePattern<BranchOp> {
-    using OpRewritePattern<BranchOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(BranchOp op,
-                                  PatternRewriter &rewriter) const override {
-        Block *dest = op.getDest();
-        ValueRange destOperands = op.getOperands();
-        SmallVector<Value, 4> destOperandStorage;
-
-        // Try to collapse the successor if it points somewhere other than this
-        // block.
-        if (dest == op.getOperation()->getBlock() ||
-            failed(collapseBranch(dest, destOperands, destOperandStorage)))
-            return failure();
-
-        // Create a new branch with the collapsed successor.
-        rewriter.replaceOpWithNewOp<BranchOp>(op, dest, destOperands);
-        return success();
-    }
-};
-}  // namespace
-
-void BranchOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                           MLIRContext *context) {
-    results.insert<SimplifyBrToBlockWithSinglePred, SimplifyPassThroughBr,
-                   PropagateTypesThroughBr<BranchOp>>(context);
-}
-
-Optional<MutableOperandRange> BranchOp::getMutableSuccessorOperands(
-    unsigned index) {
-    assert(index == 0 && "invalid successor index");
-    return destOperandsMutable();
-}
-
-Block *BranchOp::getSuccessorForOperands(ArrayRef<Attribute>) { return dest(); }
-
-//===----------------------------------------------------------------------===//
-// eir.cond_br
-//===----------------------------------------------------------------------===//
-
-namespace {
-/// eir.cond_br true, ^bb1, ^bb2 -> br ^bb1
-/// eir.cond_br false, ^bb1, ^bb2 -> br ^bb2
-///
-struct SimplifyConstCondBranchPred : public OpRewritePattern<CondBranchOp> {
-    using OpRewritePattern<CondBranchOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(CondBranchOp condbr,
-                                  PatternRewriter &rewriter) const override {
-        // First test for constant !eir.bool values, followed by i1
-        bool selector = false;
-        if (matchPattern(condbr.getCondition(), m_ConstBool(&selector))) {
-            if (selector) {
-                // True branch taken
-                rewriter.replaceOpWithNewOp<BranchOp>(
-                    condbr, condbr.getTrueDest(), condbr.getTrueOperands());
-                return success();
-            } else {
-                // False branch taken
-                rewriter.replaceOpWithNewOp<BranchOp>(
-                    condbr, condbr.getTrueDest(), condbr.getTrueOperands());
-                return success();
-            }
-        } else if (matchPattern(condbr.getCondition(), mlir::m_NonZero())) {
-            // True branch taken.
-            rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getTrueDest(),
-                                                  condbr.getTrueOperands());
-            return success();
-        } else if (matchPattern(condbr.getCondition(), mlir::m_Zero())) {
-            // False branch taken.
-            rewriter.replaceOpWithNewOp<BranchOp>(condbr, condbr.getFalseDest(),
-                                                  condbr.getFalseOperands());
-            return success();
-        }
-        return failure();
-    }
-};
-
-///   cond_br %cond, ^bb1, ^bb2
-/// ^bb1
-///   br ^bbN(...)
-/// ^bb2
-///   br ^bbK(...)
-///
-///  -> cond_br %cond, ^bbN(...), ^bbK(...)
-///
-struct SimplifyPassThroughCondBranch : public OpRewritePattern<CondBranchOp> {
-    using OpRewritePattern<CondBranchOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(CondBranchOp condbr,
-                                  PatternRewriter &rewriter) const override {
-        Block *trueDest = condbr.trueDest(), *falseDest = condbr.falseDest();
-        ValueRange trueDestOperands = condbr.getTrueOperands();
-        ValueRange falseDestOperands = condbr.getFalseOperands();
-        SmallVector<Value, 4> trueDestOperandStorage, falseDestOperandStorage;
-
-        // Try to collapse one of the current successors.
-        LogicalResult collapsedTrue =
-            collapseBranch(trueDest, trueDestOperands, trueDestOperandStorage);
-        LogicalResult collapsedFalse = collapseBranch(
-            falseDest, falseDestOperands, falseDestOperandStorage);
-        if (failed(collapsedTrue) && failed(collapsedFalse)) return failure();
-
-        // Create a new branch with the collapsed successors.
-        rewriter.replaceOpWithNewOp<CondBranchOp>(condbr, condbr.getCondition(),
-                                                  trueDest, trueDestOperands,
-                                                  falseDest, falseDestOperands);
-        return success();
-    }
-};
-
-/// cond_br %cond, ^bb1(A, ..., N), ^bb1(A, ..., N)
-///  -> br ^bb1(A, ..., N)
-///
-/// cond_br %cond, ^bb1(A), ^bb1(B)
-///  -> %select = select %cond, A, B
-///     br ^bb1(%select)
-///
-struct SimplifyCondBranchIdenticalSuccessors
-    : public OpRewritePattern<CondBranchOp> {
-    using OpRewritePattern<CondBranchOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(CondBranchOp condbr,
-                                  PatternRewriter &rewriter) const override {
-        // Check that the true and false destinations are the same and have the
-        // same operands.
-        Block *trueDest = condbr.trueDest();
-        if (trueDest != condbr.falseDest()) return failure();
-
-        // If all of the operands match, no selects need to be generated.
-        OperandRange trueOperands = condbr.getTrueOperands();
-        OperandRange falseOperands = condbr.getFalseOperands();
-        if (trueOperands == falseOperands) {
-            rewriter.replaceOpWithNewOp<BranchOp>(condbr, trueDest,
-                                                  trueOperands);
-            return success();
-        }
-
-        // Otherwise, if the current block is the only predecessor insert
-        // selects for any mismatched branch operands.
-        if (trueDest->getUniquePredecessor() !=
-            condbr.getOperation()->getBlock())
-            return failure();
-
-        // Generate a select for any operands that differ between the two.
-        SmallVector<Value, 8> mergedOperands;
-        mergedOperands.reserve(trueOperands.size());
-        Value condition = condbr.getCondition();
-        for (auto it : llvm::zip(trueOperands, falseOperands)) {
-            if (std::get<0>(it) == std::get<1>(it))
-                mergedOperands.push_back(std::get<0>(it));
-            else
-                mergedOperands.push_back(rewriter.create<mlir::SelectOp>(
-                    condbr.getLoc(), condition, std::get<0>(it),
-                    std::get<1>(it)));
-        }
-
-        rewriter.replaceOpWithNewOp<BranchOp>(condbr, trueDest, mergedOperands);
-        return success();
-    }
-};
-
-struct SimplifyCondBranchToUnreachable : public OpRewritePattern<CondBranchOp> {
-    using OpRewritePattern<CondBranchOp>::OpRewritePattern;
-
-    LogicalResult matchAndRewrite(CondBranchOp condbr,
-                                  PatternRewriter &rewriter) const override {
-        Block *trueDest = condbr.trueDest();
-        Block *falseDest = condbr.falseDest();
-
-        // Determine if either branch goes to a block with a single operation
-        bool trueIsCandidate = std::next(trueDest->begin()) == trueDest->end();
-        bool falseIsCandidate =
-            std::next(falseDest->begin()) == falseDest->end();
-        // If neither are candidates for this transformation, we're done
-        if (!trueIsCandidate && !falseIsCandidate) return failure();
-
-        // Determine if either branch contains an unreachable
-        // Check that the terminator is an unconditional branch.
-        Operation *trueOp = trueDest->getTerminator();
-        assert(trueOp && "expected terminator");
-        Operation *falseOp = falseDest->getTerminator();
-        assert(falseOp && "expected terminator");
-        UnreachableOp trueUnreachable = dyn_cast<UnreachableOp>(trueOp);
-        UnreachableOp falseUnreachable = dyn_cast<UnreachableOp>(falseOp);
-        // If neither terminator are unreachables, there is nothing to do
-        if (!trueUnreachable && !falseUnreachable) return failure();
-
-        // If both blocks are unreachable, then we can replace this
-        // branch operation with an unreachable as well
-        if (trueUnreachable && falseUnreachable) {
-            rewriter.replaceOpWithNewOp<UnreachableOp>(condbr);
-            return success();
-        }
-
-        Block *unreachable;
-        Block *reachable;
-        Operation *reachableOp;
-        OperandRange reachableOperands = trueUnreachable
-                                             ? condbr.getFalseOperands()
-                                             : condbr.getTrueOperands();
-        Block *opParent = condbr.getOperation()->getBlock();
-
-        if (trueUnreachable) {
-            unreachable = trueDest;
-            reachable = falseDest;
-            reachableOp = falseOp;
-        } else {
-            unreachable = falseDest;
-            reachable = trueDest;
-            reachableOp = trueOp;
-        }
-
-        // If the reachable block is a return, we can collapse this operation
-        // to a return rather than a branch
-        if (auto ret = dyn_cast<ReturnOp>(reachableOp)) {
-            if (reachable->getUniquePredecessor() == opParent) {
-                // If the reachable block is only reachable from here, merge the
-                // blocks
-                rewriter.eraseOp(condbr);
-                rewriter.mergeBlocks(reachable, opParent, reachableOperands);
-                return success();
-            } else {
-                // If the reachable block has multiple predecessors, but the
-                // return only references operands reachable from this block,
-                // then replace the condbr with a copy of the return
-                SmallVector<Value, 4> destOperandStorage;
-                auto retOperands = ret.operands();
-                for (Value operand : retOperands) {
-                    BlockArgument argOperand =
-                        operand.dyn_cast<BlockArgument>();
-                    if (argOperand && argOperand.getOwner() == reachable) {
-                        // The operand is a block argument in the reachable
-                        // block, remap it to the successor operand we have in
-                        // this block
-                        destOperandStorage.push_back(
-                            reachableOperands[argOperand.getArgNumber()]);
-                    } else if (operand.getParentBlock() == reachable) {
-                        // The operand is constructed in the reachable block,
-                        // so we can't proceed without cloning the block into
-                        // this block
-                        return failure();
-                    } else {
-                        // The operand is from parent scope, we can safely
-                        // reference it
-                        destOperandStorage.push_back(operand);
-                    }
-                }
-                rewriter.replaceOpWithNewOp<ReturnOp>(condbr,
-                                                      destOperandStorage);
-                return success();
-            }
-        }
-
-        // The reachable block doesn't contain a return, so instead replace
-        // the condbr with an unconditional branch
-        rewriter.replaceOpWithNewOp<BranchOp>(condbr, reachable,
-                                              reachableOperands);
-        return success();
-    }
-};
-}  // end anonymous namespace.
-
-void CondBranchOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
-    results.insert<SimplifyConstCondBranchPred, SimplifyPassThroughCondBranch,
-                   SimplifyCondBranchIdenticalSuccessors,
-                   SimplifyCondBranchToUnreachable,
-                   PropagateTypesThroughBr<CondBranchOp>>(context);
-}
-
-Optional<MutableOperandRange> CondBranchOp::getMutableSuccessorOperands(
-    unsigned index) {
-    assert(index < getNumSuccessors() && "invalid successor index");
-    return index == trueIndex ? trueDestOperandsMutable()
-                              : falseDestOperandsMutable();
-}
-
-Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
-    if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
-        return condAttr.getValue().isOneValue() ? trueDest() : falseDest();
-    return nullptr;
-}
 
 //===----------------------------------------------------------------------===//
 // eir.call
@@ -965,11 +445,11 @@ void ReturnOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(IsTypeOp op) {
-    auto typeAttr = op.getAttrOfType<TypeAttr>("type");
+    auto typeAttr = op->getAttrOfType<TypeAttr>("type");
     if (!typeAttr)
         return op.emitOpError("requires type attribute named 'type'");
 
-    if (!typeAttr.getValue().isa<OpaqueTermType>())
+    if (!typeAttr.getValue().hasTrait<TermTypeInterface::Trait>())
         return op.emitOpError("expected term type");
 
     return success();
@@ -999,13 +479,14 @@ OpFoldResult IsTypeOp::fold(ArrayRef<Attribute> operands) {
     // The match type should always be a term type, but handle it gracefully in
     // the instance where it is not. We should use verify/1 to handle invalid
     // type arguments
-    OpaqueTermType expected = matchType.dyn_cast<OpaqueTermType>();
-    if (!expected) return nullptr;
+    if (!matchType.hasTrait<TermTypeInterface::Trait>()) return nullptr;
+
+    auto expected = dyn_cast<TermTypeInterface>(matchType);
 
     // If the input value is itself an opaque term type, then unwrap it
     // and delegate to the isMatch helper. This handles all term/term
     // comparisons
-    if (auto inputTy = inputType.dyn_cast_or_null<OpaqueTermType>()) {
+    if (auto inputTy = dyn_cast<TermTypeInterface>(inputType)) {
         switch (inputTy.isMatch(matchType)) {
         case 0:
             return BoolAttr::get(false, getContext());
@@ -1020,33 +501,18 @@ OpFoldResult IsTypeOp::fold(ArrayRef<Attribute> operands) {
     // are not technically term types, however they get coerced to them, so
     // if we have a typecheck on a pointer value, we can resolve that check
     // statically if the pointee type matches the boxed type that is expected
-    if (!expected.isBox() && !expected.isBoxable()) return nullptr;
+    if (!matchType.isa<BoxType>() && !expected.isBoxable()) return nullptr;
 
     // Normalize the type which should be compared against the pointee type
-    OpaqueTermType boxedTy;
-    if (expected.isBox())
-        boxedTy = matchType.cast<BoxType>().getBoxedType();
+    Type boxedTy;
+    if (auto box = matchType.dyn_cast<BoxType>())
+        boxedTy = box.getPointeeType();
     else
         boxedTy = expected;
 
     if (auto ptrTy = inputType.dyn_cast_or_null<PtrType>()) {
-        Type innerTy = ptrTy.getInnerType();
-        if (auto innerTermTy = innerTy.dyn_cast_or_null<OpaqueTermType>()) {
-            switch (innerTermTy.isMatch(boxedTy)) {
-            case 0:
-                return BoolAttr::get(false, getContext());
-            case 1:
-                return BoolAttr::get(true, getContext());
-            case 2:
-                return nullptr;
-            }
-        }
-        return nullptr;
-    }
-
-    if (auto refTy = inputType.dyn_cast_or_null<RefType>()) {
-        Type innerTy = refTy.getInnerType();
-        if (auto innerTermTy = innerTy.dyn_cast_or_null<OpaqueTermType>()) {
+        Type innerTy = ptrTy.getPointeeType();
+        if (auto innerTermTy = dyn_cast<TermTypeInterface>(innerTy)) {
             switch (innerTermTy.isMatch(boxedTy)) {
             case 0:
                 return BoolAttr::get(false, getContext());
@@ -1114,12 +580,12 @@ OpFoldResult IsTupleOp::fold(ArrayRef<Attribute> operands) {
             } else {
                 return BoolAttr::get(true, getContext());
             }
-        else if (ptrType.getInnerType().isa<OpaqueTermType>())
+        else if (ptrType.getPointeeType().hasTrait<TermTypeInterface::Trait>())
             return BoolAttr::get(false, getContext());
         else
             return nullptr;
-    } else if (auto termTy = inputType.dyn_cast_or_null<OpaqueTermType>()) {
-        if (!termTy.isOpaque())
+    } else if (inputType.hasTrait<TermTypeInterface::Trait>()) {
+        if (!inputType.isa<TermType>())
             return BoolAttr::get(false, getContext());
         else
             return nullptr;
@@ -1150,7 +616,7 @@ OpFoldResult IsFunctionOp::fold(ArrayRef<Attribute> operands) {
     Type inputType = input.getType();
     if (auto boxType = inputType.dyn_cast_or_null<BoxType>()) {
         if (auto closureTy =
-                boxType.getBoxedType().dyn_cast_or_null<ClosureType>()) {
+                boxType.getPointeeType().dyn_cast_or_null<ClosureType>()) {
             if (numOperands < 2) return BoolAttr::get(true, getContext());
             auto arityAttr = operands[1];
             if (!arityAttr) return nullptr;
@@ -1167,7 +633,7 @@ OpFoldResult IsFunctionOp::fold(ArrayRef<Attribute> operands) {
         }
     } else if (auto ptrType = inputType.dyn_cast_or_null<PtrType>()) {
         if (auto closureTy =
-                ptrType.getInnerType().dyn_cast_or_null<ClosureType>()) {
+                ptrType.getPointeeType().dyn_cast_or_null<ClosureType>()) {
             if (numOperands < 2) return BoolAttr::get(true, getContext());
             auto arityAttr = operands[1];
             if (!arityAttr) return nullptr;
@@ -1179,13 +645,14 @@ OpFoldResult IsFunctionOp::fold(ArrayRef<Attribute> operands) {
                 return BoolAttr::get(true, getContext());
             else
                 return BoolAttr::get(false, getContext());
-        } else if (ptrType.getInnerType().isa<OpaqueTermType>()) {
+        } else if (ptrType.getPointeeType()
+                       .hasTrait<TermTypeInterface::Trait>()) {
             return BoolAttr::get(false, getContext());
         } else {
             return nullptr;
         }
-    } else if (auto termTy = inputType.dyn_cast_or_null<OpaqueTermType>()) {
-        if (!termTy.isOpaque())
+    } else if (inputType.hasTrait<TermTypeInterface::Trait>()) {
+        if (!inputType.isa<TermType>())
             return BoolAttr::get(false, getContext());
         else
             return nullptr;
@@ -1206,59 +673,60 @@ OpFoldResult CastOp::fold(ArrayRef<Attribute> operands) {
     return nullptr;
 }
 
-static bool areCastCompatible(OpaqueTermType srcType, OpaqueTermType destType) {
-    if (destType.isOpaque()) {
+static bool areCastCompatible(Type srcType, Type destType) {
+    auto srcInfo = dyn_cast<TermTypeInterface>(srcType);
+    if (!srcInfo) return false;
+    auto destInfo = dyn_cast<TermTypeInterface>(destType);
+    if (!destInfo) return false;
+
+    if (destType.isa<TermType>()) {
         // Casting an immediate to an opaque term is always allowed
-        if (srcType.isImmediate() || srcType.isPid()) return true;
+        if (srcType.isImmediate()) return true;
         // Casting a boxed value to an opaque term is always allowed
-        if (srcType.isBox()) return true;
+        if (srcType.isa<BoxType>()) return true;
         // This is redundant, but technically allowed and will be eliminated via
         // canonicalization
-        if (srcType.isOpaque()) return true;
+        if (srcType.isa<TermType>()) return true;
     }
     // Casting an opaque term to any term type is always allowed
-    if (srcType.isOpaque()) return true;
+    if (srcType.isa<TermType>()) return true;
     // Box-to-box casts are always allowed
-    if (srcType.isBox() & destType.isBox()) return true;
+    if (srcType.isa<BoxType>() & destType.isa<BoxType>()) return true;
     // Only header types can be boxed
-    if (destType.isBox() && !srcType.isBoxable()) return false;
+    if (destType.isa<BoxType>() && !srcInfo.isBoxable()) return false;
     // A cast must be to an immediate-sized type
-    if (!destType.isImmediate()) return false;
+    if (!destInfo.isImmediate()) return false;
     // Only support casts between compatible types
-    if (srcType.isNumber() && !destType.isNumber()) return false;
-    if (srcType.isInteger() && !destType.isInteger()) return false;
-    if (srcType.isFloat() && !destType.isFloat()) return false;
-    if (srcType.isList() && !destType.isList()) return false;
-    if (srcType.isBinary() && !destType.isBinary()) return false;
+    if (srcInfo.isNumberLike() && !destInfo.isNumberLike()) return false;
+    if (srcType.isa<IntegerType>() && !destType.isa<IntegerType>())
+        return false;
+    if (srcType.isa<FloatType>() && !destType.isa<FloatType>()) return false;
+    if (srcInfo.isListLike() && !destInfo.isListLike()) return false;
+    if (srcType.isa<BinaryType>() && !destType.isa<BinaryType>()) return false;
     // All other casts are supported
     return true;
 }
 
 static LogicalResult verify(CastOp op) {
-    auto opType = op.getSourceType();
-    auto resType = op.getTargetType();
-    if (auto opTermType = opType.dyn_cast_or_null<OpaqueTermType>()) {
-        if (auto resTermType = resType.dyn_cast_or_null<OpaqueTermType>()) {
-            if (!areCastCompatible(opTermType, resTermType)) {
-                return op.emitError("operand type ")
-                       << opType << " and result type " << resType
-                       << " are not cast compatible";
-            }
-            return success();
+    auto srcType = op.getSourceType();
+    auto destType = op.getTargetType();
+    if (srcType.hasTrait<TermTypeInterface::Trait>() &&
+        destType.hasTrait<TermTypeInterface::Trait>()) {
+        if (!areCastCompatible(srcType, destType)) {
+            return op.emitError("operand type ")
+                   << srcType << " and result type " << destType
+                   << " are not cast compatible";
         }
-
-        if (resType.isa<PtrType>() || resType.isa<RefType>()) return success();
-
-        if (resType.isIntOrFloat()) return success();
-
-        return op.emitError("invalid cast type, target type is unsupported");
+        return success();
     }
 
-    if (opType.isa<PtrType>() || resType.isa<RefType>()) return success();
+    if ((srcType.isa<PtrType>() || srcType.isa<BoxType>()) &&
+        destType.isa<PtrType>())
+        return success();
+    if (srcType.isIntOrFloat() && destType.isIntOrFloat()) return success();
 
-    if (opType.isIntOrFloat()) return success();
-
-    return op.emitError("invalid cast type, source type is unsupported");
+    return op.emitError(
+        "invalid cast, source and target type combination is unsupported");
 }
 
 //===----------------------------------------------------------------------===//
@@ -1678,13 +1146,14 @@ OpFoldResult CmpEqOp::fold(ArrayRef<Attribute> operands) {
             Type lTy = l.getType();
             Type rTy = r.getType();
             // Nothing to do
-            if (lTy.isa<OpaqueTermType>() && rTy.isa<OpaqueTermType>())
+            if (lTy.hasTrait<TermTypeInterface::Trait>() &&
+                rTy.hasTrait<TermTypeInterface::Trait>())
                 return nullptr;
             // Term is already on the right
-            if (rTy.isa<OpaqueTermType>()) return nullptr;
+            if (rTy.hasTrait<TermTypeInterface::Trait>()) return nullptr;
 
             // We have a term on the left, move to the right
-            if (lTy.isa<OpaqueTermType>()) {
+            if (lTy.hasTrait<TermTypeInterface::Trait>()) {
                 lhsOperandMut.assign(r);
                 rhsOperandMut.assign(l);
             }
@@ -1761,13 +1230,12 @@ namespace {
 static bool canTypesEverBeEqual(Type lhsTy, Type rhsTy, bool strict) {
     if (lhsTy == rhsTy) return true;
 
-    if (lhsTy.isa<OpaqueTermType>()) {
-        OpaqueTermType lhs = lhsTy.cast<OpaqueTermType>();
-        return lhs.canTypeEverBeEqual(rhsTy);
+    if (auto lhs = lhsTy.dyn_cast_or_null<TermTypeInterface>()) {
+        return lhs.canTypeEverBeEqual(rhsTy, strict);
     }
-    if (rhsTy.isa<OpaqueTermType>()) {
-        OpaqueTermType rhs = rhsTy.cast<OpaqueTermType>();
-        return rhs.canTypeEverBeEqual(lhsTy);
+
+    if (auto rhs = rhsTy.dyn_cast_or_null<TermTypeInterface>()) {
+        return rhs.canTypeEverBeEqual(lhsTy, strict);
     }
 
     if (lhsTy.isIntOrFloat() && rhsTy.isIntOrFloat()) return true;
@@ -2343,17 +1811,9 @@ struct ApplyConstantNegations : public OpRewritePattern<NegOp> {
             auto castOp = dyn_cast<CastOp>(rhs.getDefiningOp());
             auto castType = castOp.getType();
             intVal.negate();
-            if (castOp.getSourceType().isa<FixnumType>()) {
-                auto newInt =
-                    rewriter.create<ConstantIntOp>(op.getLoc(), intVal);
-                rewriter.replaceOpWithNewOp<CastOp>(op, newInt.getResult(),
-                                                    castType);
-            } else {
-                auto newInt =
-                    rewriter.create<ConstantBigIntOp>(op.getLoc(), intVal);
-                rewriter.replaceOpWithNewOp<CastOp>(op, newInt.getResult(),
-                                                    castType);
-            }
+            auto newInt = rewriter.create<ConstantIntOp>(op.getLoc(), intVal);
+            rewriter.replaceOpWithNewOp<CastOp>(op, newInt.getResult(),
+                                                castType);
             return success();
         }
 
@@ -2389,20 +1849,21 @@ static LogicalResult verify(MallocOp op) {
         return op.emitOpError("result must be of pointer type");
 
     auto allocType = op.getAllocType();
-    if (auto termType = allocType.dyn_cast_or_null<OpaqueTermType>()) {
-        if (!termType.isBoxable())
+    if (auto allocTypeInfo = dyn_cast<TermTypeInterface>(allocType)) {
+        if (!allocTypeInfo.isBoxable())
             return op.emitOpError("cannot malloc an unboxable term type");
 
-        // Optional<arity> in `arguments` is `Value()`, that is `Value(nullptr)` if not given and not an
-        // `Optional<Value>`.  MLIR `arguments` `Optional` is unfortunately not related to `llvm::Optional`.
+        // Optional<arity> in `arguments` is `Value()`, that is `Value(nullptr)`
+        // if not given and not an `Optional<Value>`.  MLIR `arguments`
+        // `Optional` is unfortunately not related to `llvm::Optional`.
         Value arityVal = op.arity();
         if (arityVal != nullptr) {
-            if (!termType.hasDynamicExtent())
+            if (allocTypeInfo.isImmediate())
                 return op.emitOpError(
                     "it is invalid to specify arity with statically-sized "
                     "type");
         } else {
-            if (termType.hasDynamicExtent())
+            if (!allocTypeInfo.isImmediate())
                 return op.emitOpError(
                     "cannot malloc a type with dynamic extent without "
                     "specifying "
@@ -2725,8 +2186,9 @@ struct CanonicalizeBinaryPush : public OpRewritePattern<BinaryPushOp> {
             valueOperand.assign(v);
         }
 
-        // Optional<size> in `arguments` is `Value()`, that is `Value(nullptr)` if not given and not an
-        // `Optional<Value>`.  MLIR `arguments` `Optional` is unfortunately not related to `llvm::Optional`.
+        // Optional<size> in `arguments` is `Value()`, that is `Value(nullptr)`
+        // if not given and not an `Optional<Value>`.  MLIR `arguments`
+        // `Optional` is unfortunately not related to `llvm::Optional`.
         Value size = op.size();
         if (size == nullptr) return success();
 

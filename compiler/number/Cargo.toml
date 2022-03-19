@@ -1,0 +1,13 @@
+[package]
+name = "liblumen_number"
+version = "0.1.0"
+authors = ["Hans Elias B. Josephsen <me@hansihe.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+num-traits = "0.2"
+num-bigint = "0.4"
+num-integer = "0.1"
+
+liblumen_binary = { path = "../binary" }

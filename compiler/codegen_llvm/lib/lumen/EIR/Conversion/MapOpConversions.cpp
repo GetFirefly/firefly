@@ -17,8 +17,7 @@ struct MapOpConversion : public EIROpConversion<MapOp> {
         StringRef symbolName("__lumen_builtin_map.new");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
 
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         auto newMapOp = rewriter.create<mlir::CallOp>(loc, calleeSymbol, termTy,
                                                       ArrayRef<Value>{});
         Value newMap = newMapOp.getResult(0);
@@ -35,16 +34,14 @@ struct MapOpConversion : public EIROpConversion<MapOp> {
         StringRef insertSymbolName("__lumen_builtin_map.insert");
         auto insertCallee =
             ctx.getOrInsertFunction(insertSymbolName, termTy, {termTy, termTy});
-        auto insertCalleeSymbol = FlatSymbolRefAttr::get(
-            insertSymbolName, insertCallee->getContext());
+        auto insertCalleeSymbol = rewriter.getSymbolRefAttr(insertSymbolName);
 
         for (unsigned i = 0; i < numElements; i++) {
             Value key = operands[i];
             Value val = operands[++i];
 
             auto insertMapOp = rewriter.create<mlir::CallOp>(
-                loc, insertCalleeSymbol, termTy,
-                ValueRange{newMap, key, val});
+                loc, insertCalleeSymbol, termTy, ValueRange{newMap, key, val});
             newMap = insertMapOp.getResult(0);
         }
 
@@ -67,8 +64,7 @@ struct MapInsertOpConversion : public EIROpConversion<MapInsertOp> {
         StringRef symbolName("__lumen_builtin_map.insert");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy,
                                               {termTy, termTy, termTy});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
 
         Value map = adaptor.map();
         Value key = adaptor.key();
@@ -100,8 +96,7 @@ struct MapUpdateOpConversion : public EIROpConversion<MapUpdateOp> {
         StringRef symbolName("__lumen_builtin_map.update");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy,
                                               {termTy, termTy, termTy});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
 
         Value map = adaptor.map();
         Value key = adaptor.key();
@@ -133,8 +128,7 @@ struct MapContainsKeyOpConversion : public EIROpConversion<MapContainsKeyOp> {
         StringRef symbolName("__lumen_builtin_map.is_key");
         auto callee =
             ctx.getOrInsertFunction(symbolName, i1Ty, {termTy, termTy});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
 
         Value map = adaptor.map();
         Value key = adaptor.key();
@@ -157,8 +151,7 @@ struct MapGetKeyOpConversion : public EIROpConversion<MapGetKeyOp> {
         StringRef symbolName("__lumen_builtin_map.get");
         auto callee =
             ctx.getOrInsertFunction(symbolName, termTy, {termTy, termTy});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
 
         Value map = adaptor.map();
         Value key = adaptor.key();
@@ -171,11 +164,11 @@ struct MapGetKeyOpConversion : public EIROpConversion<MapGetKeyOp> {
 void populateMapOpConversionPatterns(OwningRewritePatternList &patterns,
                                      MLIRContext *context,
                                      EirTypeConverter &converter,
-                                     TargetInfo &targetInfo) {
+                                     TargetPlatform &platform) {
     patterns
         .insert<MapOpConversion, MapInsertOpConversion, MapUpdateOpConversion,
                 MapContainsKeyOpConversion, MapGetKeyOpConversion>(
-            context, converter, targetInfo);
+            context, converter, platform);
 }
 
 }  // namespace eir

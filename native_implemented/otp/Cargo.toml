@@ -2,7 +2,7 @@
 name = "liblumen_otp"
 version = "0.1.0"
 authors = ["Luke Imhoff <Kronic.Deth@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "The standard library for lumen.  The modules that are included with Erlang: `erlang` and `map`."
 
 [lib]
@@ -10,18 +10,18 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 anyhow = "1.0"
-lazy_static = "1.2"
+lazy_static = "1.4"
 liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
 lumen_rt_core = { path = "../../runtimes/core" }
 native_implemented = { path = "../macro" }
-num-bigint = "0.2"
+num-bigint = "0.4"
 num-traits = "0.2"
-radix_fmt = "1.0.0"
+radix_fmt = "1.0"
 thiserror = "1.0"
 
 [dependencies.hashbrown]
-version = "0.7"
+version = "0.12"
 features = ["nightly"]
 
 [target.'cfg(unix)'.dependencies]
@@ -31,15 +31,14 @@ proptest = "0.9.3"
 proptest = "0.9.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
-version = "0.3.47"
+version = "0.3.56"
 features = ['console']
 
 [dev-dependencies]
-libc = "0.2.74"
+libc = "0.2"
 lumen_rt_full = { path = "../../runtimes/full" }
 lumen = { path = "../../lumen" }
 panic-control = "0.1.4"
-process_control = "2.0.0"
+process_control = "3.3"
 # get rid of colors in backtraces for easier matching in integration tests
-strip-ansi-escapes = "0.1.0"
-
+strip-ansi-escapes = "0.1"

@@ -4,7 +4,9 @@
 #![feature(box_patterns)]
 extern crate proc_macro;
 
+mod bif;
 mod ffi;
+mod operation;
 mod option_group;
 mod utils;
 
@@ -32,4 +34,27 @@ pub fn foreign_struct(attr: TokenStream, item: TokenStream) -> TokenStream {
     let strukt = parse_macro_input!(item as ItemStruct);
     let foreign_struct_args = parse_macro_input!(attr as AttributeArgs);
     self::ffi::define_foreign_struct(foreign_struct_args, strukt)
+}
+
+#[proc_macro_attribute]
+pub fn operation(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let strukt = parse_macro_input!(item as ItemStruct);
+    let args = parse_macro_input!(attr as AttributeArgs);
+    self::operation::define_operation(args, strukt)
+}
+
+#[proc_macro]
+pub fn bif(input: TokenStream) -> TokenStream {
+    use self::bif::BifSpec;
+
+    let spec = parse_macro_input!(input as BifSpec);
+    self::bif::define_bif(spec)
+}
+
+#[proc_macro]
+pub fn guard_bif(input: TokenStream) -> TokenStream {
+    use self::bif::BifSpec;
+
+    let spec = parse_macro_input!(input as BifSpec);
+    self::bif::define_guard_bif(spec)
 }

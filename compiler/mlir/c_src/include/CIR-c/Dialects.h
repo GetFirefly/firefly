@@ -1,0 +1,359 @@
+#pragma once
+
+#include "CIR-c/AtomRef.h"
+#include "CIR-c/Builder.h"
+#include "mlir-c/IR.h"
+#include "mlir-c/Registration.h"
+
+#ifdef __cplusplus
+using ::mlir::cir::AtomRef;
+
+extern "C" {
+#endif
+
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(CIR, cir);
+
+//===----------------------------------------------------------------------===//
+/// Types
+//===----------------------------------------------------------------------===//
+
+typedef uint32_t CirEndianness;
+
+/// Creates a cir.none type
+MLIR_CAPI_EXPORTED MlirType mlirCirNoneTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsANoneType(MlirType type);
+/// Creates a cir.term type
+MLIR_CAPI_EXPORTED MlirType mlirCirTermTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsATermType(MlirType type);
+/// Creates a cir.number type
+MLIR_CAPI_EXPORTED MlirType mlirCirNumberTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsANumberType(MlirType type);
+/// Creates a cir.int type
+MLIR_CAPI_EXPORTED MlirType mlirCirIntegerTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAIntegerType(MlirType type);
+/// Creates a cir.float type
+MLIR_CAPI_EXPORTED MlirType mlirCirFloatTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAFloatType(MlirType type);
+/// Creates a cir.atom type
+MLIR_CAPI_EXPORTED MlirType mlirCirAtomTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAAtomType(MlirType type);
+/// Creates a cir.bool type
+MLIR_CAPI_EXPORTED MlirType mlirCirBoolTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsABoolType(MlirType type);
+/// Creates a cir.isize type (machine-width integer)
+MLIR_CAPI_EXPORTED MlirType mlirCirIsizeTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAIsizeType(MlirType type);
+/// Creates a cir.bigint type (arbitrary-width integer)
+MLIR_CAPI_EXPORTED MlirType mlirCirBigIntTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsABigIntType(MlirType type);
+/// Creates a cir.nil type
+MLIR_CAPI_EXPORTED MlirType mlirCirNilTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsANilType(MlirType type);
+/// Creates a cir.cons type
+MLIR_CAPI_EXPORTED MlirType mlirCirConsTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAConsType(MlirType type);
+/// Creates a cir.map type
+MLIR_CAPI_EXPORTED MlirType mlirCirMapTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAMapType(MlirType type);
+/// Creates a cir.fun type (closure)
+MLIR_CAPI_EXPORTED MlirType mlirCirFunTypeGet(MlirType resultTy, intptr_t arity,
+                                              MlirType const *argumentTypes);
+MLIR_CAPI_EXPORTED bool mlirCirIsAFunType(MlirType type);
+/// Creates a cir.bits type
+MLIR_CAPI_EXPORTED MlirType mlirCirBitsTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsABitsType(MlirType type);
+/// Creates a cir.heapbin type
+MLIR_CAPI_EXPORTED MlirType mlirCirHeapbinTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAHeapbinType(MlirType type);
+/// Creates a cir.procbin type
+MLIR_CAPI_EXPORTED MlirType mlirCirProcbinTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAProcbinType(MlirType type);
+/// Creates a cir.box type
+MLIR_CAPI_EXPORTED MlirType mlirCirBoxTypeGet(MlirType pointee);
+MLIR_CAPI_EXPORTED bool mlirCirIsABoxType(MlirType type);
+/// Creates a cir.pid type
+MLIR_CAPI_EXPORTED MlirType mlirCirPidTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAPidType(MlirType type);
+/// Creates a cir.port type
+MLIR_CAPI_EXPORTED MlirType mlirCirPortTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAPortType(MlirType type);
+/// Creates a cir.ref type
+MLIR_CAPI_EXPORTED MlirType mlirCirReferenceTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAReferenceType(MlirType type);
+/// Creates a cir.exception type
+MLIR_CAPI_EXPORTED MlirType mlirCirExceptionTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsAExceptionType(MlirType type);
+/// Creates a cir.trace type
+MLIR_CAPI_EXPORTED MlirType mlirCirTraceTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsATraceType(MlirType type);
+/// Creates a cir.ptr type
+MLIR_CAPI_EXPORTED MlirType mlirCirPtrTypeGet(MlirType pointee);
+MLIR_CAPI_EXPORTED bool mlirCirIsAPtrType(MlirType type);
+/// Creates a cir.recv_context type
+MLIR_CAPI_EXPORTED MlirType mlirCirRecvContextTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsARecvContextType(MlirType type);
+/// Creates a cir.binary_builder type
+MLIR_CAPI_EXPORTED MlirType mlirCirBinaryBuilderTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsABinaryBuilderType(MlirType type);
+
+//===----------------------------------------------------------------------===//
+/// Attributes
+//===----------------------------------------------------------------------===//
+
+/// Creates a cir.atom attribute
+MLIR_CAPI_EXPORTED MlirAttribute mlirCirAtomAttrGet(AtomRef atom, MlirType ty);
+MLIR_CAPI_EXPORTED bool mlirCirAtomAttrIsA(MlirAttribute attr);
+MLIR_CAPI_EXPORTED AtomRef mlirCirAtomAttrValueOf(MlirAttribute attr);
+
+/// Creates a cir.endianness attribute
+MLIR_CAPI_EXPORTED MlirAttribute mlirCirEndiannessAttrGet(CirEndianness value,
+                                                          MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirEndiannessAttrIsA(MlirAttribute attr);
+MLIR_CAPI_EXPORTED CirEndianness
+mlirCirEndiannessAttrValueOf(MlirAttribute attr);
+
+//===----------------------------------------------------------------------===//
+/// Operations
+//===----------------------------------------------------------------------===//
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirCastOp(MlirOpBuilder builder,
+                                               MlirLocation location,
+                                               MlirValue value, MlirType ty);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirConstantOp(MlirOpBuilder builder,
+                                                   MlirLocation location,
+                                                   MlirAttribute value,
+                                                   MlirType ty);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirAndOp(MlirOpBuilder builder,
+                                              MlirLocation location,
+                                              MlirValue lhs, MlirValue rhs);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirAndAlsoOp(MlirOpBuilder builder,
+                                                  MlirLocation location,
+                                                  MlirValue lhs, MlirValue rhs);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirOrOp(MlirOpBuilder builder,
+                                             MlirLocation location,
+                                             MlirValue lhs, MlirValue rhs);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirOrElseOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirValue lhs, MlirValue rhs);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirXorOp(MlirOpBuilder builder,
+                                              MlirLocation location,
+                                              MlirValue lhs, MlirValue rhs);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirNotOp(MlirOpBuilder builder,
+                                              MlirLocation location,
+                                              MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirTypeOfImmediateOp(MlirOpBuilder builder,
+                                                          MlirLocation location,
+                                                          MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirTypeOfBoxOp(MlirOpBuilder builder,
+                                                    MlirLocation location,
+                                                    MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirTypeOfOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsTypeOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirValue value, MlirType ty);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsTaggedTupleOp(MlirOpBuilder builder,
+                                                        MlirLocation location,
+                                                        MlirValue value,
+                                                        AtomRef atom);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirMallocOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirType ty);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirCaptureFunOp(MlirOpBuilder builder,
+                                                     MlirLocation location,
+                                                     MlirType funTy,
+                                                     MlirValue *env,
+                                                     intptr_t arity);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirConsOp(MlirOpBuilder builder,
+                                               MlirLocation location,
+                                               MlirValue head, MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirHeadOp(MlirOpBuilder builder,
+                                               MlirLocation location,
+                                               MlirValue cons);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirTailOp(MlirOpBuilder builder,
+                                               MlirLocation location,
+                                               MlirValue cons);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirTupleOp(MlirOpBuilder builder,
+                                                MlirLocation location,
+                                                intptr_t arity);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirSetElementOp(MlirOpBuilder builder,
+                                                     MlirLocation location,
+                                                     MlirValue tuple,
+                                                     MlirValue index,
+                                                     MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirGetElementOp(MlirOpBuilder builder,
+                                                     MlirLocation location,
+                                                     MlirValue tuple,
+                                                     MlirValue index);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirRaiseOp(MlirOpBuilder builder,
+                                                MlirLocation location,
+                                                MlirValue exceptionClass,
+                                                MlirValue exceptionReason,
+                                                MlirValue exceptionTrace);
+
+MLIR_CAPI_EXPORTED MlirOperation
+mlirCirBuildStacktraceOp(MlirOpBuilder builder, MlirLocation location);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirExceptionClassOp(MlirOpBuilder builder,
+                                                         MlirLocation location,
+                                                         MlirValue exception);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirExceptionReasonOp(MlirOpBuilder builder,
+                                                          MlirLocation location,
+                                                          MlirValue exception);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirExceptionTraceOp(MlirOpBuilder builder,
+                                                         MlirLocation location,
+                                                         MlirValue exception);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirYieldOp(MlirOpBuilder builder,
+                                                MlirLocation location);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirRecvStartOp(MlirOpBuilder builder,
+                                                    MlirLocation location,
+                                                    MlirValue timeout);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirRecvNextOp(MlirOpBuilder builder,
+                                                   MlirLocation location,
+                                                   MlirValue recvContext);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirRecvPeekOp(MlirOpBuilder builder,
+                                                   MlirLocation location,
+                                                   MlirValue recvContext);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirRecvPopOp(MlirOpBuilder builder,
+                                                  MlirLocation location,
+                                                  MlirValue recvContext);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirRecvDoneOp(MlirOpBuilder builder,
+                                                   MlirLocation location,
+                                                   MlirValue recvContext);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryStartOp(MlirOpBuilder builder,
+                                                      MlirLocation location);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryFinishOp(MlirOpBuilder builder,
+                                                       MlirLocation location,
+                                                       MlirValue binBuilder);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushIntegerOp(
+    MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
+    MlirValue value, MlirValue bits, bool isSigned, CirEndianness endianness,
+    unsigned unit);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushFloatOp(
+    MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
+    MlirValue value, MlirValue bits, CirEndianness endianness, unsigned unit);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushUtf8Op(MlirOpBuilder builder,
+                                                         MlirLocation location,
+                                                         MlirValue binBuilder,
+                                                         MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushUtf16Op(
+    MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
+    MlirValue value, CirEndianness endianness);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushBitsOp(
+    MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
+    MlirValue value, MlirValue unit, MlirValue size);
+
+// APIs for func/etc. dialect ops we use
+
+MLIR_CAPI_EXPORTED bool mlirOperationIsAFuncOp(MlirOperation op);
+
+MLIR_CAPI_EXPORTED MlirType mlirFuncOpGetType(MlirOperation op);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirFuncBuildFuncOp(
+    MlirOpBuilder bldr, MlirLocation location, MlirStringRef name, MlirType ty,
+    size_t numAttrs, MlirNamedAttribute const *attrs, size_t numArgAttrs,
+    MlirAttribute const *argAttrs);
+
+/// Convenience functionss for constructing common operations
+MLIR_CAPI_EXPORTED MlirOperation mlirFuncCallByOp(MlirOpBuilder bldr,
+                                                  MlirLocation location,
+                                                  MlirOperation op,
+                                                  intptr_t argc,
+                                                  MlirValue const *argv);
+MLIR_CAPI_EXPORTED MlirOperation mlirFuncCallBySymbol(MlirOpBuilder builder,
+                                                      MlirLocation location,
+                                                      MlirAttribute calleeAttr,
+                                                      intptr_t argc,
+                                                      MlirValue const *argv);
+MLIR_CAPI_EXPORTED MlirOperation mlirFuncCallByName(
+    MlirOpBuilder builder, MlirLocation location, MlirStringRef calleeRef,
+    intptr_t resultsc, MlirType const *resultsv, intptr_t argc,
+    MlirValue const *argv);
+MLIR_CAPI_EXPORTED MlirOperation mlirFuncCallIndirect(MlirOpBuilder builder,
+                                                      MlirLocation location,
+                                                      MlirValue callee,
+                                                      intptr_t argc,
+                                                      MlirValue const *argv);
+MLIR_CAPI_EXPORTED MlirOperation mlirFuncReturn(MlirOpBuilder builder,
+                                                MlirLocation location,
+                                                intptr_t resultsc,
+                                                MlirValue const *resultsv);
+MLIR_CAPI_EXPORTED MlirOperation mlirControlFlowBranch(MlirOpBuilder builder,
+                                                       MlirLocation location,
+                                                       MlirBlock dest,
+                                                       intptr_t argc,
+                                                       MlirValue const *argv);
+MLIR_CAPI_EXPORTED MlirOperation mlirControlFlowCondBranch(
+    MlirOpBuilder builder, MlirLocation location, MlirValue cond,
+    MlirBlock trueDest, intptr_t trueArgc, MlirValue const *trueArgv,
+    MlirBlock falseDest, intptr_t falseArgc, MlirValue const *falseArgv);
+
+extern "C" {
+struct SwitchArm {
+  uint32_t value;
+  MlirBlock dest;
+  MlirValue *operands;
+  intptr_t numOperands;
+};
+}
+
+MLIR_CAPI_EXPORTED MlirOperation mlirControlFlowSwitchOp(
+    MlirOpBuilder builder, MlirLocation location, MlirValue value,
+    MlirBlock defaultDest, MlirValue *defaultOperands, intptr_t numDefault,
+    SwitchArm *arms, intptr_t numArms);
+
+MLIR_CAPI_EXPORTED MlirOperation
+mlirScfIfOp(MlirOpBuilder builder, MlirLocation location, MlirType *resultTypes,
+            intptr_t numResults, MlirValue cond, bool withElseRegion);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirScfYieldOp(MlirOpBuilder builder,
+                                                MlirLocation location,
+                                                MlirValue *results,
+                                                intptr_t numResults);
+MLIR_CAPI_EXPORTED MlirOperation mlirScfForOp(
+    MlirOpBuilder builder, MlirLocation location, MlirValue lowerBound,
+    MlirValue upperBound, MlirValue step, MlirValue *init, intptr_t numInit);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirScfExecuteRegionOp(MlirOpBuilder builder,
+                                                        MlirLocation location);
+
+#ifdef __cplusplus
+}
+#endif

@@ -2,21 +2,18 @@
 name = "liblumen_session"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]
 anyhow = "1.0"
-clap = "2.33.0"
-codespan = "0.9.3"
-codespan-reporting = "0.9.3"
+clap = "2.34"
 log = "0.4"
-termcolor = "1.1.0"
 thiserror = "1.0"
+logos = "0.12"
+logos-derive = "0.12"
 
 liblumen_compiler_macros = { path = "../macros" }
+liblumen_intern = { path = "../intern" }
 liblumen_target = { path = "../target" }
 liblumen_util = { path = "../../liblumen_util" }
-
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir" }
-libeir_ir = { git = "https://github.com/eirproject/eir" }

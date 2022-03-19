@@ -12,7 +12,7 @@ struct UnpackEnvOpConversion;
 void populateFuncLikeOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,
                                           EirTypeConverter &converter,
-                                          TargetInfo &targetInfo);
+                                          TargetPlatform &platform);
 }  // namespace eir
 }  // namespace lumen
 

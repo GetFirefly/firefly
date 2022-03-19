@@ -101,8 +101,6 @@ set(MLIR_BINARY_DIR ${CMAKE_BINARY_DIR})
 list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
 include(TableGen)
 include(AddLLVM)
-include(CrossCompile)
-include(HandleLLVMOptions)
 
 list(APPEND CMAKE_MODULE_PATH ${MLIR_DIR})
 include(AddMLIR)

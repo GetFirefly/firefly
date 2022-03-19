@@ -1,508 +1,521 @@
 use std::cell::{Cell, RefCell};
-use std::convert::Into;
-use std::ffi::{CStr, CString};
-use std::mem::MaybeUninit;
-use std::ptr;
+use std::ffi::CStr;
+use std::ops::Deref;
 
-use anyhow::anyhow;
 use fxhash::FxHashMap;
 
 use liblumen_session::{Options, Sanitizer};
 
-use crate::sys as llvm_sys;
-use crate::sys::prelude::LLVMBuilderRef;
-use crate::sys::LLVMIntPredicate;
+use crate::codegen;
+use crate::ir::*;
+use crate::passes::PassBuilderOptLevel;
+use crate::support::*;
+use crate::target::*;
 
-use crate::attributes::{Attribute, AttributePlace};
-use crate::context::Context;
-use crate::enums::{self, *};
-use crate::funclet::Funclet;
-use crate::module::Module;
-use crate::passes::{PassBuilderOptLevel, PassManager};
-use crate::target::{TargetData, TargetMachine};
-use crate::{Block, Result, Type, Value};
+extern "C" {
+    type LlvmBuilder;
+}
+
+/// Represents a borrowed reference to an LLVM builder
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct Builder(*const LlvmBuilder);
+impl Builder {}
+
+/// Represents an owned reference to an LLVM builder
+#[repr(transparent)]
+pub struct OwnedBuilder(Builder);
+impl OwnedBuilder {
+    pub fn new(context: Context) -> Self {
+        extern "C" {
+            fn LLVMCreateBuilderInContext(context: Context) -> OwnedBuilder;
+        }
+        unsafe { LLVMCreateBuilderInContext(context) }
+    }
+}
+impl Deref for OwnedBuilder {
+    type Target = Builder;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl Drop for OwnedBuilder {
+    fn drop(&mut self) {
+        extern "C" {
+            fn LLVMDisposeBuilder(builder: Builder);
+        }
+        unsafe { LLVMDisposeBuilder(self.0) }
+    }
+}
 
 /// Empty string, to be used where LLVM expects an instruction name, indicating
 /// that the instruction is to be left unnamed (i.e. numbered, in textual IR).
 const EMPTY_C_STR: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"\0") };
-const UNNAMED: *const ::libc::c_char = EMPTY_C_STR.as_ptr();
-const TARGET_CPU_STR: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"target-cpu\0") };
+const UNNAMED: *const std::os::raw::c_char = EMPTY_C_STR.as_ptr();
 
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub enum ICmp {
-    Eq,
-    Neq,
-    UGT,
-    UGE,
-    ULT,
-    ULE,
-    SGT,
-    SGE,
-    SLT,
-    SLE,
-}
-impl Into<LLVMIntPredicate> for ICmp {
-    fn into(self) -> LLVMIntPredicate {
-        match self {
-            Self::Eq => LLVMIntPredicate::LLVMIntEQ,
-            Self::Neq => LLVMIntPredicate::LLVMIntNE,
-            Self::UGT => LLVMIntPredicate::LLVMIntUGT,
-            Self::UGE => LLVMIntPredicate::LLVMIntUGE,
-            Self::ULT => LLVMIntPredicate::LLVMIntULT,
-            Self::ULE => LLVMIntPredicate::LLVMIntULT,
-            Self::SGT => LLVMIntPredicate::LLVMIntSGT,
-            Self::SGE => LLVMIntPredicate::LLVMIntSGE,
-            Self::SLT => LLVMIntPredicate::LLVMIntSLT,
-            Self::SLE => LLVMIntPredicate::LLVMIntSLE,
-        }
-    }
-}
-
+/// A module builder extends an LLVM builder for use in defining LLVM IR modules
 pub struct ModuleBuilder<'ctx> {
+    builder: OwnedBuilder,
     context: &'ctx Context,
-    module: Module,
-    target_data: TargetData,
-    target_machine: &'ctx TargetMachine,
-    builder: LLVMBuilderRef,
-    intrinsics: RefCell<FxHashMap<&'static str, Value>>,
+    module: OwnedModule,
+    intrinsics: RefCell<FxHashMap<&'static str, Function>>,
     local_gen_sym_counter: Cell<usize>,
     opt_level: PassBuilderOptLevel,
     sanitizer: Option<Sanitizer>,
     target_cpu: String,
-    debug: bool,
-    verify: bool,
+    usize_type: IntegerType,
 }
 impl<'ctx> ModuleBuilder<'ctx> {
     pub fn new(
         name: &str,
         options: &Options,
         context: &'ctx Context,
-        target_machine: &'ctx TargetMachine,
-    ) -> Result<Self> {
-        use llvm_sys::core::LLVMCreateBuilderInContext;
+        target_machine: TargetMachine,
+    ) -> anyhow::Result<Self> {
+        // Initialize the module
+        let module = context.create_module(name);
+        module.set_target_triple(target_machine.triple());
+        let data_layout = target_machine.data_layout();
+        let usize_type = data_layout.get_int_ptr_type(*context);
+        module.set_data_layout(data_layout);
 
-        let target_data = target_machine.get_target_data();
-        let module = Module::create(name, context, target_machine.as_ref())?;
-        let builder = unsafe { LLVMCreateBuilderInContext(context.as_ref()) };
+        let builder = context.create_builder();
 
-        let (speed, size) = enums::to_llvm_opt_settings(options.opt_level);
+        let (speed, size) = codegen::to_llvm_opt_settings(options.opt_level);
         let opt_level = PassBuilderOptLevel::from_codegen_opts(speed, size);
 
         Ok(Self {
+            builder,
             context,
             module,
-            target_data,
-            target_machine,
-            builder,
             intrinsics: RefCell::new(Default::default()),
             local_gen_sym_counter: Cell::new(0),
             opt_level,
             sanitizer: options.debugging_opts.sanitizer.clone(),
             target_cpu: crate::target::target_cpu(options).to_owned(),
-            debug: options.debug_assertions,
-            verify: options.debugging_opts.verify_llvm_ir,
+            usize_type,
         })
     }
 
-    pub fn verify(&self) -> anyhow::Result<()> {
-        use llvm_sys::analysis::{LLVMVerifierFailureAction, LLVMVerifyModule};
-
-        let mut error_raw = MaybeUninit::<*mut libc::c_char>::uninit();
-        let failed = unsafe {
-            LLVMVerifyModule(
-                self.module.as_ref(),
-                LLVMVerifierFailureAction::LLVMPrintMessageAction,
-                error_raw.as_mut_ptr(),
-            ) == 1
-        };
-
-        if failed {
-            let module_name = self.module.get_module_id();
-            let error = unsafe { CStr::from_ptr(error_raw.assume_init()) };
-            let detail = error.to_string_lossy();
-            Err(anyhow!(format!(
-                "failed to verify {}: {}",
-                module_name, detail
-            )))
-        } else {
-            Ok(())
-        }
+    pub fn finish(self) -> anyhow::Result<OwnedModule> {
+        Ok(self.module)
     }
 
-    pub fn finish(self) -> anyhow::Result<Module> {
-        let mut pass_manager = PassManager::new();
-        pass_manager.verify(self.verify);
-        pass_manager.debug(self.debug);
-        pass_manager.optimize(self.opt_level);
+    /// Build an entry block for the given function
+    pub fn build_entry_block(&self, fun: Function) -> Block {
+        self.build_named_block(fun, "entry")
+    }
 
-        if let Some(sanitizer) = self.sanitizer {
-            match sanitizer {
-                Sanitizer::Memory => pass_manager.sanitize_memory(/* track_origins */ 0),
-                Sanitizer::Thread => pass_manager.sanitize_thread(),
-                Sanitizer::Address => pass_manager.sanitize_address(),
-                _ => (),
-            }
+    /// Build an anonymous block for the given function, appending it to the end
+    pub fn build_block(&self, fun: Function) -> Block {
+        self.build_block_with_name(fun, UNNAMED)
+    }
+
+    /// Build a named block for the given function, appending it to the end
+    pub fn build_named_block<S: Into<StringRef>>(&self, fun: Function, name: S) -> Block {
+        let name = name.into();
+        let c_str = name.to_cstr();
+        self.build_block_with_name(fun, c_str.as_ptr())
+    }
+
+    fn build_block_with_name(&self, fun: Function, name: *const std::os::raw::c_char) -> Block {
+        extern "C" {
+            fn LLVMAppendBasicBlockInContext(
+                context: Context,
+                fun: Function,
+                name: *const std::os::raw::c_char,
+            ) -> Block;
         }
 
-        let mut module = self.module;
-
-        pass_manager.run(&mut module, &self.target_machine)?;
-
-        Ok(module)
+        unsafe { LLVMAppendBasicBlockInContext(*self.context, fun, name) }
     }
 
-    #[inline]
-    pub fn type_of(&self, value: Value) -> Type {
-        unsafe { llvm_sys::core::LLVMTypeOf(value) }
-    }
-
-    #[inline]
-    pub fn get_void_type(&self) -> Type {
-        use llvm_sys::core::LLVMVoidTypeInContext;
-
-        unsafe { LLVMVoidTypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_i1_type(&self) -> Type {
-        use llvm_sys::core::LLVMInt1TypeInContext;
-
-        unsafe { LLVMInt1TypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_i8_type(&self) -> Type {
-        use llvm_sys::core::LLVMInt8TypeInContext;
-
-        unsafe { LLVMInt8TypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_i16_type(&self) -> Type {
-        use llvm_sys::core::LLVMInt16TypeInContext;
-
-        unsafe { LLVMInt16TypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_i32_type(&self) -> Type {
-        use llvm_sys::core::LLVMInt32TypeInContext;
-
-        unsafe { LLVMInt32TypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_i64_type(&self) -> Type {
-        use llvm_sys::core::LLVMInt64TypeInContext;
-
-        unsafe { LLVMInt64TypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_i128_type(&self) -> Type {
-        use llvm_sys::core::LLVMInt128TypeInContext;
-
-        unsafe { LLVMInt128TypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_usize_type(&self) -> Type {
-        use llvm_sys::target::LLVMIntPtrTypeInContext;
-
-        unsafe { LLVMIntPtrTypeInContext(self.context.as_ref(), self.target_data.as_ref()) }
-    }
-
-    #[inline]
-    pub fn get_term_type(&self) -> Type {
-        self.get_usize_type()
-    }
-
-    pub fn get_integer_type(&self, width: usize) -> Type {
-        use llvm_sys::core::LLVMIntTypeInContext;
-
-        unsafe { LLVMIntTypeInContext(self.context.as_ref(), width as libc::c_uint) }
-    }
-
-    pub fn get_f32_type(&self) -> Type {
-        use llvm_sys::core::LLVMFloatTypeInContext;
-
-        unsafe { LLVMFloatTypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_f64_type(&self) -> Type {
-        use llvm_sys::core::LLVMDoubleTypeInContext;
-
-        unsafe { LLVMDoubleTypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_metadata_type(&self) -> Type {
-        use llvm_sys::core::LLVMMetadataTypeInContext;
-
-        unsafe { LLVMMetadataTypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_token_type(&self) -> Type {
-        use llvm_sys::core::LLVMTokenTypeInContext;
-
-        unsafe { LLVMTokenTypeInContext(self.context.as_ref()) }
-    }
-
-    pub fn get_vector_type(&self, element_ty: Type, size: usize) -> Type {
-        use llvm_sys::core::LLVMVectorType;
-
-        unsafe { LLVMVectorType(element_ty, size as libc::c_uint) }
-    }
-
-    pub fn get_array_type(&self, size: usize, ty: Type) -> Type {
-        use llvm_sys::core::LLVMArrayType;
-
-        unsafe { LLVMArrayType(ty, size as libc::c_uint) }
-    }
-
-    pub fn get_struct_type(&self, name: Option<&str>, field_types: &[Type]) -> Type {
-        use llvm_sys::core::LLVMStructCreateNamed;
-        use llvm_sys::core::LLVMStructSetBody;
-        use llvm_sys::core::LLVMStructTypeInContext;
-
-        if let Some(name) = name {
-            let cstr = CString::new(name).unwrap();
-            unsafe {
-                let ty = LLVMStructCreateNamed(self.context.as_ref(), cstr.as_ptr());
-                LLVMStructSetBody(
-                    ty,
-                    field_types.as_ptr() as *mut _,
-                    field_types.len() as libc::c_uint,
-                    /* packed= */ false as libc::c_int,
-                );
-                ty
-            }
-        } else {
-            unsafe {
-                LLVMStructTypeInContext(
-                    self.context.as_ref(),
-                    field_types.as_ptr() as *mut _,
-                    field_types.len() as libc::c_uint,
-                    /* packed= */ false as libc::c_int,
-                )
-            }
+    /// Returns the current block the builder is inserting in
+    pub fn current_block(&self) -> Block {
+        extern "C" {
+            fn LLVMGetInsertBlock(builder: Builder) -> Block;
         }
+        unsafe { LLVMGetInsertBlock(*self.builder) }
     }
 
-    pub fn get_function_type(&self, ret: Type, params: &[Type], variadic: bool) -> Type {
-        use llvm_sys::core::LLVMFunctionType;
+    /// Position the builder at the end of `block`
+    pub fn position_at_end(&self, block: Block) {
+        extern "C" {
+            fn LLVMPositionBuilderAtEnd(builder: Builder, block: Block);
+        }
 
-        let params_ptr = params.as_ptr() as *mut _;
         unsafe {
-            LLVMFunctionType(
-                ret,
-                params_ptr,
-                params.len() as libc::c_uint,
-                variadic as libc::c_int,
-            )
+            LLVMPositionBuilderAtEnd(*self.builder, block);
         }
     }
 
-    pub fn get_erlang_function_type(&self, arity: usize) -> Type {
-        let term_type = self.get_term_type();
-        let mut params = Vec::with_capacity(arity);
-        for _ in 0..arity {
-            params.push(term_type);
+    /// Position the builder just before `inst`
+    pub fn position_before(&self, inst: ValueBase) {
+        extern "C" {
+            fn LLVMPositionBuilderBefore(builder: Builder, inst: ValueBase);
         }
+        unsafe {
+            LLVMPositionBuilderBefore(*self.builder, inst);
+        }
+    }
+
+    /// Inserts the given instruction at the builder's current position
+    pub fn insert<I: Instruction>(&self, inst: I) {
+        extern "C" {
+            fn LLVMInsertIntoBuilder(builder: Builder, inst: ValueBase);
+        }
+        unsafe { LLVMInsertIntoBuilder(*self.builder, inst.base()) }
+    }
+
+    /// Returns the type representing void/noreturn
+    pub fn get_void_type(&self) -> VoidType {
+        self.context.get_void_type()
+    }
+
+    /// Returns a type representing a 1-bit wide integer/bool
+    pub fn get_i1_type(&self) -> IntegerType {
+        self.context.get_i1_type()
+    }
+
+    /// Returns a type representing an 8-bit wide integer/char
+    pub fn get_i8_type(&self) -> IntegerType {
+        self.context.get_i8_type()
+    }
+
+    /// Returns a type representing a 16-bit wide integer/short
+    pub fn get_i16_type(&self) -> IntegerType {
+        self.context.get_i16_type()
+    }
+
+    /// Returns a type representing a 32-bit wide integer/long
+    pub fn get_i32_type(&self) -> IntegerType {
+        self.context.get_i32_type()
+    }
+
+    /// Returns a type representing a 64-bit wide integer/longlong
+    pub fn get_i64_type(&self) -> IntegerType {
+        self.context.get_i64_type()
+    }
+
+    /// Returns a type representing a 128-bit wide integer
+    pub fn get_i128_type(&self) -> IntegerType {
+        self.context.get_i28_type()
+    }
+
+    /// Returns a type representing a pointer-width integer value for the current target
+    pub fn get_usize_type(&self) -> IntegerType {
+        self.usize_type
+    }
+
+    /// Returns a type representing an integer which is `width` bits wide
+    pub fn get_integer_type(&self, width: usize) -> IntegerType {
+        self.context.get_integer_type(width)
+    }
+
+    /// Returns a type representing a 32-bit floating point value
+    pub fn get_f32_type(&self) -> FloatType {
+        self.context.get_f32_type()
+    }
+
+    /// Returns a type representing a 64-bit floating point value
+    pub fn get_f64_type(&self) -> FloatType {
+        self.context.get_f64_type()
+    }
+
+    /// Returns a type used for LLVM metadata
+    pub fn get_metadata_type(&self) -> MetadataType {
+        self.context.get_metadata_type()
+    }
+
+    /// Returns a type used for LLVM token values
+    pub fn get_token_type(&self) -> TokenType {
+        self.context.get_token_type()
+    }
+
+    /// Returns a vector type of the given size and element type
+    pub fn get_vector_type<T: Type>(&self, size: usize, ty: T) -> VectorType {
+        VectorType::new(ty, size)
+    }
+
+    /// Returns an array type of the given size and element type
+    pub fn get_array_type<T: Type>(&self, size: usize, ty: T) -> ArrayType {
+        ArrayType::new(ty, size)
+    }
+
+    /// Returns a struct type, optionally named, with the given set of fields
+    pub fn get_struct_type(&self, name: Option<&str>, field_types: &[TypeBase]) -> StructType {
+        if let Some(name) = name {
+            self.context
+                .get_named_struct_type(name, field_types, /*packed=*/ false)
+        } else {
+            self.context.get_struct_type(field_types)
+        }
+    }
+
+    /// Returns a pointer type, with the given pointee type
+    pub fn get_pointer_type<T: Type>(&self, ty: T) -> PointerType {
+        PointerType::new(ty, 0)
+    }
+
+    /// Returns a type corresponding to a function with the given return value and argument types, optionally variadic
+    pub fn get_function_type<T: Type>(
+        &self,
+        ret: T,
+        params: &[TypeBase],
+        variadic: bool,
+    ) -> FunctionType {
+        FunctionType::new(ret, params, variadic)
+    }
+
+    /// A helper function which returns a function type consisting of all terms, with the given number of arguments
+    pub fn get_erlang_function_type(&self, arity: u8) -> FunctionType {
+        let term_type = self.get_term_type().base();
+        let arity = arity as usize;
+        let mut params = Vec::with_capacity(arity);
+        params.resize(arity, term_type);
         self.get_function_type(term_type, params.as_slice(), /* variadic */ false)
     }
 
-    pub fn get_opaque_function_type(&self) -> Type {
+    /// Returns a type corresponding to `typedef void (*fun)()`, or a function pointer
+    /// which has no defined arguments/return value. Such a type is intended to be cast
+    /// to a more concrete function type depending on runtime conditions.
+    pub fn get_opaque_function_type(&self) -> FunctionType {
         let void_type = self.get_void_type();
         self.get_function_type(void_type, &[], /* variadic */ false)
     }
 
-    pub fn get_pointer_type(&self, ty: Type) -> Type {
-        use llvm_sys::core::LLVMPointerType;
+    /// Returns an appropriate LLVM type which represents an opaque Erlang term (i.e. immediate)
+    pub fn get_term_type(&self) -> IntegerType {
+        self.usize_type
+    }
 
+    /// Get the current location used by debug info produced by this builder
+    pub fn current_debug_location(&self) -> Metadata {
+        extern "C" {
+            fn LLVMGetCurrentDebugLocation2(builder: Builder) -> Metadata;
+        }
+        unsafe { LLVMGetCurrentDebugLocation2(*self.builder) }
+    }
+
+    /// Set the location to use for debug info generated by this builder
+    ///
+    /// NOTE: To clear location metadata, pass `Metadata::null()`
+    pub fn set_current_debug_location(&self, loc: Metadata) {
+        extern "C" {
+            fn LLVMSetCurrentDebugLocation2(builder: Builder, loc: Metadata);
+        }
+        unsafe { LLVMSetCurrentDebugLocation2(*self.builder, loc) }
+    }
+
+    /// Sets the debug location for the given instruction using the builder's current debug location metadata
+    pub fn set_debug_location<I: Instruction>(&self, inst: I) {
+        extern "C" {
+            fn LLVMSetInstDebugLocation(builder: Builder, inst: ValueBase);
+        }
         unsafe {
-            LLVMPointerType(ty, /* address_space= */ 0 as libc::c_uint)
+            LLVMSetInstDebugLocation(*self.builder, inst.base());
         }
     }
 
-    pub fn build_is_null(&self, value: Value) -> Value {
-        use llvm_sys::core::LLVMBuildIsNull;
-
-        unsafe { LLVMBuildIsNull(self.builder, value, UNNAMED) }
-    }
-
-    pub fn build_bitcast(&self, value: Value, ty: Type) -> Value {
-        use llvm_sys::core::LLVMBuildBitCast;
-
-        unsafe { LLVMBuildBitCast(self.builder, value, ty, UNNAMED) }
-    }
-
-    pub fn build_inttoptr(&self, value: Value, ty: Type) -> Value {
-        use llvm_sys::core::LLVMBuildIntToPtr;
-
-        unsafe { LLVMBuildIntToPtr(self.builder, value, ty, UNNAMED) }
-    }
-
-    pub fn build_ptrtoint(&self, value: Value, ty: Type) -> Value {
-        use llvm_sys::core::LLVMBuildPtrToInt;
-
-        unsafe { LLVMBuildPtrToInt(self.builder, value, ty, UNNAMED) }
-    }
-
-    pub fn build_and(&self, lhs: Value, rhs: Value) -> Value {
-        use llvm_sys::core::LLVMBuildAnd;
-
-        unsafe { LLVMBuildAnd(self.builder, lhs, rhs, UNNAMED) }
-    }
-
-    pub fn build_or(&self, lhs: Value, rhs: Value) -> Value {
-        use llvm_sys::core::LLVMBuildOr;
-
-        unsafe { LLVMBuildOr(self.builder, lhs, rhs, UNNAMED) }
-    }
-
-    pub fn build_xor(&self, lhs: Value, rhs: Value) -> Value {
-        use llvm_sys::core::LLVMBuildXor;
-
-        unsafe { LLVMBuildXor(self.builder, lhs, rhs, UNNAMED) }
-    }
-
-    pub fn build_not(&self, value: Value) -> Value {
-        use llvm_sys::core::LLVMBuildNot;
-
-        unsafe { LLVMBuildNot(self.builder, value, UNNAMED) }
-    }
-
-    pub fn build_undef(&self, ty: Type) -> Value {
-        use llvm_sys::core::LLVMGetUndef;
-
-        unsafe { LLVMGetUndef(ty) }
-    }
-
-    pub fn build_constant_null(&self, ty: Type) -> Value {
-        use llvm_sys::core::LLVMConstNull;
-
-        unsafe { LLVMConstNull(ty) }
-    }
-
-    pub fn build_constant_int(&self, ty: Type, value: i64) -> Value {
-        use llvm_sys::core::LLVMConstInt;
-
+    /// Sets the default floating-point math metadata for the current builder
+    ///
+    /// NOTE: To clear the default, pass `Metadata::null()`
+    pub fn set_default_fp_math_tag(&self, tag: Metadata) {
+        extern "C" {
+            fn LLVMBuilderSetDefaultFPMathTag(builder: Builder, tag: Metadata);
+        }
         unsafe {
-            LLVMConstInt(
-                ty,
-                value as libc::c_ulonglong,
-                /* sign_extend= */ true as libc::c_int,
-            )
+            LLVMBuilderSetDefaultFPMathTag(*self.builder, tag);
         }
     }
 
-    pub fn build_constant_uint(&self, ty: Type, value: u64) -> Value {
-        use llvm_sys::core::LLVMConstInt;
-
-        unsafe {
-            LLVMConstInt(
-                ty,
-                value as libc::c_ulonglong,
-                /* sign_extend= */ false as libc::c_int,
-            )
+    pub fn build_is_null<V: Value>(&self, value: V) -> ValueBase {
+        extern "C" {
+            fn LLVMBuildIsNull(
+                builder: Builder,
+                value: ValueBase,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
         }
+
+        unsafe { LLVMBuildIsNull(*self.builder, value.base(), UNNAMED) }
     }
 
-    pub fn build_constant_array(&self, ty: Type, values: &[Value]) -> Value {
-        use llvm_sys::core::LLVMConstArray;
-
-        let len = values.len() as libc::c_uint;
-        unsafe { LLVMConstArray(ty, values.as_ptr() as *mut _, len) }
-    }
-
-    pub fn build_constant_vector(&self, elements: &[Value]) -> Value {
-        use llvm_sys::core::LLVMConstVector;
-
-        let len = elements.len() as libc::c_uint;
-        unsafe { LLVMConstVector(elements.as_ptr() as *mut _, len) }
-    }
-
-    pub fn build_constant_bytes(&self, bytes: &[u8]) -> Value {
-        use llvm_sys::core::LLVMConstStringInContext;
-
-        unsafe {
-            let ptr = bytes.as_ptr() as *const libc::c_char;
-            LLVMConstStringInContext(
-                self.context.as_ref(),
-                ptr,
-                bytes.len() as libc::c_uint,
-                true as i32,
-            )
+    pub fn build_bitcast<V: Value, T: Type>(&self, value: V, ty: T) -> ValueBase {
+        extern "C" {
+            fn LLVMBuildBitCast(
+                builder: Builder,
+                value: ValueBase,
+                ty: TypeBase,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
         }
+
+        unsafe { LLVMBuildBitCast(*self.builder, value.base(), ty.base(), UNNAMED) }
     }
 
-    pub fn build_named_constant_string(&self, name: &str, s: &str, null_terminated: bool) -> Value {
-        use llvm_sys::core::LLVMConstStringInContext;
-
-        unsafe {
-            let sc = LLVMConstStringInContext(
-                self.context.as_ref(),
-                s.as_ptr() as *const libc::c_char,
-                s.len() as libc::c_uint,
-                !null_terminated as i32,
-            );
-            let g = self
-                .define_global(name, self.type_of(sc))
-                .unwrap_or_else(|| {
-                    panic!("symbol `{}` is already defined", name);
-                });
-            self.set_initializer(g, sc);
-            self.set_linkage(g, Linkage::Internal);
-
-            g
+    pub fn build_inttoptr<V: Value, T: Type>(&self, value: V, ty: T) -> ValueBase {
+        extern "C" {
+            fn LLVMBuildIntToPtr(
+                builder: Builder,
+                value: ValueBase,
+                ty: TypeBase,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
         }
+
+        unsafe { LLVMBuildIntToPtr(*self.builder, value.base(), ty.base(), UNNAMED) }
     }
 
-    pub fn build_constant_string(&self, s: &str, null_terminated: bool) -> Value {
+    pub fn build_ptrtoint<V: Value>(&self, value: V, ty: IntegerType) -> ValueBase {
+        extern "C" {
+            fn LLVMBuildPtrToInt(
+                builder: Builder,
+                value: ValueBase,
+                ty: IntegerType,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
+        }
+
+        unsafe { LLVMBuildPtrToInt(*self.builder, value.base(), ty, UNNAMED) }
+    }
+
+    pub fn build_and<L, R>(&self, lhs: L, rhs: R) -> ValueBase
+    where
+        L: Value,
+        R: Value,
+    {
+        extern "C" {
+            fn LLVMBuildAnd(
+                builder: Builder,
+                lhs: ValueBase,
+                rhs: ValueBase,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
+        }
+
+        unsafe { LLVMBuildAnd(*self.builder, lhs.base(), rhs.base(), UNNAMED) }
+    }
+
+    pub fn build_or<L, R>(&self, lhs: L, rhs: R) -> ValueBase
+    where
+        L: Value,
+        R: Value,
+    {
+        extern "C" {
+            fn LLVMBuildOr(
+                builder: Builder,
+                lhs: ValueBase,
+                rhs: ValueBase,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
+        }
+
+        unsafe { LLVMBuildOr(*self.builder, lhs.base(), rhs.base(), UNNAMED) }
+    }
+
+    pub fn build_xor<L, R>(&self, lhs: L, rhs: R) -> ValueBase
+    where
+        L: Value,
+        R: Value,
+    {
+        extern "C" {
+            fn LLVMBuildXor(
+                builder: Builder,
+                lhs: ValueBase,
+                rhs: ValueBase,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
+        }
+
+        unsafe { LLVMBuildXor(*self.builder, lhs.base(), rhs.base(), UNNAMED) }
+    }
+
+    pub fn build_not<V: Value>(&self, value: V) -> ValueBase {
+        extern "C" {
+            fn LLVMBuildNot(
+                builder: Builder,
+                value: ValueBase,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
+        }
+
+        unsafe { LLVMBuildNot(*self.builder, value.base(), UNNAMED) }
+    }
+
+    pub fn build_undef<T: Type>(&self, ty: T) -> UndefValue {
+        UndefValue::get(ty)
+    }
+
+    pub fn build_constant_null<T: Type>(&self, ty: T) -> ConstantValue {
+        ConstantValue::null(ty)
+    }
+
+    pub fn build_constant_int(&self, ty: IntegerType, value: i64) -> ConstantInt {
+        ConstantInt::get(ty, value as u64, /*sext=*/ true)
+    }
+
+    pub fn build_constant_uint(&self, ty: IntegerType, value: u64) -> ConstantInt {
+        ConstantInt::get(ty, value, /*sext=*/ false)
+    }
+
+    pub fn build_constant_array<T: Type>(&self, ty: T, values: &[ConstantValue]) -> ConstantArray {
+        ConstantArray::get(ty, values)
+    }
+
+    pub fn build_constant_bytes(&self, bytes: &[u8]) -> ConstantString {
+        self.context.const_string(bytes)
+    }
+
+    pub fn build_constant_string<S: Into<StringRef>>(&self, s: S) -> GlobalVariable {
         let sym = self.generate_local_symbol_name("str");
 
-        self.build_named_constant_string(&sym[..], s, null_terminated)
+        self.build_named_constant_string(sym.as_str(), s)
     }
 
-    pub fn build_constant_struct(&self, ty: Type, fields: &[Value]) -> Value {
-        use llvm_sys::core::LLVMConstNamedStruct;
-        use llvm_sys::core::LLVMGetStructName;
+    pub fn build_named_constant_string<N: Into<StringRef>, S: Into<StringRef>>(
+        &self,
+        name: N,
+        s: S,
+    ) -> GlobalVariable {
+        let value = self.context.const_string(s);
 
-        let name = unsafe { LLVMGetStructName(ty) };
-        if name.is_null() {
-            self.build_constant_unnamed_struct(fields)
-        } else {
-            unsafe {
-                LLVMConstNamedStruct(ty, fields.as_ptr() as *mut _, fields.len() as libc::c_uint)
-            }
-        }
+        let name = name.into();
+        let gv = self
+            .define_global(name, value.get_type())
+            .unwrap_or_else(|| {
+                panic!("symbol `{}` is already defined", name);
+            });
+        gv.set_initializer(value);
+        gv.set_linkage(Linkage::Internal);
+        gv
     }
 
-    pub fn build_constant_unnamed_struct(&self, elements: &[Value]) -> Value {
-        use llvm_sys::core::LLVMConstStructInContext;
-
-        unsafe {
-            LLVMConstStructInContext(
-                self.context.as_ref(),
-                elements.as_ptr() as *mut _,
-                elements.len() as libc::c_uint,
-                /* packed= */ false as libc::c_int,
-            )
-        }
+    pub fn build_constant_named_struct(
+        &self,
+        ty: StructType,
+        fields: &[ConstantValue],
+    ) -> ConstantStruct {
+        ConstantStruct::get_named(ty, fields)
     }
 
-    pub fn build_constant_get_element(&self, agg: Value, index: u64) -> Value {
-        use llvm_sys::core::LLVMConstExtractValue;
-
-        unsafe {
-            let indices = &[index as libc::c_uint];
-            LLVMConstExtractValue(
-                agg,
-                indices.as_ptr() as *mut _,
-                indices.len() as libc::c_uint,
-            )
-        }
+    pub fn build_constant_unnamed_struct(&self, elements: &[ConstantValue]) -> ConstantStruct {
+        self.context.const_struct(elements)
     }
 
-    pub fn declare_function(&self, name: &str, ty: Type) -> Value {
-        use llvm_sys::core::LLVMLumenGetOrInsertFunction;
+    pub fn build_constant_get_value<A: ConstantAggregate>(
+        &self,
+        agg: A,
+        index: u64,
+    ) -> ConstantExpr {
+        let index_ty = self.context.get_i32_type();
+        let index = ConstantInt::get(index_ty, index, /*sext=*/ false);
+        ConstantExpr::extract_value(agg, &[index.into()])
+    }
 
-        let fun = unsafe {
-            LLVMLumenGetOrInsertFunction(self.module.as_ref(), name.as_ptr().cast(), name.len(), ty)
-        };
+    pub fn declare_function<S: Into<StringRef>>(&self, name: S, ty: FunctionType) -> Function {
+        let fun = self.module.get_or_add_function(name, ty);
 
         self.apply_default_function_attributes(fun);
 
@@ -510,243 +523,264 @@ impl<'ctx> ModuleBuilder<'ctx> {
     }
 
     #[inline]
-    pub fn build_function(&self, name: &str, ty: Type) -> Value {
+    pub fn build_function<S: Into<StringRef>>(&self, name: S, ty: FunctionType) -> Function {
         self.build_function_with_attrs(name, ty, Linkage::Internal, &[])
     }
 
     #[inline]
-    pub fn build_external_function(&self, name: &str, ty: Type) -> Value {
+    pub fn build_external_function<S: Into<StringRef>>(
+        &self,
+        name: S,
+        ty: FunctionType,
+    ) -> Function {
         self.build_function_with_attrs(name, ty, Linkage::External, &[])
     }
 
-    pub fn build_function_with_attrs(
+    pub fn build_function_with_attrs<S: Into<StringRef>>(
         &self,
-        name: &str,
-        ty: Type,
+        name: S,
+        ty: FunctionType,
         linkage: Linkage,
-        attrs: &[Attribute],
-    ) -> Value {
+        attrs: &[AttributeBase],
+    ) -> Function {
         let fun = self.declare_function(name, ty);
+        fun.set_linkage(linkage);
 
         for attr in attrs.iter().copied() {
-            self.set_function_attr(fun, attr);
+            fun.add_attribute(attr);
         }
-
-        self.set_linkage(fun, linkage);
 
         fun
     }
 
-    pub fn set_personality(&self, fun: Value, personality_fun: Value) {
-        use llvm_sys::core::LLVMSetPersonalityFn;
-
-        unsafe {
-            LLVMSetPersonalityFn(fun, personality_fun);
+    pub fn build_alloca<T: Type>(&self, ty: T) -> AllocaInst {
+        extern "C" {
+            fn LLVMBuildAlloca(
+                builder: Builder,
+                ty: TypeBase,
+                name: *const std::os::raw::c_char,
+            ) -> AllocaInst;
         }
+
+        unsafe { LLVMBuildAlloca(*self.builder, ty.base(), UNNAMED) }
     }
 
-    pub fn set_function_attr(&self, fun: Value, attr: Attribute) {
-        use crate::attributes::LLVMLumenAddFunctionAttribute;
-
-        unsafe {
-            LLVMLumenAddFunctionAttribute(fun, AttributePlace::Function.as_uint(), attr);
+    pub fn build_array_alloca<T: Type>(&self, ty: T, arity: ConstantValue) -> AllocaInst {
+        extern "C" {
+            fn LLVMBuildArrayAlloca(
+                builder: Builder,
+                ty: TypeBase,
+                arity: ConstantValue,
+                name: *const std::os::raw::c_char,
+            ) -> AllocaInst;
         }
+
+        unsafe { LLVMBuildArrayAlloca(*self.builder, ty.base(), arity, UNNAMED) }
     }
 
-    pub fn set_function_attr_string_value(
-        &self,
-        fun: Value,
-        idx: AttributePlace,
-        attr: &CStr,
-        value: &CStr,
-    ) {
-        use crate::attributes::LLVMLumenAddFunctionAttrStringValue;
-
-        unsafe {
-            LLVMLumenAddFunctionAttrStringValue(fun, idx.as_uint(), attr.as_ptr(), value.as_ptr());
+    pub fn build_malloc<T: Type>(&self, ty: T) -> CallInst {
+        extern "C" {
+            fn LLVMBuildMalloc(
+                builder: Builder,
+                ty: TypeBase,
+                name: *const std::os::raw::c_char,
+            ) -> CallInst;
         }
+
+        unsafe { LLVMBuildMalloc(*self.builder, ty.base(), UNNAMED) }
     }
 
-    pub fn remove_function_attr(&self, fun: Value, attr: Attribute) {
-        use crate::attributes::LLVMLumenRemoveFunctionAttributes;
-
-        unsafe {
-            LLVMLumenRemoveFunctionAttributes(fun, AttributePlace::Function.as_uint(), attr);
+    pub fn build_array_malloc<T: Type>(&self, ty: T, arity: ConstantValue) -> CallInst {
+        extern "C" {
+            fn LLVMBuildArrayMalloc(
+                builder: Builder,
+                ty: TypeBase,
+                arity: ConstantValue,
+                name: *const std::os::raw::c_char,
+            ) -> CallInst;
         }
+
+        unsafe { LLVMBuildArrayMalloc(*self.builder, ty.base(), arity, UNNAMED) }
     }
 
-    pub fn set_callsite_attr(&self, call: Value, attr: Attribute, idx: AttributePlace) {
-        use crate::attributes::LLVMLumenAddCallSiteAttribute;
-
-        unsafe {
-            LLVMLumenAddCallSiteAttribute(call, idx.as_uint(), attr);
+    pub fn build_free<V: Value>(&self, ptr: V) -> CallInst {
+        extern "C" {
+            fn LLVMBuildFree(builder: Builder, pointer: ValueBase) -> CallInst;
         }
+        unsafe { LLVMBuildFree(*self.builder, ptr.base()) }
     }
 
-    pub fn get_function_params(&self, fun: Value) -> Vec<Value> {
-        use llvm_sys::core::{LLVMCountParams, LLVMGetParams};
-        let paramc = unsafe { LLVMCountParams(fun) as usize };
-        let mut params = Vec::with_capacity(paramc);
-        unsafe {
-            LLVMGetParams(fun, params.as_mut_ptr());
-            params.set_len(paramc);
-        };
-        params
-    }
-
-    pub fn get_function_param(&self, fun: Value, index: usize) -> Value {
-        use llvm_sys::core::LLVMGetParam;
-
-        unsafe { LLVMGetParam(fun, index as libc::c_uint) }
-    }
-
-    #[inline]
-    pub fn build_entry_block(&self, fun: Value) -> Block {
-        self.build_named_block(fun, "entry")
-    }
-
-    pub fn build_block(&self, fun: Value) -> Block {
-        use llvm_sys::core::LLVMAppendBasicBlockInContext;
-
-        unsafe { LLVMAppendBasicBlockInContext(self.context.as_ref(), fun, UNNAMED) }
-    }
-
-    pub fn build_named_block(&self, fun: Value, name: &str) -> Block {
-        use llvm_sys::core::LLVMAppendBasicBlockInContext;
-
-        let name = CString::new(name).unwrap();
-        unsafe { LLVMAppendBasicBlockInContext(self.context.as_ref(), fun, name.as_ptr()) }
-    }
-
-    pub fn position_at_end(&self, block: Block) {
-        use llvm_sys::core::LLVMPositionBuilderAtEnd;
-
-        unsafe {
-            LLVMPositionBuilderAtEnd(self.builder, block);
+    pub fn build_phi<T: Type>(&self, ty: T, incoming: &[(ValueBase, Block)]) -> PhiInst {
+        extern "C" {
+            fn LLVMBuildPhi(
+                builder: Builder,
+                ty: TypeBase,
+                name: *const std::os::raw::c_char,
+            ) -> PhiInst;
         }
-    }
 
-    pub fn build_alloca(&self, ty: Type) -> Value {
-        use llvm_sys::core::LLVMBuildAlloca;
-
-        unsafe { LLVMBuildAlloca(self.builder, ty, UNNAMED) }
-    }
-
-    pub fn build_phi(&self, ty: Type, incoming: &[(Value, Block)]) -> Value {
-        use llvm_sys::core::{LLVMAddIncoming, LLVMBuildPhi};
-
-        let phi = unsafe { LLVMBuildPhi(self.builder, ty, UNNAMED) };
-
-        let num_incoming = incoming.len() as libc::c_uint;
-        let values = incoming.iter().map(|(v, _)| v).copied().collect::<Vec<_>>();
-        let blocks = incoming.iter().map(|(_, b)| b).copied().collect::<Vec<_>>();
-
-        unsafe {
-            LLVMAddIncoming(
-                phi,
-                values.as_ptr() as *mut _,
-                blocks.as_ptr() as *mut _,
-                num_incoming,
-            );
-        }
+        let phi = unsafe { LLVMBuildPhi(*self.builder, ty.base(), UNNAMED) };
+        phi.add_incoming(incoming);
 
         phi
     }
 
-    pub fn build_br(&self, dest: Block) -> Value {
-        use llvm_sys::core::LLVMBuildBr;
-
-        unsafe { LLVMBuildBr(self.builder, dest) }
-    }
-
-    pub fn build_condbr(&self, cond: Value, then_dest: Block, else_dest: Block) -> Value {
-        use llvm_sys::core::LLVMBuildCondBr;
-
-        unsafe { LLVMBuildCondBr(self.builder, cond, then_dest, else_dest) }
-    }
-
-    pub fn build_switch(
-        &self,
-        value: Value,
-        clauses: &[(Value, Block)],
-        else_dest: Block,
-    ) -> Value {
-        use llvm_sys::core::{LLVMAddCase, LLVMBuildSwitch};
-
-        let s = unsafe {
-            LLVMBuildSwitch(
-                self.builder,
-                value,
-                else_dest,
-                clauses.len() as libc::c_uint,
-            )
-        };
-
-        for (clause_value, clause_dest) in clauses.iter() {
-            unsafe {
-                LLVMAddCase(s, *clause_value, *clause_dest);
-            }
+    pub fn build_br(&self, dest: Block) -> BranchInst {
+        extern "C" {
+            fn LLVMBuildBr(builder: Builder, dest: Block) -> BranchInst;
         }
 
-        s
+        unsafe { LLVMBuildBr(*self.builder, dest) }
     }
 
-    pub fn build_icmp(&self, lhs: Value, rhs: Value, predicate: ICmp) -> Value {
-        use llvm_sys::core::LLVMBuildICmp;
+    pub fn build_condbr(&self, cond: ValueBase, then_dest: Block, else_dest: Block) -> BranchInst {
+        extern "C" {
+            fn LLVMBuildCondBr(
+                builder: Builder,
+                cond: ValueBase,
+                true_dest: Block,
+                false_dest: Block,
+            ) -> BranchInst;
+        }
 
-        unsafe { LLVMBuildICmp(self.builder, predicate.into(), lhs, rhs, UNNAMED) }
+        unsafe { LLVMBuildCondBr(*self.builder, cond, then_dest, else_dest) }
     }
 
-    pub fn build_call(&self, fun: Value, args: &[Value], funclet: Option<&Funclet>) -> Value {
-        use llvm_sys::core::LLVMLumenBuildCall;
+    pub fn build_switch(&self, value: ValueBase, default: Block) -> SwitchInst {
+        extern "C" {
+            fn LLVMBuildSwitch(
+                builder: Builder,
+                value: ValueBase,
+                default: Block,
+                num_cases_hint: u32,
+            ) -> SwitchInst;
+        }
+
+        unsafe {
+            LLVMBuildSwitch(*self.builder, value, default, /*hint=*/ 10)
+        }
+    }
+
+    pub fn build_icmp<L, R>(&self, lhs: L, rhs: R, predicate: ICmp) -> ICmpInst
+    where
+        L: Value,
+        R: Value,
+    {
+        extern "C" {
+            fn LLVMBuildICmp(
+                builder: Builder,
+                pred: ICmp,
+                lhs: ValueBase,
+                rhs: ValueBase,
+                name: *const std::os::raw::c_char,
+            ) -> ICmpInst;
+        }
+
+        unsafe { LLVMBuildICmp(*self.builder, predicate, lhs.base(), rhs.base(), UNNAMED) }
+    }
+
+    /// Builds a call instruction with a statically known function as callee
+    pub fn build_call(
+        &self,
+        fun: Function,
+        args: &[ValueBase],
+        funclet: Option<&Funclet>,
+    ) -> CallInst {
+        let ty = fun.get_type().try_into().unwrap();
+        self.build_call_indirect(fun.base(), ty, args, funclet)
+    }
+
+    /// Builds a call instruction with a callee value that may or may not be a function reference
+    ///
+    /// The primary difference with `build_invoke` is that this requires providing the type of the callee
+    pub fn build_call_indirect(
+        &self,
+        callee: ValueBase,
+        callee_type: FunctionType,
+        args: &[ValueBase],
+        funclet: Option<&Funclet>,
+    ) -> CallInst {
+        extern "C" {
+            fn LLVMLumenBuildCall(
+                builder: Builder,
+                callee: ValueBase,
+                callee_type: FunctionType,
+                argv: *const ValueBase,
+                argc: u32,
+                bundle: OperandBundle,
+                name: *const std::os::raw::c_char,
+            ) -> CallInst;
+        }
 
         let argv = args.as_ptr() as *mut _;
-        let argc = args.len() as libc::c_uint;
+        let argc = args.len().try_into().unwrap();
         let funclet = funclet
-            .map(|f| f.bundle().as_ref() as *const _)
-            .unwrap_or(ptr::null());
+            .map(|f| f.bundle())
+            .unwrap_or_else(OperandBundle::null);
 
-        unsafe { LLVMLumenBuildCall(self.builder, fun, argv, argc, funclet, UNNAMED) }
+        unsafe {
+            LLVMLumenBuildCall(
+                *self.builder,
+                callee,
+                callee_type,
+                argv,
+                argc,
+                funclet,
+                UNNAMED,
+            )
+        }
     }
 
-    pub fn set_is_tail(&self, call: Value, is_tail: bool) {
-        use llvm_sys::core::LLVMSetTailCall;
-        use llvm_sys::prelude::LLVMBool;
-        unsafe { LLVMSetTailCall(call, is_tail as LLVMBool) }
-    }
-
-    pub fn build_return(&self, ret: Value) -> Value {
-        use llvm_sys::core::LLVMBuildRet;
-
-        unsafe { LLVMBuildRet(self.builder, ret) }
-    }
-
-    pub fn build_unreachable(&self) -> Value {
-        use llvm_sys::core::LLVMBuildUnreachable;
-
-        unsafe { LLVMBuildUnreachable(self.builder) }
-    }
-
+    /// Builds an invoke instruction with a statically known function as callee
     pub fn build_invoke(
         &self,
-        fun: Value,
-        args: &[Value],
+        fun: Function,
+        args: &[ValueBase],
         normal: Block,
         unwind: Block,
         funclet: Option<&Funclet>,
-    ) -> Value {
-        use llvm_sys::core::LLVMLumenBuildInvoke;
+    ) -> InvokeInst {
+        let ty = fun.get_type().try_into().unwrap();
+        self.build_invoke_indirect(fun.base(), ty, args, normal, unwind, funclet)
+    }
 
-        let argv = args.as_ptr() as *mut _;
-        let argc = args.len() as libc::c_uint;
+    /// Builds an invoke instruction with a callee value that may or may not be a function reference
+    ///
+    /// The primary difference with `build_invoke` is that this requires providing the type of the callee
+    pub fn build_invoke_indirect(
+        &self,
+        callee: ValueBase,
+        callee_type: FunctionType,
+        args: &[ValueBase],
+        normal: Block,
+        unwind: Block,
+        funclet: Option<&Funclet>,
+    ) -> InvokeInst {
+        extern "C" {
+            fn LLVMLumenBuildInvoke(
+                builder: Builder,
+                callee: ValueBase,
+                callee_type: FunctionType,
+                argv: *const ValueBase,
+                argc: u32,
+                ok: Block,
+                catch: Block,
+                bundle: OperandBundle,
+                name: *const std::os::raw::c_char,
+            ) -> InvokeInst;
+        }
+
+        let argv = args.as_ptr();
+        let argc = args.len().try_into().unwrap();
         let funclet = funclet
-            .map(|f| f.bundle().as_ref() as *const _)
-            .unwrap_or(ptr::null());
+            .map(|f| f.bundle())
+            .unwrap_or_else(OperandBundle::null);
 
         unsafe {
             LLVMLumenBuildInvoke(
-                self.builder,
-                fun,
+                *self.builder,
+                callee,
+                callee_type,
                 argv,
                 argc,
                 normal,
@@ -757,260 +791,388 @@ impl<'ctx> ModuleBuilder<'ctx> {
         }
     }
 
-    pub fn build_resume(&self, exception: Value) -> Value {
-        use llvm_sys::core::LLVMBuildResume;
-
-        unsafe { LLVMBuildResume(self.builder, exception) }
-    }
-
-    pub fn build_landingpad(&self, ty: Type, personality_fun: Value, clauses: &[Value]) -> Value {
-        use llvm_sys::core::{LLVMAddClause, LLVMBuildLandingPad};
-
-        let num_clauses = clauses.len() as libc::c_uint;
-        let pad =
-            unsafe { LLVMBuildLandingPad(self.builder, ty, personality_fun, num_clauses, UNNAMED) };
-
-        for clause in clauses.iter().copied() {
-            unsafe {
-                LLVMAddClause(pad, clause);
-            }
+    pub fn build_return<V: Value>(&self, ret: V) -> ReturnInst {
+        extern "C" {
+            fn LLVMBuildRet(builder: Builder, value: ValueBase) -> ReturnInst;
         }
 
-        pad
+        unsafe { LLVMBuildRet(*self.builder, ret.base()) }
     }
 
-    pub fn build_catchpad(&self, parent: Option<Value>, args: &[Value]) -> Funclet {
-        use llvm_sys::core::LLVMBuildCatchPad;
+    pub fn build_unreachable(&self) -> UnreachableInst {
+        extern "C" {
+            fn LLVMBuildUnreachable(builder: Builder) -> UnreachableInst;
+        }
 
-        let argv = args.as_ptr() as *mut _;
-        let argc = args.len() as libc::c_uint;
-        let parent = match parent {
-            None => self.build_constant_null(self.get_token_type()),
-            Some(p) => p,
-        };
-        let pad = unsafe { LLVMBuildCatchPad(self.builder, parent, argv, argc, UNNAMED) };
-
-        Funclet::new(pad)
+        unsafe { LLVMBuildUnreachable(*self.builder) }
     }
 
-    pub fn build_cleanuppad(&self, parent: Option<Value>, args: &[Value]) -> Funclet {
-        use llvm_sys::core::LLVMBuildCleanupPad;
+    /// Resumes propagation of the given exception.
+    ///
+    /// Part of the set of older Itanium C++ exception handling instructions
+    pub fn build_resume<V: Value>(&self, exception: V) -> ResumeInst {
+        extern "C" {
+            fn LLVMBuildResume(builder: Builder, exception: ValueBase) -> ResumeInst;
+        }
 
-        let argv = args.as_ptr() as *mut _;
-        let argc = args.len() as libc::c_uint;
-        let pad = unsafe {
-            LLVMBuildCleanupPad(
-                self.builder,
-                parent.unwrap_or(ptr::null_mut() as _),
-                argv,
-                argc,
+        unsafe { LLVMBuildResume(*self.builder, exception.base()) }
+    }
+
+    /// When inserted at the beginning of a block, it marks the block as a catch or cleanup handler
+    /// for a matching `invoke` instruction. When the callee of an invoke unwinds, the landingpad, if
+    /// matching, will be visited. Unwinding can be resumed via `resume` from within a landingpad or its
+    /// successor blocks.
+    ///
+    /// NOTE: This instruction _must_ be the first instruction in its containing block
+    ///
+    /// Part of the set of older Itanium C++ exception handling instructions
+    pub fn build_landingpad<T: Type>(&self, ty: T) -> LandingPadInst {
+        extern "C" {
+            fn LLVMBuildLandingPad(
+                builder: Builder,
+                ty: TypeBase,
+                personality_fn: ValueBase,
+                hint_num_clauses: u32,
+                name: *const std::os::raw::c_char,
+            ) -> LandingPadInst;
+        }
+
+        unsafe {
+            LLVMBuildLandingPad(
+                *self.builder,
+                ty.base(),
+                ValueBase::null(),
+                /*hint=*/ 2,
                 UNNAMED,
             )
-        };
-
-        Funclet::new(pad)
+        }
     }
 
-    pub fn build_catchret(&self, funclet: &Funclet, dest: Option<Block>) -> Value {
-        use llvm_sys::core::LLVMBuildCatchRet;
-
-        let dest = dest.unwrap_or(ptr::null_mut());
-        unsafe { LLVMBuildCatchRet(self.builder, funclet.pad(), dest) }
-    }
-
-    pub fn build_cleanupret(&self, funclet: &Funclet, dest: Option<Block>) -> Value {
-        use llvm_sys::core::LLVMBuildCleanupRet;
-
-        let dest = dest.unwrap_or(ptr::null_mut());
-        unsafe { LLVMBuildCleanupRet(self.builder, funclet.pad(), dest) }
-    }
-
+    /// When inserted at the beginning of a block, it marks the block as a landing pad for the unwinder
+    /// It acts as the dispatcher across one or more catch handlers, and like invoke, can indicate what
+    /// to do if the handler unwinds.
+    ///
+    /// NOTE: This instruction _must_ be the first instruction in its containing block
+    ///
+    /// This is part of the set of new exception handling instructions, and are generic across MSVC
+    /// structured exception handling and Itanium C++ exceptions. It is a strict superset of the older
+    /// instruction set.
     pub fn build_catchswitch(
         &self,
-        parent: Option<Value>,
+        parent: Option<&Funclet>,
         unwind: Option<Block>,
-        handlers: &[Block],
-    ) -> Value {
-        use llvm_sys::core::{LLVMAddHandler, LLVMBuildCatchSwitch};
-
-        let parent = match parent {
-            None => self.build_constant_null(self.get_token_type()),
-            Some(p) => p,
-        };
-        let unwind = unwind.unwrap_or(ptr::null_mut());
-        let num_handlers = handlers.len() as libc::c_uint;
-        let cs =
-            unsafe { LLVMBuildCatchSwitch(self.builder, parent, unwind, num_handlers, UNNAMED) };
-
-        for handler in handlers.iter().copied() {
-            unsafe {
-                LLVMAddHandler(cs, handler);
-            }
+    ) -> CatchSwitchInst {
+        extern "C" {
+            fn LLVMBuildCatchSwitch(
+                builder: Builder,
+                parent: ValueBase,
+                unwind: Block,
+                hint_num_handlers: u32,
+                name: *const std::os::raw::c_char,
+            ) -> CatchSwitchInst;
         }
 
-        cs
+        let unwind = unwind.unwrap_or_else(Block::null);
+        let parent = parent.map(|f| f.pad()).unwrap_or_else(ValueBase::null);
+        unsafe {
+            LLVMBuildCatchSwitch(*self.builder, parent, unwind, /*hint=*/ 5, UNNAMED)
+        }
     }
 
-    pub fn build_extractvalue(&self, agg: Value, index: usize) -> Value {
-        use llvm_sys::core::LLVMBuildExtractValue;
+    /// Like `landingpad`, this instruction indicates that its containing block is a catch handler for
+    /// a corresponding `catchswitch` instruction. A catchpad will not be visited unless the in-flight
+    /// exception matches the given arguments. The arguments correspond to whatever information the
+    /// personality routine requires to know if this is an appropriate handler for the exception. In
+    /// practice this tends to be a pointer to a global containing a tag string, e.g. `i8** @_ZTIi`.
+    ///
+    /// Control must exit a catchpad via a `catchret`, it must not resume normal execution, unwind,
+    /// or return using `ret`, or the behavior is undefined.
+    ///
+    /// NOTE: This instruction _must_ be the first instruction in its containing block
+    ///
+    /// This is part of the set of new exception handling instructions
+    pub fn build_catchpad(&self, catchswitch: CatchSwitchInst, args: &[ValueBase]) -> CatchPadInst {
+        extern "C" {
+            fn LLVMBuildCatchPad(
+                builder: Builder,
+                parent: ValueBase,
+                args: *const ValueBase,
+                argc: u32,
+                name: *const std::os::raw::c_char,
+            ) -> CatchPadInst;
+        }
 
-        unsafe { LLVMBuildExtractValue(self.builder, agg, index as libc::c_uint, UNNAMED) }
+        let argv = args.as_ptr();
+        let argc = args.len().try_into().unwrap();
+        unsafe { LLVMBuildCatchPad(*self.builder, catchswitch.base(), argv, argc, UNNAMED) }
     }
 
-    pub fn build_insertvalue(&self, agg: Value, element: Value, index: usize) -> Value {
-        use llvm_sys::core::LLVMBuildInsertValue;
+    /// Similar to `catchpad`, except it is used for the cleanup phase of the unwinder, i.e. it doesn't
+    /// resume normal execution, but instead performs some cleanup action and then resumes the unwinder.
+    ///
+    /// Unlike `catchpad` however, `cleanuppad` doesn't require a `catchswitch` as its parent, as it can
+    /// occur in the unwind destination for an invoke directly in cases where the exception isn't handled
+    /// but cleanup is required.
+    ///
+    /// Control must exit a cleanuppad via a `cleanupret`, it must not unwind or return using `ret`, or
+    /// the behavior is undefined.
+    ///
+    /// NOTE: This instruction _must_ be the first instruction in its containing block
+    ///
+    /// This is part of the set of new exception handling instructions
+    pub fn build_cleanuppad(&self, parent: Option<&Funclet>, args: &[ValueBase]) -> CleanupPadInst {
+        extern "C" {
+            fn LLVMBuildCleanupPad(
+                builder: Builder,
+                parent: ValueBase,
+                args: *const ValueBase,
+                len: u32,
+                name: *const std::os::raw::c_char,
+            ) -> CleanupPadInst;
+        }
 
-        unsafe { LLVMBuildInsertValue(self.builder, agg, element, index as libc::c_uint, UNNAMED) }
+        let argv = args.as_ptr();
+        let argc = args.len().try_into().unwrap();
+        let parent = parent.map(|f| f.pad()).unwrap_or_else(ValueBase::null);
+        unsafe { LLVMBuildCleanupPad(*self.builder, parent, argv, argc, UNNAMED) }
     }
 
-    pub fn build_load(&self, ty: Type, ptr: Value) -> Value {
-        use llvm_sys::core::LLVMBuildLoad2;
+    /// Resumes normal execution from the body of a `catchpad`
+    ///
+    /// This instruction ends an in-flight exception whose unwinding was interrupted by its
+    /// corresponding `catchpad`. The given `catchpad` reference must be the most recently entered,
+    /// not-yet-exited funclet pad, or the behavior is undefined.
+    ///
+    /// This is part of the set of new exception handling instructions
+    pub fn build_catchret(&self, pad: CatchPadInst, dest: Block) -> CatchRetInst {
+        extern "C" {
+            fn LLVMBuildCatchRet(builder: Builder, pad: ValueBase, block: Block) -> CatchRetInst;
+        }
 
-        unsafe { LLVMBuildLoad2(self.builder, ty, ptr, UNNAMED) }
+        unsafe { LLVMBuildCatchRet(*self.builder, pad.base(), dest) }
     }
 
-    pub fn build_store(&self, ptr: Value, value: Value) -> Value {
-        use llvm_sys::core::LLVMBuildStore;
-        unsafe { LLVMBuildStore(self.builder, ptr, value) }
+    /// The cleanupret instruction is a terminator with an optional successor
+    ///
+    /// It requires one argument, which indicates which cleanuppad it exits
+    ///
+    /// If the optional successor is given, it must be a block beginning with either a cleanuppad
+    /// or catchswitch instruction. If it is not given, then unwinding continues in the caller
+    ///
+    /// NOTE: If the cleanuppad given is not the most recently entered, not-yet-exited funclet pad
+    /// (see the EH documentation), the cleanupret's behavior is undefined.
+    ///
+    /// This is part of the set of new exception handling instructions
+    pub fn build_cleanupret(&self, pad: CleanupPadInst, dest: Option<Block>) -> CleanupRetInst {
+        extern "C" {
+            fn LLVMBuildCleanupRet(
+                builder: Builder,
+                pad: ValueBase,
+                block: Block,
+            ) -> CleanupRetInst;
+        }
+
+        let dest = dest.unwrap_or_else(Block::null);
+        unsafe { LLVMBuildCleanupRet(*self.builder, pad.base(), dest) }
     }
 
-    pub fn build_struct_gep(&self, ptr: Value, index: usize) -> Value {
-        use llvm_sys::core::LLVMBuildStructGEP;
+    pub fn build_extractvalue<A: Aggregate>(&self, agg: A, index: usize) -> ExtractValueInst {
+        extern "C" {
+            fn LLVMBuildExtractValue(
+                builder: Builder,
+                agg: ValueBase,
+                index: u32,
+                name: *const std::os::raw::c_char,
+            ) -> ExtractValueInst;
+        }
 
-        unsafe { LLVMBuildStructGEP(self.builder, ptr, index as libc::c_uint, UNNAMED) }
+        unsafe {
+            LLVMBuildExtractValue(
+                *self.builder,
+                agg.base(),
+                index.try_into().unwrap(),
+                UNNAMED,
+            )
+        }
     }
 
-    pub fn build_inbounds_gep(&self, ty: Type, ptr: Value, indices: &[usize]) -> Value {
-        use llvm_sys::core::LLVMBuildInBoundsGEP2;
+    pub fn build_insertvalue<A: Aggregate, V: Value>(
+        &self,
+        agg: A,
+        element: V,
+        index: usize,
+    ) -> InsertValueInst {
+        extern "C" {
+            fn LLVMBuildInsertValue(
+                builder: Builder,
+                agg: ValueBase,
+                element: ValueBase,
+                index: u32,
+                name: *const std::os::raw::c_char,
+            ) -> InsertValueInst;
+        }
+
+        unsafe {
+            LLVMBuildInsertValue(
+                *self.builder,
+                agg.base(),
+                element.base(),
+                index.try_into().unwrap(),
+                UNNAMED,
+            )
+        }
+    }
+
+    // TODO: It would be nice if we could make this more type safe and limit the value to one implementing Pointer
+    pub fn build_load<V: Value, T: Type>(&self, ty: T, ptr: V) -> LoadInst {
+        extern "C" {
+            fn LLVMBuildLoad2(
+                builder: Builder,
+                ty: TypeBase,
+                pointer: ValueBase,
+                name: *const std::os::raw::c_char,
+            ) -> LoadInst;
+        }
+
+        unsafe { LLVMBuildLoad2(*self.builder, ty.base(), ptr.base(), UNNAMED) }
+    }
+
+    // TODO: It would be nice if we could make this more type safe and limit the pointer value to one implementing Pointer
+    pub fn build_store<P: Value, V: Value>(&self, ptr: P, value: V) -> StoreInst {
+        extern "C" {
+            fn LLVMBuildStore(builder: Builder, value: ValueBase, ptr: ValueBase) -> StoreInst;
+        }
+        unsafe { LLVMBuildStore(*self.builder, value.base(), ptr.base()) }
+    }
+
+    /// Given a pointer to a struct of the given type, produces a value which is a pointer to the `n`th field of the struct
+    pub fn build_struct_gep<P: Value>(&self, ty: StructType, ptr: P, n: usize) -> ValueBase {
+        extern "C" {
+            fn LLVMBuildStructGEP2(
+                builder: Builder,
+                ty: StructType,
+                pointer: ValueBase,
+                indices: *const ValueBase,
+                num_indices: u32,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
+        }
+
+        let index_ty = self.get_i32_type();
+        let indices = &[ConstantInt::get(index_ty, n as u64, /*sext=*/ false).base()];
+        unsafe { LLVMBuildStructGEP2(*self.builder, ty, ptr.base(), indices.as_ptr(), 1, UNNAMED) }
+    }
+
+    /// Builds a `getelementptr` instruction that will produce a poison value if any of the following
+    /// constraints are violated:
+    ///
+    /// * The base pointer is an address within the memory bounds of an allocated object
+    /// * If the index value must be truncated due to being a larger type, the signed value must be preserved
+    /// * Multiplication of the index by the type size does not wrap (in the signed sense, e.g. nsw)
+    /// * The successive addition of offsets (without adding the base address) does not wrap
+    /// * The successive addition of the current address (interpreted as an unsigned number) and an offset,
+    /// interpreted as a signed number, does not wrap the unsigned address space, and remains in bounds of the
+    /// allocated object
+    /// * In cases where the base is a vector of pointers, these rules apply to each of the computations element-wise
+    pub fn build_inbounds_gep<V: Value, T: Type>(
+        &self,
+        ty: T,
+        ptr: V,
+        indices: &[usize],
+    ) -> ValueBase {
+        extern "C" {
+            fn LLVMBuildInBoundsGEP2(
+                builder: Builder,
+                ty: TypeBase,
+                ptr: ValueBase,
+                indices: *const ValueBase,
+                num_indices: u32,
+                name: *const std::os::raw::c_char,
+            ) -> ValueBase;
+        }
 
         let i32_type = self.get_i32_type();
         let indices_values = indices
             .iter()
-            .map(|i| self.build_constant_uint(i32_type, *i as u64))
+            .copied()
+            .map(|i| self.build_constant_uint(i32_type, i as u64).base())
             .collect::<Vec<_>>();
-        let num_indices = indices_values.len() as libc::c_uint;
+        let num_indices = indices_values.len().try_into().unwrap();
         unsafe {
             LLVMBuildInBoundsGEP2(
-                self.builder,
-                ty,
-                ptr,
-                indices_values.as_ptr() as *mut _,
+                *self.builder,
+                ty.base(),
+                ptr.base(),
+                indices_values.as_ptr(),
                 num_indices,
                 UNNAMED,
             )
         }
     }
 
-    pub fn build_constant(&self, ty: Type, name: &str, initializer: Option<Value>) -> Value {
-        use llvm_sys::core::LLVMSetGlobalConstant;
-
-        let global = self.build_global(ty, name, initializer);
-        unsafe {
-            LLVMSetGlobalConstant(global, true as libc::c_int);
-        }
-        global
-    }
-
-    pub fn build_global(&self, ty: Type, name: &str, initializer: Option<Value>) -> Value {
-        use llvm_sys::core::LLVMAddGlobal;
-
-        let cstr = CString::new(name).unwrap();
-        let global = unsafe { LLVMAddGlobal(self.module.as_ref(), ty, cstr.as_ptr()) };
-        if let Some(init) = initializer {
-            self.set_initializer(global, init);
-        }
-        global
-    }
-
-    pub fn set_initializer(&self, global: Value, constant: Value) {
-        use llvm_sys::core::LLVMSetInitializer;
-
-        unsafe {
-            LLVMSetInitializer(global, constant);
-        }
-    }
-
-    pub fn set_linkage(&self, value: Value, linkage: Linkage) {
-        use llvm_sys::core::LLVMSetLinkage;
-
-        unsafe {
-            LLVMSetLinkage(value, linkage.into());
-        }
-    }
-
-    pub fn set_thread_local_mode(&self, global: Value, tls: ThreadLocalMode) {
-        use llvm_sys::core::LLVMSetThreadLocalMode;
-
-        unsafe {
-            LLVMSetThreadLocalMode(global, tls.into());
-        }
-    }
-
-    pub fn set_alignment(&self, value: Value, alignment: usize) {
-        use llvm_sys::core::LLVMSetAlignment;
-
-        unsafe {
-            LLVMSetAlignment(value, alignment as libc::c_uint);
-        }
-    }
-
-    pub fn build_pointer_cast(&self, value: Value, ty: Type) -> Value {
-        use llvm_sys::core::LLVMConstPointerCast;
-
-        unsafe { LLVMConstPointerCast(value, ty) }
-    }
-
-    pub fn build_const_inbounds_gep(&self, value: Value, indices: &[usize]) -> Value {
-        use llvm_sys::core::LLVMConstInBoundsGEP;
-
+    /// Same as `build_inbounds_gep`, but valid in a constant context
+    pub fn build_const_inbounds_gep<V: Constant, T: Type>(
+        &self,
+        ty: T,
+        value: V,
+        indices: &[usize],
+    ) -> ConstantExpr {
         let i32_type = self.get_i32_type();
         let indices_values = indices
             .iter()
-            .map(|i| self.build_constant_uint(i32_type, *i as u64))
-            .collect::<Vec<_>>();
-        let num_indices = indices_values.len() as libc::c_uint;
-        unsafe { LLVMConstInBoundsGEP(value, indices_values.as_ptr() as *mut _, num_indices) }
+            .map(|i| self.build_constant_uint(i32_type, *i as u64).into())
+            .collect::<Vec<ConstantValue>>();
+        ConstantExpr::inbounds_gep(ty, value, indices_values.as_slice())
     }
 
-    pub fn declare_global(&self, name: &str, ty: Type) -> Value {
-        use llvm_sys::core::LLVMLumenGetOrInsertGlobal;
-
-        unsafe {
-            LLVMLumenGetOrInsertGlobal(self.module.as_ref(), name.as_ptr().cast(), name.len(), ty)
-        }
+    /// Build a global constant with the given type, name, and initializer
+    pub fn build_constant<S: Into<StringRef>, C: Constant, T: Type>(
+        &self,
+        ty: T,
+        name: S,
+        initializer: C,
+    ) -> GlobalVariable {
+        let global = self.build_global(ty, name, Some(initializer.base()));
+        global.set_constant(true);
+        global
     }
 
-    pub fn define_global(&self, name: &str, ty: Type) -> Option<Value> {
-        if self.get_defined_value(name).is_some() {
+    /// Build a global variable with the given type, name, and initializer
+    pub fn build_global<S: Into<StringRef>, T: Type>(
+        &self,
+        ty: T,
+        name: S,
+        initializer: Option<ValueBase>,
+    ) -> GlobalVariable {
+        self.module.add_global(ty, name, initializer)
+    }
+
+    /// Declare a global, or get the existing declaration if the symbol already exists
+    pub fn declare_global<S: Into<StringRef>, T: Type>(&self, name: S, ty: T) -> GlobalVariable {
+        self.module.get_or_add_global(ty, name, None)
+    }
+
+    /// Defines a global with the given name and type
+    ///
+    /// If the global already exists, returns None, otherwise returns the newly defined global
+    pub fn define_global<S: Into<StringRef>, T: Type>(
+        &self,
+        name: S,
+        ty: T,
+    ) -> Option<GlobalVariable> {
+        let name = name.into();
+        if self.module.get_global(name).is_some() {
             None
         } else {
-            Some(self.declare_global(name, ty))
+            Some(self.module.add_global(ty, name, None))
         }
     }
 
-    pub fn get_declared_value(&self, name: &str) -> Option<Value> {
-        use llvm_sys::core::LLVMGetNamedGlobal;
-
-        let name = CString::new(name).unwrap();
-        let g = unsafe { LLVMGetNamedGlobal(self.module.as_ref(), name.as_ptr()) };
-        if g.is_null() {
-            None
-        } else {
-            Some(g)
-        }
-    }
-
-    pub fn get_defined_value(&self, name: &str) -> Option<Value> {
-        use llvm_sys::core::LLVMIsDeclaration;
-
-        self.get_declared_value(name).and_then(|val| {
-            let declaration = unsafe { LLVMIsDeclaration(val) != 0 };
-            if !declaration {
-                Some(val)
-            } else {
-                None
-            }
-        })
+    /// Gets a reference to a global variable with the given name, _if_ it has a definition, otherwise returns None
+    pub fn get_defined_value<S: Into<StringRef>>(&self, name: S) -> Option<GlobalVariable> {
+        self.module
+            .get_global(name)
+            .and_then(|gv| if gv.is_declaration() { None } else { Some(gv) })
     }
 
     /// Generates a new symbol name with the given prefix. This symbol name must
@@ -1027,101 +1189,85 @@ impl<'ctx> ModuleBuilder<'ctx> {
         name
     }
 
-    // Externally visible symbols that might appear in multiple codegen units need to appear in
-    // their own comdat section so that the duplicates can be discarded at link time. This can for
-    // example happen for generics when using multiple codegen units. This function simply uses the
-    // value's name as the comdat value to make sure that it is in a 1-to-1 relationship to the
-    // function.
-    // For more details on COMDAT sections see e.g., http://www.airs.com/blog/archives/52
-    pub fn set_unique_comdat(&self, val: Value) {
-        use llvm_sys::comdat::LLVMLumenSetComdat;
-
-        unsafe {
-            let name = self.get_value_name(val);
-            LLVMLumenSetComdat(self.module.as_ref(), val, name.as_ptr().cast(), name.len());
-        }
+    /// Sets the COMDAT for the given global object to a (ostensibly) unique name, by
+    /// using the name associated to the value itself.
+    ///
+    /// # Rationale
+    ///
+    /// Externally visible symbols that might appear in multiple codegen units need to appear in
+    /// their own comdat section so that the duplicates can be discarded at link time. This can for
+    /// example happen for generics when using multiple codegen units. This function simply uses the
+    /// value's name as the comdat value to make sure that it is in a 1-to-1 relationship to the
+    /// function.
+    ///
+    /// For more details on COMDAT sections see e.g., http://www.airs.com/blog/archives/52
+    pub fn set_unique_comdat<V: GlobalObject>(&self, value: V) {
+        value.set_comdat(self.module.get_or_add_comdat(value.name()));
     }
 
-    pub fn get_value_name(&self, value: Value) -> &[u8] {
-        use llvm_sys::core::LLVMGetValueName2;
-
-        unsafe {
-            let mut len = 0;
-            let data = LLVMGetValueName2(value, &mut len);
-            std::slice::from_raw_parts(data.cast(), len)
-        }
+    /// Gets an enum attribute of the given kind, with the default value of 0
+    pub fn get_enum_attribute(&self, kind: AttributeKind) -> EnumAttribute {
+        EnumAttribute::new(*self.context, kind, None)
     }
 
-    pub fn unset_comdat(&self, val: Value) {
-        use llvm_sys::comdat::LLVMLumenUnsetComdat;
-
-        unsafe {
-            LLVMLumenUnsetComdat(val);
-        }
+    /// Gets a string attribute of the given kind and value
+    pub fn get_string_attribute<K, V>(&self, kind: K, value: V) -> StringAttribute
+    where
+        K: Into<StringRef>,
+        V: Into<StringRef>,
+    {
+        StringAttribute::new(*self.context, kind, value)
     }
 
-    fn apply_default_function_attributes(&self, fun: Value) {
+    fn apply_default_function_attributes(&self, fun: Function) {
         self.apply_optimization_attributes(fun);
         self.apply_sanitizers(fun);
         // Always annotate functions with the target-cpu they are compiled for.
         // Without this, ThinLTO won't inline Rust functions into Clang generated
         // functions (because Clang annotates functions this way too).
-        self.apply_target_cpu_attr(fun);
+        fun.add_attribute(self.get_string_attribute("target-cpu", self.target_cpu.as_str()));
     }
 
-    fn apply_optimization_attributes(&self, fun: Value) {
+    fn apply_optimization_attributes(&self, fun: Function) {
         match self.opt_level {
             PassBuilderOptLevel::O0 => {
-                self.remove_function_attr(fun, Attribute::MinSize);
-                self.remove_function_attr(fun, Attribute::OptimizeForSize);
-                self.set_function_attr(fun, Attribute::OptimizeNone);
+                fun.remove_attribute(self.get_enum_attribute(AttributeKind::MinSize));
+                fun.remove_attribute(self.get_enum_attribute(AttributeKind::OptimizeForSize));
+                fun.add_attribute(self.get_enum_attribute(AttributeKind::OptimizeNone));
             }
             PassBuilderOptLevel::Os => {
-                self.remove_function_attr(fun, Attribute::MinSize);
-                self.set_function_attr(fun, Attribute::OptimizeForSize);
-                self.remove_function_attr(fun, Attribute::OptimizeNone);
+                fun.remove_attribute(self.get_enum_attribute(AttributeKind::MinSize));
+                fun.add_attribute(self.get_enum_attribute(AttributeKind::OptimizeForSize));
+                fun.remove_attribute(self.get_enum_attribute(AttributeKind::OptimizeNone));
             }
             PassBuilderOptLevel::Oz => {
-                self.set_function_attr(fun, Attribute::MinSize);
-                self.set_function_attr(fun, Attribute::OptimizeForSize);
-                self.remove_function_attr(fun, Attribute::OptimizeNone);
+                fun.add_attribute(self.get_enum_attribute(AttributeKind::MinSize));
+                fun.add_attribute(self.get_enum_attribute(AttributeKind::OptimizeForSize));
+                fun.remove_attribute(self.get_enum_attribute(AttributeKind::OptimizeNone));
             }
             _ => {
-                self.remove_function_attr(fun, Attribute::MinSize);
-                self.remove_function_attr(fun, Attribute::OptimizeForSize);
-                self.remove_function_attr(fun, Attribute::OptimizeNone);
+                fun.remove_attribute(self.get_enum_attribute(AttributeKind::MinSize));
+                fun.remove_attribute(self.get_enum_attribute(AttributeKind::OptimizeForSize));
+                fun.remove_attribute(self.get_enum_attribute(AttributeKind::OptimizeNone));
             }
         }
     }
 
-    fn apply_sanitizers(&self, fun: Value) {
+    fn apply_sanitizers(&self, fun: Function) {
         if let Some(sanitizer) = self.sanitizer {
-            match sanitizer {
-                Sanitizer::Address => {
-                    self.set_function_attr(fun, Attribute::SanitizeAddress);
+            let kind = match sanitizer {
+                Sanitizer::Address => AttributeKind::SanitizeAddress,
+                Sanitizer::Memory => AttributeKind::SanitizeMemory,
+                Sanitizer::Thread => AttributeKind::SanitizeThread,
+                Sanitizer::Leak => {
+                    return;
                 }
-                Sanitizer::Memory => {
-                    self.set_function_attr(fun, Attribute::SanitizeMemory);
-                }
-                Sanitizer::Thread => {
-                    self.set_function_attr(fun, Attribute::SanitizeThread);
-                }
-                Sanitizer::Leak => {}
-            }
+            };
+            fun.add_attribute(self.get_enum_attribute(kind));
         }
     }
 
-    fn apply_target_cpu_attr(&self, fun: Value) {
-        let target_cpu_name = CString::new(self.target_cpu.as_str()).unwrap();
-        self.set_function_attr_string_value(
-            fun,
-            AttributePlace::Function,
-            TARGET_CPU_STR,
-            target_cpu_name.as_c_str(),
-        );
-    }
-
-    pub fn get_intrinsic(&self, key: &str) -> Value {
+    pub fn get_intrinsic(&self, key: &str) -> Function {
         if let Some(v) = self.intrinsics.borrow().get(key).cloned() {
             return v;
         }
@@ -1130,22 +1276,24 @@ impl<'ctx> ModuleBuilder<'ctx> {
             .unwrap_or_else(|| panic!("unknown intrinsic '{}'", key))
     }
 
-    fn insert_intrinsic(&self, name: &'static str, args: Option<&[Type]>, ret: Type) -> Value {
-        use llvm_sys::core::LLVMSetUnnamedAddress;
-        use llvm_sys::LLVMUnnamedAddr;
-
+    fn insert_intrinsic(
+        &self,
+        name: &'static str,
+        args: Option<&[TypeBase]>,
+        ret: TypeBase,
+    ) -> Function {
         let fn_ty = if let Some(args) = args {
             self.get_function_type(ret, args, /* variadic */ false)
         } else {
             self.get_function_type(ret, &[], /* variadic */ true)
         };
         let f = self.declare_function(name, fn_ty);
-        unsafe { LLVMSetUnnamedAddress(f, LLVMUnnamedAddr::LLVMNoUnnamedAddr) };
+        f.set_unnamed_address(UnnamedAddr::No);
         self.intrinsics.borrow_mut().insert(name, f);
         f
     }
 
-    fn declare_intrinsic(&self, key: &str) -> Option<Value> {
+    fn declare_intrinsic(&self, key: &str) -> Option<Function> {
         macro_rules! ifn {
             ($name:expr, fn() -> $ret:expr) => (
                 if key == $name {
@@ -1164,25 +1312,25 @@ impl<'ctx> ModuleBuilder<'ctx> {
             );
         }
         macro_rules! mk_struct {
-            ($($field_ty:expr),*) => (self.get_struct_type(None, &[$($field_ty),*]))
+            ($($field_ty:expr),*) => (self.get_struct_type(None, &[$($field_ty),*]).base())
         }
 
-        let t_i8 = self.get_i8_type();
-        let i8p = self.get_pointer_type(t_i8);
-        let void = self.get_void_type();
-        let i1 = self.get_integer_type(1);
-        let t_i16 = self.get_integer_type(16);
-        let t_i32 = self.get_i32_type();
-        let t_i64 = self.get_i64_type();
-        let t_i128 = self.get_integer_type(128);
-        let t_f32 = self.get_f32_type();
-        let t_f64 = self.get_f64_type();
-        let t_meta = self.get_metadata_type();
-        let t_token = self.get_token_type();
+        let t_i8 = self.get_i8_type().base();
+        let i8p = self.get_pointer_type(t_i8).base();
+        let void = self.get_void_type().base();
+        let i1 = self.get_i1_type().base();
+        let t_i16 = self.get_i16_type().base();
+        let t_i32 = self.get_i32_type().base();
+        let t_i64 = self.get_i64_type().base();
+        let t_i128 = self.get_i128_type().base();
+        let t_f32 = self.get_f32_type().base();
+        let t_f64 = self.get_f64_type().base();
+        let t_meta = self.get_metadata_type().base();
+        let t_token = self.get_token_type().base();
 
         macro_rules! vector_types {
             ($id_out:ident: $elem_ty:ident, $len:expr) => {
-                let $id_out = self.get_vector_type($elem_ty, $len);
+                let $id_out = self.get_vector_type($len, $elem_ty).base();
             };
             ($($id_out:ident: $elem_ty:ident, $len:expr;)*) => {
                 $(vector_types!($id_out: $elem_ty, $len);)*

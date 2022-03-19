@@ -2,18 +2,10 @@
 name = "liblumen_term"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
-edition = "2018"
-
-build = "build.rs"
-links = "lumen_term_core"
+edition = "2021"
 
 [lib]
 crate-type = ["rlib", "staticlib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-
-
-[build-dependencies]
-which = "4.0"

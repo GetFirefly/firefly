@@ -4,21 +4,19 @@ use std::ptr;
 use std::sync::Arc;
 
 use liblumen_llvm as llvm;
-use liblumen_llvm::attributes::Attribute;
 use liblumen_llvm::builder::ModuleBuilder;
-use liblumen_llvm::enums::Linkage;
+use liblumen_llvm::ir::*;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_session::{Input, Options, OutputType};
 
 use crate::meta::CompiledModule;
-use crate::Result;
 
 /// Generates an LLVM module containing the top-level exception handler for processes.
 pub fn generate(
     options: &Options,
-    context: &llvm::Context,
-    target_machine: &TargetMachine,
-) -> Result<Arc<CompiledModule>> {
+    context: &Context,
+    target_machine: TargetMachine,
+) -> anyhow::Result<Arc<CompiledModule>> {
     if options.target.arch != "wasm32" {
         generate_standard(options, context, target_machine)
     } else {
@@ -30,7 +28,7 @@ fn generate_standard(
     options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
-) -> Result<Arc<CompiledModule>> {
+) -> anyhow::Result<Arc<CompiledModule>> {
     const NAME: &'static str = "liblumen_crt_exceptions";
 
     let builder = ModuleBuilder::new(NAME, options, context, target_machine)?;
@@ -67,7 +65,7 @@ fn generate_standard(
     // order to panic using the right personality function
     let func_ty = builder.get_function_type(void_type, &[i8_ptr_type], /* variadic= */ false);
     let func = builder.build_function_with_attrs("__lumen_panic", func_ty, Linkage::External, &[]);
-    builder.set_personality(func, personality_fun);
+    func.set_personality(personality_fun);
 
     let entry_block = builder.build_entry_block(func);
     builder.position_at_end(entry_block);
@@ -138,7 +136,7 @@ fn generate_standard(
         /* variadic */ false,
     );
     let func = builder.build_external_function("__lumen_trap_exceptions", func_ty);
-    builder.set_personality(func, personality_fun);
+    func.set_personality(personality_fun);
 
     // Define all the blocks first so we can reference them
     let entry_block = builder.build_entry_block(func);
@@ -170,7 +168,7 @@ fn generate_standard(
     } else {
         type_desc
     };
-    let obj = builder.build_landingpad(exception_type, personality_fun, &[catch_type]);
+    let obj = builder.build_landingpad(exception_type, &[catch_type]);
 
     // Extract the exception object (we ignore the selector)
     let exception_ptr = builder.build_extractvalue(obj, 0);
@@ -240,7 +238,7 @@ fn generate_wasm32(
     options: &Options,
     context: &llvm::Context,
     target_machine: &TargetMachine,
-) -> Result<Arc<CompiledModule>> {
+) -> anyhow::Result<Arc<CompiledModule>> {
     const NAME: &'static str = "liblumen_crt_exceptions";
 
     let builder = ModuleBuilder::new(NAME, options, context, target_machine)?;
@@ -286,7 +284,7 @@ fn generate_wasm32(
         Linkage::External,
         &[Attribute::NoReturn],
     );
-    builder.set_personality(func, personality_fun);
+    func.set_personality(personality_fun);
 
     let entry_block = builder.build_entry_block(func);
     builder.position_at_end(entry_block);
@@ -337,7 +335,7 @@ fn generate_wasm32(
         /* variadic */ false,
     );
     let func = builder.build_external_function("__lumen_trap_exceptions", func_ty);
-    builder.set_personality(func, personality_fun);
+    func.set_personality(personality_fun);
 
     // Define all the blocks first so we can reference them
     let entry_block = builder.build_entry_block(func);

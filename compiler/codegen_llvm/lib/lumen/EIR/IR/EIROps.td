@@ -29,9 +29,9 @@ def eir_FuncOp : eir_Op<"func", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "StringRef":$name, "FunctionType":$type,
+    OpBuilder<(ins "StringRef":$name, "FunctionType":$type,
                       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs,
-                      CArg<"ArrayRef<MutableDictionaryAttr>", "{}">:$argAttrs)>
+                      CArg<"ArrayRef<DictionaryAttr>", "{}">:$argAttrs)>
   ];
 
   let verifier = ?;
@@ -54,7 +54,7 @@ def eir_FuncOp : eir_Op<"func", [
 
     /// Returns the type of this function.
     FunctionType getType() {
-      return getAttrOfType<TypeAttr>(getTypeAttrName())
+      return getOperation()->getAttrOfType<TypeAttr>(getTypeAttrName())
           .getValue()
           .cast<FunctionType>();
     }
@@ -79,7 +79,7 @@ def eir_ClosureOp : eir_Op<"closure", []> {
   let summary = "Creates a new closure at the current point in the function";
 
   let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$operands);
-  let results = (outs eir_PtrType:$closure);
+  let results = (outs PtrType:$closure);
 
   let assemblyFormat = [{
     $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -87,7 +87,7 @@ def eir_ClosureOp : eir_Op<"closure", []> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "eir::Closure *":$closure, CArg<"ValueRange", "{}">:$operands), [{
+    OpBuilder<(ins "eir::Closure *":$closure, CArg<"ValueRange", "{}">:$operands), [{
       auto i8Ty = $_builder.getIntegerType(8);
       auto i32Ty = $_builder.getIntegerType(32);
       auto callee = $_builder.getSymbolRefAttr(StringRef(closure->name));
@@ -107,13 +107,13 @@ def eir_ClosureOp : eir_Op<"closure", []> {
   let verifier = ?;
 
   let extraClassDeclaration = [{
-    mlir::FlatSymbolRefAttr getCallee() { return getAttrOfType<mlir::FlatSymbolRefAttr>("callee"); }
-    mlir::IntegerAttr arityAttr() { return getAttrOfType<mlir::IntegerAttr>("arity"); }
-    AtomAttr module() { return getAttrOfType<AtomAttr>("module"); }
-    mlir::IntegerAttr envLenAttr() { return getAttrOfType<mlir::IntegerAttr>("env_len"); }
-    mlir::IntegerAttr indexAttr() { return getAttrOfType<mlir::IntegerAttr>("index"); }
-    mlir::IntegerAttr oldUniqueAttr() { return getAttrOfType<mlir::IntegerAttr>("old_unique"); }
-    mlir::StringAttr uniqueAttr() { return getAttrOfType<mlir::StringAttr>("unique"); }
+    mlir::FlatSymbolRefAttr getCallee() { return getOperation()->getAttrOfType<mlir::FlatSymbolRefAttr>("callee"); }
+    mlir::IntegerAttr arityAttr() { return getOperation()->getAttrOfType<mlir::IntegerAttr>("arity"); }
+    AtomAttr module() { return getOperation()->getAttrOfType<AtomAttr>("module"); }
+    mlir::IntegerAttr envLenAttr() { return getOperation()->getAttrOfType<mlir::IntegerAttr>("env_len"); }
+    mlir::IntegerAttr indexAttr() { return getOperation()->getAttrOfType<mlir::IntegerAttr>("index"); }
+    mlir::IntegerAttr oldUniqueAttr() { return getOperation()->getAttrOfType<mlir::IntegerAttr>("old_unique"); }
+    mlir::StringAttr uniqueAttr() { return getOperation()->getAttrOfType<mlir::StringAttr>("unique"); }
 
     unsigned arity() { return arityAttr().getValue().getLimitedValue(); }
     unsigned envLen() { return envLenAttr().getValue().getLimitedValue(); }
@@ -128,8 +128,8 @@ def eir_ClosureOp : eir_Op<"closure", []> {
 def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
   let summary = "Unpacks a value from a closure environment";
 
-  let arguments = (ins eir_PtrType:$env, Confined<I32Attr, [IntNonNegative]>:$index);
-  let results = (outs eir_AnyType:$result);
+  let arguments = (ins PtrType:$env, Confined<I32Attr, [IntNonNegative]>:$index);
+  let results = (outs eir_AnyTerm:$result);
 
   let assemblyFormat = [{
     $env `[` $index `]` attr-dict `:` functional-type(operands, results)
@@ -137,7 +137,7 @@ def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$env, "unsigned":$index), [{
+    OpBuilder<(ins "Value":$env, "unsigned":$index), [{
       $_state.addOperands(env);
       $_state.addTypes($_builder.getType<TermType>());
       $_state.addAttribute("index", $_builder.getI32IntegerAttr(index));
@@ -147,7 +147,7 @@ def eir_UnpackEnvOp : eir_Op<"closure.unpack", []> {
   let verifier = ?;
 
   let extraClassDeclaration = [{
-    unsigned envIndex() { return getAttrOfType<mlir::IntegerAttr>("index").getValue().getLimitedValue(); }
+    unsigned envIndex() { return getOperation()->getAttrOfType<mlir::IntegerAttr>("index").getValue().getLimitedValue(); }
   }];
 }
 
@@ -164,8 +164,8 @@ def eir_IsTypeOp : eir_Op<"typeof", [NoSideEffect]> {
     of the value.
   }];
 
-  let arguments = (ins eir_AnyType:$value, TypeAttr:$type);
-  let results = (outs I1:$isMatch);
+  let arguments = (ins eir_AnyTerm:$value, TypeAttr:$type);
+  let results = (outs eir_BoolLike:$isMatch);
 
   let assemblyFormat = [{
     $value `is` $type attr-dict `:` functional-type(operands, results)
@@ -174,9 +174,8 @@ def eir_IsTypeOp : eir_Op<"typeof", [NoSideEffect]> {
   //let hasCanonicalizer = 1;
   let hasFolder = 1;
 
-  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$value, "Type":$matchType), [{
+    OpBuilder<(ins "Value":$value, "Type":$matchType), [{
       $_state.addOperands(value);
       $_state.addTypes($_builder.getI1Type());
       $_state.addAttribute("type", TypeAttr::get(matchType));
@@ -185,7 +184,7 @@ def eir_IsTypeOp : eir_Op<"typeof", [NoSideEffect]> {
 
   let extraClassDeclaration = [{
     Type getMatchType() {
-      auto attr = getAttrOfType<TypeAttr>("type");
+      auto attr = getOperation()->getAttrOfType<TypeAttr>("type");
       return attr.getValue();
     }
   }];
@@ -200,8 +199,8 @@ def eir_IsTupleOp : eir_Op<"is_tuple", [NoSideEffect]> {
     given arity.
   }];
 
-  let arguments = (ins AnyType:$value, Optional<eir_AnyType>:$arity);
-  let results = (outs I1:$isMatch);
+  let arguments = (ins eir_AnyTerm:$value, Optional<TermOr<eir_IntegerLike>>:$arity);
+  let results = (outs eir_BoolLike:$isMatch);
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -210,16 +209,15 @@ def eir_IsTupleOp : eir_Op<"is_tuple", [NoSideEffect]> {
   //let hasCanonicalizer = 1;
   let hasFolder = 1;
 
-  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$value, "Optional<Value>":$arity), [{
+    OpBuilder<(ins "Value":$value, "Optional<Value>":$arity), [{
       $_state.addOperands(value);
       if (arity.hasValue()) {
         $_state.addOperands(arity.getValue());
       }
       $_state.addTypes($_builder.getI1Type());
     }]>,
-    OpBuilderDAG<(ins "ValueRange":$operands), [{
+    OpBuilder<(ins "ValueRange":$operands), [{
       $_state.addOperands(operands);
       $_state.addTypes($_builder.getI1Type());
     }]>
@@ -235,8 +233,8 @@ def eir_IsFunctionOp : eir_Op<"is_function", [NoSideEffect]> {
     given arity.
   }];
 
-  let arguments = (ins AnyType:$value, Optional<eir_AnyType>:$arity);
-  let results = (outs I1:$isMatch);
+  let arguments = (ins eir_AnyTerm:$value, Optional<TermOr<eir_IntegerLike>>:$arity);
+  let results = (outs eir_BoolLike:$isMatch);
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -245,16 +243,15 @@ def eir_IsFunctionOp : eir_Op<"is_function", [NoSideEffect]> {
   //let hasCanonicalizer = 1;
   let hasFolder = 1;
 
-  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$value, "Optional<Value>":$arity), [{
+    OpBuilder<(ins "Value":$value, "Optional<Value>":$arity), [{
       $_state.addOperands(value);
       if (arity.hasValue()) {
         $_state.addOperands(arity.getValue());
       }
       $_state.addTypes($_builder.getI1Type());
     }]>,
-    OpBuilderDAG<(ins "ValueRange":$operands), [{
+    OpBuilder<(ins "ValueRange":$operands), [{
       $_state.addOperands(operands);
       $_state.addTypes($_builder.getI1Type());
     }]>
@@ -279,7 +276,7 @@ class eir_UnaryOperator<string mnemonic, Type right, Type result, list<OpTrait> 
   let verifier = ?;
 
   let builders = [
-    OpBuilderDAG<(ins "Type":$resultTy, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+    OpBuilder<(ins "Type":$resultTy, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
       $_state.addOperands(rhs);
       $_state.addTypes(resultTy);
       $_state.addAttributes(attrs);
@@ -313,7 +310,7 @@ class eir_BinaryOperator<string mnemonic, Type left, Type right, Type result, li
   }];
 
   let builders = [
-    OpBuilderDAG<(ins "Type":$resultTy, "Value":$lhs, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+    OpBuilder<(ins "Type":$resultTy, "Value":$lhs, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
       $_state.addOperands(ValueRange({lhs, rhs}));
       $_state.addTypes(resultTy);
       $_state.addAttributes(attrs);
@@ -341,10 +338,10 @@ class eir_LogicalOp<Type type, string mnemonic, list<OpTrait> traits = []> :
     eir_BinaryOperator<mnemonic, type, type, I1, !listconcat(traits, [NoSideEffect])> {
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$lhs, "Value":$rhs), [{
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs), [{
       build($_builder, $_state, $_builder.getType<BooleanType>(), lhs, rhs);
     }]>,
-    OpBuilderDAG<(ins "ValueRange":$args), [{
+    OpBuilder<(ins "ValueRange":$args), [{
       $_state.addOperands(args);
       $_state.addTypes($_builder.getI1Type());
     }]>
@@ -370,7 +367,7 @@ class eir_UnaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = [
   }];
 
   let arguments = (ins type:$operand);
-  let results = (outs eir_BoolType:$result);
+  let results = (outs eir_BoolLike:$result);
 
   let verifier = ?;
 
@@ -380,25 +377,25 @@ class eir_UnaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = [
 }
 
 class eir_BinaryComparisonOp<Type type, string mnemonic, list<OpTrait> traits = []>
-    : eir_BinaryOperator<mnemonic, type, type, I1, traits> {
+    : eir_BinaryOperator<mnemonic, type, type, eir_BoolLike, traits> {
 
   let summary = "Compares two operands with the specified predicate.";
 
   let arguments = (ins type:$lhs, type:$rhs, OptionalAttr<UnitAttr>:$is_strict);
-  let results = (outs I1:$result);
+  let results = (outs eir_BoolLike:$result);
 
   let assemblyFormat = [{
     `(` operands `)` (`strict` $is_strict^)? attr-dict `:` functional-type(operands, results)
   }];
 
   let builders = [
-    OpBuilderDAG<(ins "ValueRange":$args), [{
+    OpBuilder<(ins "ValueRange":$args), [{
       assert(args.size() == 2 && "expected binary operator to receive 2 arguments");
       Value lhs = args[0];
       Value rhs = args[1];
       build($_builder, $_state, lhs, rhs);
     }]>,
-    OpBuilderDAG<(ins "Value":$lhs, "Value":$rhs, CArg<"bool", "false">:$strict), [{
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs, CArg<"bool", "false">:$strict), [{
       auto boolType = $_builder.getI1Type();
       build($_builder, $_state, boolType, lhs, rhs, strict ? $_builder.getUnitAttr() : nullptr);
     }]>
@@ -409,7 +406,7 @@ def eir_CmpEqOp : eir_Op<"cmp.eq", [Commutative, NoSideEffect]> {
   let summary = "term equality comparison operation";
 
   let arguments = (ins AnyType:$lhs, AnyType:$rhs, OptionalAttr<UnitAttr>:$is_strict);
-  let results = (outs I1:$result);
+  let results = (outs eir_BoolLike:$result);
 
   let assemblyFormat = [{
     `(` operands `)` (`strict` $is_strict^)? attr-dict `:` functional-type(operands, results)
@@ -426,18 +423,18 @@ def eir_CmpEqOp : eir_Op<"cmp.eq", [Commutative, NoSideEffect]> {
   }];
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$lhs, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
       $_state.addOperands(ValueRange({lhs, rhs}));
       $_state.addTypes($_builder.getI1Type());
       $_state.addAttributes(attrs);
     }]>,
-    OpBuilderDAG<(ins "ValueRange":$args), [{
+    OpBuilder<(ins "ValueRange":$args), [{
       assert(args.size() == 2 && "expected binary operator to receive 2 arguments");
       Value lhs = args[0];
       Value rhs = args[1];
       build($_builder, $_state, lhs, rhs, /*strict=*/false);
     }]>,
-    OpBuilderDAG<(ins "Value":$lhs, "Value":$rhs, CArg<"bool", "false">:$strict), [{
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs, CArg<"bool", "false">:$strict), [{
       auto boolType = $_builder.getI1Type();
       build($_builder, $_state, boolType, lhs, rhs, strict ? $_builder.getUnitAttr() : nullptr);
     }]>
@@ -445,25 +442,25 @@ def eir_CmpEqOp : eir_Op<"cmp.eq", [Commutative, NoSideEffect]> {
 }
 
 def eir_CmpLtOp :
-    eir_BinaryComparisonOp<eir_AnyType, "cmp.lt"> {
+    eir_BinaryComparisonOp<AnyType, "cmp.lt"> {
   let summary = "term less-than comparison operation";
   //let hasFolder = 1;
 }
 
 def eir_CmpLteOp :
-    eir_BinaryComparisonOp<eir_AnyType, "cmp.lte"> {
+    eir_BinaryComparisonOp<AnyType, "cmp.lte"> {
   let summary = "term less-than-or-equal comparison operation";
   //let hasFolder = 1;
 }
 
 def eir_CmpGtOp :
-    eir_BinaryComparisonOp<eir_AnyType, "cmp.gt"> {
+    eir_BinaryComparisonOp<AnyType, "cmp.gt"> {
   let summary = "term greater-than comparison operation";
   //let hasFolder = 1;
 }
 
 def eir_CmpGteOp :
-    eir_BinaryComparisonOp<eir_AnyType, "cmp.gte"> {
+    eir_BinaryComparisonOp<AnyType, "cmp.gte"> {
   let summary = "term greater-than-or-equal comparison operation";
   //let hasFolder = 1;
 }
@@ -473,7 +470,7 @@ class eir_UnaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = [
   let summary = "Peform the specified arithmetic operation on one operand";
 
   let builders = [
-    OpBuilderDAG<(ins "ValueRange":$args), [{
+    OpBuilder<(ins "ValueRange":$args), [{
       assert(args.size() == 1 && "expected exactly one argument for arithmetic operator");
       Value rhs = args[0];
       Type resultTy = rhs.getType();
@@ -487,7 +484,7 @@ class eir_BinaryArithmeticOp<Type type, string mnemonic, list<OpTrait> traits = 
   let summary = "Peform the specified arithmetic operation over two operands";
 
   let builders = [
-    OpBuilderDAG<(ins "ValueRange":$args), [{
+    OpBuilder<(ins "ValueRange":$args), [{
       assert(args.size() == 2 && "expected exactly two arguments for arithmetic operator");
       Value lhs = args[0];
       Value rhs = args[1];
@@ -502,7 +499,7 @@ class eir_SpecializedBinaryArithmeticOp<Type type, string mnemonic, list<OpTrait
   let summary = "Peform the specified specializable arithmetic operation over two operands";
 
   let builders = [
-    OpBuilderDAG<(ins "ValueRange":$args), [{
+    OpBuilder<(ins "ValueRange":$args), [{
       assert(args.size() == 2 && "expected exactly two arguments for arithmetic operator");
       Value lhs = args[0];
       Value rhs = args[1];
@@ -513,14 +510,14 @@ class eir_SpecializedBinaryArithmeticOp<Type type, string mnemonic, list<OpTrait
 }
 
 def eir_AddOp :
-    eir_SpecializedBinaryArithmeticOp<eir_AnyType, "math.add", [Commutative]> {
+    eir_SpecializedBinaryArithmeticOp<AnyType, "math.add", [Commutative]> {
   let summary = "Addition operator";
   let intrinsicSymbol = "@llvm.sadd.with.overflow";
   let hasFolder = 1;
 }
 
 def eir_NegOp :
-    eir_UnaryArithmeticOp<eir_AnyType, "math.neg"> {
+    eir_UnaryArithmeticOp<AnyType, "math.neg"> {
   let summary = "Negation operator";
 
   let hasCanonicalizer = 1;
@@ -528,63 +525,63 @@ def eir_NegOp :
 }
 
 def eir_SubOp :
-    eir_SpecializedBinaryArithmeticOp<eir_AnyType, "math.sub"> {
+    eir_SpecializedBinaryArithmeticOp<AnyType, "math.sub"> {
   let summary = "Subraction operator";
   let intrinsicSymbol = "@llvm.ssub.with.overflow";
   let hasFolder = 1;
 }
 
 def eir_MulOp :
-    eir_SpecializedBinaryArithmeticOp<eir_AnyType, "math.mul", [Commutative]> {
+    eir_SpecializedBinaryArithmeticOp<AnyType, "math.mul", [Commutative]> {
   let summary = "Multiplication operator";
   let intrinsicSymbol = "@llvm.smul.with.overflow";
   let hasFolder = 1;
 }
 
 def eir_DivOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.div"> {
+    eir_BinaryArithmeticOp<AnyType, "math.div"> {
   let summary = "Integer division operator";
   let hasFolder = 1;
 }
 
 def eir_FDivOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.fdiv"> {
+    eir_BinaryArithmeticOp<AnyType, "math.fdiv"> {
   let summary = "Floating-point division operator";
   let hasFolder = 1;
 }
 
 def eir_RemOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.rem"> {
+    eir_BinaryArithmeticOp<AnyType, "math.rem"> {
   let summary = "Integer remainder operator";
   let hasFolder = 1;
 }
 
 def eir_BslOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.bsl"> {
+    eir_BinaryArithmeticOp<AnyType, "math.bsl"> {
   let summary = "Bitwise shift-left operator";
   let hasFolder = 1;
 }
 
 def eir_BsrOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.bsr"> {
+    eir_BinaryArithmeticOp<AnyType, "math.bsr"> {
   let summary = "Bitwise shift-right operator";
   let hasFolder = 1;
 }
 
 def eir_BandOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.band", [Commutative]> {
+    eir_BinaryArithmeticOp<AnyType, "math.band", [Commutative]> {
   let summary = "Bitwise AND operator";
   let hasFolder = 1;
 }
 
 def eir_BorOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.bor", [Commutative]> {
+    eir_BinaryArithmeticOp<AnyType, "math.bor", [Commutative]> {
   let summary = "Bitwise OR operator";
   let hasFolder = 1;
 }
 
 def eir_BxorOp :
-    eir_BinaryArithmeticOp<eir_AnyType, "math.bxor", [Commutative]> {
+    eir_BinaryArithmeticOp<AnyType, "math.bxor", [Commutative]> {
   let summary = "Bitwise XOR operator";
   let hasFolder = 1;
 }
@@ -592,161 +589,6 @@ def eir_BxorOp :
 //===----------------------------------------------------------------------===//
 // Control Flow
 //===----------------------------------------------------------------------===//
-
-def eir_BranchOp : eir_Op<"br",
-    [DeclareOpInterfaceMethods<BranchOpInterface, ["getSuccessorForOperands"]>, NoSideEffect, Terminator]> {
-  let summary = "unconditional branch operation";
-  let description = [{
-    Represents an unconditional branch operation that branches to a target block
-    with the given set of arguments.
-
-    ```
-    ^bb0(...):
-      eir.br ^bb1(%a)
-    ^bb1(%blockArg1: i32):
-      ...
-   ```
-  }];
-
-  let arguments = (ins Variadic<AnyType>:$destOperands);
-  let successors = (successor AnySuccessor:$dest);
-
-  let builders = [
-    OpBuilderDAG<(ins "Block *":$dest, CArg<"ValueRange", "{}">:$destOperands), [{
-      $_state.addSuccessors(dest);
-      $_state.addOperands(destOperands);
-    }]>,
-   ];
-
-  // Fully verified by traits
-  let verifier = ?;
-
-  let extraClassDeclaration = [{
-    Block *getDest() { return getSuccessor(); }
-    void setDest(Block *block) { setSuccessor(block); }
-
-    /// Erase the operand at 'index' from the operand list.
-    void eraseOperand(unsigned index) { return getOperation()->eraseOperand(index); }
-  }];
-
-  let hasCanonicalizer = 1;
-  let assemblyFormat = [{
-      $dest (`(` $destOperands^ `:` type($destOperands) `)`)? attr-dict
-  }];
-}
-
-def eir_CondBranchOp : eir_Op<"cond_br",
-  [AttrSizedOperandSegments, 
-   DeclareOpInterfaceMethods<BranchOpInterface, ["getSuccessorForOperands"]>,
-   NoSideEffect, Terminator]> {
-  let summary = "conditional branch operation";
-  let description = [{
-    Represents a conditional branch operation that branches to one of the two
-    target blocks with the given set of arguments.
-
-    ```
-    ^bb0(...):
-      eir.cond_br %condition, ^bb1(%a), ^bb2(%b)
-    ^bb1(%blockArg1: i32):
-      ...
-    ^bb2(%blockArg2: i32):
-      ...
-   ```
-  }];
-
-  let arguments = (ins
-    eir_BoolLike:$condition,
-    Variadic<AnyType>:$trueDestOperands,
-    Variadic<AnyType>:$falseDestOperands
-  );
-
-  let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
-
-  let builders = [
-    OpBuilderDAG<(ins "Value":$condition,
-                      "Block *":$trueDest, "ValueRange":$trueOperands,
-                      "Block *":$falseDest, "ValueRange":$falseOperands), [{
-      build($_builder, $_state, condition, trueOperands, falseOperands, trueDest, falseDest);
-    }]>,
-  ];
-
-  // Fully verified by traits
-  let verifier = ?;
-
-  let extraClassDeclaration = [{
-    /// These are the indices into the dests list.
-    enum { trueIndex = 0, falseIndex = 1 };
-
-    /// The condition operand is the first operand in the list.
-    Value getCondition() { return getOperand(0); }
-
-    /// Return the destination if the condition is true.
-    Block *getTrueDest() {
-      return getSuccessor(trueIndex);
-    }
-
-    /// Return the destination if the condition is false.
-    Block *getFalseDest() {
-      return getSuccessor(falseIndex);
-    }
-
-    /// Accessors for operands to the 'true' destination.
-    Value getTrueOperand(unsigned idx) {
-      assert(idx < getNumTrueOperands());
-      return getOperand(getTrueDestOperandIndex() + idx);
-    }
-
-    void setTrueOperand(unsigned idx, Value value) {
-      assert(idx < getNumTrueOperands());
-      setOperand(getTrueDestOperandIndex() + idx, value);
-    }
-
-    operand_range getTrueOperands() { return trueDestOperands(); }
-
-    unsigned getNumTrueOperands()  { return getTrueOperands().size(); }
-
-    /// Erase the operand at 'index' from the true operand list.
-    void eraseTrueOperand(unsigned index)  {
-      trueDestOperandsMutable().erase(index);
-    }
-
-    /// Accessors for operands to the 'false' destination.
-    Value getFalseOperand(unsigned idx) {
-      assert(idx < getNumFalseOperands());
-      return getOperand(getFalseDestOperandIndex() + idx);
-    }
-    void setFalseOperand(unsigned idx, Value value) {
-      assert(idx < getNumFalseOperands());
-      setOperand(getFalseDestOperandIndex() + idx, value);
-    }
-
-    operand_range getFalseOperands() { return falseDestOperands(); }
-
-    unsigned getNumFalseOperands() { return getFalseOperands().size(); }
-
-    /// Erase the operand at 'index' from the false operand list.
-    void eraseFalseOperand(unsigned index) {
-      falseDestOperandsMutable().erase(index);
-    }
-
-  private:
-    /// Get the index of the first true destination operand.
-    unsigned getTrueDestOperandIndex() { return 1; }
-
-    /// Get the index of the first false destination operand.
-    unsigned getFalseDestOperandIndex() {
-      return getTrueDestOperandIndex() + getNumTrueOperands();
-    }
-  }];
-
-  let hasCanonicalizer = 1;
-  let assemblyFormat = [{
-    $condition `:` type($condition) `,`
-    $trueDest (`(` $trueDestOperands^ `:` type($trueDestOperands) `)`)? `,`
-    $falseDest (`(` $falseDestOperands^ `:` type($falseDestOperands) `)`)?
-    attr-dict
-  }];
-}
 
 class eir_CallBaseOp<string mnemonic, list<OpTrait> traits = []> :
     eir_Op<mnemonic, !listconcat(traits, [CallOpInterface])> {
@@ -764,9 +606,9 @@ class eir_CallBaseOp<string mnemonic, list<OpTrait> traits = []> :
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() { return getCalleeAttr(); }
 
-    FlatSymbolRefAttr getCalleeAttr() { return getAttrOfType<FlatSymbolRefAttr>("callee"); }
-    Attribute getMustTailAttr() { return getAttrOfType<mlir::UnitAttr>("musttail"); }
-    Attribute getTailAttr() { return getAttrOfType<mlir::UnitAttr>("tail"); }
+    FlatSymbolRefAttr getCalleeAttr() { return getOperation()->getAttrOfType<FlatSymbolRefAttr>("callee"); }
+    Attribute getMustTailAttr() { return getOperation()->getAttrOfType<mlir::UnitAttr>("musttail"); }
+    Attribute getTailAttr() { return getOperation()->getAttrOfType<mlir::UnitAttr>("tail"); }
   }];
 }
 
@@ -788,19 +630,19 @@ def eir_CallOp : eir_CallBaseOp<"call"> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "eir::FuncOp":$callee, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+    OpBuilder<(ins "eir::FuncOp":$callee, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
       $_state.addOperands(operands);
       $_state.addAttribute("callee", $_builder.getSymbolRefAttr(callee));
       $_state.addAttributes(attrs);
       $_state.addTypes(callee.getType().getResults());
     }]>,
-    OpBuilderDAG<(ins "FlatSymbolRefAttr":$callee, "ArrayRef<Type>":$resultTypes, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+    OpBuilder<(ins "FlatSymbolRefAttr":$callee, "ArrayRef<Type>":$resultTypes, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
       $_state.addOperands(operands);
       $_state.addAttribute("callee", callee);
       $_state.addAttributes(attrs);
       $_state.addTypes(resultTypes);
     }]>,
-    OpBuilderDAG<(ins "StringRef":$callee, "ArrayRef<Type>":$resultTypes, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
+    OpBuilder<(ins "StringRef":$callee, "ArrayRef<Type>":$resultTypes, "ValueRange":$operands, CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs), [{
       build($_builder, $_state, $_builder.getSymbolRefAttr(callee),
             resultTypes, operands, attrs);
     }]>,
@@ -913,19 +755,19 @@ def eir_InvokeOp : eir_InvokeBaseOp<"invoke", []> {
   }];
 
   let builders = [
-    OpBuilderDAG<(ins "eir::FuncOp":$callee, "ValueRange":$operands,
+    OpBuilder<(ins "eir::FuncOp":$callee, "ValueRange":$operands,
                       "Block *":$okDest, "ValueRange":$okDestOperands,
                       "Block *":$errDest, "ValueRange":$errDestOperands), [{
       build($_builder, $_state, $_builder.getSymbolRefAttr(callee),
             operands, okDestOperands, errDestOperands, okDest, errDest);
     }]>,
-    OpBuilderDAG<(ins "FlatSymbolRefAttr":$callee, "ValueRange":$operands,
+    OpBuilder<(ins "FlatSymbolRefAttr":$callee, "ValueRange":$operands,
                       "Block *":$okDest, "ValueRange":$okDestOperands,
                       "Block *":$errDest, "ValueRange":$errDestOperands), [{
       build($_builder, $_state, callee,
             operands, okDestOperands, errDestOperands, okDest, errDest);
     }]>,
-    OpBuilderDAG<(ins "StringRef":$callee, "ValueRange":$operands,
+    OpBuilder<(ins "StringRef":$callee, "ValueRange":$operands,
                       "Block *":$okDest, "ValueRange":$okOperands,
                       "Block *":$errDest, "ValueRange":$errOperands), [{
       build($_builder, $_state, $_builder.getSymbolRefAttr(callee),
@@ -940,7 +782,7 @@ def eir_InvokeOp : eir_InvokeBaseOp<"invoke", []> {
   let extraExtraClassDeclaration = [{
     StringRef getCallee() { return callee(); }
     FunctionType getCalleeType();
-    FlatSymbolRefAttr getCalleeAttr() { return getAttrOfType<FlatSymbolRefAttr>("callee"); }
+    FlatSymbolRefAttr getCalleeAttr() { return getOperation()->getAttrOfType<FlatSymbolRefAttr>("callee"); }
 
     /// Get the argument operands to the called function.
     operand_range getArgOperands() { return operands(); }
@@ -949,7 +791,7 @@ def eir_InvokeOp : eir_InvokeBaseOp<"invoke", []> {
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
-      return getAttrOfType<FlatSymbolRefAttr>("callee");
+      return getOperation()->getAttrOfType<FlatSymbolRefAttr>("callee");
     }
   }];
 }
@@ -967,7 +809,7 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
   }];
 
   let arguments = (ins Variadic<AnyType>:$catchClauses);
-  let results = (outs eir_AnyType:$kind, eir_AnyType:$reason, eir_TraceRefType:$trace);
+  let results = (outs eir_AtomType:$kind, eir_AnyTerm:$reason, eir_TraceRefType:$trace);
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -976,15 +818,17 @@ def eir_LandingPadOp : eir_Op<"landing_pad", []> {
   let verifier = ?;
 
   let builders = [
-    OpBuilderDAG<(ins "ValueRange":$catchClauses), [{
+    OpBuilder<(ins "ValueRange":$catchClauses), [{
+        Type atomTy = $_builder.getType<AtomType>();
         Type termTy = $_builder.getType<TermType>();
         Type traceTy = $_builder.getType<TraceRefType>();
-        build($_builder, $_state, ArrayRef<Type>{termTy, termTy, traceTy}, catchClauses);
+        build($_builder, $_state, ArrayRef<Type>{atomTy, termTy, traceTy}, catchClauses);
     }]>,
-    OpBuilderDAG<(ins "Value":$catchClause), [{
+    OpBuilder<(ins "Value":$catchClause), [{
+        Type atomTy = $_builder.getType<AtomType>();
         Type termTy = $_builder.getType<TermType>();
         Type traceTy = $_builder.getType<TraceRefType>();
-        build($_builder, $_state, ArrayRef<Type>{termTy, termTy, traceTy}, ValueRange{catchClause});
+        build($_builder, $_state, ArrayRef<Type>{atomTy, termTy, traceTy}, ValueRange{catchClause});
     }]>,
   ];
 }
@@ -1007,7 +851,7 @@ def eir_ReturnOp : eir_Op<"return", [NoSideEffect, Terminator, ReturnLike]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins CArg<"ValueRange", "{}">:$operands), [{
+    OpBuilder<(ins CArg<"ValueRange", "{}">:$operands), [{
       $_state.addOperands(operands);
     }]>
   ];
@@ -1017,7 +861,7 @@ def eir_ReturnOp : eir_Op<"return", [NoSideEffect, Terminator, ReturnLike]> {
   }];
 }
 
-def eir_YieldOp : eir_Op<"yield", [YieldPoint]> {
+def eir_YieldOp : eir_Op<"yield", []> {
   let summary = "scheduler yield operation";
   let description = [{
     Yields execution back to the scheduler
@@ -1034,13 +878,13 @@ def eir_YieldCheckOp : eir_Op<"yield.check",
 
   let arguments = (ins
     I32:$maxReductions,
-    Variadic<eir_AnyType>:$trueDestOperands,
-    Variadic<eir_AnyType>:$falseDestOperands
+    Variadic<AnyType>:$trueDestOperands,
+    Variadic<AnyType>:$falseDestOperands
   );
   let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$maxReductions,
+    OpBuilder<(ins "Value":$maxReductions,
                       "Block *":$trueDest, "ValueRange":$trueOperands,
                       "Block *":$falseDest, "ValueRange":$falseOperands), [{
       build($_builder, $_state, maxReductions,
@@ -1151,8 +995,8 @@ def eir_ThrowOp : eir_Op<"throw", [Terminator]> {
   }];
   let results = (outs);
   let arguments = (ins
-    eir_AnyType:$kind,
-    eir_AnyType:$reason,
+    TermOr<eir_AtomType>:$kind,
+    eir_AnyTerm:$reason,
     eir_TraceRefType:$trace
   );
 
@@ -1189,13 +1033,13 @@ def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$source, "Type":$destType), [{
+    OpBuilder<(ins "Value":$source, "Type":$destType), [{
       $_state.addOperands(source);
       $_state.addAttribute("from", TypeAttr::get(source.getType()));
       $_state.addAttribute("to", TypeAttr::get(destType));
       $_state.addTypes(destType);
     }]>,
-    OpBuilderDAG<(ins "Value":$source, "Type":$srcType, "Type":$destType), [{
+    OpBuilder<(ins "Value":$source, "Type":$srcType, "Type":$destType), [{
       $_state.addOperands(source);
       $_state.addAttribute("from", TypeAttr::get(srcType));
       $_state.addAttribute("to", TypeAttr::get(destType));
@@ -1214,7 +1058,7 @@ def eir_CastOp : eir_Op<"cast", [NoSideEffect]> {
     // This is a helper used by the InsertTraceConstructors pass
     void resetSourceType() {
       Type srcType = input().getType();
-      setAttr("from", TypeAttr::get(srcType));
+      getOperation()->setAttr("from", TypeAttr::get(srcType));
     }
   }];
 }
@@ -1242,16 +1086,16 @@ def eir_MallocOp : eir_Op<"malloc"> {
       %0 = eir.malloc(%1) {alignment = 8} : !eir.box<<!eir.tuple<?xf32>>
   }];
 
-  let arguments = (ins Optional<eir_AnyType>:$arity,
+  let arguments = (ins Optional<TermOr<eir_IntegerLike>>:$arity,
                    Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$alignment);
-  let results = (outs eir_PtrType:$ptr);
+  let results = (outs eir_AnyPtr:$ptr);
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "PtrType":$ptrType, CArg<"mlir::IntegerAttr", "{}">:$alignment), [{
+    OpBuilder<(ins "PtrType":$ptrType, CArg<"mlir::IntegerAttr", "{}">:$alignment), [{
        build($_builder, $_state, ptrType, llvm::None, alignment);
     }]>,
-    OpBuilderDAG<(ins "PtrType":$ptrType, "Optional<Value>":$arity,
+    OpBuilder<(ins "PtrType":$ptrType, "Optional<Value>":$arity,
                       CArg<"mlir::IntegerAttr", "{}">:$alignment), [{
        $_state.addTypes(ptrType);
        if (arity.hasValue())
@@ -1265,7 +1109,7 @@ def eir_MallocOp : eir_Op<"malloc"> {
     static StringRef getAlignmentAttrName() { return "alignment"; }
 
     Optional<unsigned> getAlignment() {
-      return getAttrOfType<mlir::IntegerAttr>(getAlignmentAttrName())
+      return getOperation()->getAttrOfType<mlir::IntegerAttr>(getAlignmentAttrName())
         .getValue()
         .getLimitedValue();
     }
@@ -1288,19 +1132,17 @@ def eir_LoadOp : eir_Op<"load", []> {
     an immutable ssa-value of the referent type.
   }];
 
-  let arguments = (ins eir_PointerLike:$ref);
-  let results = (outs eir_AnyType:$out);
+  let arguments = (ins eir_AnyPtr:$ref);
+  let results = (outs AnyType:$out);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$refVal), [{
+    OpBuilder<(ins "Value":$refVal), [{
       $_state.addOperands(refVal);
       auto refType = refVal.getType();
       if (auto boxed = refType.dyn_cast_or_null<BoxType>()) {
-        $_state.addTypes(boxed.getBoxedType());
-      } else if (auto ptr = refType.dyn_cast_or_null<RefType>()) {
-        $_state.addTypes(ptr.getInnerType());
+        $_state.addTypes(boxed.getPointeeType());
       } else if (auto ptr = refType.dyn_cast_or_null<PtrType>()){
-        $_state.addTypes(ptr.getInnerType());
+        $_state.addTypes(ptr.getPointeeType());
       } else {
         $_state.addTypes(refType);
       }
@@ -1313,7 +1155,7 @@ def eir_LoadOp : eir_Op<"load", []> {
       return emitError("referenced value must not be null");
 
     auto refType = refVal.getType();
-    if (refType.isa<BoxType>() || refType.isa<RefType>() || refType.isa<PtrType>())
+    if (refType.isa<BoxType>() || refType.isa<PtrType>())
       return success();
 
     return emitOpError("invalid input type, must be pointer-like");
@@ -1330,25 +1172,27 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
     An aggregate access primitive used to calculate memory addresses to an element of an aggregate type
   }];
 
-  let arguments = (ins eir_PtrType:$base, IndexAttr:$index);
-  let results = (outs eir_PointerLike:$ref);
+  let arguments = (ins eir_AnyPtr:$base, IndexAttr:$index);
+  let results = (outs eir_AnyPtr:$ref);
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$base, "int64_t":$index), [{
+    OpBuilder<(ins "Value":$base, "int64_t":$index), [{
       auto indexTy = $_builder.getIndexType();
       $_state.addAttribute("index", $_builder.getIntegerAttr(indexTy, index));
       $_state.addOperands(base);
 
       auto valueType = base.getType();
       if (auto ptrType = valueType.dyn_cast_or_null<PtrType>()) {
-        auto innerType = ptrType.getInnerType();
+        auto innerType = ptrType.getPointeeType();
         if (auto tupleTy = innerType.dyn_cast_or_null<TupleType>()) {
-          if (tupleTy.hasStaticShape() && tupleTy.getArity() > (size_t)(index)) {
-            $_state.addTypes($_builder.getType<PtrType>(tupleTy.getElementType(index)));
-          } else {
+          size_t arity = tupleTy.size();
+          if (arity == 0)
             $_state.addTypes($_builder.getType<PtrType>($_builder.getType<TermType>()));
-          }
+          else if (arity > index)
+            $_state.addTypes($_builder.getType<PtrType>(tupleTy.getType(index)));
+          else
+            $_state.addTypes($_builder.getType<NoneType>());
         } else if (innerType.isa<ConsType>()) {
           $_state.addTypes($_builder.getType<PtrType>($_builder.getType<TermType>()));
         } else {
@@ -1362,7 +1206,7 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
 
   let verifier = [{
     if (getType().isa<NoneType>())
-      return emitOpError("unable to determine pointee type");
+      return emitOpError("unable to determine pointee type or out-of-bounds access");
 
     if (!base().getType().isa<PtrType>())
       return emitOpError("invalid source operand, expected pointer");
@@ -1377,7 +1221,7 @@ def eir_GetElementPtrOp : eir_Op<"getelementptr", [NoSideEffect]> {
   let extraClassDeclaration = [{
     static StringRef getIndexAttrName() { return "index"; }
 
-    uint64_t getIndex() { return getAttrOfType<mlir::IntegerAttr>("index").getValue().getLimitedValue(); }
+    uint64_t getIndex() { return getOperation()->getAttrOfType<mlir::IntegerAttr>("index").getValue().getLimitedValue(); }
   }];
 }
 
@@ -1387,14 +1231,14 @@ def eir_PrintOp : eir_Op<"print"> {
     Prints to standard output using the provided format string and operands.
   }];
 
-  let arguments = (ins eir_AnyType:$thing);
+  let arguments = (ins eir_AnyTerm:$thing);
   let results = (outs eir_AnyTerm:$result);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$arg), [{
+    OpBuilder<(ins "Value":$arg), [{
       build($_builder, $_state, $_builder.getType<TermType>(), arg);
     }]>,
-    OpBuilderDAG<(ins "ValueRange":$args), [{
+    OpBuilder<(ins "ValueRange":$args), [{
       build($_builder, $_state, $_builder.getType<TermType>(), args.front());
     }]>
   ];
@@ -1435,10 +1279,10 @@ class eir_ConstantOp<Type type, Attr attr, string mnemonic, list<OpTrait> traits
   // Require each constant op to define its builders
   let skipDefaultBuilders = 1;
 
-  list<OpBuilderDAG> extraBuilders = [];
+  list<OpBuilder> extraBuilders = [];
 
   let builders = !listconcat([
-    OpBuilderDAG<(ins "Type":$type, "Attribute":$val), [{
+    OpBuilder<(ins "Type":$type, "Attribute":$val), [{
       $_state.addAttribute("value", val);
       $_state.addTypes(type);
     }]>
@@ -1455,17 +1299,17 @@ class eir_ConstantOp<Type type, Attr attr, string mnemonic, list<OpTrait> traits
   code extendedClassDeclaration = [{}];
 
   let extraClassDeclaration = !strconcat(!cast<string>(extendedClassDeclaration), !cast<string>([{
-    Attribute getValue() { return getAttr("value"); }
-    void setValue(Attribute val) { setAttr("value", val); }
+    Attribute getValue() { return getOperation()->getAttr("value"); }
+    void setValue(Attribute val) { getOperation()->setAttr("value", val); }
   }]));
 
   //let hasFolder = 1;
 }
 
-def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, APFloatAttr, "constant.float", [ConstantLike]> {
+def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, eir_APFloatAttr, "constant.float", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "APFloat &":$value), [{
-      auto type = $_builder.getType<eir::FloatType>();
+    OpBuilder<(ins "APFloat &":$value), [{
+      auto type = $_builder.getType<FloatType>();
       auto attr = APFloatAttr::get($_builder.getContext(), value);
       build($_builder, $_state, type, attr);
     }]>
@@ -1474,17 +1318,17 @@ def eir_ConstantFloatOp : eir_ConstantOp<eir_FloatLike, APFloatAttr, "constant.f
   let hasFolder = 1;
 }
 
-def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, FixnumAttr, "constant.int", [ConstantLike]> {
+def eir_ConstantIntOp : eir_ConstantOp<eir_IntegerLike, eir_APIntAttr, "constant.int", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "int64_t":$value), [{
-      auto type = $_builder.getType<FixnumType>();
+    OpBuilder<(ins "int64_t":$value), [{
+      auto type = $_builder.getType<IntegerType>();
       auto n = static_cast<uint64_t>(value);
       APInt ap(64, n, /*isSigned=*/true);
       auto attr = APIntAttr::get($_builder.getContext(), type, ap);
       build($_builder, $_state, type, attr);
     }]>,
-    OpBuilderDAG<(ins "APInt &":$value), [{
-      auto type = $_builder.getType<FixnumType>();
+    OpBuilder<(ins "APInt &":$value), [{
+      auto type = $_builder.getType<IntegerType>();
       auto attr = APIntAttr::get($_builder.getContext(), type, value);
       build($_builder, $_state, type, attr);
     }]>
@@ -1493,25 +1337,12 @@ def eir_ConstantIntOp : eir_ConstantOp<eir_FixnumLike, FixnumAttr, "constant.int
   let hasFolder = 1;
 }
 
-def eir_ConstantBigIntOp : eir_ConstantOp<eir_BoxType, BigIntAttr, "constant.bigint", [ConstantLike]> {
+def eir_ConstantBoolOp : eir_ConstantOp<eir_BooleanType, BoolAttr, "constant.bool", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "APInt &":$value), [{
-      auto bigIntType = $_builder.getType<BigIntType>();
-      auto type = $_builder.getType<eir::BoxType>(bigIntType);
-      auto attr = APIntAttr::get($_builder.getContext(), bigIntType, value);
-      build($_builder, $_state, type, attr);
-    }]>
-  ];
-
-  let hasFolder = 1;
-}
-
-def eir_ConstantBoolOp : eir_ConstantOp<eir_BoolLike, BoolAttr, "constant.bool", [ConstantLike]> {
-  let extraBuilders = [
-    OpBuilderDAG<(ins "bool":$truth), [{
+    OpBuilder<(ins "bool":$truth), [{
       build($_builder, $_state, $_builder.getType<BooleanType>(), $_builder.getBoolAttr(truth));
     }]>,
-    OpBuilderDAG<(ins "Type":$type, "bool":$truth), [{
+    OpBuilder<(ins "Type":$type, "bool":$truth), [{
       build($_builder, $_state, type, $_builder.getBoolAttr(truth));
     }]>,
   ];
@@ -1519,14 +1350,10 @@ def eir_ConstantBoolOp : eir_ConstantOp<eir_BoolLike, BoolAttr, "constant.bool",
   let hasFolder = 1;
 }
 
-def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, AtomAttr, "constant.atom", [ConstantLike]> {
+def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, eir_AtomAttr, "constant.atom", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "APInt":$id, "StringRef":$name), [{
+    OpBuilder<(ins "APInt":$id, "StringRef":$name), [{
       auto type = $_builder.getType<AtomType>();
-      auto attr = AtomAttr::get($_builder.getContext(), id, name);
-      build($_builder, $_state, type, attr);
-    }]>,
-    OpBuilderDAG<(ins "Type":$type, "APInt":$id, "StringRef":$name), [{
       auto attr = AtomAttr::get($_builder.getContext(), id, name);
       build($_builder, $_state, type, attr);
     }]>
@@ -1535,24 +1362,28 @@ def eir_ConstantAtomOp : eir_ConstantOp<eir_AtomType, AtomAttr, "constant.atom",
   let hasFolder = 1;
 }
 
-def eir_ConstantBinaryOp : eir_ConstantOp<eir_BoxType, BinaryAttr, "constant.binary"> {
+def eir_ConstantBinaryOp : eir_ConstantOp<BoxOf<eir_BinaryType>, eir_BinaryAttr, "constant.binary"> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "StringRef":$value, "uint64_t":$header, "uint64_t":$flags), [{
+    OpBuilder<(ins "uint64_t":$header, "BinaryFlags":$flags, "StringRef":$data), [{
       auto binType = $_builder.getType<eir::BinaryType>();
       auto type = $_builder.getType<eir::BoxType>(binType);
-      auto attr = BinaryAttr::get(type, value, header, flags);
+      APInt ap(64, header, /*isSigned=*/false);
+      auto headerAttr = APIntAttr::get($_builder.getContext(), $_builder.getIndexType(), ap);
+      auto flagsAttr = $_builder.getI8IntegerAttr(static_cast<int8_t>(flags));
+      auto dataAttr = $_builder.getStringAttr(data);
+      auto attr = BinaryAttr::get(headerAttr, flagsAttr, dataAttr, $_builder.getContext());
       build($_builder, $_state, type, attr);
     }]>
   ];
 }
 
-def eir_ConstantNilOp : eir_ConstantOp<eir_AnyType, TypeAttr, "constant.nil", [ConstantLike]> {
+def eir_ConstantNilOp : eir_ConstantOp<TermOr<eir_ListLike>, TypeAttr, "constant.nil", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "Type":$type), [{
+    OpBuilder<(ins "Type":$type), [{
       auto attr = TypeAttr::get(type);
       build($_builder, $_state, type, attr);
     }]>,
-    OpBuilderDAG<(ins), [{
+    OpBuilder<(ins), [{
       auto type = $_builder.getType<NilType>();
       auto attr = TypeAttr::get(type);
       build($_builder, $_state, type, attr);
@@ -1568,11 +1399,11 @@ def eir_ConstantNilOp : eir_ConstantOp<eir_AnyType, TypeAttr, "constant.nil", [C
 
 def eir_ConstantNoneOp : eir_ConstantOp<eir_AnyTerm, TypeAttr, "constant.none", [ConstantLike]> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "Type":$type), [{
+    OpBuilder<(ins "Type":$type), [{
       auto attr = TypeAttr::get(type);
       build($_builder, $_state, type, attr);
     }]>,
-    OpBuilderDAG<(ins), [{
+    OpBuilder<(ins), [{
       auto type = $_builder.getType<eir::NoneType>();
       build($_builder, $_state, type);
     }]>
@@ -1585,9 +1416,9 @@ def eir_ConstantNoneOp : eir_ConstantOp<eir_AnyTerm, TypeAttr, "constant.none", 
   let hasFolder = 1;
 }
 
-def eir_ConstantTupleOp : eir_ConstantOp<eir_BoxType, SeqAttr, "constant.tuple"> {
+def eir_ConstantTupleOp : eir_ConstantOp<BoxOf<eir_AnyTuple>, eir_SeqAttr, "constant.tuple"> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "ArrayRef<Attribute>":$elements), [{
+    OpBuilder<(ins "ArrayRef<Attribute>":$elements), [{
       std::vector<Type> types;
       types.reserve(elements.size());
       for (auto element : elements) {
@@ -1605,20 +1436,19 @@ def eir_ConstantTupleOp : eir_ConstantOp<eir_BoxType, SeqAttr, "constant.tuple">
   ];
 }
 
-def eir_ConstantListOp : eir_ConstantOp<eir_BoxType, SeqAttr, "constant.list"> {
+def eir_ConstantListOp : eir_ConstantOp<BoxOf<eir_ConsType>, eir_SeqAttr, "constant.list"> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "ArrayRef<Attribute>":$elements), [{
-      auto consType = $_builder.getType<ConsType>();
-      auto type = $_builder.getType<eir::BoxType>(consType);
-      auto attr = SeqAttr::get(type, elements);
+    OpBuilder<(ins "ArrayRef<Attribute>":$elements), [{
+      auto type = $_builder.getType<BoxType>($_builder.getType<ConsType>());
+      auto attr = SeqAttr::get(elements, $_builder.getContext());
       build($_builder, $_state, type, attr);
     }]>
   ];
 }
 
-def eir_ConstantMapOp : eir_ConstantOp<eir_BoxType, SeqAttr, "constant.map"> {
+def eir_ConstantMapOp : eir_ConstantOp<BoxOf<eir_MapType>, eir_SeqAttr, "constant.map"> {
   let extraBuilders = [
-    OpBuilderDAG<(ins "ArrayRef<Attribute>":$elements), [{
+    OpBuilder<(ins "ArrayRef<Attribute>":$elements), [{
       auto mapType = $_builder.getType<MapType>();
       auto type = $_builder.getType<eir::BoxType>(mapType);
       auto attr = SeqAttr::get(type, elements);
@@ -1637,11 +1467,11 @@ def eir_ConsOp : eir_Op<"cons"> {
     List construction primitive. Constructs a new list cell from head and tail terms.
   }];
 
-  let arguments = (ins eir_AnyType:$head, eir_AnyType:$tail, UnitAttr:$alloca);
-  let results = (outs eir_BoxType:$out);
+  let arguments = (ins eir_AnyTerm:$head, eir_AnyTerm:$tail, UnitAttr:$alloca);
+  let results = (outs BoxOf<eir_ConsType>:$out);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$head, "Value":$tail, CArg<"bool", "false">:$alloca), [{
+    OpBuilder<(ins "Value":$head, "Value":$tail, CArg<"bool", "false">:$alloca), [{
       $_state.addOperands(head);
       $_state.addOperands(tail);
       $_state.addTypes(BoxType::get($_builder.getType<ConsType>()));
@@ -1658,7 +1488,7 @@ def eir_ConsOp : eir_Op<"cons"> {
   }];
 
   let extraClassDeclaration = [{
-    bool useAlloca() { return getAttrOfType<mlir::UnitAttr>("alloca") != nullptr; }
+    bool useAlloca() { return getOperation()->getAttrOfType<mlir::UnitAttr>("alloca") != nullptr; }
   }];
 }
 
@@ -1668,14 +1498,13 @@ def eir_ListOp : eir_Op<"list"> {
     List construction primitive. Constructs a new list term from a list of elements.
   }];
 
-  let arguments = (ins Variadic<eir_AnyType>:$elements, UnitAttr:$alloca);
-  let results = (outs eir_BoxType:$out);
+  let arguments = (ins Variadic<eir_AnyTerm>:$elements, UnitAttr:$alloca);
+  let results = (outs eir_ListType:$out);
 
   let builders = [
-    OpBuilderDAG<(ins "ValueRange":$elements, CArg<"bool", "false">:$alloca), [{
+    OpBuilder<(ins "ValueRange":$elements, CArg<"bool", "false">:$alloca), [{
       $_state.addOperands(elements);
-      auto listType = $_builder.getType<eir::ListType>();
-      $_state.addTypes(BoxType::get(listType));
+      $_state.addTypes($_builder.getType<ListType>());
       if (alloca)
         $_state.addAttribute("alloca", $_builder.getUnitAttr());
     }]>
@@ -1689,7 +1518,7 @@ def eir_ListOp : eir_Op<"list"> {
   }];
 
   let extraClassDeclaration = [{
-    bool useAlloca() { return getAttrOfType<mlir::UnitAttr>("alloca") != nullptr; }
+    bool useAlloca() { return getOperation()->getAttrOfType<mlir::UnitAttr>("alloca") != nullptr; }
   }];
 }
 
@@ -1699,24 +1528,13 @@ def eir_TupleOp : eir_Op<"tuple"> {
     Tuple construction primitive. Constructs a new tuple term from a list of elements.
   }];
 
-  let arguments = (ins Variadic<AnyType>:$elements, UnitAttr:$alloca);
-  let results = (outs eir_BoxType:$out);
+  let arguments = (ins Variadic<eir_AnyTerm>:$elements, UnitAttr:$alloca);
+  let results = (outs BoxOf<eir_TupleType>:$out);
 
   let builders = [
-    OpBuilderDAG<(ins "ArrayRef<Value>":$elements, CArg<"bool", "false">:$alloca), [{
-      SmallVector<Type, 1> elementTypes;
-      for (auto val : elements) {
-        auto valType = val.getType();
-        if (valType.isa<OpaqueTermType>())
-          elementTypes.push_back(valType);
-        else if (valType.isInteger(1))
-          elementTypes.push_back($_builder.getType<AtomType>());
-        else
-          elementTypes.push_back($_builder.getType<TermType>());
-      }
+    OpBuilder<(ins "ArrayRef<Value>":$elements, CArg<"bool", "false">:$alloca), [{
       $_state.addOperands(elements);
-      auto tupleType = $_builder.getType<eir::TupleType>(elementTypes);
-      $_state.addTypes(BoxType::get(tupleType));
+      $_state.addTypes(BoxType::get($_builder.getType<eir::TupleType>()));
       if (alloca)
         $_state.addAttribute("alloca", $_builder.getUnitAttr());
     }]>
@@ -1730,11 +1548,11 @@ def eir_TupleOp : eir_Op<"tuple"> {
   }];
 
   let extraClassDeclaration = [{
-    bool useAlloca() { return getAttrOfType<mlir::UnitAttr>("alloca") != nullptr; }
+    bool useAlloca() { return getOperation()->getAttrOfType<mlir::UnitAttr>("alloca") != nullptr; }
   }];
 }
 
-def eir_TraceCaptureOp : eir_Op<"trace_capture"> {
+def eir_TraceCaptureOp : eir_Op<"trace.capture"> {
   let summary = "Captures the current stack trace";
   let description = [{
     This operation is called when raising an error to inform the process
@@ -1755,7 +1573,7 @@ def eir_TraceCaptureOp : eir_Op<"trace_capture"> {
   }];
 }
 
-def eir_TracePrintOp : eir_Op<"trace_print"> {
+def eir_TracePrintOp : eir_Op<"trace.print"> {
   let summary = "Prints a captured stack trace";
   let description = [{a debugging tool for internal use}];
 
@@ -1769,7 +1587,7 @@ def eir_TracePrintOp : eir_Op<"trace_print"> {
   }];
 }
 
-def eir_TraceConstructOp : eir_Op<"trace_construct"> {
+def eir_TraceConstructOp : eir_Op<"trace.construct"> {
   let summary = "Constructs the current stack trace as a new SSA-value";
   let description = [{
     This operation should be called prior to generating an error which
@@ -1781,7 +1599,7 @@ def eir_TraceConstructOp : eir_Op<"trace_construct"> {
   }];
 
   let arguments = (ins eir_TraceRefType:$traceRef);
-  let results = (outs eir_BoxType:$trace);
+  let results = (outs BoxOf<eir_ConsType>:$trace);
 
   let verifier = ?;
 
@@ -1790,7 +1608,7 @@ def eir_TraceConstructOp : eir_Op<"trace_construct"> {
   }];
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$traceRef), [{
+    OpBuilder<(ins "Value":$traceRef), [{
       $_state.addOperands(traceRef);
       $_state.addTypes(BoxType::get($_builder.getType<ConsType>()));
     }]>
@@ -1803,23 +1621,27 @@ def eir_MapOp : eir_Op<"map.new"> {
     Map construction primitive. Creates a new map from a list of key/value pairs.
   }];
 
-  let arguments = (ins Variadic<eir_AnyType>:$args);
-  let results = (outs eir_BoxType:$out, eir_AnyType:$err);
+  let arguments = (ins Variadic<eir_AnyTerm>:$args);
+  let results = (outs BoxOf<eir_MapType>:$out, I1:$err);
 
   let verifier = ?;
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilderDAG<(ins "ArrayRef<Value>":$elements), [{
+    OpBuilder<(ins "ArrayRef<Value>":$elements), [{
       $_state.addOperands(elements);
-      $_state.addTypes(BoxType::get($_builder.getType<MapType>()));
+      auto mapTy = BoxType::get($_builder.getType<MapType>());
+      auto i1Ty = $_builder.getI1Type();
+      $_state.addTypes({mapTy, i1Ty});
     }]>,
-    OpBuilderDAG<(ins "ArrayRef<eir::MapEntry>":$entries), [{
+    OpBuilder<(ins "ArrayRef<eir::MapEntry>":$entries), [{
       for (auto &entry : entries) {
         $_state.addOperands(Value::getFromOpaquePointer(entry.key));
         $_state.addOperands(Value::getFromOpaquePointer(entry.value));
       }
-      $_state.addTypes(BoxType::get($_builder.getType<MapType>()));
+      auto mapTy = BoxType::get($_builder.getType<MapType>());
+      auto i1Ty = $_builder.getI1Type();
+      $_state.addTypes({mapTy, i1Ty});
     }]>
   ];
 
@@ -1843,14 +1665,14 @@ def eir_MapInsertOp : eir_Op<"map.insert", []> {
         %0, %err = eir.map_insert %map, %k, %v : (!eir.box<!eir.map>, !eir.fixnum, !eir.fixnum) -> (!eir.box<!eir.map>, i1)
   }];
 
-  let arguments = (ins eir_AnyTerm:$map, eir_AnyTerm:$key, eir_AnyTerm:$val);
-  let results = (outs eir_BoxType:$newMap, I1:$successFlag);
+  let arguments = (ins TermOr<BoxOf<eir_MapType>>:$map, eir_AnyTerm:$key, eir_AnyTerm:$val);
+  let results = (outs BoxOf<eir_MapType>:$newMap, I1:$successFlag);
 
   let verifier = ?;
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$map, "Value":$key, "Value":$value), [{
+    OpBuilder<(ins "Value":$map, "Value":$key, "Value":$value), [{
       auto mapType = $_builder.getType<BoxType>($_builder.getType<MapType>());
       auto i1Ty = $_builder.getI1Type();
       $_state.addTypes({mapType, i1Ty});
@@ -1878,14 +1700,14 @@ def eir_MapUpdateOp : eir_Op<"map.update", []> {
         %0, %err = eir.map_update %map, %k, %v : (!eir.box<!eir.map>, !eir.fixnum, !eir.fixnum) -> (!eir.box<!eir.map>, i1)
   }];
 
-  let arguments = (ins eir_AnyTerm:$map, eir_AnyTerm:$key, eir_AnyTerm:$val);
-  let results = (outs eir_BoxType:$newMap, I1:$successFlag);
+  let arguments = (ins TermOr<BoxOf<eir_MapType>>:$map, eir_AnyTerm:$key, eir_AnyTerm:$val);
+  let results = (outs BoxOf<eir_MapType>:$newMap, I1:$successFlag);
 
   let verifier = ?;
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$map, "Value":$key, "Value":$value), [{
+    OpBuilder<(ins "Value":$map, "Value":$key, "Value":$value), [{
       auto mapType = $_builder.getType<BoxType>($_builder.getType<MapType>());
       auto i1Ty = $_builder.getI1Type();
       $_state.addTypes({mapType, i1Ty});
@@ -1901,14 +1723,14 @@ def eir_MapUpdateOp : eir_Op<"map.update", []> {
 def eir_MapContainsKeyOp : eir_Op<"map.contains", [NoSideEffect]> {
   let summary = "Returns a boolean indicating whether the given term is a key in the given map";
 
-  let arguments = (ins eir_AnyTerm:$map, eir_AnyTerm:$key);
+  let arguments = (ins TermOr<BoxOf<eir_MapType>>:$map, eir_AnyTerm:$key);
   let results = (outs I1:$result);
 
   let verifier = ?;
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$map, "Value":$key), [{
+    OpBuilder<(ins "Value":$map, "Value":$key), [{
       auto i1Ty = $_builder.getI1Type();
       $_state.addTypes({i1Ty});
       $_state.addOperands({map, key});
@@ -1923,14 +1745,14 @@ def eir_MapContainsKeyOp : eir_Op<"map.contains", [NoSideEffect]> {
 def eir_MapGetKeyOp : eir_Op<"map.get", []> {
   let summary = "Returns the term associated with the given key in the given map";
 
-  let arguments = (ins eir_AnyTerm:$map, eir_AnyTerm:$key);
+  let arguments = (ins TermOr<BoxOf<eir_MapType>>:$map, eir_AnyTerm:$key);
   let results = (outs eir_AnyTerm:$result);
 
   let verifier = ?;
   let hasCanonicalizer = 1;
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$map, "Value":$key), [{
+    OpBuilder<(ins "Value":$map, "Value":$key), [{
       auto termType = $_builder.getType<TermType>();
       $_state.addTypes(termType);
       $_state.addOperands({map, key});
@@ -1945,20 +1767,27 @@ def eir_MapGetKeyOp : eir_Op<"map.get", []> {
 def eir_BinaryStartOp : eir_Op<"binary.start"> {
   let summary = "Starts construction of a new binary";
   let arguments = (ins);
-  let results = (outs eir_AnyType:$binRef);
+  let results = (outs eir_BinaryBuilderType:$builder);
 
   let verifier = ?;
 
   let assemblyFormat = [{
     attr-dict `:` type(results)
   }];
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<(ins), [{
+      $_state.addTypes($_builder.getType<BinaryBuilderType>());
+    }]>
+  ];
 }
 
 
 def eir_BinaryFinishOp : eir_Op<"binary.finish"> {
   let summary = "Finishes construction of a new binary";
-  let arguments = (ins eir_AnyType:$binRef);
-  let results = (outs eir_BoxType:$bin);
+  let arguments = (ins eir_BinaryBuilderType:$builder);
+  let results = (outs BoxOf<eir_BinaryType>:$bin);
 
   let verifier = ?;
 
@@ -1968,10 +1797,10 @@ def eir_BinaryFinishOp : eir_Op<"binary.finish"> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$binRef), [{
+    OpBuilder<(ins "Value":$builder), [{
       auto binaryTy = $_builder.getType<BoxType>($_builder.getType<BinaryType>());
       $_state.addTypes(binaryTy);
-      $_state.addOperands(binRef);
+      $_state.addOperands(builder);
     }]>
   ];
 }
@@ -1985,11 +1814,11 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
     provided as attributes to the operation.
 
         %0, %err = eir.binary_push(%bin, %val) { type = integer, signed = true, endian = big, unit = 1 }
-        %0, %err = eir.binary_push(%bin, %val) { type = bytes, unit = 1 }, %size : !eir.fixnum
+        %0, %err = eir.binary_push(%bin, %val) { type = bytes, unit = 1 }, %size : !eir.int
   }];
 
-  let arguments = (ins eir_AnyType:$bin, eir_AnyType:$value, Optional<eir_AnyType>:$size);
-  let results = (outs eir_AnyType:$newBin, I1:$successFlag);
+  let arguments = (ins eir_BinaryBuilderType:$builder, eir_AnyTerm:$value, Optional<TermOr<eir_IntegerType>>:$size);
+  let results = (outs eir_BinaryBuilderType:$newBin, I1:$successFlag);
 
   let verifier = ?;
   let hasCanonicalizer = 1;
@@ -2000,7 +1829,7 @@ def eir_BinaryPushOp : eir_Op<"binary.push"> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$bin, "Value":$value, "Value":$size, "ArrayRef<NamedAttribute>":$attrs), [{
+    OpBuilder<(ins "Value":$bin, "Value":$value, "Value":$size, "ArrayRef<NamedAttribute>":$attrs), [{
       if (size == nullptr) {
         $_state.addOperands({bin, value});
       } else {
@@ -2023,7 +1852,7 @@ class eir_BinaryMatchOp<string mnemonic, list<OpTrait> traits = []>
   let description = ?;
 
   let arguments = ?;
-  let results = (outs eir_AnyTerm:$matched, eir_AnyTerm:$rest, I1:$successFlag);
+  let results = (outs eir_TermType:$matched, eir_TermType:$rest, I1:$successFlag);
 
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
@@ -2033,26 +1862,25 @@ class eir_BinaryMatchOp<string mnemonic, list<OpTrait> traits = []>
   let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
-    mlir::BoolAttr isSignedAttr() { return getAttrOfType<mlir::BoolAttr>("is_signed"); }
+    mlir::BoolAttr isSignedAttr() { return getOperation()->getAttrOfType<mlir::BoolAttr>("is_signed"); }
   }] # "static StringRef builtinSymbol() { return \"" # builtinSymbol # "\"; }";
 }
 
 def eir_BinaryMatchRawOp : eir_BinaryMatchOp<"binary.match.raw", []> {
   let summary = "Binary pattern match against raw bits/bytes";
 
-  let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, OptionalAttr<I64Attr>:$unit);
+  let arguments = (ins TermOr<BoxOf<eir_BinaryType>>:$bin, Optional<TermOr<eir_IntegerType>>:$size, OptionalAttr<I64Attr>:$unit);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$bin, "int64_t":$unit, "Optional<Value>":$size), [{
+    OpBuilder<(ins "Value":$bin, "int64_t":$unit, "Optional<Value>":$size), [{
       $_state.addOperands(bin);
       if (size.hasValue()) {
         $_state.addOperands(size.getValue());
       }
       auto termTy = $_builder.getType<TermType>();
       auto i1Ty = $_builder.getI1Type();
-      auto i8Ty = $_builder.getIntegerType(8);
       $_state.addTypes({termTy, termTy, i1Ty});
-      $_state.addAttribute("unit", $_builder.getIntegerAttr(i8Ty, unit));
+      $_state.addAttribute("unit", $_builder.getI8IntegerAttr(unit));
     }]>
   ];
 }
@@ -2060,10 +1888,10 @@ def eir_BinaryMatchRawOp : eir_BinaryMatchOp<"binary.match.raw", []> {
 def eir_BinaryMatchIntegerOp : eir_BinaryMatchOp<"binary.match.integer", []> {
   let summary = "Binary pattern match integer values";
 
-  let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, BoolAttr:$is_signed, I8Attr:$endianness, OptionalAttr<I64Attr>:$unit);
+  let arguments = (ins TermOr<BoxOf<eir_BinaryType>>:$bin, Optional<TermOr<eir_IntegerType>>:$size, BoolAttr:$is_signed, I8Attr:$endianness, OptionalAttr<I64Attr>:$unit);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$bin, "bool":$isSigned, "Endianness::Type":$endianness,
+    OpBuilder<(ins "Value":$bin, "bool":$isSigned, "Endianness::Type":$endianness,
                       "int64_t":$unit, "Optional<Value>":$size), [{
       $_state.addOperands(bin);
       if (size.hasValue()) {
@@ -2083,20 +1911,19 @@ def eir_BinaryMatchIntegerOp : eir_BinaryMatchOp<"binary.match.integer", []> {
 def eir_BinaryMatchFloatOp : eir_BinaryMatchOp<"binary.match.float", []> {
   let summary = "Binary pattern match float values";
 
-  let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, I8Attr:$endianness, OptionalAttr<I64Attr>:$unit);
+  let arguments = (ins TermOr<BoxOf<eir_BinaryType>>:$bin, Optional<TermOr<eir_IntegerType>>:$size, I8Attr:$endianness, OptionalAttr<I64Attr>:$unit);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$bin, "Endianness::Type":$endianness, "int64_t":$unit, "Optional<Value>":$size), [{
+    OpBuilder<(ins "Value":$bin, "Endianness::Type":$endianness, "int64_t":$unit, "Optional<Value>":$size), [{
       $_state.addOperands(bin);
       if (size.hasValue()) {
         $_state.addOperands(size.getValue());
       }
       auto termTy = $_builder.getType<TermType>();
       auto i1Ty = $_builder.getI1Type();
-      auto i8Ty = $_builder.getIntegerType(8);
       $_state.addTypes({termTy, termTy, i1Ty});
-      $_state.addAttribute("endianness", $_builder.getIntegerAttr(i8Ty, (unsigned)endianness));
-      $_state.addAttribute("unit", $_builder.getIntegerAttr(i8Ty, unit));
+      $_state.addAttribute("endianness", $_builder.getI8IntegerAttr((unsigned)endianness));
+      $_state.addAttribute("unit", $_builder.getI8IntegerAttr(unit));
     }]>
   ];
 }
@@ -2104,10 +1931,10 @@ def eir_BinaryMatchFloatOp : eir_BinaryMatchOp<"binary.match.float", []> {
 def eir_BinaryMatchUtf8Op : eir_BinaryMatchOp<"binary.match.utf8", []> {
   let summary = "Binary pattern match utf8 character values";
 
-  let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size);
+  let arguments = (ins TermOr<BoxOf<eir_BinaryType>>:$bin, Optional<TermOr<eir_IntegerType>>:$size);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$bin, "Optional<Value>":$size), [{
+    OpBuilder<(ins "Value":$bin, "Optional<Value>":$size), [{
       $_state.addOperands(bin);
       if (size.hasValue()) {
         $_state.addOperands(size.getValue());
@@ -2122,19 +1949,18 @@ def eir_BinaryMatchUtf8Op : eir_BinaryMatchOp<"binary.match.utf8", []> {
 def eir_BinaryMatchUtf16Op : eir_BinaryMatchOp<"binary.match.utf16", []> {
   let summary = "Binary pattern match utf16 character values";
 
-  let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, I8Attr:$endianness);
+  let arguments = (ins TermOr<BoxOf<eir_BinaryType>>:$bin, Optional<TermOr<eir_IntegerType>>:$size, I8Attr:$endianness);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$bin, "Endianness::Type":$endianness, "Optional<Value>":$size), [{
+    OpBuilder<(ins "Value":$bin, "Endianness::Type":$endianness, "Optional<Value>":$size), [{
       $_state.addOperands(bin);
       if (size.hasValue()) {
         $_state.addOperands(size.getValue());
       }
       auto termTy = $_builder.getType<TermType>();
       auto i1Ty = $_builder.getI1Type();
-      auto i8Ty = $_builder.getIntegerType(8);
       $_state.addTypes({termTy, termTy, i1Ty});
-      $_state.addAttribute("endianness", $_builder.getIntegerAttr(i8Ty, (unsigned)endianness));
+      $_state.addAttribute("endianness", $_builder.getI8IntegerAttr((unsigned)endianness));
     }]>
   ];
 }
@@ -2142,19 +1968,18 @@ def eir_BinaryMatchUtf16Op : eir_BinaryMatchOp<"binary.match.utf16", []> {
 def eir_BinaryMatchUtf32Op : eir_BinaryMatchOp<"binary.match.utf32", []> {
   let summary = "Binary pattern match utf32 character values";
 
-  let arguments = (ins eir_AnyTerm:$bin, Optional<eir_AnyTerm>:$size, I8Attr:$endianness);
+  let arguments = (ins TermOr<BoxOf<eir_BinaryType>>:$bin, Optional<TermOr<eir_IntegerType>>:$size, I8Attr:$endianness);
 
   let builders = [
-    OpBuilderDAG<(ins "Value":$bin, "Endianness::Type":$endianness, "Optional<Value>":$size), [{
+    OpBuilder<(ins "Value":$bin, "Endianness::Type":$endianness, "Optional<Value>":$size), [{
       $_state.addOperands(bin);
       if (size.hasValue()) {
         $_state.addOperands(size.getValue());
       }
       auto termTy = $_builder.getType<TermType>();
       auto i1Ty = $_builder.getI1Type();
-      auto i8Ty = $_builder.getIntegerType(8);
       $_state.addTypes({termTy, termTy, i1Ty});
-      $_state.addAttribute("endianness", $_builder.getIntegerAttr(i8Ty, (unsigned)endianness));
+      $_state.addAttribute("endianness", $_builder.getI8IntegerAttr((unsigned)endianness));
     }]>
   ];
 }
@@ -2162,7 +1987,7 @@ def eir_BinaryMatchUtf32Op : eir_BinaryMatchOp<"binary.match.utf32", []> {
 def eir_ReceiveStartOp : eir_Op<"receive.start", []> {
   let summary = "starts a receive operation";
 
-  let arguments = (ins eir_AnyType:$timeout);
+  let arguments = (ins AnyTypeOf<[eir_TermType, eir_IntegerLike, eir_AtomType]>:$timeout);
   let results = (outs eir_ReceiveRefType:$result);
 
   let verifier = ?;
@@ -2170,7 +1995,7 @@ def eir_ReceiveStartOp : eir_Op<"receive.start", []> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$timeout), [{
+    OpBuilder<(ins "Value":$timeout), [{
       $_state.addOperands(timeout);
       $_state.addTypes($_builder.getType<ReceiveRefType>());
     }]>
@@ -2190,7 +2015,7 @@ def eir_ReceiveWaitOp : eir_Op<"receive.wait", []> {
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$recvRef), [{
+    OpBuilder<(ins "Value":$recvRef), [{
       $_state.addOperands(recvRef);
       $_state.addTypes($_builder.getIntegerType(8));
     }]>
@@ -2204,12 +2029,13 @@ def eir_ReceiveWaitOp : eir_Op<"receive.wait", []> {
 def eir_ReceiveMessageOp : eir_Op<"receive.message", []> {
   let summary = "Accesses a received message from the given context";
   let arguments = (ins eir_ReceiveRefType:$recvRef);
-  let results = (outs eir_AnyType:$result);
+  let results = (outs eir_TermType:$result);
 
   let verifier = ?;
 
+  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilderDAG<(ins "Value":$recvRef), [{
+    OpBuilder<(ins "Value":$recvRef), [{
       $_state.addOperands(recvRef);
       $_state.addTypes($_builder.getType<TermType>());
     }]>

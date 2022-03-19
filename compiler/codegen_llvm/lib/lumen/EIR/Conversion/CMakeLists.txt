@@ -13,7 +13,7 @@ lumen_cc_library(
     "MapOpConversions.h"
     "MathOpConversions.h"
     "MemoryOpConversions.h"
-    "TargetInfo.h"
+    "TargetPlatformBuilder.h"
   SRCS
     "AnnotateGCLeafPass.cpp"
     "AggregateOpConversions.cpp"
@@ -29,9 +29,8 @@ lumen_cc_library(
     "MathOpConversions.cpp"
     "MemoryOpConversions.cpp"
     "Passes.cpp"
-    "TargetInfo.cpp"
+    "TargetPlatformBuilder.cpp"
   DEPS
-    lumen::EIR::IR::EIREncodingGen
     lumen::EIR::IR
     MLIRLLVMIR
     MLIRIR

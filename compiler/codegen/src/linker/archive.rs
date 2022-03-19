@@ -1,6 +1,5 @@
 pub(super) mod builder;
 
-use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
@@ -55,7 +54,7 @@ pub trait ArchiveBuilder<'a> {
         name: &str,
         lto: bool,
         skip_objects: bool,
-    ) -> io::Result<()>;
+    ) -> anyhow::Result<()>;
 
     fn add_native_library(&mut self, name: &str);
     fn update_symbols(&mut self);

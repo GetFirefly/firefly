@@ -4,6 +4,7 @@
 #![feature(negative_impls)]
 
 pub mod diagnostics;
+pub mod emit;
 pub mod error;
 pub mod ffi;
 pub mod fs;

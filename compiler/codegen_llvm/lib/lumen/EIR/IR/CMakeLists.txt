@@ -31,6 +31,36 @@ lumen_tablegen_library(
 
 lumen_tablegen_library(
   NAME
+    EIRTypesGen
+  TD_FILE
+    EIRBase.td
+  OUTS
+    -gen-typedef-decls EIRTypes.h.inc
+    -gen-typedef-defs EIRTypes.cpp.inc
+    -gen-type-interface-decls EIRTypeInterfaces.h.inc
+    -gen-type-interface-defs EIRTypeInterfaces.cpp.inc
+  EXTRA
+    -typedefs-dialect=eir
+)
+
+lumen_tablegen_library(
+  NAME
+    EIRAttributesGen
+  TD_FILE
+    EIRBase.td
+  OUTS
+    -gen-attrdef-decls EIRAttributes.h.inc
+    -gen-attrdef-defs EIRAttributes.cpp.inc
+    -gen-struct-attr-decls EIRStructs.h.inc
+    -gen-struct-attr-defs EIRStructs.cpp.inc
+    -gen-attr-interface-decls EIRAttrInterfaces.h.inc
+    -gen-attr-interface-defs EIRAttrInterfaces.cpp.inc
+  EXTRA
+    -attrdefs-dialect=eir
+)
+
+lumen_tablegen_library(
+  NAME
     EIREncodingGen
   TD_FILE
     EIROps.td
@@ -46,8 +76,8 @@ lumen_tablegen_library(
   TD_FILE
     EIRBase.td
   OUTS
-    -gen-op-interface-decls EIROpInterface.h.inc
-    -gen-op-interface-defs EIROpInterface.cpp.inc
+    -gen-op-interface-decls EIROpInterfaces.h.inc
+    -gen-op-interface-defs EIROpInterfaces.cpp.inc
 )
 
 lumen_cc_library(
@@ -55,22 +85,25 @@ lumen_cc_library(
     "EIRAttributes.h"
     "EIRDialect.h"
     "EIREnums.h"
-    "EIROpInterface.h"
+    "EIROpInterfaces.h"
     "EIROps.h"
-    "EIROps.h.inc"
-    "EIRTraits.h"
     "EIRTypes.h"
+    "TargetPlatform.h"
   SRCS
     "EIRAttributes.cpp"
     "EIRDialect.cpp"
     "EIREnums.cpp"
+    "EIROpInterfaces.cpp"
     "EIROps.cpp"
-    "EIROps.cpp.inc"
     "EIRTypes.cpp"
+    "TargetPlatform.cpp"
+    "CAPI.cpp"
   DEPS
     lumen::EIR::IR::EIRDialectGen
     lumen::EIR::IR::EIREnumsGen
     lumen::EIR::IR::EIROpsGen
+    lumen::EIR::IR::EIRTypesGen
+    lumen::EIR::IR::EIRAttributesGen
     lumen::EIR::IR::EIROpInterfaceGen
     lumen::EIR::IR::EIREncodingGen
     MLIRIR

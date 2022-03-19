@@ -12,9 +12,14 @@ pub fn extract_docs(attributes: &[Attribute]) -> Option<String> {
         .filter_map(get_name_value_meta_lit)
         .map(|l| {
             let s = lit_to_string(l).unwrap();
-            let trimmed = s.as_str().trim_end();
+            let trimmed = s.as_str().trim();
             trimmed.to_string()
         })
+        .collect::<Vec<_>>();
+    let doc_items = doc_items
+        .iter()
+        .flat_map(|item| item.lines())
+        .map(|line| line.trim().to_string())
         .collect::<Vec<_>>();
     Some(doc_items.as_slice().join("\n"))
 }
@@ -58,7 +63,7 @@ where
 }
 
 // Extracts the attribute metadata from the given attribute, if it matches the given name
-fn try_get_named_attribute(attr: &Attribute, attr_name: &'static str) -> Option<Meta> {
+pub(crate) fn try_get_named_attribute(attr: &Attribute, attr_name: &'static str) -> Option<Meta> {
     match attr.parse_meta() {
         Err(_) => None,
         Ok(meta) => try_get_named_meta(meta, attr_name),

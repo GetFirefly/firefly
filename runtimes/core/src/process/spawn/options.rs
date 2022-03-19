@@ -25,9 +25,26 @@ pub struct Connection {
 
 #[derive(Clone, Copy, Debug)]
 pub struct MaxHeapSize {
-    size: Option<usize>,
+    size: usize,
     kill: Option<bool>,
     error_logger: Option<bool>,
+}
+impl MaxHeapSize {
+    pub fn new(size: usize) -> Self {
+        Self {
+            size,
+            kill: None,
+            error_logger: None,
+        }
+    }
+
+    pub fn kill(&mut self, kill: bool) {
+        self.kill = Some(kill);
+    }
+
+    pub fn error_logger(&mut self, error_logger: bool) {
+        self.error_logger = Some(error_logger);
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -79,8 +96,8 @@ impl Options {
     }
 
     pub fn sized_heap(&self) -> Result<(*mut Term, usize), Alloc> {
-        let heap_size = self.heap_size();
-        let heap = heap(self.heap_size())?;
+        let heap_size = self.heap_size().map_err(|_| Alloc::new())?;
+        let heap = heap(heap_size)?;
 
         Ok((heap, heap_size))
     }
@@ -118,10 +135,24 @@ impl Options {
     // Private
 
     /// `heap` size in words.
-    fn heap_size(&self) -> usize {
-        match self.min_heap_size {
+    fn heap_size(&self) -> Result<usize, anyhow::Error> {
+        let size = match self.min_heap_size {
             Some(min_heap_size) => next_heap_size(min_heap_size),
             None => default_heap_size(),
+        };
+        match self.max_heap_size {
+            Some(MaxHeapSize {
+                size: max_size,
+                kill,
+                ..
+            }) if size >= max_size => {
+                if kill.unwrap_or_default() {
+                    Err(anyhow!("exceeded maximum heap size of {}", max_size))
+                } else {
+                    Ok(max_size)
+                }
+            }
+            _ => Ok(size),
         }
     }
 
@@ -162,7 +193,43 @@ impl Options {
 
                     Ok(self)
                 }
-                "max_heap_size" => unimplemented!(),
+                "max_heap_size" => {
+                    let element = tuple[1];
+                    let max_heap_size: Result<usize, _> = element.try_into();
+                    if let Ok(max_heap_size) = max_heap_size {
+                        self.max_heap_size = Some(MaxHeapSize::new(max_heap_size));
+                        return Ok(self);
+                    }
+                    let max_heap_size_config: Result<Boxed<Map>, _> = element.try_into();
+                    match max_heap_size_config {
+                        Ok(max_heap_config) => {
+                            let max_heap_size_opt = Atom::from_str("max_heap_size");
+                            let max_heap_size = max_heap_config
+                                .get(max_heap_size_opt.encode().unwrap())
+                                .ok_or_else(|| anyhow!("missing max_heap_size key in map"))
+                                .and_then(|term| {
+                                    term.try_into()
+                                        .map_err(|err: TryIntoIntegerError| anyhow!(err))
+                                })
+                                .context("max_heap_size")?;
+                            let mut max_heap_size = MaxHeapSize::new(max_heap_size);
+                            let kill_opt = Atom::from_str("kill");
+                            if let Some(kill) = max_heap_config.get(kill_opt.encode().unwrap()) {
+                                max_heap_size.kill(kill.try_into().context("kill")?);
+                            }
+                            let error_logger_opt = Atom::from_str("error_logger");
+                            if let Some(error_logger) =
+                                max_heap_config.get(error_logger_opt.encode().unwrap())
+                            {
+                                max_heap_size
+                                    .error_logger(error_logger.try_into().context("error_logger")?);
+                            }
+                            self.max_heap_size = Some(max_heap_size);
+                            Ok(self)
+                        }
+                        Err(err) => Err(anyhow!(err).context("max_heap_size")),
+                    }
+                }
                 "message_queue_data" => {
                     let message_queue_data = tuple[1].try_into().context("message_queue_data")?;
                     self.message_queue_data = message_queue_data;
@@ -212,7 +279,7 @@ impl Default for Options {
 
 const SUPPORTED_OPTIONS_CONTEXT: &str = "supported options are :link, :monitor, \
      {:fullsweep_after, generational_collections :: pos_integer()}, \
-     {:max_heap_size, words :: pos_integer()}, \
+     {:max_heap_size, words :: pos_integer() | #{size => non_neg_integer(), kill => boolean(), error_logger => boolean()}}, \
      {:message_queue_data, :off_heap | :on_heap}, \
      {:min_bin_vheap_size, words :: pos_integer()}, \
      {:min_heap_size, words :: pos_integer()}, and \

@@ -9,3 +9,5 @@ _build
 .#*
 
 *.ignore
+
+.ccls-cache

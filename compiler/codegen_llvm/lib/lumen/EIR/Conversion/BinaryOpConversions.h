@@ -18,7 +18,7 @@ struct BinaryMatchUtf32OpConversion;
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,
                                         EirTypeConverter &converter,
-                                        TargetInfo &targetInfo);
+                                        TargetPlatform &targetInfo);
 }  // namespace eir
 }  // namespace lumen
 

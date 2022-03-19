@@ -1,94 +1,40 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::thread::ThreadId;
 
-use libeir_frontend::{AnyFrontend, DynFrontend};
-use libeir_syntax_erl::ParseConfig;
+use log::debug;
 
-use liblumen_session::{IRModule, Input, InputType};
+use liblumen_diagnostics::Reporter;
+use liblumen_llvm as llvm;
+use liblumen_mlir as mlir;
+use liblumen_session::{Input, InputType};
+use liblumen_syntax_core::{self as syntax_core};
+use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
 use liblumen_util::diagnostics::FileName;
-use liblumen_util::seq::Seq;
 
 use super::prelude::*;
 
-pub(crate) fn output_dir<P>(db: &P) -> PathBuf
-where
-    P: Parser,
-{
-    db.options().output_dir()
-}
-
-pub(crate) fn inputs<P>(db: &P) -> QueryResult<Arc<Seq<InternedInput>>>
-where
-    P: Parser,
-{
-    use std::io::{self, Read};
-
-    let options = db.options();
-
-    // Handle case where input is empty, indicating to compile the current working directory
-    if options.input_files.is_none() {
-        let result = find_sources(db, &options.current_dir).map(|sources| Arc::new(sources.into()));
-        return db.to_query_result(result);
-    }
-
-    let input_files: &[FileName] = options.input_files.as_deref().unwrap();
-    let mut interned_input_vec: Vec<InternedInput> = Vec::new();
-
-    for input_file in input_files {
-        // We can get three types of input:
-        //
-        // 1. `-` for standard input
-        // 2. `path/to/file.erl` for a single file
-        // 3. `path/to/dir` for a directory of files
-        match input_file {
-            // Read from standard input
-            &FileName::Virtual(ref name) if name == "-" => {
-                let mut source = String::new();
-                db.to_query_result(
-                    io::stdin()
-                        .read_to_string(&mut source)
-                        .map_err(|e| e.into()),
-                )?;
-                let input = Input::new(name.clone(), source);
-                let interned = db.intern_input(input);
-                interned_input_vec.push(interned)
-            }
-            // Read from a single file
-            &FileName::Real(ref path) if path.exists() && path.is_file() => {
-                let input = Input::File(path.clone());
-                let interned = db.intern_input(input);
-                interned_input_vec.push(interned)
-            }
-            // Read all files in a directory
-            &FileName::Real(ref path) if path.exists() && path.is_dir() => {
-                let sources = db.to_query_result(find_sources(db, path))?;
-                interned_input_vec.extend(sources);
-            }
-            // Invalid virtual file
-            &FileName::Virtual(_) => {
-                db.report_error("invalid input file, expected `-`, a file path, or a directory");
-                return Err(ErrorReported);
-            }
-            // Invalid file/directory path
-            &FileName::Real(ref path_buf) => {
-                db.report_error(format!(
-                    "invalid input file ({}), not a file or directory",
-                    path_buf.to_string_lossy()
-                ));
-                return Err(ErrorReported);
+macro_rules! unwrap_or_bail {
+    ($db:ident, $e:expr) => {
+        match $e {
+            Ok(result) => result,
+            Err(ref e) => {
+                bail!($db, "{}", e);
             }
         }
-    }
-
-    Ok(Arc::new(interned_input_vec.into()))
+    };
 }
 
-pub(crate) fn input_type<P>(db: &P, input: InternedInput) -> InputType
-where
-    P: Parser,
-{
-    let input_info = db.lookup_intern_input(input);
-    input_info.get_type()
+macro_rules! bail {
+    ($db:ident, $e:expr) => {{
+        $db.report_error($e);
+        return Err(ErrorReported);
+    }};
+
+    ($db:ident, $fmt:literal, $($arg:expr),*) => {{
+        $db.report_error(format!($fmt, $($arg),*));
+        return Err(ErrorReported);
+    }}
 }
 
 pub(crate) fn parse_config<P>(db: &P) -> ParseConfig
@@ -104,62 +50,239 @@ where
     parse_config
 }
 
-pub(crate) fn input_parsed<P>(db: &P, input: InternedInput) -> QueryResult<IRModule>
+pub(crate) fn output_dir<P>(db: &P) -> PathBuf
 where
     P: Parser,
 {
-    use libeir_frontend::abstr_erlang::AbstrErlangFrontend;
-    use libeir_frontend::eir::EirFrontend;
-    use libeir_frontend::erlang::ErlangFrontend;
+    db.options().output_dir()
+}
+
+pub(super) fn llvm_context<P>(db: &P, thread_id: ThreadId) -> Arc<llvm::OwnedContext>
+where
+    P: Parser,
+{
+    debug!("constructing new llvm context for thread {:?}", thread_id);
+    let options = db.options().clone();
+    let diagnostics = db.diagnostics().clone();
+    Arc::new(llvm::OwnedContext::new(options, diagnostics))
+}
+
+pub(super) fn target_machine<P>(
+    db: &P,
+    thread_id: ThreadId,
+) -> Arc<llvm::target::OwnedTargetMachine>
+where
+    P: Parser,
+{
+    use llvm::target::TargetMachine;
+
+    debug!("constructing new target machine for thread {:?}", thread_id);
+    let options = db.options();
+    let target_machine = TargetMachine::create(&options).unwrap();
+    Arc::new(target_machine)
+}
+
+pub(super) fn mlir_context<P>(db: &P, thread_id: ThreadId) -> Arc<mlir::OwnedContext>
+where
+    P: Parser,
+{
+    debug!("constructing new mlir context for thread {:?}", thread_id);
+
+    let options = db.options();
+    let diagnostics = db.diagnostics().clone();
+
+    Arc::new(mlir::OwnedContext::new(&options, &diagnostics))
+}
+
+pub(crate) fn inputs<P>(db: &P) -> Result<Vec<InternedInput>, ErrorReported>
+where
+    P: Parser,
+{
+    use std::io::{self, Read};
+
+    // Fetch all of the inputs associated with the current application
+    let options = db.options();
+    let mut inputs: Vec<InternedInput> = Vec::new();
+
+    for input in options.input_files.iter() {
+        // We can get three types of input:
+        //
+        // 1. `stdin` for standard input
+        // 2. `path/to/file.erl` for a single file
+        // 3. `path/to/dir` for a directory containing a standard Erlang application
+        match input {
+            // Read from standard input
+            &FileName::Virtual(ref name) if name == "stdin" => {
+                let mut source = String::new();
+                db.to_query_result(
+                    io::stdin()
+                        .read_to_string(&mut source)
+                        .map_err(|e| e.into()),
+                )?;
+                let input = Input::new(name.clone(), source);
+                let interned = db.intern_input(input);
+                inputs.push(interned)
+            }
+            // Read from a single file
+            &FileName::Real(ref path) if path.exists() && path.is_file() => {
+                let input = Input::File(path.clone());
+                let interned = db.intern_input(input);
+                inputs.push(interned)
+            }
+            // Load sources from <dir>
+            &FileName::Real(ref path) if path.exists() && path.is_dir() => {
+                let sources = unwrap_or_bail!(db, find_sources(db, path));
+                inputs.extend_from_slice(&sources);
+            }
+            // Invalid virtual file
+            &FileName::Virtual(_) => {
+                bail!(
+                    db,
+                    "invalid input file, expected `-`, a file path, or a directory"
+                );
+            }
+            // Invalid file/directory path
+            &FileName::Real(ref path_buf) => {
+                bail!(
+                    db,
+                    "invalid input file ({}), not a file or directory",
+                    path_buf.to_string_lossy()
+                );
+            }
+        }
+    }
+
+    Ok(inputs)
+}
+
+pub(crate) fn input_type<P>(db: &P, input: InternedInput) -> InputType
+where
+    P: Parser,
+{
+    let input_info = db.lookup_intern_input(input);
+    input_info.get_type()
+}
+
+pub(crate) fn input_syntax_erl<P>(
+    db: &P,
+    input: InternedInput,
+) -> Result<syntax_erl::Module, ErrorReported>
+where
+    P: Parser,
+{
+    use liblumen_parser as parse;
 
     let codemap = db.codemap().clone();
-    let frontend: AnyFrontend = match db.input_type(input) {
-        InputType::Erlang => ErlangFrontend::new(db.parse_config(), codemap).into(),
-        InputType::AbstractErlang => AbstrErlangFrontend::new(codemap).into(),
-        InputType::EIR => EirFrontend::new(codemap).into(),
-        ty => {
-            db.report_error(format!("invalid input type: {}", ty));
-            return Err(ErrorReported);
+    let config = db.parse_config();
+
+    let result = match db.input_type(input) {
+        InputType::Erlang => {
+            let reporter = if config.warnings_as_errors {
+                Reporter::strict()
+            } else {
+                Reporter::new()
+            };
+            let parser = parse::Parser::new(config, codemap);
+            match db.lookup_intern_input(input) {
+                Input::File(ref path) => {
+                    parser.parse_file::<syntax_erl::Module, &Path>(reporter, path)
+                }
+                Input::Str { ref input, .. } => {
+                    parser.parse_string::<syntax_erl::Module, _>(reporter, input)
+                }
+            }
         }
+        ty => bail!(db, "invalid input type: {}", ty),
     };
-
-    let (result, diags) = match db.lookup_intern_input(input) {
-        Input::File(ref path) => frontend.parse_file_dyn(path),
-        Input::Str { ref input, .. } => frontend.parse_string_dyn(input),
-    };
-
-    for ref diagnostic in diags.iter() {
-        db.diagnostic(diagnostic);
-    }
 
     match result {
         Ok(module) => {
             let options = db.options();
             db.maybe_emit_file_with_opts(&options, input, &module)?;
-            Ok(module.into())
+            Ok(module)
         }
-        Err(_) => {
-            db.report_error("parsing failed");
-            Err(ErrorReported)
-        }
+        Err(_) => bail!(db, "parsing failed"),
     }
 }
 
-pub(crate) fn input_eir<P>(db: &P, input: InternedInput) -> QueryResult<IRModule>
+pub(crate) fn input_syntax_core<P>(
+    db: &P,
+    input: InternedInput,
+) -> Result<syntax_core::Module, ErrorReported>
 where
     P: Parser,
 {
-    use libeir_passes::PassManager;
+    use liblumen_pass::Pass;
+    use liblumen_syntax_erl::passes::{AstToCore, DesugarSyntax};
 
-    let module = db.input_parsed(input)?;
-    let mut ir_module: libeir_ir::Module = module.as_ref().clone();
+    // Get Erlang AST
+    let ast = db.input_syntax_erl(input)?;
 
-    let mut pass_manager = PassManager::default();
-    pass_manager.run(&mut ir_module);
+    // Run lowering passes
+    let options = db.options();
+    let reporter = if options.warnings_as_errors {
+        Reporter::strict()
+    } else {
+        Reporter::new()
+    };
+    let mut passes = DesugarSyntax.chain(AstToCore::new(reporter));
+    let module = unwrap_or_bail!(db, passes.run(ast));
 
-    let new_module = IRModule::new(ir_module);
-    db.maybe_emit_file(input, &new_module)?;
-    Ok(new_module)
+    db.maybe_emit_file(input, &module)?;
+
+    Ok(module)
+}
+
+pub(crate) fn input_mlir<P>(
+    db: &P,
+    thread_id: ThreadId,
+    input: InternedInput,
+) -> Result<mlir::OwnedModule, ErrorReported>
+where
+    P: Parser,
+{
+    use liblumen_codegen::passes::CoreToMlir;
+    use liblumen_pass::Pass;
+
+    let options = db.options();
+    let module = match db.input_type(input) {
+        InputType::MLIR => {
+            let context = db.mlir_context(thread_id);
+            match db.lookup_intern_input(input) {
+                Input::File(ref path) => {
+                    debug!("parsing mlir from file for {:?} on {:?}", input, thread_id);
+                    unwrap_or_bail!(db, context.parse_file(path))
+                }
+                Input::Str { ref input, .. } => {
+                    debug!(
+                        "parsing mlir from string for {:?} on {:?}",
+                        input, thread_id
+                    );
+                    unwrap_or_bail!(db, context.parse_string(input.as_ref()))
+                }
+            }
+        }
+        InputType::Erlang | InputType::AbstractErlang | InputType::CoreIR => {
+            debug!("generating mlir for {:?} on {:?}", input, thread_id);
+            let module = db.input_syntax_core(input)?;
+            let codemap = db.codemap();
+            let context = db.mlir_context(thread_id);
+
+            let mut passes = CoreToMlir::new(&context, &codemap, &options);
+            match unwrap_or_bail!(db, passes.run(module)) {
+                Ok(mlir_module) => mlir_module,
+                Err(mlir_module) => {
+                    db.maybe_emit_file_with_opts(&options, input, &mlir_module)?;
+                    bail!(db, "mlir module verification failed");
+                }
+            }
+        }
+        ty => bail!(db, "invalid input type: {}", ty),
+    };
+
+    db.maybe_emit_file_with_opts(&options, input, &module)?;
+
+    Ok(module)
 }
 
 pub fn find_sources<D, P>(db: &D, dir: P) -> anyhow::Result<Vec<InternedInput>>
@@ -178,22 +301,27 @@ where
             .unwrap_or(false)
     }
 
-    fn is_valid_entry(entry: &DirEntry) -> bool {
-        // Recursively enter subdirectories
-        if entry.path().is_dir() {
-            return true;
-        }
+    fn is_valid_entry(root: &Path, entry: &DirEntry) -> bool {
         if is_hidden(entry) {
             return false;
         }
-        InputType::is_valid(entry.path())
+        // Recurse into the root directory, and nested src directory, no others
+        let path = entry.path();
+        if entry.file_type().is_dir() {
+            return path == root || path.file_name().unwrap().to_str().unwrap() == "src";
+        }
+        InputType::Erlang.validate(path)
     }
 
-    let walker = WalkDir::new(dir.as_ref()).follow_links(false).into_iter();
+    let root = dir.as_ref();
+    let walker = WalkDir::new(root)
+        .max_depth(2)
+        .follow_links(false)
+        .into_iter();
 
     let mut inputs = Vec::new();
 
-    for maybe_entry in walker.filter_entry(is_valid_entry) {
+    for maybe_entry in walker.filter_entry(|e| is_valid_entry(root, e)) {
         let entry = maybe_entry?;
         if entry.path().is_file() {
             let input = Input::from(entry.path());

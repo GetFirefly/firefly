@@ -1,6 +1,9 @@
-//# serde = { version = "1.0", features = ["derive"] }
-//# serde_json = "1.0"
-//# walkdir = "*"
+//! ```cargo
+//! [dependencies]
+//! serde = { version = "1.0", features = ["derive"] }
+//! serde_json = "1.0"
+//! walkdir = "*"
+//! ```
 #![feature(drain_filter)]
 #![feature(slice_internals)]
 #![allow(non_snake_case)]
@@ -324,6 +327,9 @@ fn main() -> Result<(), ()> {
     }
 
     let lumen_exe = install_bin_dir.join("lumen");
+    if lumen_exe.exists() {
+        fs::remove_file(&lumen_exe).expect("failed to remove existing lumen executable");
+    }
     fs::copy(src_lumen_exe, &lumen_exe).unwrap();
 
     symlink(&lumen_exe, &bin_dir.join("lumen"));

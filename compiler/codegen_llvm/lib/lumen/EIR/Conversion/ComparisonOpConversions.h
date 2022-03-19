@@ -14,7 +14,7 @@ struct CmpGteOpConversion;
 void populateComparisonOpConversionPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *context,
                                             EirTypeConverter &converter,
-                                            TargetInfo &targetInfo);
+                                            TargetPlatform &platform);
 }  // namespace eir
 }  // namespace lumen
 

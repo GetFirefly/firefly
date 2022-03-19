@@ -129,7 +129,7 @@ impl Encoding for Encoding64 {
     fn immediate_mask_info() -> MaskInfo {
         MaskInfo {
             shift: PRIMARY_SHIFT as i32,
-            mask: MASK_PRIMARY,
+            mask: !MASK_PRIMARY,
             max_allowed_value: Self::MAX_IMMEDIATE_VALUE,
         }
     }
@@ -138,7 +138,7 @@ impl Encoding for Encoding64 {
     fn header_mask_info() -> MaskInfo {
         MaskInfo {
             shift: HEADER_SHIFT as i32,
-            mask: 0,
+            mask: !MASK_HEADER,
             max_allowed_value: MAX_HEADER_VALUE,
         }
     }
@@ -159,6 +159,42 @@ impl Encoding for Encoding64 {
             Tag::Nil => Self::NIL,
             Tag::None => Self::NONE,
             _ => panic!("called encode_immediate_with_tag using non-immediate tag"),
+        }
+    }
+
+    #[inline]
+    fn immediate_tag(tag: Tag<u64>) -> u64 {
+        match tag {
+            Tag::Atom => Self::TAG_ATOM,
+            Tag::Pid => Self::TAG_PID,
+            Tag::Port => Self::TAG_PORT,
+            Tag::SmallInteger => Self::TAG_SMALL_INTEGER,
+            Tag::Nil => Self::NIL,
+            Tag::None => Self::NONE,
+            Tag::List => Self::TAG_LIST,
+            Tag::Box => Self::TAG_BOXED,
+            _ => panic!("called immediate_tag using non-immediate tag"),
+        }
+    }
+
+    #[inline]
+    fn header_tag(tag: Tag<u64>) -> u64 {
+        match tag {
+            Tag::BigInteger => Self::TAG_BIG_INTEGER,
+            Tag::Float => Self::TAG_FLOAT,
+            Tag::Tuple => Self::TAG_TUPLE,
+            Tag::Map => Self::TAG_MAP,
+            Tag::Closure => Self::TAG_CLOSURE,
+            Tag::ProcBin => Self::TAG_PROCBIN,
+            Tag::HeapBinary => Self::TAG_HEAPBIN,
+            Tag::SubBinary => Self::TAG_SUBBINARY,
+            Tag::MatchContext => Self::TAG_MATCH_CTX,
+            Tag::ExternalPid => Self::TAG_EXTERN_PID,
+            Tag::ExternalPort => Self::TAG_EXTERN_PORT,
+            Tag::ExternalReference => Self::TAG_EXTERN_REF,
+            Tag::Reference => Self::TAG_REFERENCE,
+            Tag::ResourceReference => Self::TAG_RESOURCE_REFERENCE,
+            _ => panic!("called header_tag using non-boxable tag"),
         }
     }
 

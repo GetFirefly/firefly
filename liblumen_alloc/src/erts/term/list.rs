@@ -646,10 +646,10 @@ impl<'a, A: TermAlloc> ListBuilder<'a, A> {
 
 #[allow(non_camel_case_types)]
 #[cfg(target_pointer_width = "32")]
-type MAX_ELEMENTS = heapless::consts::U16;
+const MAX_ELEMENTS: usize = 16;
 #[allow(non_camel_case_types)]
 #[cfg(target_pointer_width = "64")]
-type MAX_ELEMENTS = heapless::consts::U8;
+const MAX_ELEMENTS: usize = 8;
 
 use heapless::Vec;
 

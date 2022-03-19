@@ -482,6 +482,7 @@ mod tests {
 
     #[test]
     fn float_encoding_x86_64() {
+        let mut heap = RegionHeap::default();
         let float = heap.float(std::f64::MAX).unwrap();
         let float_term: RawTerm = float.encode().unwrap();
         assert!(float_term.is_boxed());
@@ -713,16 +714,18 @@ mod tests {
 
     #[test]
     fn closure_encoding_x86_64() {
-        use crate::erts::process::Process;
         use crate::erts::term::closure::*;
-        use alloc::sync::Arc;
+        use core::ptr::NonNull;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
         let arity = 0;
-        let code = |_arc_process: &Arc<Process>| Ok(());
+
+        extern "C" fn native() -> Term {
+            Term::NONE
+        }
 
         let one = fixnum!(1);
         let two = fixnum!(2);
@@ -736,7 +739,7 @@ mod tests {
                 old_unique,
                 unique,
                 arity,
-                Some(code),
+                NonNull::new(native as _),
                 Creator::Local(creator),
                 &[&[one, two]],
             )
@@ -852,7 +855,11 @@ mod tests {
         assert_eq!(&sub, sub_box.as_ref());
         assert!(sub_box.is_aligned());
         assert!(sub_box.is_binary());
-        assert_eq!(sub_box.try_into(), Ok("world!".to_owned()));
+
+        let result_string: Result<String, _> = sub_box.try_into();
+        assert!(result_string.is_ok());
+
+        assert_eq!(result_string.unwrap(), "world!".to_string());
     }
 
     #[test]
@@ -880,18 +887,22 @@ mod tests {
         assert_eq!(&match_ctx, match_ctx_box.as_ref());
         assert!(match_ctx_box.is_aligned());
         assert!(match_ctx_box.is_binary());
-        assert_eq!(match_ctx_box.try_into(), Ok("hello world!".to_owned()));
+
+        let result_string: Result<String, _> = match_ctx_box.try_into();
+        assert!(result_string.is_ok());
+
+        assert_eq!(result_string.unwrap(), "hello world!".to_string());
     }
 
     #[test]
     fn resource_encoding_x86_64() {
-        use core::any::Any;
+        use core::any::{type_name, Any};
 
         let mut heap = RegionHeap::default();
 
         // Need a concrete type for casting
         let code: Box<dyn Any> = Box::new(Predicate::new(|input: bool| Some(input)));
-        let resource = Resource::from_value(&mut heap, code).unwrap();
+        let resource = Resource::from_value(&mut heap, code, type_name::<Predicate>()).unwrap();
         let resource_term: RawTerm = resource.into();
         assert!(resource_term.is_boxed());
         assert_eq!(resource_term.type_of(), Tag::Box);

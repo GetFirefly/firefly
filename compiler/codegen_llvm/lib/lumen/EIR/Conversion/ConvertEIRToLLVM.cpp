@@ -1,5 +1,6 @@
 #include "lumen/EIR/Conversion/ConvertEIRToLLVM.h"
 
+#include "llvm/Target/TargetMachine.h"
 #include "mlir/Rewrite/FrozenRewritePatternList.h"
 
 #include "lumen/EIR/Conversion/AggregateOpConversions.h"
@@ -14,6 +15,8 @@
 #include "lumen/EIR/Conversion/MathOpConversions.h"
 #include "lumen/EIR/Conversion/MemoryOpConversions.h"
 
+using ::llvm::Optional;
+using ::llvm::TargetMachine;
 using ::mlir::FrozenRewritePatternList;
 
 namespace lumen {
@@ -43,51 +46,50 @@ class ConvertEIRToLLVMPass
         // Create the LLVM type converter for lowering types to Standard/LLVM IR
         // types
         auto &context = getContext();
-        auto targetInfo = TargetInfo(targetMachine, &context);
+        TargetPlatform platform(targetMachine->getTargetTriple());
 
         auto llvmOpts = mlir::LowerToLLVMOptions::getDefaultOptions();
         llvmOpts.useAlignedAlloc = true;
         llvmOpts.dataLayout = targetMachine->createDataLayout();
 
         LLVMTypeConverter llvmConverter(&context, llvmOpts);
-        EirTypeConverter converter(targetInfo.pointerSizeInBits, llvmConverter);
+        EirTypeConverter converter(platform.getPointerWidth(), llvmConverter);
         // Initialize target-specific type information
-        converter.addConversion([&](Type type) {
-            return convertType(type, converter, targetInfo);
+        converter.addConversion([&](Type type) -> Optional<Type> {
+            return convertType(type, converter, platform);
         });
-        converter.addConversion([](LLVMType type) { return type; });
 
         // Populate conversion patterns
         OwningRewritePatternList patterns;
 
         // Add conversions from Standard to LLVM
         LLVMTypeConverter stdTypeConverter(&context, llvmOpts);
-        stdTypeConverter.addConversion([&](Type type) {
-            return convertType(type, converter, targetInfo);
+        stdTypeConverter.addConversion([&](Type type) -> Optional<Type> {
+            return convertType(type, converter, platform);
         });
         mlir::populateStdToLLVMConversionPatterns(stdTypeConverter, patterns);
 
         // Add conversions from EIR to LLVM
         populateAggregateOpConversionPatterns(patterns, &context, converter,
-                                              targetInfo);
+                                              platform);
         populateBinaryOpConversionPatterns(patterns, &context, converter,
-                                           targetInfo);
+                                           platform);
         populateBuiltinOpConversionPatterns(patterns, &context, converter,
-                                            targetInfo);
+                                            platform);
         populateComparisonOpConversionPatterns(patterns, &context, converter,
-                                               targetInfo);
+                                               platform);
         populateConstantOpConversionPatterns(patterns, &context, converter,
-                                             targetInfo);
+                                             platform);
         populateControlFlowOpConversionPatterns(patterns, &context, converter,
-                                                targetInfo);
+                                                platform);
         populateFuncLikeOpConversionPatterns(patterns, &context, converter,
-                                             targetInfo);
+                                             platform);
         populateMapOpConversionPatterns(patterns, &context, converter,
-                                        targetInfo);
+                                        platform);
         populateMathOpConversionPatterns(patterns, &context, converter,
-                                         targetInfo);
+                                         platform);
         populateMemoryOpConversionPatterns(patterns, &context, converter,
-                                           targetInfo);
+                                           platform);
 
         // Define the legality of the operations we're converting to
         mlir::ConversionTarget conversionTarget(context);

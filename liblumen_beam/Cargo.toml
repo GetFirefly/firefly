@@ -2,10 +2,12 @@
 name = "liblumen_beam"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
 byteorder = "1.2"
 libflate = "0.1"
 num = "0.2"

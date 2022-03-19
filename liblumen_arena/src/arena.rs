@@ -112,6 +112,13 @@ impl<T> Default for TypedArena<T> {
 }
 
 impl<T> TypedArena<T> {
+    /// Creates a new arena with the given capacity
+    pub fn with_capacity(capacity: usize) -> Self {
+        let arena = Self::default();
+        arena.grow(capacity);
+        arena
+    }
+
     /// Allocates an object in the `TypedArena`, returning a reference to it.
     #[inline]
     pub fn alloc(&self, object: T) -> &mut T {

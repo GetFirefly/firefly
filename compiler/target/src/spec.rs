@@ -586,6 +586,11 @@ impl Target {
     pub fn all() -> impl Iterator<Item = String> {
         self::get_targets()
     }
+
+    /// Returns the term encoding used on this target
+    pub fn term_encoding(&self) -> EncodingType {
+        self.options.encoding
+    }
 }
 
 pub trait HasTargetSpec {

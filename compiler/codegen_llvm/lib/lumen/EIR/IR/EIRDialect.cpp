@@ -2,9 +2,9 @@
 
 #include "llvm/Support/Format.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 #include "lumen/EIR/IR/EIRAttributes.h"
@@ -82,7 +82,7 @@ Operation *eirDialect::materializeConstant(mlir::OpBuilder &builder,
         return nullptr;
     }
 
-    if (type.isa<FixnumType>() || type.isa<BigIntType>()) {
+    if (type.isa<IntegerType>()) {
         if (auto intAttr = value.dyn_cast_or_null<APIntAttr>()) {
             auto val = intAttr.getValue();
             if (val.getMinSignedBits() > 47)
@@ -92,10 +92,10 @@ Operation *eirDialect::materializeConstant(mlir::OpBuilder &builder,
         }
         if (auto intAttr = value.dyn_cast_or_null<mlir::IntegerAttr>()) {
             auto val = intAttr.getValue();
-            if (type.isa<FixnumType>())
-                return builder.create<ConstantIntOp>(loc, val);
-            else
+            if (val.getMinSignedBits() > 47)
                 return builder.create<ConstantBigIntOp>(loc, val);
+            else
+                return builder.create<ConstantIntOp>(loc, val);
         }
 
         return nullptr;

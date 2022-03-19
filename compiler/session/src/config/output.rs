@@ -2,7 +2,6 @@ use std::collections::btree_map::{
     Iter as BTreeMapIter, Keys as BTreeMapKeysIter, Values as BTreeMapValuesIter,
 };
 use std::collections::BTreeMap;
-use std::convert::{Into, TryInto};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -10,41 +9,10 @@ use std::str::FromStr;
 use clap::ArgMatches;
 use thiserror::Error;
 
-use libeir_ir as eir;
-use libeir_syntax_erl as syntax;
 use liblumen_util::diagnostics::FileName;
 use liblumen_util::fs;
 
 use crate::{Input, OptionInfo, Options, ParseOption};
-
-pub trait Emit {
-    const TYPE: OutputType;
-
-    fn emit_output_type(&self) -> OutputType {
-        Self::TYPE
-    }
-
-    fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()>;
-}
-impl Emit for syntax::ast::Module {
-    const TYPE: OutputType = OutputType::AST;
-
-    fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
-        use std::io::Write;
-        write!(f, "{:#?}", self)?;
-        Ok(())
-    }
-}
-impl Emit for eir::Module {
-    const TYPE: OutputType = OutputType::EIR;
-
-    fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
-        use std::io::Write;
-        let text = self.to_text_standard();
-        f.write_all(text.as_bytes())?;
-        Ok(())
-    }
-}
 
 struct OutputTypeSpec {
     output_type: OutputType,
@@ -72,12 +40,9 @@ impl FromStr for OutputTypeSpec {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub enum OutputType {
     AST,
-    EIR,
+    CoreIR,
     /// Used to indicate a generic/unknown dialect
     MLIR,
-    EIRDialect,
-    StandardDialect,
-    LLVMDialect,
     LLVMAssembly,
     LLVMBitcode,
     Assembly,
@@ -89,16 +54,13 @@ impl FromStr for OutputType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ast" => Ok(OutputType::AST),
-            "eir" => Ok(OutputType::EIR),
+            "core" => Ok(OutputType::CoreIR),
             "mlir" => Ok(OutputType::MLIR),
-            "mlir-eir" => Ok(OutputType::EIRDialect),
-            "mlir-std" => Ok(OutputType::StandardDialect),
-            "mlir-llvm" => Ok(OutputType::LLVMDialect),
-            "llvm-ir" => Ok(OutputType::LLVMAssembly),
-            "llvm-bc" => Ok(OutputType::LLVMBitcode),
+            "llvm-ir" | "ll" => Ok(OutputType::LLVMAssembly),
+            "llvm-bc" | "bc" => Ok(OutputType::LLVMBitcode),
             "asm" => Ok(OutputType::Assembly),
-            "obj" => Ok(OutputType::Object),
-            "link" => Ok(OutputType::Link),
+            "obj" | "o" => Ok(OutputType::Object),
+            "link" | "exe" => Ok(OutputType::Link),
             _ => Err(()),
         }
     }
@@ -118,11 +80,8 @@ impl OutputType {
     pub fn as_str(&self) -> &'static str {
         match self {
             &OutputType::AST => "ast",
-            &OutputType::EIR => "eir",
+            &OutputType::CoreIR => "core",
             &OutputType::MLIR => "mlir",
-            &OutputType::EIRDialect => "mlir-eir",
-            &OutputType::StandardDialect => "mlir-std",
-            &OutputType::LLVMDialect => "mlir-llvm",
             &OutputType::LLVMAssembly => "llvm-ir",
             &OutputType::LLVMBitcode => "llvm-bc",
             &OutputType::Assembly => "asm",
@@ -134,11 +93,8 @@ impl OutputType {
     pub fn variants() -> &'static [OutputType] {
         &[
             OutputType::AST,
-            OutputType::EIR,
+            OutputType::CoreIR,
             OutputType::MLIR,
-            OutputType::EIRDialect,
-            OutputType::StandardDialect,
-            OutputType::LLVMDialect,
             OutputType::LLVMAssembly,
             OutputType::LLVMBitcode,
             OutputType::Assembly,
@@ -156,10 +112,8 @@ impl OutputType {
          Supported output types:\n  \
            all       = Emit everything\n  \
            ast       = Abstract Syntax Tree\n  \
-           eir       = Erlang Intermediate Representation\n  \
-           mlir-eir  = MLIR (Erlang Dialect)\n  \
-           mlir-std  = MLIR (Standard Dialect)\n  \
-           mlir-llvm = MLIR (LLVM Dialect)\n  \
+           core      = Core IR\n  \
+           mlir      = MLIR \n  \
            llvm-ir   = LLVM IR\n  \
            llvm-bc   = LLVM Bitcode (*)\n  \
            asm       = Assembly (*)\n  \
@@ -172,11 +126,8 @@ impl OutputType {
     pub fn extension(&self) -> &'static str {
         match *self {
             OutputType::AST => "ast",
-            OutputType::EIR => "eir",
+            OutputType::CoreIR => "cir",
             OutputType::MLIR => "mlir",
-            OutputType::EIRDialect => "eir.mlir",
-            OutputType::StandardDialect => "std.mlir",
-            OutputType::LLVMDialect => "llvm.mlir",
             OutputType::LLVMAssembly => "ll",
             OutputType::LLVMBitcode => "bc",
             OutputType::Assembly => "s",
@@ -333,11 +284,17 @@ impl OutputTypes {
         self.0.len()
     }
 
-    // Returns `true` if any of the output types require codegen or linking.
+    pub fn should_generate_core(&self) -> bool {
+        self.0.keys().any(|k| match *k {
+            OutputType::AST => false,
+            _ => true,
+        })
+    }
+
     pub fn should_generate_mlir(&self) -> bool {
         self.0.keys().any(|k| match *k {
             OutputType::AST => false,
-            OutputType::EIR => false,
+            OutputType::CoreIR => false,
             _ => true,
         })
     }
@@ -345,10 +302,8 @@ impl OutputTypes {
     pub fn should_generate_llvm(&self) -> bool {
         self.0.keys().any(|k| match *k {
             OutputType::AST => false,
-            OutputType::EIR => false,
-            OutputType::EIRDialect => false,
-            OutputType::StandardDialect => false,
-            OutputType::LLVMDialect => false,
+            OutputType::CoreIR => false,
+            OutputType::MLIR => false,
             _ => true,
         })
     }
@@ -356,10 +311,8 @@ impl OutputTypes {
     pub fn should_codegen(&self) -> bool {
         self.0.keys().any(|k| match *k {
             OutputType::AST => false,
-            OutputType::EIR => false,
-            OutputType::EIRDialect => false,
-            OutputType::StandardDialect => false,
-            OutputType::LLVMDialect => false,
+            OutputType::CoreIR => false,
+            OutputType::MLIR => false,
             OutputType::LLVMAssembly => false,
             OutputType::LLVMBitcode => false,
             _ => true,
@@ -440,7 +393,7 @@ pub fn calculate_outputs(
     for variant in OutputType::variants().iter().copied() {
         outputs.insert(variant, None);
     }
-    if !options.project_type.requires_link() {
+    if !options.app_type.requires_link() {
         outputs.remove(&OutputType::Link);
     }
 

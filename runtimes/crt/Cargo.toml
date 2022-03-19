@@ -3,8 +3,7 @@ name = "liblumen_crt"
 version = "0.1.0"
 authors = ["Lumen Developers"]
 publish = false
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 liblumen_core = { path = "../../liblumen_core" }
-panic = { path = "../../compiler/panic" }

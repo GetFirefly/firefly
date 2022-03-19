@@ -34,14 +34,15 @@ pub fn parser<'a, 'b>() -> App<'a, 'b> {
         .subcommand(compile_command())
 }
 
-pub fn print_print_help() {
-    print_command().print_help().expect("unable to print help");
-}
-
-pub fn print_compile_help() {
-    compile_command()
-        .print_help()
-        .expect("unable to print help");
+/// Prints help for the given command
+pub fn command_help(command: &str) {
+    match command {
+        "print" => print_command().print_help().unwrap(),
+        "compile" => compile_command().print_help().unwrap(),
+        other => {
+            eprintln!("Help unavailable for '{}' command!", other);
+        }
+    }
 }
 
 fn print_command<'a, 'b>() -> App<'a, 'b> {
@@ -70,7 +71,6 @@ fn print_command<'a, 'b>() -> App<'a, 'b> {
                 .about("Prints the available architectures for the current target")
                 .arg(target.clone().help("The target to list architectures for")),
         )
-        .subcommand(App::new("project-name").about("Prints the current project name"))
         .subcommand(
             App::new("passes").about("Prints the LLVM passes registered with the pass manager"),
         )
@@ -87,40 +87,54 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .help(
                     "Path(s) to the source file(s) or director(y|ies) to compile.\n\
                      You may also use `-` as a file name to read a file from stdin.\n\
-                     If not provided, the compiler will use the current directory as input.",
+                     If not provided, the compiler will treat the current working directory\n\
+                     as the root of a standard Erlang project, using sources from <cwd>/src.",
                 )
                 .next_line_help(true)
                 .multiple(true)
-                .value_name("PATHS"),
+                .value_name("INPUTS"),
         )
         .arg(
-            Arg::with_name("raw")
-                .last(true)
-                .help(
-                    "Extra arguments that will be passed unmodified to the LLVM argument processor",
-                )
-                .next_line_help(true)
-                .multiple(true)
-                .value_name("ARGS"),
-        )
-        .arg(
-            Arg::with_name("name")
-                .help("Specify the name of the project being built")
-                .short("n")
-                .long("name")
+            Arg::with_name("app-name")
+                .help("Specify the name of the Erlang application being built")
+                .long("app-name")
                 .takes_value(true)
                 .value_name("NAME"),
         )
         .arg(
+            Arg::with_name("app-type")
+                 .help("Specify the type of Erlang application to emit")
+                 .long("app-type")
+                 .takes_value(true)
+                 .value_name("TYPE")
+                 .possible_values(&["bin", "lib", "dylib", "staticlib"])
+        )
+        .arg(
+            Arg::with_name("app-version")
+                 .help("Specify the version of the Erlang application being built")
+                 .long("app-version")
+                 .takes_value(true)
+                 .possible_values(&["lib", "bin"])
+        )
+        .arg(
+            Arg::with_name("app")
+                 .help("Path to the resource file (.app/.app.src) from which to read application metadata")
+                 .long("app")
+                 .takes_value(true)
+                 .value_name("PATH")
+                .conflicts_with("app-name")
+                .conflicts_with("app-type")
+                .conflicts_with("app-version")
+        )
+        .arg(
             Arg::with_name("output")
-                .help("Write output to FILE")
-                .long("output")
+                .help("Write output to the given filename")
                 .short("o")
-                .value_name("FILE"),
+                .value_name("FILENAME"),
         )
         .arg(
             Arg::with_name("output-dir")
-                .help("Write output to file(s) in DIR")
+                .help("Write all outputs to DIR")
                 .long("output-dir")
                 .value_name("DIR"),
         )
@@ -128,37 +142,11 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("debug")
                 .help("Generate source level debug information (same as -C debuginfo=2)")
                 .short("g")
-                .default_value("true")
-                .default_value_if("opt-level", Some("3"), "true")
-                .long("debug"),
-        )
-        .arg(
-            Arg::with_name("no-optimize")
-                .help("Disable optimizations (optimization is enabled by default)")
-                .long("no-optimize"),
         )
         .arg(
             Arg::with_name("opt-level")
-                .conflicts_with("no-optimize")
-                .long("opt-level")
+                .help("Optimize generated code (same as -C opt-level=2)")
                 .short("O")
-                .takes_value(true)
-                .value_name("LEVEL")
-                .default_value("2")
-                .default_value_if("no-optimize", None, "0")
-                .possible_values(&["0", "1", "2", "3", "s", "z"])
-                .next_line_help(true)
-                .help(
-                    "\
-                      Apply optimizations (default is -O2)\n  \
-                        0 = no optimizations\n  \
-                        1 = minimal optimizations\n  \
-                        2 = normal optimizations (default)\n  \
-                        3 = aggressive optimizations\n  \
-                        s = optimize for size\n  \
-                        z = aggressively optimize for size\n  \
-                        _",
-                ),
         )
         .arg(
             target
@@ -167,12 +155,10 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("color")
-                .help("Configure coloring of output")
-                .next_line_help(true)
+                .help("Configure output colors")
                 .long("color")
                 .possible_values(ColorArg::VARIANTS)
                 .case_insensitive(true)
-                .default_value("auto"),
         )
         .arg(
             Arg::with_name("source-map-prefix")
@@ -193,15 +179,20 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .number_of_values(1),
         )
         .arg(
-            Arg::with_name("warnings-as-errors")
-                .help("Causes the compiler to treat all warnings as errors")
-                .long("warnings-as-errors"),
-        )
-        .arg(
-            Arg::with_name("no-warn")
-                .help("Disable warnings")
-                .long("no-warn")
-                .conflicts_with("warnings-as-errors"),
+            Arg::with_name("warn")
+                .help(
+                    "Modify how warnings are treated by the compiler.\n\
+                     \n\
+                     -Werror = treat all warnings as errors\n\
+                     -W0     = disable warnings\n\
+                     -Wall   = enable all warnings",
+                )
+                .next_line_help(true)
+                .short("W")
+                .long("warn")
+                .takes_value(true)
+                .value_name("LEVEL")
+                .default_value("all"),
         )
         .arg(
             Arg::with_name("verbose")
@@ -240,7 +231,7 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("include-paths")
-                .help("Add a path to the Erlang include path")
+                .help("Add a path to the Erlang include path.")
                 .long("include")
                 .short("I")
                 .value_name("PATH")

@@ -1,13 +1,9 @@
 ///! A helper class for dealing with static archives
-use std::ffi::CString;
-use std::io;
 use std::mem;
 use std::path::{Path, PathBuf};
-use std::ptr;
 use std::str;
 
-use liblumen_llvm as llvm;
-use liblumen_llvm::archives::{ArchiveKind, ArchiveRO, Child};
+use liblumen_llvm::archives::*;
 use liblumen_session::Options;
 use liblumen_session::OutputType;
 
@@ -31,7 +27,7 @@ pub struct LlvmArchiveBuilder<'a> {
     removals: Vec<String>,
     additions: Vec<Addition>,
     should_update_symbols: bool,
-    src_archive: Option<Option<ArchiveRO>>,
+    src_archive: Option<Option<OwnedArchive>>,
 }
 
 enum Addition {
@@ -41,7 +37,7 @@ enum Addition {
     },
     Archive {
         path: PathBuf,
-        archive: ArchiveRO,
+        archive: OwnedArchive,
         skip: Box<dyn FnMut(&str) -> bool>,
     },
 }
@@ -49,14 +45,17 @@ enum Addition {
 impl Addition {
     fn path(&self) -> &Path {
         match self {
-            Addition::File { path, .. } | Addition::Archive { path, .. } => path,
+            Self::File { path, .. } | Self::Archive { path, .. } => path,
         }
     }
 }
 
-fn is_relevant_child(c: &Child<'_>) -> bool {
+fn is_relevant_child(c: &ArchiveMember<'_>) -> bool {
     match c.name() {
-        Some(name) => !name.contains("SYMDEF"),
+        Some(name) => {
+            let name: &str = name.try_into().unwrap();
+            !name.contains("SYMDEF")
+        }
         None => false,
     }
 }
@@ -103,8 +102,8 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
             .filter_map(|child| child.ok())
             .filter(is_relevant_child)
             .filter_map(|child| child.name())
-            .filter(|name| !self.removals.iter().any(|x| x == name))
-            .map(|name| name.to_owned())
+            .filter(|name| !self.removals.iter().any(|x| name.eq(x)))
+            .map(|name| name.to_string())
             .collect()
     }
 
@@ -132,7 +131,7 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
         name: &str,
         lto: bool,
         skip_objects: bool,
-    ) -> io::Result<()> {
+    ) -> anyhow::Result<()> {
         // Ignoring obj file starting with the crate name
         // as simple comparison is not enough - there
         // might be also an extra name suffix
@@ -189,29 +188,26 @@ impl<'a> ArchiveBuilder<'a> for LlvmArchiveBuilder<'a> {
 }
 
 impl<'a> LlvmArchiveBuilder<'a> {
-    fn src_archive(&mut self) -> Option<&ArchiveRO> {
-        if let Some(ref a) = self.src_archive {
-            return a.as_ref();
+    fn src_archive(&mut self) -> Option<&Archive> {
+        if let Some(ref opt) = self.src_archive {
+            return opt.as_deref();
         }
         let src = self.config.src.as_ref()?;
-        self.src_archive = Some(ArchiveRO::open(src).ok());
-        self.src_archive.as_ref().unwrap().as_ref()
+        let opt = self.src_archive.insert(Archive::open(src).ok());
+        opt.as_deref()
     }
 
-    fn add_archive<F>(&mut self, archive: &Path, skip: F) -> io::Result<()>
+    fn add_archive<F>(&mut self, path: &Path, skip: F) -> anyhow::Result<()>
     where
         F: FnMut(&str) -> bool + 'static,
     {
-        let archive_ro = match ArchiveRO::open(archive) {
-            Ok(ar) => ar,
-            Err(e) => return Err(io::Error::new(io::ErrorKind::Other, e)),
-        };
-        if self.additions.iter().any(|ar| ar.path() == archive) {
+        let archive = Archive::open(path)?;
+        if self.additions.iter().any(|ar| ar.path() == path) {
             return Ok(());
         }
         self.additions.push(Addition::Archive {
-            path: archive.to_path_buf(),
-            archive: archive_ro,
+            path: path.to_path_buf(),
+            archive,
             skip: Box::new(skip),
         });
         Ok(())
@@ -222,113 +218,73 @@ impl<'a> LlvmArchiveBuilder<'a> {
         kind.parse().map_err(|_| kind)
     }
 
-    fn build_with_llvm(&mut self, kind: ArchiveKind) -> io::Result<()> {
+    fn build_with_llvm(&mut self, kind: ArchiveKind) -> anyhow::Result<()> {
         let removals = mem::take(&mut self.removals);
         let mut additions = mem::take(&mut self.additions);
         let mut strings = Vec::new();
         let mut members = Vec::new();
 
-        let dst = CString::new(self.config.dst.to_str().unwrap())?;
+        let dst = self.config.dst.clone();
         let should_update_symbols = self.should_update_symbols;
 
-        unsafe {
-            if let Some(archive) = self.src_archive() {
-                for child in archive.iter() {
-                    let child = child.map_err(string_to_io_error)?;
-                    let child_name = match child.name() {
-                        Some(s) => s,
-                        None => continue,
-                    };
-                    if removals.iter().any(|r| r == child_name) {
-                        continue;
-                    }
-
-                    let name = CString::new(child_name)?;
-                    members.push(llvm::archives::LLVMLumenArchiveMemberNew(
-                        ptr::null(),
-                        name.as_ptr(),
-                        Some(child.raw),
-                    ));
-                    strings.push(name);
+        if let Some(archive) = self.src_archive() {
+            for child in archive.iter() {
+                let child = child?;
+                let child_name = match child.name() {
+                    Some(s) => s,
+                    None => continue,
+                };
+                if removals.iter().any(|r| child_name.eq(r)) {
+                    continue;
                 }
-            }
-            for addition in &mut additions {
-                match addition {
-                    Addition::File {
-                        path,
-                        name_in_archive,
-                    } => {
-                        let path = CString::new(path.to_str().unwrap())?;
-                        let name = CString::new(name_in_archive.clone())?;
-                        members.push(llvm::archives::LLVMLumenArchiveMemberNew(
-                            path.as_ptr(),
-                            name.as_ptr(),
-                            None,
-                        ));
-                        strings.push(path);
-                        strings.push(name);
-                    }
-                    Addition::Archive { archive, skip, .. } => {
-                        for child in archive.iter() {
-                            let child = child.map_err(string_to_io_error)?;
-                            if !is_relevant_child(&child) {
-                                continue;
-                            }
-                            let child_name = child.name().unwrap();
-                            if skip(child_name) {
-                                continue;
-                            }
 
-                            // It appears that LLVM's archive writer is a little
-                            // buggy if the name we pass down isn't just the
-                            // filename component, so chop that off here and
-                            // pass it in.
-                            //
-                            // See LLVM bug 25877 for more info.
-                            let child_name =
-                                Path::new(child_name).file_name().unwrap().to_str().unwrap();
-                            let name = CString::new(child_name)?;
-                            let m = llvm::archives::LLVMLumenArchiveMemberNew(
-                                ptr::null(),
-                                name.as_ptr(),
-                                Some(child.raw),
-                            );
-                            members.push(m);
-                            strings.push(name);
-                        }
-                    }
-                }
+                members.push(NewArchiveMember::from_child(child_name, child));
+                strings.push(child_name.to_string());
             }
-
-            let r = llvm::archives::LLVMLumenWriteArchive(
-                dst.as_ptr(),
-                members.len() as libc::size_t,
-                members.as_ptr() as *const &_,
-                should_update_symbols,
-                kind,
-            );
-            let ret = if r.into_result().is_err() {
-                if let Some(msg) = llvm::diagnostics::last_error() {
-                    Err(io::Error::new(io::ErrorKind::Other, msg))
-                } else {
-                    Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "failed to write archive".to_owned(),
-                    ))
-                }
-            } else {
-                Ok(())
-            };
-            for member in members {
-                llvm::archives::LLVMLumenArchiveMemberFree(member);
-            }
-            ret
         }
-    }
-}
+        for addition in &mut additions {
+            match addition {
+                Addition::File {
+                    path,
+                    name_in_archive,
+                } => {
+                    members.push(NewArchiveMember::from_path(name_in_archive.as_str(), path));
+                    strings.push(path.display().to_string());
+                    strings.push(name_in_archive.to_string());
+                }
+                Addition::Archive { archive, skip, .. } => {
+                    for child in archive.iter() {
+                        let child = child?;
+                        if !is_relevant_child(&child) {
+                            continue;
+                        }
+                        let child_name = child.name().unwrap();
+                        if skip(child_name.try_into().unwrap()) {
+                            continue;
+                        }
 
-fn string_to_io_error(s: String) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, format!("bad archive: {}", s))
+                        // It appears that LLVM's archive writer is a little
+                        // buggy if the name we pass down isn't just the
+                        // filename component, so chop that off here and
+                        // pass it in.
+                        //
+                        // See LLVM bug 25877 for more info.
+                        let child_name = child_name.to_path_lossy();
+                        let child_name = child_name.file_name().unwrap();
+                        members.push(NewArchiveMember::from_child(child_name, child));
+                        strings.push(child_name.to_string_lossy().into_owned());
+                    }
+                }
+            }
+        }
+
+        Archive::create(
+            dst.as_path(),
+            members.as_slice(),
+            should_update_symbols,
+            kind,
+        )
+    }
 }
 
 /// Checks if the given filename ends with the `.rcgu.o` extension that `rustc`

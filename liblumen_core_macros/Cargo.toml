@@ -2,7 +2,7 @@
 name = "liblumen_core_macros"
 version = "0.1.0"
 authors = ["Lumen Developers"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [lib]

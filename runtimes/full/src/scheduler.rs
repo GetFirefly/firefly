@@ -26,12 +26,10 @@ use lumen_rt_core::timer::Hierarchy;
 use crate::process::out_of_code;
 
 // External functions defined in OTP
-extern "C" {
-    #[unwind(allowed)]
+extern "C-unwind" {
     #[link_name = "erlang:apply/2"]
     fn apply_2(module: Term, function: Term, arguments: Term) -> Term;
 
-    #[unwind(allowed)]
     #[link_name = "erlang:apply/3"]
     fn apply_3(module: Term, function: Term, arguments: Term) -> Term;
 }

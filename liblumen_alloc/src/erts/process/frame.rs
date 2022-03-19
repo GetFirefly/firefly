@@ -72,25 +72,30 @@ impl Debug for Frame {
 
 #[derive(Copy, Clone)]
 pub enum Native {
-    Zero(extern "C" fn() -> Term),
-    One(extern "C" fn(Term) -> Term),
-    Two(extern "C" fn(Term, Term) -> Term),
-    Three(extern "C" fn(Term, Term, Term) -> Term),
-    Four(extern "C" fn(Term, Term, Term, Term) -> Term),
-    Five(extern "C" fn(Term, Term, Term, Term, Term) -> Term),
+    Zero(extern "C-unwind" fn() -> Term),
+    One(extern "C-unwind" fn(Term) -> Term),
+    Two(extern "C-unwind" fn(Term, Term) -> Term),
+    Three(extern "C-unwind" fn(Term, Term, Term) -> Term),
+    Four(extern "C-unwind" fn(Term, Term, Term, Term) -> Term),
+    Five(extern "C-unwind" fn(Term, Term, Term, Term, Term) -> Term),
 }
 
 impl Native {
     pub unsafe fn from_ptr(ptr: *const c_void, arity: Arity) -> Self {
         match arity {
-            0 => Self::Zero(transmute::<_, extern "C" fn() -> Term>(ptr)),
-            1 => Self::One(transmute::<_, extern "C" fn(Term) -> Term>(ptr)),
-            2 => Self::Two(transmute::<_, extern "C" fn(Term, Term) -> Term>(ptr)),
-            3 => Self::Three(transmute::<_, extern "C" fn(Term, Term, Term) -> Term>(ptr)),
-            4 => Self::Four(transmute::<_, extern "C" fn(Term, Term, Term, Term) -> Term>(ptr)),
+            0 => Self::Zero(transmute::<_, extern "C-unwind" fn() -> Term>(ptr)),
+            1 => Self::One(transmute::<_, extern "C-unwind" fn(Term) -> Term>(ptr)),
+            2 => Self::Two(transmute::<_, extern "C-unwind" fn(Term, Term) -> Term>(
+                ptr,
+            )),
+            3 => Self::Three(transmute::<_, extern "C-unwind" fn(Term, Term, Term) -> Term>(ptr)),
+            4 => Self::Four(transmute::<
+                _,
+                extern "C-unwind" fn(Term, Term, Term, Term) -> Term,
+            >(ptr)),
             5 => Self::Five(transmute::<
                 _,
-                extern "C" fn(Term, Term, Term, Term, Term) -> Term,
+                extern "C-unwind" fn(Term, Term, Term, Term, Term) -> Term,
             >(ptr)),
             _ => unimplemented!(
                 "Converting `*const c_void` ptr with arity {} to `fn`",

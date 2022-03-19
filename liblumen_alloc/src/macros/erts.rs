@@ -19,7 +19,6 @@ macro_rules! atom_from_str {
 macro_rules! atom_from {
     ($e:expr) => {{
         #[allow(unused)]
-        use core::convert::TryInto;
         let a: $crate::erts::term::prelude::Atom = ($e).try_into().unwrap();
         a
     }};
@@ -37,9 +36,12 @@ macro_rules! fixnum {
 
 #[macro_export]
 macro_rules! fixnum_from {
+    ($num:literal) => {
+        $crate::erts::term::prelude::SmallInteger::new($num).unwrap()
+    };
+
     ($num:expr) => {{
         #[allow(unused)]
-        use core::convert::TryInto;
         let n: $crate::erts::term::prelude::SmallInteger = ($num).try_into().unwrap();
         n
     }};

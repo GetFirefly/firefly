@@ -1,21 +1,17 @@
 use std::collections::HashSet;
 use std::fs::File;
-use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 
-use libeir_intern::{Ident, Symbol};
-use libeir_ir::FunctionIdent;
-
 use liblumen_core::symbols::FunctionSymbol;
-use liblumen_llvm as llvm;
+use liblumen_intern::Symbol;
 use liblumen_llvm::builder::ModuleBuilder;
-use liblumen_llvm::enums::{Linkage, ThreadLocalMode};
+use liblumen_llvm::ir::*;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_session::{Input, Options, OutputType};
+use liblumen_syntax_core::FunctionName;
 
 use crate::meta::CompiledModule;
-use crate::Result;
 
 /// Generates an LLVM module containing the raw symbol table data for the current build
 ///
@@ -26,10 +22,10 @@ use crate::Result;
 /// a more efficient search structure for dispatch.
 pub fn generate(
     options: &Options,
-    context: &llvm::Context,
-    target_machine: &TargetMachine,
+    context: &Context,
+    target_machine: TargetMachine,
     symbols: HashSet<FunctionSymbol>,
-) -> Result<Arc<CompiledModule>> {
+) -> anyhow::Result<Arc<CompiledModule>> {
     const NAME: &'static str = "liblumen_crt_dispatch";
 
     let builder = ModuleBuilder::new(NAME, options, context, target_machine)?;
@@ -37,70 +33,75 @@ pub fn generate(
     fn declare_extern_symbol<'ctx>(
         builder: &ModuleBuilder<'ctx>,
         symbol: &FunctionSymbol,
-    ) -> Result<llvm::Value> {
-        let ms = unsafe { mem::transmute::<u32, Symbol>(symbol.module as u32) };
-        let fs = unsafe { mem::transmute::<u32, Symbol>(symbol.function as u32) };
-        let ident = FunctionIdent {
-            module: Ident::with_empty_span(ms),
-            name: Ident::with_empty_span(fs),
-            arity: symbol.arity as usize,
-        };
+    ) -> anyhow::Result<Function> {
+        let ms = Symbol::new(symbol.module as u32);
+        let fs = Symbol::new(symbol.function as u32);
+        let ident = FunctionName::new(ms, fs, symbol.arity);
         let name = ident.to_string();
         let ty = builder.get_erlang_function_type(ident.arity);
         Ok(builder.build_external_function(name.as_str(), ty))
     }
 
-    // Translate FunctionIdent to FunctionSymbol with pointer to declared function
+    // Translate FunctionName to FunctionSymbol with pointer to declared function
     let usize_type = builder.get_usize_type();
     let i8_type = builder.get_i8_type();
     let fn_ptr_type = builder.get_pointer_type(builder.get_opaque_function_type());
     let function_symbol_type = builder.get_struct_type(
         Some("FunctionSymbol"),
-        &[usize_type, usize_type, i8_type, fn_ptr_type],
+        &[
+            usize_type.base(),
+            usize_type.base(),
+            i8_type.base(),
+            fn_ptr_type.base(),
+        ],
     );
 
     // Build values for array
-    let mut functions = Vec::with_capacity(symbols.len());
+    let mut functions: Vec<ConstantValue> = Vec::with_capacity(symbols.len());
     for symbol in symbols.iter() {
         let decl = declare_extern_symbol(&builder, symbol)?;
-        let decl_ptr = builder.build_pointer_cast(decl, fn_ptr_type);
+        let decl_ptr = ConstantExpr::pointer_cast(decl, fn_ptr_type);
         let module = builder.build_constant_uint(usize_type, symbol.module as u64);
         let fun = builder.build_constant_uint(usize_type, symbol.function as u64);
         let arity = builder.build_constant_uint(i8_type, symbol.arity as u64);
-        let function =
-            builder.build_constant_struct(function_symbol_type, &[module, fun, arity, decl_ptr]);
-        functions.push(function);
+        let function = builder.build_constant_named_struct(
+            function_symbol_type,
+            &[module.into(), fun.into(), arity.into(), decl_ptr.into()],
+        );
+        functions.push(function.into());
     }
 
     // Generate global array of all idents
     let functions_const_init =
         builder.build_constant_array(function_symbol_type, functions.as_slice());
-    let functions_const_ty = builder.type_of(functions_const_init);
+    let functions_const_ty = functions_const_init.get_type();
     let functions_const = builder.build_constant(
         functions_const_ty,
         "__LUMEN_SYMBOL_TABLE_ENTRIES",
-        Some(functions_const_init),
+        functions_const_init,
     );
-    builder.set_linkage(functions_const, Linkage::Private);
-    builder.set_alignment(functions_const, 8);
+    functions_const.set_linkage(Linkage::Private);
+    functions_const.set_alignment(8);
+    let functions_const: ConstantValue = functions_const.try_into().unwrap();
 
     let function_ptr_type = builder.get_pointer_type(function_symbol_type);
-    let table_global_init = builder.build_const_inbounds_gep(functions_const, &[0, 0]);
+    let table_global_init =
+        builder.build_const_inbounds_gep(functions_const_ty, functions_const, &[0, 0]);
     let table_global = builder.build_global(
         function_ptr_type,
         "__LUMEN_SYMBOL_TABLE",
-        Some(table_global_init),
+        Some(table_global_init.base()),
     );
-    builder.set_alignment(table_global, 8);
+    table_global.set_alignment(8);
 
     // Generate array length global
     let table_size_global_init = builder.build_constant_uint(usize_type, functions.len() as u64);
     let table_size_global = builder.build_global(
         usize_type,
         "__LUMEN_SYMBOL_TABLE_SIZE",
-        Some(table_size_global_init),
+        Some(table_size_global_init.base()),
     );
-    builder.set_alignment(table_size_global, 8);
+    table_size_global.set_alignment(8);
 
     // Generate thread local variable for current reduction count
     let i32_type = builder.get_i32_type();
@@ -108,19 +109,24 @@ pub fn generate(
     let reduction_count_global = builder.build_global(
         i32_type,
         "CURRENT_REDUCTION_COUNT",
-        Some(reduction_count_init),
+        Some(reduction_count_init.base()),
     );
-    builder.set_thread_local_mode(reduction_count_global, ThreadLocalMode::LocalExec);
-    builder.set_linkage(reduction_count_global, Linkage::External);
-    builder.set_alignment(reduction_count_global, 8);
+    reduction_count_global.set_thread_local(true);
+    reduction_count_global.set_thread_local_mode(ThreadLocalMode::LocalExec);
+    reduction_count_global.set_linkage(Linkage::External);
+    reduction_count_global.set_alignment(8);
 
     // Generate thread local variable for process signal
     let process_signal_init = builder.build_constant_uint(i8_type, 0);
-    let process_signal_global =
-        builder.build_global(i8_type, "__lumen_process_signal", Some(process_signal_init));
-    builder.set_thread_local_mode(process_signal_global, ThreadLocalMode::LocalExec);
-    builder.set_linkage(process_signal_global, Linkage::External);
-    builder.set_alignment(process_signal_global, 8);
+    let process_signal_global = builder.build_global(
+        i8_type,
+        "__lumen_process_signal",
+        Some(process_signal_init.base()),
+    );
+    process_signal_global.set_thread_local(true);
+    process_signal_global.set_thread_local_mode(ThreadLocalMode::LocalExec);
+    process_signal_global.set_linkage(Linkage::External);
+    process_signal_global.set_alignment(8);
 
     // We have to build a shim for the Rust libstd `lang_start_internal`
     // function to start the Rust runtime. Since that symbol is internal,
@@ -137,8 +143,8 @@ pub fn generate(
     let main_ptr_ty = builder.get_pointer_type(builder.get_function_type(i32_type, &[], false));
     let lang_start_ty = builder.get_function_type(
         usize_type,
-        &[main_ptr_ty, usize_type, i8ptrptr_type],
-        /* varidic= */ false,
+        &[main_ptr_ty.base(), usize_type.base(), i8ptrptr_type.base()],
+        /* variadic= */ false,
     );
 
     let lang_start_fn_decl = builder.build_external_function(lang_start_symbol_name, lang_start_ty);
@@ -147,9 +153,10 @@ pub fn generate(
     let entry_block = builder.build_entry_block(lang_start_shim_fn);
     builder.position_at_end(entry_block);
 
-    let lang_start_args = builder.get_function_params(lang_start_shim_fn);
-    let lang_start_call = builder.build_call(lang_start_fn_decl, &lang_start_args, None);
-    builder.set_is_tail(lang_start_call, true);
+    let lang_start_args = lang_start_shim_fn.arguments();
+    let forwarded_args = lang_start_args.iter().map(|v| v.base()).collect::<Vec<_>>();
+    let lang_start_call = builder.build_call(lang_start_fn_decl, forwarded_args.as_slice(), None);
+    lang_start_call.set_tail_call(true);
     builder.build_return(lang_start_call);
 
     // Finalize module
@@ -173,13 +180,13 @@ pub fn generate(
     // Emit assembly file
     if let Some(asm_path) = options.maybe_emit(&input, OutputType::Assembly) {
         let mut file = File::create(asm_path.as_path())?;
-        module.emit_asm(&mut file)?;
+        module.emit_asm(&mut file, target_machine)?;
     }
 
     // Emit object file
     let obj_path = if let Some(obj_path) = options.maybe_emit(&input, OutputType::Object) {
         let mut file = File::create(obj_path.as_path())?;
-        module.emit_obj(&mut file)?;
+        module.emit_obj(&mut file, target_machine)?;
         Some(obj_path)
     } else {
         None

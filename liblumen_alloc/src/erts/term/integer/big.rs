@@ -348,7 +348,7 @@ impl PartialOrd<Float> for BigInteger {
                     if (SmallInteger::MIN_VALUE as f64) <= other_f64 {
                         Less
                     // big_int can't fit in float, so it must be less than any float
-                    } else if (std::f64::MAX_EXP as usize) < self_big_int.bits() {
+                    } else if (std::f64::MAX_EXP as u64) < self_big_int.bits() {
                         Less
                     // > A float is more precise than an integer until all
                     // > significant figures of the float are to the left of the
@@ -387,7 +387,7 @@ impl PartialOrd<Float> for BigInteger {
                     if other_f64 <= (SmallInteger::MAX_VALUE as f64) {
                         Greater
                     // big_int can't fit in float, so it must be greater than any float
-                    } else if (std::f64::MAX_EXP as usize) < self_big_int.bits() {
+                    } else if (std::f64::MAX_EXP as u64) < self_big_int.bits() {
                         Greater
                     // > A float is more precise than an integer until all
                     // > significant figures of the float are to the left of the

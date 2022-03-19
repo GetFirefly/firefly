@@ -1,0 +1,9 @@
+{
+    "version": 2,
+    "configurePresets": [
+        {
+            "name": "developer-warnings",
+            "warnings": [{ "dev": false }]
+        }
+    ]
+}

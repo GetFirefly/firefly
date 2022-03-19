@@ -23,13 +23,17 @@ pub enum ProcessSignal {
     Exit,
 }
 
-extern "C" {
+extern "C-unwind" {
     #[link_name = "__lumen_process_signal"]
     #[thread_local]
     static mut PROCESS_SIGNAL: ProcessSignal;
 
+    #[link_name = "__lumen_process_exception"]
+    #[thread_local]
     #[allow(improper_ctypes)]
-    #[unwind(allowed)]
+    static mut PROCESS_EXCEPTION: *mut ErlangException;
+
+    #[allow(improper_ctypes)]
     #[link_name = "__lumen_panic"]
     fn lumen_panic(err: *mut ErlangException) -> !;
 }
@@ -59,10 +63,32 @@ pub fn clear_process_signal() {
     }
 }
 
-#[unwind(allowed)]
+/// Returns the current value of the process exception pointer
+#[inline(always)]
+pub fn process_exception() -> *mut ErlangException {
+    unsafe { PROCESS_EXCEPTION }
+}
+
+/// Sets the process exception pointer
+#[inline(always)]
+pub fn set_process_exception(ptr: *mut ErlangException) {
+    unsafe {
+        PROCESS_EXCEPTION = ptr;
+    }
+}
+
+/// Clears the current value of the process exception pointer
+#[inline(always)]
+pub fn clear_process_exception() {
+    unsafe {
+        PROCESS_EXCEPTION = core::ptr::null_mut();
+    }
+}
+
 pub fn process_raise(err: RuntimeException) -> ! {
     let erlang_exception = err.as_erlang_exception();
     let ptr = Box::into_raw(erlang_exception);
+    set_process_exception(ptr);
     unsafe {
         PROCESS_ERROR.with(|cell| cell.replace(Some(err)));
 
@@ -73,5 +99,7 @@ pub fn process_raise(err: RuntimeException) -> ! {
 /// Gets the process error value
 #[inline]
 pub fn process_error() -> Option<RuntimeException> {
-    unsafe { PROCESS_ERROR.with(|cell| cell.replace(None)) }
+    let exception = unsafe { PROCESS_ERROR.with(|cell| cell.replace(None)) };
+    clear_process_exception();
+    exception
 }

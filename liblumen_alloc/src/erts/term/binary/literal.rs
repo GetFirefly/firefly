@@ -66,8 +66,6 @@ impl BinaryLiteral {
     where
         E: EncodingTrait,
     {
-        use core::convert::{TryFrom, TryInto};
-
         let header_val = <E::Type as TryFrom<usize>>::try_from(0).ok().unwrap();
         let header = E::encode_header_with_tag(header_val, Tag::ProcBin)
             .try_into()
@@ -89,8 +87,6 @@ impl BinaryLiteral {
     where
         E: EncodingTrait,
     {
-        use core::convert::{TryFrom, TryInto};
-
         let header_val = <E::Type as TryFrom<usize>>::try_from(0).ok().unwrap();
         let header = E::encode_header_with_tag(header_val, Tag::ProcBin)
             .try_into()

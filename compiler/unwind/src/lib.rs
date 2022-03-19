@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(link_cfg)]
 #![feature(nll)]
-#![feature(unwind_attributes)]
+#![feature(c_unwind)]
 #![feature(static_nobundle)]
 #![cfg_attr(not(target_env = "msvc"), feature(libc))]
 

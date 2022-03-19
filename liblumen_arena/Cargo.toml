@@ -3,6 +3,6 @@ name = "liblumen_arena"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 publish = false
-edition = "2018"
+edition = "2021"
 
 [dependencies]

@@ -27,15 +27,15 @@ impl Signal {
 impl From<usize> for Signal {
     fn from(sig: usize) -> Signal {
         match sig as libc::c_int {
-            signal_hook::SIGINT => Signal::INT,
-            signal_hook::SIGTERM => Signal::TERM,
-            signal_hook::SIGQUIT => Signal::QUIT,
-            signal_hook::SIGHUP => Signal::HUP,
-            signal_hook::SIGABRT => Signal::ABRT,
-            signal_hook::SIGALRM => Signal::ALRM,
-            signal_hook::SIGUSR1 => Signal::USR1,
-            signal_hook::SIGUSR2 => Signal::USR2,
-            signal_hook::SIGCHLD => Signal::CHLD,
+            signal_hook::consts::SIGINT => Signal::INT,
+            signal_hook::consts::SIGTERM => Signal::TERM,
+            signal_hook::consts::SIGQUIT => Signal::QUIT,
+            signal_hook::consts::SIGHUP => Signal::HUP,
+            signal_hook::consts::SIGABRT => Signal::ABRT,
+            signal_hook::consts::SIGALRM => Signal::ALRM,
+            signal_hook::consts::SIGUSR1 => Signal::USR1,
+            signal_hook::consts::SIGUSR2 => Signal::USR2,
+            signal_hook::consts::SIGCHLD => Signal::CHLD,
             _ => Signal::Unknown,
         }
     }
@@ -45,16 +45,16 @@ pub fn init(mut bus: Bus<Signal>) {
     thread::spawn(move || {
         use signal_hook::iterator::Signals;
 
-        let signals = Signals::new(&[
-            signal_hook::SIGINT,
-            signal_hook::SIGTERM,
-            signal_hook::SIGQUIT,
-            signal_hook::SIGHUP,
-            signal_hook::SIGABRT,
-            signal_hook::SIGALRM,
-            signal_hook::SIGUSR1,
-            signal_hook::SIGUSR2,
-            signal_hook::SIGCHLD,
+        let mut signals = Signals::new(&[
+            signal_hook::consts::SIGINT,
+            signal_hook::consts::SIGTERM,
+            signal_hook::consts::SIGQUIT,
+            signal_hook::consts::SIGHUP,
+            signal_hook::consts::SIGABRT,
+            signal_hook::consts::SIGALRM,
+            signal_hook::consts::SIGUSR1,
+            signal_hook::consts::SIGUSR2,
+            signal_hook::consts::SIGCHLD,
         ])
         .expect("could not bind signal handlers");
 

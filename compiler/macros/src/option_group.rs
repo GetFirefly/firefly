@@ -114,24 +114,31 @@ Run with 'lumen -{} OPT[=VALUE]'
                 let help = std::str::from_utf8(buf.as_slice())
                     .expect("unable to print help due to invalid encoding, this is a bug!");
 
-                help.lines().take(3).for_each(|line| {
-                    println!("{}", line)
-                });
-                help.lines()
-                    .skip(3)
-                    .for_each(|line| {
-                        let mut split = line.splitn(2, "--");
-                        let leading_space = split.next().unwrap();
-                        if let Some(arg) = split.next() {
-                            println!("    {}", arg);
-                        } else {
-                            if leading_space.starts_with(|c: char| c.is_whitespace()) {
-                                println!("{}", leading_space.chars().skip(6).collect::<String>());
-                            } else {
-                                println!("{}", leading_space);
-                            }
-                        }
-                    });
+                for line in help.lines() {
+                    // All lines we want to modify start with whitespace
+                    if !line.starts_with(char::is_whitespace) {
+                        println!("{}", line);
+                        continue;
+                    }
+                    // Split on --, and if no split occurs, print the line
+                    let parts = line.splitn(2, "--").collect::<Vec<_>>();
+                    if parts.len() < 2 {
+                        println!("{}", line);
+                        continue;
+                    }
+                    // We want to do two things:
+                    // 1. Strip the --, which we've accomplished by breaking up the line into parts
+                    // 2. Reduce the amount of whitespace between the option name and help
+                    print!("{}", &parts[0]);
+                    let mut parts = parts[1].splitn(2, "  ");
+                    let option = parts.next().unwrap();
+                    print!("{}", option);
+                    if let Some(remainder) = parts.next() {
+                        println!("{}", &remainder[20..])
+                    } else {
+                        println!()
+                    }
+                }
             }
 
             fn option_group_options() -> &'static [crate::config::options::OptionInfo] {

@@ -233,7 +233,6 @@ static mut TYPE_DESCRIPTOR: _TypeDescriptor = _TypeDescriptor {
 macro_rules! define_cleanup {
     ($abi:tt) => {
         unsafe extern $abi fn exception_cleanup(e: *mut Exception) { /* nothing to do */ }
-        #[unwind(allowed)]
         unsafe extern $abi fn exception_copy(dest: *mut Exception,
                                              src: *mut Exception)
                                              -> *mut Exception {
@@ -246,7 +245,7 @@ cfg_if::cfg_if! {
    if #[cfg(target_arch = "x86")] {
        define_cleanup!("thiscall");
    } else {
-       define_cleanup!("C");
+       define_cleanup!("C-unwind");
    }
 }
 
@@ -305,7 +304,6 @@ pub unsafe fn panic(data: *mut ErlangPanic) -> u32 {
     );
 
     extern "system" {
-        #[unwind(allowed)]
         pub fn _CxxThrowException(pExceptionObject: *mut c_void, pThrowInfo: *mut u8) -> !;
     }
 

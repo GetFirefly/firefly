@@ -1,10 +1,12 @@
-#include "llvm-c/Core.h"
 #include "llvm/IR/Attributes.h"
+#include "llvm-c/Core.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/ErrorHandling.h"
 
-using ::llvm::Attribute;
 using ::llvm::AttrBuilder;
+using ::llvm::Attribute;
+using ::llvm::StringRef;
 using ::llvm::unwrap;
 
 namespace lumen {
@@ -39,8 +41,7 @@ enum AttrKind {
   ReturnsTwice = 26,
 };
 }
-}
-
+} // namespace lumen
 
 static Attribute::AttrKind fromRust(lumen::Attribute::AttrKind kind) {
   switch (kind) {
@@ -102,109 +103,71 @@ static Attribute::AttrKind fromRust(lumen::Attribute::AttrKind kind) {
   llvm::report_fatal_error("invalid attribute kind");
 }
 
-extern "C" void LLVMLumenAddCallSiteAttribute(LLVMValueRef instr, unsigned index,
-                                              lumen::Attribute::AttrKind lumenAttr) {
-  auto call = unwrap<llvm::CallBase>(instr);
-  auto attr = Attribute::get(call->getContext(), fromRust(lumenAttr));
-  call->addAttribute(index, attr);
-}
-
 extern "C" void LLVMLumenAddAlignmentCallSiteAttr(LLVMValueRef instr,
                                                   unsigned index,
                                                   uint32_t bytes) {
   auto call = unwrap<llvm::CallBase>(instr);
-  AttrBuilder b;
+  AttrBuilder b(call->getContext());
   b.addAlignmentAttr(bytes);
-  call->setAttributes(call->getAttributes().addAttributes(
-      call->getContext(), index, b));
+  call->setAttributes(
+      call->getAttributes().addAttributesAtIndex(call->getContext(), index, b));
 }
 
 extern "C" void LLVMLumenAddDereferenceableCallSiteAttr(LLVMValueRef instr,
                                                         unsigned index,
                                                         uint64_t bytes) {
   auto call = unwrap<llvm::CallBase>(instr);
-  AttrBuilder b;
+  AttrBuilder b(call->getContext());
   b.addDereferenceableAttr(bytes);
-  call->setAttributes(call->getAttributes().addAttributes(
-      call->getContext(), index, b));
+  call->setAttributes(
+      call->getAttributes().addAttributesAtIndex(call->getContext(), index, b));
 }
 
-extern "C" void LLVMLumenAddDereferenceableOrNullCallSiteAttr(LLVMValueRef instr,
-                                                              unsigned index,
-                                                              uint64_t bytes) {
+extern "C" void
+LLVMLumenAddDereferenceableOrNullCallSiteAttr(LLVMValueRef instr,
+                                              unsigned index, uint64_t bytes) {
   auto call = unwrap<llvm::CallBase>(instr);
-  AttrBuilder b;
+  AttrBuilder b(call->getContext());
   b.addDereferenceableOrNullAttr(bytes);
-  call->setAttributes(call->getAttributes().addAttributes(
-      call->getContext(), index, b));
+  call->setAttributes(
+      call->getAttributes().addAttributesAtIndex(call->getContext(), index, b));
 }
 
-extern "C" void LLVMLumenAddByValCallSiteAttr(LLVMValueRef instr, unsigned index,
-                                              LLVMTypeRef ty) {
+extern "C" void LLVMLumenAddByValCallSiteAttr(LLVMValueRef instr,
+                                              unsigned index, LLVMTypeRef ty) {
   auto call = unwrap<llvm::CallBase>(instr);
   Attribute attr = Attribute::getWithByValType(call->getContext(), unwrap(ty));
-  call->addAttribute(index, attr);
+  call->addAttributeAtIndex(index, attr);
 }
 
-extern "C" void LLVMLumenAddFunctionAttribute(LLVMValueRef fn, unsigned index,
-                                              lumen::Attribute::AttrKind lumenAttr) {
-  auto *f = unwrap<llvm::Function>(fn);
-  Attribute attr = Attribute::get(f->getContext(), fromRust(lumenAttr));
-  AttrBuilder b(attr);
-  f->addAttributes(index, b);
-}
-
-extern "C" void LLVMLumenAddAlignmentAttr(LLVMValueRef fn,
-                                          unsigned index,
+extern "C" void LLVMLumenAddAlignmentAttr(LLVMValueRef fn, unsigned index,
                                           uint32_t bytes) {
   auto *f = unwrap<llvm::Function>(fn);
-  AttrBuilder b;
+  AttrBuilder b(f->getContext());
   b.addAlignmentAttr(bytes);
-  f->addAttributes(index, b);
+  f->addParamAttrs(index, b);
 }
 
 extern "C" void LLVMLumenAddDereferenceableAttr(LLVMValueRef fn, unsigned index,
                                                 uint64_t bytes) {
   auto *f = unwrap<llvm::Function>(fn);
-  AttrBuilder b;
+  AttrBuilder b(f->getContext());
   b.addDereferenceableAttr(bytes);
-  f->addAttributes(index, b);
+  f->addParamAttrs(index, b);
 }
 
 extern "C" void LLVMLumenAddDereferenceableOrNullAttr(LLVMValueRef fn,
                                                       unsigned index,
                                                       uint64_t bytes) {
   auto *f = unwrap<llvm::Function>(fn);
-  AttrBuilder b;
+  AttrBuilder b(f->getContext());
   b.addDereferenceableOrNullAttr(bytes);
-  f->addAttributes(index, b);
+  f->addParamAttrs(index, b);
 }
 
 extern "C" void LLVMLumenAddByValAttr(LLVMValueRef fn, unsigned index,
                                       LLVMTypeRef ty) {
   auto *f = unwrap<llvm::Function>(fn);
   Attribute attr = Attribute::getWithByValType(f->getContext(), unwrap(ty));
-  f->addAttribute(index, attr);
+  f->addParamAttr(index, attr);
 }
-
-extern "C" void LLVMLumenAddFunctionAttrStringValue(LLVMValueRef fn,
-                                                    unsigned index,
-                                                    const char *name,
-                                                    const char *value) {
-  auto *f = unwrap<llvm::Function>(fn);
-  AttrBuilder b;
-  b.addAttribute(name, value);
-  f->addAttributes(index, b);
-}
-
-extern "C" void LLVMLumenRemoveFunctionAttributes(LLVMValueRef fn,
-                                                  unsigned index,
-                                                  lumen::Attribute::AttrKind lumenAttr) {
-  auto *f = unwrap<llvm::Function>(fn);
-  Attribute attr = Attribute::get(f->getContext(), fromRust(lumenAttr));
-  AttrBuilder b(attr);
-  auto attrList = f->getAttributes();
-  auto newAttrList = attrList.removeAttributes(f->getContext(), index, b);
-  f->setAttributes(newAttrList);
-}
-

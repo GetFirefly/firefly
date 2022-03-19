@@ -6,7 +6,7 @@ use anyhow::*;
 use liblumen_alloc::atom;
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::exception::{self, InternalResult};
-use liblumen_alloc::erts::message::{self, Message};
+use liblumen_alloc::erts::message::{self, MessageData};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -101,9 +101,9 @@ fn messages(process: &Process) -> Term {
         .lock()
         .borrow()
         .iter()
-        .map(|message| match message {
-            Message::Process(message::Process { data }) => *data,
-            Message::HeapFragment(message::HeapFragment { data, .. }) => {
+        .map(|message| match &message.data {
+            MessageData::Process(data) => *data,
+            MessageData::HeapFragment(message::HeapFragment { data, .. }) => {
                 data.clone_to_process(process)
             }
         })

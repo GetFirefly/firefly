@@ -1,0 +1,115 @@
+{{! Every enum is both an attribute definition and an enum type }}
+
+#[doc = "{{summary}}"]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr({{enum_value_type}})]
+pub enum {{name}} {
+    {{#each variants as |variant|}}
+        {{case.symbol}} = {{case.value}},
+    {{/each}}
+}
+impl Default for {{name}} {
+    fn default() -> Self {
+        Self::{{variants.[0].symbol}}
+    }
+}
+impl ::std::fmt::Display for {{name}} {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match self {
+            {{#each variants as |variant|}}
+                Self::{{case.symbol}} => f.write_str("{{case.symbol}}"),
+            {{/each}}
+        }
+    }
+}
+impl Into<{{enum_value_type}}> for {{name}} {
+    #[inline]
+    fn into(self) -> {{enum_value_type}} {
+        match self {
+            {{#each cases as |case|}}
+                Self::{{case.symbol}} => {{case.value}}
+            {{/each}}
+        }
+    }
+}
+impl ::std::convert::TryFrom<{{enum_value_type}}> for {{name}} {
+    type Error = ();
+
+    #[inline]
+    fn try_from(n: {{enum_value_type}}) -> Result<Self, Self::Error> {
+        match n {
+            {{#each cases as |case|}}
+                {{case.value}} => Ok(Self::{{case.symbol}}),
+            {{/each}}
+            _ => Err(())
+        }
+    }
+}
+
+/// An MLIR attribute that holds a `{{name}}` value
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct {{name}}Attr(Attribute);
+impl {{name}}Attr {
+    #[inline]
+    pub fn get(context: MlirContext, value: {{name}}) -> Self {
+        unsafe { mlir_{{to_snake_case(dialect.name)}}_get_{{to_snake_case(name)}}(context, value) }
+    }
+
+    #[inline]
+    pub fn value(&self) -> {{name}} {
+        unsafe { mlir_{{to_snake_case(dialect.name)}}_valueof_{{to_snake_case(name)}}(self.0) }
+    }
+}
+impl ::std::ops::Deref for {{name}}Attr {
+    type Target = ::liblumen_mlir::ir::Attribute;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl ::std::convert::TryFrom<Attribute> for {{name}}Attr {
+    type Error = ();
+
+    #[inline]
+    pub fn try_from(attr: Attribute) -> Result<Self, Self::Error> {
+        if unsafe { mlir_{{to_snake_case(dialect.name)}}_isa_{{to_snake_case(name)}}(attr) } {
+            Ok(Self(attr))
+        } else {
+            Err(())
+        }
+    }
+}
+impl Into<Attribute> for {{name}}Attr {
+    #[inline(always)]
+    fn into(self) -> Attribute {
+       self.0
+    }
+}
+impl ::std::fmt::Debug for {{name}}Attr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{{name}}Attr({:?})", &self.0)
+    }
+}
+impl ::std::fmt::Display for {{name}}Attr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}", &self.value())
+    }
+}
+
+impl<'a> {{dialect.builder_name}}<'a> {
+    #[inline]
+    pub fn get_{{to_snake_case(name)}}_attr(&self, value: {{name}}) -> {{name}}Attr {
+      {{name}}Attr::get(self.context(), value)
+    }
+}
+
+extern "C" {
+    #[link_name = "mlir{{to_pascal_case(dialect.name)}}{{name}}Get"]
+    fn mlir_{{to_snake_case(dialect.name)}}_get_{{to_snake_case(name)}}(context: MlirContext, value: {{name}}) -> {{name}};
+    #[link_name = "mlir{{to_pascal_case(dialect.name)}}{{name}}IsA"]
+    fn mlir_{{to_snake_case(dialect.name)}}_isa_{{to_snake_case(name)}}(attr: Attribute) -> bool;
+    #[link_name = "mlir{{to_pascal_case(dialect.name)}}{{name}}Value"]
+    fn mlir_{{to_snake_case(dialect.name)}}_valueof_{{to_snake_case(name)}}(attr: Attribute) -> {{name}};
+}

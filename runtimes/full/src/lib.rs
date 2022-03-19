@@ -19,22 +19,23 @@
 #![feature(type_ascription)]
 // for `crate::term::Term`
 #![feature(untagged_unions)]
-// for `crate::distribution::nodes::insert`
-#![feature(option_unwrap_none)]
 // `crate::registry::<Registered as PartialEq>::eq`
 #![feature(weak_ptr_eq)]
 // Layout helpers
 #![feature(alloc_layout_extra)]
+// liblumen_core::entry
 #![feature(termination_trait_lib)]
+#![feature(process_exitcode_placeholder)]
 // `PROCESS_SIGNAL`
 #![feature(thread_local)]
-// `__lumen_start_panic`
-#![feature(unwind_attributes)]
+// Unwinding across C ABI
+#![feature(c_unwind)]
 
 extern crate alloc;
 extern crate cfg_if;
-
 extern crate chrono;
+
+use anyhow::anyhow;
 
 pub use lumen_rt_core::{
     base, binary_to_string, context, distribution, integer_to_string, proplist, registry, send,
@@ -61,14 +62,18 @@ mod term;
 /// but for now it is sufficient to just conditionally compile the entry point here
 #[cfg(not(any(test, target_arch = "wasm32")))]
 #[liblumen_core::entry]
-fn main() -> impl ::std::process::Termination + 'static {
+fn main() -> i32 {
+    use std::process::Termination;
+
     let name = env!("CARGO_PKG_NAME");
     let version = env!("CARGO_PKG_VERSION");
     main_internal(name, version, std::env::args().collect())
+        .report()
+        .to_i32()
 }
 
 #[cfg(not(any(test, target_arch = "wasm32")))]
-fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()> {
+fn main_internal(name: &str, version: &str, argv: Vec<String>) -> anyhow::Result<()> {
     use self::config::Config;
     use self::logging::Logger;
     use self::sys::break_handler::{self, Signal};
@@ -80,8 +85,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
     let _config = match Config::from_argv(name.to_string(), version.to_string(), argv) {
         Ok(config) => config,
         Err(err) => {
-            eprintln!("Config error: {}", err);
-            return Err(());
+            return Err(anyhow!(err));
         }
     };
 
@@ -106,8 +110,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
                 Signal::INT => {
                     // If an error occurs, report it before shutdown
                     if let Err(err) = scheduler.shutdown() {
-                        eprintln!("System error: {}", err);
-                        return Err(());
+                        return Err(anyhow!(err));
                     } else {
                         break;
                     }
@@ -117,7 +120,7 @@ fn main_internal(name: &str, version: &str, argv: Vec<String>) -> Result<(), ()>
                 // we handle them explicitly by immediately terminating, so
                 // that we are good citizens of the operating system
                 sig if sig.should_terminate() => {
-                    return Err(());
+                    return Ok(());
                 }
                 // All other signals can be surfaced to other parts of the
                 // system for custom use, e.g. SIGCHLD, SIGALRM, SIGUSR1/2

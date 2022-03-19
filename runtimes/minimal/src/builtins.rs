@@ -2,7 +2,6 @@ pub mod exceptions;
 pub mod gc;
 pub mod receive;
 
-use std::convert::TryInto;
 use std::panic;
 
 use liblumen_alloc::erts::term::prelude::*;
@@ -10,9 +9,8 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_rt_core::process::current_process;
 use lumen_rt_core::registry;
 
-#[unwind(allowed)]
 #[export_name = "erlang:!/2"]
-pub extern "C" fn builtin_send(to_term: Term, msg: Term) -> Term {
+pub extern "C-unwind" fn builtin_send(to_term: Term, msg: Term) -> Term {
     let result = panic::catch_unwind(|| {
         let decoded_result: Result<Pid, _> = to_term.decode().unwrap().try_into();
         if let Ok(to) = decoded_result {

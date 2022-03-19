@@ -4,7 +4,6 @@ lumen_cc_library(
     "ModuleBuilderSupport.h"
     "Passes.h"
   SRCS
-    "MLIR.cpp"
     "ModuleBuilder.cpp"
     "ModuleBuilderSupport.cpp"
     "InsertTraceConstructorsPass.cpp"

@@ -7,18 +7,26 @@
 ///!
 ///! See the assembly files in `dynamic_apply/*.s` for details on their
 ///! implementation.
-use crate::sys::dynamic_call::DynamicCallee;
+use core::arch::global_asm;
 
-extern "C" {
-    #[unwind(allowed)]
+use crate::sys::dynamic_call::DynamicCallee;
+use cfg_if::cfg_if;
+extern "C-unwind" {
     #[link_name = "__lumen_dynamic_apply"]
     pub fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize;
 }
 
-#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_macos.s"));
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_linux.s"));
+cfg_if! {
+    if #[cfg(all(target_os = "macos", target_arch = "x86_64"))] {
+        global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_macos.s"));
+    } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
+        global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_macos_aarch64.s"));
+    } else if #[cfg(tarch_arch = "x86_64")] {
+        global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_linux.s"));
+    } else {
+        compile_error!("dynamic calls have not been implemented for this platform!");
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -62,12 +70,22 @@ mod tests {
         // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
         let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
         // Build up the args and call the function
-        let args = &[1, 1, 1, 1, 1, 1, 1, 1, 1];
+        let args = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+        let (args, expected) = if cfg!(target_arch = "x86_64") {
+            // On x86_64, we have 6 registers to use, so pass 8 arguments
+            let slice = &args[0..7];
+            (slice, slice.iter().sum())
+        } else if cfg!(target_arch = "aarch64") {
+            // On aarch64, we have 8 registers to use, so pass 10 arguments
+            (&args[0..], args.iter().sum())
+        } else {
+            panic!("need to update test case for this target");
+        };
         let argv = args.as_ptr();
         let argc = args.len();
         let result = unsafe { apply(callee, argv, argc) };
 
-        assert_eq!(result, 8);
+        assert_eq!(result, expected);
     }
 
     #[test]
@@ -77,12 +95,22 @@ mod tests {
         // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
         let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
         // Build up the args and call the function
-        let args = &[1, 1, 1, 1, 1, 1, 1, 1];
+        let args = [1, 1, 1, 1, 1, 1, 1, 1, 1];
+        let (args, expected) = if cfg!(target_arch = "x86_64") {
+            // On x86_64, we have 6 registers to use, so pass 7 arguments
+            let slice = &args[0..6];
+            (slice, slice.iter().sum())
+        } else if cfg!(target_arch = "aarch64") {
+            // On aarch64, we have 8 registers to use, so pass 9 arguments
+            (&args[0..], args.iter().sum())
+        } else {
+            panic!("need to update test case for this target");
+        };
         let argv = args.as_ptr();
         let argc = args.len();
         let result = unsafe { apply(callee, argv, argc) };
 
-        assert_eq!(result, 7);
+        assert_eq!(result, expected);
     }
 
     #[test]
@@ -117,8 +145,7 @@ mod tests {
         panic!("panicky");
     }
 
-    #[unwind(allowed)]
-    extern "C" fn panicky_spilled(
+    extern "C-unwind" fn panicky_spilled(
         _a: usize,
         _b: usize,
         _c: usize,
@@ -138,6 +165,7 @@ mod tests {
         x + y
     }
 
+    #[cfg(target_arch = "x86_64")]
     extern "C" fn spilled_args_even(
         a: usize,
         b: usize,
@@ -151,6 +179,23 @@ mod tests {
         a + b + c + d + e + f + g + h
     }
 
+    #[cfg(target_arch = "aarch64")]
+    extern "C" fn spilled_args_even(
+        a: usize,
+        b: usize,
+        c: usize,
+        d: usize,
+        e: usize,
+        f: usize,
+        g: usize,
+        h: usize,
+        i: usize,
+        j: usize,
+    ) -> usize {
+        a + b + c + d + e + f + g + h + i + j
+    }
+
+    #[cfg(target_arch = "x86_64")]
     extern "C" fn spilled_args_odd(
         a: usize,
         b: usize,
@@ -161,5 +206,20 @@ mod tests {
         g: usize,
     ) -> usize {
         a + b + c + d + e + f + g
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    extern "C" fn spilled_args_odd(
+        a: usize,
+        b: usize,
+        c: usize,
+        d: usize,
+        e: usize,
+        f: usize,
+        g: usize,
+        h: usize,
+        i: usize,
+    ) -> usize {
+        a + b + c + d + e + f + g + h + i
     }
 }

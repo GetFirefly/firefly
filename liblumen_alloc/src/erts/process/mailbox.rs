@@ -1,190 +1,125 @@
-use core::default::Default;
+use crate::erts::message::{Message, MessageAdapter, MessageData};
 
-use alloc::collections::vec_deque::Iter;
-use alloc::collections::VecDeque;
+use intrusive_collections::linked_list::Cursor;
+use intrusive_collections::{LinkedList, UnsafeRef};
 
-use crate::borrow::CloneToProcess;
-use crate::erts::exception::AllocResult;
-use crate::erts::message::{self, Message};
-use crate::erts::process::ffi::{set_process_signal, ProcessSignal};
-use crate::erts::process::Process;
-use crate::erts::term::prelude::Term;
+use liblumen_arena::TypedArena;
 
-#[derive(Debug)]
 pub struct Mailbox {
-    messages: VecDeque<Message>,
-    seen: isize,
-
-    cursor: usize,
+    len: usize,
+    messages: LinkedList<MessageAdapter>,
+    storage: TypedArena<Message>,
 }
-
 impl Mailbox {
-    // Start receive implementation for the eir interpreter / minimal runtime
-
-    pub fn recv_start(&self) {
-        debug_assert!(self.cursor == 0);
-    }
-    /// Important to remember that this might return a term in a heap
-    /// fragment, and that it needs to be copied over to the process
-    /// heap before the message is removed from the mailbox.
-    pub fn recv_peek(&self) -> Option<Term> {
-        match self.messages.get(self.cursor) {
-            None => None,
-            Some(Message::Process(message::Process { data })) => Some(*data),
-            Some(Message::HeapFragment(message::HeapFragment { data, .. })) => Some(*data),
+    /// Create a new, empty mailbox
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            len: 0,
+            messages: LinkedList::new(MessageAdapter::new()),
+            storage: TypedArena::default(),
         }
     }
 
-    pub fn recv_last_off_heap(&self) -> bool {
-        match &self.messages[self.cursor - 1] {
-            Message::Process(_) => false,
-            Message::HeapFragment(_) => true,
-        }
-    }
-    pub fn recv_increment(&mut self) {
-        self.cursor += 1;
-    }
-    pub fn recv_received(&mut self) {
-        let message = self.messages.remove(self.cursor - 1).unwrap();
-
-        if let Message::HeapFragment(_) = message {
-            set_process_signal(ProcessSignal::GarbageCollect);
-        }
-
-        self.cursor = 0;
-    }
-    pub fn recv_timeout(&mut self) {
-        self.cursor = 0;
+    /// Returns true if the mailbox is empty
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.messages.is_empty()
     }
 
-    // End receive implementation for the eir interpreter / minimal interpreter
-
-    pub fn flush<F>(&mut self, predicate: F, process: &Process) -> bool
-    where
-        F: Fn(&Message) -> bool,
-    {
-        match self.iter().position(predicate) {
-            Some(index) => {
-                self.remove(index, process);
-
-                true
-            }
-            None => false,
-        }
+    /// Returns the number of messages in the mailbox
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.len
     }
 
-    pub fn iter(&self) -> Iter<Message> {
+    /// Returns a cursor starting at the oldest message in the mailbox
+    pub fn cursor(&self) -> Cursor<'_, MessageAdapter> {
+        self.messages.back()
+    }
+
+    /// Returns a cursor starting from the node given by the provided pointer
+    pub unsafe fn cursor_from_ptr(&mut self, ptr: *const Message) -> Cursor<'_, MessageAdapter> {
+        self.messages.cursor_from_ptr(ptr)
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &Message> + 'a {
         self.messages.iter()
     }
 
-    pub fn len(&self) -> usize {
-        self.messages.len()
+    /// Appends the given message to the mailbox queue
+    pub fn push(&mut self, data: MessageData) {
+        let ptr = self.storage.alloc(Message::new(data));
+        self.messages
+            .push_front(unsafe { UnsafeRef::from_raw(ptr) });
+        self.len += 1;
     }
 
-    pub fn mark_seen(&mut self) {
-        self.seen = (self.len() as isize) - 1;
+    /// Removes the given message from the mailbox
+    pub fn remove(&mut self, message: *const Message) {
+        let mut cursor = unsafe { self.messages.cursor_mut_from_ptr(message) };
+        debug_assert!(!cursor.is_null());
+        cursor.remove();
+        self.len -= 1;
     }
 
-    /// Pops the `message` out of the mailbox from the front of the queue.
-    pub fn pop(&mut self) -> Option<Message> {
-        match self.messages.pop_front() {
-            option_message @ Some(_) => {
-                self.decrement_seen();
-
-                option_message
+    /// Removes the first matching message from the mailbox, traversing in receive order (oldest->newest)
+    pub fn flush<F>(&mut self, predicate: F) -> bool
+    where
+        F: Fn(&Message) -> bool,
+    {
+        let mut current = self.messages.back_mut();
+        loop {
+            if current.is_null() {
+                break;
             }
-            None => None,
-        }
-    }
-
-    /// Puts `message` into mailbox at end of receive queue.
-    pub fn push(&mut self, message: Message) {
-        self.messages.push_back(message);
-    }
-
-    /// Pops the `message` out of the mailbox from the front of the queue AND clones it into
-    /// `process` heap.
-    pub fn receive(&mut self, process: &Process) -> Option<AllocResult<Term>> {
-        self.messages.pop_front().map(|message| match message {
-            Message::Process(message::Process { data }) => {
-                self.decrement_seen();
-
-                Ok(data)
+            let found = current.get().map(|msg| predicate(msg)).unwrap_or(false);
+            if found {
+                current.remove();
+                self.len -= 1;
+                return found;
             }
-            Message::HeapFragment(message::HeapFragment {
-                ref unsafe_ref_heap_fragment,
-                data,
-            }) => match data.clone_to_heap(&mut process.acquire_heap()) {
-                Ok(heap_data) => {
-                    let mut off_heap = process.off_heap.lock();
-
-                    unsafe {
-                        let mut cursor =
-                            off_heap.cursor_mut_from_ptr(unsafe_ref_heap_fragment.as_ref());
-                        cursor
-                            .remove()
-                            .expect("HeapFragment was not in process's off_heap");
-                    }
-
-                    self.decrement_seen();
-
-                    Ok(heap_data)
-                }
-                err @ Err(_) => {
-                    self.messages.push_front(message);
-
-                    err
-                }
-            },
-        })
-    }
-
-    pub fn remove(&mut self, index: usize, process: &Process) {
-        let message = self.messages.remove(index).unwrap();
-
-        if let Message::HeapFragment(message::HeapFragment {
-            unsafe_ref_heap_fragment,
-            ..
-        }) = message
-        {
-            let mut off_heap = process.off_heap.lock();
-
-            unsafe {
-                let mut cursor = off_heap.cursor_mut_from_ptr(unsafe_ref_heap_fragment.as_ref());
-                cursor
-                    .remove()
-                    .expect("HeapFragment was not in process's off_heap");
-            }
+            current.move_prev();
         }
 
-        if (index as isize) <= self.seen {
-            self.seen -= 1;
+        false
+    }
+
+    /// This function garbage collects the storage arena to ensure it doesn't grow
+    /// indefinitely. It uses the messages in the mailbox as roots.
+    ///
+    /// It is assumed that this is run _before_ the heap fragments associated with any
+    /// messages in the arena are dropped, so this needs to be done before off_heap is
+    /// cleared.
+    pub fn garbage_collect(&mut self) {
+        let mut len = 0;
+        let storage = TypedArena::with_capacity(self.len);
+        let mut messages = LinkedList::new(MessageAdapter::new());
+        // Walk the messages list from back-to-front, cloning message references
+        // into the new storage arena, and pushing them on the front of the new message
+        // list. When complete, we should have all of the messages in the new list,
+        // in the same order, only requiring a single traversal.
+        let mut cursor = self.messages.back();
+        while let Some(message) = cursor.get() {
+            let ptr = storage.alloc(message.clone());
+            messages.push_front(unsafe { UnsafeRef::from_raw(ptr) });
+            len += 1;
+            cursor.move_prev();
         }
-    }
-
-    pub fn seen(&self) -> isize {
-        self.seen
-    }
-
-    pub fn unmark_seen(&mut self) {
-        self.seen = -1;
-    }
-
-    // Private
-
-    fn decrement_seen(&mut self) {
-        if 0 <= self.seen {
-            self.seen -= 1;
-        }
+        // We don't need to unlink/free objects in the list, so use the faster version here
+        self.messages.fast_clear();
+        self.messages = messages;
+        // This shouldn't actually be necessary, but for sanity we recalculate len at the
+        // same time we rebuild the mailbox
+        self.len = len;
+        // This will cause the old storage to drop, which will deallocate potentially many
+        // chunks, depending on how long the arena was growing. If this happens on a busy
+        // process with a lot of contenders for the mailbox lock, it could cause problems
+        self.storage = storage;
     }
 }
-
 impl Default for Mailbox {
-    fn default() -> Mailbox {
-        Mailbox {
-            messages: Default::default(),
-            seen: -1,
-            cursor: 0,
-        }
+    fn default() -> Self {
+        Self::new()
     }
 }

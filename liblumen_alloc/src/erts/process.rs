@@ -75,6 +75,7 @@ cfg_if::cfg_if! {
 
 #[derive(Clone, Debug, Default)]
 #[repr(C)]
+#[cfg(all(unix, target_arch = "x86_64"))]
 pub struct CalleeSavedRegisters {
     pub rsp: u64,
     pub r15: u64,
@@ -84,6 +85,25 @@ pub struct CalleeSavedRegisters {
     pub rbx: u64,
     pub rbp: u64,
 }
+
+#[derive(Clone, Debug, Default)]
+#[repr(C)]
+#[cfg(all(unix, target_arch = "aarch64"))]
+pub struct CalleeSavedRegisters {
+    pub sp: u64,
+    pub x29: u64,
+    pub x28: u64,
+    pub x27: u64,
+    pub x26: u64,
+    pub x25: u64,
+    pub x24: u64,
+    pub x23: u64,
+    pub x22: u64,
+    pub x21: u64,
+    pub x20: u64,
+    pub x19: u64,
+}
+
 /// NOTE: We can safely mark this Sync because
 /// it is only ever used by the scheduler, and
 /// is never accessed by other threads.
@@ -334,7 +354,7 @@ impl Process {
 
                 t
             }
-            Err(alloc) => panic!(alloc),
+            Err(alloc) => panic!("{}", alloc),
         }
     }
 
@@ -533,14 +553,14 @@ impl Process {
 
         let message_unsafe_ref_heap_fragment = unsafe { UnsafeRef::from_raw(heap_fragment_ptr) };
 
-        self.send_message(Message::HeapFragment(message::HeapFragment {
+        self.send_message(MessageData::HeapFragment(message::HeapFragment {
             unsafe_ref_heap_fragment: message_unsafe_ref_heap_fragment,
             data,
         }));
     }
 
     pub fn send_from_self(&self, data: Term) {
-        self.send_message(Message::Process(message::Process { data }));
+        self.send_message(MessageData::Process(data));
     }
 
     /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
@@ -548,9 +568,7 @@ impl Process {
         match self.heap.try_lock() {
             Some(ref mut destination_heap) => match data.clone_to_heap(destination_heap) {
                 Ok(destination_data) => {
-                    self.send_message(Message::Process(message::Process {
-                        data: destination_data,
-                    }));
+                    self.send_message(MessageData::Process(destination_data));
                 }
                 Err(_) => {
                     let (heap_fragment_data, heap_fragment) = data.clone_to_fragment().unwrap();
@@ -566,7 +584,7 @@ impl Process {
         }
     }
 
-    fn send_message(&self, message: Message) {
+    fn send_message(&self, message: MessageData) {
         self.mailbox.lock().borrow_mut().push(message)
     }
 

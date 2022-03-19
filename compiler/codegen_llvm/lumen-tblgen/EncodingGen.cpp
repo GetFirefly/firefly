@@ -18,30 +18,6 @@ bool emitEncodingDefs(const llvm::RecordKeeper &recordKeeper,
                       llvm::raw_ostream &os) {
     llvm::emitSourceFileHeader("EIR Term Encoding Definitions", os);
 
-    auto flags = recordKeeper.getAllDerivedDefinitions("eir_EC");
-
-    os << "#ifndef EIR_ENCODING_FLAG\n";
-    os << "#define EIR_ENCODING_FLAG(FLAG, VAL)\n";
-    os << "#define FIRST_EIR_ENCODING_FLAG(FLAG, VAL) EIR_ENCODING_FLAG(FLAG, "
-          "VAL)\n";
-    os << "#endif\n\n";
-    unsigned flg = 0;
-    for (const auto *def : flags) {
-        EnumAttrCase ec(def);
-
-        if (flg == 0) {
-            os << formatv("FIRST_EIR_ENCODING_FLAG({0}, {1})\n", ec.getSymbol(),
-                          llvm::format_hex(ec.getValue(), 4, true));
-        } else {
-            os << formatv("EIR_ENCODING_FLAG({0}, {1})\n", ec.getSymbol(),
-                          llvm::format_hex(ec.getValue(), 4, true));
-        }
-        flg++;
-    }
-    os << "\n\n";
-    os << "#undef EIR_ENCODING_FLAG\n";
-    os << "#undef FIRST_EIR_ENCODING_FLAG\n\n";
-
     auto kinds = recordKeeper.getAllDerivedDefinitions("eir_TermKind");
     auto numKinds = kinds.size();
 
@@ -75,7 +51,6 @@ bool emitEncodingDefs(const llvm::RecordKeeper &recordKeeper,
 bool emitRustEncodingDefs(const llvm::RecordKeeper &recordKeeper,
                           llvm::raw_ostream &os) {
     auto kinds = recordKeeper.getAllDerivedDefinitions("eir_TermKind");
-    auto numKinds = kinds.size();
 
     // TermKind enum, used for exchanging type kind between frontend/backend
     os << "#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]\n";

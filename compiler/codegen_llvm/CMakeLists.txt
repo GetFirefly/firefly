@@ -1,7 +1,7 @@
 cmake_policy(SET CMP0048 NEW)
 
-cmake_policy(VERSION 3.10..3.15)
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+cmake_policy(VERSION 3.15..3.20)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if (POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
@@ -14,6 +14,10 @@ endif()
 
 if (POLICY CMP0079)
   cmake_policy(SET CMP0079 NEW)
+endif()
+
+if (POLICY CMP0116)
+  cmake_policy(SET CMP0016 NEW)
 endif()
 
 # Suppress warnings from LLVM that are out of our control

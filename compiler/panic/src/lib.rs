@@ -14,11 +14,10 @@
 #![feature(core_intrinsics)]
 #![feature(lang_items)]
 #![feature(libc)]
-#![feature(unwind_attributes)]
+#![feature(c_unwind)]
 #![feature(abi_thiscall)]
 #![feature(rustc_attrs)]
 #![feature(crate_visibility_modifier)]
-#![feature(raw)]
 #![panic_runtime]
 #![feature(panic_runtime)]
 
@@ -63,9 +62,8 @@ extern "C" {
 }
 
 // Entry point for raising an exception, just delegates to the platform-specific implementation.
-#[unwind(allowed)]
 #[no_mangle]
-pub unsafe extern "C" fn __lumen_start_panic(payload: *mut ErlangPanic) -> u32 {
+pub unsafe extern "C-unwind" fn __lumen_start_panic(payload: *mut ErlangPanic) -> u32 {
     imp::panic(payload)
 }
 

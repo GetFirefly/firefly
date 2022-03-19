@@ -7,21 +7,19 @@ repository = "https://github.com/lumen/lumen"
 license = "Apache-2.0"
 readme = "README.md"
 publish = false
-edition = "2018"
+edition = "2021"
 
 build = "build.rs"
 
 [dependencies]
 anyhow = "1.0"
-clap = "2.33.0"
-codespan-reporting = "0.9.4"
-env_logger = "0.7"
+clap = "2.34"
+env_logger = "0.9"
 human-panic = "1.0"
-log = "0.4"
-
 liblumen_util = { path = "../liblumen_util" }
 liblumen_compiler = { path = "../compiler/driver" }
 liblumen_session = { path = "../compiler/session" }
+log = "0.4"
 
 [build-dependencies]
 unwind = { path = "../compiler/unwind" }

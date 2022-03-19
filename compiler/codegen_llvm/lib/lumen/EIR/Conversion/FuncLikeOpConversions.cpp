@@ -30,10 +30,10 @@ struct FuncOpConversion : public EIROpConversion<eir::FuncOp> {
             }
             attrs.push_back(fa);
         }
-        SmallVector<MutableDictionaryAttr, 4> argAttrs;
+        SmallVector<DictionaryAttr, 4> argAttrs;
         for (unsigned i = 0, e = op.getNumArguments(); i < e; ++i) {
             auto aa = ::mlir::impl::getArgAttrs(op, i);
-            argAttrs.push_back(MutableDictionaryAttr(aa));
+            argAttrs.push_back(DictionaryAttr(aa));
         }
         auto newFunc = rewriter.create<mlir::FuncOp>(
             op.getLoc(), op.getName(), op.getType(), attrs, argAttrs);
@@ -96,16 +96,16 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         FlatSymbolRefAttr callee = op.calleeAttr();
         bool isAnonymous = op.isAnonymous();
 
-        LLVMType termTy = ctx.getOpaqueTermType();
-        LLVMType termPtrTy = termTy.getPointerTo();
-        LLVMType immedTy = ctx.getOpaqueImmediateType();
-        LLVMType i8Ty = ctx.getI8Type();
-        LLVMType i32Ty = ctx.getI32Type();
-        LLVMType i32PtrTy = i32Ty.getPointerTo();
+        Type termTy = ctx.getOpaqueTermType();
+        Type termPtrTy = termTy.getPointerTo();
+        Type immedTy = ctx.getOpaqueImmediateType();
+        Type i8Ty = ctx.getI8Type();
+        Type i32Ty = ctx.getI32Type();
+        Type i32PtrTy = i32Ty.getPointerTo();
 
         // Look for the callee, if it doesn't exist, create a default
         // declaration
-        SmallVector<LLVMType, 2> argTypes;
+        SmallVector<Type, 2> argTypes;
         // If we have an environment, the first argument is a closure
         if (envLen > 0) {
             argTypes.push_back(termPtrTy);
@@ -121,21 +121,19 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         }
         auto target =
             ctx.getOrInsertFunction(callee.getValue(), termTy, argTypes);
-        LLVMType targetType;
+        Type targetType;
         if (auto tgt = dyn_cast_or_null<LLVM::LLVMFuncOp>(target))
             targetType = tgt.getType();
         else if (auto tgt = dyn_cast_or_null<mlir::FuncOp>(target))
-            targetType = ctx.typeConverter.convertType(tgt.getType())
-                             .cast<LLVM::LLVMType>();
+            targetType = ctx.typeConverter.convertType(tgt.getType());
         else {
             auto ft = cast<FuncOp>(target).getType();
-            auto tt = ctx.typeConverter.convertType(ft);
-            targetType = tt.cast<LLVM::LLVMType>();
+            targetType = ctx.typeConverter.convertType(ft);
         }
 
-        LLVMType opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
-        LLVMType uniqueTy = ctx.targetInfo.getClosureUniqueType();
-        LLVMType uniquePtrTy = uniqueTy.getPointerTo();
+        Type opaqueFnTy = ctx.targetInfo.getOpaqueFnType();
+        Type uniqueTy = ctx.targetInfo.getClosureUniqueType();
+        Type uniquePtrTy = LLVMPointerType::get(uniqueTy);
 
         // Allocate closure header block
         auto closurePtrTy = PtrType::get(rewriter.getType<ClosureType>(envLen));
@@ -223,7 +221,7 @@ struct ClosureOpConversion : public EIROpConversion<ClosureOp> {
         Value codePtr =
             llvm_addressof(targetType.getPointerTo(), callee.getValue());
         Value codeIdx = llvm_constant(i32Ty, ctx.getI32Attr(4));
-        LLVMType opaqueFnPtrTy = opaqueFnTy.getPointerTo();
+        Type opaqueFnPtrTy = opaqueFnTy.getPointerTo();
         Value codePtrGep = llvm_gep(opaqueFnPtrTy.getPointerTo(), valRef,
                                     ValueRange{zero, codeIdx});
         llvm_store(llvm_bitcast(opaqueFnPtrTy, codePtr), codePtrGep);
@@ -266,9 +264,9 @@ struct UnpackEnvOpConversion : public EIROpConversion<UnpackEnvOp> {
         UnpackEnvOpAdaptor adaptor(operands);
         auto ctx = getRewriteContext(op, rewriter);
 
-        LLVMType termTy = ctx.getUsizeType();
-        LLVMType termPtrTy = termTy.getPointerTo();
-        LLVMType i32Ty = ctx.getI32Type();
+        Type termTy = ctx.getUsizeType();
+        Type termPtrTy = LLVMPointerType::get(termTy);
+        Type i32Ty = ctx.getI32Type();
 
         Value env = adaptor.env();
 
@@ -289,10 +287,10 @@ struct UnpackEnvOpConversion : public EIROpConversion<UnpackEnvOp> {
 void populateFuncLikeOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,
                                           EirTypeConverter &converter,
-                                          TargetInfo &targetInfo) {
+                                          TargetPlatform &platform) {
     patterns
         .insert<FuncOpConversion, ClosureOpConversion, UnpackEnvOpConversion>(
-            context, converter, targetInfo);
+            context, converter, platform);
 }
 
 }  // namespace eir

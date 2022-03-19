@@ -12,10 +12,9 @@ use liblumen_alloc::{Arity, ModuleFunctionArity};
 
 pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set_log_exit, spawn};
 
-#[unwind(allowed)]
 #[no_mangle]
-pub unsafe extern "C" fn __lumen_panic(term: Term) {
-    panic!(term);
+pub unsafe extern "C-unwind" fn __lumen_panic(term: Term) {
+    panic!("{}", term);
 }
 
 #[export_name = "lumen_rt_apply_2"]

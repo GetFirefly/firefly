@@ -68,12 +68,44 @@
 
 #[repr(C, packed)]
 crate struct StackMapHeader {
-    crate version: u8,
-    crate _reserved1: u8,
-    crate _reserved2: u16,
-    crate num_functions: u32,
-    crate num_constants: u32,
-    crate num_records: u32,
+    version: u8,
+    _reserved1: u8,
+    _reserved2: u16,
+    num_functions: u32,
+    num_constants: u32,
+    num_records: u32,
+}
+impl StackMapHeader {
+    #[inline(always)]
+    pub fn version(&self) -> u8 {
+        self.version
+    }
+
+    #[inline(always)]
+    pub fn reserved1(&self) -> u8 {
+        self._reserved1
+    }
+
+    #[inline]
+    pub fn reserved2(&self) -> u16 {
+        let reserved2 = core::ptr::addr_of!(self._reserved2);
+        unsafe { core::ptr::read_unaligned(reserved2) }
+    }
+
+    #[inline(always)]
+    pub fn num_functions(&self) -> u32 {
+        self.num_functions
+    }
+
+    #[inline(always)]
+    pub fn num_constants(&self) -> u32 {
+        self.num_constants
+    }
+
+    #[inline(always)]
+    pub fn num_records(&self) -> u32 {
+        self.num_records
+    }
 }
 
 #[repr(C, packed)]

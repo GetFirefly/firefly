@@ -16,21 +16,21 @@ struct MallocOpConversion : public EIROpConversion<MallocOp> {
         // We're expecting malloc target type to always be of PtrType
         PtrType ptrTy = op.getAllocType().dyn_cast<PtrType>();
         // The pointee (for now) is expected to be a term type
-        OpaqueTermType innerTy =
-            ptrTy.getInnerType().dyn_cast<OpaqueTermType>();
+        Type innerTy = ptrTy.getPointeeType();
+        auto innerTyInfo = dyn_cast<TermTypeInterface>(innerTy);
         if (!innerTy) return op.emitOpError("unsupported target type");
 
-        auto ty = ctx.typeConverter.convertType(innerTy).cast<LLVMType>();
+        auto ty = ctx.typeConverter.convertType(innerTy);
+        if (!ty) return op.emitOpError("could not convert pointee type");
 
-        if (innerTy.hasDynamicExtent()) {
-            Value allocPtr = ctx.buildMalloc(
-                ty, innerTy.getTypeKind().getValue(), adaptor.arity());
+        if (innerTyInfo.isImmediate()) {
+            Value zero = llvm_constant(immedTy, ctx.getIntegerAttr(0));
+            Value allocPtr =
+                ctx.buildMalloc(ty, innerTyInfo.getTypeKind().getValue(), zero);
             rewriter.replaceOp(op, allocPtr);
         } else {
-            Value zero =
-                llvm_constant(immedTy, ctx.getIntegerAttr(0));
-            Value allocPtr =
-                ctx.buildMalloc(ty, innerTy.getTypeKind().getValue(), zero);
+            Value allocPtr = ctx.buildMalloc(
+                ty, innerTyInfo.getTypeKind().getValue(), adaptor.arity());
             rewriter.replaceOp(op, allocPtr);
         }
 
@@ -51,9 +51,9 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
 
         auto immedTy = ctx.getOpaqueImmediateType();
         auto termTy = ctx.getOpaqueTermType();
-        TypeAttr fromAttr = op.getAttrOfType<TypeAttr>("from");
+        TypeAttr fromAttr = op->getAttrOfType<TypeAttr>("from");
         assert(fromAttr && "expected cast to contain 'from' attribute!");
-        TypeAttr toAttr = op.getAttrOfType<TypeAttr>("to");
+        TypeAttr toAttr = op->getAttrOfType<TypeAttr>("to");
         assert(toAttr && "expected cast to contain 'to' attribute!");
         Type fromTy = fromAttr.getValue();
         Type toTy = toAttr.getValue();
@@ -65,37 +65,38 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
         }
 
         // Casts to term types
-        if (auto tt = toTy.dyn_cast_or_null<OpaqueTermType>()) {
+        if (auto tt = toTy.dyn_cast<TermTypeInterface>()) {
             // ..from another term type
-            if (auto ft = fromTy.dyn_cast_or_null<OpaqueTermType>()) {
-                if (ft.isAtom() && (tt.isAtom()) || tt.isOpaque()) {
+            if (auto ft = fromTy.dyn_cast<TermTypeInterface>()) {
+                if (ft.isAtomLike() && (tt.isAtomLike()) ||
+                    toTy.isa<TermType>()) {
                     // This cast is a no-op
                     rewriter.replaceOp(op, in);
                     return success();
                 }
-                if (ft.isImmediate() && tt.isOpaque()) {
+                if (ft.isImmediate() && toTy.isa<TermType>()) {
                     rewriter.replaceOp(op, in);
                     return success();
                 }
-                if (ft.isBox() && tt.isOpaque()) {
+                if (fromTy.isa<BoxType>() && toTy.isa<TermType>()) {
                     Value cast = llvm_bitcast(termTy, in);
                     rewriter.replaceOp(op, cast);
                     return success();
                 }
-                if (ft.isOpaque() && tt.isImmediate()) {
+                if (fromTy.isa<TermType>() && tt.isImmediate()) {
                     rewriter.replaceOp(op, in);
                     return success();
                 }
-                if (ft.isOpaque() && tt.isBox()) {
-                    auto tbt = ctx.typeConverter.convertType(tt.cast<BoxType>())
-                                   .cast<LLVMType>();
+                if (fromTy.isa<TermType>() && toTy.isa<BoxType>()) {
+                    auto tbt =
+                        ctx.typeConverter.convertType(toTy.cast<BoxType>());
                     Value cast = llvm_bitcast(tbt, in);
                     rewriter.replaceOp(op, cast);
                     return success();
                 }
-                if (ft.isBox() && tt.isBox()) {
-                    auto tbt = ctx.typeConverter.convertType(tt.cast<BoxType>())
-                                   .cast<LLVMType>();
+                if (fromTy.isa<BoxType>() && toTy.isa<BoxType>()) {
+                    auto tbt =
+                        ctx.typeConverter.convertType(toTy.cast<BoxType>());
                     Value cast = llvm_bitcast(tbt, in);
                     rewriter.replaceOp(op, cast);
                     return success();
@@ -106,20 +107,14 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             }
 
             if (isa_eir_type(fromTy)) {
-                if (fromTy.isa<PtrType>() || fromTy.isa<RefType>()) {
-                    if (tt.isBox() || tt.isOpaque()) {
-                        OpaqueTermType innerType;
-                        auto tbt =
-                            ctx.typeConverter.convertType(tt).cast<LLVMType>();
-                        if (auto ptrTy = fromTy.dyn_cast_or_null<PtrType>())
-                            innerType =
-                                ptrTy.getInnerType().cast<OpaqueTermType>();
-                        else
-                            innerType = fromTy.cast<RefType>()
-                                            .getInnerType()
-                                            .cast<OpaqueTermType>();
+                if (fromTy.isa<PtrType>()) {
+                    if (toTy.isa<BoxType>() || toTy.isa<TermType>()) {
+                        auto tbt = ctx.typeConverter.convertType(toTy);
+                        auto ptrTy = fromTy.cast<PtrType>();
+                        auto innerType = ptrTy.getPointeeType();
+                        auto innerTypeInfo = cast<TermTypeInterface>(innerType);
                         Value encoded;
-                        if (innerType.isNonEmptyList())
+                        if (innerTypeInfo.isListLike())
                             encoded = ctx.encodeList(in);
                         else
                             encoded = ctx.encodeBox(in);
@@ -129,12 +124,13 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                 }
             }
 
-            if (auto llvmFromTy = fromTy.dyn_cast_or_null<LLVMType>()) {
+            if (isa_llvm_type(fromTy)) {
                 // Handle converting from a raw pointer to an opaque term or
                 // boxed term
-                if (llvmFromTy.isPointerTy() && (tt.isOpaque() || tt.isBox())) {
+                if (fromTy.isa<LLVM::LLVMPointerType>() &&
+                    (toTy.isa<TermType>() || toTy.isa<BoxType>())) {
                     // We are converting an unboxed pointer to a boxed pointer
-                    auto ptrTy = llvmFromTy.cast<LLVM::LLVMPointerType>();
+                    auto ptrTy = fromTy.cast<LLVMPointerType>();
                     auto elTy = ptrTy.getElementType();
                     // If the inner type is not u8 or a struct, then this is not
                     // a valid conversion
@@ -152,8 +148,9 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                         // We can simply bitcast the pointer and tag it
                         Value boxed;
                         if (auto boxTy = tt.dyn_cast_or_null<BoxType>()) {
-                            auto boxedTy = boxTy.getBoxedType();
-                            if (boxedTy.isNonEmptyList())
+                            auto boxedTy = boxTy.getPointeeType();
+                            auto boxedTyInfo = cast<TermTypeInterface>(boxedTy);
+                            if (boxedTyInfo.isListLike())
                                 boxed = ctx.encodeList(in);
                             else
                                 boxed = ctx.encodeBox(in);
@@ -169,7 +166,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                     }
 
                     // A raw pointer to (presumably) a term structure
-                    auto structTy = elTy.cast<LLVM::LLVMStructType>();
+                    auto structTy = elTy.cast<LLVMStructType>();
                     auto structName = structTy.getName();
                     auto isCastable =
                         StringSwitch<bool>(structName)
@@ -196,8 +193,9 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                     }
                 }
 
-                if (llvmFromTy.isIntegerTy(1) &&
-                    (tt.isBoolean() || tt.isAtom() || tt.isOpaque())) {
+                if (fromTy.isInteger(1) &&
+                    (toTy.isa<BooleanType>() || toTy.isa<AtomType>() ||
+                     toTy.isa<TermType>())) {
                     Value extended = llvm_zext(immedTy, in);
                     auto atomTy = ctx.rewriter.getType<AtomType>();
                     rewriter.replaceOp(op,
@@ -212,7 +210,8 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
             if (fromTy.isInteger(1)) {
                 // Standard dialect booleans may occasionally need
                 // casting to our boolean type, or promoted to an atom
-                if (tt.isBoolean() || tt.isAtom() || tt.isOpaque()) {
+                if (toTy.isa<BooleanType>() || toTy.isa<AtomType>() ||
+                    toTy.isa<TermType>()) {
                     Value extended = llvm_zext(immedTy, in);
                     auto atomTy = ctx.rewriter.getType<AtomType>();
                     rewriter.replaceOp(op,
@@ -228,23 +227,17 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
         if (isa_eir_type(toTy)) {
             // Raw pointers/references require encoding/decoding
             // to properly perform the cast
-            if (toTy.isa<PtrType>() || toTy.isa<RefType>()) {
-                if (auto ft = fromTy.dyn_cast_or_null<OpaqueTermType>()) {
-                    if (ft.isBox() || ft.isOpaque()) {
-                        OpaqueTermType innerTy;
-                        if (auto ptrTy = toTy.dyn_cast_or_null<PtrType>())
-                            innerTy =
-                                ptrTy.getInnerType().cast<OpaqueTermType>();
-                        else
-                            innerTy = ft.cast<RefType>()
-                                          .getInnerType()
-                                          .cast<OpaqueTermType>();
+            if (toTy.isa<PtrType>()) {
+                if (auto ft = dyn_cast<TermTypeInterface>(fromTy)) {
+                    if (fromTy.isa<BoxType>() || fromType.isa<TermType>()) {
+                        auto ptrTy = toTy.cast<PtrType>();
+                        auto innerTy = ptrTy.getPointeeType();
+                        auto innerTyInfo = cast<TermTypeInterface>(innerTy);
                         Value decoded;
-                        if (innerTy.isNonEmptyList())
+                        if (innerTy.isListLike())
                             decoded = ctx.decodeList(in);
                         else {
-                            auto tbt = ctx.typeConverter.convertType(innerTy)
-                                           .cast<LLVMType>();
+                            auto tbt = ctx.typeConverter.convertType(innerTy);
                             decoded = ctx.decodeBox(tbt, in);
                         }
                         rewriter.replaceOp(op, decoded);
@@ -259,8 +252,7 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
 
                 // If converting a raw LLVM pointer to Ptr/Ref, we don't need to
                 // do anything other than a bitcast
-                auto fpt =
-                    ctx.typeConverter.convertType(fromTy).cast<LLVMType>();
+                auto fpt = ctx.typeConverter.convertType(fromTy);
                 if (fpt.isPointerTy()) {
                     Value cast = llvm_bitcast(fpt, in);
                     rewriter.replaceOp(op, cast);
@@ -279,14 +271,6 @@ struct CastOpConversion : public EIROpConversion<CastOp> {
                 rewriter.replaceOp(op, truncated);
                 return success();
             }
-
-            if (auto llvmToTy = toTy.dyn_cast_or_null<LLVMType>()) {
-                if (llvmToTy.isIntegerTy(1)) {
-                    Value truncated = llvm_trunc(llvmToTy, in);
-                    rewriter.replaceOp(op, truncated);
-                    return success();
-                }
-            }
         }
 
         op.emitError("unsupported or unimplemented target type cast");
@@ -304,16 +288,17 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
         auto ctx = getRewriteContext(op, rewriter);
 
         Value basePtr = adaptor.base();
-        LLVMType basePtrTy = basePtr.getType().cast<LLVMType>();
+        LLVMPointerType basePtrTy =
+            basePtr.getType().dyn_cast_or_null<LLVMPointerType>();
 
-        if (!basePtrTy.isPointerTy())
+        if (!basePtrTy)
             return op.emitOpError(
                 "cannot perform this operation on a non-pointer type");
 
         auto index = op.getIndex();
 
-        LLVMType baseTy = basePtrTy.getPointerElementTy();
-        LLVMType elementTy;
+        Type baseTy = basePtrTy.getElementType();
+        Type elementTy;
         if (auto structTy = baseTy.dyn_cast<LLVMStructType>()) {
             auto elementTys = structTy.getBody();
             if (index >= elementTys.size())
@@ -327,8 +312,8 @@ struct GetElementPtrOpConversion : public EIROpConversion<GetElementPtrOp> {
                 "invalid base pointer type, expected aggregate type");
         }
 
-        LLVMType elementPtrTy = elementTy.getPointerTo();
-        LLVMType int32Ty = ctx.getI32Type();
+        Type elementPtrTy = LLVMPointerType::get(elementTy);
+        Type int32Ty = ctx.getI32Type();
         Value zero = llvm_constant(int32Ty, ctx.getI32Attr(0));
         Value gepIndex = llvm_constant(int32Ty, ctx.getI32Attr(index));
         ArrayRef<Value> indices({zero, gepIndex});
@@ -359,10 +344,10 @@ struct LoadOpConversion : public EIROpConversion<LoadOp> {
 void populateMemoryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,
                                         EirTypeConverter &converter,
-                                        TargetInfo &targetInfo) {
+                                        TargetPlatform &platform) {
     patterns.insert<MallocOpConversion, CastOpConversion,
                     GetElementPtrOpConversion, LoadOpConversion>(
-        context, converter, targetInfo);
+        context, converter, platform);
 }
 
 }  // namespace eir

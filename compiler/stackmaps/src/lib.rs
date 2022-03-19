@@ -90,19 +90,18 @@ impl StackMap {
     fn build() -> Self {
         // Obtain reference to header and validate it before proceeding
         let header = unsafe { &STACK_MAP_HEADER };
-        assert_eq!(header.version, 3, "unsupported version of LLVM StackMaps");
-        assert_eq!(header._reserved1, 0, "expected zero");
-        unsafe {
-            assert_eq!(header._reserved2, 0, "expected zero");
-        }
+        let version = header.version();
+        assert_eq!(version, 3, "unsupported version of LLVM StackMaps");
+        assert_eq!(header.reserved1(), 0, "expected zero");
+        assert_eq!(header.reserved2(), 0, "expected zero");
 
-        let num_functions = header.num_functions as usize;
+        let num_functions = header.num_functions() as usize;
         let base = header as *const _ as *const u8;
         let functions_ptr = unsafe { base.add(mem::size_of::<StackMapHeader>()) };
         let functions =
             unsafe { slice::from_raw_parts(functions_ptr as *const FunctionInfo, num_functions) };
 
-        let num_constants = header.num_constants as usize;
+        let num_constants = header.num_constants() as usize;
         let constants_ptr =
             unsafe { functions_ptr.add(mem::size_of::<FunctionInfo>() * num_functions) };
         let constants =
@@ -110,7 +109,7 @@ impl StackMap {
 
         // We have to construct the map of return addresses to frame info, since it is
         // not in a easily searchable format by default.
-        let mut frame_infos = HashMap::with_capacity(header.num_records as usize);
+        let mut frame_infos = HashMap::with_capacity(header.num_records() as usize);
 
         // This pointer marks the current position in the set of call site headers,
         // which starts right after the constants initially
@@ -134,7 +133,7 @@ impl StackMap {
         }
 
         Self {
-            version: header.version,
+            version,
             functions,
             constants,
             frame_infos,

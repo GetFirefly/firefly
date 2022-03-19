@@ -2,6 +2,7 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Verifier.h"
@@ -32,21 +33,7 @@
 #include <stdio.h>
 #include <vector>
 
-using ::llvm::any_cast;
-using ::llvm::any_isa;
-using ::llvm::CGSCCAnalysisManager;
-using ::llvm::FunctionAnalysisManager;
-using ::llvm::FunctionPassManager;
-using ::llvm::LoopAnalysisManager;
-using ::llvm::Module;
-using ::llvm::ModuleAnalysisManager;
-using ::llvm::ModulePassManager;
-using ::llvm::Pass;
-using ::llvm::PassBuilder;
-using ::llvm::PassInstrumentationCallbacks;
-using ::llvm::StringRef;
-using ::llvm::TargetMachine;
-using ::llvm::unwrap;
+using namespace llvm;
 
 typedef struct _Pass *LLVMPassRef;
 typedef struct _ModulePassManager *ModulePassManagerRef;
@@ -55,6 +42,7 @@ typedef struct _FunctionPassManager *FunctionPassManagerRef;
 DEFINE_STDCXX_CONVERSION_FUNCTIONS(Pass, LLVMPassRef);
 DEFINE_STDCXX_CONVERSION_FUNCTIONS(ModulePassManager, ModulePassManagerRef);
 DEFINE_STDCXX_CONVERSION_FUNCTIONS(FunctionPassManager, FunctionPassManagerRef);
+DEFINE_STDCXX_CONVERSION_FUNCTIONS(TargetMachine, LLVMTargetMachineRef);
 
 extern "C" void LLVMLumenInitializePasses() {
   thread_local bool initialized = false;
@@ -130,36 +118,36 @@ std::string getWrappedIRName(const llvm::Any &wrappedIR) {
 }
 
 void LLVMSelfProfileInitializeCallbacks(
-    PassInstrumentationCallbacks *pic, void *selfProfiler,
+    PassInstrumentationCallbacks &pic, void *selfProfiler,
     LLVMLumenSelfProfileBeforePassCallback beforePassCallback,
     LLVMLumenSelfProfileAfterPassCallback afterPassCallback) {
-  pic->registerBeforeNonSkippedPassCallback(
+  pic.registerBeforeNonSkippedPassCallback(
       [selfProfiler, beforePassCallback](StringRef pass, llvm::Any ir) {
         std::string passName = pass.str();
         std::string irName = getWrappedIRName(ir);
         beforePassCallback(selfProfiler, passName.c_str(), irName.c_str());
       });
 
-  pic->registerAfterPassCallback(
+  pic.registerAfterPassCallback(
       [selfProfiler, afterPassCallback](StringRef pass, llvm::Any ir,
                                         const llvm::PreservedAnalyses &) {
         afterPassCallback(selfProfiler);
       });
 
-  pic->registerAfterPassInvalidatedCallback(
+  pic.registerAfterPassInvalidatedCallback(
       [selfProfiler, afterPassCallback](StringRef pass,
                                         const llvm::PreservedAnalyses &) {
         afterPassCallback(selfProfiler);
       });
 
-  pic->registerBeforeAnalysisCallback(
+  pic.registerBeforeAnalysisCallback(
       [selfProfiler, beforePassCallback](StringRef pass, llvm::Any ir) {
         std::string passName = pass.str();
         std::string irName = getWrappedIRName(ir);
         beforePassCallback(selfProfiler, passName.c_str(), irName.c_str());
       });
 
-  pic->registerAfterAnalysisCallback(
+  pic.registerAfterAnalysisCallback(
       [selfProfiler, afterPassCallback](StringRef pass, llvm::Any ir) {
         afterPassCallback(selfProfiler);
       });
@@ -176,21 +164,20 @@ enum Level {
 };
 }
 
-static PassBuilder::OptimizationLevel
-fromRust(LLVMLumenPassBuilderOptLevel::Level level) {
+static OptimizationLevel fromRust(LLVMLumenPassBuilderOptLevel::Level level) {
   switch (level) {
   case LLVMLumenPassBuilderOptLevel::O0:
-    return PassBuilder::OptimizationLevel::O0;
+    return OptimizationLevel::O0;
   case LLVMLumenPassBuilderOptLevel::O1:
-    return PassBuilder::OptimizationLevel::O1;
+    return OptimizationLevel::O1;
   case LLVMLumenPassBuilderOptLevel::O2:
-    return PassBuilder::OptimizationLevel::O2;
+    return OptimizationLevel::O2;
   case LLVMLumenPassBuilderOptLevel::O3:
-    return PassBuilder::OptimizationLevel::O3;
+    return OptimizationLevel::O3;
   case LLVMLumenPassBuilderOptLevel::Os:
-    return PassBuilder::OptimizationLevel::Os;
+    return OptimizationLevel::Os;
   case LLVMLumenPassBuilderOptLevel::Oz:
-    return PassBuilder::OptimizationLevel::Oz;
+    return OptimizationLevel::Oz;
   default:
     llvm::report_fatal_error("invalid PassBuilder optimization level");
   }
@@ -248,31 +235,28 @@ extern "C" bool LLVMLumenOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
   tuningOpts.LoopVectorization = false;
   tuningOpts.SLPVectorization = false;
   tuningOpts.LoopUnrolling = false;
-  tuningOpts.Coroutines = false;
 
   bool debug = config.debug;
   bool verify = config.verify;
 
-  auto pic = std::make_unique<llvm::PassInstrumentationCallbacks>();
-  // Populate the analysis managers with their respective passes
-  PassBuilder pb(debug, targetMachine, tuningOpts, llvm::None, pic.get());
-
   // Enable standard instrumentation callbacks
+  llvm::PassInstrumentationCallbacks pic;
   llvm::StandardInstrumentations si(debug);
-  llvm::PassInstrumentationCallbacks &passCallbacks =
-      *pb.getPassInstrumentationCallbacks();
-  si.registerCallbacks(passCallbacks);
+  si.registerCallbacks(pic);
 
   auto *profiler = config.profiler;
   if (profiler) {
-    LLVMSelfProfileInitializeCallbacks(&passCallbacks, profiler,
-                                       config.beforePass, config.afterPass);
+    LLVMSelfProfileInitializeCallbacks(pic, profiler, config.beforePass,
+                                       config.afterPass);
   }
 
-  LoopAnalysisManager lam(debug);
-  FunctionAnalysisManager fam(debug);
-  CGSCCAnalysisManager cam(debug);
-  ModuleAnalysisManager mam(debug);
+  // Populate the analysis managers with their respective passes
+  PassBuilder pb(targetMachine, tuningOpts, llvm::None, &pic);
+
+  LoopAnalysisManager lam;
+  FunctionAnalysisManager fam;
+  CGSCCAnalysisManager cam;
+  ModuleAnalysisManager mam;
 
   fam.registerPass([&] { return pb.buildDefaultAAPipeline(); });
 
@@ -291,16 +275,14 @@ extern "C" bool LLVMLumenOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
 
   // We manually collect pipeline callbacks so we can apply them at O0, where
   // the PassBuilder does not create a pipeline.
-  std::vector<
-      std::function<void(ModulePassManager &, PassBuilder::OptimizationLevel)>>
+  std::vector<std::function<void(ModulePassManager &, OptimizationLevel)>>
       pipelineStartEPCallbacks;
-  std::vector<
-      std::function<void(ModulePassManager &, PassBuilder::OptimizationLevel)>>
+  std::vector<std::function<void(ModulePassManager &, OptimizationLevel)>>
       optimizerLastEPCallbacks;
 
   if (verify) {
     pipelineStartEPCallbacks.push_back(
-        [verify](ModulePassManager &pm, PassBuilder::OptimizationLevel _level) {
+        [verify](ModulePassManager &pm, OptimizationLevel _level) {
           pm.addPass(llvm::VerifierPass());
         });
   }
@@ -312,56 +294,58 @@ extern "C" bool LLVMLumenOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
                                        sanitizer.recover,
                                        /*compilerKernel=*/false);
       pipelineStartEPCallbacks.push_back(
-          [mso](ModulePassManager &pm, PassBuilder::OptimizationLevel _level) {
-            pm.addPass(llvm::MemorySanitizerPass(mso));
+          [mso](ModulePassManager &pm, OptimizationLevel _level) {
+            pm.addPass(llvm::ModuleMemorySanitizerPass(mso));
           });
       optimizerLastEPCallbacks.push_back(
-          [mso](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
+          [mso](ModulePassManager &pm, OptimizationLevel level) {
             pm.addPass(llvm::createModuleToFunctionPassAdaptor(
                 llvm::MemorySanitizerPass(mso)));
           });
     }
     if (sanitizer.thread) {
       pipelineStartEPCallbacks.push_back(
-          [](ModulePassManager &pm, PassBuilder::OptimizationLevel _level) {
-            pm.addPass(llvm::ThreadSanitizerPass());
+          [](ModulePassManager &pm, OptimizationLevel _level) {
+            pm.addPass(llvm::ModuleThreadSanitizerPass());
           });
       optimizerLastEPCallbacks.push_back(
-          [](ModulePassManager &pm, PassBuilder::OptimizationLevel level) {
-            pm.addPass(llvm::ThreadSanitizerPass());
+          [](ModulePassManager &pm, OptimizationLevel level) {
+            pm.addPass(llvm::ModuleThreadSanitizerPass());
             pm.addPass(llvm::createModuleToFunctionPassAdaptor(
                 llvm::ThreadSanitizerPass()));
           });
     }
     if (sanitizer.address) {
-      pipelineStartEPCallbacks.push_back(
-          [&](ModulePassManager &pm, PassBuilder::OptimizationLevel _level) {
-            pm.addPass(
-                llvm::RequireAnalysisPass<llvm::ASanGlobalsMetadataAnalysis,
-                                          Module>());
-          });
+      pipelineStartEPCallbacks.push_back([&](ModulePassManager &pm,
+                                             OptimizationLevel _level) {
+        pm.addPass(llvm::RequireAnalysisPass<llvm::ASanGlobalsMetadataAnalysis,
+                                             Module>());
+      });
       optimizerLastEPCallbacks.push_back(
-          [sanitizer](ModulePassManager &pm,
-                      PassBuilder::OptimizationLevel level) {
-            pm.addPass(llvm::createModuleToFunctionPassAdaptor(
-                llvm::AddressSanitizerPass(
-                    /*compileKernel=*/false, sanitizer.recover,
-                    /*useAfterScope=*/true)));
+          [sanitizer](ModulePassManager &pm, OptimizationLevel level) {
+            llvm::AddressSanitizerOptions sanitizerOpts;
+            sanitizerOpts.Recover = sanitizer.recover;
+            sanitizerOpts.UseAfterScope = true;
+            pm.addPass(llvm::ModuleAddressSanitizerPass(sanitizerOpts));
           });
       pipelineStartEPCallbacks.push_back(
-          [sanitizer](ModulePassManager &pm,
-                      PassBuilder::OptimizationLevel _level) {
-            pm.addPass(llvm::ModuleAddressSanitizerPass(
-                /*compileKernel=*/false, sanitizer.recover));
+          [sanitizer](ModulePassManager &pm, OptimizationLevel _level) {
+            llvm::AddressSanitizerOptions sanitizerOpts;
+            sanitizerOpts.Recover = sanitizer.recover;
+            sanitizerOpts.UseAfterScope = true;
+            pm.addPass(llvm::ModuleAddressSanitizerPass(sanitizerOpts));
           });
     }
   }
 
-  ModulePassManager mpm(debug);
-
   // Add passes to generate safepoints/stack maps
-  // mpm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::PlaceSafepoints()));
-  mpm.addPass(llvm::RewriteStatepointsForGC());
+  pipelineStartEPCallbacks.push_back(
+      [](ModulePassManager &pm, OptimizationLevel level) {
+        // pm.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::PlaceSafepoints()));
+        pm.addPass(llvm::RewriteStatepointsForGC());
+      });
+
+  ModulePassManager mpm;
 
   // If there is a pipeline provided, parse it and populate the pass manager
   // with it
@@ -374,16 +358,14 @@ extern "C" bool LLVMLumenOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
       *errorMessage = strdup(error.c_str());
       return true;
     }
-  } else if (optLevel == PassBuilder::OptimizationLevel::O0) {
+  } else if (optLevel == OptimizationLevel::O0) {
     for (const auto &c : pipelineStartEPCallbacks)
-      c(mpm, optLevel);
+      pb.registerPipelineStartEPCallback(c);
 
-    if (!optimizerLastEPCallbacks.empty()) {
-      for (const auto &c : optimizerLastEPCallbacks)
-        c(mpm, optLevel);
-    }
+    for (const auto &c : optimizerLastEPCallbacks)
+      pb.registerOptimizerLastEPCallback(c);
 
-    mpm.addPass(llvm::AlwaysInlinerPass(/*insertLifetimeIntrinsics=*/false));
+    mpm = pb.buildO0DefaultPipeline(optLevel, /* PreLinkLTO */ false);
   } else {
     for (const auto &c : pipelineStartEPCallbacks)
       pb.registerPipelineStartEPCallback(c);
@@ -398,9 +380,12 @@ extern "C" bool LLVMLumenOptimize(LLVMModuleRef m, LLVMTargetMachineRef tm,
       break;
     case OptStage::PreLinkThinLTO:
       mpm = pb.buildThinLTOPreLinkDefaultPipeline(optLevel);
+      for (const auto &c : optimizerLastEPCallbacks)
+        c(mpm, optLevel);
       break;
     case OptStage::PreLinkFatLTO:
       mpm = pb.buildLTOPreLinkDefaultPipeline(optLevel);
+      config.useThinLTOBuffers = false;
       break;
     case OptStage::ThinLTO:
       mpm = pb.buildThinLTODefaultPipeline(optLevel, nullptr);

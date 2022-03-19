@@ -1,278 +1,114 @@
-use std::ops::Deref;
-use std::sync::Arc;
-use std::thread::{self, ThreadId};
-
-use anyhow::anyhow;
+use std::thread::ThreadId;
 
 use log::debug;
 
-use liblumen_codegen as codegen;
 use liblumen_codegen::meta::CompiledModule;
-use liblumen_llvm::{self as llvm, target::TargetMachineConfig};
-use liblumen_mlir as mlir;
-use liblumen_session::{Input, InputType, OutputType};
+use liblumen_intern::Symbol;
+use liblumen_session::OutputType;
 
 use super::prelude::*;
 
-/// Create context for LLVM
-pub(super) fn llvm_context<C>(db: &C, thread_id: ThreadId) -> Arc<llvm::Context>
-where
-    C: Compiler,
-{
-    use llvm::Context;
-    debug!("constructing new llvm context for thread {:?}", thread_id);
-    let options = db.options().clone();
-    let diagnostics = db.diagnostics().clone();
-    Arc::new(Context::new(options, diagnostics))
-}
-
-/// Create context for MLIR
-pub(super) fn mlir_context<C>(db: &C, thread_id: ThreadId) -> Arc<mlir::Context>
-where
-    C: Compiler,
-{
-    use mlir::Context;
-
-    debug!("constructing new mlir context for thread {:?}", thread_id);
-
-    let options = db.options();
-    let target_machine = db.get_target_machine(thread_id);
-    let diagnostics = db.diagnostics().clone();
-
-    Arc::new(Context::new(
-        thread_id,
-        &options,
-        &diagnostics,
-        &target_machine,
-    ))
-}
-
-/// Parse MLIR source file
-pub(super) fn parse_mlir_module<C>(
-    db: &C,
-    thread_id: ThreadId,
-    input: InternedInput,
-) -> QueryResult<Arc<mlir::Module>>
-where
-    C: Compiler,
-{
-    let input_info = db.lookup_intern_input(input);
-    let context = db.mlir_context(thread_id);
-
-    let parsed = match input_info {
-        Input::File(ref path) => {
-            debug!("parsing mlir from file for {:?} on {:?}", input, thread_id);
-            context.parse_file(path)
-        }
-        Input::Str {
-            ref name,
-            ref input,
-            ..
-        } => {
-            debug!(
-                "parsing mlir from string for {:?} on {:?}",
-                input, thread_id
-            );
-            context.parse_string(input, name)
+macro_rules! unwrap_or_bail {
+    ($db:ident, $e:expr) => {
+        match $e {
+            Ok(result) => result,
+            Err(ref e) => {
+                bail!($db, "{}", e);
+            }
         }
     };
-    let parsed = db.to_query_result(parsed)?;
-    Ok(Arc::new(parsed))
 }
 
-/// Convert EIR to MLIR/EIR
-pub(super) fn generate_mlir<C>(
+macro_rules! bail {
+    ($db:ident, $e:expr) => {{
+        $db.report_error($e);
+        return Err(ErrorReported);
+    }};
+
+    ($db:ident, $fmt:literal, $($arg:expr),*) => {{
+        $db.report_error(format!($fmt, $($arg),*));
+        return Err(ErrorReported);
+    }}
+}
+
+pub(super) fn compile<C>(
     db: &C,
     thread_id: ThreadId,
     input: InternedInput,
-) -> QueryResult<Arc<mlir::Module>>
+) -> Result<Option<CompiledModule>, ErrorReported>
 where
     C: Compiler,
 {
-    use codegen::builder::build;
+    use liblumen_llvm::passes::PassManagerPass;
+    use liblumen_mlir::conversions::ConvertCIRToLLVMPass;
+    use liblumen_mlir::translations::TranslateMLIRToLLVMIR;
+    use liblumen_mlir::{PassManager, PassManagerOptions};
+    use liblumen_pass::Pass;
 
-    let module = db.input_eir(input)?;
-    let context = db.mlir_context(thread_id);
     let options = db.options();
-    debug!("generating mlir for {:?} on {:?}", input, thread_id);
-    let target_machine = db.get_target_machine(thread_id);
-    let source_file = db
-        .codemap()
-        .get(module.span().start().source_id())
-        .map(|s| s.clone())
-        .expect("expected input to have corresponding entry in code map");
-    let build_result = db.to_query_result(build(
-        &module,
-        source_file,
-        &context,
-        &options,
-        target_machine.deref(),
-    ))?;
+    let input_info = db.lookup_intern_input(input);
+    let source_name = input_info.source_name();
+    let diagnostics = db.diagnostics();
+    let mlir_context = db.mlir_context(thread_id);
+    let llvm_context = db.llvm_context(thread_id);
+    let target_machine = db.target_machine(thread_id);
+    let data_layout = target_machine.data_layout();
 
-    match build_result {
-        Err(ref mlir_module) => {
-            db.maybe_emit_file_with_opts(&options, input, mlir_module)?;
-            db.to_query_result(Err(anyhow!(
-                "compilation of {} failed while preparing for codegen",
-                module.name()
-            )))
+    // Fetch the application to be compiled
+    diagnostics.success("Compiling", format!("{}", &source_name));
+    debug!("compiling {} on thread {:?}", &source_name, thread_id);
+
+    // Bail early if we don't have artifacts to codegen
+    if !options.output_types.should_generate_mlir() {
+        // However, since production of AST/CoreIR is driven by
+        // queries for MLIR, we need to check if either of those
+        // types were requested, and if so, execute the appropriate
+        // query
+        if options.output_types.should_generate_core() {
+            db.input_syntax_core(input)?;
+        } else if options.output_types.contains_key(&OutputType::AST) {
+            db.input_syntax_erl(input)?;
         }
-        Ok(generated_module) => {
-            db.add_atoms(generated_module.atoms.iter());
-            db.add_symbols(generated_module.symbols.iter());
-            db.maybe_emit_file_with_opts(&options, input, &generated_module.module)?;
-            Ok(Arc::new(generated_module.module))
-        }
+        return Ok(None);
     }
-}
 
-/// Either load MLIR input directly, or lower EIR to MLIR, depending on type of input
-pub(super) fn get_eir_dialect_module<C>(
-    db: &C,
-    thread_id: ThreadId,
-    input: InternedInput,
-) -> QueryResult<Arc<mlir::Module>>
-where
-    C: Compiler,
-{
-    match db.input_type(input) {
-        InputType::Erlang | InputType::AbstractErlang | InputType::EIR => {
-            debug!("input {:?} is erlang", input);
-            db.generate_mlir(thread_id, input)
-        }
-        InputType::MLIR => {
-            debug!("input {:?} is mlir", input);
-            db.parse_mlir_module(thread_id, input)
-        }
-        InputType::Unknown(None) => {
-            debug!("unknown input type for {:?} on {:?}", input, thread_id);
-            db.report_error("invalid input, expected .erl or .mlir");
-            Err(ErrorReported)
-        }
-        InputType::Unknown(Some(ref ext)) => {
-            debug!(
-                "unsupported input type '{}' for {:?} on {:?}",
-                ext, input, thread_id
-            );
-            db.report_error(format!(
-                "invalid input extension ({}), expected .erl or .mlir",
-                ext
-            ));
-            Err(ErrorReported)
-        }
-    }
-}
+    let module = db.input_mlir(thread_id, input)?;
+    let data_layout_str = data_layout.to_string();
+    module.set_data_layout(data_layout_str.as_str());
+    module.set_target_triple(target_machine.triple());
+    let module_name = module
+        .name()
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| input_info.file_stem());
+    let module_sym = Symbol::intern(module_name.as_str());
 
-pub(super) fn get_llvm_dialect_module<C>(
-    db: &C,
-    thread_id: ThreadId,
-    input: InternedInput,
-) -> QueryResult<Arc<mlir::Module>>
-where
-    C: Compiler,
-{
-    let options = db.options();
-    let context = db.mlir_context(thread_id);
-    let module = db.get_eir_dialect_module(thread_id, input)?;
+    // Create a pass manager to perform the lowering
+    let pm_opts = PassManagerOptions::new(&options);
+    let mut pm = PassManager::new(**mlir_context, &pm_opts);
+    pm.add(ConvertCIRToLLVMPass::new());
 
     // Lower to LLVM dialect
-    debug!(
-        "lowering mlir to llvm dialect for {:?} on {:?}",
-        input, thread_id
-    );
-    let successful = db.to_query_result(module.lower(&context))?;
-
-    // Emit module, which will either be the lowered LLVM dialect,
-    // or the combined EIR/LLVM dialect resulting from a failed pass
-    // causing the lowering to be incomplete
-    db.maybe_emit_file_with_opts(&options, input, module.deref())?;
-
-    // Now that we've emitted the intermediate results, raise a
-    // compiler error that will terminate compilation.
+    let successful = pm.run(&module);
     if !successful {
-        if let Some(source_name) = get_input_source_name(db, input) {
-            db.to_query_result(Err(anyhow!(
-                "error occurred while lowering this module to llvm dialect {}",
-                &source_name
-            )))?;
-        } else {
-            db.to_query_result(Err(anyhow!(
-                "error occurred while lowering module to llvm dialect",
-            )))?;
-        }
+        db.report_error(format!(
+            "error occurred while lowering this module to llvm dialect {}",
+            &module_name
+        ));
+        return Err(ErrorReported);
     }
+    db.maybe_emit_file_with_opts(&options, input, &module)?;
 
-    Ok(module)
-}
-
-pub(super) fn get_target_machine_config<C>(db: &C, thread_id: ThreadId) -> Arc<TargetMachineConfig>
-where
-    C: Compiler,
-{
-    let options = db.options();
-    debug!(
-        "constructing new target machine config for thread {:?}",
-        thread_id
-    );
-    Arc::new(TargetMachineConfig::new(&options))
-}
-
-pub(super) fn get_target_machine<C>(db: &C, thread_id: ThreadId) -> Arc<llvm::target::TargetMachine>
-where
-    C: Compiler,
-{
-    let config = db.get_target_machine_config(thread_id);
-    debug!("constructing new target machine for thread {:?}", thread_id);
-    Arc::new(config.create().expect("failed to create target machine"))
-}
-
-pub(super) fn get_llvm_module<C>(
-    db: &C,
-    thread_id: ThreadId,
-    input: InternedInput,
-) -> QueryResult<Arc<llvm::Module>>
-where
-    C: Compiler,
-{
-    use liblumen_llvm::passes::{PassBuilderOptLevel, PassManager};
-    use liblumen_session::Sanitizer;
-
-    let options = db.options();
-    let context = db.mlir_context(thread_id);
-    let mlir_module = db.get_llvm_dialect_module(thread_id, input)?;
-    let llvm_context = db.llvm_context(thread_id);
-
-    // Convert to LLVM IR
-    debug!("generating llvm for {:?} on {:?}", input, thread_id,);
-    let source_name = get_input_source_name(db, input);
-    let lower_result =
-        db.to_query_result(mlir_module.lower_to_llvm_ir(&context, &llvm_context, source_name))?;
-
-    if let Err(_) = lower_result {
-        db.maybe_emit_file_with_opts(&options, input, mlir_module.deref())?;
-        db.to_query_result(Err(anyhow!(
-            "lowering module to llvm ir failed during conversion"
-        )))?;
+    // Convert to LLVM IR, or bail early if MLIR is all that was requested
+    if !options.output_types.should_generate_llvm() {
+        return Ok(None);
     }
+    debug!("generating llvm for {:?} on {:?}", input, thread_id);
+    let mut translation = TranslateMLIRToLLVMIR::new(llvm_context.borrow(), module_name.clone());
+    let module = unwrap_or_bail!(db, translation.run(&module));
 
-    let mut module = lower_result.unwrap();
-
-    // Run optimizations
-    let mut pass_manager = PassManager::new();
-    pass_manager.verify(options.debugging_opts.verify_llvm_ir);
-    pass_manager.debug(options.debug_assertions);
-    let (speed, size) = llvm::enums::to_llvm_opt_settings(options.opt_level);
-    pass_manager.optimize(PassBuilderOptLevel::from_codegen_opts(speed, size));
-    if let Some(sanitizer) = options.debugging_opts.sanitizer {
-        match sanitizer {
-            Sanitizer::Memory => pass_manager.sanitize_memory(/* track_origins */ 0),
-            Sanitizer::Thread => pass_manager.sanitize_thread(),
-            Sanitizer::Address => pass_manager.sanitize_address(),
-            _ => (),
-        }
-    }
-    let target_machine = db.get_target_machine(thread_id);
-    db.to_query_result(pass_manager.run(&mut module, &target_machine))?;
+    // Verify/optimize
+    let mut optimizer = PassManagerPass::new(&options, target_machine.handle());
+    let module = unwrap_or_bail!(db, optimizer.run(module));
 
     // Emit LLVM IR
     db.maybe_emit_file_with_opts(&options, input, &module)?;
@@ -288,36 +124,10 @@ where
         },
     )?;
 
-    Ok(Arc::new(module))
-}
-
-pub(super) fn compile<C>(db: &C, input: InternedInput) -> QueryResult<Arc<CompiledModule>>
-where
-    C: Compiler,
-{
-    let thread_id = thread::current().id();
-
-    let options = db.options();
-    let input_info = db.lookup_intern_input(input);
-    let source_name = input_info.source_name();
-    let diagnostics = db.diagnostics();
-
-    diagnostics.success("Compiling", format!("{}", &source_name));
-    debug!(
-        "compiling {:?} ({:?}) on thread {:?}",
-        input, &input_info, thread_id
-    );
-
-    // Get LLVM IR module
-    // We provide the current thread ID as part of the query, since the context
-    // object of an LLVM module is not thread-safe, we only want to fulfill a
-    // request for a module if the query occurs on the same thread
-    let module = db.get_llvm_module(thread_id, input)?;
-
     // Emit textual assembly file
     db.maybe_emit_file_with_callback_and_opts(&options, input, OutputType::Assembly, |outfile| {
         debug!("emitting asm for {:?}", input);
-        module.emit_asm(outfile)
+        module.emit_asm(outfile, target_machine.handle())
     })?;
 
     // Emit object file
@@ -327,7 +137,7 @@ where
         OutputType::Object,
         |outfile| {
             debug!("emitting object file for {:?}", input);
-            module.emit_obj(outfile)
+            module.emit_obj(outfile, target_machine.handle())
         },
     )?;
 
@@ -337,25 +147,9 @@ where
         .maybe_emit(&input_info, OutputType::LLVMBitcode)
         .map(|filename| db.output_dir().join(filename));
 
-    let compiled = Arc::new(CompiledModule::new(
-        input_info.file_stem().to_string_lossy().into_owned(),
-        obj_path,
-        bc_path,
-    ));
+    let compiled = CompiledModule::new(module_sym, obj_path, bc_path);
 
     debug!("compilation finished for {:?}", input);
-    diagnostics.success("Compiled", format!("{}", &source_name));
-    Ok(compiled)
-}
-
-fn get_input_source_name<C>(db: &C, input: InternedInput) -> Option<String>
-where
-    C: Compiler,
-{
-    let input_info = db.lookup_intern_input(input);
-
-    match input_info {
-        Input::File(ref path) => Some(path.to_string_lossy().into_owned()),
-        Input::Str { ref name, .. } => Some(name.clone()),
-    }
+    diagnostics.success("Compiled", format!("{}", &module_name));
+    Ok(Some(compiled))
 }

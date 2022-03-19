@@ -68,12 +68,10 @@ pub fn insert(arc_node: Arc<Node>) {
         }
     }
 
-    arc_node_by_id
+    assert!(arc_node_by_id
         .insert(arc_node.id(), arc_node.clone())
-        .unwrap_none();
-    arc_node_by_name
-        .insert(arc_node.name(), arc_node)
-        .unwrap_none();
+        .is_none());
+    assert!(arc_node_by_name.insert(arc_node.name(), arc_node).is_none());
 }
 
 #[derive(Debug, Error)]

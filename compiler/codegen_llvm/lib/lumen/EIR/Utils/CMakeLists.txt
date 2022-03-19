@@ -1,0 +1,16 @@
+lumen_cc_library(
+  HDRS
+    "GraphUtils.h"
+  SRCS
+    "GraphUtils.cpp"
+  DEPS
+    MLIRIR
+    MLIRPass
+    MLIRStandard
+    MLIRSupport
+    MLIRTransformUtils
+    MLIRTransforms
+  LLVM_COMPONENTS
+    LLVMSupport
+  PUBLIC
+)

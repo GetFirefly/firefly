@@ -2,7 +2,7 @@
 name = "liblumen_compiler_macros"
 version = "0.1.0"
 authors = ["Lumen Developers"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [lib]
@@ -11,9 +11,10 @@ proc-macro = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-proc-macro2 = "^1.0"
-quote = "^1.0"
+Inflector = "0.11"
+proc-macro2 = "1.0"
+quote = "1.0"
 
 [dependencies.syn]
-version = "^1.0"
-features = ["full", "printing", "extra-traits"]
+version = "1.0"
+features = ["full", "printing", "extra-traits", "parsing"]

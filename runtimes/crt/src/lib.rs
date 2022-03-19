@@ -1,5 +1,5 @@
-#![feature(main)]
 #![feature(termination_trait_lib)]
+#![feature(rustc_attrs)]
 
 mod atoms;
 mod symbols;
@@ -30,7 +30,7 @@ pub extern "C" fn main(argc: i32, argv: *const *const std::os::raw::c_char) -> i
 /// by the higher-level runtime, e.g. initializing the atom table. Once initialized,
 /// this function invokes the platform-specific entry point which handles starting
 /// up the schedulers and other high-level runtime functionality.
-#[main]
+#[rustc_main]
 pub fn main_internal() -> i32 {
     use crate::atoms::*;
     use crate::symbols::*;

@@ -8,7 +8,7 @@ use crate::config::options::invalid_value;
 use crate::config::options::{OptionInfo, ParseOption};
 
 /// The optimization level to use during compilation
-#[derive(Clone, Copy, Debug, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum OptLevel {
     No,         // -O0
     Less,       // -O1
@@ -16,6 +16,11 @@ pub enum OptLevel {
     Aggressive, // -O3
     Size,       // -Os
     SizeMin,    // -Oz
+}
+impl Default for OptLevel {
+    fn default() -> Self {
+        Self::No
+    }
 }
 impl FromStr for OptLevel {
     type Err = ();
@@ -35,7 +40,7 @@ impl ParseOption for OptLevel {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
         matches
             .value_of(info.name)
-            .map_or(Ok(OptLevel::Default), |s| s.parse())
+            .map_or(Ok(OptLevel::No), |s| s.parse())
             .map_err(|_| invalid_value(info, &format!("expected optimization level 0-3, s, or z")))
     }
 }

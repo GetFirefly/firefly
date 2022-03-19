@@ -1,43 +1,39 @@
+use core::arch::global_asm;
 use core::ptr;
 
+use cfg_if::cfg_if;
 use stackmaps::{FrameInfo, StackMap};
 
 use liblumen_alloc::erts::term::prelude::{Boxed, Encoded, Term};
 use lumen_rt_core::process::current_process;
 
-/// On x86_64, calling this function with no arguments will result
-/// in effectively calling __lumen_builtin_gc.run with the return address
-/// of the caller, as well as the base pointer as arguments.
-///
-/// When __lumen_builtin_gc.run returns, it will return back to the caller
-/// directly, rather than returning through this function.
-///
-/// The purpose of this hack is to allow us to pass the return address of
-/// the caller to the garbage collector so that we can locate the frame
-/// information for the caller in the stack map. Using the offsets in the
-/// frame info combined with the base pointer allows us to calculate the
-/// locations of roots on the stack which the collector will need in order
-/// to trace live objects, and update those roots accordingly.
-#[naked]
-#[inline(never)]
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_gc.enter"]
-pub unsafe fn builtin_gc_enter() {
-    llvm_asm!("
-    # Move the return address into %rdi
-    popq %rdi
-    # Copy the base pointer address into %rsi
-    movq %rbp, %rsi
-    # Pretend like we called run_gc directly, which
-    # will return over us back to the caller
-    pushq %rdi
-    jmp ___lumen_builtin_gc.run
-    "
-    :
-    :
-    :
-    : "volatile", "alignstack"
-    );
+cfg_if! {
+    if #[cfg(all(unix, target_arch = "x86_64"))] {
+        global_asm!(include_str!("gc/gc_linux_x86_64.s"));
+    } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
+        global_asm!(include_str!("gc/gc_macos_aarch64.s"));
+    } else {
+        compile_error!("gc intrinsics have not been implemented for this platform!");
+    }
+}
+
+extern "C-unwind" {
+    /// On x86_64, calling this function with no arguments will result
+    /// in effectively calling __lumen_builtin_gc.run with the return address
+    /// of the caller, as well as the base pointer as arguments.
+    ///
+    /// When __lumen_builtin_gc.run returns, it will return back to the caller
+    /// directly, rather than returning through this function.
+    ///
+    /// The purpose of this hack is to allow us to pass the return address of
+    /// the caller to the garbage collector so that we can locate the frame
+    /// information for the caller in the stack map. Using the offsets in the
+    /// frame info combined with the base pointer allows us to calculate the
+    /// locations of roots on the stack which the collector will need in order
+    /// to trace live objects, and update those roots accordingly.
+    #[allow(unused)]
+    #[link_name = "__lumen_builtin_gc.enter"]
+    pub fn builtin_gc_enter();
 }
 
 //    pub fn garbage_collect(&self, need: usize, roots: &mut [Term]) -> Result<usize, GcError> {
@@ -50,9 +46,8 @@ pub unsafe fn builtin_gc_enter() {
 /// 8 bytes above the base pointer to locate the previous frames return address, we can walk up the
 /// stack to locate all roots
 #[inline(never)]
-#[unwind(allowed)]
 #[export_name = "__lumen_builtin_gc.run"]
-pub unsafe extern "C" fn builtin_gc_run(
+pub unsafe extern "C-unwind" fn builtin_gc_run(
     return_address: *const u8,
     base_pointer: *const u8,
 ) -> bool {

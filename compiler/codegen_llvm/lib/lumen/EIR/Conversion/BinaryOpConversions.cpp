@@ -15,8 +15,7 @@ struct BinaryStartOpConversion : public EIROpConversion<BinaryStartOp> {
         StringRef symbolName("__lumen_builtin_binary_start");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {});
 
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
                                                   operands);
         return success();
@@ -35,8 +34,7 @@ struct BinaryFinishOpConversion : public EIROpConversion<BinaryFinishOp> {
         StringRef symbolName("__lumen_builtin_binary_finish");
         auto callee = ctx.getOrInsertFunction(symbolName, termTy, {termTy});
 
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(op, calleeSymbol, termTy,
                                                   operands);
         return success();
@@ -71,8 +69,10 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             size = sizeOpt;
         }
 
-        auto pushType = static_cast<uint32_t>(
-            op.getAttrOfType<IntegerAttr>("type").getValue().getLimitedValue());
+        auto pushType =
+            static_cast<uint32_t>(op->getAttrOfType<IntegerAttr>("type")
+                                      .getValue()
+                                      .getLimitedValue());
 
         unsigned unit = 1;
         auto endianness = Endianness::Big;
@@ -86,7 +86,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
         mlir::CallOp pushOp;
         switch (pushType) {
         case BinarySpecifierType::Bytes: {
-            unit = static_cast<unsigned>(op.getAttrOfType<IntegerAttr>("unit")
+            unit = static_cast<unsigned>(op->getAttrOfType<IntegerAttr>("unit")
                                              .getValue()
                                              .getLimitedValue());
             Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
@@ -97,8 +97,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
                 // unit)
                 auto callee = ctx.getOrInsertFunction(
                     symbolName, pushTy, {termTy, termTy, termTy, i8Ty});
-                auto calleeSymbol =
-                    FlatSymbolRefAttr::get(symbolName, callee->getContext());
+                auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
                 ArrayRef<Value> args({bin, value, size, unitVal});
                 pushOp = rewriter.create<mlir::CallOp>(
                     op.getLoc(), calleeSymbol, pushTy, args);
@@ -107,8 +106,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
                 // __lumen_builtin_binary_push_byte_unit(bin, value, unit)
                 auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
                                                       {termTy, termTy, i8Ty});
-                auto calleeSymbol =
-                    FlatSymbolRefAttr::get(symbolName, callee->getContext());
+                auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
                 ArrayRef<Value> args({bin, value, unitVal});
                 pushOp = rewriter.create<mlir::CallOp>(
                     op.getLoc(), calleeSymbol, pushTy, args);
@@ -116,7 +114,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             break;
         }
         case BinarySpecifierType::Bits: {
-            unit = static_cast<unsigned>(op.getAttrOfType<IntegerAttr>("unit")
+            unit = static_cast<unsigned>(op->getAttrOfType<IntegerAttr>("unit")
                                              .getValue()
                                              .getLimitedValue());
             Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
@@ -127,8 +125,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
                 // unit)
                 auto callee = ctx.getOrInsertFunction(
                     symbolName, pushTy, {termTy, termTy, termTy, i8Ty});
-                auto calleeSymbol =
-                    FlatSymbolRefAttr::get(symbolName, callee->getContext());
+                auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
                 ArrayRef<Value> args({bin, value, size, unitVal});
                 pushOp = rewriter.create<mlir::CallOp>(
                     op.getLoc(), calleeSymbol, pushTy, args);
@@ -137,8 +134,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
                 // __lumen_builtin_binary_bits_push_unit(bin, value, unit)
                 auto callee = ctx.getOrInsertFunction(symbolName, pushTy,
                                                       {termTy, termTy, i8Ty});
-                auto calleeSymbol =
-                    FlatSymbolRefAttr::get(symbolName, callee->getContext());
+                auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
                 ArrayRef<Value> args({bin, value, unitVal});
                 pushOp = rewriter.create<mlir::CallOp>(
                     op.getLoc(), calleeSymbol, pushTy, args);
@@ -150,8 +146,7 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             // __lumen_builtin_binary_push_utf8(bin, value)
             auto callee =
                 ctx.getOrInsertFunction(symbolName, pushTy, {termTy, termTy});
-            auto calleeSymbol =
-                FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
             ArrayRef<Value> args({bin, value});
             pushOp = rewriter.create<mlir::CallOp>(op.getLoc(), calleeSymbol,
                                                    pushTy, args);
@@ -162,13 +157,12 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             // __lumen_builtin_binary_push_utf16(bin, value, signed, endianness)
             auto callee = ctx.getOrInsertFunction(
                 symbolName, pushTy, {termTy, termTy, i1Ty, i32Ty});
-            auto calleeSymbol =
-                FlatSymbolRefAttr::get(symbolName, callee->getContext());
+            auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
             endianness = static_cast<Endianness::Type>(
-                op.getAttrOfType<IntegerAttr>("endianness")
+                op->getAttrOfType<IntegerAttr>("endianness")
                     .getValue()
                     .getLimitedValue());
-            isSigned = op.getAttrOfType<BoolAttr>("is_signed").getValue();
+            isSigned = op->getAttrOfType<BoolAttr>("is_signed").getValue();
             Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
             Value endiannessVal =
                 llvm_constant(i32Ty, ctx.getI32Attr(endianness));
@@ -184,16 +178,15 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             auto callee = ctx.getOrInsertFunction(
                 symbolName, pushTy,
                 {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
-            auto calleeSymbol =
-                FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            unit = static_cast<unsigned>(op.getAttrOfType<IntegerAttr>("unit")
+            auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
+            unit = static_cast<unsigned>(op->getAttrOfType<IntegerAttr>("unit")
                                              .getValue()
                                              .getLimitedValue());
             endianness = static_cast<Endianness::Type>(
-                op.getAttrOfType<IntegerAttr>("endianness")
+                op->getAttrOfType<IntegerAttr>("endianness")
                     .getValue()
                     .getLimitedValue());
-            isSigned = op.getAttrOfType<BoolAttr>("is_signed").getValue();
+            isSigned = op->getAttrOfType<BoolAttr>("is_signed").getValue();
             Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
             Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
             Value endiannessVal =
@@ -211,16 +204,15 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             auto callee = ctx.getOrInsertFunction(
                 symbolName, pushTy,
                 {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
-            auto calleeSymbol =
-                FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            unit = static_cast<unsigned>(op.getAttrOfType<IntegerAttr>("unit")
+            auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
+            unit = static_cast<unsigned>(op->getAttrOfType<IntegerAttr>("unit")
                                              .getValue()
                                              .getLimitedValue());
             endianness = static_cast<Endianness::Type>(
-                op.getAttrOfType<IntegerAttr>("endianness")
+                op->getAttrOfType<IntegerAttr>("endianness")
                     .getValue()
                     .getLimitedValue());
-            isSigned = op.getAttrOfType<BoolAttr>("is_signed").getValue();
+            isSigned = op->getAttrOfType<BoolAttr>("is_signed").getValue();
             Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
             Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
             Value endiannessVal =
@@ -238,16 +230,15 @@ struct BinaryPushOpConversion : public EIROpConversion<BinaryPushOp> {
             auto callee = ctx.getOrInsertFunction(
                 symbolName, pushTy,
                 {termTy, termTy, termTy, i8Ty, i1Ty, i32Ty});
-            auto calleeSymbol =
-                FlatSymbolRefAttr::get(symbolName, callee->getContext());
-            unit = static_cast<unsigned>(op.getAttrOfType<IntegerAttr>("unit")
+            auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
+            unit = static_cast<unsigned>(op->getAttrOfType<IntegerAttr>("unit")
                                              .getValue()
                                              .getLimitedValue());
             endianness = static_cast<Endianness::Type>(
-                op.getAttrOfType<IntegerAttr>("endianness")
+                op->getAttrOfType<IntegerAttr>("endianness")
                     .getValue()
                     .getLimitedValue());
-            isSigned = op.getAttrOfType<BoolAttr>("is_signed").getValue();
+            isSigned = op->getAttrOfType<BoolAttr>("is_signed").getValue();
             Value unitVal = llvm_constant(i8Ty, ctx.getI8Attr(unit));
             Value signedVal = llvm_constant(i1Ty, ctx.getI1Attr(isSigned));
             Value endiannessVal =
@@ -279,9 +270,9 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
    public:
     explicit BinaryMatchOpConversion(MLIRContext *context,
                                      EirTypeConverter &converter,
-                                     TargetInfo &targetInfo,
+                                     TargetPlatform &platform,
                                      mlir::PatternBenefit benefit = 1)
-        : EIROpConversion<Op>::EIROpConversion(context, converter, targetInfo,
+        : EIROpConversion<Op>::EIROpConversion(context, converter, platform,
                                                benefit) {}
 
     LogicalResult matchAndRewrite(
@@ -301,15 +292,14 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
         // matchResultTy
         StringRef symbolName = Op::builtinSymbol();
 
-        SmallVector<LLVMType, 5> argTypes;
+        SmallVector<Type, 5> argTypes;
         argTypes.push_back(termTy);
         addExtraArgTypes(ctx, argTypes);
         argTypes.push_back(termTy);
 
         auto callee =
             ctx.getOrInsertFunction(symbolName, matchResultTy, argTypes);
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
 
         // Get operands to work with
         auto bin = adaptor.bin();
@@ -356,7 +346,7 @@ class BinaryMatchOpConversion : public EIROpConversion<Op> {
 
    protected:
     virtual void addExtraArgTypes(RewritePatternContext<Op> &ctx,
-                                  SmallVectorImpl<LLVMType> &types) const {
+                                  SmallVectorImpl<Type> &types) const {
         return;
     };
     virtual void addExtraArgValues(Op &op, RewritePatternContext<Op> &ctx,
@@ -374,7 +364,7 @@ struct BinaryMatchRawOpConversion
     using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchRawOp> &ctx,
-                          SmallVectorImpl<LLVMType> &types) const override {
+                          SmallVectorImpl<Type> &types) const override {
         types.push_back(ctx.getI8Type());
     }
 
@@ -395,7 +385,7 @@ struct BinaryMatchIntegerOpConversion
     using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchIntegerOp> &ctx,
-                          SmallVectorImpl<LLVMType> &types) const override {
+                          SmallVectorImpl<Type> &types) const override {
         types.push_back(ctx.getI1Type());
         types.push_back(ctx.getUsizeType());
         types.push_back(ctx.getI8Type());
@@ -427,7 +417,7 @@ struct BinaryMatchFloatOpConversion
     using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchFloatOp> &ctx,
-                          SmallVectorImpl<LLVMType> &types) const override {
+                          SmallVectorImpl<Type> &types) const override {
         types.push_back(ctx.getUsizeType());
         types.push_back(ctx.getI8Type());
     }
@@ -460,7 +450,7 @@ struct BinaryMatchUtf16OpConversion
     using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchUtf16Op> &ctx,
-                          SmallVectorImpl<LLVMType> &types) const override {
+                          SmallVectorImpl<Type> &types) const override {
         types.push_back(ctx.getUsizeType());
     }
 
@@ -481,7 +471,7 @@ struct BinaryMatchUtf32OpConversion
     using BinaryMatchOpConversion::BinaryMatchOpConversion;
 
     void addExtraArgTypes(RewritePatternContext<BinaryMatchUtf32Op> &ctx,
-                          SmallVectorImpl<LLVMType> &types) const override {
+                          SmallVectorImpl<Type> &types) const override {
         types.push_back(ctx.getUsizeType());
     }
 
@@ -499,13 +489,13 @@ struct BinaryMatchUtf32OpConversion
 void populateBinaryOpConversionPatterns(OwningRewritePatternList &patterns,
                                         MLIRContext *context,
                                         EirTypeConverter &converter,
-                                        TargetInfo &targetInfo) {
+                                        TargetPlatform &platform) {
     patterns.insert<BinaryStartOpConversion, BinaryFinishOpConversion,
                     BinaryPushOpConversion, BinaryMatchRawOpConversion,
                     BinaryMatchIntegerOpConversion,
                     BinaryMatchFloatOpConversion, BinaryMatchUtf8OpConversion,
                     BinaryMatchUtf16OpConversion, BinaryMatchUtf32OpConversion>(
-        context, converter, targetInfo);
+        context, converter, platform);
 }
 
 }  // namespace eir

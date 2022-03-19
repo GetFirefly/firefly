@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::ArgMatches;
 
 use liblumen_codegen as codegen;
-use liblumen_llvm::{self as llvm, target::TargetMachineConfig};
+use liblumen_llvm::{self as llvm, target::TargetMachine};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_target::{self as target, Target};
 
@@ -29,10 +29,6 @@ pub fn handle_command<'a>(
                 println!("{}", crate::LUMEN_RELEASE);
             }
         }
-        ("project-name", _) => {
-            let basename = cwd.file_name().unwrap();
-            println!("{}", basename.to_str().unwrap());
-        }
         ("targets", _) => {
             for target in Target::all() {
                 println!("{}", target);
@@ -42,16 +38,14 @@ pub fn handle_command<'a>(
             let options =
                 Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
             codegen::init(&options)?;
-            let target_machine_config = TargetMachineConfig::new(&options);
-            let target_machine = target_machine_config.create()?;
+            let target_machine = TargetMachine::create(&options)?;
             target_machine.print_target_features();
         }
         ("target-cpus", subcommand_matches) => {
             let options =
                 Options::new_with_defaults(c_opts, z_opts, cwd, subcommand_matches.unwrap())?;
             codegen::init(&options)?;
-            let target_machine_config = TargetMachineConfig::new(&options);
-            let target_machine = target_machine_config.create()?;
+            let target_machine = TargetMachine::create(&options)?;
             target_machine.print_target_cpus();
         }
         ("passes", _subcommand_matches) => {

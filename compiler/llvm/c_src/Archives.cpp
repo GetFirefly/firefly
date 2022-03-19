@@ -1,5 +1,5 @@
-#include "lumen/llvm/ErrorHandling.h"
-
+#include "mlir-c/Support.h"
+#include "mlir/CAPI/Support.h"
 #include "llvm-c/Core.h"
 #include "llvm-c/Object.h"
 #include "llvm/Object/Archive.h"
@@ -10,100 +10,79 @@
 using namespace llvm;
 using namespace llvm::object;
 
-enum class LLVMLumenResult { Success, Failure };
+struct LumenNewArchiveMember {
+  StringRef filename;
+  StringRef name;
+  Archive::Child child;
 
-struct LumenArchiveMember {
-  const char *Filename;
-  const char *Name;
-  Archive::Child Child;
-
-  LumenArchiveMember()
-      : Filename(nullptr), Name(nullptr), Child(nullptr, nullptr, nullptr) {}
-  ~LumenArchiveMember() {}
+  LumenNewArchiveMember()
+      : filename(), name(), child(nullptr, nullptr, nullptr) {}
+  ~LumenNewArchiveMember() {}
 };
 
 struct LumenArchiveIterator {
-  bool First;
-  Archive::child_iterator Cur;
-  Archive::child_iterator End;
-  std::unique_ptr<Error> Err;
+  bool first;
+  Archive::child_iterator current;
+  Archive::child_iterator end;
+  std::unique_ptr<Error> err;
 
-  LumenArchiveIterator(Archive::child_iterator Cur, Archive::child_iterator End,
-                       std::unique_ptr<Error> Err)
-      : First(true), Cur(Cur), End(End), Err(std::move(Err)) {}
+  LumenArchiveIterator(Archive::child_iterator current,
+                       Archive::child_iterator end, std::unique_ptr<Error> err)
+      : first(true), current(current), end(end), err(std::move(err)) {}
 };
-
-enum class LLVMLumenArchiveKind {
-  Other,
-  GNU,
-  BSD,
-  DARWIN,
-  COFF,
-};
-
-static Archive::Kind fromRust(LLVMLumenArchiveKind Kind) {
-  switch (Kind) {
-    case LLVMLumenArchiveKind::GNU:
-      return Archive::K_GNU;
-    case LLVMLumenArchiveKind::BSD:
-      return Archive::K_BSD;
-    case LLVMLumenArchiveKind::DARWIN:
-      return Archive::K_DARWIN;
-    case LLVMLumenArchiveKind::COFF:
-      return Archive::K_COFF;
-    default:
-      report_fatal_error("Bad ArchiveKind.");
-  }
-}
 
 typedef OwningBinary<Archive> *LLVMLumenArchiveRef;
-typedef LumenArchiveMember *LLVMLumenArchiveMemberRef;
+typedef LumenNewArchiveMember *LLVMLumenNewArchiveMemberRef;
 typedef Archive::Child *LLVMLumenArchiveChildRef;
 typedef Archive::Child const *LLVMLumenArchiveChildConstRef;
 typedef LumenArchiveIterator *LLVMLumenArchiveIteratorRef;
 
-extern "C" LLVMLumenArchiveRef LLVMLumenOpenArchive(char *Path) {
-  ErrorOr<std::unique_ptr<MemoryBuffer>> BufOr =
-      MemoryBuffer::getFile(Path, -1, false);
-  if (!BufOr) {
-    LLVMLumenSetLastError(BufOr.getError().message().c_str());
+extern "C" LLVMLumenArchiveRef LLVMLumenOpenArchive(MlirStringRef path,
+                                                    char *error) {
+  ErrorOr<std::unique_ptr<MemoryBuffer>> bufferOr =
+      MemoryBuffer::getFile(unwrap(path), -1, false);
+  if (!bufferOr) {
+    error = strdup(bufferOr.getError().message().c_str());
     return nullptr;
   }
 
-  Expected<std::unique_ptr<Archive>> ArchiveOr =
-      Archive::create(BufOr.get()->getMemBufferRef());
+  Expected<std::unique_ptr<Archive>> archiveOr =
+      Archive::create(bufferOr.get()->getMemBufferRef());
 
-  if (!ArchiveOr) {
-    LLVMLumenSetLastError(toString(ArchiveOr.takeError()).c_str());
+  if (!archiveOr) {
+    error = strdup(toString(archiveOr.takeError()).c_str());
     return nullptr;
   }
 
-  OwningBinary<Archive> *Ret = new OwningBinary<Archive>(
-      std::move(ArchiveOr.get()), std::move(BufOr.get()));
+  OwningBinary<Archive> *archive = new OwningBinary<Archive>(
+      std::move(archiveOr.get()), std::move(bufferOr.get()));
 
-  return Ret;
+  error = nullptr;
+  return archive;
 }
 
 extern "C" void LLVMLumenDestroyArchive(LLVMLumenArchiveRef archive) {
   delete archive;
 }
 
-extern "C" LLVMLumenArchiveIteratorRef LLVMLumenArchiveIteratorNew(
-    LLVMLumenArchiveRef lumenArchive) {
+extern "C" LLVMLumenArchiveIteratorRef
+LLVMLumenArchiveIteratorNew(LLVMLumenArchiveRef lumenArchive, char *error) {
   Archive *archive = lumenArchive->getBinary();
   auto err = std::make_unique<Error>(Error::success());
   auto cur = archive->child_begin(*err);
   if (*err) {
-    LLVMLumenSetLastError(toString(std::move(*err)).c_str());
+    error = strdup(toString(std::move(*err)).c_str());
     return nullptr;
   }
   auto end = archive->child_end();
   return new LumenArchiveIterator(cur, end, std::move(err));
 }
 
-extern "C" LLVMLumenArchiveChildConstRef LLVMLumenArchiveIteratorNext(
-    LLVMLumenArchiveIteratorRef RAI) {
-  if (RAI->Cur == RAI->End) return nullptr;
+extern "C" LLVMLumenArchiveChildConstRef
+LLVMLumenArchiveIteratorNext(LLVMLumenArchiveIteratorRef iter, char *error) {
+  error = nullptr;
+  if (iter->current == iter->end)
+    return nullptr;
 
   // Advancing the iterator validates the next child, and this can
   // uncover an error. LLVM requires that we check all Errors,
@@ -111,105 +90,113 @@ extern "C" LLVMLumenArchiveChildConstRef LLVMLumenArchiveIteratorNext(
   // the next child.
   // This means we must not advance the iterator in the *first* call,
   // but instead advance it *before* fetching the child in all later calls.
-  if (!RAI->First) {
-    ++RAI->Cur;
-    if (*RAI->Err) {
-      LLVMLumenSetLastError(toString(std::move(*RAI->Err)).c_str());
+  if (!iter->first) {
+    ++iter->current;
+    if (*iter->err) {
+      error = strdup(toString(std::move(*iter->err)).c_str());
       return nullptr;
     }
   } else {
-    RAI->First = false;
+    iter->first = false;
   }
 
-  if (RAI->Cur == RAI->End) return nullptr;
-
-  const Archive::Child &Child = *RAI->Cur.operator->();
-  Archive::Child *Ret = new Archive::Child(Child);
-
-  return Ret;
-}
-
-extern "C" void LLVMLumenArchiveChildFree(LLVMLumenArchiveChildRef Child) {
-  delete Child;
-}
-
-extern "C" void LLVMLumenArchiveIteratorFree(LLVMLumenArchiveIteratorRef RAI) {
-  delete RAI;
-}
-
-extern "C" const char *LLVMLumenArchiveChildName(
-    LLVMLumenArchiveChildConstRef Child, size_t *Size) {
-  Expected<StringRef> NameOrErr = Child->getName();
-  if (!NameOrErr) {
-    // rustc_codegen_llvm currently doesn't use this error string, but it might
-    // be useful in the future, and in the mean time this tells LLVM that the
-    // error was not ignored and that it shouldn't abort the process.
-    LLVMLumenSetLastError(toString(NameOrErr.takeError()).c_str());
+  if (iter->current == iter->end)
     return nullptr;
+
+  const Archive::Child &child = *iter->current.operator->();
+  return new Archive::Child(child);
+}
+
+extern "C" void LLVMLumenArchiveChildFree(LLVMLumenArchiveChildRef child) {
+  delete child;
+}
+
+extern "C" void LLVMLumenArchiveIteratorFree(LLVMLumenArchiveIteratorRef iter) {
+  delete iter;
+}
+
+extern "C" MlirStringRef
+LLVMLumenArchiveChildName(LLVMLumenArchiveChildConstRef child, char *error) {
+  Expected<StringRef> nameOrErr = child->getName();
+  if (!nameOrErr) {
+    error = strdup(toString(nameOrErr.takeError()).c_str());
+    return wrap(StringRef());
   }
-  StringRef Name = NameOrErr.get();
-  *Size = Name.size();
-  return Name.data();
+  error = nullptr;
+  return wrap(nameOrErr.get());
 }
 
-extern "C" const char *LLVMLumenArchiveChildData(LLVMLumenArchiveChildRef Child,
-                                                 size_t *Size) {
-  StringRef Buf;
-  Expected<StringRef> BufOrErr = Child->getBuffer();
-  if (!BufOrErr) {
-    LLVMLumenSetLastError(toString(BufOrErr.takeError()).c_str());
-    return nullptr;
+extern "C" MlirStringRef
+LLVMLumenArchiveChildData(LLVMLumenArchiveChildRef child, char *error) {
+  StringRef buf;
+  Expected<StringRef> bufOrErr = child->getBuffer();
+  if (!bufOrErr) {
+    error = strdup(toString(bufOrErr.takeError()).c_str());
+    return wrap(buf);
   }
-  Buf = BufOrErr.get();
-  *Size = Buf.size();
-  return Buf.data();
+  error = nullptr;
+  buf = bufOrErr.get();
+  return wrap(buf);
 }
 
-extern "C" LLVMLumenArchiveMemberRef LLVMLumenArchiveMemberNew(
-    char *Filename, char *Name, LLVMLumenArchiveChildRef Child) {
-  LumenArchiveMember *Member = new LumenArchiveMember;
-  Member->Filename = Filename;
-  Member->Name = Name;
-  if (Child) Member->Child = *Child;
-  return Member;
+extern "C" LLVMLumenNewArchiveMemberRef
+LLVMLumenNewArchiveMemberFromFile(MlirStringRef name, MlirStringRef filename) {
+  LumenNewArchiveMember *member = new LumenNewArchiveMember;
+  member->filename = unwrap(filename);
+  member->name = unwrap(name);
+  return member;
 }
 
-extern "C" void LLVMLumenArchiveMemberFree(LLVMLumenArchiveMemberRef Member) {
-  delete Member;
+extern "C" LLVMLumenNewArchiveMemberRef
+LLVMLumenNewArchiveMemberFromChild(MlirStringRef name,
+                                   LLVMLumenArchiveChildRef child) {
+  assert(child);
+  LumenNewArchiveMember *member = new LumenNewArchiveMember;
+  member->name = unwrap(name);
+  member->child = *child;
+  return member;
 }
 
-extern "C" LLVMLumenResult LLVMLumenWriteArchive(
-    char *Dst, size_t NumMembers, const LLVMLumenArchiveMemberRef *NewMembers,
-    bool WriteSymbtab, LLVMLumenArchiveKind LumenKind) {
-  std::vector<NewArchiveMember> Members;
-  auto Kind = fromRust(LumenKind);
+extern "C" void
+LLVMLumenNewArchiveMemberFree(LLVMLumenNewArchiveMemberRef member) {
+  delete member;
+}
 
-  for (size_t I = 0; I < NumMembers; I++) {
-    auto Member = NewMembers[I];
-    assert(Member->Name);
-    if (Member->Filename) {
-      Expected<NewArchiveMember> MOrErr =
-          NewArchiveMember::getFile(Member->Filename, true);
-      if (!MOrErr) {
-        LLVMLumenSetLastError(toString(MOrErr.takeError()).c_str());
-        return LLVMLumenResult::Failure;
+extern "C" bool
+LLVMLumenWriteArchive(MlirStringRef filename, size_t numMembers,
+                      const LLVMLumenNewArchiveMemberRef *newMembers,
+                      bool writeSymbtab, Archive::Kind kind, char *error) {
+  std::vector<NewArchiveMember> members;
+
+  for (size_t i = 0; i < numMembers; i++) {
+    auto member = newMembers[i];
+    assert(!member->name.empty());
+    if (member->filename.empty()) {
+      Expected<NewArchiveMember> mOrErr =
+          NewArchiveMember::getFile(member->filename, /*deterministic=*/true);
+      if (!mOrErr) {
+        error = strdup(toString(mOrErr.takeError()).c_str());
+        return false;
       }
-      MOrErr->MemberName = sys::path::filename(MOrErr->MemberName);
-      Members.push_back(std::move(*MOrErr));
+      mOrErr->MemberName = sys::path::filename(mOrErr->MemberName);
+      members.push_back(std::move(*mOrErr));
     } else {
-      Expected<NewArchiveMember> MOrErr =
-          NewArchiveMember::getOldMember(Member->Child, true);
-      if (!MOrErr) {
-        LLVMLumenSetLastError(toString(MOrErr.takeError()).c_str());
-        return LLVMLumenResult::Failure;
+      Expected<NewArchiveMember> mOrErr =
+          NewArchiveMember::getOldMember(member->child, /*deterministic=*/true);
+      if (!mOrErr) {
+        error = strdup(toString(mOrErr.takeError()).c_str());
+        return false;
       }
-      Members.push_back(std::move(*MOrErr));
+      members.push_back(std::move(*mOrErr));
     }
   }
 
-  auto Result = writeArchive(Dst, Members, WriteSymbtab, Kind, true, false);
-  if (!Result) return LLVMLumenResult::Success;
-  LLVMLumenSetLastError(toString(std::move(Result)).c_str());
+  error = nullptr;
+  auto result = writeArchive(unwrap(filename), members, writeSymbtab, kind,
+                             /*deterministic=*/true, /*thin=*/false);
+  if (!result)
+    return true;
 
-  return LLVMLumenResult::Failure;
+  error = strdup(toString(std::move(result)).c_str());
+  return false;
 }

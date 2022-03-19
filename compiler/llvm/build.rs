@@ -1,12 +1,9 @@
 extern crate cc;
-extern crate walkdir;
 extern crate which;
 
 use std::env;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use walkdir::{DirEntry, WalkDir};
 
 const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
@@ -16,15 +13,16 @@ const ENV_LUMEN_LLVM_LTO: &'static str = "LUMEN_LLVM_LTO";
 fn main() {
     let cwd = env::current_dir().unwrap();
     let llvm_prefix = detect_llvm_prefix();
+    let llvm_lib_dir = llvm_prefix.join("lib");
 
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_PREFIX);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_LINK_LLVM_DYLIB);
     println!("cargo:rerun-if-env-changed={}", ENV_LUMEN_LLVM_LTO);
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=c_src");
+    println!("cargo:prefix={}", llvm_prefix.display());
 
-    rerun_if_changed_anything_in_dir(&cwd.join("c_src"));
-
-    let outdir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let target = env::var("TARGET").expect("TARGET was not set");
     let host = env::var("HOST").expect("HOST was not set");
     let is_crossed = target != host;
@@ -34,7 +32,7 @@ fn main() {
 
     let optional_components = vec![
         "x86",
-        "arm",
+        //"arm",
         "aarch64",
         //"amdgpu",
         //"mips",
@@ -57,6 +55,7 @@ fn main() {
         "asmparser",
         "lto",
         "instrumentation",
+        //"orcjit",
     ];
 
     let components = output(Command::new(&llvm_config).arg("--components"));
@@ -106,7 +105,10 @@ fn main() {
     }
 
     if env::var_os(ENV_LUMEN_LLVM_LTO).is_some() {
+        println!("cargo:lto=true");
         cfg.flag("-flto=thin");
+    } else {
+        println!("cargo:lto=false");
     }
 
     if env::var_os("LLVM_NDEBUG").is_some() {
@@ -114,33 +116,21 @@ fn main() {
         cfg.debug(false);
     }
 
-    let include_dir = outdir.join("include");
-    let include_llvm_dir = include_dir.join("lumen/llvm");
-    fs::create_dir_all(include_llvm_dir.as_path()).unwrap();
-    for entry in fs::read_dir(cwd.join("c_src/include/lumen/llvm")).unwrap() {
-        let entry = entry.unwrap();
-        let file = entry.path();
-        let basename = entry.file_name();
-        fs::copy(file, include_llvm_dir.join(basename)).unwrap();
-    }
-
+    let include_dir = cwd.join("c_src/include");
     println!("cargo:include={}", include_dir.display());
 
-    let cfg = if cfg!(windows) {
-        cfg.file("c_src/raw_win32_handle_ostream.cpp")
-            .file("c_src/RustString.cpp")
-    } else {
-        cfg.file("c_src/RustString.cpp")
-    };
-    cfg.file("c_src/Attributes.cpp")
-       .file("c_src/IR.cpp")
-       .file("c_src/ErrorHandling.cpp")
+    if cfg!(windows) {
+        cfg.file("c_src/raw_win32_handle_ostream.cpp");
+    }
+    cfg.file("c_src/Archives.cpp")
+       .file("c_src/Attributes.cpp")
        .file("c_src/Diagnostics.cpp")
-       .file("c_src/Options.cpp")
+       .file("c_src/ErrorHandling.cpp")
+       .file("c_src/IR.cpp")
+       //.file("c_src/Orc.cpp")
        .file("c_src/Passes.cpp")
        .file("c_src/Target.cpp")
        .file("c_src/Version.cpp")
-       .file("c_src/Archives.cpp")
        .include(include_dir)
        .shared_flag(false)
        .static_flag(true)
@@ -149,8 +139,16 @@ fn main() {
        .compile("lumen_llvm_core");
 
     let (llvm_kind, llvm_link_arg) = detect_llvm_link();
+    let link_static = llvm_kind == "static";
+    let link_llvm_dylib = llvm_link_llvm_dylib == "ON";
+    println!("cargo:link_static={}", &link_static);
+    println!("cargo:link_llvm_dylib={}", &link_llvm_dylib);
+    println!(
+        "cargo:rustc-link-arg=-Wl,-rpath={}",
+        llvm_lib_dir.as_path().display()
+    );
 
-    if llvm_kind == "static" && llvm_link_llvm_dylib == "ON" {
+    if link_static && link_llvm_dylib {
         println!("cargo:rustc-link-lib=dylib=LLVM");
     } else {
         // Link in all LLVM libraries
@@ -333,7 +331,7 @@ fn detect_llvm_prefix() -> PathBuf {
     fail("LLVM_PREFIX is not defined and unable to locate LLVM to build with");
 }
 
-pub fn output(cmd: &mut Command) -> String {
+fn output(cmd: &mut Command) -> String {
     let output = match cmd.stderr(Stdio::inherit()).output() {
         Ok(status) => status,
         Err(e) => fail(&format!(
@@ -357,29 +355,6 @@ fn detect_llvm_link() -> (&'static str, &'static str) {
         Some(val) if val == "ON" => ("static", "--link-static"),
         _ => ("dylib", "--link-shared"),
     }
-}
-
-fn rerun_if_changed_anything_in_dir(dir: &Path) {
-    let walker = WalkDir::new(dir).into_iter();
-    for entry in walker.filter_entry(|e| !ignore_changes(e)) {
-        let entry = entry.unwrap();
-        if !entry.file_type().is_dir() {
-            let path = entry.path();
-            println!("cargo:rerun-if-changed={}", path.display());
-        }
-    }
-}
-
-fn ignore_changes(entry: &DirEntry) -> bool {
-    let ty = entry.file_type();
-    if ty.is_dir() {
-        return false;
-    }
-    let path = entry.path();
-    if path.starts_with(".") {
-        return true;
-    }
-    false
 }
 
 fn fail(s: &str) -> ! {

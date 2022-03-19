@@ -3,16 +3,16 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-pub type DisplayConfig = libeir_diagnostics::term::Config;
-pub type DisplayStyle = libeir_diagnostics::term::DisplayStyle;
-pub type DisplayChars = libeir_diagnostics::term::Chars;
+pub type DisplayConfig = liblumen_diagnostics::term::Config;
+pub type DisplayStyle = liblumen_diagnostics::term::DisplayStyle;
+pub type DisplayChars = liblumen_diagnostics::term::Chars;
 
-pub use libeir_diagnostics::term::termcolor::*;
-pub use libeir_diagnostics::term::{ColorArg, Styles};
-pub use libeir_diagnostics::{
+pub use liblumen_diagnostics::term::termcolor::*;
+pub use liblumen_diagnostics::term::{ColorArg, Styles};
+pub use liblumen_diagnostics::{
     ByteIndex, CodeMap, FileName, Files, SourceFile, SourceId, SourceIndex, SourceSpan,
 };
-pub use libeir_diagnostics::{Diagnostic, Label, LabelStyle, Severity};
+pub use liblumen_diagnostics::{Diagnostic, Label, LabelStyle, Severity};
 
 use crate::error::{FatalError, Verbosity};
 
@@ -89,7 +89,6 @@ impl Emitter for NullEmitter {
 pub struct InFlightDiagnostic<'h> {
     handler: &'h DiagnosticsHandler,
     file_id: Option<SourceId>,
-    filename: Option<FileName>,
     diagnostic: Diagnostic,
     severity: Severity,
 }
@@ -98,7 +97,6 @@ impl<'h> InFlightDiagnostic<'h> {
         Self {
             handler,
             file_id: None,
-            filename: None,
             diagnostic: Diagnostic::new(severity),
             severity,
         }
@@ -114,7 +112,7 @@ impl<'h> InFlightDiagnostic<'h> {
     /// diagnostics in-flight by formatting functions which do
     /// not know what the current diagnostic configuration is
     pub fn verbose(&self) -> bool {
-        use libeir_diagnostics::term::DisplayStyle;
+        use liblumen_diagnostics::term::DisplayStyle;
         match self.handler.display.display_style {
             DisplayStyle::Rich => true,
             _ => false,
@@ -124,7 +122,6 @@ impl<'h> InFlightDiagnostic<'h> {
     pub fn set_source_file(&mut self, filename: impl Into<FileName>) {
         let filename = filename.into();
         let file_id = self.handler.codemap.get_file_id(&filename);
-        self.filename = Some(filename);
         self.file_id = file_id;
     }
 
@@ -242,17 +239,24 @@ impl DiagnosticsHandler {
         }
     }
 
+    /// Emits an error message and produces a FatalError object
+    /// which can be used to terminate execution immediately
     pub fn fatal(&self, err: impl Into<String>) -> FatalError {
         self.error(err);
         FatalError
     }
 
+    /// Emits an error message
     pub fn error(&self, err: impl Into<String>) {
         self.err_count.fetch_add(1, Ordering::Relaxed);
         let diagnostic = Diagnostic::error().with_message(err);
         self.emit(&diagnostic);
     }
 
+    /// Emits a warning message
+    ///
+    /// NOTE: This will get promoted to an error diagnostic if warnings-as-errors is set.
+    /// Similarly, if no-warn is set, warnings will be dropped entirely
     pub fn warn(&self, message: impl Into<String>) {
         if self.warnings_as_errors {
             self.error(message)
@@ -262,6 +266,7 @@ impl DiagnosticsHandler {
         }
     }
 
+    /// Emits an informational message
     pub fn info(&self, message: impl Into<String>) {
         let info_color = self.display.styles.header(Severity::Help);
         let mut buffer = self.emitter.buffer();
@@ -274,6 +279,7 @@ impl DiagnosticsHandler {
         self.emitter.print(&buffer).unwrap();
     }
 
+    /// Emits a debug message
     pub fn debug(&self, message: impl Into<String>) {
         let mut debug_color = self.display.styles.header_message.clone();
         debug_color.set_fg(Some(Color::Blue));
@@ -287,15 +293,30 @@ impl DiagnosticsHandler {
         self.emitter.print(&buffer).unwrap();
     }
 
+    /// Emits a note
     pub fn note(&self, message: impl Into<String>) {
         let diagnostic = Diagnostic::note().with_message(message);
         self.emit(&diagnostic);
     }
 
+    /// Prints a warning-like message with the given prefix
+    ///
+    /// NOTE: This does not get promoted to an error if warnings-as-errors is set,
+    /// as it is intended for informational purposes, not issues with the code being compiled
+    pub fn notice(&self, prefix: &str, message: impl Into<String>) {
+        self.write_prefixed(
+            self.display.styles.header(Severity::Warning),
+            prefix,
+            message,
+        );
+    }
+
+    /// Prints a success message with the given prefix
     pub fn success(&self, prefix: &str, message: impl Into<String>) {
         self.write_prefixed(self.display.styles.header(Severity::Note), prefix, message);
     }
 
+    /// Prints an error message with the given prefix
     pub fn failed(&self, prefix: &str, message: impl Into<String>) {
         self.err_count.fetch_add(1, Ordering::Relaxed);
         self.write_prefixed(self.display.styles.header(Severity::Error), prefix, message);
@@ -310,13 +331,17 @@ impl DiagnosticsHandler {
         self.emitter.print(&buffer).unwrap();
     }
 
+    /// Generates an in-flight diagnostic for more complex diagnostics use cases
+    ///
+    /// The caller is responsible for dropping/emitting the diagnostic using the in-flight APIs
     pub fn diagnostic(&self, severity: Severity) -> InFlightDiagnostic<'_> {
         InFlightDiagnostic::new(self, severity)
     }
 
+    /// Emits the given diagnostic
     #[inline(always)]
     pub fn emit(&self, diagnostic: &Diagnostic) {
-        use libeir_diagnostics::term;
+        use liblumen_diagnostics::term;
 
         let mut buffer = self.emitter.buffer();
         term::emit(&mut buffer, &self.display, self.codemap.deref(), diagnostic).unwrap();

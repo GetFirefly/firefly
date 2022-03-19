@@ -17,7 +17,7 @@ use crate::scheduler::Scheduled;
 pub fn is_down(message: &Message, reference: &Reference) -> bool {
     let message_data = message.data();
 
-    let result_tuple: Result<Boxed<Tuple>, _> = (*message_data).try_into();
+    let result_tuple: Result<Boxed<Tuple>, _> = message_data.try_into();
 
     match result_tuple {
         Ok(tuple) => {

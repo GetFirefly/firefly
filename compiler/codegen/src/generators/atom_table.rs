@@ -3,16 +3,14 @@ use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 
-use libeir_intern::Symbol;
-
-use liblumen_llvm as llvm;
+use liblumen_intern::Symbol;
 use liblumen_llvm::builder::ModuleBuilder;
-use liblumen_llvm::enums::Linkage;
+use liblumen_llvm::ir::*;
 use liblumen_llvm::target::TargetMachine;
+use liblumen_llvm::StringRef;
 use liblumen_session::{Input, Options, OutputType};
 
 use crate::meta::CompiledModule;
-use crate::Result;
 
 /// Generates an LLVM module containing the raw atom table data for the current build
 ///
@@ -26,10 +24,10 @@ use crate::Result;
 /// - Generate the __LUMEN_ATOM_TABLE_SIZE global with the number of elements in the array
 pub fn generate(
     options: &Options,
-    context: &llvm::Context,
-    target_machine: &TargetMachine,
+    context: &Context,
+    target_machine: TargetMachine,
     mut atoms: HashSet<Symbol>,
-) -> Result<Arc<CompiledModule>> {
+) -> anyhow::Result<Arc<CompiledModule>> {
     const NAME: &'static str = "liblumen_crt_atoms";
 
     let builder = ModuleBuilder::new(NAME, options, context, target_machine)?;
@@ -43,19 +41,20 @@ pub fn generate(
     atoms.insert(Symbol::intern("nocatch"));
     atoms.insert(Symbol::intern("normal"));
 
-    fn insert_atom<'ctx>(builder: &ModuleBuilder<'ctx>, atom: Symbol) -> Result<llvm::Value> {
+    fn insert_atom<'ctx>(
+        builder: &ModuleBuilder<'ctx>,
+        atom: Symbol,
+    ) -> anyhow::Result<GlobalVariable> {
         // We remap true/false to 1/0 respectively
         let id = atom.as_usize();
         // Each atom must be a null-terminated string
-        let s = atom.as_str().get();
-        let constant = builder.build_named_constant_string(
-            &format!("__atom{}.value", id),
-            s,
-            /* null_terminated= */ true,
-        );
+        let s = StringRef::from(atom);
+        let null_terminated = s.to_cstr().into_owned();
+        let constant =
+            builder.build_named_constant_string(&format!("__atom{}.value", id), &null_terminated);
         // The atom constants are not accessible directly, only via the table
-        builder.set_linkage(constant, Linkage::Private);
-        builder.set_alignment(constant, 8);
+        constant.set_linkage(Linkage::Private);
+        constant.set_alignment(8);
         Ok(constant)
     }
 
@@ -69,44 +68,54 @@ pub fn generate(
     let i8_type = builder.get_i8_type();
     let i8ptr_type = builder.get_pointer_type(i8_type);
     let i64_type = builder.get_i64_type();
-    let entry_type = builder.get_struct_type(Some("ConstantAtom"), &[i64_type, i8ptr_type]);
+    let entry_type =
+        builder.get_struct_type(Some("ConstantAtom"), &[i64_type.base(), i8ptr_type.base()]);
 
-    let mut entries = Vec::with_capacity(values.len());
+    let mut entries: Vec<ConstantValue> = Vec::with_capacity(values.len());
     for (sym, value) in values.iter() {
+        let value = *value;
         let id = builder.build_constant_uint(i64_type, sym.as_usize() as u64);
-        let ptr = builder.build_const_inbounds_gep(*value, &[0, 0]);
-        entries.push(builder.build_constant_struct(entry_type, &[id, ptr]));
+        let value_ty = value.get_type();
+        let constant: ConstantValue = value.try_into().unwrap();
+        let ptr = builder.build_const_inbounds_gep(value_ty, constant, &[0, 0]);
+        entries.push(
+            builder
+                .build_constant_named_struct(entry_type, &[id.into(), ptr.into()])
+                .into(),
+        );
     }
 
     // Generate constants array
     let entries_const_init = builder.build_constant_array(entry_type, entries.as_slice());
-    let entries_const_ty = builder.type_of(entries_const_init);
+    let entries_const_ty = entries_const_init.get_type();
     let entries_const = builder.build_constant(
         entries_const_ty,
         "__LUMEN_ATOM_TABLE_ENTRIES",
-        Some(entries_const_init),
+        entries_const_init,
     );
-    builder.set_linkage(entries_const, Linkage::Private);
-    builder.set_alignment(entries_const, 8);
+    entries_const.set_linkage(Linkage::Private);
+    entries_const.set_alignment(8);
 
     // Generate atom table global itself
     let entry_ptr_type = builder.get_pointer_type(entry_type);
-    let table_global_init = builder.build_const_inbounds_gep(entries_const, &[0, 0]);
+    let entries_const: ConstantValue = entries_const.try_into().unwrap();
+    let table_global_init =
+        builder.build_const_inbounds_gep(entries_const_ty, entries_const, &[0, 0]);
     let table_global = builder.build_global(
         entry_ptr_type,
         "__LUMEN_ATOM_TABLE",
-        Some(table_global_init),
+        Some(table_global_init.base()),
     );
-    builder.set_alignment(table_global, 8);
+    table_global.set_alignment(8);
 
     // Generate atom table size global
     let table_size_global_init = builder.build_constant_uint(i64_type, entries.len() as u64);
     let table_size_global = builder.build_global(
         i64_type,
         "__LUMEN_ATOM_TABLE_SIZE",
-        Some(table_size_global_init),
+        Some(table_size_global_init.base()),
     );
-    builder.set_alignment(table_size_global, 8);
+    table_size_global.set_alignment(8);
 
     // Finalize module
     let module = builder.finish()?;
@@ -129,13 +138,13 @@ pub fn generate(
     // Emit assembly file
     if let Some(asm_path) = options.maybe_emit(&input, OutputType::Assembly) {
         let mut file = File::create(asm_path.as_path())?;
-        module.emit_asm(&mut file)?;
+        module.emit_asm(&mut file, target_machine)?;
     }
 
     // Emit object file
     let obj_path = if let Some(obj_path) = options.maybe_emit(&input, OutputType::Object) {
         let mut file = File::create(obj_path.as_path())?;
-        module.emit_obj(&mut file)?;
+        module.emit_obj(&mut file, target_machine)?;
         Some(obj_path)
     } else {
         None

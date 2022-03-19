@@ -5,8 +5,6 @@ use liblumen_util::diagnostics::{CodeMap, Diagnostic, DiagnosticsHandler};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ErrorReported;
 
-pub type QueryResult<T> = std::result::Result<T, ErrorReported>;
-
 pub trait CompilerDiagnostics {
     fn diagnostics(&self) -> &Arc<DiagnosticsHandler>;
 
@@ -16,7 +14,7 @@ pub trait CompilerDiagnostics {
     }
 
     #[inline]
-    fn to_query_result<T>(&self, err: anyhow::Result<T>) -> QueryResult<T> {
+    fn to_query_result<T>(&self, err: anyhow::Result<T>) -> Result<T, ErrorReported> {
         match err {
             Ok(val) => Ok(val),
             Err(err) => {

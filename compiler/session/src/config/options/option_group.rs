@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::marker::PhantomData;
 
 use thiserror::Error;
@@ -127,7 +126,7 @@ where
 
     fn coerce_help<'b>(
         maybe_matches: clap::Result<ArgMatches<'b>>,
-    ) -> Result<ArgMatches<'b>, anyhow::Error> {
+    ) -> anyhow::Result<ArgMatches<'b>> {
         if let Ok(matches) = maybe_matches {
             return Ok(matches);
         }
@@ -156,4 +155,4 @@ where
     }
 }
 
-pub type OptionGroupParseResult<T> = Result<Option<T>, anyhow::Error>;
+pub type OptionGroupParseResult<T> = anyhow::Result<Option<T>>;

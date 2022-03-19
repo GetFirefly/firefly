@@ -145,6 +145,22 @@ where
     }
 
     #[inline]
+    pub fn is_port(&self) -> bool {
+        match self {
+            Self::Port | Self::ExternalPort => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_external_port(&self) -> bool {
+        match self {
+            Self::ExternalPort => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
     pub fn is_reference(&self) -> bool {
         match self {
             Self::Reference | Self::ExternalReference => true,

@@ -1,35 +1,18 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Signals.h"
-#include "llvm/Support/raw_ostream.h"
 
-#include <cassert>
 #include <cstddef>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <iostream>
 
-static LLVM_THREAD_LOCAL char *LastError;
+using namespace llvm;
 
-extern "C" char *LLVMLumenGetLastError(void) {
-  char *ret = LastError;
-  LastError = nullptr;
-  return ret;
+static void LumenFatalErrorHandler(void *, const char *reason, bool) {
+  fprintf(stderr, "LLVM FATAL ERROR: %s\n", reason);
+  ::abort();
 }
 
-extern "C" void LLVMLumenSetLastError(const char *err) {
-  free((void *)LastError);
-  LastError = strdup(err);
-}
-
-static void FatalErrorHandler(void *userData, const std::string &Reason,
-                              bool genCrashDiag) {
-  std::cerr << "LLVM ERROR: " << Reason << std::endl;
-
-  llvm::sys::RunInterruptHandlers();
-
-  exit(101);
-}
-
-extern "C" void LLVMLumenInstallFatalErrorHandler() {
-  llvm::install_fatal_error_handler(FatalErrorHandler);
+extern "C" void LLVMLumenInstallFatalErrorHandler(void) {
+  llvm::remove_fatal_error_handler();
+  llvm::install_fatal_error_handler(LumenFatalErrorHandler);
 }

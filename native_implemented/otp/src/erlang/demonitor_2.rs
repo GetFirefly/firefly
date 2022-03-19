@@ -63,5 +63,5 @@ fn flush(monitoring_process: &Process, reference: &Reference) -> bool {
         .mailbox
         .lock()
         .borrow_mut()
-        .flush(|message| is_down(message, reference), monitoring_process)
+        .flush(|message| is_down(message, reference))
 }

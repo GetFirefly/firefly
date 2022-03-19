@@ -1,16 +1,22 @@
 #ifndef LUMEN_MODULEBUILDER_SUPPORT_H
 #define LUMEN_MODULEBUILDER_SUPPORT_H
 
+#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Casting.h"
-
-#include "lumen/mlir/IR.h"
+#include "mlir-c/IR.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/Value.h"
 
 #include <stdint.h>
+
+using ::mlir::Operation;
+using ::mlir::Type;
+using ::mlir::Value;
 
 namespace lumen {
 namespace eir {
 
-Operation *getDefinition(Value val);
+::mlir::Operation *getDefinition(::mlir::Value val);
 
 template <typename OpTy>
 OpTy getDefinition(Value val) {
@@ -77,8 +83,8 @@ union EirType {
 ///
 /// Contains the function value, as well as the entry block
 struct FunctionDeclResult {
-    MLIRFunctionOpRef function;
-    MLIRBlockRef entryBlock;
+    MlirOperation function;
+    MlirBlock entryBlock;
 };
 
 // Used to represent function/block arguments
@@ -96,29 +102,29 @@ enum class MapActionType : uint32_t { Unknown = 0, Insert, Update };
 
 struct MapAction {
     MapActionType action;
-    MLIRValueRef key;
-    MLIRValueRef value;
+    MlirValue key;
+    MlirValue value;
 };
 
 struct MapUpdate {
-    MLIRLocationRef loc;
-    MLIRValueRef map;
-    MLIRBlockRef ok;
-    MLIRBlockRef err;
+    MlirLocation loc;
+    MlirValue map;
+    MlirBlock ok;
+    MlirBlock err;
     MapAction *actionsv;
     size_t actionsc;
 };
 
 // Used to represent map key/value pairs used in map construction
 struct MapEntry {
-    MLIRValueRef key;
-    MLIRValueRef value;
+    MlirValue key;
+    MlirValue value;
 };
 
 // Used to represent map key/value pairs used in constant maps
 struct KeyValuePair {
-    MLIRAttributeRef key;
-    MLIRAttributeRef value;
+    MlirAttribute key;
+    MlirAttribute value;
 };
 
 //===----------------------------------------------------------------------===//
@@ -127,14 +133,14 @@ struct KeyValuePair {
 
 // Represents a captured closure, possibly with no environment
 struct Closure {
-    MLIRLocationRef loc;
-    MLIRAttributeRef module;
+    MlirLocation loc;
+    MlirAttribute module;
     char *name;
     uint8_t arity;
     uint32_t index;
     uint32_t oldUnique;
     char unique[16];
-    MLIRValueRef *env;
+    MlirValue *env;
     unsigned envLen;
 };
 
@@ -312,13 +318,13 @@ class BinaryPattern : public MatchPattern {
 };
 
 struct MLIRBinaryPayload {
-    MLIRValueRef size;
+    MlirValue size;
     BinarySpecifier spec;
 };
 
 union MLIRMatchPatternPayload {
     unsigned i;
-    MLIRValueRef v;
+    MlirValue v;
     EirType t;
     MLIRBinaryPayload b;
 };
@@ -330,17 +336,17 @@ struct MLIRMatchPattern {
 
 // Represents a single match arm
 struct MLIRMatchBranch {
-    MLIRLocationRef loc;
-    MLIRBlockRef dest;
-    MLIRValueRef *destArgv;
+    MlirLocation loc;
+    MlirBlock dest;
+    MlirValue *destArgv;
     unsigned destArgc;
     MLIRMatchPattern pattern;
 };
 
 // Represents a match operation
 struct Match {
-    MLIRLocationRef loc;
-    MLIRValueRef selector;
+    MlirLocation loc;
+    MlirValue selector;
     MLIRMatchBranch *branches;
     unsigned numBranches;
 };

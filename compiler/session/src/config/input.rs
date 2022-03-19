@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::convert::{From, TryFrom, TryInto};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -9,7 +8,7 @@ use liblumen_util::diagnostics::FileName;
 pub enum InputType {
     Erlang,
     AbstractErlang,
-    EIR,
+    CoreIR,
     MLIR,
     Unknown(Option<String>),
 }
@@ -17,7 +16,7 @@ impl InputType {
     const TYPES: &'static [InputType] = &[
         InputType::Erlang,
         InputType::AbstractErlang,
-        InputType::EIR,
+        InputType::CoreIR,
         InputType::MLIR,
     ];
 
@@ -28,10 +27,28 @@ impl InputType {
         match path.extension().and_then(|s| s.to_str()) {
             None => false,
             Some("erl") => true,
-            Some("eir") => true,
             Some("abstr") => true,
+            Some("cir") => true,
             Some("mlir") => true,
             Some(_) => false,
+        }
+    }
+
+    pub fn validate(&self, path: &Path) -> bool {
+        if !path.exists() || !path.is_file() {
+            return false;
+        }
+        match path.extension().and_then(|s| s.to_str()) {
+            None => false,
+            Some("erl") if self == &Self::Erlang => true,
+            Some("abstr") if self == &Self::AbstractErlang => true,
+            Some("cir") if self == &Self::CoreIR => true,
+            Some("mlir") if self == &Self::MLIR => true,
+            Some(other) => match self {
+                Self::Unknown(None) => true,
+                Self::Unknown(Some(ext)) => ext.as_str() == other,
+                _ => false,
+            },
         }
     }
 
@@ -48,7 +65,7 @@ impl fmt::Display for InputType {
         match self {
             Self::Erlang => f.write_str("erl"),
             Self::AbstractErlang => f.write_str("abstr"),
-            Self::EIR => f.write_str("eir"),
+            Self::CoreIR => f.write_str("cir"),
             Self::MLIR => f.write_str("mlir"),
             Self::Unknown(None) => f.write_str("unknown (no extension)"),
             Self::Unknown(Some(ref ext)) => write!(f, "unknown ({})", ext),
@@ -82,7 +99,7 @@ impl Input {
             Input::File(ref file) => match file.extension().and_then(|ext| ext.to_str()) {
                 Some("erl") => InputType::Erlang,
                 Some("abstr") => InputType::AbstractErlang,
-                Some("eir") => InputType::EIR,
+                Some("cir") => InputType::CoreIR,
                 Some("mlir") => InputType::MLIR,
                 Some(t) => InputType::Unknown(Some(t.to_string())),
                 None => InputType::Unknown(None),
@@ -92,8 +109,8 @@ impl Input {
                     InputType::Erlang
                 } else if name.ends_with(".abstr") {
                     InputType::AbstractErlang
-                } else if name.ends_with(".eir") {
-                    InputType::EIR
+                } else if name.ends_with(".cir") {
+                    InputType::CoreIR
                 } else if name.ends_with(".mlir") {
                     InputType::MLIR
                 } else {
@@ -126,16 +143,13 @@ impl Input {
         self.into()
     }
 
-    pub fn file_stem(&self) -> PathBuf {
+    pub fn file_stem(&self) -> String {
         match self {
-            Input::File(ref file) => PathBuf::from(file.file_stem().unwrap().to_str().unwrap()),
-            Input::Str { ref name, .. } => match name.as_str() {
-                "nofile" => PathBuf::from("out"),
-                s => {
-                    let path = Path::new(s);
-                    PathBuf::from(path.file_stem().unwrap().to_str().unwrap())
-                }
-            },
+            Input::File(ref file) => file.file_stem().unwrap().to_str().unwrap().to_string(),
+            Input::Str { ref name, .. } => {
+                let path = Path::new(name);
+                path.file_stem().unwrap().to_str().unwrap().to_string()
+            }
         }
     }
 

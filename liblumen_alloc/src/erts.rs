@@ -14,7 +14,7 @@ pub mod time;
 pub mod timeout;
 
 pub use fragment::{HeapFragment, HeapFragmentAdapter};
-pub use message::Message;
+pub use message::{Message, MessageData};
 pub use module_function_arity::{Arity, ModuleFunctionArity};
 pub use node::*;
 pub use process::*;

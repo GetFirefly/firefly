@@ -15,7 +15,7 @@ struct NullOpConversion : public EIROpConversion<NullOp> {
         ConversionPatternRewriter &rewriter) const override {
         auto ctx = getRewriteContext(op, rewriter);
 
-        auto ty = ctx.typeConverter.convertType(op.getType()).cast<LLVMType>();
+        auto ty = ctx.typeConverter.convertType(op.getType());
         rewriter.replaceOpWithNewOp<LLVM::NullOp>(op, ty);
         return success();
     }
@@ -80,7 +80,7 @@ struct ConstantBoolOpConversion : public EIROpConversion<ConstantBoolOp> {
         // Otherwise we are expecting this to be an integer type (i1 almost
         // always)
         if (valType.isInteger(1)) {
-            auto ty = ctx.typeConverter.convertType(valType).cast<LLVMType>();
+            auto ty = ctx.typeConverter.convertType(valType);
             Value val =
                 llvm_constant(ty, ctx.getIntegerAttr((unsigned)(isTrue)));
             rewriter.replaceOp(op, {val});
@@ -121,8 +121,7 @@ struct ConstantBigIntOpConversion : public EIROpConversion<ConstantBigIntOp> {
         auto callee =
             ctx.getOrInsertFunction(symbolName, termTy, {i8PtrTy, usizeTy});
 
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(symbolName, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(symbolName);
         rewriter.replaceOpWithNewOp<mlir::CallOp>(
             op, calleeSymbol, termTy, ArrayRef<Value>{globalPtr, size});
 
@@ -206,7 +205,7 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
         auto immedTy = ctx.getOpaqueImmediateType();
 
         // On nanboxed targets, floats are treated normally
-        if (!ctx.targetInfo.requiresPackedFloats()) {
+        if (!ctx.useNanboxedFloats()) {
             auto f = apVal.bitcastToAPInt();
             // The magic constant here is MIN_DOUBLE, as defined in the term
             // encoding in Rust
@@ -221,9 +220,9 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
         // which can then either be placed on the heap and boxed, or
         // passed by value on the stack and accessed directly
 
-        auto floatTy = ctx.targetInfo.getFloatType();
+        auto f64Ty = ctx.getType<Float64Type>();
         auto val = llvm_constant(
-            floatTy, rewriter.getF64FloatAttr(apVal.convertToDouble()));
+            f64Ty, rewriter.getF64FloatAttr(apVal.convertToDouble()));
         auto headerName =
             std::string("float_") +
             std::to_string(apVal.bitcastToAPInt().getLimitedValue());
@@ -232,18 +231,17 @@ struct ConstantFloatOpConversion : public EIROpConversion<ConstantFloatOp> {
             mod.lookupSymbol<LLVM::GlobalOp>(headerName);
         if (!headerConst) {
             auto i64Ty = ctx.getI64Type();
-            auto f64Ty = ctx.getDoubleType();
             auto i8Ty = ctx.getI8Type();
 
             PatternRewriter::InsertionGuard insertGuard(rewriter);
-            rewriter.setInsertionPointToStart(mod.getBody());
-            headerConst = ctx.getOrInsertGlobalConstantOp(headerName, floatTy);
+            auto body = mod.getBody();
+            rewriter.setInsertionPointToStart(&body.front());
+            headerConst = ctx.getOrInsertGlobalConstantOp(headerName, f64Ty);
 
             auto &initRegion = headerConst.getInitializerRegion();
             rewriter.createBlock(&initRegion);
 
-            APInt headerTermVal =
-                ctx.targetInfo.encodeHeader(TypeKind::Float, 2);
+            APInt headerTermVal = ctx.encodeHeaderConstant(TypeKind::Float, 2);
             Value headerTerm = llvm_constant(
                 immedTy, ctx.getIntegerAttr(headerTermVal.getLimitedValue()));
             Value floatVal = llvm_constant(
@@ -561,14 +559,14 @@ static Value lowerElementValue(RewritePatternContext<Op> &ctx,
 void populateConstantOpConversionPatterns(OwningRewritePatternList &patterns,
                                           MLIRContext *context,
                                           EirTypeConverter &converter,
-                                          TargetInfo &targetInfo) {
+                                          TargetPlatform &platform) {
     patterns.insert<ConstantAtomOpConversion, ConstantBoolOpConversion,
                     ConstantBigIntOpConversion, ConstantBinaryOpConversion,
                     ConstantFloatOpConversion, ConstantIntOpConversion,
                     ConstantListOpConversion, ConstantMapOpConversion,
                     ConstantNilOpConversion, ConstantNoneOpConversion,
                     ConstantTupleOpConversion, NullOpConversion>(
-        context, converter, targetInfo);
+        context, converter, platform);
 }
 
 }  // namespace eir

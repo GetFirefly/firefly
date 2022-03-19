@@ -1,0 +1,37 @@
+[package]
+name = "liblumen_syntax_erl"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+readme = "README.md"
+publish = false
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+build = "build.rs"
+
+[dependencies]
+liblumen_binary = { path = "../binary" }
+liblumen_compiler_macros = { path = "../macros" }
+liblumen_diagnostics = { path = "../diagnostics" }
+liblumen_intern = { path = "../intern" }
+liblumen_number = { path = "../number" }
+liblumen_pass = { path = "../pass" }
+liblumen_parser = { path = "../parser" }
+liblumen_syntax_core = { path = "../syntax_core" }
+liblumen_util = { path = "../../liblumen_util" }
+
+anyhow = "1.0"
+cranelift-entity = "0.81"
+either = "1.6"
+itertools = "0.10"
+lalrpop-util = "0.19"
+lazy_static = "1.4"
+log = "0.4"
+paste = "1.0"
+thiserror = "1.0"
+
+[dev-dependencies]
+pretty_assertions = "1.0"
+
+[build-dependencies]
+lalrpop = "0.19"

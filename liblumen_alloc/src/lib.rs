@@ -5,7 +5,6 @@
 #![allow(incomplete_features)]
 // Support backtraces in errors
 #![feature(backtrace)]
-#![feature(const_fn)]
 // Allow use of intrinsics, e.g. unlikely/copy_nonoverlapping/etc.
 #![feature(core_intrinsics)]
 // Allocator APIs
@@ -22,8 +21,9 @@
 #![feature(raw_vec_internals)]
 // Support external thread locals
 #![feature(thread_local)]
+// Support the C-unwind ABI
+#![feature(c_unwind)]
 #![feature(weak_into_raw)]
-#![feature(unwind_attributes)]
 #![feature(slice_ptr_len)]
 #![feature(nonnull_slice_from_raw_parts)]
 
@@ -75,6 +75,6 @@ pub use borrow::CloneToProcess;
 /// Provides information about an allocator from `liblumen_alloc`
 #[derive(Debug)]
 pub struct AllocatorInfo {
-    num_multi_block_carriers: usize,
-    num_single_block_carriers: usize,
+    pub num_multi_block_carriers: usize,
+    pub num_single_block_carriers: usize,
 }

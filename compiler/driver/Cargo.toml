@@ -5,7 +5,7 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 homepage = "https://github.com/lumen/lumen"
 repository = "https://github.com/lumen/lumen"
 license = "Apache-2.0"
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]
@@ -14,29 +14,29 @@ rand = "0.7"
 log = "0.4"
 anyhow = "1.0"
 thiserror = "1.0"
-clap = "2.33.0"
+clap = "2.34"
 walkdir = "2.2"
 salsa = "0.14"
 salsa-macros = "0.14"
 num_cpus = "1.0"
 crossbeam = "0.7"
-futures = "0.3"
+futures = "0.3.21"
 async-task = "1.3"
 parking_lot = "0.11.1"
 
+liblumen_diagnostics = { path = "../diagnostics" }
 liblumen_session = { path = "../session" }
 liblumen_target = { path = "../target" }
 liblumen_codegen = { path = "../codegen" }
 liblumen_util = { path = "../../liblumen_util" }
 liblumen_core = { path = "../../liblumen_core" }
+liblumen_intern = { path = "../intern" }
 liblumen_llvm = { path = "../llvm" }
 liblumen_mlir = { path = "../mlir" }
-
-libeir_frontend = { git = "https://github.com/eirproject/eir" }
-libeir_ir = { git = "https://github.com/eirproject/eir.git" }
-libeir_intern = { git = "https://github.com/eirproject/eir.git" }
-libeir_passes = { git = "https://github.com/eirproject/eir" }
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
+liblumen_pass = { path = "../pass" }
+liblumen_parser = { path = "../parser" }
+liblumen_syntax_erl = { path = "../syntax_erl" }
+liblumen_syntax_core = { path = "../syntax_core" }
 
 [build-dependencies]
 which = "4.0"

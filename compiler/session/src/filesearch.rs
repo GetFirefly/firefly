@@ -141,7 +141,7 @@ pub fn get_or_default_sysroot() -> PathBuf {
             }
             None => panic!("can't determine value for sysroot"),
         },
-        Err(ref e) => panic!(format!("failed to get current_exe: {}", e)),
+        Err(ref e) => panic!("failed to get current_exe: {}", e),
     }
 }
 

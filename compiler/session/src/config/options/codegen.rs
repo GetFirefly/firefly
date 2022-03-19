@@ -51,6 +51,22 @@ pub struct CodegenOptions {
      *     _
      */
     pub debuginfo: Option<DebugInfo>,
+    /**
+     * Optimization level
+     *     0 = no optimization
+     *     1 = minimal optimizations
+     *     2 = normal optimizations (default)
+     *     3 = aggressive optimizations
+     *     s = optimize for size
+     *     z = aggressively optimize for size
+     */
+    #[option(
+        next_line_help(true),
+        takes_value(true),
+        value_name("LEVEL"),
+        possible_values("0", "1", "2", "3", "s", "z")
+    )]
+    pub opt_level: Option<OptLevel>,
     #[option(default_value("false"))]
     /// Allow the linker to link its default libraries
     pub default_linker_libraries: bool,

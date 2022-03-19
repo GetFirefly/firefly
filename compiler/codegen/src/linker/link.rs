@@ -48,7 +48,7 @@ pub fn link_binary(
     diagnostics: &DiagnosticsHandler,
     codegen_results: &CodegenResults,
 ) -> anyhow::Result<()> {
-    let project_type = options.project_type;
+    let project_type = options.app_type;
     if invalid_output_for_target(options) {
         return Err(anyhow!(
             "invalid output type `{:?}` for target os `{}`",
@@ -72,14 +72,13 @@ pub fn link_binary(
         .as_ref()
         .map(|of| of.clone())
         .unwrap_or_else(|| {
-            let name = PathBuf::from(options.project_name.as_str());
             let ext = match project_type {
                 ProjectType::Executable if options.target.options.is_like_windows => "exe",
                 ProjectType::Executable => "out",
                 ProjectType::Staticlib => "a",
                 _ => "o",
             };
-            let mut p = output_dir.as_path().join(name);
+            let mut p = output_dir.as_path().join(options.app.name.as_str().get());
             p.set_extension(ext);
             p
         });
@@ -619,7 +618,7 @@ pub fn preserve_objects_for_their_debuginfo(options: &Options) -> bool {
 
     // If we're only producing artifacts that are archives, no need to preserve
     // the objects as they're losslessly contained inside the archives.
-    if options.project_type != ProjectType::Staticlib {
+    if options.app_type != ProjectType::Staticlib {
         return false;
     }
 
@@ -1594,7 +1593,7 @@ fn linker_with_args(
 
 /// Checks if target supports project_type as output
 pub fn invalid_output_for_target(options: &Options) -> bool {
-    let project_type = options.project_type;
+    let project_type = options.app_type;
     match project_type {
         ProjectType::Cdylib | ProjectType::Dylib => {
             if !options.target.options.dynamic_linking {

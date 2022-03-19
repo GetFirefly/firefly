@@ -3,6 +3,7 @@ use core::mem;
 use core::ptr::{self, NonNull};
 
 use intrusive_collections::container_of;
+use intrusive_collections::{LinkOps, RBTreeLink};
 
 use liblumen_core::alloc::Layout;
 
@@ -258,19 +259,22 @@ where
     }
 }
 
-impl<L> Sortable for MultiBlockCarrier<L>
-where
-    L: Link,
-{
-    type Link = L;
+impl Sortable for MultiBlockCarrier<RBTreeLink> {
+    type Link = RBTreeLink;
 
-    fn get_value(link: *const L, _order: SortOrder) -> *const MultiBlockCarrier<L> {
+    fn get_value(
+        link: <<Self::Link as Link>::LinkOps as LinkOps>::LinkPtr,
+        _order: SortOrder,
+    ) -> *const Self {
         // the second `link` is the name of the link field in the carrier struct
-        unsafe { container_of!(link, MultiBlockCarrier<L>, link) }
+        unsafe { container_of!(link.as_ptr(), Self, link) }
     }
 
-    fn get_link(value: *const Self, _order: SortOrder) -> *const L {
-        unsafe { &(*value).link as *const L }
+    fn get_link(
+        value: *const Self,
+        _order: SortOrder,
+    ) -> <<Self::Link as Link>::LinkOps as LinkOps>::LinkPtr {
+        NonNull::new(unsafe { &(*value).link as *const _ as *mut RBTreeLink }).unwrap()
     }
 
     fn sort_key(&self, order: SortOrder) -> SortKey {

@@ -382,9 +382,8 @@ mod defaults {
     // Provide a default implementation which will focus on the main sizes of concern
     impl Default for self::Histogram {
         fn default() -> Self {
-            use heapless::consts::U100;
             use heapless::Vec;
-            let mut ranges = Vec::<_, U100>::new();
+            let mut ranges = Vec::<_, 100>::new();
             // Use the fibonnaci sequence up to 1TB
             let mut n: u64 = 1;
             let mut m: u64 = 2;

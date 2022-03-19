@@ -2,45 +2,33 @@
 name = "liblumen_codegen"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]
-libc = "0.2"
-cc = "1.0.35"
 anyhow = "1.0"
-thiserror = "1.0"
-tempfile = "3.1"
-num-bigint = "0.2"
-log = "0.4"
-cranelift-entity = "0.56.0"
-cranelift-bforest = { git = "https://github.com/hansihe/wasmtime.git", branch = "main" }
+cc = "1.0"
 fxhash = "0.2"
+libc = "0.2"
+log = "0.4"
+num-bigint = "0.4"
+tempfile = "3.3"
+thiserror = "1.0"
 
-liblumen_llvm = { path = "../llvm" }
-liblumen_mlir = { path = "../mlir" }
-liblumen_session = { path = "../session" }
-liblumen_target = { path = "../target" }
-liblumen_term = { path = "../term" }
-liblumen_util = { path = "../../liblumen_util" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_core = { path = "../../liblumen_core" }
 liblumen_compiler_macros = { path = "../macros" }
-
-# eirproject/eir crates
-libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
-libeir_intern = { git = "https://github.com/eirproject/eir.git" }
-libeir_ir = { git = "https://github.com/eirproject/eir.git" }
-libeir_lowerutils = { git = "https://github.com/eirproject/eir.git" }
-libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
-libeir_util_datastructures = { git = "https://github.com/eirproject/eir.git" }
-libeir_util_number = { git = "https://github.com/eirproject/eir.git" }
-
-# llvm crates
-[build-dependencies]
-cmake = "0.1"
-which = "4.0"
-walkdir = "2.3"
-liblumen_term = { path = "../term" }
+liblumen_diagnostics = { path = "../diagnostics" }
 liblumen_llvm = { path = "../llvm" }
+liblumen_intern = { path = "../intern" }
 liblumen_mlir = { path = "../mlir" }
+liblumen_number = { path = "../number" }
+liblumen_pass = { path = "../pass" }
+liblumen_session = { path = "../session" }
+liblumen_syntax_core = { path = "../syntax_core" }
+liblumen_target = { path = "../target" }
+liblumen_term = { path = "../term" }
+liblumen_util = { path = "../../liblumen_util" }
+
+[build-dependencies]
+liblumen_llvm = { path = "../llvm" }

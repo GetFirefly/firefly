@@ -8,12 +8,10 @@ use once_cell::sync::OnceCell;
 
 use liblumen_arena::DroplessArena;
 use liblumen_core::symbols::FunctionSymbol;
-#[cfg(all(unix, target_arch = "x86_64"))]
 use liblumen_core::sys::dynamic_call;
 use liblumen_core::sys::dynamic_call::DynamicCallee;
 
 use crate::erts::term::prelude::Atom;
-#[cfg(all(unix, target_arch = "x86_64"))]
 use crate::erts::term::prelude::{Encoded, Term};
 use crate::erts::ModuleFunctionArity;
 use liblumen_core::alloc::Layout;
@@ -32,7 +30,6 @@ use liblumen_core::alloc::Layout;
 /// or if the given symbol doesn't exist.
 ///
 /// This function will panic if the symbol table has not been initialized.
-#[cfg(all(unix, target_arch = "x86_64"))]
 pub unsafe fn apply(symbol: &ModuleFunctionArity, args: &[Term]) -> Result<Term, ()> {
     if let Some(f) = find_symbol(symbol) {
         let argv = args.as_ptr() as *const usize;
@@ -48,7 +45,6 @@ pub unsafe fn apply(symbol: &ModuleFunctionArity, args: &[Term]) -> Result<Term,
     }
 }
 
-#[cfg(all(unix, target_arch = "x86_64"))]
 pub unsafe fn apply_callee(callee: DynamicCallee, args: &[Term]) -> Term {
     let argv = args.as_ptr() as *const usize;
     let argc = args.len();

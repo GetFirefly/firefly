@@ -8,9 +8,9 @@ class ComparisonOpConversion : public EIROpConversion<Op> {
    public:
     explicit ComparisonOpConversion(MLIRContext *context,
                                     EirTypeConverter &converter_,
-                                    TargetInfo &targetInfo_,
+                                    TargetPlatform &platform_,
                                     mlir::PatternBenefit benefit = 1)
-        : EIROpConversion<Op>::EIROpConversion(context, converter_, targetInfo_,
+        : EIROpConversion<Op>::EIROpConversion(context, converter_, platform_,
                                                benefit) {}
 
     LogicalResult matchAndRewrite(
@@ -31,8 +31,7 @@ class ComparisonOpConversion : public EIROpConversion<Op> {
         Value rhs = adaptor.rhs();
 
         ArrayRef<Value> args({lhs, rhs});
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(builtinSymbol);
         Operation *callOp =
             std_call(calleeSymbol, ArrayRef<Type>{int1ty}, args);
 
@@ -77,7 +76,7 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
         Type lhsType = op.lhs().getType();
         Type rhsType = op.rhs().getType();
         bool strict = false;
-        if (auto attr = op.getAttrOfType<UnitAttr>("is_strict")) {
+        if (auto attr = op->getAttrOfType<UnitAttr>("is_strict")) {
             strict = true;
         }
 
@@ -128,8 +127,7 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
         auto callee =
             ctx.getOrInsertFunction(builtinSymbol, i1Ty, {termTy, termTy});
 
-        auto calleeSymbol =
-            FlatSymbolRefAttr::get(builtinSymbol, callee->getContext());
+        auto calleeSymbol = rewriter.getSymbolRefAttr(builtinSymbol);
         Operation *callOp =
             std_call(calleeSymbol, ArrayRef<Type>{i1Ty}, ValueRange{lhs, rhs});
 
@@ -141,10 +139,10 @@ struct CmpEqOpConversion : public EIROpConversion<CmpEqOp> {
 void populateComparisonOpConversionPatterns(OwningRewritePatternList &patterns,
                                             MLIRContext *context,
                                             EirTypeConverter &converter,
-                                            TargetInfo &targetInfo) {
+                                            TargetPlatform &platform) {
     patterns.insert<CmpEqOpConversion, CmpLtOpConversion, CmpLteOpConversion,
                     CmpGtOpConversion, CmpGteOpConversion>(context, converter,
-                                                           targetInfo);
+                                                           platform);
 }
 
 }  // namespace eir

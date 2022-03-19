@@ -2,7 +2,6 @@
 // Layout helpers
 #![feature(alloc_layout_extra)]
 #![feature(backtrace)]
-#![feature(option_unwrap_none)]
 #![feature(trait_alias)]
 #![feature(core_intrinsics)]
 

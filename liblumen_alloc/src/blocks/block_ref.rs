@@ -3,7 +3,6 @@ use core::convert::TryFrom;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
-use intrusive_collections::IntrusivePointer;
 use intrusive_collections::UnsafeRef;
 
 use super::{Block, FreeBlock};
@@ -334,15 +333,3 @@ impl BorrowMut<FreeBlock> for FreeBlockRef {
 }
 unsafe impl Send for FreeBlockRef {}
 unsafe impl Sync for FreeBlockRef {}
-
-unsafe impl IntrusivePointer<FreeBlock> for FreeBlockRef {
-    #[inline]
-    fn into_raw(self) -> *const FreeBlock {
-        FreeBlockRef::into_raw(self)
-    }
-
-    #[inline]
-    unsafe fn from_raw(ptr: *const FreeBlock) -> Self {
-        FreeBlockRef::from_raw(ptr)
-    }
-}

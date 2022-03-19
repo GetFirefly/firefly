@@ -494,8 +494,6 @@ unsafe fn create_multi_block_carrier() -> AllocResult<UnsafeRef<MultiBlockCarrie
 mod tests {
     use super::*;
 
-    use alloc::raw_vec::RawVec;
-
     #[test]
     fn std_alloc_small_test() {
         let allocator = StandardAlloc::new();
@@ -504,14 +502,14 @@ mod tests {
         {
             let phrase = "just a test";
             let len = phrase.bytes().len();
-            let foo = RawVec::with_capacity_zeroed_in(len, &allocator);
+            let mut foo = Vec::with_capacity_in(len, &allocator);
 
             unsafe {
-                ptr::copy_nonoverlapping(phrase.as_ptr(), foo.ptr(), len);
+                ptr::copy_nonoverlapping(phrase.as_ptr(), foo.as_mut_ptr(), len);
             }
 
             let phrase_copied = unsafe {
-                let bytes = core::slice::from_raw_parts(foo.ptr(), len);
+                let bytes = core::slice::from_raw_parts(foo.as_mut_ptr(), len);
                 core::str::from_utf8(bytes).unwrap()
             };
 
@@ -527,12 +525,12 @@ mod tests {
 
         // Allocate a large object on the heap
         {
-            let foo = RawVec::with_capacity_in(StandardAlloc::MAX_SIZE_CLASS + 1, &allocator);
-            let ptr: *mut i32 = foo.ptr();
+            let mut foo = Vec::with_capacity_in(StandardAlloc::MAX_SIZE_CLASS + 1, &allocator);
+            let ptr: *mut i32 = foo.as_mut_ptr();
 
             let bytes = unsafe {
                 ptr.write(100);
-                core::slice::from_raw_parts(foo.ptr(), 1)
+                core::slice::from_raw_parts(foo.as_mut_ptr(), 1)
             };
 
             assert_eq!(&[100], bytes);

@@ -6,12 +6,12 @@ use core::ptr::{self, NonNull};
 use alloc::fmt::{self, Debug, Formatter};
 
 use intrusive_collections::container_of;
-use intrusive_collections::RBTreeLink;
+use intrusive_collections::{LinkOps, RBTreeLink};
 
 use liblumen_core::alloc::utils as alloc_utils;
 use liblumen_core::alloc::{AllocError, Layout};
 
-use crate::sorted::{SortKey, SortOrder, Sortable};
+use crate::sorted::{Link, SortKey, SortOrder, Sortable};
 
 use super::{Block, BlockFooter, BlockRef, FreeBlockRef, FreeBlocks};
 
@@ -380,17 +380,28 @@ impl From<Block> for FreeBlock {
 impl Sortable for FreeBlock {
     type Link = RBTreeLink;
 
-    fn get_value(link: *const Self::Link, order: SortOrder) -> *const Self {
+    fn get_value(
+        link: <<Self::Link as Link>::LinkOps as LinkOps>::LinkPtr,
+        order: SortOrder,
+    ) -> *const Self {
+        let link = link.as_ptr();
         match order {
             SortOrder::AddressOrder => unsafe { container_of!(link, Self, addr_link) },
             SortOrder::SizeAddressOrder => unsafe { container_of!(link, Self, user_link) },
         }
     }
 
-    fn get_link(value: *const Self, order: SortOrder) -> *const Self::Link {
+    fn get_link(
+        value: *const Self,
+        order: SortOrder,
+    ) -> <<Self::Link as Link>::LinkOps as LinkOps>::LinkPtr {
         match order {
-            SortOrder::AddressOrder => unsafe { &(*value).addr_link as *const Self::Link },
-            SortOrder::SizeAddressOrder => unsafe { &(*value).user_link as *const Self::Link },
+            SortOrder::AddressOrder => {
+                NonNull::new(unsafe { &(*value).addr_link as *const _ as *mut RBTreeLink }).unwrap()
+            }
+            SortOrder::SizeAddressOrder => {
+                NonNull::new(unsafe { &(*value).user_link as *const _ as *mut RBTreeLink }).unwrap()
+            }
         }
     }
 

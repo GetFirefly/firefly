@@ -6,6 +6,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Operation.h"
 
 using ::mlir::BoolAttr;
@@ -40,7 +41,7 @@ struct GCLeafAnalysis {
 
         // Allow manually overriding this analysis
         if (auto isLeafAttr =
-                funcOp.getAttrOfType<BoolAttr>("gc-leaf-function")) {
+                funcOp->getAttrOfType<BoolAttr>("gc-leaf-function")) {
             isGCLeaf = isLeafAttr.getValue();
             return;
         }
@@ -94,14 +95,14 @@ struct AnnotateGCLeafPass
 
     void runOnOperation() override {
         LLVM::LLVMFuncOp op = getOperation();
-        Builder builder(op.getParentOfType<ModuleOp>());
+        Builder builder(op->getParentOfType<ModuleOp>());
 
         auto &analysis = getAnalysis<GCLeafAnalysis>();
 
         if (analysis.isGCLeaf) {
-            op.setAttr("gc-leaf-function", builder.getBoolAttr(true));
+            op->setAttr("gc-leaf-function", builder.getBoolAttr(true));
         } else {
-            op.removeAttr("gc-leaf-function");
+            op->removeAttr("gc-leaf-function");
         }
     }
 };

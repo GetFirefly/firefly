@@ -1,15 +1,15 @@
-use super::Id;
+use super::ChunkId;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::beam::reader::{ReadError, Result};
 
 pub struct Header {
-    pub chunk_id: Id,
+    pub chunk_id: ChunkId,
     pub data_size: u32,
 }
 impl Header {
-    pub fn new(chunk_id: &Id, data_size: u32) -> Self {
+    pub fn new(chunk_id: &ChunkId, data_size: u32) -> Self {
         Header {
             chunk_id: *chunk_id,
             data_size,
@@ -40,7 +40,7 @@ pub fn padding_size(data_size: u32) -> u32 {
     (4 - data_size % 4) % 4
 }
 
-pub fn check_chunk_id(passed: &Id, expected: &Id) -> Result<()> {
+pub fn check_chunk_id(passed: &ChunkId, expected: &ChunkId) -> Result<()> {
     if passed != expected {
         Err(ReadError::UnexpectedChunk {
             id: *passed,

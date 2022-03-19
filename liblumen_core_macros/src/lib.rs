@@ -6,7 +6,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 
-use quote::quote;
+use quote::{quote, quote_spanned};
 
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
@@ -18,6 +18,7 @@ use syn::{
 
 enum EntryOutput {
     Default,
+    ExitStatus,
     Never,
     ImplTermination,
 }
@@ -42,6 +43,7 @@ enum EntryOutput {
 #[proc_macro_attribute]
 pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
     let f = parse_macro_input!(input as ItemFn);
+    let span = f.span();
 
     let mut entry_output = EntryOutput::Default;
 
@@ -90,6 +92,14 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
                 entry_output = EntryOutput::Never;
                 true
             }
+            ReturnType::Type(_, box Type::Path(ref path)) => {
+                if path.path.is_ident("i32") {
+                    entry_output = EntryOutput::ExitStatus;
+                    true
+                } else {
+                    false
+                }
+            }
             _ => false,
         };
 
@@ -115,25 +125,30 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
     let ident = &f.sig.ident;
 
     let entry = match entry_output {
-        EntryOutput::ImplTermination => quote!(
+        EntryOutput::ExitStatus => quote_spanned! { span =>
+            pub unsafe extern "C" fn #entry_ident() -> i32 {
+                #ident()
+            }
+        },
+        EntryOutput::ImplTermination => quote_spanned! { span =>
             pub unsafe extern "C" fn #entry_ident() -> i32 {
                 use ::std::process::Termination;
                 #ident().report()
             }
-        ),
-        EntryOutput::Never => quote!(
+        },
+        EntryOutput::Never => quote_spanned! { span =>
             pub unsafe extern "C" fn #entry_ident() -> i32 {
                 #ident();
             }
-        ),
+        },
         EntryOutput::Default => {
             let success_code = libc::EXIT_SUCCESS;
-            quote!(
+            quote_spanned! { span =>
                 pub unsafe extern "C" fn #entry_ident() -> i32 {
                     #ident();
                     #success_code
                 }
-            )
+            }
         }
     };
 

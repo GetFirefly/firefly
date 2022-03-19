@@ -1,3 +1,4 @@
+use core::arch::global_asm;
 use std::alloc::Layout;
 use std::any::Any;
 use std::ffi::c_void;
@@ -9,16 +10,16 @@ use std::sync::Arc;
 
 use log::info;
 
-use liblumen_core::locks::RwLock;
-use liblumen_core::sys::dynamic_call::DynamicCallee;
-use liblumen_core::util::thread_local::ThreadLocalCell;
-
 use liblumen_alloc::erts::exception::ErlangException;
 use liblumen_alloc::erts::process::{CalleeSavedRegisters, Priority, Process, Status};
 use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::{Arity, CloneToProcess};
+use liblumen_core::locks::RwLock;
+use liblumen_core::sys::dynamic_call::DynamicCallee;
+use liblumen_core::util::thread_local::ThreadLocalCell;
+use liblumen_term::TermKind;
 
 use lumen_rt_core::process::spawn::options::Options;
 use lumen_rt_core::process::{log_exit, propagate_exit, CURRENT_PROCESS};
@@ -31,22 +32,20 @@ pub use lumen_rt_core::scheduler::{
 use lumen_rt_core::timer::Hierarchy;
 
 // External thread locals owned by the generated code
-extern "C" {
+extern "C-unwind" {
     #[thread_local]
+    #[link_name = "__lumen_process_reductions"]
     static mut CURRENT_REDUCTION_COUNT: u32;
 
-    #[unwind(allowed)]
     #[link_name = "__lumen_trap_exceptions"]
     fn trap_exceptions_impl() -> bool;
 }
 
 // External functions defined in OTP
-extern "C" {
-    #[unwind(allowed)]
+extern "C-unwind" {
     #[link_name = "lumen:apply_apply_2/1"]
     fn apply_apply_2() -> usize;
 
-    #[unwind(allowed)]
     #[link_name = "lumen:apply_apply_3/1"]
     fn apply_apply_3() -> usize;
 }
@@ -60,9 +59,8 @@ crate fn stop_waiting(process: &Process) {
 #[derive(Copy, Clone)]
 struct StackPointer(*mut u64);
 
-#[unwind(allowed)]
 #[export_name = "__lumen_builtin_yield"]
-pub unsafe extern "C" fn process_yield() -> bool {
+pub unsafe extern "C-unwind" fn process_yield() -> bool {
     scheduler::current()
         .as_any()
         .downcast_ref::<Scheduler>()
@@ -70,9 +68,8 @@ pub unsafe extern "C" fn process_yield() -> bool {
         .process_yield()
 }
 
-#[unwind(allowed)]
 #[export_name = "__lumen_builtin_exit"]
-pub unsafe extern "C" fn process_exit(exception: Option<NonNull<ErlangException>>) {
+pub unsafe extern "C-unwind" fn process_exit(exception: Option<NonNull<ErlangException>>) {
     let arc_dyn_scheduler = scheduler::current();
     let scheduler = arc_dyn_scheduler
         .as_any()
@@ -92,13 +89,10 @@ pub unsafe extern "C" fn process_exit(exception: Option<NonNull<ErlangException>
     scheduler.process_yield();
 }
 
-#[unwind(allowed)]
 #[export_name = "__lumen_builtin_malloc"]
-pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
-    use core::convert::TryInto;
+pub unsafe extern "C-unwind" fn builtin_malloc(kind: TermKind, arity: usize) -> *mut u8 {
     use liblumen_alloc::erts::term::closure::ClosureLayout;
     use liblumen_alloc::erts::term::prelude::*;
-    use liblumen_term::TermKind;
 
     let arc_dyn_scheduler = scheduler::current();
     let s = arc_dyn_scheduler
@@ -106,16 +100,12 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
         .downcast_ref::<Scheduler>()
         .unwrap();
     let process = &s.current;
-    let kind_result: Result<TermKind, _> = kind.try_into();
-    let layout = match kind_result {
-        Ok(TermKind::Closure) => ClosureLayout::for_env_len(arity).layout().clone(),
-        Ok(TermKind::Tuple) => Tuple::layout_for_len(arity),
-        Ok(TermKind::Cons) => Layout::new::<Cons>(),
-        Ok(tk) => {
+    let layout = match kind {
+        TermKind::Closure => ClosureLayout::for_env_len(arity).layout().clone(),
+        TermKind::Tuple => Tuple::layout_for_len(arity),
+        TermKind::Cons => Layout::new::<Cons>(),
+        tk => {
             unimplemented!("unhandled use of malloc for {:?}", tk);
-        }
-        Err(_) => {
-            panic!("invalid term kind: {}", kind);
         }
     };
 
@@ -129,7 +119,6 @@ pub unsafe extern "C" fn builtin_malloc(kind: u32, arity: usize) -> *mut u8 {
     }
 }
 
-#[unwind(allowed)]
 #[export_name = "lumen_rt_scheduler_unregistered"]
 fn unregistered() -> Arc<dyn lumen_rt_core::scheduler::Scheduler> {
     Arc::new(Scheduler::new().unwrap())
@@ -599,9 +588,8 @@ impl Scheduler {
 
         *process.status.write() = Status::Running;
 
-        let r13 = &process.registers.r13 as *const u64 as *mut _;
         unsafe {
-            ptr::write(r13, 0x0 as u64);
+            set_register(&process.registers, 1, 0x0u64);
         }
 
         Ok(())
@@ -649,6 +637,34 @@ impl Scheduler {
                 ptr::write(sp.0, value);
             }
 
+            #[inline(always)]
+            #[cfg(target_arch = "aarch64")]
+            unsafe fn set_stack_pointer(registers: &CalleeSavedRegisters, value: u64) {
+                let fp = registers.sp as *const u64 as *mut _;
+                ptr::write(fp, value);
+            }
+
+            #[inline(always)]
+            #[cfg(target_arch = "aarch64")]
+            unsafe fn set_frame_pointer(registers: &CalleeSavedRegisters, value: u64) {
+                let fp = registers.x29 as *const u64 as *mut _;
+                ptr::write(fp, value);
+            }
+
+            #[inline(always)]
+            #[cfg(target_arch = "x86_64")]
+            unsafe fn set_stack_pointer(registers: &CalleeSavedRegisters, value: u64) {
+                let fp = registers.rsp as *const u64 as *mut _;
+                ptr::write(fp, value);
+            }
+
+            #[inline(always)]
+            #[cfg(target_arch = "x86_64")]
+            unsafe fn set_frame_pointer(registers: &CalleeSavedRegisters, value: u64) {
+                let fp = registers.rbp as *const u64 as *mut _;
+                ptr::write(fp, value);
+            }
+
             // Write the return function and init function to the end of the stack,
             // when execution resumes, the pointer before the stack pointer will be
             // used as the return address - the first time that will be the init function.
@@ -668,37 +684,48 @@ impl Scheduler {
                 let s_top = &stack.top as *const _ as *mut _;
                 ptr::write(s_top, sp.0 as *const u8);
 
-                // Write %rsp/%rbp initial values
-                let rsp = &process.registers.rsp as *const u64 as *mut _;
-                let rbp = &process.registers.rbp as *const u64 as *mut _;
-                ptr::write(rsp, sp.0 as u64);
-                ptr::write(rbp, sp.0 as u64);
+                // Write stack/frame pointer initial values
+                set_stack_pointer(&process.registers, sp.0 as u64);
+                set_frame_pointer(&process.registers, sp.0 as u64);
 
                 // If this init function has a closure env, place it in
-                // r12, which will be moved to %rsi by swap_stack, such
-                // that it becomes the second argument to __lumen_trap_exceptions,
-                // which will in turn move it to %rdi to become the first
-                // argument to the start function of the process
-                let r12 = &process.registers.r12 as *const _ as *mut Term;
-                ptr::write(r12, env.unwrap_or(Term::NONE));
+                // the first callee-save register, which will be moved to
+                // the second argument register (e.g. %rsi) by swap_stack for
+                // the call to __lumen_trap_exceptions, which will then move it
+                // to the first argument register (e.g. %rdi) for the call to
+                // the process init function
+                set_register(&process.registers, 0, env.unwrap_or(Term::NONE));
 
                 // This is used to indicate to swap_stack that this process
                 // is being swapped to for the first time, which allows the
                 // function to perform some initial one-time setup to link
                 // call frames for the unwinder and call __lumen_trap_exceptions
-                let r13 = &process.registers.r13 as *const u64 as *mut _;
-                ptr::write(r13, FIRST_SWAP);
+                set_register(&process.registers, 1, FIRST_SWAP);
 
                 // The function that __lumen_trap_exceptions will call as entry
-                let r14 = &process.registers.r14 as *const u64 as *mut _;
-                ptr::write(r14, init_fn as u64);
+                set_register(&process.registers, 2, init_fn as u64);
 
                 // The function that swap_stack will call as entry (__lumen_trap_exceptions)
-                let r15 = &process.registers.r15 as *const u64 as *mut _;
-                ptr::write(r15, trap_exceptions_impl as u64);
+                set_register(&process.registers, 2, trap_exceptions_impl as u64);
             }
         })
     }
+}
+
+#[inline(always)]
+#[cfg(target_arch = "aarch64")]
+unsafe fn set_register<T: Copy>(registers: &CalleeSavedRegisters, index: isize, value: T) {
+    let base = std::ptr::addr_of!(registers.x19);
+    let base = base.offset(-index) as *mut T;
+    base.write(value);
+}
+
+#[inline(always)]
+#[cfg(target_arch = "x86_64")]
+unsafe fn set_register<T: Copy>(registers: &CalleeSavedRegisters, index: isize, value: T) {
+    let base = std::ptr::addr_of!(registers.x19);
+    let base = base.offset((-index) - 2) as *mut T;
+    base.write(value);
 }
 
 fn reset_reduction_counter() -> u64 {
@@ -707,13 +734,11 @@ fn reset_reduction_counter() -> u64 {
         CURRENT_REDUCTION_COUNT = 0;
     }
     count as u64
-    //CURRENT_REDUCTION_COUNT.swap(0, Ordering::Relaxed)
 }
 
 const FIRST_SWAP: u64 = 0xdeadbeef;
 
-extern "C" {
-    #[unwind(allowed)]
+extern "C-unwind" {
     #[link_name = "__lumen_swap_stack"]
     pub fn swap_stack(
         prev: *mut CalleeSavedRegisters,
@@ -722,7 +747,15 @@ extern "C" {
     );
 }
 
-#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-global_asm!(include_str!("scheduler/lumen_swap_stack/macos/x86_64.s"));
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-global_asm!(include_str!("scheduler/lumen_swap_stack/linux/x86_64.s"));
+global_asm!(include_str!(
+    "scheduler/swap_stack/swap_stack_linux_x86_64.s"
+));
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+global_asm!(include_str!(
+    "scheduler/swap_stack/swap_stack_macos_x86_64.s"
+));
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+global_asm!(include_str!(
+    "scheduler/swap_stack/swap_stack_macos_aarch64.s"
+));

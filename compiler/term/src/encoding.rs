@@ -6,7 +6,6 @@ pub use self::arch_32::Encoding32;
 pub use self::arch_64::Encoding64;
 pub use self::arch_64_nanboxed::Encoding64Nanboxed;
 
-use core::convert::{TryFrom, TryInto};
 use core::fmt::{Binary, Debug};
 use core::hash::Hash;
 use core::mem;
@@ -61,6 +60,12 @@ pub enum EncodingType {
     /// An alternative 64-bit encoding, based on NaN-boxing
     Encoding64Nanboxed,
 }
+impl EncodingType {
+    #[inline(always)]
+    pub fn is_nanboxed(self) -> bool {
+        self == Self::Encoding64Nanboxed
+    }
+}
 
 pub trait Encoding {
     // The concrete type of the encoded term
@@ -94,6 +99,10 @@ pub trait Encoding {
     fn encode_immediate(value: Self::Type, tag: Self::Type) -> Self::Type;
 
     fn encode_immediate_with_tag(value: Self::Type, tag: Tag<Self::Type>) -> Self::Type;
+
+    fn immediate_tag(tag: Tag<Self::Type>) -> Self::Type;
+
+    fn header_tag(tag: Tag<Self::Type>) -> Self::Type;
 
     fn encode_list<T: ?Sized>(value: *const T) -> Self::Type;
 

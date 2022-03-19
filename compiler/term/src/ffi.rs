@@ -1,5 +1,3 @@
-use core::convert::{TryFrom, TryInto};
-
 use crate::encoding::*;
 use crate::tag::Tag;
 
@@ -7,45 +5,64 @@ use crate::encoding::Encoding32 as E32;
 use crate::encoding::Encoding64 as E64;
 use crate::encoding::Encoding64Nanboxed as E64N;
 
-mod tablegen {
-    use super::*;
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(C)]
+pub enum TermKind {
+    None = 0,
+    Term = 1,
+    List = 2,
+    Number = 3,
+    Integer = 4,
+    Float = 5,
+    Atom = 6,
+    Boolean = 7,
+    Fixnum = 8,
+    BigInt = 9,
+    Nil = 10,
+    Cons = 11,
+    Tuple = 12,
+    Map = 13,
+    Closure = 14,
+    Binary = 15,
+    HeapBin = 16,
+    ProcBin = 17,
+    Box = 18,
+    Pid = 19,
+    Port = 20,
+    Reference = 21,
+}
+impl<T> TryInto<Tag<T>> for TermKind
+where
+    T: Word,
+{
+    type Error = ();
 
-    include!(concat!(env!("OUT_DIR"), "/term_encoding.rs"));
-
-    impl<T> TryInto<Tag<T>> for TermKind
-    where
-        T: Word,
-    {
-        type Error = ();
-
-        fn try_into(self) -> Result<Tag<T>, Self::Error> {
-            match self {
-                TermKind::None => Ok(Tag::None),
-                TermKind::Atom | TermKind::Boolean => Ok(Tag::Atom),
-                TermKind::Fixnum => Ok(Tag::SmallInteger),
-                TermKind::BigInt => Ok(Tag::BigInteger),
-                TermKind::Float => Ok(Tag::Float),
-                TermKind::Nil => Ok(Tag::Nil),
-                TermKind::Cons => Ok(Tag::List),
-                TermKind::Tuple => Ok(Tag::Tuple),
-                TermKind::Map => Ok(Tag::Map),
-                TermKind::Closure => Ok(Tag::Closure),
-                TermKind::HeapBin => Ok(Tag::HeapBinary),
-                TermKind::ProcBin => Ok(Tag::ProcBin),
-                TermKind::Box => Ok(Tag::Box),
-                TermKind::Term
-                | TermKind::Pid
-                | TermKind::Reference
-                | TermKind::List
-                | TermKind::Number
-                | TermKind::Integer
-                | TermKind::Binary => Err(()),
-            }
+    fn try_into(self) -> Result<Tag<T>, Self::Error> {
+        match self {
+            TermKind::None => Ok(Tag::None),
+            TermKind::Atom | TermKind::Boolean => Ok(Tag::Atom),
+            TermKind::Fixnum => Ok(Tag::SmallInteger),
+            TermKind::BigInt => Ok(Tag::BigInteger),
+            TermKind::Float => Ok(Tag::Float),
+            TermKind::Nil => Ok(Tag::Nil),
+            TermKind::Cons => Ok(Tag::List),
+            TermKind::Tuple => Ok(Tag::Tuple),
+            TermKind::Map => Ok(Tag::Map),
+            TermKind::Closure => Ok(Tag::Closure),
+            TermKind::HeapBin => Ok(Tag::HeapBinary),
+            TermKind::ProcBin => Ok(Tag::ProcBin),
+            TermKind::Box => Ok(Tag::Box),
+            TermKind::Term
+            | TermKind::Pid
+            | TermKind::Reference
+            | TermKind::Port
+            | TermKind::List
+            | TermKind::Number
+            | TermKind::Integer
+            | TermKind::Binary => Err(()),
         }
     }
 }
-
-pub use self::tablegen::*;
 
 #[repr(C)]
 pub struct EncodingInfo {
@@ -53,128 +70,104 @@ pub struct EncodingInfo {
     pub supports_nanboxing: bool,
 }
 
-macro_rules! unwrap_term_kind {
-    ($kind:expr) => {{
-        let kind: Result<TermKind, _> = $kind.try_into();
-        match kind {
-            Ok(k) => k,
-            Err(_) => {
-                panic!("use of invalid term kind value: {}", $kind);
-            }
-        }
-    }};
-}
-
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_type"]
+#[no_mangle]
 #[cfg(target_pointer_width = "32")]
-pub extern "C" fn is_type(ty: u32, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_type(ty: TermKind, value: usize) -> bool {
     do_is_type::<E32>(ty, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_type"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
-pub extern "C" fn is_type(ty: u32, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_type(ty: TermKind, value: usize) -> bool {
     do_is_type::<E64N>(ty, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_type"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
-pub extern "C" fn is_type(ty: u32, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_type(ty: TermKind, value: usize) -> bool {
     do_is_type::<E64>(ty, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_boxed_type"]
+#[no_mangle]
 #[cfg(target_pointer_width = "32")]
-pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_boxed_type(ty: TermKind, value: usize) -> bool {
     do_is_boxed_type::<E32>(ty, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_boxed_type"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
-pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_boxed_type(ty: TermKind, value: usize) -> bool {
     do_is_boxed_type::<E64N>(ty, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_boxed_type"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
-pub extern "C" fn is_boxed_type(ty: u32, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_boxed_type(ty: TermKind, value: usize) -> bool {
     do_is_boxed_type::<E64>(ty, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_tuple"]
+#[no_mangle]
 #[cfg(target_pointer_width = "32")]
-pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_tuple(arity: usize, value: usize) -> bool {
     do_is_tuple::<E32>(arity, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_tuple"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
-pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
+pub extern "C-uwind" fn __lumen_builtin_is_tuple(arity: usize, value: usize) -> bool {
     do_is_tuple::<E64N>(arity, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_tuple"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
-pub extern "C" fn is_tuple_type(arity: usize, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_tuple(arity: usize, value: usize) -> bool {
     do_is_tuple::<E64>(arity, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_function"]
+#[no_mangle]
 #[cfg(target_pointer_width = "32")]
-pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_function(arity: usize, value: usize) -> bool {
     do_is_function::<E32>(arity, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_function"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
-pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_function(arity: usize, value: usize) -> bool {
     do_is_function::<E64N>(arity, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_is_function"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
-pub extern "C" fn is_function_type(arity: usize, value: usize) -> bool {
+pub extern "C-unwind" fn __lumen_builtin_is_function(arity: usize, value: usize) -> bool {
     do_is_function::<E64>(arity, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_encode_immediate"]
+#[no_mangle]
 #[cfg(target_pointer_width = "32")]
-pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
+pub extern "C-unwind" fn __lumen_builtin_encode_immediate(ty: TermKind, value: usize) -> usize {
     do_encode_immediate::<E32>(ty, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_encode_immediate"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
-pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
+pub extern "C-unwind" fn __lumen_builtin_encode_immediate(ty: TermKind, value: usize) -> usize {
     do_encode_immediate::<E64N>(ty, value)
 }
 
-#[unwind(allowed)]
-#[export_name = "__lumen_builtin_encode_immediate"]
+#[no_mangle]
 #[cfg(all(target_pointer_width = "64", not(target_arch = "x86_64")))]
-pub extern "C" fn encode_immediate(ty: u32, value: usize) -> usize {
+pub extern "C-unwind" fn __lumen_builtin_encode_immediate(ty: TermKind, value: usize) -> usize {
     do_encode_immediate::<E64>(ty, value)
 }
 
 /// This is a less efficient, but more general type checking function,
 /// primarily meant for consumption during compile-time
-#[unwind(allowed)]
-#[export_name = "lumen_is_type"]
-pub extern "C" fn generic_is_type(encoding: *const EncodingInfo, ty: u32, value: u64) -> bool {
+#[no_mangle]
+pub extern "C-unwind" fn lumen_is_type(
+    encoding: *const EncodingInfo,
+    ty: TermKind,
+    value: u64,
+) -> bool {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => do_is_type::<E32>(ty, value as usize),
@@ -184,11 +177,10 @@ pub extern "C" fn generic_is_type(encoding: *const EncodingInfo, ty: u32, value:
     }
 }
 
-#[unwind(allowed)]
-#[export_name = "lumen_encode_immediate"]
-pub extern "C" fn generic_encode_immediate(
+#[no_mangle]
+pub extern "C-unwind" fn lumen_encode_immediate(
     encoding: *const EncodingInfo,
-    ty: u32,
+    ty: TermKind,
     value: u64,
 ) -> u64 {
     let encoding = unsafe { &*encoding };
@@ -200,9 +192,12 @@ pub extern "C" fn generic_encode_immediate(
     }
 }
 
-#[unwind(allowed)]
-#[export_name = "lumen_encode_header"]
-pub extern "C" fn encode_header(encoding: *const EncodingInfo, ty: u32, arity: u64) -> u64 {
+#[no_mangle]
+pub extern "C-unwind" fn lumen_encode_header(
+    encoding: *const EncodingInfo,
+    ty: TermKind,
+    arity: u64,
+) -> u64 {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => do_encode_header::<E32>(ty, arity as usize) as u64,
@@ -212,9 +207,8 @@ pub extern "C" fn encode_header(encoding: *const EncodingInfo, ty: u32, arity: u
     }
 }
 
-#[unwind(allowed)]
-#[export_name = "lumen_list_tag"]
-pub extern "C" fn list_tag(encoding: *const EncodingInfo) -> u64 {
+#[no_mangle]
+pub extern "C-unwind" fn lumen_list_tag(encoding: *const EncodingInfo) -> u64 {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => Encoding32::TAG_LIST as u64,
@@ -224,21 +218,19 @@ pub extern "C" fn list_tag(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
-#[unwind(allowed)]
-#[export_name = "lumen_box_tag"]
-pub extern "C" fn box_tag(encoding: *const EncodingInfo) -> u64 {
+#[no_mangle]
+pub extern "C-unwind" fn lumen_box_tag(encoding: *const EncodingInfo) -> u64 {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => Encoding32::TAG_BOXED as u64,
-        64 if encoding.supports_nanboxing => Encoding64Nanboxed::TAG_BOXED,
+        64 if encoding.supports_nanboxing => 0,
         64 => Encoding64::TAG_BOXED,
         _ => unreachable!(),
     }
 }
 
-#[unwind(allowed)]
-#[export_name = "lumen_literal_tag"]
-pub extern "C" fn literal_tag(encoding: *const EncodingInfo) -> u64 {
+#[no_mangle]
+pub extern "C-unwind" fn lumen_literal_tag(encoding: *const EncodingInfo) -> u64 {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => Encoding32::TAG_LITERAL as u64,
@@ -248,9 +240,30 @@ pub extern "C" fn literal_tag(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
-#[unwind(allowed)]
-#[export_name = "lumen_immediate_mask"]
-pub extern "C" fn immediate_mask(encoding: *const EncodingInfo) -> MaskInfo {
+#[no_mangle]
+pub extern "C-unwind" fn lumen_immediate_tag(encoding: *const EncodingInfo, ty: TermKind) -> u64 {
+    let encoding = unsafe { &*encoding };
+    match encoding.pointer_size {
+        32 => do_immediate_tag::<E32>(ty) as u64,
+        64 if encoding.supports_nanboxing => do_immediate_tag::<E64N>(ty) as u64,
+        64 => do_immediate_tag::<E64>(ty) as u64,
+        ps => unreachable!("invalid pointer size {:?}", ps),
+    }
+}
+
+#[no_mangle]
+pub extern "C-unwind" fn lumen_header_tag(encoding: *const EncodingInfo, ty: TermKind) -> u64 {
+    let encoding = unsafe { &*encoding };
+    match encoding.pointer_size {
+        32 => do_header_tag::<E32>(ty) as u64,
+        64 if encoding.supports_nanboxing => do_header_tag::<E64N>(ty) as u64,
+        64 => do_header_tag::<E64>(ty) as u64,
+        ps => unreachable!("invalid pointer size {:?}", ps),
+    }
+}
+
+#[no_mangle]
+pub extern "C-unwind" fn lumen_immediate_mask(encoding: *const EncodingInfo) -> MaskInfo {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => Encoding32::immediate_mask_info(),
@@ -260,9 +273,8 @@ pub extern "C" fn immediate_mask(encoding: *const EncodingInfo) -> MaskInfo {
     }
 }
 
-#[unwind(allowed)]
-#[export_name = "lumen_list_mask"]
-pub extern "C" fn list_mask(encoding: *const EncodingInfo) -> u64 {
+#[no_mangle]
+pub extern "C-unwind" fn lumen_list_mask(encoding: *const EncodingInfo) -> u64 {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => Encoding32::MASK_PRIMARY as u64,
@@ -272,9 +284,8 @@ pub extern "C" fn list_mask(encoding: *const EncodingInfo) -> u64 {
     }
 }
 
-#[unwind(allowed)]
-#[export_name = "lumen_header_mask"]
-pub extern "C" fn header_mask(encoding: *const EncodingInfo) -> MaskInfo {
+#[no_mangle]
+pub extern "C-unwind" fn lumen_header_mask(encoding: *const EncodingInfo) -> MaskInfo {
     let encoding = unsafe { &*encoding };
     match encoding.pointer_size {
         32 => Encoding32::header_mask_info(),
@@ -285,13 +296,12 @@ pub extern "C" fn header_mask(encoding: *const EncodingInfo) -> MaskInfo {
 }
 
 #[inline]
-fn do_is_type<T>(ty: u32, value: usize) -> bool
+fn do_is_type<T>(kind: TermKind, value: usize) -> bool
 where
     T: Encoding,
     <T as Encoding>::Type: Word,
     <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
 {
-    let kind = unwrap_term_kind!(ty);
     let tag = T::type_of(value.try_into().unwrap());
     // This is necessary to check some types which may be either boxed
     // or immediate, but if a type kind is known to be boxed, one should
@@ -317,6 +327,8 @@ where
         TermKind::Binary => tag.is_binary(),
         TermKind::Pid if is_boxed => tag.is_external_pid(),
         TermKind::Pid => tag.is_pid(),
+        TermKind::Port if is_boxed => tag.is_external_port(),
+        TermKind::Port => tag.is_port(),
         TermKind::Reference if is_boxed => tag.is_external_reference(),
         TermKind::Reference => tag.is_reference(),
         TermKind::Boolean => !is_boxed && T::is_boolean(value.try_into().unwrap()),
@@ -339,13 +351,12 @@ where
 }
 
 #[inline]
-fn do_is_boxed_type<T>(ty: u32, value: usize) -> bool
+fn do_is_boxed_type<T>(kind: TermKind, value: usize) -> bool
 where
     T: Encoding,
     <T as Encoding>::Type: Word,
     <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
 {
-    let kind = unwrap_term_kind!(ty);
     let tag = T::type_of(value.try_into().unwrap());
     if Tag::Box != tag {
         return false;
@@ -359,6 +370,7 @@ where
         TermKind::Integer => tag.is_integer(),
         TermKind::Binary => tag.is_binary(),
         TermKind::Pid => tag.is_pid(),
+        TermKind::Port => tag.is_port(),
         TermKind::Reference => tag.is_reference(),
         _ => {
             let expected: Result<Tag<T::Type>, _> = kind.try_into();
@@ -424,13 +436,28 @@ where
 }
 
 #[inline]
-fn do_encode_immediate<T>(ty: u32, value: usize) -> usize
+fn do_immediate_tag<T>(kind: TermKind) -> usize
 where
     T: Encoding,
     <T as Encoding>::Type: Word,
     <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
 {
-    let kind = unwrap_term_kind!(ty);
+    let tag: Result<Tag<T::Type>, _> = kind.try_into();
+    match tag {
+        Ok(t) => T::immediate_tag(t).as_usize(),
+        Err(_) => {
+            panic!("invalid term kind {:?} given to lumen_immediate_tag", kind);
+        }
+    }
+}
+
+#[inline]
+fn do_encode_immediate<T>(kind: TermKind, value: usize) -> usize
+where
+    T: Encoding,
+    <T as Encoding>::Type: Word,
+    <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
+{
     let tag: Result<Tag<T::Type>, _> = kind.try_into();
     match tag {
         Ok(t) => {
@@ -447,13 +474,28 @@ where
 }
 
 #[inline]
-fn do_encode_header<T>(ty: u32, value: usize) -> usize
+fn do_header_tag<T>(kind: TermKind) -> usize
 where
     T: Encoding,
     <T as Encoding>::Type: Word,
     <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
 {
-    let kind = unwrap_term_kind!(ty);
+    let tag: Result<Tag<T::Type>, _> = kind.try_into();
+    match tag {
+        Ok(t) => T::header_tag(t).as_usize(),
+        Err(_) => {
+            panic!("invalid term kind {:?} given to lumen_header_tag", kind);
+        }
+    }
+}
+
+#[inline]
+fn do_encode_header<T>(kind: TermKind, value: usize) -> usize
+where
+    T: Encoding,
+    <T as Encoding>::Type: Word,
+    <<T as Encoding>::Type as TryFrom<usize>>::Error: core::fmt::Debug,
+{
     let tag: Result<Tag<T::Type>, _> = kind.try_into();
     match tag {
         Ok(t) => {

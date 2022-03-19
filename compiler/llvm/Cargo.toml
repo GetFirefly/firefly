@@ -2,7 +2,7 @@
 name = "liblumen_llvm"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
-edition = "2018"
+edition = "2021"
 
 build = "build.rs"
 links = "lumen_llvm_core"
@@ -10,16 +10,19 @@ links = "lumen_llvm_core"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-libc = "0.2"
 anyhow = "1.0"
+bitflags = "1.3"
 fxhash = "0.2"
+liblumen_intern = { path = "../intern" }
 liblumen_session = { path = "../session" }
 liblumen_target = { path = "../target" }
 liblumen_util = { path = "../../liblumen_util" }
 liblumen_compiler_macros = { path = "../macros" }
+liblumen_pass = { path = "../pass" }
 liblumen_profiling = { path = "../profiling" }
+paste = "1.0"
+thiserror = "1.0"
 
 [build-dependencies]
 cc = "1.0"
 which = "4.0"
-walkdir = "2.3"

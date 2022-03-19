@@ -136,9 +136,9 @@ struct TupleOpConversion : public EIROpConversion<TupleOp> {
 void populateAggregateOpConversionPatterns(OwningRewritePatternList &patterns,
                                            MLIRContext *context,
                                            EirTypeConverter &converter,
-                                           TargetInfo &targetInfo) {
+                                           TargetPlatform &platform) {
     patterns.insert<ConsOpConversion, ListOpConversion, TupleOpConversion>(
-        context, converter, targetInfo);
+        context, converter, platform);
 }
 
 }  // namespace eir

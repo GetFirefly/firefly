@@ -323,7 +323,10 @@ impl Display for StringRef {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use core::slice;
         let bytes = unsafe { slice::from_raw_parts(self.data, self.len) };
-        let s = String::from_utf8_lossy(&bytes);
+        let s = match bytes.strip_suffix(&[0]) {
+            None => String::from_utf8_lossy(&bytes),
+            Some(stripped) => String::from_utf8_lossy(stripped),
+        };
         write!(f, "{}", &s)
     }
 }

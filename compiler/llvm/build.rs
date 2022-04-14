@@ -104,7 +104,7 @@ fn main() {
         cfg.define(&flag, None);
     }
 
-    if env::var_os(ENV_LUMEN_LLVM_LTO).is_some() {
+    if env::var(ENV_LUMEN_LLVM_LTO).unwrap_or("OFF".to_string()) == "ON" {
         println!("cargo:lto=true");
         cfg.flag("-flto=thin");
     } else {
@@ -148,7 +148,7 @@ fn main() {
         llvm_lib_dir.as_path().display()
     );
 
-    if link_static && link_llvm_dylib {
+    if !link_static && link_llvm_dylib {
         println!("cargo:rustc-link-lib=dylib=LLVM");
     } else {
         // Link in all LLVM libraries

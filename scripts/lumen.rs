@@ -115,15 +115,17 @@ fn main() -> Result<(), ()> {
         build_link_args.push("$ORIGIN/../lib".to_owned());
     }
 
-    match cargo_profile.as_str() {
+    let target_subdir = match cargo_profile.as_str() {
         "release" => {
             extra_cargo_flags.push("--release".to_owned());
+            "release"
         }
         "dev" | _ => {
             extra_rustc_flags.push("-C".to_owned());
             extra_rustc_flags.push("opt-level=0".to_owned());
+            "debug"
         }
-    }
+    };
 
     if build_type == "static" {
         extra_rustc_flags.push("-C".to_owned());
@@ -148,6 +150,7 @@ fn main() -> Result<(), ()> {
         }
     };
 
+    build_link_args.push("-v".to_string());
     let link_args = build_link_args.join(",");
     let link_args_string = format!("-Clink-args={}", &link_args);
     let cargo_args = extra_cargo_flags.iter().collect::<Vec<_>>();
@@ -318,7 +321,7 @@ fn main() -> Result<(), ()> {
 
     println!("Installing Lumen..");
 
-    let src_lumen_exe = target_dir.join(&cargo_profile).join("lumen");
+    let src_lumen_exe = target_dir.join(target_subdir).join("lumen");
     if !src_lumen_exe.exists() {
         panic!(
             "Expected build to place Lumen executable at {}",

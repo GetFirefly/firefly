@@ -78,7 +78,7 @@ BACKTRACE_DEFAULT = { source = "${CARGO_MAKE_CI}", mapping = { "true" = "1", "fa
 RUST_BACKTRACE = { value = "${BACKTRACE_DEFAULT}", condition = { env_not_set = ["RUST_BACKTRACE"] } }
 GECKODRIVER_VERSION = "0.27.0"
 CHROMEDRIVER_VERSION = "85.0.4183.87"
-LUMEN_BUILD_PROFILE = { source = "${CARGO_MAKE_PROFILE}", default_value = "debug", mapping = { "development" = "debug", "production" = "release" } }
+LUMEN_BUILD_PROFILE = { source = "${CARGO_MAKE_PROFILE}", default_value = "dev", mapping = { "development" = "dev", "production" = "release" } }
 LUMEN_BUILD_TYPE = { value = "dynamic", condition = { env_not_set = ["LUMEN_BUILD_TYPE"] } }
 LUMEN_BUILD_LTO = { source = "${LUMEN_BUILD_PROFILE}", default_value = "false", mapping = { "dev" = "false", "release" = "true" } }
 LUMEN_LLVM_LTO = { source = "${LUMEN_BUILD_LTO}", default_value = "OFF", mapping = { "false" = "OFF", "true" = "ON" } }
@@ -317,7 +317,7 @@ dependencies = [
 category = "Build"
 description = "Builds the Lumen compiler"
 condition = { env = { "BUILD_LUMEN" = "true" } }
-env = { RUSTFLAGS = "-C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
+env = { RUSTFLAGS = "-Z unstable-options -C link-args=-Wl,-rpath,${LLVM_PREFIX}/lib" }
 script_runner = "@rust"
 script = { file = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/scripts/lumen.rs", absolute_path = true }
 dependencies = [

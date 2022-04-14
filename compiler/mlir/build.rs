@@ -82,11 +82,6 @@ fn main() {
     let output_path = config.build();
     let search_path = output_path.join("lib");
 
-    println!("cargo:rustc-link-search=native={}", search_path.display());
-    println!("cargo:rustc-link-lib=static=MLIRLumenExtensions");
-    println!("cargo:rustc-link-lib=static=CIR");
-    println!("cargo:rustc-link-lib=static=CIRCAPI");
-
     // NOTE: Not all of these are necessarily being used at the moment, so eventually
     // we should clean up, but these cover the libs we're likely to want at some point
     link_libs(&[
@@ -260,9 +255,10 @@ fn main() {
         "MLIRTilingInterface",
         "MLIRToLLVMIRTranslationRegistration",
         "MLIRTosa",
+        "MLIRTosaToArith",
         "MLIRTosaToLinalg",
         "MLIRTosaToSCF",
-        "MLIRTosaToStandard",
+        "MLIRTosaToTensor",
         "MLIRTosaTransforms",
         "MLIRTransformUtils",
         "MLIRTransforms",
@@ -281,6 +277,11 @@ fn main() {
         "MLIRX86VectorToLLVMIRTranslation",
         "MLIRX86VectorTransforms",
     ]);
+
+    println!("cargo:rustc-link-search=native={}", search_path.display());
+    println!("cargo:rustc-link-lib=static=MLIRLumenExtensions");
+    println!("cargo:rustc-link-lib=static=CIR");
+    println!("cargo:rustc-link-lib=static=CIRCAPI");
 }
 
 struct DialectInfo {
@@ -413,7 +414,7 @@ fn output(cmd: &mut Command) -> String {
 
 fn link_libs(libs: &[&str]) {
     match env::var_os(ENV_LLVM_LINK_STATIC) {
-        Some(val) if val == "ON" => link_libs_static(libs),
+        Some(val) if val == "true" => link_libs_static(libs),
         _ => link_libs_dylib(libs),
     }
 }
@@ -427,8 +428,8 @@ fn link_libs_static(libs: &[&str]) {
 
 #[inline]
 fn link_libs_dylib(libs: &[&str]) {
-    let llvm_link_llvm_dylib = env::var(ENV_LLVM_LINK_LLVM_DYLIB).unwrap_or("OFF".to_owned());
-    if llvm_link_llvm_dylib == "ON" {
+    let llvm_link_llvm_dylib = env::var(ENV_LLVM_LINK_LLVM_DYLIB).unwrap_or("false".to_owned());
+    if llvm_link_llvm_dylib == "true" {
         link_lib_dylib("MLIR");
         link_lib_dylib("MLIR-C");
     } else {
@@ -440,6 +441,7 @@ fn link_libs_dylib(libs: &[&str]) {
 
 #[inline]
 fn link_lib_static(lib: &str) {
+    //println!("cargo:rustc-link-lib=static:+whole-archive={}", lib);
     println!("cargo:rustc-link-lib=static={}", lib);
 }
 

@@ -371,37 +371,6 @@ impl ArrayType {
     }
 }
 
-/// Represents a vector of fixed or scalable width
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct VectorType(TypeBase);
-impl_type_traits!(VectorType, Vector, ScalableVector);
-impl SequentialType for VectorType {}
-impl VectorType {
-    /// Create a vector type with the given element type and fixed arity
-    pub fn new<T: Type>(element_ty: T, arity: usize) -> Self {
-        extern "C" {
-            fn LLVMVectorType(element_ty: TypeBase, arity: u32) -> VectorType;
-        }
-        unsafe { LLVMVectorType(element_ty.base(), arity.try_into().unwrap()) }
-    }
-
-    /// Create a vector type with the given element type and a scalable arity
-    pub fn scalable<T: Type>(element_ty: T, arity: usize) -> Self {
-        extern "C" {
-            fn LLVMScalableVectorType(element_ty: TypeBase, arity: u32) -> VectorType;
-        }
-        unsafe { LLVMScalableVectorType(element_ty.base(), arity.try_into().unwrap()) }
-    }
-
-    pub fn len(self) -> usize {
-        extern "C" {
-            fn LLVMGetVectorSize(ty: VectorType) -> u32;
-        }
-        unsafe { LLVMGetVectorSize(self) as usize }
-    }
-}
-
 /// Represents a pointer type
 #[repr(transparent)]
 #[derive(Copy, Clone)]

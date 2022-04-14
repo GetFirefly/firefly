@@ -25,26 +25,34 @@ pub fn init(options: &Options) {
         .collect::<Vec<_>>();
 
     // MLIR
+    if options.debugging_opts.time_mlir_passes {
+        args.push(CString::new("-mlir-timing").unwrap());
+        args.push(CString::new("-mlir-timing-display=tree").unwrap());
+    }
     if options.debugging_opts.print_passes_before {
-        args.push(CString::new("-print-ir-before-all").unwrap());
+        args.push(CString::new("-mlir-print-ir-before-all").unwrap());
+        args.push(CString::new("-print-before-all").unwrap());
     }
     if options.debugging_opts.print_passes_after {
-        args.push(CString::new("-print-ir-after-all").unwrap());
+        args.push(CString::new("-mlir-print-ir-after-all").unwrap());
+        args.push(CString::new("-print-after-all").unwrap());
     }
     if options.debugging_opts.print_passes_on_change {
-        args.push(CString::new("-print-ir-after-change").unwrap());
+        args.push(CString::new("-mlir-print-ir-after-change").unwrap());
+        args.push(CString::new("-print-changed").unwrap());
     }
     if options.debugging_opts.print_passes_on_failure {
-        args.push(CString::new("-print-ir-after-failure").unwrap());
+        args.push(CString::new("-mlir-print-ir-after-failure").unwrap());
     }
     if options.debugging_opts.mlir_print_module_scope {
-        args.push(CString::new("-print-ir-module-scope").unwrap());
+        args.push(CString::new("-mlir-print-ir-module-scope").unwrap());
+        args.push(CString::new("-print-module-scope").unwrap());
     }
     if options.debugging_opts.mlir_print_local_scope {
         args.push(CString::new("-mlir-print-local-scope").unwrap());
     }
     if options.debugging_opts.mlir_enable_statistics {
-        args.push(CString::new("-pass-statistics").unwrap());
+        args.push(CString::new("-mlir-pass-statistics").unwrap());
     }
     if options.debugging_opts.mlir_print_op_on_diagnostic {
         args.push(CString::new("-mlir-print-op-on-diagnostic").unwrap());
@@ -59,7 +67,7 @@ pub fn init(options: &Options) {
     {
         args.push(
             CString::new(format!(
-                "-pass-pipeline-crash-reproducer={}",
+                "-mlir-pass-pipeline-crash-reproducer={}",
                 path.display()
             ))
             .unwrap(),

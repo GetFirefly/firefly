@@ -38,7 +38,7 @@ macro_rules! transform_pass_impl {
             /// NOTE: You must register passes before using them, see `register`
             pub fn new() -> $ty {
                 paste! {
-                    unsafe { [<mlir_create_transforms_ $mnemonic>]() }
+                    Self(unsafe { [<mlir_create_transforms_ $mnemonic>]() })
                 }
             }
 
@@ -51,11 +51,17 @@ macro_rules! transform_pass_impl {
                 }
             }
         }
+        impl crate::pass::OpPass<crate::FuncOp> for $ty {}
+        impl std::fmt::Debug for $ty {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "{:p}", self.0)
+            }
+        }
 
         paste! {
             extern "C" {
                 #[link_name = stringify!($create_name)]
-                fn [<mlir_create_transforms_ $mnemonic>]() -> $ty;
+                fn [<mlir_create_transforms_ $mnemonic>]() -> crate::pass::OwnedPass;
                 #[link_name = stringify!($register_name)]
                 fn [<mlir_register_transforms_ $mnemonic>]();
             }
@@ -63,8 +69,8 @@ macro_rules! transform_pass_impl {
     };
 }
 
-transform_pass_impl!(CSE, cse);
 transform_pass_impl!(Canonicalizer, canonicalizer);
+transform_pass_impl!(CSE, cse);
 transform_pass_impl!(ControlFlowSink, control_flow_sink);
 transform_pass_impl!(Inliner, inliner);
 transform_pass_impl!(LocationSnapshot, location_snapshot);

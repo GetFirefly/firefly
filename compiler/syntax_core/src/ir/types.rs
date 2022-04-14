@@ -40,6 +40,13 @@ impl Type {
         Self::Tuple(Some(elements))
     }
 
+    pub fn is_opaque(&self) -> bool {
+        match self {
+            Self::Term => true,
+            _ => false,
+        }
+    }
+
     pub fn is_numeric(&self) -> bool {
         match self {
             Self::Integer | Self::Float | Self::Number => true,

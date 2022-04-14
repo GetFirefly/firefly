@@ -50,7 +50,7 @@ public:
       : LLVMTypeConverter(ctx, options, analysis),
         enableNanboxing(enableNanboxing) {
     addConversion([&](CIRNoneType) { return getIsizeType(); });
-    addConversion([&](CIRTermType) { return getTermType(); });
+    addConversion([&](CIROpaqueTermType) { return getTermType(); });
     addConversion([&](CIRNumberType) { return getTermType(); });
     addConversion([&](CIRIntegerType) { return getTermType(); });
     addConversion([&](CIRFloatType) { return getFloatType(); });
@@ -581,7 +581,7 @@ protected:
   // other term.
   Value encodeImmediateValue(OpBuilder &builder, Location loc, Type ty,
                              Value value) const {
-    auto imm = ty.cast<ImmediateType>();
+    auto imm = ty.cast<TermType>();
     auto kind = imm.getTermKind();
     auto mask = immediateMask();
     auto tag = createTermConstant(builder, loc, immediateTag(kind));
@@ -1169,30 +1169,30 @@ struct IsTypeOpLowering : public ConvertCIROpToLLVMPattern<cir::IsTypeOp> {
       // A box of type term is equivalent to a type check that a value is any
       // boxed term; otherwise we are checking that the input value is a boxed
       // term of a specific type
-      if (innerTy.isa<CIRTermType>()) {
+      if (innerTy.isa<CIROpaqueTermType>()) {
         isImmediate = true;
         isBoxed = false;
         kind = lumen::TermKind::Box;
       } else {
         isImmediate = false;
         isBoxed = true;
-        kind = innerTy.cast<BoxedType>().getTermKind();
+        kind = innerTy.cast<TermType>().getTermKind();
       }
-    } else if (auto immediateTy = expectedType.dyn_cast<ImmediateType>()) {
+    } else if (expectedType.isa<ImmediateType>()) {
       isImmediate = true;
       isBoxed = false;
-      kind = immediateTy.getTermKind();
-    } else if (auto boxedTy = expectedType.dyn_cast<BoxedType>()) {
+      kind = expectedType.cast<TermType>().getTermKind();
+    } else if (expectedType.isa<BoxedType>()) {
       isImmediate = false;
       isBoxed = true;
-      kind = boxedTy.getTermKind();
+      kind = expectedType.cast<TermType>().getTermKind();
     } else if (auto targetReprTy =
                    expectedType.dyn_cast<TargetSensitiveReprType>()) {
       // Treat this type as either immediate or boxed depending on the target
       // encoding
       isImmediate = targetReprTy.isImmediate(termEncoding());
       isBoxed = !isImmediate;
-      kind = targetReprTy.getTermKind();
+      kind = expectedType.cast<TermType>().getTermKind();
     } else if (expectedType.isa<TupleType>()) {
       isImmediate = false;
       isBoxed = true;
@@ -1391,7 +1391,7 @@ struct MallocOpLowering : public ConvertCIROpToLLVMPattern<cir::MallocOp> {
     if (!boxedTy)
       kind = lumen::TermKind::Tuple;
     else
-      kind = boxedTy.getTermKind();
+      kind = allocType.cast<TermType>().getTermKind();
 
     // We only support malloc for a limited subset of types
     uint64_t arity;
@@ -1923,10 +1923,8 @@ namespace {
 struct ConvertCIRToLLVMPass
     : public ConvertCIRToLLVMBase<ConvertCIRToLLVMPass> {
   ConvertCIRToLLVMPass() = default;
-  ConvertCIRToLLVMPass(bool enableNanboxing,
-                       const llvm::DataLayout &dataLayout) {
+  ConvertCIRToLLVMPass(bool enableNanboxing) {
     this->enableNanboxing = enableNanboxing;
-    this->dataLayout = dataLayout.getStringRepresentation();
   }
 
   void runOnOperation() override;
@@ -1934,21 +1932,24 @@ struct ConvertCIRToLLVMPass
 } // namespace
 
 void ConvertCIRToLLVMPass::runOnOperation() {
-  // Verify options
-  if (failed(LLVM::LLVMDialect::verifyDataLayoutString(
-          this->dataLayout, [this](const Twine &message) {
-            getOperation().emitError() << message.str();
-          }))) {
-    signalPassFailure();
-    return;
-  }
-
   ModuleOp module = getOperation();
-  const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
 
-  LowerToLLVMOptions options(&getContext(),
-                             dataLayoutAnalysis.getAtOrAbove(module));
-  options.dataLayout = llvm::DataLayout(this->dataLayout);
+  const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
+  auto mlirDataLayout = dataLayoutAnalysis.getAtOrAbove(module);
+
+  LowerToLLVMOptions options(&getContext(), mlirDataLayout);
+  // Verify options
+  if (auto layoutAttr = module->getAttrOfType<StringAttr>(
+          LLVM::LLVMDialect::getDataLayoutAttrName())) {
+    if (failed(LLVM::LLVMDialect::verifyDataLayoutString(
+            layoutAttr.getValue(), [this](const Twine &message) {
+              getOperation().emitError() << message.str();
+            }))) {
+      signalPassFailure();
+      return;
+    }
+    options.dataLayout = llvm::DataLayout(layoutAttr.getValue());
+  }
 
   // Define the conversion target for this lowering, which is the LLVM dialect
   LLVMConversionTarget target(getContext());
@@ -2034,8 +2035,6 @@ mlir::cir::createConvertCIRToLLVMPass() {
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::cir::createConvertCIRToLLVMPass(bool enableNanboxing,
-                                      const LowerToLLVMOptions &options) {
-  return std::make_unique<ConvertCIRToLLVMPass>(enableNanboxing,
-                                                options.dataLayout);
+mlir::cir::createConvertCIRToLLVMPass(bool enableNanboxing) {
+  return std::make_unique<ConvertCIRToLLVMPass>(enableNanboxing);
 }

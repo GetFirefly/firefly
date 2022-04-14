@@ -13,6 +13,69 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
+def CIR_CallOp : CIR_Op<"call",
+    [CallOpInterface, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "call operation";
+  let description = [{
+    The `cir.call` operation represents a direct call to a function that is
+    within the same symbol scope as the call. The operands and result types of
+    the call must match the specified function type. The callee is encoded as a
+    symbol reference attribute named "callee".
+
+    Example:
+
+    ```mlir
+    %2 = cir.call @my_add(%0, %1) : (f32, f32) -> f32
+    ```
+  }];
+
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$operands);
+  let results = (outs Variadic<AnyType>);
+
+  let builders = [
+    OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
+      $_state.addOperands(operands);
+      $_state.addAttribute("callee", SymbolRefAttr::get(callee));
+      $_state.addTypes(callee.getFunctionType().getResults());
+    }]>,
+    OpBuilder<(ins "SymbolRefAttr":$callee, "TypeRange":$results,
+      CArg<"ValueRange", "{}">:$operands), [{
+      $_state.addOperands(operands);
+      $_state.addAttribute("callee", callee);
+      $_state.addTypes(results);
+    }]>,
+    OpBuilder<(ins "StringAttr":$callee, "TypeRange":$results,
+      CArg<"ValueRange", "{}">:$operands), [{
+      build($_builder, $_state, SymbolRefAttr::get(callee), results, operands);
+    }]>,
+    OpBuilder<(ins "StringRef":$callee, "TypeRange":$results,
+      CArg<"ValueRange", "{}">:$operands), [{
+      build($_builder, $_state, StringAttr::get($_builder.getContext(), callee),
+            results, operands);
+    }]>];
+
+  let extraClassDeclaration = [{
+    FunctionType getCalleeType();
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    operand_iterator arg_operand_begin() { return operand_begin(); }
+    operand_iterator arg_operand_end() { return operand_end(); }
+
+    /// Return the callee of this operation.
+    CallInterfaceCallable getCallableForCallee() {
+      return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+    }
+  }];
+
+  let assemblyFormat = [{
+    $callee `(` $operands `)` attr-dict `:` functional-type($operands, results)
+  }];
+}
+
 def CIR_CastOp : CIR_Op<"cast",
   [DeclareOpInterfaceMethods<CastOpInterface>, NoSideEffect]> {
   let summary = "Performs a type cast between the type of the input value and given output type";
@@ -28,7 +91,7 @@ def CIR_CastOp : CIR_Op<"cast",
 
 def CIR_ConstantOp : CIR_Op<"constant",
   [ConstantLike, NoSideEffect,
-   TypesMatchWith<"result and attribute have the same type", "value", "result", "$_self">]> {
+   TypesMatchWith<"result type matches value type", "value", "result", "$_self">]> {
     let summary = "constant or immediate term";
     let description = [{
       The `constant` operation produces an SSA value equal to some term constant specified by an attribute.
@@ -268,7 +331,7 @@ def CIR_HeadOp : CIR_Op<"hd", [MemoryEffects<[MemRead]>]> {
   }];
 
   let arguments = (ins CIR_ListType:$cell);
-  let results = (outs CIR_TermType:$result);
+  let results = (outs CIR_OpaqueTermType:$result);
 
   let assemblyFormat = [{
     $cell attr-dict
@@ -282,7 +345,7 @@ def CIR_TailOp : CIR_Op<"tl", [MemoryEffects<[MemRead]>]> {
   }];
 
   let arguments = (ins CIR_ListType:$cell);
-  let results = (outs CIR_TermType:$result);
+  let results = (outs CIR_OpaqueTermType:$result);
 
   let assemblyFormat = [{
     $cell attr-dict `:` type($result)
@@ -324,7 +387,7 @@ def CIR_GetElementOp : CIR_Op<"getelement", [MemoryEffects<[MemRead]>]> {
   }];
 
   let arguments = (ins CIR_BoxOf<AnyTuple>:$tuple, Index:$index);
-  let results = (outs CIR_TermType:$result);
+  let results = (outs CIR_OpaqueTermType:$result);
 
   let assemblyFormat = [{
     $tuple `[` $index `]` attr-dict `:` `(` type($tuple) `)` `->` type($result)
@@ -427,7 +490,7 @@ def CIR_ExceptionReasonOp : CIR_Op<"exception.reason", [MemoryEffects<[MemRead]>
   }];
 
   let arguments = (ins PtrOf<CIR_ExceptionType>:$exception);
-  let results = (outs CIR_TermType:$result);
+  let results = (outs CIR_OpaqueTermType:$result);
 
   let assemblyFormat = [{
     $exception attr-dict
@@ -446,7 +509,7 @@ def CIR_ExceptionTraceOp : CIR_Op<"exception.trace", [MemoryEffects<[MemRead]>]>
   }];
 
   let arguments = (ins PtrOf<CIR_ExceptionType>:$exception);
-  let results = (outs CIR_TermType:$result);
+  let results = (outs CIR_OpaqueTermType:$result);
 
   let assemblyFormat = [{
     $exception attr-dict
@@ -529,7 +592,7 @@ def CIR_RecvPeekOp : CIR_Op<"recv.peek", [MemoryEffects<[MemRead]>]> {
   }];
 
   let arguments = (ins PtrOf<CIR_RecvContextType>:$context);
-  let results = (outs CIR_TermType:$message);
+  let results = (outs CIR_OpaqueTermType:$message);
 
   let assemblyFormat = [{
     $context attr-dict

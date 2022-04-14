@@ -150,10 +150,18 @@ impl OwnedContext {
 
         // Register the MLIR dialects we use
         let llvm_dialect = DialectHandle::get(DialectType::LLVM).unwrap();
+        let func_dialect = DialectHandle::get(DialectType::Func).unwrap();
+        let arith_dialect = DialectHandle::get(DialectType::Arithmetic).unwrap();
+        let cf_dialect = DialectHandle::get(DialectType::ControlFlow).unwrap();
+        let scf_dialect = DialectHandle::get(DialectType::SCF).unwrap();
         let cir_dialect = DialectHandle::get(DialectType::CIR).unwrap();
 
         // Register all of the dialects we use
         llvm_dialect.register(context);
+        arith_dialect.register(context);
+        func_dialect.register(context);
+        cf_dialect.register(context);
+        scf_dialect.register(context);
         cir_dialect.register(context);
         // Load the CIR dialect, which will trigger loading of its dependent dialects
         cir_dialect.load(context);

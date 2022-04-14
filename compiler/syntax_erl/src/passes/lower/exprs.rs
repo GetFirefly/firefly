@@ -51,7 +51,7 @@ impl<'m> LowerFunctionToCore<'m> {
             ast::Expr::Binary(bin) => self.lower_binary(builder, bin),
             ast::Expr::ListComprehension(lc) => self.lower_lc(builder, lc),
             ast::Expr::BinaryComprehension(bc) => self.lower_bc(builder, bc),
-            ast::Expr::Apply(apply) => self.lower_apply(builder, apply),
+            ast::Expr::Apply(apply) => self.lower_apply(builder, apply, false),
             ast::Expr::Match(expr) => self.lower_match(builder, expr),
             ast::Expr::Catch(expr) => self.lower_catch(builder, expr),
             ast::Expr::BinaryExpr(expr) => self.lower_binary_op(builder, expr),
@@ -238,6 +238,7 @@ impl<'m> LowerFunctionToCore<'m> {
         &mut self,
         builder: &'a mut IrBuilder,
         apply: ast::Apply,
+        is_tail: bool,
     ) -> anyhow::Result<Value> {
         let span = apply.span;
         let callee_span = apply.callee.span();

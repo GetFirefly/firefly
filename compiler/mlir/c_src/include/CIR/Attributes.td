@@ -72,9 +72,93 @@ def EndiannessAttr : CIR_Attr<"Endianness"> {
   let extraClassDeclaration = [{
     using ValueType = ::mlir::cir::Endianness;
   }];
-  let typeBuilder = "::mlir::IntegerType::get($_type.getContext(), 8)";
   let constBuilderCall = "::mlir::cir::EndiannessAttr::get($_builder.getContext(), $_builder.getI8Type(), $0)";
 }
 
+def CIR_NoneAttr : CIR_Attr<"None"> {
+  let mnemonic = "none";
+  let summary = "An attribute used to indicate a constant none value";
+
+  let parameters = (ins AttributeSelfTypeParameter<"">:$type);
+  let assemblyFormat = "`<` $type `>`";
+
+  let constBuilderCall = "NoneAttr::get($_builder.getContext(), $_builder.getType<CIRNoneType>())";
+
+  let builders = [
+    AttrBuilder<(ins), [{ return $_get($_ctxt, CIRNoneType::get($_ctxt)); }]>,
+  ];
+}
+
+def CIR_NilAttr : CIR_Attr<"Nil"> {
+  let mnemonic = "nil";
+  let summary = "An attribute used to indicate a constant nil value";
+
+  let parameters = (ins AttributeSelfTypeParameter<"">:$type);
+  let assemblyFormat = "`<` $type `>`";
+
+  let constBuilderCall = "NilAttr::get($_builder.getContext(), $_builder.getType<CIRNilType>())";
+
+  let builders = [
+    AttrBuilder<(ins), [{ return $_get($_ctxt, CIRNilType::get($_ctxt)); }]>,
+  ];
+}
+
+def CIR_BoolAttr : CIR_Attr<"CIRBool"> {
+  let mnemonic = "bool";
+  let summary = "An attribute used to indicate a constant boolean atom value";
+
+  let parameters = (ins AttributeSelfTypeParameter<"">:$type, "bool":$value);
+  let assemblyFormat = "$value `:` $type";
+
+  let builders = [
+    AttrBuilder<(ins "bool":$value), [{ return $_get($_ctxt, CIRBoolType::get($_ctxt), value); }]>,
+  ];
+
+  let extraClassDeclaration = [{
+    using ValueType = bool;
+  }];
+}
+
+def CIR_IsizeAttr : CIR_Attr<"Isize"> {
+  let mnemonic = "isize";
+  let summary = "An attribute used to hold constant isize integer values";
+
+  let parameters = (ins AttributeSelfTypeParameter<"">:$type, "APInt":$value);
+  let assemblyFormat = "$value `:` $type";
+
+  let builders = [
+    AttrBuilder<(ins "const APInt &":$value), [{ return $_get($_ctxt, CIRIsizeType::get($_ctxt), value); }]>,
+    AttrBuilder<(ins "uint64_t":$value), [{
+      APInt apValue(64, value, /*signed=*/false);
+      return $_get($_ctxt, CIRIsizeType::get($_ctxt), apValue);
+    }]>,
+  ];
+
+  let extraClassDeclaration = [{
+    using ValueType = APInt;
+  }];
+}
+
+def CIR_FloatAttr : CIR_Attr<"CIRFloat"> {
+  let mnemonic = "float";
+  let summary = "An attribute used to hold constant floating-point values";
+
+  let parameters = (ins AttributeSelfTypeParameter<"">:$type, APFloatParameter<"">:$value);
+  let assemblyFormat = "$value `:` $type";
+
+  let builders = [
+    AttrBuilder<(ins "const APFloat &":$value), [{ return $_get($_ctxt, CIRFloatType::get($_ctxt), value); }]>,
+    AttrBuilder<(ins "double":$value), [{
+      return $_get($_ctxt, CIRFloatType::get($_ctxt), APFloat(value));
+    }]>,
+  ];
+
+  let extraClassDeclaration = [{
+    using ValueType = APFloat;
+
+    double getValueAsDouble() const;
+    static double getValueAsDouble(APFloat val);
+  }];
+}
 
 #endif

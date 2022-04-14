@@ -69,6 +69,47 @@ template <> struct FieldParser<Endianness> {
 };
 
 //===----------------------------------------------------------------------===//
+/// IsizeAttr
+//===----------------------------------------------------------------------===//
+
+template <> struct FieldParser<APInt> {
+  static FailureOr<APInt> parse(AsmParser &parser) {
+    APInt value;
+    if (parser.parseInteger(value))
+      return failure();
+
+    return value;
+  }
+};
+
+//===----------------------------------------------------------------------===//
+/// CIRFloatAttr
+//===----------------------------------------------------------------------===//
+
+template <> struct FieldParser<APFloat> {
+  static FailureOr<APFloat> parse(AsmParser &parser) {
+    double value;
+    if (parser.parseFloat(value))
+      return failure();
+
+    return APFloat(value);
+  }
+};
+
+double CIRFloatAttr::getValueAsDouble() const {
+  return getValueAsDouble(getValue());
+}
+
+double CIRFloatAttr::getValueAsDouble(APFloat value) {
+  if (&value.getSemantics() != &APFloat::IEEEdouble()) {
+    bool losesInfo = false;
+    value.convert(APFloat::IEEEdouble(), APFloat::rmNearestTiesToEven,
+                  &losesInfo);
+  }
+  return value.convertToDouble();
+}
+
+//===----------------------------------------------------------------------===//
 /// Tablegen
 //===----------------------------------------------------------------------===//
 

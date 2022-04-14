@@ -80,17 +80,80 @@ void CIRDialect::registerOperations() {
 void CIRDialect::registerInterfaces() { addInterfaces<CIRInlinerInterface>(); }
 
 //===----------------------------------------------------------------------===//
+// CallOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult CallOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  // Check that the callee attribute was specified.
+  auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
+  if (!fnAttr)
+    return emitOpError("requires a 'callee' symbol reference attribute");
+  FuncOp fn = symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, fnAttr);
+  if (!fn)
+    return emitOpError() << "'" << fnAttr.getValue()
+                         << "' does not reference a valid function";
+
+  // Verify that the operand and result types match the callee.
+  auto fnType = fn.getFunctionType();
+  if (fnType.getNumInputs() != getNumOperands())
+    return emitOpError("incorrect number of operands for callee");
+
+  for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i) {
+    Type srcTy = getOperand(i).getType();
+    Type dstTy = fnType.getInput(i);
+    if (srcTy == dstTy)
+      continue;
+    else if (srcTy.isa<TermType>() && dstTy.isa<TermType>())
+      continue;
+    else if (srcTy.isa<CIRExceptionType>() && dstTy.isa<CIROpaqueTermType>())
+      continue;
+    else
+      return emitOpError("operand type mismatch: expected operand type ")
+             << fnType.getInput(i) << ", but provided "
+             << getOperand(i).getType() << " for operand number " << i;
+  }
+
+  if (fnType.getNumResults() != getNumResults())
+    return emitOpError("incorrect number of results for callee");
+
+  for (unsigned i = 0, e = fnType.getNumResults(); i != e; ++i) {
+    Type srcTy = getResult(i).getType();
+    Type dstTy = fnType.getResult(i);
+    if (srcTy == dstTy)
+      continue;
+    else if (srcTy.isa<TermType>() && dstTy.isa<TermType>())
+      continue;
+    else {
+      auto diag = emitOpError("result type mismatch at index ") << i;
+      diag.attachNote() << "      op result types: " << getResultTypes();
+      diag.attachNote() << "function result types: " << fnType.getResults();
+      return diag;
+    }
+  }
+
+  return success();
+}
+
+FunctionType CallOp::getCalleeType() {
+  return FunctionType::get(getContext(), getOperandTypes(), getResultTypes());
+}
+
+//===----------------------------------------------------------------------===//
 // CastOp
 //===----------------------------------------------------------------------===//
 
 bool canCastBetween(Type input, Type output) {
-  auto isCirOutput = isCIRType(output);
+  // Identity casts are trivially supported
+  if (input == output)
+    return true;
+
+  auto isTermOutput = isTermType(output);
   // Opaque terms are always castable to a term type, numeric, or tuple type
-  if (input.isa<CIRTermType>() && isCirOutput)
+  if (input.isa<CIROpaqueTermType>() && isTermOutput)
     return true;
 
   // All term, numeric or tuple types are castable to an opaque term
-  auto isCirInput = isCIRType(input);
+  auto isTermInput = isTermType(input);
   auto isInputNumeric = isTypePrimitiveNumeric(input);
   auto isInputTuple = false;
   auto isInputBox = false;
@@ -98,11 +161,18 @@ bool canCastBetween(Type input, Type output) {
     isInputBox = true;
     isInputTuple = boxTy.getElementType().isa<TupleType>();
   }
-  if ((isCirInput || isInputNumeric || isInputTuple) &&
-      output.isa<CIRTermType>())
+  if ((isTermInput || isInputNumeric || isInputTuple) &&
+      output.isa<CIROpaqueTermType>())
     return true;
 
-  // Special types can be cast to Term, but not vice-versa
+  // None can be cast to term/Exception
+  if (input.isa<CIRNoneType>() &&
+      (isTermOutput || output.isa<CIRExceptionType>()))
+    return true;
+  // Exceptions can be cast to term for comparison against None
+  if (input.isa<CIRExceptionType>() && output.isa<CIROpaqueTermType>())
+    return true;
+  // Otherwise special types cannot be cast to
   if (output.isa<CIRNoneType, CIRExceptionType, CIRTraceType,
                  CIRRecvContextType, CIRBinaryBuilderType>())
     return false;
@@ -110,10 +180,6 @@ bool canCastBetween(Type input, Type output) {
   auto isOutputNumeric = isTypePrimitiveNumeric(output);
   auto isInputBool = input.isInteger(1) || input.isa<CIRBoolType>();
   auto isOutputBool = output.isInteger(1) || output.isa<CIRBoolType>();
-
-  // All CIR types or primitive numerics are castable to an opaque term
-  if (output.isa<CIRTermType>() && (isCirInput || isInputNumeric))
-    return true;
 
   // All primitive numeric types are interchangeable
   if (isInputNumeric && isOutputNumeric)
@@ -216,7 +282,8 @@ bool cir::ConstantOp::isBuildableWith(Attribute value, Type type) {
   if (valueType != type)
     return false;
   // Must be a concrete term type
-  if (valueType.isa<CIRIntegerType, CIRNumberType, CIRTermType, CIRNoneType>())
+  if (valueType
+          .isa<CIRIntegerType, CIRNumberType, CIROpaqueTermType, CIRNoneType>())
     return false;
   // Must not be a box or fun type
   if (valueType.isa<CIRFunType, CIRBoxType>())

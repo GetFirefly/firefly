@@ -40,7 +40,6 @@ where
     C: Compiler,
 {
     use liblumen_llvm::passes::PassManagerPass;
-    use liblumen_mlir::conversions::ConvertCIRToLLVMPass;
     use liblumen_mlir::translations::TranslateMLIRToLLVMIR;
     use liblumen_mlir::{PassManager, PassManagerOptions};
     use liblumen_pass::Pass;
@@ -85,7 +84,11 @@ where
     // Create a pass manager to perform the lowering
     let pm_opts = PassManagerOptions::new(&options);
     let mut pm = PassManager::new(**mlir_context, &pm_opts);
-    pm.add(ConvertCIRToLLVMPass::new());
+    //let mpm = pm.nest("builtin.module");
+    //mpm.add(liblumen_mlir::conversions::ConvertCIRToLLVMPass::new());
+    liblumen_mlir::conversions::ConvertCIRToLLVMPass::register();
+    pm.parse_pipeline("builtin.module(convert-cir-to-llvm)")
+        .unwrap();
 
     // Lower to LLVM dialect
     let successful = pm.run(&module);

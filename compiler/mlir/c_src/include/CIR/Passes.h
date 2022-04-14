@@ -3,7 +3,6 @@
 #include <memory>
 
 namespace mlir {
-class LowerToLLVMOptions;
 class ModuleOp;
 template <typename T> class OperationPass;
 class Pass;
@@ -13,8 +12,7 @@ namespace cir {
 std::unique_ptr<OperationPass<ModuleOp>> createInjectYieldPointsPass();
 std::unique_ptr<OperationPass<ModuleOp>> createConvertCIRToLLVMPass();
 std::unique_ptr<OperationPass<ModuleOp>>
-createConvertCIRToLLVMPass(bool enableNanboxing,
-                           const LowerToLLVMOptions &options);
+createConvertCIRToLLVMPass(bool enableNanboxing);
 
 //===----------------------------------------------------------------------===//
 // Registration

@@ -95,6 +95,12 @@ impl PassManager {
         pm
     }
 
+    /// Parse a pass pipeline which will then be managed by this pass manager
+    pub fn parse_pipeline(&self, pipeline: &str) -> Result<(), ()> {
+        let opm: OpPassManager<'_> = self.into();
+        opm.parse_pipeline(pipeline)
+    }
+
     /// Nest a pass manager for the given operation type under this pass manager
     pub fn nest<'p, 'o: 'p, S: Into<StringRef>>(&'p self, operation_name: S) -> OpPassManager<'o> {
         let inner = unsafe { mlir_pass_manager_get_nested_under(self.0, operation_name.into()) };
@@ -131,6 +137,11 @@ impl<'p, 'o: 'p> Into<OpPassManager<'o>> for &'p PassManager {
 impl Drop for PassManager {
     fn drop(&mut self) {
         unsafe { mlir_pass_manager_destroy(self.0) }
+    }
+}
+impl fmt::Debug for PassManager {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 impl fmt::Display for PassManager {

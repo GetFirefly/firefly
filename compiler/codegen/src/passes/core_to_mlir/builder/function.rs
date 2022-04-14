@@ -89,7 +89,7 @@ impl<'m> ModuleBuilder<'m> {
         let name = sig.mfa().to_string();
         let builder = self.cir();
         let ty = signature_to_fn_type(self.module, self.options, &builder, &sig);
-        let vis = if sig.visibility.is_public() {
+        let vis = if sig.visibility.is_public() && !sig.visibility.is_externally_defined() {
             Visibility::Public
         } else {
             Visibility::Private
@@ -124,7 +124,7 @@ impl<'m> ModuleBuilder<'m> {
                 let op = builder.build_constant(
                     loc,
                     builder.get_cir_isize_type(),
-                    builder.get_i64_attr(i),
+                    builder.get_isize_attr(i.try_into().unwrap()),
                 );
                 op.get_result(0).base()
             }
@@ -132,24 +132,18 @@ impl<'m> ModuleBuilder<'m> {
                 let op = builder.build_constant(
                     loc,
                     builder.get_cir_float_type(),
-                    builder.get_f64_attr(f),
+                    builder.get_float_attr(f),
                 );
                 op.get_result(0).base()
             }
             Immediate::Nil => {
-                let op = builder.build_constant(
-                    loc,
-                    builder.get_cir_nil_type(),
-                    builder.get_unit_attr(),
-                );
+                let ty = builder.get_cir_nil_type();
+                let op = builder.build_constant(loc, ty, builder.get_nil_attr());
                 op.get_result(0).base()
             }
             Immediate::None => {
-                let op = builder.build_constant(
-                    loc,
-                    builder.get_cir_none_type(),
-                    builder.get_unit_attr(),
-                );
+                let ty = builder.get_cir_none_type();
+                let op = builder.build_constant(loc, ty, builder.get_none_attr());
                 op.get_result(0).base()
             }
         }
@@ -162,7 +156,7 @@ impl<'m> ModuleBuilder<'m> {
                 let op = builder.build_constant(
                     loc,
                     builder.get_cir_isize_type(),
-                    builder.get_i64_attr(*i),
+                    builder.get_isize_attr((*i).try_into().unwrap()),
                 );
                 op.get_result(0).base()
             }
@@ -171,7 +165,7 @@ impl<'m> ModuleBuilder<'m> {
                 let op = builder.build_constant(
                     loc,
                     builder.get_cir_float_type(),
-                    builder.get_f64_attr(*f),
+                    builder.get_float_attr(*f),
                 );
                 op.get_result(0).base()
             }
@@ -788,9 +782,22 @@ impl<'m> ModuleBuilder<'m> {
         span: SourceSpan,
         _op: &Ret,
     ) -> anyhow::Result<()> {
-        let args = dfg.inst_args(inst);
-        let mapped_args = args.iter().map(|a| self.values[a]).collect::<Vec<_>>();
         let loc = self.location_from_span(span);
+        let args = dfg.inst_args(inst);
+        let current_function: FuncOp = self.current_block.operation().unwrap().try_into().unwrap();
+        let func_type = current_function.get_type();
+        let mut mapped_args = Vec::with_capacity(args.len());
+        for (i, mapped_arg) in args.iter().map(|a| self.values[a]).enumerate() {
+            let arg_type = mapped_arg.get_type();
+            let return_type = func_type.get_result(i).unwrap();
+
+            if arg_type == return_type {
+                mapped_args.push(mapped_arg);
+            } else {
+                let cast = self.cir().build_cast(loc, mapped_arg, return_type);
+                mapped_args.push(cast.get_result(0).base());
+            }
+        }
         self.cir().build_return(loc, mapped_args.as_slice());
         Ok(())
     }
@@ -802,12 +809,34 @@ impl<'m> ModuleBuilder<'m> {
         span: SourceSpan,
         op: &RetImm,
     ) -> anyhow::Result<()> {
-        let arg = self.values[&op.arg];
         let loc = self.location_from_span(span);
+        let current_function: FuncOp = self.current_block.operation().unwrap().try_into().unwrap();
+        let func_type = current_function.get_type();
+        let arg = self.values[&op.arg];
         // Only None is supported as an immediate for this op currently
         assert_eq!(op.imm, Immediate::None);
         let imm = self.immediate_to_constant(loc, op.imm);
-        self.cir().build_return(loc, &[arg, imm]);
+        let imm_type = imm.get_type();
+
+        let arg_type = arg.get_type();
+        let expected_arg_type = func_type.get_result(0).unwrap();
+        let expected_imm_type = func_type.get_result(1).unwrap();
+
+        let builder = self.cir();
+        let arg = if arg_type == expected_arg_type {
+            arg
+        } else {
+            let cast = builder.build_cast(loc, arg, expected_arg_type);
+            cast.get_result(0).base()
+        };
+        let imm = if imm_type == expected_imm_type {
+            imm
+        } else {
+            let cast = builder.build_cast(loc, imm, expected_imm_type);
+            cast.get_result(0).base()
+        };
+
+        builder.build_return(loc, &[arg, imm]);
         Ok(())
     }
 
@@ -821,7 +850,23 @@ impl<'m> ModuleBuilder<'m> {
         let loc = self.location_from_span(span);
         let dest = self.blocks[&op.destination];
         let args = dfg.inst_args(inst);
-        let mapped_args = args.iter().map(|a| self.values[a]).collect::<Vec<_>>();
+        let mut mapped_args = Vec::with_capacity(args.len());
+        let builder = CirBuilder::new(&self.builder);
+        for (i, mapped_arg) in args.iter().map(|a| self.values[a]).enumerate() {
+            if i == 0 && op.op != Opcode::Br {
+                let cond_cast = builder.build_cast(loc, mapped_arg, builder.get_i1_type());
+                mapped_args.push(cond_cast.get_result(0).base());
+                continue;
+            }
+            let index = if op.op == Opcode::Br { i } else { i - 1 };
+            let expected_ty = dest.get_argument(index).get_type();
+            if mapped_arg.get_type() == expected_ty {
+                mapped_args.push(mapped_arg.base());
+            } else {
+                let cast = builder.build_cast(loc, mapped_arg, expected_ty);
+                mapped_args.push(cast.get_result(0).base());
+            }
+        }
         match op.op {
             Opcode::Br => {
                 self.cir().build_branch(loc, dest, mapped_args.as_slice());
@@ -841,7 +886,6 @@ impl<'m> ModuleBuilder<'m> {
                     block_ref
                 };
                 let dest_args = &mapped_args[1..];
-                let builder = CirBuilder::new(&self.builder);
                 let cond = mapped_args[0];
                 if op.op == Opcode::BrIf {
                     builder.build_cond_branch(loc, cond, dest, dest_args, split_block, &[]);

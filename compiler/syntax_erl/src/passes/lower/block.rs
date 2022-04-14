@@ -116,7 +116,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 }
                 // Function calls can have side-effects, so they are always lowered, even if the result is unused
                 ast::Expr::Apply(apply) => {
-                    block_result = self.lower_apply(builder, apply)?;
+                    block_result = self.lower_apply(builder, apply, is_last)?;
                 }
                 ast::Expr::Remote(remote) => panic!(
                     "unexpected expression type found during lowering of block: {:?}",

@@ -168,7 +168,7 @@ MlirOperation mlirCirTailOp(MlirOpBuilder bldr, MlirLocation location,
 MlirOperation mlirCirTupleOp(MlirOpBuilder bldr, MlirLocation location,
                              intptr_t arity) {
   OpBuilder *builder = unwrap(bldr);
-  Type termTy = builder->getType<CIRTermType>();
+  Type termTy = builder->getType<CIROpaqueTermType>();
   SmallVector<Type, 2> elementTypes;
   for (auto i = 0; i < arity; i++)
     elementTypes.push_back(termTy);
@@ -183,7 +183,7 @@ MlirOperation mlirCirSetElementOp(MlirOpBuilder bldr, MlirLocation location,
                                   MlirValue value) {
 
   OpBuilder *builder = unwrap(bldr);
-  Type termTy = builder->getType<CIRTermType>();
+  Type termTy = builder->getType<CIROpaqueTermType>();
   Operation *op = builder->create<cir::SetElementOp>(
       unwrap(location), termTy, unwrap(tuple), unwrap(index), unwrap(value));
   return wrap(op);
@@ -406,7 +406,7 @@ MlirOperation mlirFuncCallByOp(MlirOpBuilder bldr, MlirLocation location,
   SmallVector<Value, 2> argStorage;
   ValueRange args(unwrapList(argc, argv, argStorage));
   return wrap(
-      unwrap(bldr)->create<func::CallOp>(unwrap(location), callee, args));
+      unwrap(bldr)->create<cir::CallOp>(unwrap(location), callee, args));
 }
 
 MlirOperation mlirFuncCallBySymbol(MlirOpBuilder bldr, MlirLocation location,
@@ -418,8 +418,8 @@ MlirOperation mlirFuncCallBySymbol(MlirOpBuilder bldr, MlirLocation location,
   SmallVector<Type, 2> resultStorage;
   ValueRange args(unwrapList(argc, argv, argStorage));
   TypeRange results(unwrapList(resultsc, resultv, resultStorage));
-  return wrap(unwrap(bldr)->create<func::CallOp>(unwrap(location), callee,
-                                                 results, args));
+  return wrap(unwrap(bldr)->create<cir::CallOp>(unwrap(location), callee,
+                                                results, args));
 }
 
 MlirOperation mlirFuncCallByName(MlirOpBuilder bldr, MlirLocation location,
@@ -429,7 +429,7 @@ MlirOperation mlirFuncCallByName(MlirOpBuilder bldr, MlirLocation location,
   auto callee = unwrap(calleeRef);
   SmallVector<Type, 2> resultStorage;
   SmallVector<Value, 2> argStorage;
-  return wrap(unwrap(bldr)->create<func::CallOp>(
+  return wrap(unwrap(bldr)->create<cir::CallOp>(
       unwrap(location), callee, unwrapList(resultsc, resultsv, resultStorage),
       unwrapList(argc, argv, argStorage)));
 }

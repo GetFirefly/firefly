@@ -11,6 +11,7 @@ pub enum DialectType {
     Other,
     None,
     CIR,
+    Arithmetic,
     Func,
     ControlFlow,
     SCF,
@@ -21,6 +22,7 @@ impl DialectType {
         match self {
             Self::Other | Self::None => None,
             Self::CIR => Some("cir"),
+            Self::Arithmetic => Some("arith"),
             Self::Func => Some("func"),
             Self::ControlFlow => Some("cf"),
             Self::SCF => Some("scf"),
@@ -92,6 +94,7 @@ impl DialectHandle {
         match ty {
             DialectType::Other | DialectType::None => None,
             DialectType::CIR => Some(unsafe { mlir_dialect_handle_get_cir() }),
+            DialectType::Arithmetic => Some(unsafe { mlir_dialect_handle_get_arith() }),
             DialectType::Func => Some(unsafe { mlir_dialect_handle_get_func() }),
             DialectType::ControlFlow => Some(unsafe { mlir_dialect_handle_get_cf() }),
             DialectType::SCF => Some(unsafe { mlir_dialect_handle_get_scf() }),
@@ -178,6 +181,8 @@ extern "C" {
     fn mlir_dialect_get_namespace(dialect: Dialect) -> StringRef;
     #[link_name = "mlirGetDialectHandle__cir__"]
     fn mlir_dialect_handle_get_cir() -> DialectHandle;
+    #[link_name = "mlirGetDialectHandle__arith__"]
+    fn mlir_dialect_handle_get_arith() -> DialectHandle;
     #[link_name = "mlirGetDialectHandle__func__"]
     fn mlir_dialect_handle_get_func() -> DialectHandle;
     #[link_name = "mlirGetDialectHandle__cf__"]

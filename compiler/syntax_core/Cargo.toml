@@ -15,9 +15,9 @@ lazy_static = "1.4"
 liblumen_arena = { path = "../../liblumen_arena" }
 liblumen_binary = { path = "../binary" }
 liblumen_compiler_macros = { path = "../macros" }
-liblumen_number = { path = "../number" }
 liblumen_diagnostics = { path = "../diagnostics" }
 liblumen_intern = { path = "../intern" }
+liblumen_number = { path = "../number" }
 liblumen_util = { path = "../../liblumen_util" }
 paste = "1.0"
 thiserror = "1.0"

@@ -111,7 +111,7 @@ bool mlir::cir::isCIRType(Type type) {
   // clang-format off
   if (type.isa<
       CIRNoneType,
-      CIRTermType,
+      CIROpaqueTermType,
       CIRNumberType,
       CIRIntegerType,
       CIRFloatType,
@@ -143,30 +143,7 @@ bool mlir::cir::isCIRType(Type type) {
 }
 
 bool mlir::cir::isTermType(Type type) {
-  // clang-format off
-  if (type.isa<
-      CIRNoneType,
-      CIRTermType,
-      CIRNumberType,
-      CIRIntegerType,
-      CIRFloatType,
-      CIRAtomType,
-      CIRBoolType,
-      CIRIsizeType,
-      CIRBigIntType,
-      CIRNilType,
-      CIRConsType,
-      TupleType,
-      CIRMapType,
-      CIRFunType,
-      CIRBitsType,
-      CIRHeapbinType,
-      CIRProcbinType,
-      CIRBoxType,
-      CIRPidType,
-      CIRReferenceType
-    >()) {
-    // clang-format on
+  if (type.isa<TermType, TupleType>()) {
     return true;
   }
   return false;

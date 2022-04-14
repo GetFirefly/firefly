@@ -79,8 +79,8 @@ impl Pass for SemanticAnalysis {
             }
         }
 
-        let mut passes = DefinePseudoLocals
-            .chain(AddAutoImports)
+        let mut passes = AddAutoImports
+            //.chain(DefinePseudoLocals)
             .chain(VerifyOnLoadFunctions::new(self.reporter.clone()))
             .chain(VerifyTypeSpecs::new(self.reporter.clone()));
 

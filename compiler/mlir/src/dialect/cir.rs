@@ -157,6 +157,292 @@ extern "C" {
     fn mlir_cir_endianness_attr_valueof(attr: AttributeBase) -> Endianness;
 }
 
+/// NoneAttr is used to represent a constant none value
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NoneAttr(AttributeBase);
+impl NoneAttr {
+    #[inline]
+    pub fn get(context: Context) -> Self {
+        unsafe { mlir_cir_none_attr_get(context) }
+    }
+}
+impl Attribute for NoneAttr {
+    #[inline]
+    fn base(&self) -> AttributeBase {
+        self.0
+    }
+}
+impl TryFrom<AttributeBase> for NoneAttr {
+    type Error = ();
+
+    #[inline]
+    fn try_from(attr: AttributeBase) -> Result<Self, Self::Error> {
+        if unsafe { mlir_cir_none_attr_isa(attr) } {
+            Ok(Self(attr))
+        } else {
+            Err(())
+        }
+    }
+}
+impl ::std::fmt::Debug for NoneAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "NoneAttr({:p})", &self.0)
+    }
+}
+impl ::std::fmt::Display for NoneAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}", self.base())
+    }
+}
+
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn get_none_attr(&self) -> NoneAttr {
+        NoneAttr::get(self.context())
+    }
+}
+
+extern "C" {
+    #[link_name = "mlirCirNoneAttrGet"]
+    fn mlir_cir_none_attr_get(context: Context) -> NoneAttr;
+    #[link_name = "mlirCirNoneAttrIsA"]
+    fn mlir_cir_none_attr_isa(attr: AttributeBase) -> bool;
+}
+
+/// NilAttr is used to represent a constant nil value
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct NilAttr(AttributeBase);
+impl NilAttr {
+    #[inline]
+    pub fn get(context: Context) -> Self {
+        unsafe { mlir_cir_nil_attr_get(context) }
+    }
+}
+impl Attribute for NilAttr {
+    #[inline]
+    fn base(&self) -> AttributeBase {
+        self.0
+    }
+}
+impl TryFrom<AttributeBase> for NilAttr {
+    type Error = ();
+
+    #[inline]
+    fn try_from(attr: AttributeBase) -> Result<Self, Self::Error> {
+        if unsafe { mlir_cir_nil_attr_isa(attr) } {
+            Ok(Self(attr))
+        } else {
+            Err(())
+        }
+    }
+}
+impl ::std::fmt::Debug for NilAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "NilAttr({:p})", &self.0)
+    }
+}
+impl ::std::fmt::Display for NilAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}", self.base())
+    }
+}
+
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn get_nil_attr(&self) -> NilAttr {
+        NilAttr::get(self.context())
+    }
+}
+
+extern "C" {
+    #[link_name = "mlirCirNilAttrGet"]
+    fn mlir_cir_nil_attr_get(context: Context) -> NilAttr;
+    #[link_name = "mlirCirNilAttrIsA"]
+    fn mlir_cir_nil_attr_isa(attr: AttributeBase) -> bool;
+}
+
+/// BoolAttr is used to represent a constant boolean atom value
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct BoolAttr(AttributeBase);
+impl BoolAttr {
+    #[inline]
+    pub fn get(context: Context, value: bool) -> Self {
+        unsafe { mlir_cir_bool_attr_get(context, value) }
+    }
+
+    #[inline]
+    pub fn value(&self) -> bool {
+        unsafe { mlir_cir_bool_attr_value_of(self.base()) }
+    }
+}
+impl Attribute for BoolAttr {
+    #[inline]
+    fn base(&self) -> AttributeBase {
+        self.0
+    }
+}
+impl TryFrom<AttributeBase> for BoolAttr {
+    type Error = ();
+
+    #[inline]
+    fn try_from(attr: AttributeBase) -> Result<Self, Self::Error> {
+        if unsafe { mlir_cir_bool_attr_isa(attr) } {
+            Ok(Self(attr))
+        } else {
+            Err(())
+        }
+    }
+}
+impl ::std::fmt::Debug for BoolAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "BoolAttr({:p})", &self.0)
+    }
+}
+impl ::std::fmt::Display for BoolAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}", self.base())
+    }
+}
+
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn get_bool_attr(&self, value: bool) -> BoolAttr {
+        BoolAttr::get(self.context(), value)
+    }
+}
+
+extern "C" {
+    #[link_name = "mlirCirBoolAttrGet"]
+    fn mlir_cir_bool_attr_get(contxt: Context, value: bool) -> BoolAttr;
+    #[link_name = "mlirCirBoolAttrIsA"]
+    fn mlir_cir_bool_attr_isa(attr: AttributeBase) -> bool;
+    #[link_name = "mlirCirBoolAttrValueOf"]
+    fn mlir_cir_bool_attr_value_of(attr: AttributeBase) -> bool;
+}
+
+/// IsizeAttr is used to represent a constant isize value
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsizeAttr(AttributeBase);
+impl IsizeAttr {
+    #[inline]
+    pub fn get(context: Context, value: u64) -> Self {
+        unsafe { mlir_cir_isize_attr_get(context, value) }
+    }
+
+    #[inline]
+    pub fn value(&self) -> u64 {
+        unsafe { mlir_cir_isize_attr_value_of(self.base()) }
+    }
+}
+impl Attribute for IsizeAttr {
+    #[inline]
+    fn base(&self) -> AttributeBase {
+        self.0
+    }
+}
+impl TryFrom<AttributeBase> for IsizeAttr {
+    type Error = ();
+
+    #[inline]
+    fn try_from(attr: AttributeBase) -> Result<Self, Self::Error> {
+        if unsafe { mlir_cir_isize_attr_isa(attr) } {
+            Ok(Self(attr))
+        } else {
+            Err(())
+        }
+    }
+}
+impl ::std::fmt::Debug for IsizeAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "IsizeAttr({:p})", &self.0)
+    }
+}
+impl ::std::fmt::Display for IsizeAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}", self.base())
+    }
+}
+
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn get_isize_attr(&self, value: u64) -> IsizeAttr {
+        IsizeAttr::get(self.context(), value)
+    }
+}
+
+extern "C" {
+    #[link_name = "mlirCirIsizeAttrGet"]
+    fn mlir_cir_isize_attr_get(contxt: Context, value: u64) -> IsizeAttr;
+    #[link_name = "mlirCirIsizeAttrIsA"]
+    fn mlir_cir_isize_attr_isa(attr: AttributeBase) -> bool;
+    #[link_name = "mlirCirIsizeAttrValueOf"]
+    fn mlir_cir_isize_attr_value_of(attr: AttributeBase) -> u64;
+}
+
+/// FloatAttr is used to represent a constant floating-point value
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct FloatAttr(AttributeBase);
+impl FloatAttr {
+    #[inline]
+    pub fn get(context: Context, value: f64) -> Self {
+        unsafe { mlir_cir_float_attr_get(context, value) }
+    }
+
+    #[inline]
+    pub fn value(&self) -> f64 {
+        unsafe { mlir_cir_float_attr_value_of(self.base()) }
+    }
+}
+impl Attribute for FloatAttr {
+    #[inline]
+    fn base(&self) -> AttributeBase {
+        self.0
+    }
+}
+impl TryFrom<AttributeBase> for FloatAttr {
+    type Error = ();
+
+    #[inline]
+    fn try_from(attr: AttributeBase) -> Result<Self, Self::Error> {
+        if unsafe { mlir_cir_float_attr_isa(attr) } {
+            Ok(Self(attr))
+        } else {
+            Err(())
+        }
+    }
+}
+impl ::std::fmt::Debug for FloatAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "FloatAttr({:p})", &self.0)
+    }
+}
+impl ::std::fmt::Display for FloatAttr {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}", self.base())
+    }
+}
+
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn get_float_attr(&self, value: f64) -> FloatAttr {
+        FloatAttr::get(self.context(), value)
+    }
+}
+
+extern "C" {
+    #[link_name = "mlirCirFloatAttrGet"]
+    fn mlir_cir_float_attr_get(contxt: Context, value: f64) -> FloatAttr;
+    #[link_name = "mlirCirFloatAttrIsA"]
+    fn mlir_cir_float_attr_isa(attr: AttributeBase) -> bool;
+    #[link_name = "mlirCirFloatAttrValueOf"]
+    fn mlir_cir_float_attr_value_of(attr: AttributeBase) -> f64;
+}
+
 //----------------------------
 // Types
 //----------------------------

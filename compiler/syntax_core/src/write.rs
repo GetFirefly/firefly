@@ -4,8 +4,15 @@ use std::io::{self, Write};
 use super::{Block, DataFlowGraph, Function, Inst, Value};
 
 pub fn write_function(w: &mut dyn Write, func: &Function) -> io::Result<()> {
+    let is_public = func.signature.visibility.is_public();
+    if is_public {
+        write!(w, "pub ")?;
+    }
     write!(w, "function ")?;
     write_spec(w, func)?;
+    if func.signature.visibility.is_externally_defined() {
+        return Ok(());
+    }
     writeln!(w, " {{")?;
     let mut any = false;
     for (block, block_data) in func.dfg.blocks() {
@@ -95,8 +102,20 @@ fn write_instruction(
 
     let opcode = func.dfg[inst].opcode();
     write!(w, "{}", opcode)?;
-
     write_operands(w, &func.dfg, inst)?;
+
+    if has_results {
+        write!(w, "  : ")?;
+        for (i, v) in func.dfg.inst_results(inst).iter().enumerate() {
+            let t = func.dfg.value_type(*v).to_string();
+            if i > 0 {
+                write!(w, ", {}", t)?;
+            } else {
+                write!(w, "{}", t)?;
+            }
+        }
+    }
+
     writeln!(w)?;
 
     Ok(())

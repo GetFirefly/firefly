@@ -145,7 +145,6 @@ impl<'m> ModuleBuilder<'m> {
 
     /// Builds an MLIR module from the underlying syntax_core module, consuming the builder
     pub fn build(mut self) -> anyhow::Result<Result<mlir::OwnedModule, mlir::OwnedModule>> {
-        use liblumen_mlir::transforms::CanonicalizerPass;
         use liblumen_mlir::{PassManager, PassManagerOptions};
 
         let module_name = self.module.name();
@@ -179,11 +178,10 @@ impl<'m> ModuleBuilder<'m> {
         let mut pm_opts = PassManagerOptions::new(self.options);
         pm_opts.enable_verifier = false;
         let mut pm = PassManager::new(self.mlir_module.context(), &pm_opts);
-        CanonicalizerPass::register();
-        dbg!("registered pass");
-        pm.add(CanonicalizerPass::new());
-        //pm.add(InlinerPass::new());
-        //pm.add(ControlFlowSinkPass::new());
+        pm.parse_pipeline("builtin.module(func.func(canonicalize))")
+            .unwrap();
+        //opt_pm.add(InlinerPass::new());
+        //opt_pm.add(ControlFlowSinkPass::new());
 
         let successful = pm.run(&self.mlir_module);
         if !successful {

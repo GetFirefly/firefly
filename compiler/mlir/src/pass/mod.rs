@@ -22,13 +22,18 @@ pub trait Pass {
     fn to_owned(self) -> OwnedPass;
 }
 
-/// A marker trait for passes which only run on a specific type of operation
+/// A marker trait for passes which run on a specific type of operation
 pub trait OpPass<T: Operation>: Pass {}
 
 /// This type is an opaque handle for passes obtained via MLIR's C API
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct PassBase(*mut MlirPass);
+impl std::fmt::Pointer for PassBase {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:p}", self.0)
+    }
+}
 
 /// Represents a pass whose ownership was handed over to Rust
 ///
@@ -53,6 +58,11 @@ impl Pass for OwnedPass {
 impl OwnedPass {
     pub fn release(self) -> PassBase {
         self.0
+    }
+}
+impl std::fmt::Pointer for OwnedPass {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:p}", self.0)
     }
 }
 impl Drop for OwnedPass {

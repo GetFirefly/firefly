@@ -18,11 +18,11 @@ bool mlirCirIsANoneType(MlirType type) {
 }
 
 MlirType mlirCirTermTypeGet(MlirContext ctx) {
-  return wrap(CIRTermType::get(unwrap(ctx)));
+  return wrap(CIROpaqueTermType::get(unwrap(ctx)));
 }
 
 bool mlirCirIsATermType(MlirType type) {
-  return unwrap(type).isa<CIRTermType>();
+  return unwrap(type).isa<CIROpaqueTermType>();
 }
 
 MlirType mlirCirNumberTypeGet(MlirContext ctx) {

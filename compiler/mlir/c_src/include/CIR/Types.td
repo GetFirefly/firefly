@@ -12,7 +12,7 @@ include "mlir/IR/SubElementInterfaces.td"
 //===----------------------------------------------------------------------===//
 
 // Type constraint accepting any term type
-def CIR_AnyTerm : Type<CPred<"::mlir::cir::isCIRType($_self)">, "any valid term type">;
+def CIR_AnyTerm : Type<CPred<"::mlir::cir::isTermType($_self)">, "any valid term type">;
 
 // Type constraint accepting any pointer-width type
 def CIR_Immediate : Type<CPred<"::mlir::cir::isImmediateType($_self)">, "any type which represents a valid immediate">;
@@ -54,7 +54,7 @@ class PtrOf<Type pointee> : Type<
 
 class CIR_Type<string name, list<Trait> traits = [],
              string baseCppClass = "::mlir::Type">
-    : TypeDef<CIR_Dialect, !strconcat("CIR", name), traits, baseCppClass> {
+    : TypeDef<CIR_Dialect, !strconcat("CIR", name), !listconcat(traits, [TermTypeInterface]), baseCppClass> {
   let mnemonic = ?;
 
   let extraClassDeclaration = [{
@@ -82,9 +82,13 @@ def CIR_NoneType : CIR_ImmediateType<"None"> {
   let summary = "A type that represents an invalid term, and has a corresponding runtime representation";
 }
 
-def CIR_TermType : CIR_ImmediateType<"Term"> {
+def CIR_OpaqueTermType : TypeDef<CIR_Dialect, "CIROpaqueTerm", [ImmediateTypeInterface, TermTypeInterface], "::mlir::Type"> {
   let mnemonic = "term";
   let summary = "A type that represents a valid term of unknown concrete type. It can be treated as an immediate";
+
+  let extraClassDeclaration = [{
+    ::lumen::TermKind::Kind getTermKind() { return ::lumen::TermKind::Term; }
+  }];
 }
 
 def CIR_NumberType : CIR_Type<"Number"> {

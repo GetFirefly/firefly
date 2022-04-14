@@ -328,6 +328,7 @@ impl<'m> LowerFunctionToCore<'m> {
         let guard_sequence_passed = builder.create_block();
         let guard_blocks = guard_sequence
             .iter()
+            .skip(1) // Skip the first block as we use the entry for it
             .map(|guard| {
                 let guard_block = builder.create_block();
                 builder.append_block_param(guard_block, Type::Exception, guard.span);

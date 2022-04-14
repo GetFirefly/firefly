@@ -13,6 +13,8 @@ extern "C" {
 
 MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(CIR, cir);
 
+MLIR_DECLARE_CAPI_DIALECT_REGISTRATION(Arithmetic, arith);
+
 //===----------------------------------------------------------------------===//
 /// Types
 //===----------------------------------------------------------------------===//
@@ -99,6 +101,32 @@ MLIR_CAPI_EXPORTED bool mlirCirIsABinaryBuilderType(MlirType type);
 //===----------------------------------------------------------------------===//
 /// Attributes
 //===----------------------------------------------------------------------===//
+
+/// Creates a cir.none attribute
+MLIR_CAPI_EXPORTED MlirAttribute mlirCirNoneAttrGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirNoneAttrIsA(MlirAttribute attr);
+
+/// Creates a cir.nil attribute
+MLIR_CAPI_EXPORTED MlirAttribute mlirCirNilAttrGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirNilAttrIsA(MlirAttribute attr);
+
+/// Creates a cir.bool attribute
+MLIR_CAPI_EXPORTED MlirAttribute mlirCirBoolAttrGet(MlirContext ctx,
+                                                    bool value);
+MLIR_CAPI_EXPORTED bool mlirCirBoolAttrIsA(MlirAttribute attr);
+MLIR_CAPI_EXPORTED bool mlirCirBoolAttrValueOf(MlirAttribute attr);
+
+/// Creates a cir.isize attribute
+MLIR_CAPI_EXPORTED MlirAttribute mlirCirIsizeAttrGet(MlirContext ctx,
+                                                     uint64_t value);
+MLIR_CAPI_EXPORTED bool mlirCirIsizeAttrIsA(MlirAttribute attr);
+MLIR_CAPI_EXPORTED uint64_t mlirCirIsizeAttrValueOf(MlirAttribute attr);
+
+/// Creates a cir.float attribute
+MLIR_CAPI_EXPORTED MlirAttribute mlirCirFloatAttrGet(MlirContext ctx,
+                                                     double value);
+MLIR_CAPI_EXPORTED bool mlirCirFloatAttrIsA(MlirAttribute attr);
+MLIR_CAPI_EXPORTED double mlirCirFloatAttrValueOf(MlirAttribute attr);
 
 /// Creates a cir.atom attribute
 MLIR_CAPI_EXPORTED MlirAttribute mlirCirAtomAttrGet(AtomRef atom, MlirType ty);

@@ -156,8 +156,11 @@ impl OwnedContext {
         let scf_dialect = DialectHandle::get(DialectType::SCF).unwrap();
         let cir_dialect = DialectHandle::get(DialectType::CIR).unwrap();
 
-        // Register all of the dialects we use
-        llvm_dialect.register(context);
+        // LLVM requires special registration as its LLVM IR translation interface needs registering as well
+        unsafe {
+            mlir_context_register_llvm_dialect_translation(context);
+        }
+        // Register the remaining dialects we use
         arith_dialect.register(context);
         func_dialect.register(context);
         cf_dialect.register(context);
@@ -165,6 +168,7 @@ impl OwnedContext {
         cir_dialect.register(context);
         // Load the CIR dialect, which will trigger loading of its dependent dialects
         cir_dialect.load(context);
+        llvm_dialect.load(context);
 
         // The diagnostics callback expects a reference to our global diagnostics handler
         diagnostics::register_diagnostics_handler(context, diagnostics);
@@ -250,4 +254,6 @@ extern "C" {
     fn mlir_context_get_or_load_dialect(context: Context, name: StringRef) -> Dialect;
     #[link_name = "mlirContextIsRegisteredOperation"]
     fn mlir_context_is_registered_operation(context: Context, name: StringRef) -> bool;
+    #[link_name = "mlirContextRegisterLLVMDialectTranslation"]
+    fn mlir_context_register_llvm_dialect_translation(context: Context);
 }

@@ -5,9 +5,25 @@
 #include "CIR/Types.h"
 
 #include "mlir/CAPI/IR.h"
+#include "mlir/CAPI/Support.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 using namespace mlir;
 using namespace mlir::cir;
+
+//===----------------------------------------------------------------------===//
+/// LinkageAttr
+//===----------------------------------------------------------------------===//
+
+/// Creates a llvm.linkage attribute
+MlirAttribute mlirLLVMLinkageAttrGet(MlirContext ctx, MlirStringRef name) {
+  auto linkage = LLVM::linkage::symbolizeLinkage(unwrap(name));
+  return wrap(LLVM::LinkageAttr::get(unwrap(ctx), linkage.getValue()));
+}
+
+bool mlirLLVMLinkageAttrIsA(MlirAttribute attr) {
+  return unwrap(attr).isa<LLVM::LinkageAttr>();
+}
 
 //===----------------------------------------------------------------------===//
 /// NoneAttr

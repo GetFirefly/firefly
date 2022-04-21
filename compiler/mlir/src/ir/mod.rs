@@ -188,17 +188,29 @@ pub trait Builder {
     fn get_none_type(&self) -> NoneType {
         unsafe { mlir_builder_get_none_type(self.base()) }
     }
+    /// Get a type representing a 1D vector of `element_ty` and `arity`
+    fn get_array_type<T: Type>(&self, element_ty: T, arity: usize) -> VectorType {
+        VectorType::get(element_ty, &[arity as u64])
+    }
+    /// Get a type representing an N-dimensional vector of `element_ty` and `arity`
+    fn get_vector_type<T: Type>(&self, element_ty: T, shape: &[u64]) -> VectorType {
+        VectorType::get(element_ty, shape)
+    }
     /// Associate the given name to the provided attribute value as a `NamedAttribute`
     fn get_named_attr<S: Into<StringRef>, A: Attribute>(
         &self,
         name: S,
         value: A,
     ) -> NamedAttribute {
-        unsafe { mlir_builder_get_named_attr(self.base(), name.into(), value.base()) }
+        NamedAttribute::get(self.get_string_attr(name), value)
     }
     /// Get an attribute which has no value (i.e. its presence is significant)
     fn get_unit_attr(&self) -> UnitAttr {
         unsafe { mlir_builder_get_unit_attr(self.base()) }
+    }
+    /// Get an attribute which has a type value
+    fn get_type_attr<T: Type>(&self, ty: T) -> TypeAttr {
+        TypeAttr::get(ty)
     }
     /// Get an attribute which has a boolean value
     fn get_bool_attr(&self, value: bool) -> BoolAttr {
@@ -650,12 +662,6 @@ extern "C" {
     #[link_name = "mlirBuilderGetNoneType"]
     fn mlir_builder_get_none_type(builder: BuilderBase) -> NoneType;
 
-    #[link_name = "mlirBuilderGetNamedAttr"]
-    fn mlir_builder_get_named_attr(
-        builder: BuilderBase,
-        name: StringRef,
-        val: AttributeBase,
-    ) -> NamedAttribute;
     #[link_name = "mlirBuilderGetUnitAttr"]
     fn mlir_builder_get_unit_attr(builder: BuilderBase) -> UnitAttr;
     #[link_name = "mlirBuilderGetBoolAttr"]

@@ -82,6 +82,8 @@ template <> struct FieldParser<APInt> {
   }
 };
 
+int64_t IsizeAttr::getInt() const { return getValue().getSExtValue(); }
+
 //===----------------------------------------------------------------------===//
 /// CIRFloatAttr
 //===----------------------------------------------------------------------===//

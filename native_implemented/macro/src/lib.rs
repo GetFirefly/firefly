@@ -126,8 +126,8 @@ fn function_symbol() -> proc_macro2::TokenStream {
     quote! {
         pub fn function_symbol() -> liblumen_core::symbols::FunctionSymbol {
             liblumen_core::symbols::FunctionSymbol {
-                module: super::module_id(),
-                function: function().id(),
+                module: super::module().name().as_ptr(),
+                function: function().name().as_ptr(),
                 arity: ARITY,
                 ptr: native as *const std::ffi::c_void
             }

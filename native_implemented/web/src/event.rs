@@ -32,7 +32,3 @@ fn from_term(term: Term) -> Result<&'static Event, exception::Exception> {
 fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.Event").unwrap()
 }
-
-fn module_id() -> usize {
-    module().id()
-}

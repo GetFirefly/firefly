@@ -31,7 +31,3 @@ async fn returns_integer_between_0_inclusive_and_max_exclusive() {
 fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Web.Math.RandomInteger1")
 }
-
-fn module_id() -> usize {
-    module().id()
-}

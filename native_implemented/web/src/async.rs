@@ -11,7 +11,3 @@ use liblumen_alloc::erts::term::prelude::*;
 fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Async")
 }
-
-fn module_id() -> usize {
-    module().id()
-}

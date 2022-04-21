@@ -8,7 +8,7 @@ use liblumen_number::{Float, Integer, Number};
 
 use cranelift_entity::entity_impl;
 
-use super::Type;
+use super::{TermType, Type};
 
 /// A handle that references a constant in the current context
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -32,12 +32,12 @@ pub enum Immediate {
 impl Immediate {
     pub fn ty(&self) -> Type {
         match self {
-            Self::Bool(_) => Type::Bool,
-            Self::Atom(_) => Type::Atom,
-            Self::Integer(_) => Type::Integer,
-            Self::Float(_) => Type::Float,
-            Self::Nil => Type::Nil,
-            Self::None => Type::Term,
+            Self::Bool(_) => Type::Term(TermType::Bool),
+            Self::Atom(_) => Type::Term(TermType::Atom),
+            Self::Integer(_) => Type::Term(TermType::Integer),
+            Self::Float(_) => Type::Term(TermType::Float),
+            Self::Nil => Type::Term(TermType::Nil),
+            Self::None => Type::Term(TermType::Any),
         }
     }
 }
@@ -342,14 +342,14 @@ impl Hash for ConstantItem {
 impl ConstantItem {
     pub fn ty(&self) -> Type {
         match self {
-            Self::Integer(_) => Type::Integer,
-            Self::Float(_) => Type::Float,
-            Self::Bool(_) => Type::Bool,
-            Self::Atom(_) => Type::Atom,
-            Self::Binary(_) => Type::Bitstring,
-            Self::Tuple(_) => Type::Tuple(None),
-            Self::List(_) => Type::List(None),
-            Self::Map(_) => Type::Map(None),
+            Self::Integer(_) => Type::Term(TermType::Integer),
+            Self::Float(_) => Type::Term(TermType::Float),
+            Self::Bool(_) => Type::Term(TermType::Bool),
+            Self::Atom(_) => Type::Term(TermType::Atom),
+            Self::Binary(_) => Type::Term(TermType::Bitstring),
+            Self::Tuple(_) => Type::Term(TermType::Tuple(None)),
+            Self::List(_) => Type::Term(TermType::List(None)),
+            Self::Map(_) => Type::Term(TermType::Map),
         }
     }
 

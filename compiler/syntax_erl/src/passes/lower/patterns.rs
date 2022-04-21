@@ -51,7 +51,11 @@ impl<'m> LowerFunctionToCore<'m> {
                             .eq_exact_imm(input, Immediate::Atom(l.name), pattern_span)
                     }
                     ast::Literal::String(l) => {
-                        let is_list = builder.ins().is_type(Type::List(None), input, pattern_span);
+                        let is_list = builder.ins().is_type(
+                            Type::Term(TermType::List(None)),
+                            input,
+                            pattern_span,
+                        );
                         builder
                             .ins()
                             .br_unless(is_list, pattern_fail, &[], pattern_span);
@@ -101,7 +105,9 @@ impl<'m> LowerFunctionToCore<'m> {
                 // if !is_type(Input, cons), then pattern_fail
                 // if Input.head != Pattern.head, then pattern_fail
                 // if Input.tail != Pattern.tail, then pattern_fail
-                let is_type = builder.ins().is_type(Type::List(None), input, span);
+                let is_type = builder
+                    .ins()
+                    .is_type(Type::Term(TermType::List(None)), input, span);
                 builder.ins().br_unless(is_type, pattern_fail, &[], span);
                 // Match the head
                 let hd = builder.ins().head(input, span);

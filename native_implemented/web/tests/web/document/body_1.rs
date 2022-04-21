@@ -61,7 +61,3 @@ async fn with_body() {
 fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Web.Document.Body1")
 }
-
-fn module_id() -> usize {
-    module().id()
-}

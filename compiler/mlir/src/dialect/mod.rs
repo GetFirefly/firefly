@@ -3,6 +3,7 @@ use std::fmt;
 use crate::*;
 
 pub mod cir;
+pub mod llvm;
 //include!(concat!(env!("OUT_DIR"), "/dialects.rs"));
 
 #[derive(Debug, Copy, Clone, PartialEq)]

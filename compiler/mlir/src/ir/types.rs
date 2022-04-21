@@ -359,6 +359,40 @@ extern "C" {
     fn mlir_integer_type_is_unsigned(ty: IntegerType) -> bool;
 }
 
+/// Represents the built-in MLIR vector type.
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct VectorType(TypeBase);
+impl VectorType {
+    pub fn get<T: Type>(element_ty: T, shape: &[u64]) -> Self {
+        unsafe { mlir_vector_type_get(shape.len(), shape.as_ptr(), element_ty.base()) }
+    }
+}
+impl Type for VectorType {
+    #[inline]
+    fn base(&self) -> TypeBase {
+        self.0
+    }
+}
+impl TryFrom<TypeBase> for VectorType {
+    type Error = InvalidTypeCastError;
+
+    fn try_from(ty: TypeBase) -> Result<Self, Self::Error> {
+        if unsafe { mlir_type_isa_vector(ty) } {
+            Ok(Self(ty))
+        } else {
+            Err(InvalidTypeCastError)
+        }
+    }
+}
+
+extern "C" {
+    #[link_name = "mlirTypeIsAVector"]
+    fn mlir_type_isa_vector(ty: TypeBase) -> bool;
+    #[link_name = "mlirVectorTypeGet"]
+    fn mlir_vector_type_get(rank: usize, shape: *const u64, element_ty: TypeBase) -> VectorType;
+}
+
 /// Represents the built-in MLIR tuple type.
 ///
 /// Tuples can be of arbitrary size and shape, i.e. contain heterogenous elements.

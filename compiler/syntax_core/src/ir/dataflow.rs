@@ -219,20 +219,20 @@ impl DataFlowGraph {
                 }
                 // Binary matches produce three results, a success flag, the matched value, and the rest of the binary
                 Opcode::BitsMatch => {
-                    self.append_result(inst, Type::Bool);
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, ty);
-                    self.append_result(inst, Type::Bitstring);
+                    self.append_result(inst, Type::Term(TermType::Bitstring));
                     3
                 }
                 // Binary construction produces two results, a success flag and the new binary value
                 Opcode::BitsPush => {
-                    self.append_result(inst, Type::Bool);
-                    self.append_result(inst, Type::Bitstring);
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Bitstring));
                     2
                 }
                 // When a binary is constructed, a single result is returned, the constructed binary
                 Opcode::BitsCloseWritable => {
-                    self.append_result(inst, Type::Bitstring);
+                    self.append_result(inst, Type::Term(TermType::Bitstring));
                     1
                 }
                 // Constants/immediates have known types
@@ -242,12 +242,17 @@ impl DataFlowGraph {
                 | Opcode::ImmAtom
                 | Opcode::ImmNil
                 | Opcode::ImmNone
+                | Opcode::ImmNull
                 | Opcode::ConstBigInt
                 | Opcode::ConstBinary
                 | Opcode::ConstTuple
                 | Opcode::ConstList
                 | Opcode::ConstMap => {
                     self.append_result(inst, ty);
+                    1
+                }
+                Opcode::IsNull => {
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     1
                 }
                 // These arithmetic operators always return integers
@@ -258,12 +263,12 @@ impl DataFlowGraph {
                 | Opcode::Bsr
                 | Opcode::Div
                 | Opcode::Rem => {
-                    self.append_result(inst, Type::Integer);
+                    self.append_result(inst, Type::Term(TermType::Integer));
                     1
                 }
                 // These arithmetic operators always return floats
                 Opcode::Fdiv => {
-                    self.append_result(inst, Type::Float);
+                    self.append_result(inst, Type::Term(TermType::Float));
                     1
                 }
                 // These binary arithmetic operators are polymorphic on their argument types
@@ -274,15 +279,18 @@ impl DataFlowGraph {
                     };
                     let lhs_ty = self.value_type(lhs);
                     let rhs_ty = self.value_type(rhs);
-                    let ty = lhs_ty.coerce_to_numeric_with(rhs_ty);
-                    self.append_result(inst, ty);
+                    let ty = lhs_ty
+                        .as_term()
+                        .unwrap()
+                        .coerce_to_numeric_with(rhs_ty.as_term().unwrap());
+                    self.append_result(inst, Type::Term(ty));
                     1
                 }
                 // These unary arithmetic operators are polymorphic on their argument type
                 Opcode::Neg => {
                     let arg = self.inst_args(inst)[0];
-                    let ty = self.value_type(arg).coerce_to_numeric();
-                    self.append_result(inst, ty);
+                    let ty = self.value_type(arg).as_term().unwrap().coerce_to_numeric();
+                    self.append_result(inst, Type::Term(ty));
                     1
                 }
                 // These boolean operators always produce boolean outputs
@@ -301,32 +309,32 @@ impl DataFlowGraph {
                 | Opcode::Not
                 | Opcode::IsType
                 | Opcode::IsTaggedTuple => {
-                    self.append_result(inst, Type::Bool);
+                    self.append_result(inst, Type::Term(TermType::Bool));
                     1
                 }
                 // These ops have specific types they produce
                 Opcode::Cons | Opcode::ListConcat | Opcode::ListSubtract => {
-                    self.append_result(inst, Type::List(None));
+                    self.append_result(inst, Type::Term(TermType::List(None)));
                     1
                 }
                 Opcode::Head | Opcode::GetElement | Opcode::BuildStacktrace => {
-                    self.append_result(inst, Type::Term);
+                    self.append_result(inst, Type::Term(TermType::Any));
                     1
                 }
                 Opcode::Tail => {
-                    self.append_result(inst, Type::MaybeImproperList);
+                    self.append_result(inst, Type::Term(TermType::MaybeImproperList));
                     1
                 }
                 Opcode::Tuple | Opcode::SetElement => {
-                    self.append_result(inst, Type::Tuple(None));
+                    self.append_result(inst, Type::Term(TermType::Tuple(None)));
                     1
                 }
                 Opcode::Map | Opcode::MapPut | Opcode::MapUpdate => {
-                    self.append_result(inst, Type::Map(None));
+                    self.append_result(inst, Type::Term(TermType::Map));
                     1
                 }
                 Opcode::MakeFun | Opcode::CaptureFun => {
-                    self.append_result(inst, Type::Fun(None));
+                    self.append_result(inst, Type::Term(TermType::Fun(None)));
                     1
                 }
                 Opcode::RecvStart => {
@@ -341,23 +349,23 @@ impl DataFlowGraph {
                 }
                 Opcode::RecvPeek => {
                     // This primop returns the current message which the receive is inspecting
-                    self.append_result(inst, Type::Term);
+                    self.append_result(inst, Type::Term(TermType::Any));
                     1
                 }
                 Opcode::BitsInitWritable => {
-                    self.append_result(inst, Type::Bitstring);
+                    self.append_result(inst, Type::Term(TermType::Bitstring));
                     1
                 }
                 Opcode::ExceptionClass => {
-                    self.append_result(inst, Type::Atom);
+                    self.append_result(inst, Type::Term(TermType::Atom));
                     1
                 }
                 Opcode::ExceptionReason => {
-                    self.append_result(inst, Type::Term);
+                    self.append_result(inst, Type::Term(TermType::Any));
                     1
                 }
                 Opcode::ExceptionTrace => {
-                    self.append_result(inst, Type::List(None));
+                    self.append_result(inst, Type::Term(TermType::List(None)));
                     1
                 }
                 _ => 0,

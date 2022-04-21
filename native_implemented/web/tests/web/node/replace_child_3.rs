@@ -82,7 +82,3 @@ async fn with_new_child_returns_ok_replaced_child() {
 fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Web.Node.ReplaceChild3")
 }
-
-fn module_id() -> usize {
-    module().id()
-}

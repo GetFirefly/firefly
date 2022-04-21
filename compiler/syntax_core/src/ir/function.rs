@@ -343,8 +343,8 @@ impl Signature {
         let cc = CallConv::Erlang;
         let cap = name.arity as usize;
         let mut params = Vec::with_capacity(cap);
-        params.resize(cap, Type::Term);
-        let results = vec![Type::Term, Type::Exception];
+        params.resize(cap, Type::Term(TermType::Any));
+        let results = vec![Type::Term(TermType::Any), Type::Exception];
         Self {
             visibility,
             cc,

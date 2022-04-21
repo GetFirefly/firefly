@@ -227,10 +227,6 @@ pub fn module() -> Atom {
     Atom::from_str("erlang")
 }
 
-pub fn module_id() -> usize {
-    module().id()
-}
-
 // Private
 
 fn cancel_timer(

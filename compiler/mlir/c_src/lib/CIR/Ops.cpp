@@ -6,6 +6,7 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 
 using namespace mlir;
@@ -78,6 +79,37 @@ void CIRDialect::registerOperations() {
 }
 
 void CIRDialect::registerInterfaces() { addInterfaces<CIRInlinerInterface>(); }
+
+//===----------------------------------------------------------------------===//
+// DispatchTableOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult DispatchTableOp::verifyRegions() {
+  llvm::SmallSet<std::pair<StringRef, unsigned>, 16> entries;
+  for (auto &op : getBody()) {
+    if (isa<CirEndOp>(op))
+      continue;
+    if (!isa<DispatchEntryOp>(op))
+      return op.emitOpError("invalid operation within dispatch table, expected "
+                            "cir.dispatch_entry or cir.end");
+    auto entry = cast<DispatchEntryOp>(op);
+    StringRef name = entry.getFunction();
+    unsigned arity = entry.getArity();
+    auto value = std::make_pair(name, arity);
+    auto inserted = entries.insert(value);
+    if (!std::get<bool>(inserted)) {
+      return op.emitOpError("conflicting entry found in dispatch table");
+    }
+  }
+  return mlir::success();
+}
+
+void DispatchTableOp::appendTableEntry(Operation *op) {
+  assert(isa<DispatchEntryOp>(op) && "operation must be a DispatchEntryOp");
+  auto &body = getBody();
+  body.push_front(op);
+  // body.getOperations().insert(body.end(), op);
+}
 
 //===----------------------------------------------------------------------===//
 // CallOp
@@ -293,6 +325,18 @@ bool cir::ConstantOp::isBuildableWith(Attribute value, Type type) {
 
 OpFoldResult cir::ConstantOp::fold(ArrayRef<Attribute> operands) {
   return value();
+}
+
+//===----------------------------------------------------------------------===//
+// ConstantNullOp
+//===----------------------------------------------------------------------===//
+
+bool cir::ConstantNullOp::isBuildableWith(Attribute value, Type type) {
+  // The types must match
+  auto valueType = value.getType();
+  if (valueType != type)
+    return false;
+  return true;
 }
 
 //===----------------------------------------------------------------------===//

@@ -410,11 +410,11 @@ impl<'m> LowerFunctionToCore<'m> {
         // The result block is where the fork in control is rejoined, it receives a single block argument which is
         // either the normal return value, or the caught/wrapped exception value
         let result_block = builder.create_block();
-        let result = builder.append_block_param(result_block, Type::Term, span);
+        let result = builder.append_block_param(result_block, Type::Term(TermType::Any), span);
         // The exit block handles wrapping exit/error reasons in the {'EXIT', Reason} tuple
         // It receives a single block argument which corresponds to `Reason` in the previous sentence.
         let exit_block = builder.create_block();
-        let exit_reason = builder.append_block_param(exit_block, Type::Term, span);
+        let exit_reason = builder.append_block_param(exit_block, Type::Term(TermType::Any), span);
 
         // Now, in the landing pad, check what type of exception we have and branch accordingly
         builder.switch_to_block(landing_pad);

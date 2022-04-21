@@ -37,7 +37,7 @@ pub trait Attribute {
 /// such as the visibility and symbol of a function operation.
 #[repr(C)]
 pub struct NamedAttribute {
-    name: StringRef,
+    name: StringAttr,
     attr: AttributeBase,
 }
 impl Attribute for NamedAttribute {
@@ -51,8 +51,8 @@ impl NamedAttribute {
     /// NOTE: The NamedAttribute does not take ownership of
     /// either the name, or the attribute value.
     #[inline]
-    pub fn get<S: Into<StringRef>, A: Attribute>(name: S, value: A) -> Self {
-        unsafe { mlir_named_attribute_get(name.into(), value.base()) }
+    pub fn get<A: Attribute>(name: StringAttr, value: A) -> Self {
+        unsafe { mlir_named_attribute_get(name, value.base()) }
     }
 
     #[inline(always)]
@@ -61,8 +61,8 @@ impl NamedAttribute {
     }
 
     #[inline(always)]
-    pub fn name(&self) -> &StringRef {
-        &self.name
+    pub fn name(&self) -> StringRef {
+        self.name.value()
     }
 
     #[inline(always)]
@@ -73,7 +73,7 @@ impl NamedAttribute {
 
 extern "C" {
     #[link_name = "mlirNamedAttributeGet"]
-    fn mlir_named_attribute_get(name: StringRef, attr: AttributeBase) -> NamedAttribute;
+    fn mlir_named_attribute_get(name: StringAttr, attr: AttributeBase) -> NamedAttribute;
 }
 
 /// Represents a reference to an MLIR attribute
@@ -161,6 +161,7 @@ macro_rules! primitive_builtin_attr {
     ($name:ident, $mnemonic:ident) => {
         paste! {
             primitive_builtin_attr_impl!($name, $mnemonic, [<$name Attr>]);
+            primitive_builtin_attr_getter_impl!($name, $mnemonic, [<$name Attr>]);
         }
     };
 
@@ -188,13 +189,6 @@ macro_rules! primitive_builtin_attr_impl {
             #[inline]
             fn base(&self) -> AttributeBase {
                 self.0
-            }
-        }
-        impl $ty {
-            pub fn get(context: Context) -> Self {
-                paste! {
-                    unsafe { [<mlir_ $mnemonic _attr_get>](context) }
-                }
             }
         }
         impl TryFrom<AttributeBase> for $ty {
@@ -229,17 +223,39 @@ macro_rules! primitive_builtin_attr_impl {
         }
 
         paste! {
-            primitive_builtin_attr_impl!($ty, $name, $mnemonic, [<mlir $ty Get>], [<mlirAttrIsA $name>]);
+            primitive_builtin_attr_impl!($ty, $name, $mnemonic, [<mlirAttrIsA $name>]);
         }
     };
 
-    ($ty:ident, $name:ident, $mnemonic:ident, $get_name:ident, $isa_name:ident) => {
+    ($ty:ident, $name:ident, $mnemonic:ident, $isa_name:ident) => {
+        extern "C" {
+            paste! {
+                #[link_name = stringify!($isa_name)]
+                fn [<mlir_attr_isa_ $mnemonic>](attr: AttributeBase) -> bool;
+            }
+        }
+    };
+}
+
+macro_rules! primitive_builtin_attr_getter_impl {
+    ($name:ident, $mnemonic:ident, $ty:ident) => {
+        paste! {
+            primitive_builtin_attr_getter_impl!($name, $mnemonic, $ty, [<mlir $ty Get>]);
+        }
+    };
+
+    ($name:ident, $mnemonic:ident, $ty:ident, $get_name:ident) => {
+        impl $ty {
+            pub fn get(context: Context) -> Self {
+                paste! {
+                    unsafe { [<mlir_ $mnemonic _attr_get>](context) }
+                }
+            }
+        }
         extern "C" {
             paste! {
                 #[link_name = stringify!($get_name)]
                 fn [<mlir_ $mnemonic _attr_get>](context: Context) -> $ty;
-                #[link_name = stringify!($isa_name)]
-                fn [<mlir_attr_isa_ $mnemonic>](attr: AttributeBase) -> bool;
             }
         }
     };
@@ -248,12 +264,24 @@ macro_rules! primitive_builtin_attr_impl {
 macro_rules! primitive_builtin_attr_value_impl {
     ($name:ident, $mnemonic:ident, $ty:ident, $return_ty:ident) => {
         paste! {
-            primitive_builtin_attr_value_impl!($name, $mnemonic, $ty, $return_ty, [<mlir $ty GetValue>]);
+            primitive_builtin_attr_value_impl!($name, $mnemonic, $ty, $return_ty, [<mlir $ty GetValue>], [<mlir $ty Get>]);
         }
     };
 
     ($name:ident, $mnemonic:ident, $ty:ident, $return_ty:ident, $get_value_name:ident) => {
+        paste! {
+            primitive_builtin_attr_value_impl!($name, $mnemonic, $ty, $return_ty, $get_value_name, [<mlir $ty Get>]);
+        }
+    };
+
+    ($name:ident, $mnemonic:ident, $ty:ident, $return_ty:ident, $get_value_name:ident, $get_name:ident) => {
         impl $ty {
+            pub fn get(context: Context, value: $return_ty) -> Self {
+                paste! {
+                    unsafe { [<mlir_ $mnemonic _attr_get>](context, value) }
+                }
+            }
+
             pub fn value(self) -> $return_ty {
                 paste! {
                     unsafe { [<mlir_ $mnemonic _attr_get_value>](self) }
@@ -262,6 +290,8 @@ macro_rules! primitive_builtin_attr_value_impl {
         }
         extern "C" {
             paste! {
+                #[link_name = stringify!($get_name)]
+                fn [<mlir_ $mnemonic _attr_get>](context: Context, value: $return_ty) -> $ty;
                 #[link_name = stringify!($get_value_name)]
                 fn [<mlir_ $mnemonic _attr_get_value>](attr: $ty) -> $return_ty;
             }
@@ -270,8 +300,67 @@ macro_rules! primitive_builtin_attr_value_impl {
 }
 
 primitive_builtin_attr!(Unit, unit);
-primitive_builtin_attr!(Type, type, TypeBase);
 primitive_builtin_attr!(Bool, bool, bool);
+
+/// Represents the built-in MLIR attribute which holds a type value
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TypeAttr(AttributeBase);
+impl TypeAttr {
+    pub fn get<T: Type>(ty: T) -> Self {
+        extern "C" {
+            #[link_name = "mlirTypeAttrGet"]
+            fn mlir_type_attr_get(ty: TypeBase) -> TypeAttr;
+        }
+        unsafe { mlir_type_attr_get(ty.base()) }
+    }
+
+    pub fn value(&self) -> TypeBase {
+        extern "C" {
+            #[link_name = "mlirTypeAttrGetValue"]
+            fn mlir_type_attr_get_value(attr: AttributeBase) -> TypeBase;
+        }
+        unsafe { mlir_type_attr_get_value(self.0) }
+    }
+}
+impl Attribute for TypeAttr {
+    #[inline]
+    fn base(&self) -> AttributeBase {
+        self.0
+    }
+}
+impl TryFrom<AttributeBase> for TypeAttr {
+    type Error = InvalidTypeCastError;
+
+    fn try_from(attr: AttributeBase) -> Result<Self, Self::Error> {
+        extern "C" {
+            #[link_name = "mlirAttributeIsAType"]
+            fn mlir_attr_isa_type(attr: AttributeBase) -> bool;
+        }
+
+        if unsafe { mlir_attr_isa_type(attr) } {
+            Ok(Self(attr))
+        } else {
+            Err(InvalidTypeCastError)
+        }
+    }
+}
+impl Display for TypeAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", &self.0)
+    }
+}
+impl Eq for TypeAttr {}
+impl PartialEq for TypeAttr {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl PartialEq<AttributeBase> for TypeAttr {
+    fn eq(&self, other: &AttributeBase) -> bool {
+        self.0.eq(other)
+    }
+}
 
 /// Represents the built-in MLIR integer attribute which holds a variety of different integer types.
 #[repr(transparent)]

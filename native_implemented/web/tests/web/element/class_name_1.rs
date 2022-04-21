@@ -63,10 +63,6 @@ fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Web.Element.ClassName1")
 }
 
-fn module_id() -> usize {
-    module().id()
-}
-
 fn promise() -> js_sys::Promise {
     r#async::apply_3::promise(module(), test_0::function(), vec![], Default::default()).unwrap()
 }

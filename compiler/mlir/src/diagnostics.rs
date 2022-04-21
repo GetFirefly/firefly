@@ -179,15 +179,18 @@ pub(crate) extern "C" fn on_diagnostic(diag: Diagnostic, userdata: *const c_void
     ifd.with_message(diag.to_string());
     if let Some(loc) = diag.location() {
         ifd.set_source_file(loc.filename);
-        ifd.with_primary_label(loc.line, loc.column, Some("occurs here".to_owned()));
+        ifd.with_primary_label(
+            loc.line,
+            loc.column,
+            Some("during codegen of this expression".to_owned()),
+        );
     }
     for note in diag.notes() {
         append_note_to_diagnostic(note, &mut ifd);
     }
     ifd.emit();
 
-    // Do not propagate
-    LogicalResult::Failure
+    LogicalResult::Success
 }
 
 fn append_note_to_diagnostic(note: Diagnostic, ifd: &mut InFlightDiagnostic) {

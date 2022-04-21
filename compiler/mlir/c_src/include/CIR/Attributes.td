@@ -136,6 +136,8 @@ def CIR_IsizeAttr : CIR_Attr<"Isize"> {
 
   let extraClassDeclaration = [{
     using ValueType = APInt;
+
+    int64_t getInt() const;
   }];
 }
 

@@ -15,7 +15,9 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/SHA1.h"
 #include <algorithm>
 #include <functional>
 
@@ -44,10 +46,10 @@ public:
   using LLVMTypeConverter::convertType;
   using LLVMTypeConverter::getContext;
 
-  CIRTypeConverter(MLIRContext *ctx, bool enableNanboxing,
+  CIRTypeConverter(MLIRContext *ctx, bool enableNanboxing, bool isMachO,
                    const LowerToLLVMOptions &options,
                    const DataLayoutAnalysis *analysis = nullptr)
-      : LLVMTypeConverter(ctx, options, analysis),
+      : LLVMTypeConverter(ctx, options, analysis), useMachOMangling(isMachO),
         enableNanboxing(enableNanboxing) {
     addConversion([&](CIRNoneType) { return getIsizeType(); });
     addConversion([&](CIROpaqueTermType) { return getTermType(); });
@@ -78,9 +80,15 @@ public:
     addConversion([&](TupleType type) { return convertTupleType(type); });
   }
 
+  bool isMachO() { return useMachOMangling; }
+
   bool isNanboxingEnabled() {
     return enableNanboxing && getPointerBitwidth() == 64;
   }
+
+  Type getVoidType() { return LLVM::LLVMVoidType::get(&getContext()); }
+
+  Type getI8Type() { return IntegerType::get(&getContext(), 8); }
 
   // The following get*Type functions are all used to get the LLVM
   // representation of either a built-in type or a CIR type, _not_ the named
@@ -283,6 +291,24 @@ public:
     return recvCtxTy;
   }
 
+  // Corresponds to DispatchEntry in liblumen_alloc
+  Type getDispatchEntryType() {
+    MLIRContext *context = &getContext();
+    auto dispatchEntryTy =
+        LLVM::LLVMStructType::getIdentified(context, "erlang::DispatchEntry");
+    if (dispatchEntryTy.isInitialized())
+      return dispatchEntryTy;
+
+    auto i8Ty = getI8Type();
+    auto i8PtrTy = LLVM::LLVMPointerType::get(i8Ty);
+    auto opaqueFnTy =
+        LLVM::LLVMFunctionType::get(getVoidType(), ArrayRef<Type>{});
+    auto opaqueFnPtrTy = LLVM::LLVMPointerType::get(opaqueFnTy);
+    assert(succeeded(dispatchEntryTy.setBody(
+        {i8PtrTy, i8PtrTy, i8Ty, opaqueFnPtrTy}, /*packed=*/false)));
+    return dispatchEntryTy;
+  }
+
   // This function lowers a box type to its LLVM pointer equivalent
   Type convertBoxType(CIRBoxType ty) {
     Type pointee = convertType(ty.getElementType());
@@ -320,6 +346,7 @@ public:
   }
 
 private:
+  bool useMachOMangling;
   bool enableNanboxing;
 };
 } // namespace
@@ -352,6 +379,7 @@ protected:
 
   unsigned getPointerBitwidth() const { return encoding.pointerWidth; }
   bool isNanboxingEnabled() const { return encoding.supportsNanboxing; }
+  bool isMachO() const { return getTypeConverter()->isMachO(); }
   const lumen::Encoding &termEncoding() const { return encoding; }
 
   // We re-export type conversion functionality commonly used
@@ -366,6 +394,7 @@ protected:
   Type getIntType(unsigned bitwidth) const {
     return IntegerType::get(getContext(), bitwidth);
   }
+  Type getI1Type() const { return getIntType(1); }
   Type getI8Type() const { return getIntType(8); }
   Type getI32Type() const { return getIntType(32); }
   Type getI64Type() const { return getIntType(64); }
@@ -390,6 +419,9 @@ protected:
     return getTypeConverter()->getRecvContextType();
   }
   Type getMessageType() const { return getTypeConverter()->getMessageType(); }
+  Type getDispatchEntryType() const {
+    return getTypeConverter()->getDispatchEntryType();
+  }
 
   // The following are helpers intended to handle common builder use cases
 
@@ -492,6 +524,111 @@ protected:
     // Box the constant address
     Value ptr = builder.create<LLVM::AddressOfOp>(loc, headerConst);
     return encodeLiteralPtr(builder, loc, ptr);
+  }
+
+  // This function is used to obtain an atom value corresponding to the given
+  // StringRef
+  //
+  // For the boolean atoms, this is a constant value encoded as a term.
+  //
+  // For all other atoms, a string constant is defined in its own section, with
+  // linkonce_odr linkage, intended to be gathered together by the linker into
+  // an array of cstrings from which the global atom table will be initialized.
+  //
+  // A call to a special builtin that constructs an atom term from its value as
+  // a cstring is used to obtain the result value returned by this function.
+  Value createAtom(OpBuilder &builder, Location loc, StringRef name,
+                   ModuleOp &module) const {
+    if (name == "false")
+      return createTermConstant(builder, loc,
+                                encodeImmediate(lumen::TermKind::Atom, 0));
+    else if (name == "true")
+      return createTermConstant(builder, loc,
+                                encodeImmediate(lumen::TermKind::Atom, 1));
+
+    auto termTy = getTermType();
+    auto cstrTy = LLVM::LLVMPointerType::get(builder.getI8Type());
+
+    // Hash the atom to get a unique id based on the content
+    auto ptr = createAtomStringGlobal(builder, loc, module, name);
+
+    // Make sure we have a definition for the builtin that lets us obtain an
+    // atom from its CStr repr
+    Operation *callee = module.lookupSymbol("__lumen_builtin_atom_from_cstr");
+    if (!callee) {
+      auto calleeType =
+          LLVM::LLVMFunctionType::get(termTy, ArrayRef<Type>{cstrTy});
+      insertFunctionDeclaration(builder, loc, module,
+                                "__lumen_builtin_atom_from_cstr", calleeType);
+    }
+
+    // Call the builtin with the cstr pointer to get the atom value as a term
+    Operation *call = builder.create<LLVM::CallOp>(
+        loc, TypeRange(termTy), "__lumen_builtin_atom_from_cstr",
+        ValueRange(ptr));
+    return call->getResult(0);
+  }
+
+  // This function constructs a global null-terminated string constant which
+  // will be added to the global atom table
+  Value createAtomStringGlobal(OpBuilder &builder, Location loc,
+                               ModuleOp &module, StringRef value) const {
+    llvm::SHA1 hasher;
+    hasher.update(value);
+    auto globalName = std::string("atom_") + llvm::toHex(hasher.result(), true);
+
+    std::string sectionName;
+    if (isMachO())
+      sectionName = std::string("__TEXT,__atoms");
+    else
+      sectionName = std::string("__") + globalName;
+    auto sectionAttr =
+        builder.getNamedAttr("section", builder.getStringAttr(sectionName));
+    return createCStringGlobal(builder, loc, module, globalName, value,
+                               {sectionAttr});
+  }
+
+  // This function constructs a global null-terminated string constant with a
+  // given name and value.
+  //
+  // The name is optional, as a name will be generated if not provided.
+  // The value does not need to be null-terminated.
+  //
+  // The value returned is a pointer to the first byte of the string, i.e.
+  // `*const u8`
+  Value createCStringGlobal(OpBuilder &builder, Location loc, ModuleOp &module,
+                            StringRef name, StringRef value,
+                            ArrayRef<NamedAttribute> attrs) const {
+    // Hash the atom to get a unique id based on the content
+    std::string globalName;
+    if (name.empty()) {
+      llvm::SHA1 hasher;
+      hasher.update(value);
+      globalName = std::string("cstr_") + llvm::toHex(hasher.result(), true);
+    } else {
+      globalName = name.str();
+    }
+    auto data = value.str() += ((char)0);
+
+    // Create the global if it doesn't exist
+    auto strConst = module.lookupSymbol<LLVM::GlobalOp>(globalName);
+    auto charsTy = LLVM::LLVMArrayType::get(builder.getI8Type(), data.size());
+    auto cstrTy = LLVM::LLVMPointerType::get(builder.getI8Type());
+    if (!strConst) {
+      PatternRewriter::InsertionGuard insertGuard(builder);
+      builder.setInsertionPointToStart(module.getBody());
+
+      auto valueAttr = builder.getStringAttr(data);
+      strConst = builder.create<LLVM::GlobalOp>(
+          loc, charsTy, /*isConstant=*/true, LLVM::Linkage::LinkonceODR,
+          LLVM::ThreadLocalMode::NotThreadLocal, globalName, valueAttr,
+          /*alignment=*/0, /*addrspace=*/0, /*dso_local=*/false, attrs);
+    }
+
+    // Get a opaque cstr pointer to the constant we just created (or that
+    // already exists)
+    Value contentsPtr = builder.create<LLVM::AddressOfOp>(loc, strConst);
+    return builder.create<LLVM::BitcastOp>(loc, cstrTy, contentsPtr);
   }
 
   // The following helpers are all oriented around low-level encoding/decoding
@@ -737,10 +874,21 @@ protected:
     return lumen_immediate_mask(&encoding);
   }
 
+  LLVM::LLVMFuncOp
+  insertFunctionDeclaration(OpBuilder &builder, Location loc, ModuleOp module,
+                            StringRef name, LLVM::LLVMFunctionType type) const {
+    PatternRewriter::InsertionGuard insertGuard(builder);
+    builder.setInsertionPointToEnd(module.getBody());
+    return builder.create<LLVM::LLVMFuncOp>(loc, name, type);
+  }
+
   // This function inserts a reference to the thread-local global containing the
   // current process exception pointer
   LLVM::GlobalOp insertProcessExceptionThreadLocal(OpBuilder &builder,
-                                                   Location loc) const {
+                                                   Location loc,
+                                                   ModuleOp module) const {
+    PatternRewriter::InsertionGuard insertGuard(builder);
+    builder.setInsertionPointToStart(module.getBody());
     auto exceptionTy = getExceptionType();
     auto ty = LLVM::LLVMPointerType::get(exceptionTy);
     auto linkage = LLVM::Linkage::External;
@@ -753,7 +901,10 @@ protected:
   // This function inserts a reference to the thread-local global containing the
   // current process signal value
   LLVM::GlobalOp insertProcessSignalThreadLocal(OpBuilder &builder,
-                                                Location loc) const {
+                                                Location loc,
+                                                ModuleOp module) const {
+    PatternRewriter::InsertionGuard insertGuard(builder);
+    builder.setInsertionPointToStart(module.getBody());
     auto ty = builder.getI8Type();
     auto linkage = LLVM::Linkage::External;
     auto tlsMode = LLVM::ThreadLocalMode::LocalExec;
@@ -765,7 +916,10 @@ protected:
   // This function inserts a reference to the thread-local global containing the
   // current process reduction counter
   LLVM::GlobalOp insertReductionCountThreadLocal(OpBuilder &builder,
-                                                 Location loc) const {
+                                                 Location loc,
+                                                 ModuleOp module) const {
+    PatternRewriter::InsertionGuard insertGuard(builder);
+    builder.setInsertionPointToStart(module.getBody());
     auto ty = builder.getI32Type();
     auto linkage = LLVM::Linkage::External;
     auto tlsMode = LLVM::ThreadLocalMode::LocalExec;
@@ -876,27 +1030,25 @@ struct ConstantOpLowering : public ConvertCIROpToLLVMPattern<cir::ConstantOp> {
             })
             .Case<CIRIntegerType>([&](CIRIntegerType) {
               return createIntegerConstant(rewriter, loc,
-                                           attr.cast<IntegerAttr>().getInt());
+                                           attr.cast<IsizeAttr>().getInt());
             })
             .Case<CIRIsizeType>([&](CIRIsizeType) {
               return createIntegerConstant(rewriter, loc,
-                                           attr.cast<IntegerAttr>().getInt());
+                                           attr.cast<IsizeAttr>().getInt());
             })
             .Case<CIRFloatType>([&](CIRFloatType) {
               return createFloatConstant(
-                  rewriter, loc, attr.cast<FloatAttr>().getValue(), module);
+                  rewriter, loc, attr.cast<CIRFloatAttr>().getValue(), module);
             })
             .Case<CIRAtomType>([&](CIRAtomType) {
-              return createTermConstant(
-                  rewriter, loc,
-                  encodeImmediate(lumen::TermKind::Atom,
-                                  attr.cast<AtomAttr>().getSymbol()));
+              return createAtom(rewriter, loc, attr.cast<AtomAttr>().getName(),
+                                module);
             })
             .Case<CIRBoolType>([&](CIRBoolType) {
               return createTermConstant(
                   rewriter, loc,
                   encodeImmediate(lumen::TermKind::Atom,
-                                  attr.cast<BoolAttr>().getValue()));
+                                  attr.cast<CIRBoolAttr>().getValue()));
             })
             .Default([](Type) { return nullptr; });
 
@@ -905,6 +1057,120 @@ struct ConstantOpLowering : public ConvertCIROpToLLVMPattern<cir::ConstantOp> {
           op, "failed to lower constant, unsupported constant type");
 
     rewriter.replaceOp(op, {replacement});
+    return success();
+  }
+};
+
+//===---------===//
+// ConstantNullOp
+//===---------===//
+struct ConstantNullOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::ConstantNullOp> {
+  using ConvertCIROpToLLVMPattern<
+      cir::ConstantNullOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::ConstantNullOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto resultType = op.getResult().getType();
+
+    if (resultType.isa<TermType>()) {
+      Value none = createTermConstant(
+          rewriter, loc, encodeImmediate(lumen::TermKind::None, 0));
+      rewriter.replaceOp(op, {none});
+      return success();
+    }
+
+    auto ty = convertType(resultType);
+    rewriter.replaceOpWithNewOp<LLVM::NullOp>(op, ty);
+    return success();
+  }
+};
+
+//===---------===//
+// CallOp
+//===---------===//
+struct CallOpLowering : public ConvertCIROpToLLVMPattern<cir::CallOp> {
+  using ConvertCIROpToLLVMPattern<cir::CallOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::CallOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto calleeType = op.getCalleeType();
+    auto resultTypes = calleeType.getResults();
+
+    rewriter.replaceOpWithNewOp<func::CallOp>(op, adaptor.callee(), resultTypes,
+                                              adaptor.operands());
+    return success();
+  }
+};
+
+//===---------===//
+// CastOp
+//===---------===//
+struct CastOpLowering : public ConvertCIROpToLLVMPattern<cir::CastOp> {
+  using ConvertCIROpToLLVMPattern<cir::CastOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::CastOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto inputs = adaptor.inputs();
+    auto inputTypes = op.getInputTypes();
+    auto outputTypes = op.getResultTypes();
+
+    SmallVector<Value, 1> results;
+    for (auto it : llvm::enumerate(inputTypes)) {
+      Value input = inputs[it.index()];
+      Type inputType = it.value();
+      Type outputType = outputTypes[it.index()];
+
+      // Casts from concrete term type to opaque term type are no-ops
+      if (inputType.isa<TermType>() && outputType.isa<CIROpaqueTermType>()) {
+        results.push_back(input);
+      } else if (inputType.isa<CIRBoolType>() && outputType.isInteger(1)) {
+        // To cast from a boolean term to its value, we extract the atom symbol
+        // id and truncate to i1
+        Value symbol = decodeImmediateValue(rewriter, loc, input);
+        Value truncated =
+            rewriter.create<LLVM::TruncOp>(loc, getI1Type(), symbol);
+        results.push_back(truncated);
+      } else if (inputType.isInteger(1) && outputType.isa<TermType>()) {
+        // To cast from i1 to a boolean term, we treat the value as the symbol
+        // id, zext and encode as an atom
+        Value symbol =
+            rewriter.create<LLVM::ZExtOp>(loc, getIsizeType(), input);
+        Value encoded = encodeImmediateValue(
+            rewriter, loc, rewriter.getType<CIRAtomType>(), symbol);
+        results.push_back(encoded);
+      } else {
+        // No other casts are supported currently
+        return rewriter.notifyMatchFailure(
+            op,
+            "failed to lower cast, unsupported source/target type combination");
+      }
+    }
+
+    rewriter.replaceOp(op, results);
+    return success();
+  }
+};
+
+//===---------===//
+// IsNullOp
+//===---------===//
+struct IsNullOpLowering : public ConvertCIROpToLLVMPattern<cir::IsNullOp> {
+  using ConvertCIROpToLLVMPattern<cir::IsNullOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::IsNullOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto value = adaptor.value();
+    Value nullValue = rewriter.create<LLVM::NullOp>(loc, value.getType());
+    rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
+                                              value, nullValue);
     return success();
   }
 };
@@ -1313,8 +1579,8 @@ struct IsTaggedTupleOpLowering
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     auto input = adaptor.value();
+    auto module = op->getParentOfType<ModuleOp>();
     AtomAttr atom = adaptor.tag();
-    uint64_t symbol = atom.getSymbol();
 
     auto i1Ty = rewriter.getI1Type();
     auto i32Ty = rewriter.getI32Type();
@@ -1352,8 +1618,7 @@ struct IsTaggedTupleOpLowering
           Value elemPtr = builder.create<LLVM::GEPOp>(
               l, tupleTy, tuplePtr, ValueRange({zero, one, zero}));
           Value elem = builder.create<LLVM::LoadOp>(l, elemPtr);
-          Value expectedAtom = createIsizeConstant(
-              builder, l, encodeImmediate(lumen::TermKind::Atom, symbol));
+          Value expectedAtom = createAtom(builder, l, atom.getName(), module);
           Value isEq = builder.create<LLVM::ICmpOp>(l, LLVM::ICmpPredicate::eq,
                                                     elem, expectedAtom);
           builder.create<scf::YieldOp>(l, ValueRange({isEq}));
@@ -1642,17 +1907,29 @@ struct RaiseOpLowering : public ConvertCIROpToLLVMPattern<cir::RaiseOp> {
         module.lookupSymbol<LLVM::GlobalOp>("__lumen_process_exception");
     if (!exceptionTls)
       exceptionTls =
-          insertProcessExceptionThreadLocal(rewriter, module.getLoc());
+          insertProcessExceptionThreadLocal(rewriter, module.getLoc(), module);
 
     // Get a reference to the process signal enum
     auto signalTls =
         module.lookupSymbol<LLVM::GlobalOp>("__lumen_process_signal");
     if (!signalTls)
-      signalTls = insertProcessSignalThreadLocal(rewriter, module.getLoc());
+      signalTls =
+          insertProcessSignalThreadLocal(rewriter, module.getLoc(), module);
 
-    // Create the raw exception value using __lumen_builtin_raise/3
     auto exceptionTy = getExceptionType();
     auto exceptionPtrTy = LLVM::LLVMPointerType::get(exceptionTy);
+    auto klassTy = getTermType();
+    auto reasonTy = getTermType();
+    auto traceTy = getTraceType();
+    Operation *callee = module.lookupSymbol("__lumen_builtin_raise/3");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(
+          exceptionPtrTy, ArrayRef<Type>{klassTy, reasonTy, traceTy});
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__lumen_builtin_raise/3", calleeType);
+    }
+
+    // Create the raw exception value using __lumen_builtin_raise/3
     auto callOp = rewriter.create<LLVM::CallOp>(
         loc, TypeRange({exceptionPtrTy}), "__lumen_builtin_raise/3",
         ValueRange({klass, reason, trace}));
@@ -1670,13 +1947,13 @@ struct RaiseOpLowering : public ConvertCIROpToLLVMPattern<cir::RaiseOp> {
         loc, i8Ty, rewriter.getI8IntegerAttr(/*ProcessSignal::Error*/ 3));
     rewriter.create<LLVM::StoreOp>(loc, errorSignal, signalTlsPtr);
 
-    // Lastly, convert this op to a multi-value return where the result is None
-    // and the error flag is set to true
-    auto errorFlag = createIsizeConstant(rewriter, loc, 1);
+    // Lastly, convert this op to a multi-value return where the result is
+    // None and the error flag is set to true
+    // auto errorFlag = createIsizeConstant(rewriter, loc, 1);
     auto none =
         createIsizeConstant(rewriter, loc, immediateTag(lumen::TermKind::None));
-    rewriter.replaceOpWithNewOp<func::ReturnOp>(op,
-                                                ValueRange({none, errorFlag}));
+    rewriter.replaceOpWithNewOp<func::ReturnOp>(
+        op, ValueRange({none, exceptionPtr}));
     return success();
   }
 };
@@ -1692,7 +1969,15 @@ struct BuildStacktraceOpLowering
   LogicalResult
   matchAndRewrite(cir::BuildStacktraceOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
     auto traceTy = getTraceType();
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_build_stacktrace");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(traceTy, ArrayRef<Type>{});
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__lumen_build_stacktrace", calleeType);
+    }
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(
         op, TypeRange({traceTy}), "__lumen_build_stacktrace", ValueRange());
     return success();
@@ -1911,6 +2196,109 @@ struct RecvDoneOpLowering : public ConvertCIROpToLLVMPattern<cir::RecvDoneOp> {
   }
 };
 
+//===------------===//
+// DispatchTableOp
+//===------------===//
+struct DispatchTableOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::DispatchTableOp> {
+  using ConvertCIROpToLLVMPattern<
+      cir::DispatchTableOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::DispatchTableOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // All that is necessary here is that we inline the dispatch entries in the
+    // module body
+    auto &region = op.getRegion();
+    auto &block = region.back();
+    auto module = op.getModule();
+
+    auto mod = op->getParentOfType<ModuleOp>();
+    auto moduleBody = mod.getBody();
+    auto i8ty = getI8Type();
+    auto dispatchEntryTy = getDispatchEntryType();
+
+    for (DispatchEntryOp entryOp : block.getOps<DispatchEntryOp>()) {
+      PatternRewriter::InsertionGuard insertGuard(rewriter);
+      rewriter.setInsertionPointToEnd(moduleBody);
+
+      auto loc = entryOp->getLoc();
+      auto function = entryOp.getFunction();
+      auto arity = entryOp.getArity();
+      auto symbol = entryOp.getSymbol();
+
+      llvm::SHA1 hasher;
+      hasher.update(module);
+      hasher.update(function);
+      auto arityStr = std::to_string(arity);
+      hasher.update(StringRef(arityStr));
+
+      auto globalName =
+          std::string("lumen_dispatch_") + llvm::toHex(hasher.result(), true);
+      std::string sectionName;
+      if (isMachO())
+        sectionName = std::string("__TEXT,__lumen_dispatch");
+      else
+        sectionName = std::string("__") + globalName;
+      auto sectionAttr =
+          rewriter.getNamedAttr("section", rewriter.getStringAttr(sectionName));
+      auto entryConst = rewriter.create<LLVM::GlobalOp>(
+          loc, dispatchEntryTy, /*isConstant=*/true, LLVM::Linkage::LinkonceODR,
+          LLVM::ThreadLocalMode::NotThreadLocal, globalName, Attribute(),
+          /*alignment=*/0, /*addrspace=*/0, /*dso_local=*/false,
+          ArrayRef<NamedAttribute>{sectionAttr});
+
+      auto &initRegion = entryConst.getInitializerRegion();
+      auto entryBlock = rewriter.createBlock(&initRegion);
+
+      rewriter.setInsertionPointToStart(entryBlock);
+
+      Value entry = rewriter.create<LLVM::UndefOp>(loc, dispatchEntryTy);
+
+      // Store the module name
+      auto moduleNamePtr = createAtomStringGlobal(rewriter, loc, mod, module);
+      entry = rewriter.create<LLVM::InsertValueOp>(loc, entry, moduleNamePtr,
+                                                   rewriter.getI64ArrayAttr(0));
+
+      // Store the function name
+      auto functionNamePtr =
+          createAtomStringGlobal(rewriter, loc, mod, function);
+      entry = rewriter.create<LLVM::InsertValueOp>(loc, entry, functionNamePtr,
+                                                   rewriter.getI64ArrayAttr(1));
+
+      // Store the arity
+      auto arityVal = rewriter.create<LLVM::ConstantOp>(
+          loc, i8ty, rewriter.getI8IntegerAttr(arity));
+      entry = rewriter.create<LLVM::InsertValueOp>(loc, entry, arityVal,
+                                                   rewriter.getI64ArrayAttr(2));
+
+      // Get the LLVM type of the function referenced by the symbol
+      Operation *fun = mod.lookupSymbol(symbol.getValue());
+      Type funTy;
+      if (isa<LLVM::LLVMFuncOp>(fun))
+        funTy = cast<LLVM::LLVMFuncOp>(fun).getFunctionType();
+      else
+        funTy = convertType(cast<FuncOp>(fun).getFunctionType());
+      auto funPtr = rewriter.create<LLVM::AddressOfOp>(loc, funTy, symbol);
+      // Cast the address of the function to an opaque function pointer (i.e.
+      // `*const ()`)
+      auto opaqueFunTy =
+          LLVM::LLVMFunctionType::get(getVoidType(), ArrayRef<Type>{});
+      auto opaqueFunPtrTy = LLVM::LLVMPointerType::get(opaqueFunTy);
+      auto opaqueFunPtr =
+          rewriter.create<LLVM::BitcastOp>(loc, opaqueFunPtrTy, funPtr);
+      // Store the function pointer
+      entry = rewriter.create<LLVM::InsertValueOp>(loc, entry, opaqueFunPtr,
+                                                   rewriter.getI64ArrayAttr(3));
+
+      rewriter.create<LLVM::ReturnOp>(loc, entry);
+    }
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -1939,6 +2327,7 @@ void ConvertCIRToLLVMPass::runOnOperation() {
 
   LowerToLLVMOptions options(&getContext(), mlirDataLayout);
   // Verify options
+  bool isMachO = false;
   if (auto layoutAttr = module->getAttrOfType<StringAttr>(
           LLVM::LLVMDialect::getDataLayoutAttrName())) {
     if (failed(LLVM::LLVMDialect::verifyDataLayoutString(
@@ -1948,7 +2337,9 @@ void ConvertCIRToLLVMPass::runOnOperation() {
       signalPassFailure();
       return;
     }
-    options.dataLayout = llvm::DataLayout(layoutAttr.getValue());
+    auto layout = layoutAttr.getValue();
+    isMachO = layout.contains("m:o"); // mach-o mangling scheme
+    options.dataLayout = llvm::DataLayout(layout);
   }
 
   // Define the conversion target for this lowering, which is the LLVM dialect
@@ -1959,8 +2350,8 @@ void ConvertCIRToLLVMPass::runOnOperation() {
   // use a custom TypeConverter for this. We also use this type converter with
   // other dialects which we use and delegate handling of their types to an
   // internal type converter provided by MLIR
-  CIRTypeConverter typeConverter(&getContext(), enableNanboxing, options,
-                                 &dataLayoutAnalysis);
+  CIRTypeConverter typeConverter(&getContext(), enableNanboxing, isMachO,
+                                 options, &dataLayoutAnalysis);
 
   // We need to provide the set of rewrite patterns which will lower CIR -
   // as well as ops from other dialects we use - to the LLVM dialect.
@@ -1980,7 +2371,12 @@ void ConvertCIRToLLVMPass::runOnOperation() {
   // We apply our pattern rewrites first
   populateGeneratedPDLLPatterns(patterns);
   // These are the conversion patterns for CIR ops
+  patterns.add<DispatchTableOpLowering>(typeConverter);
   patterns.add<ConstantOpLowering>(typeConverter);
+  patterns.add<ConstantNullOpLowering>(typeConverter);
+  patterns.add<CastOpLowering>(typeConverter);
+  patterns.add<CallOpLowering>(typeConverter);
+  patterns.add<IsNullOpLowering>(typeConverter);
   patterns.add<AndOpLowering>(typeConverter);
   patterns.add<AndAlsoOpLowering>(typeConverter);
   patterns.add<OrOpLowering>(typeConverter);

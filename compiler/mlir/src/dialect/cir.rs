@@ -4,7 +4,9 @@ use liblumen_binary::Endianness;
 use liblumen_intern::Symbol;
 use paste::paste;
 
+use crate::dialect::llvm;
 use crate::ir::*;
+use crate::support::StringRef;
 
 /// Primary builder for the CIR dialect
 ///
@@ -16,6 +18,11 @@ pub struct CirBuilder<'a, B: OpBuilder> {
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     pub fn new(builder: &'a B) -> Self {
         Self { builder }
+    }
+
+    /// NOTE: The field types given must be types from the LLVM dialect
+    pub fn get_struct_type(&self, fields: &[TypeBase]) -> llvm::StructType {
+        llvm::StructType::get(self.context(), fields)
     }
 }
 impl<'a, B: OpBuilder> Builder for CirBuilder<'a, B> {
@@ -862,6 +869,54 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
         }
 
         unsafe { mlirCirConstantOp(self.base().into(), loc, value.base(), ty.base()) }
+    }
+}
+
+/// Represents a constant null value
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ConstantNullOp(OperationBase);
+impl Operation for ConstantNullOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_null<T: Type>(&self, loc: Location, ty: T) -> ConstantNullOp {
+        extern "C" {
+            fn mlirCirConstantNullOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                ty: TypeBase,
+            ) -> ConstantNullOp;
+        }
+
+        unsafe { mlirCirConstantNullOp(self.base().into(), loc, ty.base()) }
+    }
+}
+
+/// Represents a null-checking op
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsNullOp(OperationBase);
+impl Operation for IsNullOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_null<V: Value>(&self, loc: Location, value: V) -> IsNullOp {
+        extern "C" {
+            fn mlirCirIsNullOp(
+                builder: OpBuilderBase,
+                location: Location,
+                value: ValueBase,
+            ) -> IsNullOp;
+        }
+
+        unsafe { mlirCirIsNullOp(self.base().into(), loc, value.base()) }
     }
 }
 
@@ -1892,6 +1947,72 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
                 unit.base(),
             )
         }
+    }
+}
+
+/// Represents the dispatch table associated with a module
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct DispatchTableOp(OperationBase);
+impl DispatchTableOp {
+    pub fn append(
+        &self,
+        loc: Location,
+        function: StringAttr,
+        arity: IntegerAttr,
+        symbol: FlatSymbolRefAttr,
+    ) {
+        extern "C" {
+            fn mlirCirDispatchTableAppendEntry(op: OperationBase, entry: OperationBase);
+        }
+
+        let mut state = OperationState::get("cir.dispatch_entry", loc);
+        let context = symbol.context();
+        let function = NamedAttribute::get(StringAttr::get(context, "function"), function);
+        let arity = NamedAttribute::get(StringAttr::get(context, "arity"), arity);
+        let symbol = NamedAttribute::get(StringAttr::get(context, "symbol"), symbol);
+        state.add_attributes(&[function, arity, symbol]);
+        let entry = state.create().release();
+
+        unsafe {
+            mlirCirDispatchTableAppendEntry(self.0, entry);
+        }
+    }
+}
+impl Operation for DispatchTableOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_dispatch_table<S: Into<StringRef>>(
+        &self,
+        loc: Location,
+        module: S,
+    ) -> DispatchTableOp {
+        extern "C" {
+            fn mlirCirDispatchTableOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                module: StringRef,
+            ) -> DispatchTableOp;
+        }
+
+        unsafe { mlirCirDispatchTableOp(self.base().into(), loc, module.into()) }
+    }
+
+    pub fn build_dispatch_entry<S: Into<StringRef>>(
+        &self,
+        loc: Location,
+        table: DispatchTableOp,
+        function: S,
+        arity: u8,
+        symbol: FlatSymbolRefAttr,
+    ) {
+        let function = self.builder.get_string_attr(function);
+        let arity = self.builder.get_i8_attr(arity as i8);
+        table.append(loc, function, arity, symbol);
     }
 }
 

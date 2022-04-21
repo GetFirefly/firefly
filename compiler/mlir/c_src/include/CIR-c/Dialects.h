@@ -102,6 +102,11 @@ MLIR_CAPI_EXPORTED bool mlirCirIsABinaryBuilderType(MlirType type);
 /// Attributes
 //===----------------------------------------------------------------------===//
 
+/// Creates a llvm.linkage attribute
+MLIR_CAPI_EXPORTED MlirAttribute mlirLLVMLinkageAttrGet(MlirContext ctx,
+                                                        MlirStringRef name);
+MLIR_CAPI_EXPORTED bool mlirLLVMLinkageAttrIsA(MlirAttribute attr);
+
 /// Creates a cir.none attribute
 MLIR_CAPI_EXPORTED MlirAttribute mlirCirNoneAttrGet(MlirContext ctx);
 MLIR_CAPI_EXPORTED bool mlirCirNoneAttrIsA(MlirAttribute attr);
@@ -144,6 +149,10 @@ mlirCirEndiannessAttrValueOf(MlirAttribute attr);
 /// Operations
 //===----------------------------------------------------------------------===//
 
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsNullOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirValue value);
+
 MLIR_CAPI_EXPORTED MlirOperation mlirCirCastOp(MlirOpBuilder builder,
                                                MlirLocation location,
                                                MlirValue value, MlirType ty);
@@ -152,6 +161,10 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirConstantOp(MlirOpBuilder builder,
                                                    MlirLocation location,
                                                    MlirAttribute value,
                                                    MlirType ty);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirConstantNullOp(MlirOpBuilder builder,
+                                                       MlirLocation location,
+                                                       MlirType ty);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirAndOp(MlirOpBuilder builder,
                                               MlirLocation location,
@@ -308,6 +321,14 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushBitsOp(
     MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
     MlirValue value, MlirValue unit, MlirValue size);
 
+MLIR_CAPI_EXPORTED MlirOperation mlirCirDispatchTableOp(MlirOpBuilder builder,
+                                                        MlirLocation location,
+                                                        MlirStringRef module);
+
+MLIR_CAPI_EXPORTED void
+mlirCirDispatchTableAppendEntry(MlirOperation dispatchTable,
+                                MlirOperation dispatchEntry);
+
 // APIs for func/etc. dialect ops we use
 
 MLIR_CAPI_EXPORTED bool mlirOperationIsAFuncOp(MlirOperation op);
@@ -381,6 +402,8 @@ MLIR_CAPI_EXPORTED MlirOperation mlirScfForOp(
 
 MLIR_CAPI_EXPORTED MlirOperation mlirScfExecuteRegionOp(MlirOpBuilder builder,
                                                         MlirLocation location);
+
+MLIR_CAPI_EXPORTED bool mlirLLVMFuncOpIsA(MlirOperation op);
 
 #ifdef __cplusplus
 }

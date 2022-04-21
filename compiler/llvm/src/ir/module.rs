@@ -354,11 +354,11 @@ impl Module {
     }
 
     /// Dump a debug representation of this module to stderr
-    pub fn dump(self) {
+    pub fn dump(&self) {
         extern "C" {
             fn LLVMDumpModule(m: Module);
         }
-        unsafe { LLVMDumpModule(self) }
+        unsafe { LLVMDumpModule(*self) }
     }
 
     /// Write this module as LLVM IR to the given file path

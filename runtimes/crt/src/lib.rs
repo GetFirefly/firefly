@@ -1,5 +1,6 @@
 #![feature(termination_trait_lib)]
 #![feature(rustc_attrs)]
+#![feature(c_unwind)]
 
 mod atoms;
 mod symbols;
@@ -36,12 +37,12 @@ pub fn main_internal() -> i32 {
     use crate::symbols::*;
 
     // Initialize atom table
-    if unsafe { InitializeLumenAtomTable(ATOM_TABLE, NUM_ATOMS) } == false {
+    if unsafe { InitializeLumenAtomTable(ATOMS_START, ATOMS_END) } == false {
         return 102;
     }
 
     // Initialize the dispatch table
-    if unsafe { InitializeLumenDispatchTable(SYMBOL_TABLE, NUM_SYMBOLS) } == false {
+    if unsafe { InitializeLumenDispatchTable(DISPATCH_START, DISPATCH_END) } == false {
         return 103;
     }
 

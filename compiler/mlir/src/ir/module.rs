@@ -154,6 +154,16 @@ impl OwnedModule {
             Ok(Self(base))
         }
     }
+
+    /// Returns the module name, if one was provided
+    pub fn name(&self) -> Option<StringRef> {
+        let name = unsafe { mlir_module_get_name(self.0) };
+        if name.is_null() {
+            None
+        } else {
+            Some(name)
+        }
+    }
 }
 unsafe impl Send for OwnedModule {}
 unsafe impl Sync for OwnedModule {}

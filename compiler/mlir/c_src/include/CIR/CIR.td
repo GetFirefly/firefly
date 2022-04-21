@@ -13,6 +13,72 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
+def CIR_CirEndOp : CIR_Op<"end", [Terminator]> {
+  let summary = "A terminator instruction used in CIR ops";
+  let description = [{
+    An operation used with certain region-holding CIR ops that require a terminator where
+    another terminator is not applicable, e.g. return.
+  }];
+}
+
+def ImplicitCIRTerminator : SingleBlockImplicitTerminator<"CirEndOp">;
+
+def CIR_DispatchTableOp : CIR_Op<"dispatch_table",
+    [IsolatedFromAbove, ImplicitCIRTerminator]> {
+  let summary = "Defines a dispatch table within the current module";
+  let description = [{
+    Defines a dispatch table associated with the given module name, that is joined together
+    at link-time with all other dispatch tables to form the global dispatch table used by apply/3.
+
+    The table itself is associated with a specific module, and entries in the table associate
+    a function name and arity with a specific function symbol that will be called when dispatching
+    to the combined MFA.
+  }];
+
+  let arguments = (ins FlatSymbolRefAttr:$module);
+  let regions = (region SizedRegion<1>:$region);
+
+  let assemblyFormat = [{
+    $module attr-dict $region
+  }];
+
+  let hasRegionVerifier = 1;
+
+  let extraClassDeclaration = [{
+    void appendTableEntry(Operation *op);
+
+    StringRef getModule() { return (*this)->getAttrOfType<FlatSymbolRefAttr>("module").getValue(); }
+    Block &getBody() { return getRegion().front(); }
+  }];
+}
+
+def CIR_DispatchEntryOp : CIR_Op<"dispatch_entry", [HasParent<"DispatchTableOp">]> {
+  let summary = "Defines an entry in a dispatch table";
+  let description = [{
+    This op represents an entry in a dispatch table. It binds a function name and arity
+    to a function symbol which should be called when applying an MFA for which the entry
+    is a match.
+
+    Each entry in a table must be a unique function/arity or verification will fail.
+
+    ```mlir
+    cir.dispatch_entry run, 1, @"module:run/1"
+    ```
+  }];
+
+  let arguments = (ins StrAttr:$function, I8Attr:$arity, FlatSymbolRefAttr:$symbol);
+
+  let assemblyFormat = [{
+    $function `,` $arity `,` $symbol attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    unsigned getArity() { return (*this)->getAttrOfType<IntegerAttr>("arity").getInt(); }
+    StringRef getFunction() { return (*this)->getAttrOfType<StringAttr>("function").getValue(); }
+    FlatSymbolRefAttr getSymbol() { return (*this)->getAttrOfType<FlatSymbolRefAttr>("symbol"); }
+  }];
+}
+
 def CIR_CallOp : CIR_Op<"call",
     [CallOpInterface, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "call operation";
@@ -87,6 +153,26 @@ def CIR_CastOp : CIR_Op<"cast",
     ($inputs^ `:` type($inputs))? `to` type($outputs) attr-dict
   }];
   let hasFolder = 1;
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<(ins "TypeRange":$outputs, "ValueRange":$inputs), [{
+      SmallVector<Type, 1> inputTypes;
+      for (auto input : inputs)
+        inputTypes.push_back(input.getType());
+      $_state.addOperands(inputs);
+      $_state.addAttribute("src", $_builder.getTypeArrayAttr(inputTypes));
+      $_state.addTypes(outputs);
+    }]>,
+  ];
+
+  let extraClassDeclaration = [{
+    static StringRef getSrcAttrName() { return "src"; }
+
+    auto getInputTypes() const {
+      return (*this)->getAttrOfType<ArrayAttr>(getSrcAttrName()).getAsValueRange<TypeAttr>();
+    }
+  }];
 }
 
 def CIR_ConstantOp : CIR_Op<"constant",
@@ -114,6 +200,30 @@ def CIR_ConstantOp : CIR_Op<"constant",
 
     let hasFolder = 1;
     let assemblyFormat = "$value attr-dict";
+}
+
+def CIR_ConstantNullOp : CIR_Op<"null", [NoSideEffect]> {
+    let summary = "constant or immediate null";
+    let description = [{
+      The `constant` operation produces an SSA value equal to the null value of the given type
+    }];
+
+    let arguments = (ins);
+    let results = (outs AnyType:$result);
+
+    let skipDefaultBuilders = 1;
+    let builders = [
+      OpBuilder<(ins "Type":$type), [{
+        $_state.addTypes({type});
+      }]>
+    ];
+
+    let extraClassDeclaration = [{
+      // Returns true if a constant can be constructed with the given value and type
+      static bool isBuildableWith(Attribute value, Type type);
+    }];
+
+    let assemblyFormat = "`:` type($result) attr-dict";
 }
 
 def CIR_AndOp : CIR_Op<"and", [NoSideEffect]> {
@@ -173,6 +283,17 @@ def CIR_NotOp : CIR_Op<"not", [NoSideEffect]> {
 
   let assemblyFormat = [{
     $value attr-dict
+  }];
+}
+
+def CIR_IsNullOp : CIR_Op<"is_null", [NoSideEffect]> {
+  let summary = "Returns true if the input value is equivalent to NULL";
+
+  let arguments = (ins AnyType:$value);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
   }];
 }
 

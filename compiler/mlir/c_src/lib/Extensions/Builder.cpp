@@ -110,14 +110,6 @@ extern "C" MlirType mlirBuilderGetNoneType(MlirBuilder builder) {
   return wrap((Type)unwrap(builder)->getNoneType());
 }
 
-extern "C" MlirNamedAttribute mlirBuilderGetNamedAttr(MlirBuilder builder,
-                                                      MlirStringRef name,
-                                                      MlirAttribute val) {
-  NamedAttribute attr =
-      unwrap(builder)->getNamedAttr(unwrap(name), unwrap(val));
-  return MlirNamedAttribute{wrap(attr.getName()), wrap(attr.getValue())};
-}
-
 extern "C" MlirAttribute mlirBuilderGetUnitAttr(MlirBuilder builder) {
   return wrap((Attribute)unwrap(builder)->getUnitAttr());
 }

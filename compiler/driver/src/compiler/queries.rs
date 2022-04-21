@@ -87,14 +87,13 @@ where
     //let mpm = pm.nest("builtin.module");
     //mpm.add(liblumen_mlir::conversions::ConvertCIRToLLVMPass::new());
     liblumen_mlir::conversions::ConvertCIRToLLVMPass::register();
-    pm.parse_pipeline("builtin.module(convert-cir-to-llvm)")
-        .unwrap();
+    pm.parse_pipeline("convert-cir-to-llvm").unwrap();
 
     // Lower to LLVM dialect
     let successful = pm.run(&module);
     if !successful {
         db.report_error(format!(
-            "error occurred while lowering this module to llvm dialect {}",
+            "error occurred while lowering module '{}' to llvm dialect",
             &module_name
         ));
         return Err(ErrorReported);
@@ -106,7 +105,8 @@ where
         return Ok(None);
     }
     debug!("generating llvm for {:?} on {:?}", input, thread_id);
-    let mut translation = TranslateMLIRToLLVMIR::new(llvm_context.borrow(), module_name.clone());
+    let mut translation =
+        TranslateMLIRToLLVMIR::new(llvm_context.borrow(), source_name.to_string());
     let module = unwrap_or_bail!(db, translation.run(&module));
 
     // Verify/optimize

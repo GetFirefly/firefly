@@ -60,8 +60,8 @@ end
 
 [config]
 default_to_workspace = false
-default_task_name = "lumen"
 skip_core_tasks = true
+skip_git_env_info = true
 modify_core_tasks = { private = true, namespace = "default" }
 init_task = "init"
 
@@ -458,7 +458,7 @@ exec --fail-with-error chromedriver --version
 [tasks.install-gecko-driver]
 category = "Web"
 description = "Installs the Firefox (Gecko) test driver"
-condition_sript = ['''
+condition_script = ['''
 result = which geckodriver
 if is_empty ${result}
   exit 1

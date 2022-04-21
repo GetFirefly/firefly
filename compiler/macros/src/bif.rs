@@ -285,7 +285,7 @@ fn erlang_type_to_core_type_enum(ident: Ident) -> Expr {
     let span = ident.span();
     let name = ident.to_string();
     match name.as_str() {
-        "any" | "term" => core_enum_variant("Term", span),
+        "any" | "term" => core_enum_variant("Any", span),
         "atom" | "module" | "node" => core_enum_variant("Atom", span),
         "binary" => core_enum_variant("Binary", span),
         "bitstring" => core_enum_variant("Bitstring", span),
@@ -304,7 +304,7 @@ fn erlang_type_to_core_type_enum(ident: Ident) -> Expr {
         | "nonempty_improper_list"
         | "nonempty_maybe_improper_list"
         | "iolist" => core_enum_variant("MaybeImproperList", span),
-        "map" => core_enum_map_variant(span),
+        "map" => core_enum_variant("Map", span),
         "mfa" => core_enum_tuple_variant(Some(&["Atom", "Atom", "Integer"]), span),
         "time" | "timestamp" => {
             core_enum_tuple_variant(Some(&["Integer", "Integer", "Integer"]), span)
@@ -312,17 +312,67 @@ fn erlang_type_to_core_type_enum(ident: Ident) -> Expr {
         "pid" => core_enum_variant("Pid", span),
         "port" => core_enum_variant("Port", span),
         "reference" => core_enum_variant("Reference", span),
-        "no_return" => core_enum_variant("NoReturn", span),
-        "none" => core_enum_variant("Invalid", span),
+        "no_return" => core_special_variant("NoReturn", span),
+        "none" => core_special_variant("Invalid", span),
         "spawn_monitor" => core_enum_tuple_variant(Some(&["Pid", "Reference"]), span),
         "binary_split" => core_enum_tuple_variant(Some(&["Binary", "Binary"]), span),
         // Anything else is either inherently polymorphic, or unrecognized, so we just say Term
-        _ => core_enum_variant("Term", span),
+        _ => core_enum_variant("Any", span),
     }
 }
 
 /// Convert the given string to a path representing the instantiation of a liblumen_syntax_core::Type variant
 fn core_enum_variant(name: &str, span: Span) -> Expr {
+    use syn::PathArguments;
+
+    let mut path = Path {
+        leading_colon: None,
+        segments: Punctuated::new(),
+    };
+    path.segments.push(PathSegment {
+        ident: Ident::new("crate", Span::call_site()),
+        arguments: PathArguments::None,
+    });
+    path.segments.push(PathSegment {
+        ident: Ident::new("TermType", Span::call_site()),
+        arguments: PathArguments::None,
+    });
+    path.segments.push(PathSegment {
+        ident: Ident::new(name, span),
+        arguments: PathArguments::None,
+    });
+
+    let quoted = quote_spanned! { span =>
+      crate::Type::Term(#path)
+    };
+
+    parse_quote! { #quoted }
+}
+
+fn core_term_variant(name: &str, span: Span) -> Expr {
+    use syn::PathArguments;
+
+    let mut path = Path {
+        leading_colon: None,
+        segments: Punctuated::new(),
+    };
+    path.segments.push(PathSegment {
+        ident: Ident::new("crate", Span::call_site()),
+        arguments: PathArguments::None,
+    });
+    path.segments.push(PathSegment {
+        ident: Ident::new("TermType", Span::call_site()),
+        arguments: PathArguments::None,
+    });
+    path.segments.push(PathSegment {
+        ident: Ident::new(name, span),
+        arguments: PathArguments::None,
+    });
+
+    parse_quote! { #path }
+}
+
+fn core_special_variant(name: &str, span: Span) -> Expr {
     use syn::PathArguments;
 
     let mut path = Path {
@@ -346,33 +396,28 @@ fn core_enum_variant(name: &str, span: Span) -> Expr {
 }
 
 fn core_enum_fun_variant(span: Span) -> Expr {
-    let quoted = quote_spanned! { span => crate::Type::Fun(None) };
+    let quoted = quote_spanned! { span => crate::Type::Term(crate::TermType::Fun(None)) };
     parse_quote!(#quoted)
 }
 
 fn core_enum_list_variant(span: Span) -> Expr {
-    let quoted = quote_spanned! { span => crate::Type::List(None) };
-    parse_quote!(#quoted)
-}
-
-fn core_enum_map_variant(span: Span) -> Expr {
-    let quoted = quote_spanned! { span => crate::Type::Map(None) };
+    let quoted = quote_spanned! { span => crate::Type::Term(crate::TermType::List(None)) };
     parse_quote!(#quoted)
 }
 
 fn core_enum_tuple_variant(elements: Option<&[&str]>, span: Span) -> Expr {
     let quoted = if elements.is_none() {
         quote_spanned! { span =>
-            crate::Type::Tuple(None)
+            crate::Type::Term(crate::TermType::Tuple(None))
         }
     } else {
         let elements_punctuated = elements
             .unwrap()
             .iter()
-            .map(|e| core_enum_variant(e, span))
+            .map(|e| core_term_variant(e, span))
             .collect::<Punctuated<Expr, Token![,]>>();
         quote_spanned! { span =>
-            crate::Type::Tuple(Some(vec![#elements_punctuated]))
+            crate::Type::Term(crate::TermType::Tuple(Some(vec![#elements_punctuated])))
         }
     };
     parse_quote!(#quoted)

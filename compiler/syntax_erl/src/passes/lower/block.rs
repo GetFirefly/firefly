@@ -272,7 +272,8 @@ impl<'m> LowerFunctionToCore<'m> {
         let current_block = builder.current_block();
         let has_wildcard = expr.has_wildcard_clause();
         let output_block = builder.create_block();
-        let output_result = builder.append_block_param(output_block, Type::Term, span);
+        let output_result =
+            builder.append_block_param(output_block, Type::Term(TermType::Any), span);
         // Ensure the variable scope for the output block is the same scope as the expression
         builder.set_scope(output_block, builder.get_scope(current_block));
 
@@ -386,7 +387,11 @@ impl<'m> LowerFunctionToCore<'m> {
         let mut export_values = Vec::with_capacity(common_exports.len());
         // Append extra block parameters for each exported var
         for _ in common_exports.iter() {
-            export_values.push(builder.append_block_param(output_block, Type::Term, span));
+            export_values.push(builder.append_block_param(
+                output_block,
+                Type::Term(TermType::Any),
+                span,
+            ));
         }
         // Rewrite the br instruction arguments from each clause body to append the exported values
         let mut args = Vec::with_capacity(common_exports.len());

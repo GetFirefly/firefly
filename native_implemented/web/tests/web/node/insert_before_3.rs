@@ -92,7 +92,3 @@ async fn with_reference_child_inserts_before_reference_child() {
 fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Web.Node.InsertBefore3")
 }
-
-fn module_id() -> usize {
-    module().id()
-}

@@ -293,6 +293,11 @@ impl Display for OperationBase {
 #[repr(transparent)]
 pub struct OwnedOperation(OperationBase);
 impl OwnedOperation {
+    #[inline(always)]
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
+    }
+
     pub fn release(self) -> OperationBase {
         let op = self.0;
         std::mem::forget(self);
@@ -387,6 +392,7 @@ pub struct OperationState {
     successors: *const Block,
     num_attributes: usize,
     attributes: *const NamedAttribute,
+    enable_result_type_inference: bool,
 }
 impl OperationState {
     /// Creates a new operation state with the given name and location
@@ -396,7 +402,9 @@ impl OperationState {
 
     /// Creates an Operation using the current OperationState
     pub fn create(self) -> OwnedOperation {
-        unsafe { mlir_operation_create(&self) }
+        let op = unsafe { mlir_operation_create(&self) };
+        assert!(!op.is_null(), "operation validation error");
+        op
     }
 
     /// Returns the name of this operation
@@ -474,6 +482,16 @@ impl OperationState {
         unsafe {
             mlir_operation_state_add_attributes(self, attrs.len(), attrs.as_ptr());
         }
+    }
+
+    #[inline]
+    pub fn enable_result_type_inference(&mut self) {
+        self.enable_result_type_inference = true;
+    }
+
+    #[inline]
+    pub fn disable_result_type_inference(&mut self) {
+        self.enable_result_type_inference = false;
     }
 }
 

@@ -1,8 +1,11 @@
+#include "mlir-c/IR.h"
+#include "mlir/CAPI/IR.h"
 #include "mlir/CAPI/Pass.h"
 #include "mlir/CAPI/Support.h"
 #include "mlir/CAPI/Wrap.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
@@ -11,6 +14,11 @@ using ::llvm::ArrayRef;
 using ::llvm::SmallVector;
 using ::llvm::StringRef;
 using ::llvm::Twine;
+
+extern "C" void mlirContextRegisterLLVMDialectTranslation(MlirContext ctx) {
+  MLIRContext *context = unwrap(ctx);
+  registerLLVMDialectTranslation(*context);
+}
 
 extern "C" {
 struct IrPrintingConfig {

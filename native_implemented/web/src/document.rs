@@ -20,10 +20,6 @@ pub fn module() -> Atom {
 
 // Private
 
-fn module_id() -> usize {
-    module().id()
-}
-
 fn from_term(term: Term) -> Result<&'static Document, exception::Exception> {
     let boxed: Boxed<Resource> = term
         .try_into()

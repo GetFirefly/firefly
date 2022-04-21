@@ -8,11 +8,20 @@
 
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BuiltinOps.h"
 
 using namespace mlir;
 using namespace mlir::cir;
+
+MlirOperation mlirCirIsNullOp(MlirOpBuilder bldr, MlirLocation location,
+                              MlirValue value) {
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsNullOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
 
 MlirOperation mlirCirCastOp(MlirOpBuilder bldr, MlirLocation location,
                             MlirValue value, MlirType toTy) {
@@ -27,6 +36,14 @@ MlirOperation mlirCirConstantOp(MlirOpBuilder bldr, MlirLocation location,
   OpBuilder *builder = unwrap(bldr);
   Operation *op = builder->create<cir::ConstantOp>(unwrap(location), unwrap(ty),
                                                    unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirConstantNullOp(MlirOpBuilder bldr, MlirLocation location,
+                                    MlirType ty) {
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::ConstantNullOp>(unwrap(location), unwrap(ty));
   return wrap(op);
 }
 
@@ -363,6 +380,26 @@ MlirOperation mlirCirBinaryPushBitsOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
+MlirOperation mlirCirDispatchTableOp(MlirOpBuilder bldr, MlirLocation location,
+                                     MlirStringRef module) {
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::DispatchTableOp>(unwrap(location), unwrap(module));
+  auto &region = op->getRegion(0);
+  auto &block = region.emplaceBlock();
+  auto ip = builder->saveInsertionPoint();
+  builder->setInsertionPointToEnd(&block);
+  builder->create<cir::CirEndOp>(unwrap(location));
+  builder->restoreInsertionPoint(ip);
+  return wrap(op);
+}
+
+void mlirCirDispatchTableAppendEntry(MlirOperation dispatchTable,
+                                     MlirOperation dispatchEntry) {
+  auto table = cast<cir::DispatchTableOp>(unwrap(dispatchTable));
+  table.appendTableEntry(unwrap(dispatchEntry));
+}
+
 bool mlirOperationIsAFuncOp(MlirOperation op) {
   return isa<FuncOp>(unwrap(op));
 }
@@ -558,4 +595,8 @@ MlirOperation mlirScfExecuteRegionOp(MlirOpBuilder bldr, MlirLocation location,
   Operation *op = builder->create<scf::ExecuteRegionOp>(
       unwrap(location), unwrapList(numResults, results, resultStorage));
   return wrap(op);
+}
+
+bool mlirLLVMFuncOpIsA(MlirOperation op) {
+  return isa<LLVM::LLVMFuncOp>(unwrap(op));
 }

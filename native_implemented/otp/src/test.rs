@@ -52,10 +52,6 @@ pub fn module() -> Atom {
     Atom::from_str("test")
 }
 
-pub fn module_id() -> usize {
-    module().id()
-}
-
 pub fn with_big_int(f: fn(&Process, Term) -> ()) {
     with_process(|process| {
         let big_int: Term = process.integer(SmallInteger::MAX_VALUE + 1);

@@ -15,9 +15,9 @@ use crate::sys::dynamic_call::{self, DynamicCallee};
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionSymbol {
     /// Module name atom
-    pub module: usize,
+    pub module: *const u8,
     /// Function name atom
-    pub function: usize,
+    pub function: *const u8,
     /// The arity of the function
     pub arity: u8,
     /// An opaque pointer to the function

@@ -11,7 +11,3 @@ use liblumen_alloc::erts::term::prelude::*;
 pub fn module() -> Atom {
     Atom::from_str("lumen")
 }
-
-pub fn module_id() -> usize {
-    module().id()
-}

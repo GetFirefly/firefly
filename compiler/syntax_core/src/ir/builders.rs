@@ -36,11 +36,11 @@ macro_rules! binary_bool_op {
     ($name:ident, $op:expr) => {
         paste::paste! {
             fn $name(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
-                let (inst, dfg) = self.Binary($op, Type::Bool, lhs, rhs, span);
+                let (inst, dfg) = self.Binary($op, Type::Term(TermType::Bool), lhs, rhs, span);
                 dfg.first_result(inst)
             }
             fn [<$name _imm>](self, lhs: Value, rhs: bool, span: SourceSpan) -> Value {
-                let (inst, dfg) = self.BinaryImm($op, Type::Bool, lhs, Immediate::Bool(rhs), span);
+                let (inst, dfg) = self.BinaryImm($op, Type::Term(TermType::Bool), lhs, Immediate::Bool(rhs), span);
                 dfg.first_result(inst)
             }
         }
@@ -50,16 +50,16 @@ macro_rules! binary_int_op {
     ($name:ident, $op:expr) => {
         paste::paste! {
             fn $name(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
-                let (inst, dfg) = self.Binary($op, Type::Integer, lhs, rhs, span);
+                let (inst, dfg) = self.Binary($op, Type::Term(TermType::Integer), lhs, rhs, span);
                 dfg.first_result(inst)
             }
             fn [<$name _imm>](self, lhs: Value, rhs: i64, span: SourceSpan) -> Value {
-                let (inst, dfg) = self.BinaryImm($op, Type::Integer, lhs, Immediate::Integer(rhs), span);
+                let (inst, dfg) = self.BinaryImm($op, Type::Term(TermType::Integer), lhs, Immediate::Integer(rhs), span);
                 dfg.first_result(inst)
             }
             fn [<$name _const>](self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
                 let ty = self.data_flow_graph().constant_type(rhs);
-                assert_eq!(ty, Type::Integer, "invalid constant value type for integer op");
+                assert_eq!(ty, Type::Term(TermType::Integer), "invalid constant value type for integer op");
                 let (inst, dfg) = self.BinaryConst($op, ty, lhs, rhs, span);
                 dfg.first_result(inst)
             }
@@ -71,25 +71,25 @@ macro_rules! binary_numeric_op {
         paste::paste! {
             fn $name(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
                 let lty = self.data_flow_graph().value_type(lhs);
-                let rty = self.data_flow_graph().value_type(lhs);
-                let ty = lty.coerce_to_numeric_with(rty);
-                let (inst, dfg) = self.Binary($op, ty, lhs, rhs, span);
+                let rty = self.data_flow_graph().value_type(lhs).as_term().unwrap();
+                let ty = lty.as_term().unwrap().coerce_to_numeric_with(rty);
+                let (inst, dfg) = self.Binary($op, Type::Term(ty), lhs, rhs, span);
                 dfg.first_result(inst)
             }
             fn [<$name _imm>](self, lhs: Value, rhs: Immediate, span: SourceSpan) -> Value {
                 let lty = self.data_flow_graph().value_type(lhs);
-                let rty = rhs.ty();
+                let rty = rhs.ty().as_term().unwrap();
                 assert!(rty.is_numeric(), "invalid immediate value type for arithmetic op");
-                let ty = lty.coerce_to_numeric_with(rty);
-                let (inst, dfg) = self.BinaryImm($op, ty, lhs, rhs, span);
+                let ty = lty.as_term().unwrap().coerce_to_numeric_with(rty);
+                let (inst, dfg) = self.BinaryImm($op, Type::Term(ty), lhs, rhs, span);
                 dfg.first_result(inst)
             }
             fn [<$name _const>](self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
                 let lty = self.data_flow_graph().value_type(lhs);
-                let rty = self.data_flow_graph().constant_type(rhs);
+                let rty = self.data_flow_graph().constant_type(rhs).as_term().unwrap();
                 assert!(rty.is_numeric(), "invalid constant value type for arithmetic op");
-                let ty = lty.coerce_to_numeric_with(rty);
-                let (inst, dfg) = self.BinaryConst($op, ty, lhs, rhs, span);
+                let ty = lty.as_term().unwrap().coerce_to_numeric_with(rty);
+                let (inst, dfg) = self.BinaryConst($op, Type::Term(ty), lhs, rhs, span);
                 dfg.first_result(inst)
             }
         }
@@ -99,11 +99,11 @@ macro_rules! unary_bool_op {
     ($name:ident, $op:expr) => {
         paste::paste! {
             fn $name(self, arg: Value, span: SourceSpan) -> Value {
-                let (inst, dfg) = self.Unary($op, Type::Bool, arg, span);
+                let (inst, dfg) = self.Unary($op, Type::Term(TermType::Bool), arg, span);
                 dfg.first_result(inst)
             }
             fn [<$name _imm>](self, imm: bool, span: SourceSpan) -> Value {
-                let (inst, dfg) = self.UnaryImm($op, Type::Bool, Immediate::Bool(imm), span);
+                let (inst, dfg) = self.UnaryImm($op, Type::Term(TermType::Bool), Immediate::Bool(imm), span);
                 dfg.first_result(inst)
             }
         }
@@ -113,16 +113,16 @@ macro_rules! unary_int_op {
     ($name:ident, $op:expr) => {
         paste::paste! {
             fn $name(self, arg: Value, span: SourceSpan) -> Value {
-                let (inst, dfg) = self.Unary($op, Type::Integer, arg, span);
+                let (inst, dfg) = self.Unary($op, Type::Term(TermType::Integer), arg, span);
                 dfg.first_result(inst)
             }
             fn [<$name _imm>](self, imm: i64, span: SourceSpan) -> Value {
-                let (inst, dfg) = self.UnaryImm($op, Type::Integer, Immediate::Integer(imm), span);
+                let (inst, dfg) = self.UnaryImm($op, Type::Term(TermType::Integer), Immediate::Integer(imm), span);
                 dfg.first_result(inst)
             }
             fn [<$name _const>](self, imm: Constant, span: SourceSpan) -> Value {
                 let ty = self.data_flow_graph().constant_type(imm);
-                assert_eq!(ty, Type::Integer, "invalid constant value for integer op");
+                assert_eq!(ty, Type::Term(TermType::Integer), "invalid constant value for integer op");
                 let (inst, dfg) = self.UnaryConst($op, ty, imm, span);
                 dfg.first_result(inst)
             }
@@ -134,18 +134,18 @@ macro_rules! unary_numeric_op {
         paste::paste! {
             fn $name(self, arg: Value, span: SourceSpan) -> Value {
                 let ty = self.data_flow_graph().value_type(arg);
-                let (inst, dfg) = self.Unary($op, ty.coerce_to_numeric(), arg, span);
+                let (inst, dfg) = self.Unary($op, Type::Term(ty.as_term().unwrap().coerce_to_numeric()), arg, span);
                 dfg.first_result(inst)
             }
             fn [<$name _imm>](self, imm: Immediate, span: SourceSpan) -> Value {
-                let ty = imm.ty();
+                let ty = imm.ty().as_term().unwrap();
                 assert!(ty.is_numeric(), "invalid immediate value for arithmetic op");
-                let (inst, dfg) = self.UnaryImm($op, ty, imm, span);
+                let (inst, dfg) = self.UnaryImm($op, Type::Term(ty), imm, span);
                 dfg.first_result(inst)
             }
             fn [<$name _const>](self, imm: Constant, span: SourceSpan) -> Value {
                 let ty = self.data_flow_graph().constant_type(imm);
-                assert!(ty.is_numeric(), "invalid constant value for arithmetic op");
+                assert!(ty.as_term().unwrap().is_numeric(), "invalid constant value for arithmetic op");
                 let (inst, dfg) = self.UnaryConst($op, ty, imm, span);
                 dfg.first_result(inst)
             }
@@ -155,7 +155,12 @@ macro_rules! unary_numeric_op {
 
 pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     fn int(self, i: i64, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.UnaryImm(Opcode::ImmInt, Type::Integer, Immediate::Integer(i), span);
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::ImmInt,
+            Type::Term(TermType::Integer),
+            Immediate::Integer(i),
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -164,14 +169,19 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             self.data_flow_graph_mut()
                 .make_constant(ConstantItem::Integer(Integer::Big(i)))
         };
-        let (inst, dfg) = self.UnaryConst(Opcode::ConstBigInt, Type::Integer, constant, span);
+        let (inst, dfg) = self.UnaryConst(
+            Opcode::ConstBigInt,
+            Type::Term(TermType::Integer),
+            constant,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn character(self, c: char, span: SourceSpan) -> Value {
         let (inst, dfg) = self.UnaryImm(
             Opcode::ImmInt,
-            Type::Integer,
+            Type::Term(TermType::Integer),
             Immediate::Integer((c as u32).try_into().unwrap()),
             span,
         );
@@ -179,27 +189,57 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     fn float(self, f: f64, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.UnaryImm(Opcode::ImmFloat, Type::Float, Immediate::Float(f), span);
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::ImmFloat,
+            Type::Term(TermType::Float),
+            Immediate::Float(f),
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn bool(self, b: bool, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.UnaryImm(Opcode::ImmBool, Type::Bool, Immediate::Bool(b), span);
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::ImmBool,
+            Type::Term(TermType::Bool),
+            Immediate::Bool(b),
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn atom(self, a: Symbol, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.UnaryImm(Opcode::ImmAtom, Type::Atom, Immediate::Atom(a), span);
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::ImmAtom,
+            Type::Term(TermType::Atom),
+            Immediate::Atom(a),
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn nil(self, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.UnaryImm(Opcode::ImmNil, Type::Nil, Immediate::Nil, span);
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::ImmNil,
+            Type::Term(TermType::Nil),
+            Immediate::Nil,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn none(self, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.UnaryImm(Opcode::ImmNone, Type::Term, Immediate::None, span);
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::ImmNone,
+            Type::Term(TermType::Any),
+            Immediate::None,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn null(self, ty: Type, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(Opcode::ImmNull, ty, Immediate::None, span);
         dfg.first_result(inst)
     }
 
@@ -212,7 +252,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             self.data_flow_graph_mut()
                 .make_constant(ConstantItem::Binary(bytes.to_vec().into()))
         };
-        let (inst, dfg) = self.UnaryConst(Opcode::ConstBinary, Type::Binary, constant, span);
+        let (inst, dfg) = self.UnaryConst(
+            Opcode::ConstBinary,
+            Type::Term(TermType::Binary),
+            constant,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -221,7 +266,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             self.data_flow_graph_mut()
                 .make_constant(ConstantItem::Tuple(elements.to_vec()))
         };
-        let (inst, dfg) = self.UnaryConst(Opcode::ConstTuple, Type::Tuple(None), constant, span);
+        let (inst, dfg) = self.UnaryConst(
+            Opcode::ConstTuple,
+            Type::Term(TermType::Tuple(None)),
+            constant,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -230,7 +280,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             self.data_flow_graph_mut()
                 .make_constant(ConstantItem::List(elements.to_vec()))
         };
-        let (inst, dfg) = self.UnaryConst(Opcode::ConstList, Type::List(None), constant, span);
+        let (inst, dfg) = self.UnaryConst(
+            Opcode::ConstList,
+            Type::Term(TermType::List(None)),
+            constant,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -239,7 +294,8 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             self.data_flow_graph_mut()
                 .make_constant(ConstantItem::Map(pairs.to_vec()))
         };
-        let (inst, dfg) = self.UnaryConst(Opcode::ConstMap, Type::Map(None), constant, span);
+        let (inst, dfg) =
+            self.UnaryConst(Opcode::ConstMap, Type::Term(TermType::Map), constant, span);
         dfg.first_result(inst)
     }
 
@@ -257,6 +313,16 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     fn assign(mut self, block: Block, name: Symbol, value: Value) -> Value {
         self.data_flow_graph_mut().define_var(block, name, value);
         value
+    }
+
+    fn is_null(self, arg: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Unary(
+            Opcode::IsNull,
+            Type::Primitive(PrimitiveType::I1),
+            arg,
+            span,
+        );
+        dfg.first_result(inst)
     }
 
     fn br(mut self, block: Block, args: &[Value], span: SourceSpan) -> Inst {
@@ -322,34 +388,57 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     fn cons(self, head: Value, tail: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.Binary(Opcode::Cons, Type::List(None), head, tail, span);
+        let (inst, dfg) = self.Binary(
+            Opcode::Cons,
+            Type::Term(TermType::List(None)),
+            head,
+            tail,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn cons_imm(self, head: Value, tail: Immediate, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.BinaryImm(Opcode::Cons, Type::List(None), head, tail, span);
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::Cons,
+            Type::Term(TermType::List(None)),
+            head,
+            tail,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn cons_const(self, head: Value, tail: Constant, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.BinaryConst(Opcode::Cons, Type::List(None), head, tail, span);
+        let (inst, dfg) = self.BinaryConst(
+            Opcode::Cons,
+            Type::Term(TermType::List(None)),
+            head,
+            tail,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn head(self, list: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.Unary(Opcode::Head, Type::Term, list, span);
+        let (inst, dfg) = self.Unary(Opcode::Head, Type::Term(TermType::Any), list, span);
         dfg.first_result(inst)
     }
 
     fn tail(self, list: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.Unary(Opcode::Tail, Type::MaybeImproperList, list, span);
+        let (inst, dfg) = self.Unary(
+            Opcode::Tail,
+            Type::Term(TermType::MaybeImproperList),
+            list,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn tuple_imm(self, arity: usize, span: SourceSpan) -> Value {
         let (inst, dfg) = self.UnaryImm(
             Opcode::Tuple,
-            Type::Tuple(None),
+            Type::Term(TermType::Tuple(None)),
             Immediate::Integer(arity.try_into().unwrap()),
             span,
         );
@@ -358,7 +447,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn map(self, span: SourceSpan) -> Value {
         let vlist = ValueList::default();
-        let (inst, dfg) = self.PrimOp(Opcode::Map, Type::Map(None), vlist, span);
+        let (inst, dfg) = self.PrimOp(Opcode::Map, Type::Term(TermType::Map), vlist, span);
         dfg.first_result(inst)
     }
 
@@ -373,12 +462,24 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     fn get_element(self, tuple: Value, index: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.Binary(Opcode::GetElement, Type::Term, tuple, index, span);
+        let (inst, dfg) = self.Binary(
+            Opcode::GetElement,
+            Type::Term(TermType::Any),
+            tuple,
+            index,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn get_element_imm(self, tuple: Value, index: Immediate, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.BinaryImm(Opcode::GetElement, Type::Term, tuple, index, span);
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::GetElement,
+            Type::Term(TermType::Any),
+            tuple,
+            index,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -452,7 +553,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(recv_context, pool);
         }
-        let (inst, dfg) = self.PrimOp(Opcode::RecvPeek, Type::Term, vlist, span);
+        let (inst, dfg) = self.PrimOp(Opcode::RecvPeek, Type::Term(TermType::Any), vlist, span);
         dfg.first_result(inst)
     }
 
@@ -480,15 +581,20 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(size, pool);
         }
-        self.PrimOp(Opcode::BitsInitWritable, Type::Bitstring, vlist, span)
-            .0
+        self.PrimOp(
+            Opcode::BitsInitWritable,
+            Type::Term(TermType::Bitstring),
+            vlist,
+            span,
+        )
+        .0
     }
 
     fn bs_init_writable_imm(self, size: usize, span: SourceSpan) -> Inst {
         let vlist = ValueList::default();
         self.PrimOpImm(
             Opcode::BitsInitWritable,
-            Type::Bitstring,
+            Type::Term(TermType::Bitstring),
             Immediate::Integer(size.try_into().unwrap()),
             vlist,
             span,
@@ -502,7 +608,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(bin, pool);
         }
-        let (inst, dfg) = self.PrimOp(Opcode::BitsCloseWritable, Type::Bitstring, vlist, span);
+        let (inst, dfg) = self.PrimOp(
+            Opcode::BitsCloseWritable,
+            Type::Term(TermType::Bitstring),
+            vlist,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -551,7 +662,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn build_stacktrace(self, span: SourceSpan) -> Value {
         let vlist = ValueList::default();
-        let (inst, dfg) = self.PrimOp(Opcode::BuildStacktrace, Type::Term, vlist, span);
+        let (inst, dfg) = self.PrimOp(
+            Opcode::BuildStacktrace,
+            Type::Term(TermType::Any),
+            vlist,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -561,7 +677,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(exception, pool);
         }
-        let (inst, dfg) = self.PrimOp(Opcode::ExceptionClass, Type::Atom, vlist, span);
+        let (inst, dfg) = self.PrimOp(
+            Opcode::ExceptionClass,
+            Type::Term(TermType::Atom),
+            vlist,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -571,7 +692,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(exception, pool);
         }
-        let (inst, dfg) = self.PrimOp(Opcode::ExceptionReason, Type::Term, vlist, span);
+        let (inst, dfg) = self.PrimOp(
+            Opcode::ExceptionReason,
+            Type::Term(TermType::Any),
+            vlist,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -581,7 +707,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(exception, pool);
         }
-        let (inst, dfg) = self.PrimOp(Opcode::ExceptionTrace, Type::List(None), vlist, span);
+        let (inst, dfg) = self.PrimOp(
+            Opcode::ExceptionTrace,
+            Type::Term(TermType::List(None)),
+            vlist,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -615,32 +746,56 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     unary_int_op!(bnot, Opcode::Bnot);
 
     fn list_concat(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.Binary(Opcode::ListConcat, Type::List(None), lhs, rhs, span);
+        let (inst, dfg) = self.Binary(
+            Opcode::ListConcat,
+            Type::Term(TermType::List(None)),
+            lhs,
+            rhs,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn list_concat_const(self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
         let ty = self.data_flow_graph().constant_type(rhs);
         assert!(
-            ty.is_list(),
+            ty.as_term().unwrap().is_list(),
             "invalid constant value type for list concatenation"
         );
-        let (inst, dfg) = self.BinaryConst(Opcode::ListConcat, Type::List(None), lhs, rhs, span);
+        let (inst, dfg) = self.BinaryConst(
+            Opcode::ListConcat,
+            Type::Term(TermType::List(None)),
+            lhs,
+            rhs,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn list_subtract(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.Binary(Opcode::ListSubtract, Type::List(None), lhs, rhs, span);
+        let (inst, dfg) = self.Binary(
+            Opcode::ListSubtract,
+            Type::Term(TermType::List(None)),
+            lhs,
+            rhs,
+            span,
+        );
         dfg.first_result(inst)
     }
 
     fn list_subtract_const(self, lhs: Value, rhs: Constant, span: SourceSpan) -> Value {
         let ty = self.data_flow_graph().constant_type(rhs);
         assert!(
-            ty.is_list(),
+            ty.as_term().unwrap().is_list(),
             "invalid constant value type for list subtraction"
         );
-        let (inst, dfg) = self.BinaryConst(Opcode::ListSubtract, Type::List(None), lhs, rhs, span);
+        let (inst, dfg) = self.BinaryConst(
+            Opcode::ListSubtract,
+            Type::Term(TermType::List(None)),
+            lhs,
+            rhs,
+            span,
+        );
         dfg.first_result(inst)
     }
 
@@ -715,7 +870,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     #[allow(non_snake_case)]
     fn IsType(self, ty: Type, arg: Value, span: SourceSpan) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::IsType(IsType { arg, ty });
-        self.build(data, Type::Bool, span)
+        self.build(data, Type::Term(TermType::Bool), span)
     }
 
     #[allow(non_snake_case)]
@@ -829,13 +984,13 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let ty = match spec {
-            BinaryEntrySpecifier::Integer { .. } => Type::Integer,
-            BinaryEntrySpecifier::Float { .. } => Type::Float,
+            BinaryEntrySpecifier::Integer { .. } => Type::Term(TermType::Integer),
+            BinaryEntrySpecifier::Float { .. } => Type::Term(TermType::Float),
             BinaryEntrySpecifier::Utf8
             | BinaryEntrySpecifier::Utf16 { .. }
-            | BinaryEntrySpecifier::Utf32 { .. } => Type::Integer,
-            BinaryEntrySpecifier::Bits { .. } => Type::Bitstring,
-            BinaryEntrySpecifier::Bytes { .. } => Type::Binary,
+            | BinaryEntrySpecifier::Utf32 { .. } => Type::Term(TermType::Integer),
+            BinaryEntrySpecifier::Bits { .. } => Type::Term(TermType::Bitstring),
+            BinaryEntrySpecifier::Bytes { .. } => Type::Term(TermType::Binary),
         };
         let data = InstData::BitsMatch(BitsMatch { spec, args });
         self.build(data, ty, span)
@@ -849,7 +1004,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::BitsPush(BitsPush { spec, args });
-        self.build(data, Type::Bitstring, span)
+        self.build(data, Type::Term(TermType::Bitstring), span)
     }
 
     #[allow(non_snake_case)]
@@ -864,7 +1019,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             op: Opcode::SetElement,
             args: [tuple, index, value],
         });
-        self.build(data, Type::Tuple(None), span)
+        self.build(data, Type::Term(TermType::Tuple(None)), span)
     }
 
     #[allow(non_snake_case)]
@@ -881,7 +1036,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             index,
             value,
         });
-        self.build(data, Type::Tuple(None), span)
+        self.build(data, Type::Term(TermType::Tuple(None)), span)
     }
 
     #[allow(non_snake_case)]
@@ -898,7 +1053,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             index,
             value,
         });
-        self.build(data, Type::Tuple(None), span)
+        self.build(data, Type::Term(TermType::Tuple(None)), span)
     }
 
     #[allow(non_snake_case)]
@@ -914,7 +1069,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             op,
             args: [map, key, value],
         });
-        self.build(data, Type::Map(None), span)
+        self.build(data, Type::Term(TermType::Map), span)
     }
 }
 

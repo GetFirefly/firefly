@@ -2,11 +2,90 @@ use std::fmt;
 
 use super::FuncRef;
 
-/// Concrete data about a specific type instance
+/// Types in this enumeration correspond to primitive LLVM types
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Type {
-    Invalid,
-    Term,
+pub enum PrimitiveType {
+    Void,
+    I1,
+    I8,
+    I16,
+    I32,
+    I64,
+    Isize,
+    F64,
+    Ptr(Box<PrimitiveType>),
+    Struct(Vec<PrimitiveType>),
+    Array(Box<PrimitiveType>, usize),
+}
+impl PrimitiveType {
+    pub fn is_integer(&self) -> bool {
+        match self {
+            Self::I1 | Self::I8 | Self::I16 | Self::I32 | Self::I64 | Self::Isize => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self {
+            Self::F64 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_pointer(&self) -> bool {
+        match self {
+            Self::Ptr(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_struct(&self) -> bool {
+        match self {
+            Self::Struct(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_array(&self) -> bool {
+        match self {
+            Self::Array(_, _) => true,
+            _ => false,
+        }
+    }
+}
+impl fmt::Display for PrimitiveType {
+    /// Print this type for display using the provided module context
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Void => f.write_str("void"),
+            Self::I1 => f.write_str("i1"),
+            Self::I8 => f.write_str("i8"),
+            Self::I16 => f.write_str("i16"),
+            Self::I32 => f.write_str("i32"),
+            Self::I64 => f.write_str("i64"),
+            Self::Isize => f.write_str("isize"),
+            Self::F64 => f.write_str("f64"),
+            Self::Ptr(inner) => write!(f, "ptr<{}>", &inner),
+            Self::Struct(fields) => {
+                f.write_str("{")?;
+                for (i, field) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", {}", field)?;
+                    } else {
+                        write!(f, "{}", field)?;
+                    }
+                }
+                f.write_str("}")
+            }
+            Self::Array(element_ty, arity) => write!(f, "[{}; {}]", &element_ty, arity),
+        }
+    }
+}
+
+/// Types in this enumeration are high-level types that require translation to primitive types
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TermType {
+    Any,
     Bool,
     Integer,
     Float,
@@ -15,34 +94,19 @@ pub enum Type {
     Bitstring,
     Binary,
     Nil,
-    List(Option<Box<Type>>),
+    List(Option<Box<TermType>>),
     MaybeImproperList,
-    Tuple(Option<Vec<Type>>),
-    Map(Option<(Box<Type>, Box<Type>)>),
+    Tuple(Option<Vec<TermType>>),
+    Map,
     Reference,
     Port,
     Pid,
     Fun(Option<FuncRef>),
-    NoReturn,
-    // This type maps to ErlangException in liblumen_alloc
-    Exception,
-    // This type maps to Trace in liblumen_alloc
-    ExceptionTrace,
-    // This type maps to ReceiveContext in lumen_rt_minimal
-    RecvContext,
-    // This type maps to ReceiveState in lumen_rt_minimal
-    RecvState,
 }
-impl Type {
-    pub fn tuple(arity: usize) -> Type {
-        let mut elements = Vec::with_capacity(arity);
-        elements.resize(arity, Self::Term);
-        Self::Tuple(Some(elements))
-    }
-
+impl TermType {
     pub fn is_opaque(&self) -> bool {
         match self {
-            Self::Term => true,
+            Self::Any => true,
             _ => false,
         }
     }
@@ -77,7 +141,7 @@ impl Type {
 
     pub fn is_map(&self) -> bool {
         match self {
-            Self::Map(_) => true,
+            Self::Map => true,
             _ => false,
         }
     }
@@ -89,6 +153,13 @@ impl Type {
         }
     }
 
+    pub fn is_fun(&self) -> bool {
+        match self {
+            Self::Fun(_) => true,
+            _ => false,
+        }
+    }
+
     /// If we have to coerce this to the most precise numeric type we can, what type would that be?
     pub fn coerce_to_numeric(&self) -> Self {
         match self {
@@ -96,8 +167,8 @@ impl Type {
             Self::Float => Self::Float,
             Self::Number => Self::Number,
             // We assume this is just due to a lack of type information
-            Self::Term => Self::Number,
-            _ => Self::Invalid,
+            Self::Any => Self::Number,
+            other => panic!("invalid type coercion of {} to numeric", other),
         }
     }
 
@@ -108,24 +179,17 @@ impl Type {
         // If the types are the same, we have our answer
         if this == other {
             return this;
-        }
-        // Otherwise, coerce to the appropriate type for binary arithmetic ops
-        match (this, other) {
-            // Invalid operands are guaranteed to fail, so we propagate an invalid type
-            (Self::Invalid, _) => Self::Invalid,
-            (_, Self::Invalid) => Self::Invalid,
+        } else {
             // Mixed integer/float ops always produce floats
-            _ => Self::Float,
+            Self::Float
         }
     }
 }
-impl fmt::Display for Type {
+impl fmt::Display for TermType {
     /// Print this type for display using the provided module context
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Write;
         match self {
-            Self::Invalid => f.write_str("invalid"),
-            Self::Term => f.write_str("term"),
+            Self::Any => f.write_str("term"),
             Self::Bool => f.write_str("bool"),
             Self::Integer => f.write_str("int"),
             Self::Float => f.write_str("float"),
@@ -148,37 +212,23 @@ impl fmt::Display for Type {
                 }
                 f.write_str(">")
             }
-            Self::Map(None) => f.write_str("map"),
-            Self::Map(Some((k, v))) => write!(f, "map<{}, {}>", k, v),
+            Self::Map => f.write_str("map"),
             Self::Reference => f.write_str("reference"),
             Self::Port => f.write_str("port"),
             Self::Pid => f.write_str("pid"),
             Self::Fun(None) => f.write_str("fun"),
             Self::Fun(Some(func_ref)) => write!(f, "fun({})", func_ref),
-            Self::NoReturn => f.write_char('!'),
-            Self::Exception => f.write_str("exception"),
-            Self::ExceptionTrace => f.write_str("trace"),
-            Self::RecvContext => f.write_str("recv_context"),
-            Self::RecvState => f.write_str("recv_state"),
         }
     }
 }
-impl PartialOrd for Type {
+impl PartialOrd for TermType {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering::*;
-
-        // Invalid/NoReturn cannot be compared
-        if self == &Self::Invalid || other == &Self::Invalid {
-            return None;
-        }
-        if self == &Self::NoReturn || other == &Self::NoReturn {
-            return None;
-        }
 
         // If the types are the same, they are equal, unless they are
         // terms in which case they cannot be compared
         if self == other {
-            if self == &Self::Term {
+            if self.is_opaque() {
                 return None;
             }
             return Some(Equal);
@@ -190,8 +240,8 @@ impl PartialOrd for Type {
         // at compile-time if they are known to be less-than/greater-than
         // the other operand
         match (self, other) {
-            (Self::Term, _) => None,
-            (_, Self::Term) => None,
+            (Self::Any, _) => None,
+            (_, Self::Any) => None,
             (Self::Integer, Self::Float) => Some(Equal),
             (Self::Float, Self::Integer) => Some(Equal),
             (Self::Integer, _) => Some(Less),
@@ -216,8 +266,8 @@ impl PartialOrd for Type {
             (_, Self::Pid) => Some(Greater),
             (Self::Tuple(_), _) => Some(Less),
             (_, Self::Tuple(_)) => Some(Greater),
-            (Self::Map(_), _) => Some(Less),
-            (_, Self::Map(_)) => Some(Greater),
+            (Self::Map, _) => Some(Less),
+            (_, Self::Map) => Some(Greater),
             (Self::Nil, _) => Some(Less),
             (_, Self::Nil) => Some(Greater),
             (Self::List(_), _) => Some(Less),
@@ -228,7 +278,90 @@ impl PartialOrd for Type {
             (Self::Binary, Self::Bitstring) => Some(Equal),
             (Self::Bitstring, _) => Some(Less),
             (Self::Binary, _) => Some(Less),
-            (_, _) => None,
+        }
+    }
+}
+
+/// This enumeration covers all the types representable in CoreIR.
+///
+/// In addition to Erlang terms, we also need to represent primitive types and certain
+/// internal runtime types which are used with primop instructions.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Type {
+    // This type is used to indicate an instruction that produces no results, and thus has no type
+    Invalid,
+    // Primitive types are used for some instructions which are low-level and do not directly produce
+    // values which are used as terms, or are castable to term (e.g. integers)
+    Primitive(PrimitiveType),
+    // Term types are associated with values which correspond to syntax-level operations and are expected
+    // to be used with runtime BIFs (built-in functions)
+    Term(TermType),
+    // This type is equivalent to Rust's Never/! type, i.e. it indicates that a function never returns
+    NoReturn,
+    // This type maps to ErlangException in liblumen_alloc
+    Exception,
+    // This type maps to Trace in liblumen_alloc
+    ExceptionTrace,
+    // This type maps to ReceiveContext in lumen_rt_minimal
+    RecvContext,
+    // This type maps to ReceiveState in lumen_rt_minimal
+    RecvState,
+}
+impl Type {
+    pub fn tuple(arity: usize) -> Type {
+        let mut elements = Vec::with_capacity(arity);
+        elements.resize(arity, TermType::Any);
+        Self::Term(TermType::Tuple(Some(elements)))
+    }
+
+    pub fn is_primitive(&self) -> bool {
+        match self {
+            Self::Primitive(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_term(&self) -> bool {
+        match self {
+            Self::Term(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_special(&self) -> bool {
+        match self {
+            Self::Primitive(_) | Self::Term(_) => false,
+            _ => true,
+        }
+    }
+
+    pub fn as_primitive(&self) -> Option<PrimitiveType> {
+        match self {
+            Self::Primitive(prim) => Some(prim.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_term(&self) -> Option<TermType> {
+        match self {
+            Self::Term(ty) => Some(ty.clone()),
+            _ => None,
+        }
+    }
+}
+impl fmt::Display for Type {
+    /// Print this type for display using the provided module context
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use std::fmt::Write;
+        match self {
+            Self::Invalid => f.write_str("invalid"),
+            Self::Primitive(prim) => write!(f, "{}", &prim),
+            Self::Term(ty) => write!(f, "{}", &ty),
+            Self::NoReturn => f.write_char('!'),
+            Self::Exception => f.write_str("exception"),
+            Self::ExceptionTrace => f.write_str("trace"),
+            Self::RecvContext => f.write_str("recv_context"),
+            Self::RecvState => f.write_str("recv_state"),
         }
     }
 }

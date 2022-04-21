@@ -2,7 +2,7 @@ use liblumen_diagnostics::SourceSpan;
 use liblumen_mlir::*;
 use liblumen_number::Integer;
 use liblumen_syntax_core::{self as syntax_core, ir::instructions::*, DataFlowGraph};
-use liblumen_syntax_core::{ConstantItem, Immediate};
+use liblumen_syntax_core::{ConstantItem, Immediate, TermType};
 
 use log::debug;
 
@@ -97,9 +97,8 @@ impl<'m> ModuleBuilder<'m> {
         let _ip = self.builder.insertion_guard();
         self.builder
             .set_insertion_point_to_end(self.mlir_module.body());
-        let op =
-            self.builder
-                .build_func(self.location_from_span(span), name.as_str(), ty, &[], &[]);
+        let loc = self.location_from_span(span);
+        let op = self.builder.build_func(loc, name.as_str(), ty, &[], &[]);
         op.set_visibility(vis);
         Ok(op)
     }
@@ -229,6 +228,7 @@ impl<'m> ModuleBuilder<'m> {
         let loc = self.location_from_span(span);
         let arg = self.values[&op.arg];
         let mlir_op = match op.op {
+            Opcode::IsNull => self.cir().build_is_null(loc, arg).base(),
             Opcode::Head => self.cir().build_head(loc, arg).base(),
             Opcode::Tail => self.cir().build_tail(loc, arg).base(),
             Opcode::Neg => {
@@ -258,14 +258,23 @@ impl<'m> ModuleBuilder<'m> {
         op: &UnaryOpImm,
     ) -> anyhow::Result<()> {
         let loc = self.location_from_span(span);
-        let imm = self.immediate_to_constant(loc, op.imm);
         let mlir_op = match op.op {
+            Opcode::ImmNull => {
+                let builder = self.cir();
+                let result = dfg.first_result(inst);
+                let ty =
+                    translate_ir_type(self.module, self.options, &builder, &dfg.value_type(result));
+                let null = builder.build_null(loc, ty);
+                self.values.insert(result, null.get_result(0).base());
+                return Ok(());
+            }
             Opcode::ImmInt
             | Opcode::ImmFloat
             | Opcode::ImmBool
             | Opcode::ImmAtom
             | Opcode::ImmNil
             | Opcode::ImmNone => {
+                let imm = self.immediate_to_constant(loc, op.imm);
                 self.values.insert(dfg.first_result(inst), imm);
                 return Ok(());
             }
@@ -280,11 +289,16 @@ impl<'m> ModuleBuilder<'m> {
                 ),
             },
             Opcode::Neg => {
+                let imm = self.immediate_to_constant(loc, op.imm);
                 let neg1 = self.get_or_declare_function("erlang:-/1").unwrap();
                 self.cir().build_call(loc, neg1, &[imm]).base()
             }
-            Opcode::Not => self.cir().build_not(loc, imm).base(),
+            Opcode::Not => {
+                let imm = self.immediate_to_constant(loc, op.imm);
+                self.cir().build_not(loc, imm).base()
+            }
             Opcode::Bnot => {
+                let imm = self.immediate_to_constant(loc, op.imm);
                 let bnot1 = self.get_or_declare_function("erlang:bnot/1").unwrap();
                 self.cir().build_call(loc, bnot1, &[imm]).base()
             }
@@ -627,7 +641,7 @@ impl<'m> ModuleBuilder<'m> {
             }
             Opcode::GetElement => {
                 match dfg.constant_type(op.imm) {
-                    syntax_core::Type::Integer => {
+                    syntax_core::Type::Term(TermType::Integer) => {
                         let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                         self.cir().build_get_element(loc, lhs, rhs).base()
                     }
@@ -682,31 +696,31 @@ impl<'m> ModuleBuilder<'m> {
             }
             Opcode::And => {
                 match dfg.constant_type(op.imm) {
-                    syntax_core::Type::Bool => self.cir().build_and(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_core::Type::Term(TermType::Bool) => self.cir().build_and(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, and requires a boolean constant"),
                 }
             }
             Opcode::AndAlso => {
                 match dfg.constant_type(op.imm) {
-                    syntax_core::Type::Bool => self.cir().build_andalso(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_core::Type::Term(TermType::Bool) => self.cir().build_andalso(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, andalso requires a boolean constant"),
                 }
             }
             Opcode::Or => {
                 match dfg.constant_type(op.imm) {
-                    syntax_core::Type::Bool => self.cir().build_or(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_core::Type::Term(TermType::Bool) => self.cir().build_or(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, or requires a boolean constant"),
                 }
             }
             Opcode::OrElse => {
                 match dfg.constant_type(op.imm) {
-                    syntax_core::Type::Bool => self.cir().build_orelse(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_core::Type::Term(TermType::Bool) => self.cir().build_orelse(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, orelse requires a boolean constant"),
                 }
             }
             Opcode::Xor => {
                 match dfg.constant_type(op.imm) {
-                    syntax_core::Type::Bool => self.cir().build_xor(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_core::Type::Term(TermType::Bool) => self.cir().build_xor(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, xor requires a boolean constant"),
                 }
             }
@@ -815,9 +829,6 @@ impl<'m> ModuleBuilder<'m> {
         let arg = self.values[&op.arg];
         // Only None is supported as an immediate for this op currently
         assert_eq!(op.imm, Immediate::None);
-        let imm = self.immediate_to_constant(loc, op.imm);
-        let imm_type = imm.get_type();
-
         let arg_type = arg.get_type();
         let expected_arg_type = func_type.get_result(0).unwrap();
         let expected_imm_type = func_type.get_result(1).unwrap();
@@ -829,14 +840,9 @@ impl<'m> ModuleBuilder<'m> {
             let cast = builder.build_cast(loc, arg, expected_arg_type);
             cast.get_result(0).base()
         };
-        let imm = if imm_type == expected_imm_type {
-            imm
-        } else {
-            let cast = builder.build_cast(loc, imm, expected_imm_type);
-            cast.get_result(0).base()
-        };
+        let imm = builder.build_null(loc, expected_imm_type);
 
-        builder.build_return(loc, &[arg, imm]);
+        builder.build_return(loc, &[arg, imm.get_result(0).base()]);
         Ok(())
     }
 
@@ -852,10 +858,16 @@ impl<'m> ModuleBuilder<'m> {
         let args = dfg.inst_args(inst);
         let mut mapped_args = Vec::with_capacity(args.len());
         let builder = CirBuilder::new(&self.builder);
+        let i1ty = builder.get_i1_type().base();
         for (i, mapped_arg) in args.iter().map(|a| self.values[a]).enumerate() {
             if i == 0 && op.op != Opcode::Br {
-                let cond_cast = builder.build_cast(loc, mapped_arg, builder.get_i1_type());
-                mapped_args.push(cond_cast.get_result(0).base());
+                let cond = if mapped_arg.get_type() != i1ty {
+                    let cond_cast = builder.build_cast(loc, mapped_arg, builder.get_i1_type());
+                    cond_cast.get_result(0).base()
+                } else {
+                    mapped_arg
+                };
+                mapped_args.push(cond);
                 continue;
             }
             let index = if op.op == Opcode::Br { i } else { i - 1 };
@@ -1123,50 +1135,96 @@ fn translate_ir_type<'a, B: OpBuilder>(
     ty: &syntax_core::Type,
 ) -> TypeBase {
     use liblumen_syntax_core::Type as CoreType;
-    let use_boxed_floats = !options.target.term_encoding().is_nanboxed();
 
     debug!("translating syntax_core type {:?} to mlir type", ty);
     match ty {
         CoreType::Invalid | CoreType::NoReturn => builder.get_cir_none_type().base(),
-        CoreType::Term => builder.get_cir_term_type().base(),
-        CoreType::Bool => builder.get_cir_bool_type().base(),
-        CoreType::Integer => builder.get_cir_integer_type().base(),
-        CoreType::Float if use_boxed_floats => builder
+        CoreType::Primitive(ref ty) => translate_primitive_ir_type(builder, ty),
+        CoreType::Term(ref ty) => translate_term_ir_type(module, options, builder, ty),
+        CoreType::Exception => builder
+            .get_cir_ptr_type(builder.get_cir_exception_type())
+            .base(),
+        CoreType::ExceptionTrace => builder.get_cir_trace_type().base(),
+        CoreType::RecvContext => builder.get_cir_recv_context_type().base(),
+        CoreType::RecvState => builder.get_i8_type().base(),
+    }
+}
+
+fn translate_primitive_ir_type<'a, B: OpBuilder>(
+    builder: &CirBuilder<'a, B>,
+    ty: &syntax_core::PrimitiveType,
+) -> TypeBase {
+    use liblumen_syntax_core::PrimitiveType;
+    match ty {
+        PrimitiveType::Void => builder.get_none_type().base(),
+        PrimitiveType::I1 => builder.get_i1_type().base(),
+        PrimitiveType::I8 => builder.get_i8_type().base(),
+        PrimitiveType::I16 => builder.get_i16_type().base(),
+        PrimitiveType::I32 => builder.get_i32_type().base(),
+        PrimitiveType::I64 => builder.get_i64_type().base(),
+        PrimitiveType::Isize => builder.get_index_type().base(),
+        PrimitiveType::F64 => builder.get_f64_type().base(),
+        PrimitiveType::Ptr(inner) => {
+            let inner_ty = translate_primitive_ir_type(builder, &inner);
+            builder.get_cir_ptr_type(inner_ty).base()
+        }
+        PrimitiveType::Struct(fields) => {
+            let fields = fields
+                .iter()
+                .map(|t| translate_primitive_ir_type(builder, t))
+                .collect::<Vec<_>>();
+            builder.get_struct_type(fields.as_slice()).base()
+        }
+        PrimitiveType::Array(inner, arity) => {
+            let inner_ty = translate_primitive_ir_type(builder, &inner);
+            builder.get_array_type(inner_ty, *arity).base()
+        }
+    }
+}
+
+fn translate_term_ir_type<'a, B: OpBuilder>(
+    module: &syntax_core::Module,
+    options: &Options,
+    builder: &CirBuilder<'a, B>,
+    ty: &syntax_core::TermType,
+) -> TypeBase {
+    let use_boxed_floats = !options.target.term_encoding().is_nanboxed();
+    match ty {
+        TermType::Any => builder.get_cir_term_type().base(),
+        TermType::Bool => builder.get_cir_bool_type().base(),
+        TermType::Integer => builder.get_cir_integer_type().base(),
+        TermType::Float if use_boxed_floats => builder
             .get_cir_box_type(builder.get_cir_float_type())
             .base(),
-        CoreType::Float => builder.get_cir_float_type().base().base(),
-        CoreType::Number => builder.get_cir_number_type().base(),
-        CoreType::Atom => builder.get_cir_atom_type().base(),
-        CoreType::Bitstring | CoreType::Binary => {
+        TermType::Float => builder.get_cir_float_type().base().base(),
+        TermType::Number => builder.get_cir_number_type().base(),
+        TermType::Atom => builder.get_cir_atom_type().base(),
+        TermType::Bitstring | TermType::Binary => {
             builder.get_cir_box_type(builder.get_cir_bits_type()).base()
         }
-        CoreType::Nil => builder.get_cir_nil_type().base(),
-        CoreType::List(_) | CoreType::MaybeImproperList => {
+        TermType::Nil => builder.get_cir_nil_type().base(),
+        TermType::List(_) | TermType::MaybeImproperList => {
             builder.get_cir_box_type(builder.get_cir_cons_type()).base()
         }
-        CoreType::Tuple(None) => builder.get_cir_box_type(builder.get_tuple_type(&[])).base(),
-        CoreType::Tuple(Some(ref elems)) => {
+        TermType::Tuple(None) => builder.get_cir_box_type(builder.get_tuple_type(&[])).base(),
+        TermType::Tuple(Some(ref elems)) => {
             let element_types = elems
                 .iter()
-                .map(|t| translate_ir_type(module, options, builder, t))
+                .map(|t| translate_term_ir_type(module, options, builder, t))
                 .collect::<Vec<_>>();
             builder
                 .get_cir_box_type(builder.get_tuple_type(element_types.as_slice()))
                 .base()
         }
-        CoreType::Map(_) => builder.get_cir_box_type(builder.get_cir_map_type()).base(),
-        CoreType::Reference => builder.get_cir_reference_type().base(),
-        CoreType::Port => builder.get_cir_port_type().base(),
-        CoreType::Pid => builder.get_cir_pid_type().base(),
-        CoreType::Fun(None) => builder.get_cir_term_type().base(),
-        CoreType::Fun(Some(func)) => {
+        TermType::Map => builder.get_cir_box_type(builder.get_cir_map_type()).base(),
+        TermType::Reference => builder.get_cir_reference_type().base(),
+        TermType::Port => builder.get_cir_port_type().base(),
+        TermType::Pid => builder.get_cir_pid_type().base(),
+        TermType::Fun(None) => builder.get_cir_term_type().base(),
+        TermType::Fun(Some(func)) => {
             let sig = module.call_signature(*func).clone();
             signature_to_fn_type(module, options, builder, &sig).base()
         }
-        CoreType::Exception => builder.get_cir_exception_type().base(),
-        CoreType::ExceptionTrace => builder.get_cir_trace_type().base(),
-        CoreType::RecvContext => builder.get_cir_recv_context_type().base(),
-        CoreType::RecvState => builder.get_i8_type().base(),
     }
 }
 

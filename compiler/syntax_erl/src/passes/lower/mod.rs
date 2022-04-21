@@ -48,14 +48,14 @@ impl Pass for AstToCore {
                 Visibility::DEFAULT
             };
             let mut params = vec![];
-            params.resize(fun.arity as usize, Type::Term);
+            params.resize(fun.arity as usize, Type::Term(TermType::Any));
             let signature = Signature {
                 visibility,
                 cc: CallConv::Erlang,
                 module: module.name(),
                 name: fun.name.name,
                 params,
-                results: vec![Type::Term, Type::Exception],
+                results: vec![Type::Term(TermType::Any), Type::Exception],
             };
             let id = ir_module.declare_function(signature.clone());
             debug!(
@@ -389,7 +389,7 @@ impl<'m> LowerFunctionToCore<'m> {
         let cond = builder
             .ins()
             .eq_exact_imm(result, Immediate::Bool(true), span);
-        let exception = builder.ins().none(span);
+        let exception = builder.ins().null(Type::Exception, span);
         builder
             .ins()
             .br_unless(cond, guard_failed, &[exception], span);

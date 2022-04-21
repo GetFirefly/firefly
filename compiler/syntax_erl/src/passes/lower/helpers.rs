@@ -39,7 +39,7 @@ impl<'m> LowerFunctionToCore<'m> {
             let results = builder.inst_results(inst);
             (results[0], results[1])
         };
-        let ok = builder.ins().eq_exact_imm(exception, Immediate::None, span);
+        let ok = builder.ins().is_null(exception, span);
         let landing_pad = self.current_landing_pad(builder);
         builder.ins().br_unless(ok, landing_pad, &[exception], span);
         Ok(result)

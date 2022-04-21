@@ -29,5 +29,5 @@ pub use self::layout::{ArenaMap, LayoutAdapter, LayoutNode, OrderedArenaMap};
 pub use self::module::Module;
 pub use self::scope::Scope;
 //pub use self::pattern::*;
-pub use self::types::Type;
+pub use self::types::{PrimitiveType, TermType, Type};
 pub use self::value::{Value, ValueData, ValueList, ValueListPool, Values};

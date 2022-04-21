@@ -7,9 +7,11 @@ use log::debug;
 use liblumen_core::symbols::FunctionSymbol;
 use liblumen_diagnostics::{CodeMap, SourceSpan};
 use liblumen_intern::{symbols, Symbol};
+use liblumen_llvm::Linkage;
 use liblumen_mlir as mlir;
-use liblumen_mlir::cir::CirBuilder;
-use liblumen_mlir::{Builder, OpBuilder, Operation, OwnedOpBuilder};
+use liblumen_mlir::cir::{CirBuilder, DispatchTableOp};
+use liblumen_mlir::llvm::LlvmBuilder;
+use liblumen_mlir::{Builder, OpBuilder, Operation, OwnedOpBuilder, Variadic};
 use liblumen_session::Options;
 use liblumen_syntax_core as syntax_core;
 
@@ -25,6 +27,7 @@ pub struct ModuleBuilder<'m> {
     module: &'m syntax_core::Module,
     mlir_module: mlir::OwnedModule,
     builder: OwnedOpBuilder,
+    dispatch_table: DispatchTableOp,
     // The current syntax_core block being translated
     current_source_block: syntax_core::Block,
     // The current MLIR block being built
@@ -70,12 +73,18 @@ impl<'m> ModuleBuilder<'m> {
         let entry_region = mlir_module.body();
         builder.set_insertion_point_to_end(entry_region);
 
+        let dispatch_table = {
+            let cir = CirBuilder::new(&builder);
+            cir.build_dispatch_table(loc, name)
+        };
+
         Self {
             options,
             codemap,
             module,
             mlir_module,
             builder,
+            dispatch_table,
             current_source_block: syntax_core::Block::default(),
             current_block: mlir::Block::default(),
             atoms,
@@ -158,7 +167,39 @@ impl<'m> ModuleBuilder<'m> {
             {
                 continue;
             }
-            self.declare_function(f.span, &f.signature)?;
+            let func = self.declare_function(f.span, &f.signature)?;
+            if f.signature.is_erlang() {
+                func.set_attribute_by_name(
+                    "personality",
+                    self.builder
+                        .get_flat_symbol_ref_attr_by_name("lumen_eh_personality"),
+                );
+                //TODO: Need to re-enable when garbage collector lowering is implemented
+                //func.set_attribute_by_name("garbageCollector", self.builder.get_string_attr("erlang"));
+            }
+
+            // Register with the dispatch table for this module if public
+            if f.signature.visibility.is_public() {
+                let name = f.signature.mfa().to_string();
+                self.dispatch_table.append(
+                    self.location_from_span(f.span),
+                    self.builder.get_string_attr(f.signature.name),
+                    self.builder.get_i8_attr(f.signature.arity() as i8),
+                    self.builder.get_flat_symbol_ref_attr_by_name(name.as_str()),
+                );
+            }
+        }
+
+        // Inject declaration for personality function
+        {
+            let loc = self.location_from_span(self.module.span());
+            let _ip = self.builder.insertion_guard();
+            self.builder
+                .set_insertion_point_to_end(self.mlir_module.body());
+            let i32ty = self.builder.get_i32_type();
+            let llvm = LlvmBuilder::new(&self.builder);
+            let ty = llvm.get_function_type(i32ty, &[], Variadic::Yes);
+            llvm.build_func(loc, "lumen_eh_personality", ty, Linkage::External, &[]);
         }
 
         // Then build them out

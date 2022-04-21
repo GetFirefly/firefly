@@ -78,9 +78,3 @@ pub fn add_event_listener(
 pub fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Web.Window")
 }
-
-// Private
-
-fn module_id() -> usize {
-    module().id()
-}

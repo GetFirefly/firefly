@@ -202,11 +202,13 @@ pub enum Opcode {
     ImmAtom,
     ImmNil,
     ImmNone,
+    ImmNull,
     ConstBigInt,
     ConstBinary,
     ConstTuple,
     ConstList,
     ConstMap,
+    IsNull,
     Add,
     Sub,
     Mul,
@@ -297,6 +299,7 @@ impl Opcode {
             | Self::ImmAtom
             | Self::ImmNil
             | Self::ImmNone
+            | Self::ImmNull
             | Self::ConstBigInt
             | Self::ConstBinary
             | Self::ConstTuple
@@ -328,7 +331,13 @@ impl Opcode {
             | Self::Lt
             | Self::Lte => 2,
             // Unary ops always have one
-            Self::Neg | Self::Not | Self::Bnot | Self::IsType | Self::Head | Self::Tail => 1,
+            Self::IsNull
+            | Self::Neg
+            | Self::Not
+            | Self::Bnot
+            | Self::IsType
+            | Self::Head
+            | Self::Tail => 1,
             // Tagged tuple checks take two arguments, the tuple and the tag
             Self::IsTaggedTuple => 2,
             // Tuple constructor takes a single argument, the arity
@@ -381,11 +390,13 @@ impl fmt::Display for Opcode {
             Self::ImmAtom => f.write_str("const.atom"),
             Self::ImmNil => f.write_str("const.nil"),
             Self::ImmNone => f.write_str("const.none"),
+            Self::ImmNull => f.write_str("null"),
             Self::ConstBigInt => f.write_str("const.bigint"),
             Self::ConstBinary => f.write_str("const.binary"),
             Self::ConstTuple => f.write_str("const.tuple"),
             Self::ConstList => f.write_str("const.list"),
             Self::ConstMap => f.write_str("const.map"),
+            Self::IsNull => f.write_str("is_null"),
             Self::Br => f.write_str("br"),
             Self::BrIf => f.write_str("br.if"),
             Self::BrUnless => f.write_str("br.unless"),

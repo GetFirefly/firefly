@@ -14,10 +14,6 @@ pub fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Web.Executor")
 }
 
-fn module_id() -> usize {
-    module().id()
-}
-
 /// The executor for a `js_sys::Promise` that will be resolved by `code` or rejected when the owning
 /// process exits and the executor is dropped.
 pub struct Executor {

@@ -26,7 +26,3 @@ async fn removes_element() {
 fn module() -> Atom {
     Atom::from_str("Elixir.Lumen.Web.Element.Remove1")
 }
-
-fn module_id() -> usize {
-    module().id()
-}

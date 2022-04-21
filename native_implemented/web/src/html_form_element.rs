@@ -47,7 +47,3 @@ fn from_term(term: Term) -> Result<&'static HtmlFormElement, exception::Exceptio
 fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.HTMLFormElement").unwrap()
 }
-
-fn module_id() -> usize {
-    module().id()
-}

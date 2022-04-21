@@ -41,6 +41,28 @@ pub use liblumen_term::EncodingType;
 use self::abi::Abi;
 use self::crt_objects::{CrtObjects, CrtObjectsFallback};
 
+// This link script is the default for all targets and handles setting up the
+// custom sections for the atom and dispatch tables. If a target-specific script
+// is needed to handle some special edge case, it is necessary that you build on
+// top of this script as a base (or implement the equivalent functionality anyway).
+const DEFAULT_LINK_SCRIPT: &'static str = r#"""
+SECTIONS {
+    __atoms_start = .;
+    .atoms : {
+      . = __atoms_start;
+      KEEP(*(SORT_BY_NAME(.atom*)));
+      __atoms_end = .;
+    }
+
+    __lumen_dispatch_start = .;
+    .lumen_dispatch : {
+      KEEP(*(SORT_BY_NAME(.lumen_dispatch*)));
+      __lumen_dispatch_end = .;
+    }
+}
+INSERT BEFORE .bss;
+"""#;
+
 #[derive(Error, Debug)]
 #[error("invalid linker flavor: '{0}'")]
 pub struct InvalidLinkerFlavorError(String);
@@ -888,7 +910,7 @@ impl Default for TargetOptions {
             lld_flavor: LldFlavor::Ld,
             pre_link_args: LinkArgs::new(),
             post_link_args: LinkArgs::new(),
-            link_script: None,
+            link_script: Some(DEFAULT_LINK_SCRIPT.to_string()),
             asm_args: Vec::new(),
             cpu: "generic".to_string(),
             features: String::new(),

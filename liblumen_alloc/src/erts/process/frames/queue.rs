@@ -1,5 +1,5 @@
-pub use alloc::collections::vec_deque::Drain;
-use alloc::collections::vec_deque::VecDeque;
+pub use std::collections::vec_deque::Drain;
+use std::collections::vec_deque::VecDeque;
 
 use crate::erts::process::FrameWithArguments;
 

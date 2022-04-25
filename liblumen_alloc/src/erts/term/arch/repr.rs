@@ -1,12 +1,11 @@
-use core::fmt::{Debug, Display};
-use core::hash::Hash;
+use std::backtrace::Backtrace;
+use std::fmt::{Debug, Display};
+use std::hash::Hash;
+use std::sync::Arc;
 
 use liblumen_term::Tag;
 
-use alloc::sync::Arc;
-
 use crate::erts::term::prelude::*;
-use std::backtrace::Backtrace;
 
 pub trait Repr:
     Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self> + Ord + Hash + Send

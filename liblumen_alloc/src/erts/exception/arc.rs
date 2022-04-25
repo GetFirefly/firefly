@@ -1,7 +1,6 @@
-use core::fmt::{self, Display};
-use core::ops::Deref;
-
-use alloc::sync::Arc;
+use std::fmt::{self, Display};
+use std::ops::Deref;
+use std::sync::Arc;
 
 use crate::erts::term::pid::InvalidPidError;
 use crate::erts::term::prelude::{TermDecodingError, TermEncodingError, TypeError};

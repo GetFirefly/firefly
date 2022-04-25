@@ -45,9 +45,9 @@ impl PassManager {
     }
 
     /// Enable the MSan sanitizer
-    pub fn sanitize_memory(&mut self, track_origins: u32) {
+    pub fn sanitize_memory(&mut self, track_origins: bool) {
         self.config.sanitizer_opts.memory = true;
-        self.config.sanitizer_opts.memory_track_origins = track_origins;
+        self.config.sanitizer_opts.memory_track_origins = track_origins as u32;
     }
 
     /// Enable the TSan sanitizer

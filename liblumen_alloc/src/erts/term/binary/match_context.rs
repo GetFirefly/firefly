@@ -1,10 +1,7 @@
-use core::alloc::Layout;
-use core::convert::TryFrom;
-use core::fmt;
-use core::ptr;
-use core::slice;
-
-use alloc::boxed::Box;
+use std::alloc::Layout;
+use std::fmt;
+use std::ptr;
+use std::slice;
 
 use liblumen_core::util::pointer::distance_absolute;
 

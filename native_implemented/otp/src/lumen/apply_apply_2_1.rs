@@ -1,38 +1,48 @@
 //! This is used as the `init_fn` for `Scheduler::spawn_closure`, as the spawning code can only
 //! pass at most 1 argument and `erlang:apply/2` takes two arguments
+use anyhow::anyhow;
 
-use anyhow::*;
-
-use liblumen_alloc::erts::exception::{self, badarity};
+use liblumen_alloc::erts::exception::{badarity, Exception};
+use liblumen_alloc::erts::process::ffi::ErlangResult;
 use liblumen_alloc::erts::process::trace::Trace;
-use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::erlang;
 use crate::erlang::apply::arguments_term_to_vec;
 
-#[native_implemented::function(lumen:apply_apply_2/1)]
-fn result(process: &Process, arguments: Term) -> exception::Result<Term> {
-    let argument_vec = arguments_term_to_vec(arguments)?;
+#[export_name = "lumen:apply_apply_2/1"]
+pub extern "C-unwind" fn apply_apply_2(arguments: Term) -> ErlangResult {
+    let arc_process = crate::runtime::process::current_process();
+    let argument_vec = match arguments_term_to_vec(arguments) {
+        Ok(args) => args,
+        Err(err) => match err {
+            Exception::Runtime(exception) => {
+                return ErlangResult::error(arc_process.raise(exception));
+            }
+            Exception::System(ref exception) => {
+                panic!("{}", exception)
+            }
+        },
+    };
     let arguments_len = argument_vec.len();
 
-    if arguments_len == (erlang::apply_2::ARITY as usize) {
+    if arguments_len == 2 {
         let apply_2_function = argument_vec[0];
         let apply_2_arguments = argument_vec[1];
 
         // want to call into `erlang:apply/2` `native` and not `result` so that the stack trace
         // shows `erlang:apply/2`.
-        Ok(erlang::apply_2::native(apply_2_function, apply_2_arguments))
+        erlang::apply_2::apply_2(apply_2_function, apply_2_arguments)
     } else {
-        let function = process.export_closure(
+        let function = arc_process.export_closure(
             erlang::module(),
-            erlang::apply_2::function(),
-            erlang::apply_2::ARITY,
+            Atom::from_str("apply"),
+            2,
             erlang::apply_2::CLOSURE_NATIVE,
         );
 
-        Err(badarity(
-            process,
+        let exception = badarity(
+            &arc_process,
             function,
             arguments,
             Trace::capture(),
@@ -41,10 +51,11 @@ fn result(process: &Process, arguments: Term) -> exception::Result<Term> {
                     "function arguments {} is {} term(s), but should be {}",
                     arguments,
                     arguments_len,
-                    erlang::apply_2::ARITY
+                    2,
                 )
                 .into(),
             ),
-        ))
+        );
+        ErlangResult::error(arc_process.raise(exception))
     }
 }

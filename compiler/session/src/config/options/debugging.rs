@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
-use liblumen_target::{MergeFunctions, RelroLevel};
-
 use liblumen_compiler_macros::option_group;
+use liblumen_target::SplitDebugInfo;
 
 use crate::config::*;
 
@@ -12,43 +11,32 @@ pub struct DebuggingOptions {
     #[option]
     /// Generate comments into the assembly (may change behavior)
     pub asm_comments: bool,
+    /**
+     * Debug info emission level
+     *     0 = no debug info
+     *     1 = line tables only,
+     *     2 = full debug info with variable and type information
+     *     _
+     */
+    #[option(
+        next_line_help(true),
+        takes_value(true),
+        value_name("LEVEL"),
+        default_value("0"),
+        possible_values("0", "1", "2")
+    )]
+    pub debuginfo: DebugInfo,
     #[option(hidden(true))]
     /// Emit a section containing stack size metadata
     pub emit_stack_sizes: bool,
     #[option(hidden(true))]
     /// Gather statistics about the input
     pub input_stats: bool,
-    #[option(default_value("true"))]
-    /// Link native libraries in the linker invocation
-    pub link_native_libraries: bool,
     #[option]
-    /// Control whether to link Lumen provided C objects/libraries or rely
-    /// on C toolchain installed in the system
-    pub link_self_contained: Option<bool>,
-    #[option(
-        takes_value(true),
-        possible_values("disabled", "trampolines", "aliases"),
-        hidden(true)
-    )]
-    /// Control the operation of the MergeFunctions LLVM pass, taking
-    /// the same values as the target option of the same name
-    pub merge_functions: Option<MergeFunctions>,
+    /// A list of LLVM plugins to enable (space separated)
+    pub llvm_plugins: Vec<String>,
     #[option]
-    /// Run all passes except codegen; no output
-    pub no_codegen: bool,
-    #[option]
-    /// Pass `-install_name @rpath/...` to the macOS linker
-    pub osx_rpath_install_name: bool,
-    #[option]
-    /// Parse only; do not compile, assemble, or link
-    pub parse_only: bool,
-    #[option(takes_value(true), value_name("ARG"))]
-    /// A single extra argument to prepend the linker invocation
-    /// can be used more than once
-    pub pre_link_arg: Vec<String>,
-    #[option(takes_value(true), value_name("ARGS"), require_delimiter(true))]
-    /// Extra arguments to prepend to the linker invocation (space separated)
-    pub pre_link_args: Option<Vec<String>>,
+    pub llvm_time_trace: bool,
     #[option(takes_value(true), possible_values("false", "none", "plain", "pretty"))]
     /// Enable printing of debug info when printing MLIR
     pub mlir_print_debug_info: MlirDebugPrinting,
@@ -57,18 +45,18 @@ pub struct DebuggingOptions {
     pub print_link_args: bool,
     #[option(default_value("false"))]
     /// Prints MLIR IR and pass name for each optimization pass before being run
-    pub print_passes_before: bool,
+    pub mlir_print_passes_before: bool,
     #[option(default_value("false"))]
     /// Prints MLIR IR and pass name for each optimization pass after being run
-    pub print_passes_after: bool,
+    pub mlir_print_passes_after: bool,
     #[option(default_value("false"))]
     /// Only print MLIR IR and pass name after each optimization pass when the IR changes
     /// This is expected to be combined with `print_passes_after`.
-    pub print_passes_on_change: bool,
+    pub mlir_print_passes_on_change: bool,
     #[option(default_value("false"))]
     /// Only print MLIR IR and pass name after each optimization pass when the pass fails
     /// This is expected to be combined with `print_passes_after`.
-    pub print_passes_on_failure: bool,
+    pub mlir_print_passes_on_failure: bool,
     #[option(default_value("false"))]
     /// Prints MLIR operations using their generic form
     pub mlir_print_generic_ops: bool,
@@ -96,48 +84,53 @@ pub struct DebuggingOptions {
     #[option(takes_value(true), value_name("PATH"))]
     /// Enables crash reproducer generation on MLIR pass failure to the given path
     pub mlir_enable_crash_reproducer: Option<PathBuf>,
-    #[option(default_value("false"))]
+    #[option]
+    /// Parse only; do not compile, assemble, or link
+    pub parse_only: bool,
+    #[option]
+    pub print_artifact_sizes: bool,
+    #[option]
     /// Prints the LLVM optimization passes being run
     pub print_llvm_passes: bool,
-    #[option(default_value("false"))]
+    #[option]
     /// Prints diagnostics for LLVM optimization remarks produced during codegen
     pub print_llvm_optimization_remarks: bool,
-    #[option(
-        takes_value(true),
-        possible_values("full", "partial", "off", "none"),
-        hidden(true)
-    )]
-    /// Choose which RELRO level to use")
-    pub relro_level: Option<RelroLevel>,
-    #[option(
-        takes_value(true),
-        possible_values("address", "leak", "memory", "thread"),
-        hidden(true)
-    )]
-    /// Use a sanitizer
-    pub sanitizer: Option<Sanitizer>,
-    #[option(
-        next_line_help(true),
-        takes_value(true),
-        value_name("TYPE"),
-        default_value("none"),
-        possible_values("none", "debuginfo", "symbols")
-    )]
+    /// A comma-separated list of sanitizers to enable:
+    ///     address = enable the address sanitizer
+    ///     leak    = enable the leak sanitizer
+    ///     memory  = enable the memory sanitizer
+    ///     thread  = enable the thread sanitizer
+    #[option(takes_value(true), value_name("SANITIZERS"), requires_delimiter(true))]
+    pub sanitizers: Vec<Sanitizer>,
+    /// Enable origins tracking in MemorySanitizer
+    #[option]
+    pub sanitizer_memory_track_origins: bool,
+    #[option]
+    pub split_debuginfo: Option<SplitDebugInfo>,
     /**
-     * Tell the linker which information to strip:
-     *     none      = do not strip anything
-     *     debuginfo = strip debugging information
-     *     symbols   = strip debugging symbols wh
-     *     _
-     */
-    pub strip: Strip,
-    #[option(hidden(true))]
-    /// Enable ThinLTO when possible
-    pub thinlto: Option<bool>,
+     * Split DWARF variant (only if -Csplit-debuginfo is enabled and relevant)
+     *
+     *     split  = sections which do not require reloation are split out and ignored (default)
+     *     single = sections which do not require relocation are ignored
+     **/
+    #[option(
+        takes_value(true),
+        value_name("KIND"),
+        default_value("split"),
+        possible_values("split", "single")
+    )]
+    pub split_dwarf_kind: SplitDwarfKind,
+    #[option]
+    /// Provide minimal debug info in the object/executable to facilitate online
+    /// symbolication/stack traces in the absence of .dwo/.dwp files when using split DWARF
+    pub split_dwarf_inlining: bool,
     #[option(default_value("1"), takes_value(true), value_name("N"))]
     /// Use a thread pool with N threads
     pub threads: u64,
-    #[option(hidden(true))]
+    /// Measure the time spent on tasks
+    #[option]
+    pub time: bool,
+    #[option]
     /// Measure time of each lumen pass
     pub time_passes: bool,
     #[option]
@@ -146,7 +139,7 @@ pub struct DebuggingOptions {
     #[option]
     /// Measure time of each LLVM pass
     pub time_llvm_passes: bool,
-    #[option(default_value("true"))]
+    #[option]
     /// Verify LLVM IR
     pub verify_llvm_ir: bool,
 }

@@ -53,14 +53,14 @@ impl FromStr for OutputType {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "ast" => Ok(OutputType::AST),
-            "core" => Ok(OutputType::CoreIR),
-            "mlir" => Ok(OutputType::MLIR),
-            "llvm-ir" | "ll" => Ok(OutputType::LLVMAssembly),
-            "llvm-bc" | "bc" => Ok(OutputType::LLVMBitcode),
-            "asm" => Ok(OutputType::Assembly),
-            "obj" | "o" => Ok(OutputType::Object),
-            "link" | "exe" => Ok(OutputType::Link),
+            "ast" => Ok(Self::AST),
+            "core" => Ok(Self::CoreIR),
+            "mlir" => Ok(Self::MLIR),
+            "llvm-ir" | "ll" => Ok(Self::LLVMAssembly),
+            "llvm-bc" | "bc" => Ok(Self::LLVMBitcode),
+            "asm" => Ok(Self::Assembly),
+            "obj" | "o" => Ok(Self::Object),
+            "link" | "exe" => Ok(Self::Link),
             _ => Err(()),
         }
     }
@@ -79,27 +79,27 @@ impl fmt::Display for OutputType {
 impl OutputType {
     pub fn as_str(&self) -> &'static str {
         match self {
-            &OutputType::AST => "ast",
-            &OutputType::CoreIR => "core",
-            &OutputType::MLIR => "mlir",
-            &OutputType::LLVMAssembly => "llvm-ir",
-            &OutputType::LLVMBitcode => "llvm-bc",
-            &OutputType::Assembly => "asm",
-            &OutputType::Object => "obj",
-            &OutputType::Link => "link",
+            &Self::AST => "ast",
+            &Self::CoreIR => "core",
+            &Self::MLIR => "mlir",
+            &Self::LLVMAssembly => "llvm-ir",
+            &Self::LLVMBitcode => "llvm-bc",
+            &Self::Assembly => "asm",
+            &Self::Object => "obj",
+            &Self::Link => "link",
         }
     }
 
     pub fn variants() -> &'static [OutputType] {
         &[
-            OutputType::AST,
-            OutputType::CoreIR,
-            OutputType::MLIR,
-            OutputType::LLVMAssembly,
-            OutputType::LLVMBitcode,
-            OutputType::Assembly,
-            OutputType::Object,
-            OutputType::Link,
+            Self::AST,
+            Self::CoreIR,
+            Self::MLIR,
+            Self::LLVMAssembly,
+            Self::LLVMBitcode,
+            Self::Assembly,
+            Self::Object,
+            Self::Link,
         ]
     }
 
@@ -125,14 +125,14 @@ impl OutputType {
 
     pub fn extension(&self) -> &'static str {
         match *self {
-            OutputType::AST => "ast",
-            OutputType::CoreIR => "cir",
-            OutputType::MLIR => "mlir",
-            OutputType::LLVMAssembly => "ll",
-            OutputType::LLVMBitcode => "bc",
-            OutputType::Assembly => "s",
-            OutputType::Object => "o",
-            OutputType::Link => "",
+            Self::AST => "ast",
+            Self::CoreIR => "cir",
+            Self::MLIR => "mlir",
+            Self::LLVMAssembly => "ll",
+            Self::LLVMBitcode => "bc",
+            Self::Assembly => "s",
+            Self::Object => "o",
+            Self::Link => "",
         }
     }
 }

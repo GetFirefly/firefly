@@ -93,12 +93,7 @@ LLVMLumenCreateTargetMachine(TargetMachineConfig *conf, char *error) {
   }
 
   auto rm = config.relocModel;
-  llvm::Reloc::Model relocModel;
-  if (rm != lumen::RelocModel::Default)
-    relocModel = toLLVM(rm);
-  else
-    relocModel = config.positionIndependentCode ? llvm::Reloc::PIC_
-                                                : llvm::Reloc::Static;
+  llvm::Reloc::Model relocModel = toLLVM(rm);
 
   auto codeModel = toLLVM(config.codeModel);
 
@@ -242,19 +237,17 @@ unsigned lumen::toLLVM(lumen::SizeLevel level) {
 
 llvm::Reloc::Model lumen::toLLVM(lumen::RelocModel model) {
   switch (model) {
-  case lumen::RelocModel::Default:
-    return llvm::Reloc::Static;
   case lumen::RelocModel::Static:
     return llvm::Reloc::Static;
-  case lumen::RelocModel::PIC:
+  case lumen::RelocModel::Pic:
     return llvm::Reloc::PIC_;
   case lumen::RelocModel::DynamicNoPic:
     return llvm::Reloc::DynamicNoPIC;
-  case lumen::RelocModel::ROPI:
+  case lumen::RelocModel::Ropi:
     return llvm::Reloc::ROPI;
-  case lumen::RelocModel::RWPI:
+  case lumen::RelocModel::Rwpi:
     return llvm::Reloc::RWPI;
-  case lumen::RelocModel::ROPIRWPI:
+  case lumen::RelocModel::RopiRwpi:
     return llvm::Reloc::ROPI_RWPI;
   default:
     llvm::report_fatal_error("invalid llvm reloc model");

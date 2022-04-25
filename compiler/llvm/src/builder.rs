@@ -62,7 +62,7 @@ pub struct ModuleBuilder<'ctx> {
     intrinsics: RefCell<FxHashMap<&'static str, Function>>,
     local_gen_sym_counter: Cell<usize>,
     opt_level: PassBuilderOptLevel,
-    sanitizer: Option<Sanitizer>,
+    sanitizers: Vec<Sanitizer>,
     target_cpu: String,
     usize_type: IntegerType,
 }
@@ -92,8 +92,8 @@ impl<'ctx> ModuleBuilder<'ctx> {
             intrinsics: RefCell::new(Default::default()),
             local_gen_sym_counter: Cell::new(0),
             opt_level,
-            sanitizer: options.debugging_opts.sanitizer.clone(),
-            target_cpu: crate::target::target_cpu(options).to_owned(),
+            sanitizers: options.debugging_opts.sanitizers.clone(),
+            target_cpu: crate::target::target_cpu(options).to_string(),
             usize_type,
         })
     }
@@ -1249,7 +1249,7 @@ impl<'ctx> ModuleBuilder<'ctx> {
     }
 
     fn apply_sanitizers(&self, fun: Function) {
-        if let Some(sanitizer) = self.sanitizer {
+        for sanitizer in self.sanitizers.as_slice() {
             let kind = match sanitizer {
                 Sanitizer::Address => AttributeKind::SanitizeAddress,
                 Sanitizer::Memory => AttributeKind::SanitizeMemory,

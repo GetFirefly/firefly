@@ -1,44 +1,29 @@
+use std::borrow::Borrow;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use liblumen_intern::Symbol;
-use liblumen_session::{Options, PathKind};
+use liblumen_llvm as llvm;
+use liblumen_session::Options;
+use liblumen_target::spec::PanicStrategy;
 use liblumen_util::fs::NativeLibraryKind;
 
-use crate::linker::LinkerInfo;
+use crate::linker;
 
 /// Represents the results of compiling a single module
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledModule {
-    name: Symbol,
-    object: Option<PathBuf>,
-    bytecode: Option<PathBuf>,
-    bytecode_compressed: Option<PathBuf>,
+    pub name: Symbol,
+    pub object: Option<PathBuf>,
+    pub dwarf_object: Option<PathBuf>,
+    pub bytecode: Option<PathBuf>,
 }
 impl CompiledModule {
-    pub fn new(name: Symbol, object: Option<PathBuf>, bytecode: Option<PathBuf>) -> Self {
-        Self {
-            name,
-            object,
-            bytecode,
-            bytecode_compressed: None,
-        }
-    }
-
-    pub fn name(&self) -> Symbol {
-        self.name
-    }
-
     pub fn object(&self) -> Option<&Path> {
         self.object.as_deref()
     }
 
     pub fn bytecode(&self) -> Option<&Path> {
         self.bytecode.as_deref()
-    }
-
-    pub fn bytecode_compressed(&self) -> Option<&Path> {
-        self.bytecode_compressed.as_deref()
     }
 }
 
@@ -47,171 +32,151 @@ impl CompiledModule {
 pub struct CodegenResults {
     pub app_name: Symbol,
     pub modules: Vec<CompiledModule>,
-    pub windows_subsystem: Option<String>,
-    pub linker_info: LinkerInfo,
     pub project_info: ProjectInfo,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
-pub enum Linkage {
-    NotLinked,
-    IncludedFromDylib,
-    Static,
-    Dynamic,
-}
-
-pub type DependencyList = Vec<Linkage>;
-
-pub struct DependencySource {
-    pub dylib: Option<(PathBuf, PathKind)>,
-    pub rlib: Option<(PathBuf, PathKind)>,
-}
-impl DependencySource {
-    pub fn paths(&self) -> impl Iterator<Item = &PathBuf> {
-        self.dylib.iter().chain(self.rlib.iter()).map(|p| &p.0)
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum DepKind {
-    Implicit,
-    Explicit,
-}
-
-#[derive(Clone, Debug)]
-pub enum LibSource {
-    Some(PathBuf),
-    None,
-}
-impl LibSource {
-    pub fn is_some(&self) -> bool {
-        if let LibSource::Some(_) = *self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn option(&self) -> Option<PathBuf> {
-        match *self {
-            LibSource::Some(ref p) => Some(p.clone()),
-            LibSource::None => None,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum LinkagePreference {
-    RequireDynamic,
-    RequireStatic,
+#[derive(Debug)]
+pub struct Dependency {
+    pub name: Symbol,
+    pub source: Option<PathBuf>,
 }
 
 #[derive(Debug)]
 pub struct ProjectInfo {
+    pub target_cpu: String,
+    pub exported_symbols: Vec<String>,
     pub native_libraries: Vec<NativeLibrary>,
-    pub used_libraries: Arc<Vec<NativeLibrary>>,
-    pub link_args: Vec<String>,
-    pub used_deps_static: Vec<(String, LibSource)>,
-    pub used_deps_dynamic: Vec<(String, LibSource)>,
+    pub used_libraries: Vec<NativeLibrary>,
+    pub used_deps: Vec<Dependency>,
+    pub windows_subsystem: Option<String>,
 }
 impl ProjectInfo {
     pub fn new(options: &Options) -> Self {
         let mut info = Self::default();
-        // All other libraries are user-provided
+        info.target_cpu = llvm::target::target_cpu(options).to_string();
+        info.exported_symbols = linker::exported_symbols(options);
+
+        // We always add dependencies on our core runtime crates
+        let lumenlib_dir = options
+            .target_tlib_path
+            .as_ref()
+            .map(|t| t.dir.clone())
+            .unwrap_or_else(|| options.host_tlib_path.dir.clone());
+        let prefix = &options.target.options.staticlib_prefix;
+        info.used_deps
+            .push(match options.target.options.panic_strategy {
+                PanicStrategy::Abort => Dependency {
+                    name: Symbol::intern("panic_abort"),
+                    source: Some(lumenlib_dir.join(&format!("{}panic_abort.rlib", prefix))),
+                },
+                PanicStrategy::Unwind => Dependency {
+                    name: Symbol::intern("panic_unwind"),
+                    source: Some(lumenlib_dir.join(&format!("{}panic_abort.rlib", prefix))),
+                },
+            });
+        if options.target.options.is_like_wasm {
+            info.used_libraries.push(NativeLibrary {
+                kind: NativeLibraryKind::Static {
+                    bundle: None,
+                    whole_archive: None,
+                },
+                name: Some("lumen_web".to_string()),
+                verbatim: None,
+            });
+        } else {
+            info.used_libraries.push(NativeLibrary {
+                kind: NativeLibraryKind::Static {
+                    bundle: None,
+                    whole_archive: None,
+                },
+                name: Some("lumen_rt_minimal".to_string()),
+                verbatim: None,
+            });
+            info.used_deps.push(Dependency {
+                name: Symbol::intern("liblumen_otp"),
+                source: Some(lumenlib_dir.join(&format!("{}liblumen_otp.rlib", prefix))),
+            });
+        }
+
+        // Add user-provided libraries
         for (name, _, kind) in options.link_libraries.iter() {
             info.native_libraries.push(NativeLibrary {
-                kind: kind.unwrap_or(NativeLibraryKind::NativeUnknown),
+                kind: *kind,
                 name: Some(name.clone()),
-                wasm_import_module: None,
+                verbatim: None,
             });
         }
 
         // Add platform-specific libraries that must be linked to
-        let mut platform_libs = vec![];
-        let triple = &options.target.llvm_target;
-        let target_os = &options.target.target_os;
-        if triple.contains("linux") {
-            if triple.contains("android") {
-                platform_libs = vec![
-                    ("c", NativeLibraryKind::NativeUnknown),
-                    ("m", NativeLibraryKind::NativeUnknown),
-                    ("dl", NativeLibraryKind::NativeUnknown),
-                    ("log", NativeLibraryKind::NativeUnknown),
-                    ("gcc", NativeLibraryKind::NativeUnknown),
-                ];
-            } else if !triple.contains("musl") {
-                platform_libs = vec![
-                    ("c", NativeLibraryKind::NativeUnknown),
-                    ("m", NativeLibraryKind::NativeUnknown),
-                    ("dl", NativeLibraryKind::NativeUnknown),
-                    ("rt", NativeLibraryKind::NativeUnknown),
-                    ("pthread", NativeLibraryKind::NativeUnknown),
-                ];
-            }
+        let mut platform_libs = vec![("c", NativeLibraryKind::Unspecified)];
+        let target_os: &str = options.target.options.os.borrow();
+        let target_env: &str = options.target.options.env.borrow();
+        if target_os == "android" {
+            platform_libs.extend_from_slice(&[
+                ("dl", NativeLibraryKind::Unspecified),
+                ("log", NativeLibraryKind::Unspecified),
+            ]);
         } else if target_os == "freebsd" {
-            platform_libs = vec![
-                ("execinfo", NativeLibraryKind::NativeUnknown),
-                ("pthread", NativeLibraryKind::NativeUnknown),
-            ];
+            platform_libs.extend_from_slice(&[
+                ("execinfo", NativeLibraryKind::Unspecified),
+                ("pthread", NativeLibraryKind::Unspecified),
+            ]);
         } else if target_os == "netbsd" {
-            platform_libs = vec![
-                ("pthread", NativeLibraryKind::NativeUnknown),
-                ("rt", NativeLibraryKind::NativeUnknown),
-            ];
+            platform_libs.extend_from_slice(&[
+                ("pthread", NativeLibraryKind::Unspecified),
+                ("rt", NativeLibraryKind::Unspecified),
+            ]);
         } else if target_os == "dragonfly" || target_os == "openbsd" {
-            platform_libs = vec![("pthread", NativeLibraryKind::NativeUnknown)];
+            platform_libs.extend_from_slice(&[("pthread", NativeLibraryKind::Unspecified)]);
         } else if target_os == "solaris" {
-            platform_libs = vec![
-                ("socket", NativeLibraryKind::NativeUnknown),
-                ("posix4", NativeLibraryKind::NativeUnknown),
-                ("pthread", NativeLibraryKind::NativeUnknown),
-                ("resolv", NativeLibraryKind::NativeUnknown),
-            ];
+            platform_libs.extend_from_slice(&[
+                ("socket", NativeLibraryKind::Unspecified),
+                ("posix4", NativeLibraryKind::Unspecified),
+                ("pthread", NativeLibraryKind::Unspecified),
+                ("resolv", NativeLibraryKind::Unspecified),
+            ]);
+        } else if target_os == "illumos" {
+            platform_libs.extend_from_slice(&[
+                ("socket", NativeLibraryKind::Unspecified),
+                ("posix4", NativeLibraryKind::Unspecified),
+                ("pthread", NativeLibraryKind::Unspecified),
+                ("resolv", NativeLibraryKind::Unspecified),
+                ("nsl", NativeLibraryKind::Unspecified),
+                // Use libumem for the (malloc-compatible) allocator
+                ("umem", NativeLibraryKind::Unspecified),
+            ]);
         } else if target_os == "macos" {
-            // res_init and friends require -lresolv on macOS/iOS.
-            // See #41582 and http://blog.achernya.com/2013/03/os-x-has-silly-libsystem.html
-            platform_libs = vec![
-                ("System", NativeLibraryKind::NativeUnknown),
-                ("resolv", NativeLibraryKind::NativeUnknown),
-            ];
+            platform_libs.extend_from_slice(&[
+                ("System", NativeLibraryKind::Unspecified),
+                // res_init and friends require -lresolv on macOS/iOS.
+                // See #41582 and https://blog.achernya.com/2013/03/os-x-has-silly-libsystem.html
+                ("resolv", NativeLibraryKind::Unspecified),
+            ]);
         } else if target_os == "ios" {
-            platform_libs = vec![
-                ("System", NativeLibraryKind::NativeUnknown),
-                ("objc", NativeLibraryKind::NativeUnknown),
-                ("Security", NativeLibraryKind::NativeFramework),
-                ("Foundation", NativeLibraryKind::NativeFramework),
-                ("resolv", NativeLibraryKind::NativeUnknown),
-            ];
-        } else if triple.contains("uwp") {
-            // For BCryptGenRandom
-            platform_libs = vec![
-                ("ws2_32", NativeLibraryKind::NativeUnknown),
-                ("bcrypt", NativeLibraryKind::NativeUnknown),
-            ];
-        } else if target_os == "windows" {
-            platform_libs = vec![
-                ("advapi32", NativeLibraryKind::NativeUnknown),
-                ("ws2_32", NativeLibraryKind::NativeUnknown),
-                ("userenv", NativeLibraryKind::NativeUnknown),
-            ];
+            platform_libs.extend_from_slice(&[
+                ("System", NativeLibraryKind::Unspecified),
+                ("objc", NativeLibraryKind::Unspecified),
+                ("Security", NativeLibraryKind::Framework { as_needed: None }),
+                (
+                    "Foundation",
+                    NativeLibraryKind::Framework { as_needed: None },
+                ),
+                ("resolv", NativeLibraryKind::Unspecified),
+            ]);
         } else if target_os == "fuchsia" {
-            platform_libs = vec![
-                ("zircon", NativeLibraryKind::NativeUnknown),
-                ("fdio", NativeLibraryKind::NativeUnknown),
-            ];
-        } else if triple.contains("cloudabi") {
-            platform_libs = vec![
-                ("unwind", NativeLibraryKind::NativeUnknown),
-                ("c", NativeLibraryKind::NativeUnknown),
-                ("compiler_rt", NativeLibraryKind::NativeUnknown),
-            ];
+            platform_libs.extend_from_slice(&[
+                ("zircon", NativeLibraryKind::Unspecified),
+                ("fdio", NativeLibraryKind::Unspecified),
+            ]);
+        } else if target_os == "linux" && target_env == "uclibc" {
+            platform_libs.extend_from_slice(&[("dl", NativeLibraryKind::Unspecified)]);
         }
 
         for (name, kind) in platform_libs.drain(..) {
             info.native_libraries.push(NativeLibrary {
                 kind,
                 name: Some(name.to_owned()),
-                wasm_import_module: None,
+                verbatim: None,
             });
         }
 
@@ -221,11 +186,12 @@ impl ProjectInfo {
 impl Default for ProjectInfo {
     fn default() -> Self {
         Self {
-            native_libraries: Vec::new(),
-            used_libraries: Arc::new(Vec::new()),
-            link_args: Vec::new(),
-            used_deps_static: Vec::new(),
-            used_deps_dynamic: Vec::new(),
+            target_cpu: llvm::target::host_cpu().to_string(),
+            exported_symbols: vec![],
+            native_libraries: vec![],
+            used_libraries: vec![],
+            used_deps: vec![],
+            windows_subsystem: None,
         }
     }
 }
@@ -234,5 +200,5 @@ impl Default for ProjectInfo {
 pub struct NativeLibrary {
     pub kind: NativeLibraryKind,
     pub name: Option<String>,
-    pub wasm_import_module: Option<String>,
+    pub verbatim: Option<bool>,
 }

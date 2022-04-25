@@ -1,23 +1,22 @@
 #![cfg_attr(not(target_pointer_width = "64"), allow(unused))]
-///! This module contains constants for 64-bit architectures used by the term
-///! implementation.
-///!
-///! Currently, both 32-bit and 64-bit architectures rely on a minimum of 8 byte
-///! alignment for all terms, as this provides 3 bits for a primary tag in the low
-///! end of the pointer/integer value. This is the natural alignment on 64-bit, and
-///! while naturally aligned on 32-bit as a result, it does use more address space.
-///!
-///! Previously, we made use of the high bits on 64-bit, as the current state of the
-///! x86_64 platform only uses 48 bits of the 64 available. However, other 64-bit platforms,
-///! such as AArch64 and SPARC, have no such restriction and could result in erroneous
-///! behavior when compiled for those platforms. Intel is also planning extensions to its
-///! processors to use up to 54 bits for addresses, which would cause issues as well.
-use core::cmp;
-use core::fmt;
-
-use alloc::sync::Arc;
+//! This module contains constants for 64-bit architectures used by the term
+//! implementation.
+//!
+//! Currently, both 32-bit and 64-bit architectures rely on a minimum of 8 byte
+//! alignment for all terms, as this provides 3 bits for a primary tag in the low
+//! end of the pointer/integer value. This is the natural alignment on 64-bit, and
+//! while naturally aligned on 32-bit as a result, it does use more address space.
+//!
+//! Previously, we made use of the high bits on 64-bit, as the current state of the
+//! x86_64 platform only uses 48 bits of the 64 available. However, other 64-bit platforms,
+//! such as AArch64 and SPARC, have no such restriction and could result in erroneous
+//! behavior when compiled for those platforms. Intel is also planning extensions to its
+//! processors to use up to 54 bits for addresses, which would cause issues as well.
 
 use std::backtrace::Backtrace;
+use std::cmp;
+use std::fmt;
+use std::sync::Arc;
 
 use crate::erts::exception::InternalResult;
 
@@ -54,6 +53,11 @@ impl RawTerm {
     pub const HEADER_EXTERN_PORT: u64 = Encoding::TAG_EXTERN_PORT;
     pub const HEADER_EXTERN_REF: u64 = Encoding::TAG_EXTERN_REF;
     pub const HEADER_MAP: u64 = Encoding::TAG_MAP;
+
+    #[inline(always)]
+    pub fn is_none(&self) -> bool {
+        self.0 == Encoding::NONE
+    }
 
     #[inline]
     fn type_of(&self) -> Tag<u64> {
@@ -953,7 +957,7 @@ mod tests {
     #[test]
     fn external_pid_encoding_x86_64() {
         use crate::erts::Node;
-        use alloc::sync::Arc;
+        use std::sync::Arc;
 
         let mut heap = RegionHeap::default();
 

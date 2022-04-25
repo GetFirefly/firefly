@@ -2,12 +2,13 @@ use core::ffi::c_void;
 use core::fmt::{self, Debug};
 use core::mem::transmute;
 
-use crate::erts::exception::Exception;
-use crate::erts::process::{FrameWithArguments, Process};
+use crate::erts::process::FrameWithArguments;
 use crate::erts::term::closure::Definition;
 use crate::erts::term::prelude::*;
 use crate::erts::ModuleFunctionArity;
 use crate::Arity;
+
+use super::ffi::ErlangResult;
 
 #[derive(Clone)]
 pub struct Frame {
@@ -72,30 +73,36 @@ impl Debug for Frame {
 
 #[derive(Copy, Clone)]
 pub enum Native {
-    Zero(extern "C-unwind" fn() -> Term),
-    One(extern "C-unwind" fn(Term) -> Term),
-    Two(extern "C-unwind" fn(Term, Term) -> Term),
-    Three(extern "C-unwind" fn(Term, Term, Term) -> Term),
-    Four(extern "C-unwind" fn(Term, Term, Term, Term) -> Term),
-    Five(extern "C-unwind" fn(Term, Term, Term, Term, Term) -> Term),
+    Zero(extern "C-unwind" fn() -> ErlangResult),
+    One(extern "C-unwind" fn(Term) -> ErlangResult),
+    Two(extern "C-unwind" fn(Term, Term) -> ErlangResult),
+    Three(extern "C-unwind" fn(Term, Term, Term) -> ErlangResult),
+    Four(extern "C-unwind" fn(Term, Term, Term, Term) -> ErlangResult),
+    Five(extern "C-unwind" fn(Term, Term, Term, Term, Term) -> ErlangResult),
 }
 
 impl Native {
     pub unsafe fn from_ptr(ptr: *const c_void, arity: Arity) -> Self {
         match arity {
-            0 => Self::Zero(transmute::<_, extern "C-unwind" fn() -> Term>(ptr)),
-            1 => Self::One(transmute::<_, extern "C-unwind" fn(Term) -> Term>(ptr)),
-            2 => Self::Two(transmute::<_, extern "C-unwind" fn(Term, Term) -> Term>(
+            0 => Self::Zero(transmute::<_, extern "C-unwind" fn() -> ErlangResult>(ptr)),
+            1 => Self::One(transmute::<_, extern "C-unwind" fn(Term) -> ErlangResult>(
                 ptr,
             )),
-            3 => Self::Three(transmute::<_, extern "C-unwind" fn(Term, Term, Term) -> Term>(ptr)),
+            2 => Self::Two(transmute::<
+                _,
+                extern "C-unwind" fn(Term, Term) -> ErlangResult,
+            >(ptr)),
+            3 => Self::Three(transmute::<
+                _,
+                extern "C-unwind" fn(Term, Term, Term) -> ErlangResult,
+            >(ptr)),
             4 => Self::Four(transmute::<
                 _,
-                extern "C-unwind" fn(Term, Term, Term, Term) -> Term,
+                extern "C-unwind" fn(Term, Term, Term, Term) -> ErlangResult,
             >(ptr)),
             5 => Self::Five(transmute::<
                 _,
-                extern "C-unwind" fn(Term, Term, Term, Term, Term) -> Term,
+                extern "C-unwind" fn(Term, Term, Term, Term, Term) -> ErlangResult,
             >(ptr)),
             _ => unimplemented!(
                 "Converting `*const c_void` ptr with arity {} to `fn`",
@@ -104,7 +111,7 @@ impl Native {
         }
     }
 
-    pub fn apply(&self, arguments: &[Term]) -> Term {
+    pub fn apply(&self, arguments: &[Term]) -> ErlangResult {
         match self {
             Self::Zero(f) => {
                 assert_eq!(arguments.len(), 0);
@@ -148,21 +155,6 @@ impl Native {
             Self::Four(_) => 4,
             Self::Five(_) => 5,
         }
-    }
-
-    pub fn exception_to_return<P>(process: P, exception: Exception) -> Term
-    where
-        P: AsRef<Process>,
-    {
-        match exception {
-            Exception::Runtime(err) => {
-                let process_ref = process.as_ref();
-                process_ref.exception(err);
-            }
-            Exception::System(err) => unimplemented!("Turn system exception ({:?}) into flag", err),
-        }
-
-        Term::NONE
     }
 
     pub fn ptr(&self) -> *const c_void {

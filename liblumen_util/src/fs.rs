@@ -40,16 +40,39 @@ pub fn get_file_descriptor<F: AsRawFd>(f: &F) -> os::unix::io::RawFd {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NativeLibraryKind {
-    /// native static library (.a archive)
-    NativeStatic,
-    /// native static library, which doesn't get bundled
-    NativeStaticNobundle,
-    /// macOS-specific
-    NativeFramework,
-    /// Windows dynamic library without import library.
-    NativeRawDylib,
-    /// default way to specify a dynamic library
-    NativeUnknown,
+    /// Static library (e.g. `libfoo.a` on Linux or `foo.lib` on Windows/MSVC)
+    Static {
+        /// Whether to bundle objects from static library into produced lib
+        bundle: Option<bool>,
+        /// Whether to link static library without throwing any object files away
+        whole_archive: Option<bool>,
+    },
+    /// Dynamic library (e.g. `libfoo.so` on Linux)
+    Dylib {
+        /// Whether the dynamic library will be linked only if it satisfies some undefined symbol
+        as_needed: Option<bool>,
+    },
+    /// Dynamic library without a corresponding import library.
+    RawDylib,
+    /// A macOS-specific kind of dynamic library
+    Framework {
+        /// Whether the framework will be linked only if it satisfies some undefined symbol
+        as_needed: Option<bool>,
+    },
+    /// The library kind wasn't specified, dylibs are assumed by default
+    Unspecified,
+}
+impl NativeLibraryKind {
+    pub fn has_modifiers(&self) -> bool {
+        match self {
+            Self::Static {
+                bundle,
+                whole_archive,
+            } => bundle.is_some() || whole_archive.is_some(),
+            Self::Dylib { as_needed } | Self::Framework { as_needed } => as_needed.is_some(),
+            Self::RawDylib | Self::Unspecified => false,
+        }
+    }
 }
 
 // Unfortunately, on windows, it looks like msvcrt.dll is silently translating

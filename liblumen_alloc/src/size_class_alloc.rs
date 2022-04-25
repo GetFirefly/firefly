@@ -1,12 +1,7 @@
-use core::cmp;
-use core::intrinsics::unlikely;
-use core::ptr::{self, NonNull};
-
-#[cfg(not(test))]
-use alloc::boxed::Box;
-use alloc::sync::Arc;
-#[cfg(not(test))]
-use alloc::vec::Vec;
+use std::cmp;
+use std::intrinsics::unlikely;
+use std::ptr::{self, NonNull};
+use std::sync::Arc;
 
 use intrusive_collections::{LinkedListLink, UnsafeRef};
 use liblumen_core::alloc::mmap;

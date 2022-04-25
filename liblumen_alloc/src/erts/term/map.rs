@@ -1,12 +1,10 @@
-use core::alloc::Layout;
-use core::cmp;
-use core::convert::{TryFrom, TryInto};
-use core::fmt::{self, Debug, Display, Write};
-use core::hash::{Hash, Hasher};
-use core::mem;
-use core::ptr;
-
-use alloc::vec::Vec;
+use std::alloc::Layout;
+use std::cmp;
+use std::convert::{TryFrom, TryInto};
+use std::fmt::{self, Debug, Display, Write};
+use std::hash::{Hash, Hasher};
+use std::mem;
+use std::ptr;
 
 use anyhow::*;
 use hashbrown::HashMap;

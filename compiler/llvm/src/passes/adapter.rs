@@ -22,9 +22,11 @@ impl PassManagerPass {
         manager.debug(options.debug_assertions);
         manager.optimize(opt_level);
 
-        if let Some(sanitizer) = options.debugging_opts.sanitizer {
+        for sanitizer in &options.debugging_opts.sanitizers {
             match sanitizer {
-                Sanitizer::Memory => manager.sanitize_memory(/* track_origins */ 0),
+                Sanitizer::Memory => {
+                    manager.sanitize_memory(options.debugging_opts.sanitizer_memory_track_origins)
+                }
                 Sanitizer::Thread => manager.sanitize_thread(),
                 Sanitizer::Address => manager.sanitize_address(),
                 _ => (),

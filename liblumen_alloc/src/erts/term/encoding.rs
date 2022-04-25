@@ -1,13 +1,10 @@
-use core::alloc::Layout;
-use core::convert::TryInto;
-use core::fmt::{self, Debug};
-use core::marker::PhantomData;
-use core::mem;
-use core::ptr::NonNull;
-
-use alloc::sync::Arc;
-
+use std::alloc::Layout;
 use std::backtrace::Backtrace;
+use std::fmt::{self, Debug};
+use std::marker::PhantomData;
+use std::mem;
+use std::ptr::NonNull;
+use std::sync::Arc;
 
 use hashbrown::HashMap;
 use thiserror::Error;

@@ -1,11 +1,6 @@
-use core::cmp;
-use core::intrinsics::unlikely;
-use core::ptr::{self, NonNull};
-
-#[cfg(not(test))]
-use alloc::boxed::Box;
-#[cfg(not(test))]
-use alloc::vec::Vec;
+use std::cmp;
+use std::intrinsics::unlikely;
+use std::ptr::{self, NonNull};
 
 use intrusive_collections::{LinkedListLink, UnsafeRef};
 

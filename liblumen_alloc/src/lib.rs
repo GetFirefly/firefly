@@ -26,9 +26,7 @@
 #![feature(weak_into_raw)]
 #![feature(slice_ptr_len)]
 #![feature(nonnull_slice_from_raw_parts)]
-
-#[cfg_attr(not(test), macro_use)]
-extern crate alloc;
+#![feature(once_cell)]
 
 #[cfg(target_arch = "wasm32")]
 extern crate wasm_bindgen_test;

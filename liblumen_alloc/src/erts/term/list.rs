@@ -8,6 +8,7 @@ use core::mem;
 use core::ptr;
 
 use anyhow::*;
+use heapless::Vec;
 use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
@@ -319,7 +320,7 @@ impl CloneToProcess for Cons {
     where
         A: ?Sized + TermAlloc,
     {
-        let mut vec: alloc::vec::Vec<Term> = Default::default();
+        let mut vec: std::vec::Vec<Term> = Default::default();
         let mut tail = Term::NIL;
 
         for result in self.iter() {
@@ -650,8 +651,6 @@ const MAX_ELEMENTS: usize = 16;
 #[allow(non_camel_case_types)]
 #[cfg(target_pointer_width = "64")]
 const MAX_ELEMENTS: usize = 8;
-
-use heapless::Vec;
 
 pub struct HeaplessListBuilder<'a, A: StackAlloc> {
     stack: &'a mut A,

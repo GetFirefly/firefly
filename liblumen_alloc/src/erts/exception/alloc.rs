@@ -1,5 +1,5 @@
-use alloc::sync::Arc;
-use core::alloc::AllocError;
+use std::alloc::AllocError;
+use std::sync::Arc;
 
 use thiserror::Error;
 

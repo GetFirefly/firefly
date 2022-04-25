@@ -1,7 +1,5 @@
-use core::fmt::{self, Debug, Display};
-
-use alloc::collections::vec_deque::VecDeque;
-use alloc::vec::Vec;
+use std::collections::vec_deque::VecDeque;
+use std::fmt::{self, Debug, Display};
 
 use crate::erts::ModuleFunctionArity;
 use crate::process::Frame;

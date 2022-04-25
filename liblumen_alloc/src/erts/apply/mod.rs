@@ -1,19 +1,21 @@
-use core::ffi::c_void;
-use core::mem;
+mod dynamic;
+
+use std::ffi::c_void;
+use std::lazy::SyncOnceCell;
+use std::mem;
 
 use hashbrown::{HashMap, HashSet};
 
-use once_cell::sync::OnceCell;
-
 use liblumen_arena::DroplessArena;
 use liblumen_core::symbols::FunctionSymbol;
-use liblumen_core::sys::dynamic_call;
-use liblumen_core::sys::dynamic_call::DynamicCallee;
 
+use crate::erts::process::ffi::ErlangResult;
 use crate::erts::term::prelude::Atom;
-use crate::erts::term::prelude::{Encoded, Term};
+use crate::erts::term::prelude::Term;
 use crate::erts::ModuleFunctionArity;
 use liblumen_core::alloc::Layout;
+
+pub use self::dynamic::DynamicCallee;
 
 /// Dynamically invokes the function mapped to the given symbol.
 ///
@@ -29,25 +31,16 @@ use liblumen_core::alloc::Layout;
 /// or if the given symbol doesn't exist.
 ///
 /// This function will panic if the symbol table has not been initialized.
-pub unsafe fn apply(symbol: &ModuleFunctionArity, args: &[Term]) -> Result<Term, ()> {
+pub unsafe fn apply(symbol: &ModuleFunctionArity, args: &[Term]) -> Result<ErlangResult, ()> {
     if let Some(f) = find_symbol(symbol) {
-        let argv = args.as_ptr() as *const usize;
-        let argc = args.len();
-        let result = mem::transmute::<usize, Term>(dynamic_call::apply(f, argv, argc));
-        if result.is_none() {
-            Err(())
-        } else {
-            Ok(result)
-        }
+        Ok(dynamic::apply(f, args.as_ptr(), args.len()))
     } else {
         Err(())
     }
 }
 
-pub unsafe fn apply_callee(callee: DynamicCallee, args: &[Term]) -> Term {
-    let argv = args.as_ptr() as *const usize;
-    let argc = args.len();
-    mem::transmute::<usize, Term>(dynamic_call::apply(callee, argv, argc))
+pub unsafe fn apply_callee(callee: DynamicCallee, args: &[Term]) -> ErlangResult {
+    dynamic::apply(callee, args.as_ptr(), args.len())
 }
 
 pub fn find_symbol(mfa: &ModuleFunctionArity) -> Option<DynamicCallee> {
@@ -65,8 +58,7 @@ pub fn find_symbol(mfa: &ModuleFunctionArity) -> Option<DynamicCallee> {
 }
 
 pub fn dump_symbols() {
-    let symbols = unsafe { SYMBOLS.get_unchecked() };
-    symbols.dump();
+    SYMBOLS.get().map(|symbols| symbols.dump());
 }
 
 pub fn module_loaded(module: Atom) -> bool {
@@ -81,7 +73,7 @@ pub fn module_loaded(module: Atom) -> bool {
 }
 
 /// The symbol table used by the runtime system
-static SYMBOLS: OnceCell<SymbolTable> = OnceCell::new();
+static SYMBOLS: SyncOnceCell<SymbolTable> = SyncOnceCell::new();
 
 /// Performs one-time initialization of the atom table at program start, using the
 /// array of constant atom values present in the compiled program.

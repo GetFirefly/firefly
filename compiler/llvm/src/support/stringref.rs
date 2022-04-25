@@ -1,6 +1,6 @@
 use std::borrow::{Borrow, Cow};
 use std::ffi::{c_void, CStr, CString, OsStr};
-use std::fmt::{self, Display};
+use std::fmt::{self, Debug, Display};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
@@ -65,6 +65,11 @@ impl Drop for OwnedStringRef {
             return;
         }
         unsafe { LLVMDisposeMessage(self.0.data) }
+    }
+}
+impl Debug for OwnedStringRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.0)
     }
 }
 impl Display for OwnedStringRef {
@@ -319,9 +324,17 @@ impl PartialEq<[u8]> for StringRef {
         self.as_bytes() == other
     }
 }
+impl Debug for StringRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "StringRef({})", self)
+    }
+}
 impl Display for StringRef {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use core::slice;
+        if self.data.is_null() {
+            return f.write_str("");
+        }
         let bytes = unsafe { slice::from_raw_parts(self.data, self.len) };
         let s = match bytes.strip_suffix(&[0]) {
             None => String::from_utf8_lossy(&bytes),

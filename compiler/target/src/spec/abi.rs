@@ -2,27 +2,18 @@ use core::fmt;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub enum Abi {
-    // N.B., this ordering MUST match the AbiDatas array below.
-    // (This is ensured by the test indices_are_correct().)
-
-    // Multiplatform / generic ABIs
-    //
-    // These ABIs come first because every time we add a new ABI, we
-    // have to re-bless all the hashing tests. These are used in many
-    // places, so giving them stable values reduces test churn. The
-    // specific values are meaningless.
-    Erlang = 0,
-    C = 1,
+    Rust,
+    C { unwind: bool },
 
     // Single platform ABIs
-    Cdecl,
-    Stdcall,
-    Fastcall,
-    Vectorcall,
-    Thiscall,
-    Aapcs,
-    Win64,
-    SysV64,
+    Cdecl { unwind: bool },
+    Stdcall { unwind: bool },
+    Fastcall { unwind: bool },
+    Vectorcall { unwind: bool },
+    Thiscall { unwind: bool },
+    Aapcs { unwind: bool },
+    Win64 { unwind: bool },
+    SysV64 { unwind: bool },
     PtxKernel,
     Msp430Interrupt,
     X86Interrupt,
@@ -30,13 +21,16 @@ pub enum Abi {
     EfiApi,
     AvrInterrupt,
     AvrNonBlockingInterrupt,
+    CCmseNonSecureCall,
+    Wasm,
 
     // Multiplatform / generic ABIs
-    System,
+    System { unwind: bool },
     RustIntrinsic,
     RustCall,
     PlatformIntrinsic,
     Unadjusted,
+    Erlang,
 }
 
 #[derive(Copy, Clone)]
@@ -45,9 +39,6 @@ pub struct AbiData {
 
     /// Name of this ABI as we like it called.
     name: &'static str,
-
-    /// A generic ABI is supported on all platforms.
-    generic: bool,
 }
 
 #[allow(non_upper_case_globals)]
@@ -55,114 +46,142 @@ const AbiDatas: &[AbiData] = &[
     AbiData {
         abi: Abi::Erlang,
         name: "Erlang",
-        generic: true,
     },
     AbiData {
-        abi: Abi::C,
+        abi: Abi::Rust,
+        name: "Rust",
+    },
+    AbiData {
+        abi: Abi::C { unwind: false },
         name: "C",
-        generic: true,
     },
-    // Platform-specific ABIs
     AbiData {
-        abi: Abi::Cdecl,
+        abi: Abi::C { unwind: true },
+        name: "C-unwind",
+    },
+    AbiData {
+        abi: Abi::Cdecl { unwind: false },
         name: "cdecl",
-        generic: false,
     },
     AbiData {
-        abi: Abi::Stdcall,
+        abi: Abi::Cdecl { unwind: true },
+        name: "cdecl-unwind",
+    },
+    AbiData {
+        abi: Abi::Stdcall { unwind: false },
         name: "stdcall",
-        generic: false,
     },
     AbiData {
-        abi: Abi::Fastcall,
+        abi: Abi::Stdcall { unwind: true },
+        name: "stdcall-unwind",
+    },
+    AbiData {
+        abi: Abi::Fastcall { unwind: false },
         name: "fastcall",
-        generic: false,
     },
     AbiData {
-        abi: Abi::Vectorcall,
+        abi: Abi::Fastcall { unwind: true },
+        name: "fastcall-unwind",
+    },
+    AbiData {
+        abi: Abi::Vectorcall { unwind: false },
         name: "vectorcall",
-        generic: false,
     },
     AbiData {
-        abi: Abi::Thiscall,
+        abi: Abi::Vectorcall { unwind: true },
+        name: "vectorcall-unwind",
+    },
+    AbiData {
+        abi: Abi::Thiscall { unwind: false },
         name: "thiscall",
-        generic: false,
     },
     AbiData {
-        abi: Abi::Aapcs,
+        abi: Abi::Thiscall { unwind: true },
+        name: "thiscall-unwind",
+    },
+    AbiData {
+        abi: Abi::Aapcs { unwind: false },
         name: "aapcs",
-        generic: false,
     },
     AbiData {
-        abi: Abi::Win64,
+        abi: Abi::Aapcs { unwind: true },
+        name: "aapcs-unwind",
+    },
+    AbiData {
+        abi: Abi::Win64 { unwind: false },
         name: "win64",
-        generic: false,
     },
     AbiData {
-        abi: Abi::SysV64,
+        abi: Abi::Win64 { unwind: true },
+        name: "win64-unwind",
+    },
+    AbiData {
+        abi: Abi::SysV64 { unwind: false },
         name: "sysv64",
-        generic: false,
+    },
+    AbiData {
+        abi: Abi::SysV64 { unwind: true },
+        name: "sysv64-unwind",
     },
     AbiData {
         abi: Abi::PtxKernel,
         name: "ptx-kernel",
-        generic: false,
     },
     AbiData {
         abi: Abi::Msp430Interrupt,
         name: "msp430-interrupt",
-        generic: false,
     },
     AbiData {
         abi: Abi::X86Interrupt,
         name: "x86-interrupt",
-        generic: false,
     },
     AbiData {
         abi: Abi::AmdGpuKernel,
         name: "amdgpu-kernel",
-        generic: false,
     },
     AbiData {
         abi: Abi::EfiApi,
         name: "efiapi",
-        generic: false,
     },
     AbiData {
         abi: Abi::AvrInterrupt,
         name: "avr-interrupt",
-        generic: false,
     },
     AbiData {
         abi: Abi::AvrNonBlockingInterrupt,
         name: "avr-non-blocking-interrupt",
-        generic: false,
     },
-    // Cross-platform ABIs
     AbiData {
-        abi: Abi::System,
+        abi: Abi::CCmseNonSecureCall,
+        name: "C-cmse-nonsecure-call",
+    },
+    AbiData {
+        abi: Abi::Wasm,
+        name: "wasm",
+    },
+    AbiData {
+        abi: Abi::System { unwind: false },
         name: "system",
-        generic: true,
+    },
+    AbiData {
+        abi: Abi::System { unwind: true },
+        name: "system-unwind",
     },
     AbiData {
         abi: Abi::RustIntrinsic,
         name: "rust-intrinsic",
-        generic: true,
     },
     AbiData {
         abi: Abi::RustCall,
         name: "rust-call",
-        generic: true,
     },
     AbiData {
         abi: Abi::PlatformIntrinsic,
         name: "platform-intrinsic",
-        generic: true,
     },
     AbiData {
         abi: Abi::Unadjusted,
         name: "unadjusted",
-        generic: true,
     },
 ];
 
@@ -179,9 +198,65 @@ pub fn all_names() -> Vec<&'static str> {
 }
 
 impl Abi {
+    /// Default ABI chosen for `extern fn` declarations without an explicit ABI.
+    pub const FALLBACK: Abi = Abi::C { unwind: false };
+
     #[inline]
     pub fn index(self) -> usize {
-        self as usize
+        // N.B., this ordering MUST match the AbiDatas array above.
+        // (This is ensured by the test indices_are_correct().)
+        use Abi::*;
+        let i = match self {
+            // Cross-platform ABIs
+            Rust => 0,
+            C { unwind: false } => 1,
+            C { unwind: true } => 2,
+            // Platform-specific ABIs
+            Cdecl { unwind: false } => 3,
+            Cdecl { unwind: true } => 4,
+            Stdcall { unwind: false } => 5,
+            Stdcall { unwind: true } => 6,
+            Fastcall { unwind: false } => 7,
+            Fastcall { unwind: true } => 8,
+            Vectorcall { unwind: false } => 9,
+            Vectorcall { unwind: true } => 10,
+            Thiscall { unwind: false } => 11,
+            Thiscall { unwind: true } => 12,
+            Aapcs { unwind: false } => 13,
+            Aapcs { unwind: true } => 14,
+            Win64 { unwind: false } => 15,
+            Win64 { unwind: true } => 16,
+            SysV64 { unwind: false } => 17,
+            SysV64 { unwind: true } => 18,
+            PtxKernel => 19,
+            Msp430Interrupt => 20,
+            X86Interrupt => 21,
+            AmdGpuKernel => 22,
+            EfiApi => 23,
+            AvrInterrupt => 24,
+            AvrNonBlockingInterrupt => 25,
+            CCmseNonSecureCall => 26,
+            Wasm => 27,
+            // Cross-platform ABIs
+            System { unwind: false } => 28,
+            System { unwind: true } => 29,
+            RustIntrinsic => 30,
+            RustCall => 31,
+            PlatformIntrinsic => 32,
+            Unadjusted => 33,
+            Erlang => 34,
+        };
+        debug_assert!(
+            AbiDatas
+                .iter()
+                .enumerate()
+                .find(|(_, AbiData { abi, .. })| *abi == self)
+                .map(|(index, _)| index)
+                .expect("abi variant has associated data")
+                == i,
+            "Abi index did not match `AbiDatas` ordering"
+        );
+        i
     }
 
     #[inline]
@@ -191,10 +266,6 @@ impl Abi {
 
     pub fn name(self) -> &'static str {
         self.data().name
-    }
-
-    pub fn generic(self) -> bool {
-        self.data().generic
     }
 }
 

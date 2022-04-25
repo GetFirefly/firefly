@@ -8,7 +8,7 @@ use log::debug;
 use salsa::{ParallelDatabase, Snapshot};
 
 use liblumen_codegen as codegen;
-use liblumen_codegen::linker::{self, LinkerInfo};
+use liblumen_codegen::linker;
 use liblumen_codegen::meta::{CodegenResults, CompiledModule, ProjectInfo};
 use liblumen_session::{CodegenOptions, DebuggingOptions, Options};
 use liblumen_util::diagnostics::{CodeMap, Emitter};
@@ -68,8 +68,6 @@ pub fn handle_command<'a>(
     let mut codegen_results = CodegenResults {
         app_name: options.app.name,
         modules: Vec::with_capacity(num_inputs),
-        windows_subsystem: None,
-        linker_info: LinkerInfo::new(),
         project_info: ProjectInfo::new(&options),
     };
 

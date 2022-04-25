@@ -65,12 +65,12 @@ impl PassManagerOptions {
             enable_crash_reproducer: options.debugging_opts.mlir_enable_crash_reproducer.clone(),
             debug_info: options.debugging_opts.mlir_print_debug_info,
             print_generic_form: options.debugging_opts.mlir_print_generic_ops,
-            print_before_pass: options.debugging_opts.print_passes_before,
-            print_after_pass: options.debugging_opts.print_passes_after,
+            print_before_pass: options.debugging_opts.mlir_print_passes_before,
+            print_after_pass: options.debugging_opts.mlir_print_passes_after,
             print_module_scope: options.debugging_opts.mlir_print_module_scope,
             print_local_scope: options.debugging_opts.mlir_print_local_scope,
-            print_only_after_change: options.debugging_opts.print_passes_on_change,
-            print_only_after_failure: options.debugging_opts.print_passes_on_failure,
+            print_only_after_change: options.debugging_opts.mlir_print_passes_on_change,
+            print_only_after_failure: options.debugging_opts.mlir_print_passes_on_failure,
         }
     }
 

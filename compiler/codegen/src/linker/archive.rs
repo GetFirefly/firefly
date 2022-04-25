@@ -11,19 +11,24 @@ pub use self::builder::LlvmArchiveBuilder;
 
 pub fn find_library(
     name: &str,
+    verbatim: bool,
     search_paths: &[PathBuf],
     options: &Options,
 ) -> anyhow::Result<PathBuf> {
     // On Windows, static libraries sometimes show up as libfoo.a and other
     // times show up as foo.lib
-    let oslibname = format!(
-        "{}{}{}",
-        options.target.options.staticlib_prefix, name, options.target.options.staticlib_suffix
-    );
+    let oslibname = if verbatim {
+        name.to_string()
+    } else {
+        format!(
+            "{}{}{}",
+            options.target.options.staticlib_prefix, name, options.target.options.staticlib_suffix
+        )
+    };
     let unixlibname = format!("lib{}.a", name);
 
     for path in search_paths {
-        debug!("looking for {} (as {}) inside {:?}", name, oslibname, path);
+        debug!("looking for {} inside {:?}", name, path);
         let test = path.join(&oslibname);
         if test.exists() {
             return Ok(test);
@@ -48,16 +53,9 @@ pub trait ArchiveBuilder<'a> {
     fn remove_file(&mut self, name: &str);
     fn src_files(&mut self) -> Vec<String>;
 
-    fn add_rlib(
-        &mut self,
-        path: &Path,
-        name: &str,
-        lto: bool,
-        skip_objects: bool,
-    ) -> anyhow::Result<()>;
-
-    fn add_native_library(&mut self, name: &str);
-    fn update_symbols(&mut self);
+    fn add_archive<F>(&mut self, archive: &Path, skip: F) -> anyhow::Result<()>
+    where
+        F: FnMut(&str) -> bool + 'static;
 
     fn build(self);
 }

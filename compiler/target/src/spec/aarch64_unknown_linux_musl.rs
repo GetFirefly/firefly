@@ -1,24 +1,17 @@
-use crate::spec::{Endianness, LinkerFlavor, Target, TargetOptions, TargetResult};
+use crate::spec::{Target, TargetOptions};
 
-pub fn target() -> TargetResult {
+pub fn target() -> Target {
     let mut base = super::linux_musl_base::opts();
     base.max_atomic_width = Some(128);
 
-    Ok(Target {
-        llvm_target: "aarch64-unknown-linux-musl".to_string(),
-        target_endian: Endianness::Little,
-        target_pointer_width: 64,
-        target_c_int_width: "32".to_string(),
-        target_env: "musl".to_string(),
-        data_layout: "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128".to_string(),
-        arch: "aarch64".to_string(),
-        target_os: "linux".to_string(),
-        target_vendor: "unknown".to_string(),
-        linker_flavor: LinkerFlavor::Gcc,
+    Target {
+        llvm_target: "aarch64-unknown-linux-musl".into(),
+        pointer_width: 64,
+        data_layout: "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128".into(),
+        arch: "aarch64".into(),
         options: TargetOptions {
-            unsupported_abis: super::arm_base::unsupported_abis(),
-            target_mcount: "\u{1}_mcount".to_string(),
+            mcount: "\u{1}_mcount".into(),
             ..base
         },
-    })
+    }
 }

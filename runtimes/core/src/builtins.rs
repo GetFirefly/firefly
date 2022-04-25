@@ -3,28 +3,63 @@ use std::panic;
 
 use hashbrown::HashMap;
 
+use liblumen_alloc::erts::exception::{self, badmap, ErlangException, RuntimeException};
+use liblumen_alloc::erts::process::ffi::ErlangResult;
+use liblumen_alloc::erts::process::trace::Trace;
 use liblumen_alloc::erts::term::{binary, prelude::*};
 use liblumen_core::sys::Endianness;
 
 use crate::process::current_process;
 
-extern "C" {
-    #[link_name = "erlang:+/2"]
-    fn erlang_add_2(augend: Term, addend: Term) -> Term;
-    #[link_name = "erlang:band/2"]
-    fn erlang_band_2(left: Term, right: Term) -> Term;
-    #[link_name = "erlang:bor/2"]
-    fn erlang_bor_2(left: Term, right: Term) -> Term;
-    #[link_name = "erlang:bsl/2"]
-    fn erlang_bsl_2(integer: Term, shift: Term) -> Term;
-    #[link_name = "erlang:bsr/2"]
-    fn erlang_bsr_2(integer: Term, shift: Term) -> Term;
-    #[link_name = "erlang:bxor/2"]
-    fn erlang_bxor_2(left: Term, right: Term) -> Term;
-    #[link_name = "erlang:div/2"]
-    fn erlang_div_2(dividend: Term, divisor: Term) -> Term;
-    #[link_name = "erlang:fdiv/2"]
-    fn erlang_divide_2(dividend: Term, divisor: Term) -> Term;
+#[export_name = "__lumen_builtin_raise/2"]
+pub extern "C" fn capture_and_raise(kind: Term, reason: Term) -> *mut ErlangException {
+    let kind: Atom = kind.decode().unwrap().try_into().unwrap();
+    let trace = Trace::capture();
+    let exception = match kind.name() {
+        "throw" => RuntimeException::Throw(exception::Throw::new(reason, trace, None)),
+        "error" => RuntimeException::Error(exception::Error::new(reason, None, trace, None)),
+        "exit" => RuntimeException::Exit(exception::Exit::new(reason, trace, None)),
+        other => panic!("invalid exception kind: {}", &other),
+    };
+    current_process().raise(exception)
+}
+
+#[export_name = "__lumen_builtin_raise/3"]
+pub extern "C" fn raise(kind: Term, reason: Term, trace: *mut Trace) -> *mut ErlangException {
+    debug_assert!(!trace.is_null());
+    let trace = unsafe { Trace::from_raw(trace) };
+    let kind: Atom = kind.decode().unwrap().try_into().unwrap();
+    let exception = match kind.name() {
+        "throw" => RuntimeException::Throw(exception::Throw::new(reason, trace, None)),
+        "error" => RuntimeException::Error(exception::Error::new(reason, None, trace, None)),
+        "exit" => RuntimeException::Exit(exception::Exit::new(reason, trace, None)),
+        other => panic!("invalid exception kind: {}", &other),
+    };
+    current_process().raise(exception)
+}
+
+#[export_name = "__lumen_build_stacktrace"]
+pub extern "C" fn capture_trace() -> *mut Trace {
+    let trace = Trace::capture();
+    Trace::into_raw(trace)
+}
+
+#[export_name = "__lumen_stacktrace_to_term"]
+pub extern "C" fn trace_to_term(trace: *mut Trace) -> Term {
+    if trace.is_null() {
+        return Term::NIL;
+    }
+    let trace = unsafe { Trace::from_raw(trace) };
+    if let Ok(term) = trace.as_term() {
+        term
+    } else {
+        Term::NIL
+    }
+}
+
+#[export_name = "__lumen_cleanup_exception"]
+pub unsafe extern "C" fn cleanup(ptr: *mut ErlangException) {
+    let _ = Box::from_raw(ptr);
 }
 
 #[export_name = "__lumen_builtin_bigint_from_cstr"]
@@ -40,16 +75,18 @@ pub extern "C" fn builtin_map_new() -> Term {
 }
 
 #[export_name = "__lumen_builtin_map.insert"]
-pub extern "C" fn builtin_map_insert(map: Term, key: Term, value: Term) -> Term {
+pub extern "C" fn builtin_map_insert(map: Term, key: Term, value: Term) -> ErlangResult {
     let decoded_map: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
     if let Ok(m) = decoded_map {
         if let Some(new_map) = m.put(key, value) {
-            current_process().map_from_hash_map(new_map)
+            ErlangResult::ok(current_process().map_from_hash_map(new_map))
         } else {
-            map
+            ErlangResult::ok(map)
         }
     } else {
-        Term::NONE
+        let arc_process = current_process();
+        let exception = badmap(&arc_process, map, Trace::capture(), None);
+        ErlangResult::error(arc_process.raise(exception))
     }
 }
 
@@ -80,193 +117,6 @@ pub extern "C" fn builtin_map_get(map: Term, key: Term) -> Term {
     let decoded_map: Result<Boxed<Map>, _> = map.decode().unwrap().try_into();
     let m = decoded_map.unwrap();
     m.get(key).unwrap_or(Term::NONE)
-}
-
-/// Strict equality
-#[export_name = "__lumen_builtin_cmp.eq.strict"]
-pub extern "C" fn builtin_cmpeq_strict(lhs: Term, rhs: Term) -> bool {
-    if let Ok(left) = lhs.decode() {
-        if let Ok(right) = rhs.decode() {
-            left.exact_eq(&right)
-        } else {
-            false
-        }
-    } else {
-        if lhs.is_none() && rhs.is_none() {
-            true
-        } else {
-            false
-        }
-    }
-}
-
-#[export_name = "__lumen_builtin_cmp.eq"]
-pub extern "C" fn builtin_cmpeq(lhs: Term, rhs: Term) -> bool {
-    if let Ok(left) = lhs.decode() {
-        if let Ok(right) = rhs.decode() {
-            left.eq(&right)
-        } else {
-            false
-        }
-    } else {
-        if lhs.is_none() && rhs.is_none() {
-            true
-        } else {
-            false
-        }
-    }
-}
-
-macro_rules! comparison_builtin {
-    ($name:expr, $alias:ident, $op:tt) => {
-        #[export_name = $name]
-        pub extern "C" fn $alias(lhs: Term, rhs: Term) -> bool {
-            let result = panic::catch_unwind(|| {
-                if let Ok(left) = lhs.decode() {
-                    if let Ok(right) = rhs.decode() {
-                        return left $op right;
-                    }
-                }
-                false
-            });
-            if let Ok(res) = result {
-                res
-            } else {
-                false
-            }
-        }
-    }
-}
-
-comparison_builtin!("__lumen_builtin_cmp.lt",  builtin_cmp_lt,  <);
-comparison_builtin!("__lumen_builtin_cmp.lte", builtin_cmp_lte, <=);
-comparison_builtin!("__lumen_builtin_cmp.gt",  builtin_cmp_gt,  >);
-comparison_builtin!("__lumen_builtin_cmp.gte", builtin_cmp_gte, >=);
-
-macro_rules! math_builtin {
-    ($name:expr, $alias:ident, $trait:tt, $op:ident) => {
-        #[export_name = $name]
-        pub extern "C" fn $alias(lhs: Term, rhs: Term) -> Term {
-            use std::ops::*;
-            let result = panic::catch_unwind(|| {
-                let l = lhs.decode().unwrap();
-                let r = rhs.decode().unwrap();
-                match (l, r) {
-                    (TypedTerm::SmallInteger(li), TypedTerm::SmallInteger(ri)) => {
-                        current_process().integer(li.$op(ri))
-                    }
-                    (TypedTerm::SmallInteger(li), TypedTerm::Float(ri)) => {
-                        let li: f64 = li.into();
-                        let f = <f64 as $trait<f64>>::$op(li, ri.value());
-                        current_process().float(f)
-                    }
-                    (TypedTerm::SmallInteger(li), TypedTerm::BigInteger(ri)) => {
-                        let li: BigInteger = li.into();
-                        current_process().integer(li.$op(ri.as_ref()))
-                    }
-                    (TypedTerm::Float(li), TypedTerm::Float(ri)) => {
-                        let f = <f64 as $trait<f64>>::$op(li.value(), ri.value());
-                        current_process().float(f)
-                    }
-                    (TypedTerm::Float(li), TypedTerm::SmallInteger(ri)) => {
-                        let ri: f64 = ri.into();
-                        let f = <f64 as $trait<f64>>::$op(li.value(), ri);
-                        current_process().float(f)
-                    }
-                    (TypedTerm::Float(li), TypedTerm::BigInteger(ri)) => {
-                        let ri: f64 = ri.as_ref().into();
-                        let f = <f64 as $trait<f64>>::$op(li.value(), ri);
-                        current_process().float(f)
-                    }
-                    (TypedTerm::BigInteger(li), TypedTerm::SmallInteger(ri)) => {
-                        let ri: BigInteger = ri.into();
-                        current_process().integer(li.as_ref().$op(ri))
-                    }
-                    (TypedTerm::BigInteger(li), TypedTerm::Float(ri)) => {
-                        let li: f64 = li.as_ref().into();
-                        let f = <f64 as $trait<f64>>::$op(li, ri.value());
-                        current_process().float(f)
-                    }
-                    (TypedTerm::BigInteger(li), TypedTerm::BigInteger(ri)) => {
-                        current_process().integer(li.$op(ri))
-                    }
-                    _ => panic!("expected numeric argument to builtin '{}'", $name),
-                }
-            });
-            if let Ok(res) = result {
-                res
-            } else {
-                Term::NONE
-            }
-        }
-    };
-}
-
-macro_rules! integer_math_builtin {
-    ($name:expr, $alias:ident, $op:ident) => {
-        #[export_name = $name]
-        pub extern "C" fn $alias(lhs: Term, rhs: Term) -> Term {
-            use std::ops::*;
-            let result = panic::catch_unwind(|| {
-                let l = lhs.decode().unwrap();
-                let r = rhs.decode().unwrap();
-                let li: Integer = l.try_into().unwrap();
-                let ri: Integer = r.try_into().unwrap();
-                let result = li.$op(ri);
-                current_process().integer(result)
-            });
-            if let Ok(res) = result {
-                res
-            } else {
-                Term::NONE
-            }
-        }
-    };
-}
-
-#[export_name = "__lumen_builtin_math.add"]
-pub extern "C" fn builtin_math_add(augend: Term, addend: Term) -> Term {
-    unsafe { erlang_add_2(augend, addend) }
-}
-
-math_builtin!("__lumen_builtin_math.sub", builtin_math_sub, Sub, sub);
-math_builtin!("__lumen_builtin_math.mul", builtin_math_mul, Mul, mul);
-
-#[export_name = "__lumen_builtin_math.fdiv"]
-pub extern "C" fn builtin_math_fdiv(dividend: Term, divisor: Term) -> Term {
-    unsafe { erlang_divide_2(dividend, divisor) }
-}
-
-#[export_name = "__lumen_builtin_math.div"]
-pub extern "C" fn builtin_math_div(dividend: Term, divisor: Term) -> Term {
-    unsafe { erlang_div_2(dividend, divisor) }
-}
-
-integer_math_builtin!("__lumen_builtin_math.rem", builtin_math_rem, rem);
-
-#[export_name = "__lumen_builtin_math.bsl"]
-pub extern "C" fn builtin_math_bsl(integer: Term, shift: Term) -> Term {
-    unsafe { erlang_bsl_2(integer, shift) }
-}
-
-#[export_name = "__lumen_builtin_math.bsr"]
-pub extern "C" fn builtin_math_bsr(integer: Term, shift: Term) -> Term {
-    unsafe { erlang_bsr_2(integer, shift) }
-}
-
-#[export_name = "__lumen_builtin_math.band"]
-pub extern "C" fn builtin_math_band(left: Term, right: Term) -> Term {
-    unsafe { erlang_band_2(left, right) }
-}
-
-#[export_name = "__lumen_builtin_math.bor"]
-pub extern "C" fn builtin_math_bor(left: Term, right: Term) -> Term {
-    unsafe { erlang_bor_2(left, right) }
-}
-
-#[export_name = "__lumen_builtin_math.bxor"]
-pub extern "C" fn builtin_math_bxor(left: Term, right: Term) -> Term {
-    unsafe { erlang_bxor_2(left, right) }
 }
 
 #[export_name = "__lumen_builtin_fatal_error"]

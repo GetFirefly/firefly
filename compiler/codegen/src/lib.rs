@@ -2,6 +2,8 @@
 #![feature(associated_type_bounds)]
 #![feature(try_blocks)]
 #![feature(generic_associated_types)]
+#![feature(let_else)]
+#![feature(once_cell)]
 
 pub mod generators;
 pub mod linker;

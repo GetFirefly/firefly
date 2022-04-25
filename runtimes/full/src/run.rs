@@ -1,4 +1,4 @@
-use alloc::sync::Arc;
+use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;
 

@@ -3,8 +3,7 @@ pub mod out_of_code;
 use std::ffi::c_void;
 use std::mem::transmute;
 
-use liblumen_core::sys::dynamic_call::DynamicCallee;
-
+use liblumen_alloc::erts::apply::DynamicCallee;
 use liblumen_alloc::erts::process::ffi::ProcessSignal;
 use liblumen_alloc::erts::process::{Frame, Native};
 use liblumen_alloc::erts::term::prelude::*;
@@ -18,11 +17,11 @@ pub unsafe extern "C-unwind" fn __lumen_panic(term: Term) {
 }
 
 #[export_name = "lumen_rt_apply_2"]
-pub fn apply_2(function_boxed_closure: Boxed<Closure>, arguments: Vec<Term>) -> Term {
+pub fn apply_2(function_boxed_closure: Boxed<Closure>, arguments: Vec<Term>) -> ErlangResult {
     let frame_with_arguments = function_boxed_closure.frame_with_arguments(false, arguments);
     current_process().queue_frame_with_arguments(frame_with_arguments);
 
-    Term::NONE
+    ErlangResult::ok(Term::NONE)
 }
 
 #[export_name = "lumen_rt_apply_3"]
@@ -30,7 +29,7 @@ pub fn apply_3(
     module_function_arity: ModuleFunctionArity,
     callee: DynamicCallee,
     arguments: Vec<Term>,
-) -> Term {
+) -> ErlangResult {
     let native = unsafe {
         let ptr = transmute::<DynamicCallee, *const c_void>(callee);
 
@@ -41,7 +40,7 @@ pub fn apply_3(
     let frame_with_arguments = frame.with_arguments(false, &arguments);
     current_process().queue_frame_with_arguments(frame_with_arguments);
 
-    Term::NONE
+    ErlangResult::ok(Term::NONE)
 }
 
 #[export_name = "__lumen_process_signal"]

@@ -12,20 +12,16 @@ mod monitor;
 pub mod priority;
 pub mod trace;
 
-use core::cell::RefCell;
-use core::convert::TryInto;
-use core::ffi::c_void;
-use core::fmt::{self, Debug};
-use core::hash::{Hash, Hasher};
-use core::mem;
-use core::ops::DerefMut;
-use core::ptr::{self, NonNull};
-use core::str::Chars;
-use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
-
-use ::alloc::sync::Arc;
-
-use std::panic::catch_unwind;
+use std::cell::RefCell;
+use std::ffi::c_void;
+use std::fmt::{self, Debug};
+use std::hash::{Hash, Hasher};
+use std::mem;
+use std::ops::DerefMut;
+use std::ptr::{self, NonNull};
+use std::str::Chars;
+use std::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use anyhow::*;
 use dashmap::{DashMap, DashSet};
@@ -39,7 +35,6 @@ use crate::borrow::CloneToProcess;
 use crate::erts;
 use crate::erts::exception::{
     AllocResult, ArcError, ErlangException, Exception, InternalResult, RuntimeException,
-    SystemException,
 };
 use crate::erts::module_function_arity::Arity;
 use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
@@ -51,7 +46,7 @@ use super::*;
 use self::alloc::VirtualAllocator;
 use self::alloc::{Heap, HeapAlloc, TermAlloc};
 use self::alloc::{StackAlloc, StackPrimitives};
-use self::ffi::{set_process_signal, ProcessSignal};
+use self::ffi::{set_process_signal, ErlangResult, ProcessSignal};
 pub use self::frame::{Frame, Native};
 pub use self::frame_with_arguments::FrameWithArguments;
 pub use self::frames::{Frames, StackTrace};
@@ -62,7 +57,6 @@ pub use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::monitor::Monitor;
 pub use self::priority::Priority;
-use crate::erts::process::ffi::process_error;
 
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
 cfg_if::cfg_if! {
@@ -1167,12 +1161,12 @@ impl Process {
 
     pub fn exit(&self, reason: Term, trace: Arc<trace::Trace>, source: Option<ArcError>) {
         self.reduce();
-        self.exception(exception::exit(reason, trace, source));
+        self.set_runtime_exception(exception::exit(reason, trace, source));
     }
 
     pub fn exit_with_exception(&self, exception: RuntimeException) {
         self.reduce();
-        self.exception(exception);
+        self.set_runtime_exception(exception);
     }
 
     pub fn exit_normal(&self) {
@@ -1186,20 +1180,82 @@ impl Process {
         }
     }
 
-    pub fn exception(&self, exception: RuntimeException) {
+    /// Set the current process status to RuntimeException with the given exception
+    pub fn set_runtime_exception(&self, exception: RuntimeException) {
         *self.status.write() = Status::RuntimeException(exception);
     }
 
-    /// Returns `Term::NONE` to indicate a (runtime or system) exception was recorded in status
-    pub fn return_status(&self, result: exception::Result<Term>) -> Term {
+    /// Sets the process status to RuntimeException, and returns a raw pointer to the derived ErlangException value
+    ///
+    /// The returned pointer is intended to be returned to generated code in an ErlangResult, and ultimately either
+    /// caught and cleared, or cause an exit. In either case, the ErlangException must be reified back into a Box and
+    /// dropped when no longer needed.
+    pub fn raise(&self, exception: RuntimeException) -> *mut ErlangException {
+        let erlang_exception = exception.as_erlang_exception();
+        self.set_runtime_exception(exception);
+        Box::into_raw(erlang_exception)
+    }
+
+    /// This function should only be called when an exception has been caught by generated code and is no longer
+    /// needed (i.e. the kind/reason/trace have been copied to the process heap or are never used)
+    ///
+    /// # Safety
+    ///
+    /// * The given pointer must be non-null and point to a live ErlangException value allocated via Box::new
+    /// * This function should only be called when the current process status is RuntimeException
+    pub unsafe fn catch_unwind(&self, exception: *mut ErlangException) {
+        assert!(!exception.is_null());
+        *self.status.write() = Status::Running;
+        Box::from_raw(exception);
+    }
+
+    /// This function swaps the current process status to Running, returning the current RuntimeException
+    ///
+    /// # Safety
+    ///
+    /// * This function must only be called when the current status is RuntimeException
+    /// * This caller is responsible for ensuring that the process resumes normally, or that a new process
+    /// status is set accordingly
+    pub unsafe fn take_runtime_error(&self) -> RuntimeException {
+        let mut guard = self.status.write();
+        match std::mem::replace(guard.deref_mut(), Status::Running) {
+            Status::RuntimeException(exception) => exception,
+            other => panic!("cannot take runtime exception when status is {:?}", &other),
+        }
+    }
+
+    /// Like `return_status`, but determines the result based on whether the provided term is NONE
+    ///
+    /// If it is, then we check the current process status for a RuntimeException, allocating an ErlangException
+    /// for the result.
+    pub fn term_to_return_status(&self, term: Term) -> ErlangResult {
+        if term.is_none() {
+            match *self.status.read() {
+                Status::RuntimeException(ref exception) => {
+                    let erlang_exception = exception.as_erlang_exception();
+                    ErlangResult::error(Box::into_raw(erlang_exception))
+                }
+                ref other => panic!(
+                    "expected runtime exception to have been set, but process status is {:?}",
+                    other
+                ),
+            }
+        } else {
+            ErlangResult::ok(term)
+        }
+    }
+
+    /// This function converts an exception::result<Term> to an ErlangResult corresponding
+    /// to the variant of the result. If the result is Err(System), a panic is produced.
+    pub fn return_status(&self, result: exception::Result<Term>) -> ErlangResult {
         match result {
-            Ok(term) => term,
+            Ok(term) => ErlangResult::ok(term),
             Err(exception) => match exception {
                 Exception::System(system_exception) => {
                     panic!("{}", &system_exception);
                 }
                 Exception::Runtime(runtime_exception) => {
-                    self::ffi::process_raise(runtime_exception);
+                    ErlangResult::error(self.raise(runtime_exception))
                 }
             },
         }
@@ -1214,7 +1270,6 @@ impl Process {
                 CalledCurrentNative::Waiting => return Ran::Waiting,
                 CalledCurrentNative::Exited => return Ran::Exited,
                 CalledCurrentNative::RuntimeException => return Ran::RuntimeException,
-                CalledCurrentNative::SystemException => return Ran::SystemException,
             }
         }
 
@@ -1250,61 +1305,59 @@ impl Process {
             arguments.push(argument);
         }
 
-        let result = catch_unwind(|| native.apply(&arguments));
+        let result = native.apply(&arguments);
 
         match result {
-            Ok(returned) => {
-                let called_current_native = if returned.is_none() {
-                    match *self.status.read() {
-                        Status::Unrunnable => unreachable!("Process ({}) should only be unrunnable when first created. not after calling a native function", self),
-                        Status::Runnable => unreachable!("Process ({}) should remain in Running and no go to Runnable inside a native function", self),
-                        // both running and waiting need to have queued up their re-entry point
-                        Status::Running => {
-                            // remove completed frame now that it isn't needed for backtrace
-                            self.frames.lock().pop().unwrap();
-                            self.stack_popn(arity);
+            // This clause handles normal control flow
+            ErlangResult { value, exception } if !value.is_none() && exception.is_null() => {
+                assert_eq!(*self.status.read(), Status::Running);
+                // remove completed frame now that it isn't needed for backtrace
+                self.frames.lock().pop().unwrap();
+                self.stack_popn(arity);
 
-                            self.stack_queued_frames_with_arguments();
+                self.stack_queued_frames_with_arguments();
 
-                            // unlike with non-Term::NONE `returned`, don't push `returned`
-                            CalledCurrentNative::Runnable
-                        }
-                        Status::Waiting => {
-                            // remove completed frame now that it isn't needed for backtrace
-                            self.frames.lock().pop().unwrap();
-                            self.stack_popn(arity);
-
-                            self.stack_queued_frames_with_arguments();
-
-                            // unlike with non-Term::NONE `returned`, don't push `returned`
-                            CalledCurrentNative::Waiting
-                        },
-                        Status::Exited => CalledCurrentNative::Exited,
-                        Status::RuntimeException(_) => CalledCurrentNative::RuntimeException,
-                        Status::SystemException(_) => CalledCurrentNative::SystemException
-                    }
-                } else {
-                    assert_eq!(*self.status.read(), Status::Running);
-                    // remove completed frame now that it isn't needed for backtrace
-                    self.frames.lock().pop().unwrap();
-                    self.stack_popn(arity);
-
-                    self.stack_queued_frames_with_arguments();
-
-                    match self.stack_push(returned) {
-                        Ok(()) => CalledCurrentNative::Runnable,
-                        Err(_) => {
-                            unimplemented!("Stack over flow");
-                        }
-                    }
-                };
-
-                called_current_native
+                self.stack_push(value).expect("stack overflow");
+                CalledCurrentNative::Runnable
             }
-            Err(_) => {
-                let runtime_exception = process_error().unwrap();
-                *self.status.write() = Status::RuntimeException(runtime_exception);
+            // This clause handles special cases of non-exceptional control flow,
+            // e.g. system exceptions/yielding/exiting/etc.
+            ErlangResult { value, exception } if value.is_none() && exception.is_null() => {
+                match *self.status.read() {
+                    // both running and waiting need to have queued up their re-entry point
+                    Status::Running => {
+                        // remove completed frame now that it isn't needed for backtrace
+                        self.frames.lock().pop().unwrap();
+                        self.stack_popn(arity);
 
+                        self.stack_queued_frames_with_arguments();
+
+                        // unlike with non-Term::NONE `returned`, don't push `returned`
+                        CalledCurrentNative::Runnable
+                    }
+                    Status::Waiting => {
+                        // remove completed frame now that it isn't needed for backtrace
+                        self.frames.lock().pop().unwrap();
+                        self.stack_popn(arity);
+
+                        self.stack_queued_frames_with_arguments();
+
+                        // unlike with non-Term::NONE `returned`, don't push `returned`
+                        CalledCurrentNative::Waiting
+                   },
+                   Status::Exited => CalledCurrentNative::Exited,
+                   Status::Unrunnable => panic!("process ({}) should only be unrunnable when first created. not after calling a native function", self),
+                   Status::Runnable => panic!("process ({}) should remain in Running and not go to Runnable inside a native function", self),
+                   ref other => panic!("unexpected process status {:?}, expected running/waiting/exited/system exception", other),
+                }
+            }
+            // This clause handles exceptional control-flow
+            ErlangResult { exception, .. } => {
+                debug_assert!(!exception.is_null(), "expected exception");
+                debug_assert!(
+                    self.status.read().is_runtime_exception(),
+                    "expected current status to be a runtime exception"
+                );
                 CalledCurrentNative::RuntimeException
             }
         }
@@ -1467,7 +1520,6 @@ enum CalledCurrentNative {
     Waiting,
     Exited,
     RuntimeException,
-    SystemException,
 }
 
 pub enum Ran {
@@ -1475,7 +1527,6 @@ pub enum Ran {
     Reduced,
     Exited,
     RuntimeException,
-    SystemException,
 }
 
 // [BEAM statuses](https://github.com/erlang/otp/blob/551d03fe8232a66daf1c9a106194aa38ef660ef6/erts/emulator/beam/erl_process.c#L8944-L8972)
@@ -1490,11 +1541,17 @@ pub enum Status {
     Waiting,
     /// The process has exited normally
     Exited,
-    /// The process has exited due to an internal system exception
-    /// NOTE: This should probably be deprecated, as system exceptions panic now
-    SystemException(SystemException),
     /// The process has exited due to a runtime exception (raised from Erlang)
     RuntimeException(RuntimeException),
+}
+impl Status {
+    #[inline(always)]
+    pub fn is_runtime_exception(&self) -> bool {
+        match self {
+            Self::RuntimeException(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Default for Status {

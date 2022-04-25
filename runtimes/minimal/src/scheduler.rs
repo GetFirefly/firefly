@@ -4,20 +4,20 @@ use std::any::Any;
 use std::ffi::c_void;
 use std::fmt::{self, Debug};
 use std::mem;
-use std::ptr::{self, NonNull};
+use std::ptr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use log::info;
 
-use liblumen_alloc::erts::exception::ErlangException;
+use liblumen_alloc::erts::apply::DynamicCallee;
+use liblumen_alloc::erts::process::ffi::ErlangResult;
 use liblumen_alloc::erts::process::{CalleeSavedRegisters, Priority, Process, Status};
 use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::{Arity, CloneToProcess};
 use liblumen_core::locks::RwLock;
-use liblumen_core::sys::dynamic_call::DynamicCallee;
 use liblumen_core::util::thread_local::ThreadLocalCell;
 use liblumen_term::TermKind;
 
@@ -32,13 +32,10 @@ pub use lumen_rt_core::scheduler::{
 use lumen_rt_core::timer::Hierarchy;
 
 // External thread locals owned by the generated code
-extern "C-unwind" {
+extern "C" {
     #[thread_local]
     #[link_name = "__lumen_process_reductions"]
     static mut CURRENT_REDUCTION_COUNT: u32;
-
-    #[link_name = "__lumen_trap_exceptions"]
-    fn trap_exceptions_impl() -> bool;
 }
 
 // External functions defined in OTP
@@ -69,22 +66,22 @@ pub unsafe extern "C-unwind" fn process_yield() -> bool {
 }
 
 #[export_name = "__lumen_builtin_exit"]
-pub unsafe extern "C-unwind" fn process_exit(exception: Option<NonNull<ErlangException>>) {
+pub unsafe extern "C-unwind" fn process_exit(result: ErlangResult) {
     let arc_dyn_scheduler = scheduler::current();
     let scheduler = arc_dyn_scheduler
         .as_any()
         .downcast_ref::<Scheduler>()
         .unwrap();
 
-    if let Some(nn) = exception {
-        let mut exception: Box<ErlangException> = Box::from_raw(nn.as_ptr());
+    if result.exception.is_null() {
+        scheduler.current.exit_normal();
+    } else {
+        let mut exception = Box::from_raw(result.exception);
         if exception.kind() == Atom::str_to_term("throw") {
             // Need to update reason to {nocatch, Reason}
             exception.set_nocatch();
         }
         scheduler.current.erlang_exit(exception);
-    } else {
-        scheduler.current.exit_normal();
     }
     scheduler.process_yield();
 }
@@ -690,23 +687,18 @@ impl Scheduler {
 
                 // If this init function has a closure env, place it in
                 // the first callee-save register, which will be moved to
-                // the second argument register (e.g. %rsi) by swap_stack for
-                // the call to __lumen_trap_exceptions, which will then move it
-                // to the first argument register (e.g. %rdi) for the call to
-                // the process init function
+                // the first argument register (e.g. %rsi) by swap_stack for
+                // the call to the entry point
                 set_register(&process.registers, 0, env.unwrap_or(Term::NONE));
 
                 // This is used to indicate to swap_stack that this process
                 // is being swapped to for the first time, which allows the
                 // function to perform some initial one-time setup to link
-                // call frames for the unwinder and call __lumen_trap_exceptions
+                // call frames for the unwinder and call the entry point
                 set_register(&process.registers, 1, FIRST_SWAP);
 
-                // The function that __lumen_trap_exceptions will call as entry
+                // The function that swap_stack will call as entry
                 set_register(&process.registers, 2, init_fn as u64);
-
-                // The function that swap_stack will call as entry (__lumen_trap_exceptions)
-                set_register(&process.registers, 2, trap_exceptions_impl as u64);
             }
         })
     }

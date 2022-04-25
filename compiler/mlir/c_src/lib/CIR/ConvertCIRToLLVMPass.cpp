@@ -883,22 +883,6 @@ protected:
   }
 
   // This function inserts a reference to the thread-local global containing the
-  // current process exception pointer
-  LLVM::GlobalOp insertProcessExceptionThreadLocal(OpBuilder &builder,
-                                                   Location loc,
-                                                   ModuleOp module) const {
-    PatternRewriter::InsertionGuard insertGuard(builder);
-    builder.setInsertionPointToStart(module.getBody());
-    auto exceptionTy = getExceptionType();
-    auto ty = LLVM::LLVMPointerType::get(exceptionTy);
-    auto linkage = LLVM::Linkage::External;
-    auto tlsMode = LLVM::ThreadLocalMode::LocalExec;
-    return builder.create<LLVM::GlobalOp>(
-        loc, ty, /*isConstant=*/false, linkage, tlsMode,
-        "__lumen_process_exception", Attribute());
-  }
-
-  // This function inserts a reference to the thread-local global containing the
   // current process signal value
   LLVM::GlobalOp insertProcessSignalThreadLocal(OpBuilder &builder,
                                                 Location loc,
@@ -1903,11 +1887,6 @@ struct RaiseOpLowering : public ConvertCIROpToLLVMPattern<cir::RaiseOp> {
 
     // Get a reference to the process exception pointer
     auto module = op->getParentOfType<ModuleOp>();
-    auto exceptionTls =
-        module.lookupSymbol<LLVM::GlobalOp>("__lumen_process_exception");
-    if (!exceptionTls)
-      exceptionTls =
-          insertProcessExceptionThreadLocal(rewriter, module.getLoc(), module);
 
     // Get a reference to the process signal enum
     auto signalTls =
@@ -1933,14 +1912,9 @@ struct RaiseOpLowering : public ConvertCIROpToLLVMPattern<cir::RaiseOp> {
     auto callOp = rewriter.create<LLVM::CallOp>(
         loc, TypeRange({exceptionPtrTy}), "__lumen_builtin_raise/3",
         ValueRange({klass, reason, trace}));
-
-    // Then set the value of the process exception pointer and process signal
-    // globals
     auto exceptionPtr = callOp.getResult(0);
-    Value exceptionTlsPtr =
-        rewriter.create<LLVM::AddressOfOp>(loc, exceptionTls);
-    rewriter.create<LLVM::StoreOp>(loc, exceptionPtr, exceptionTlsPtr);
 
+    // Then set the value of the process signal global
     auto i8Ty = rewriter.getI8Type();
     Value signalTlsPtr = rewriter.create<LLVM::AddressOfOp>(loc, signalTls);
     Value errorSignal = rewriter.create<LLVM::ConstantOp>(

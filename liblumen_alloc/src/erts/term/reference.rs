@@ -1,12 +1,10 @@
-use core::alloc::Layout;
-use core::cmp::Ordering;
-use core::convert::TryFrom;
-use core::fmt::{self, Debug, Display};
-use core::hash::{Hash, Hasher};
-use core::mem;
-use core::ptr;
-
-use alloc::sync::Arc;
+use std::alloc::Layout;
+use std::cmp::Ordering;
+use std::fmt::{self, Debug, Display};
+use std::hash::{Hash, Hasher};
+use std::mem;
+use std::ptr;
+use std::sync::Arc;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;

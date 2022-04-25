@@ -8,9 +8,8 @@ use core::mem::{self, size_of};
 use core::ptr::{self, NonNull};
 use core::slice;
 
-use liblumen_core::sys::dynamic_call::DynamicCallee;
-
 use crate::borrow::CloneToProcess;
+use crate::erts::apply::DynamicCallee;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::{Heap, TermAlloc};
 use crate::erts::process::{Frame, FrameWithArguments, Native};

@@ -68,12 +68,14 @@ impl Archive {
                 error: *mut *mut std::os::raw::c_char,
             ) -> Archive;
         }
-        let mut error = MaybeUninit::uninit();
+        let mut error = MaybeUninit::zeroed();
         let dst = StringRef::from(dst);
         let archive = unsafe { LLVMLumenOpenArchive(dst, error.as_mut_ptr()) };
         if archive.is_null() {
             unsafe {
-                let reason = OwnedStringRef::from_ptr(error.assume_init());
+                let error = error.assume_init();
+                assert!(!error.is_null());
+                let reason = OwnedStringRef::from_ptr(error);
                 Err(anyhow!("{}", &reason))
             }
         } else {
@@ -103,7 +105,7 @@ impl Archive {
             ) -> bool;
         }
         let dst = StringRef::from(dst);
-        let mut error = MaybeUninit::uninit();
+        let mut error = MaybeUninit::zeroed();
         let success = unsafe {
             LLVMLumenWriteArchive(
                 dst,
@@ -117,7 +119,9 @@ impl Archive {
         if success {
             Ok(())
         } else {
-            let error = unsafe { OwnedStringRef::from_ptr(error.assume_init()) };
+            let error = unsafe { error.assume_init() };
+            assert!(!error.is_null());
+            let error = unsafe { OwnedStringRef::from_ptr(error) };
             Err(anyhow!("{}", &error))
         }
     }
@@ -158,6 +162,7 @@ impl Drop for OwnedArchive {
 /// of its parent archive.
 ///
 /// You can obtain the members of an archive member by calling `Archive::iter`
+#[derive(Debug)]
 pub struct ArchiveMember<'a> {
     ptr: *mut LlvmArchiveMember,
     _marker: core::marker::PhantomData<&'a Archive>,
@@ -172,16 +177,14 @@ impl<'a> ArchiveMember<'a> {
             ) -> StringRef;
         }
 
-        let mut error = MaybeUninit::uninit();
+        let mut error = MaybeUninit::zeroed();
         let name = unsafe { LLVMLumenArchiveChildName(self.ptr, error.as_mut_ptr()) };
         if name.is_null() {
-            // The error is always set to either null or a valid string, but only the
-            // latter when the name string is null
-            let error_ptr = unsafe { error.assume_init() };
-            if error_ptr.is_null() {
+            let error = unsafe { error.assume_init() };
+            if error.is_null() {
                 None
             } else {
-                let error = unsafe { OwnedStringRef::from_ptr(error_ptr) };
+                let error = unsafe { OwnedStringRef::from_ptr(error) };
                 panic!("{}", &error)
             }
         } else {
@@ -198,14 +201,14 @@ impl<'a> ArchiveMember<'a> {
             ) -> StringRef;
         }
 
-        let mut error = MaybeUninit::uninit();
+        let mut error = MaybeUninit::zeroed();
         let data = unsafe { LLVMLumenArchiveChildData(self.ptr, error.as_mut_ptr()) };
         if data.is_null() {
-            let error_ptr = unsafe { error.assume_init() };
-            if error_ptr.is_null() {
+            let error = unsafe { error.assume_init() };
+            if error.is_null() {
                 panic!("failed to read data from archive child");
             } else {
-                let error = unsafe { OwnedStringRef::from_ptr(error_ptr) };
+                let error = unsafe { OwnedStringRef::from_ptr(error) };
                 panic!("{}", &error);
             }
         } else {
@@ -293,6 +296,7 @@ impl<'a> Drop for NewArchiveMember<'a> {
 /// An iterator over members of an archive
 pub struct ArchiveIter<'a> {
     iterator: *mut LlvmArchiveIterator,
+    done: bool,
     _marker: core::marker::PhantomData<&'a Archive>,
 }
 impl<'a> ArchiveIter<'a> {
@@ -303,14 +307,17 @@ impl<'a> ArchiveIter<'a> {
                 error: *mut *mut std::os::raw::c_char,
             ) -> *mut LlvmArchiveIterator;
         }
-        let mut error = MaybeUninit::uninit();
+        let mut error = MaybeUninit::zeroed();
         let iterator = unsafe { LLVMLumenArchiveIteratorNew(archive.0, error.as_mut_ptr()) };
         if iterator.is_null() {
-            let error = unsafe { OwnedStringRef::from_ptr(error.assume_init()) };
+            let error = unsafe { error.assume_init() };
+            assert!(!error.is_null());
+            let error = unsafe { OwnedStringRef::from_ptr(error) };
             Err(anyhow!("{}", &error))
         } else {
             Ok(Self {
                 iterator,
+                done: false,
                 _marker: core::marker::PhantomData,
             })
         }
@@ -335,11 +342,21 @@ impl<'a> Iterator for ArchiveIter<'a> {
             ) -> *mut LlvmArchiveMember;
         }
 
-        let mut error = MaybeUninit::uninit();
+        if self.done {
+            return None;
+        }
+
+        let mut error = MaybeUninit::zeroed();
         let ptr = unsafe { LLVMLumenArchiveIteratorNext(self.iterator, error.as_mut_ptr()) };
         if ptr.is_null() {
-            let error = unsafe { OwnedStringRef::from_ptr(error.assume_init()) };
-            Some(Err(anyhow!("{}", &error)))
+            let error = unsafe { error.assume_init() };
+            self.done = true;
+            if error.is_null() {
+                None
+            } else {
+                let error = unsafe { OwnedStringRef::from_ptr(error) };
+                Some(Err(anyhow!("{}", &error)))
+            }
         } else {
             Some(Ok(ArchiveMember {
                 ptr,
@@ -348,3 +365,4 @@ impl<'a> Iterator for ArchiveIter<'a> {
         }
     }
 }
+impl<'a> std::iter::FusedIterator for ArchiveIter<'a> {}

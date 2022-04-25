@@ -8,7 +8,6 @@ use std::sync::Arc;
 use liblumen_core::locks::RwLock;
 
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
-use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::{Frame, FrameWithArguments, Native, Priority, Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
@@ -196,46 +195,9 @@ impl SchedulerTrait for Scheduler {
                     // Without this check, a process.exit() from outside the process during WAITING
                     // will return to the Frame that called `process.wait()`
                     if !arc_process.is_exiting() {
-                        match arc_process.run() {
-                            Ran::Waiting | Ran::Reduced | Ran::Exited | Ran::RuntimeException => (),
-                            Ran::SystemException => {
-                                let runnable = match &*arc_process.status.read() {
-                                    Status::SystemException(system_exception) => {
-                                        match system_exception {
-                                            SystemException::Alloc(_) => {
-                                                let mut roots = [];
-                                                match arc_process.garbage_collect(0, &mut roots[..])
-                                                {
-                                                    Ok(reductions) => {
-                                                        arc_process.total_reductions.fetch_add(
-                                                            reductions.try_into().unwrap(),
-                                                            Ordering::SeqCst,
-                                                        );
-
-                                                        // Clear the status for `requeue` on
-                                                        // successful `garbage_collect`
-                                                        true
-                                                    }
-                                                    Err(gc_err) => panic!(
-                                                        "fatal garbage collection error: {:?}",
-                                                        gc_err
-                                                    ),
-                                                }
-                                            }
-                                            err => panic!("system error: {}", err),
-                                        }
-                                    }
-                                    _ => unreachable!(),
-                                };
-
-                                if runnable {
-                                    // Have to set after `match` where `ReadGuard` is held
-                                    *arc_process.status.write() = Status::Runnable;
-                                }
-                            }
-                        }
+                        arc_process.run();
                     } else {
-                        arc_process.reduce()
+                        arc_process.reduce();
                     }
 
                     // Don't `if let` or `match` on the return from `requeue` as it will keep the

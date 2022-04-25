@@ -7,18 +7,20 @@
 //! intended to empower WebAssembly binaries with native capabilities such as
 //! filesystem access, network access, etc.
 //!
-//! You can see more about the proposal at https://wasi.dev
+//! You can see more about the proposal at <https://wasi.dev>.
 //!
 //! The Rust target definition here is interesting in a few ways. We want to
 //! serve two use cases here with this target:
 //!
-//! * First, we want Rust usage of the target to be as hassle-free as possible, ideally avoiding the
-//!   need to configure and install a local wasm32-wasi toolchain.
+//! * First, we want Rust usage of the target to be as hassle-free as possible,
+//!   ideally avoiding the need to configure and install a local wasm32-wasi
+//!   toolchain.
 //!
-//! * Second, one of the primary use cases of LLVM's new wasm backend and the wasm support in LLD is
-//!   that any compiled language can interoperate with any other. To that the `wasm32-wasi` target
-//!   is the first with a viable C standard library and sysroot common definition, so we want Rust
-//!   and C/C++ code to interoperate when compiled to `wasm32-unknown-unknown`.
+//! * Second, one of the primary use cases of LLVM's new wasm backend and the
+//!   wasm support in LLD is that any compiled language can interoperate with
+//!   any other. To that the `wasm32-wasi` target is the first with a viable C
+//!   standard library and sysroot common definition, so we want Rust and C/C++
+//!   code to interoperate when compiled to `wasm32-unknown-unknown`.
 //!
 //! You'll note, however, that the two goals above are somewhat at odds with one
 //! another. To attempt to solve both use cases in one go we define a target
@@ -28,7 +30,7 @@
 //! ## No interop with C required
 //!
 //! By default the `crt-static` target feature is enabled, and when enabled
-//! this means that the the bundled version of `libc.a` found in `liblibc.rlib`
+//! this means that the bundled version of `libc.a` found in `liblibc.rlib`
 //! is used. This isn't intended really for interoperation with a C because it
 //! may be the case that Rust's bundled C library is incompatible with a
 //! foreign-compiled C library. In this use case, though, we use `rust-lld` and
@@ -70,17 +72,19 @@
 //! best we can with this target. Don't start relying on too much here unless
 //! you know what you're getting in to!
 
-use super::wasm32_base;
-use super::{crt_objects, Endianness, LinkerFlavor, LldFlavor, Target};
+use super::wasm_base;
+use super::{crt_objects, LinkerFlavor, LldFlavor, Target};
 
-pub fn target() -> Result<Target, String> {
-    let mut options = wasm32_base::options();
+pub fn target() -> Target {
+    let mut options = wasm_base::options();
 
+    options.os = "wasi".into();
+    options.linker_flavor = LinkerFlavor::Lld(LldFlavor::Wasm);
     options
         .pre_link_args
         .entry(LinkerFlavor::Gcc)
         .or_insert(Vec::new())
-        .push("--target=wasm32-wasi".to_string());
+        .push("--target=wasm32-wasi".into());
 
     options.pre_link_objects_fallback = crt_objects::pre_wasi_fallback();
     options.post_link_objects_fallback = crt_objects::post_wasi_fallback();
@@ -102,17 +106,11 @@ pub fn target() -> Result<Target, String> {
     // `args::args()` makes the WASI API calls itself.
     options.main_needs_argc_argv = false;
 
-    Ok(Target {
-        llvm_target: "wasm32-wasi".to_string(),
-        target_endian: Endianness::Little,
-        target_pointer_width: 32,
-        target_c_int_width: "32".to_string(),
-        target_os: "wasi".to_string(),
-        target_env: String::new(),
-        target_vendor: String::new(),
-        data_layout: "e-m:e-p:32:32-i64:64-n32:64-S128".to_string(),
-        arch: "wasm32".to_string(),
-        linker_flavor: LinkerFlavor::Lld(LldFlavor::Wasm),
+    Target {
+        llvm_target: "wasm32-wasi".into(),
+        pointer_width: 32,
+        data_layout: "e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-n32:64-S128-ni:1:10:20".into(),
+        arch: "wasm32".into(),
         options,
-    })
+    }
 }

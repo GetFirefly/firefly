@@ -104,9 +104,6 @@ impl Next {
             Status::Runnable => Next::PushBack,
             Status::Waiting => Next::Wait,
             Status::Exited | Status::RuntimeException(_) => Next::Exit,
-            Status::SystemException(_) => {
-                unreachable!("System exception should have already been cleared")
-            }
             Status::Running => {
                 unreachable!("Process.stop_running() should have been called before this")
             }

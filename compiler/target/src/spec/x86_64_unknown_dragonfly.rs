@@ -1,27 +1,25 @@
-use crate::spec::{LinkerFlavor, Target, TargetOptions, TargetResult, Endianness, EncodingType};
+use crate::spec::{EncodingType, LinkerFlavor, Target, TargetOptions};
 
-pub fn target() -> TargetResult {
+pub fn target() -> Target {
     let mut base = super::dragonfly_base::opts();
-    base.cpu = "x86-64".to_string();
+    base.cpu = "x86-64".into();
     base.max_atomic_width = Some(64);
-    base.pre_link_args.get_mut(&LinkerFlavor::Gcc).unwrap().push("-m64".to_string());
-    base.stack_probes = true;
+    base.pre_link_args
+        .entry(LinkerFlavor::Gcc)
+        .or_default()
+        .push("-m64".into());
+    // don't use probe-stack=inline-asm until rust#83139 and rust#84667 are resolved
+    base.stack_probes = false;
 
-    Ok(Target {
-        llvm_target: "x86_64-unknown-dragonfly".to_string(),
-        target_endian: Endianness::Little,
-        target_pointer_width: 64,
-        target_c_int_width: "32".to_string(),
+    Target {
+        llvm_target: "x86_64-unknown-dragonfly".into(),
+        pointer_width: 64,
         data_layout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
-            .to_string(),
-        arch: "x86_64".to_string(),
-        target_os: "dragonfly".to_string(),
-        target_env: String::new(),
-        target_vendor: "unknown".to_string(),
-        linker_flavor: LinkerFlavor::Gcc,
+            .into(),
+        arch: "x86_64".into(),
         options: TargetOptions {
             encoding: EncodingType::Encoding64Nanboxed,
             ..base
         },
-    })
+    }
 }

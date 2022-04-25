@@ -32,8 +32,42 @@ impl ParseOption for DebugInfo {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
         matches
             .value_of(info.name)
-            .map_or(Ok(DebugInfo::Full), |s| s.parse())
+            .map_or(Ok(Self::Full), |s| s.parse())
             .map_err(|_| invalid_value(info, &format!("expected debug level 0-2")))
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Hash)]
+pub enum SplitDwarfKind {
+    /// Sections which do not require relocation are written into object file but ignored by the
+    /// linker.
+    Single,
+    /// Sections which do not require relocation are written into a DWARF object (`.dwo`) file
+    /// which is ignored by the linker.
+    Split,
+}
+impl Default for SplitDwarfKind {
+    fn default() -> Self {
+        Self::Split
+    }
+}
+impl FromStr for SplitDwarfKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, ()> {
+        Ok(match s {
+            "single" => Self::Single,
+            "split" => Self::Split,
+            _ => return Err(()),
+        })
+    }
+}
+impl ParseOption for SplitDwarfKind {
+    fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
+        matches
+            .value_of(info.name)
+            .map_or(Ok(Self::Split), |s| s.parse())
+            .map_err(|_| invalid_value(info, &format!("expected valid split dwarf kind")))
     }
 }
 
@@ -42,10 +76,8 @@ impl ParseOption for DebugInfo {
 pub enum Strip {
     /// Do not strip at all.
     None,
-
     /// Strip debuginfo.
     DebugInfo,
-
     /// Strip all symbols.
     Symbols,
 }

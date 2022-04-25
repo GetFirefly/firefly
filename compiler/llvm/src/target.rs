@@ -1,3 +1,4 @@
+use std::borrow::{Borrow, Cow};
 use std::fmt;
 use std::mem::MaybeUninit;
 use std::ops::Deref;
@@ -66,18 +67,18 @@ pub fn host_cpu() -> OwnedStringRef {
 }
 
 /// Returns the specific cpu architecture being targeted as defined by the given compiler options
-pub fn target_cpu(options: &Options) -> String {
+pub fn target_cpu(options: &Options) -> Cow<'static, str> {
     let name = match options.codegen_opts.target_cpu.as_ref().map(|s| s.as_str()) {
-        Some(s) => s,
-        None => options.target.options.cpu.as_str(),
+        Some(s) => s.to_string().into(),
+        None => options.target.options.cpu.clone(),
     };
 
     if name != "native" {
-        return name.to_string();
+        return name;
     }
 
     let native = host_cpu();
-    native.into()
+    native.to_string().into()
 }
 
 /// Returns the host's CPU features as a string
@@ -291,9 +292,10 @@ impl TargetMachine {
             .map(|f| f.to_string())
             .collect::<Vec<_>>();
 
-        let triple = options.target.llvm_target.as_str();
+        let triple: &str = options.target.llvm_target.borrow();
         let cpu = target_cpu(options);
-        let abi = options.target.options.llvm_abiname.as_str();
+        let cpu: &str = cpu.borrow();
+        let abi: &str = options.target.options.llvm_abiname.borrow();
         let relax_elf_relocations = options.target.options.relax_elf_relocations;
         let default_reloc_model = options.target.options.relocation_model;
         let reloc_model = options
@@ -301,7 +303,7 @@ impl TargetMachine {
             .relocation_model
             .unwrap_or(default_reloc_model);
         let position_independent_code =
-            options.app_type == ProjectType::Executable && reloc_model == RelocModel::PIC;
+            options.app_type == ProjectType::Executable && reloc_model == RelocModel::Pic;
         let function_sections = options.target.options.function_sections;
         let data_sections = function_sections;
         let emit_stack_size_section = options.debugging_opts.emit_stack_sizes;
@@ -335,7 +337,7 @@ impl TargetMachine {
 
         let config = TargetMachineConfig {
             triple: StringRef::from(triple),
-            cpu: StringRef::from(cpu.as_str()),
+            cpu: StringRef::from(cpu),
             abi: StringRef::from(abi),
             features: features.as_ptr(),
             features_len: features.len().try_into().unwrap(),

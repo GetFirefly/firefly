@@ -1,13 +1,9 @@
-use core::alloc::Layout;
-use core::cmp;
-use core::convert::TryFrom;
-use core::default::Default;
-use core::fmt::{self, Display};
-use core::hash::{Hash, Hasher};
-
-use alloc::sync::Arc;
-
+use std::alloc::Layout;
 use std::backtrace::Backtrace;
+use std::cmp;
+use std::fmt::{self, Display};
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use liblumen_core::locks::RwLock;
 

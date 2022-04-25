@@ -1,12 +1,19 @@
-use crate::spec::{LinkerFlavor, Target, TargetResult, Endianness};
+use crate::spec::{FramePointer, LinkerFlavor, Target};
 
-pub fn target() -> TargetResult {
+pub fn target() -> Target {
     let mut base = super::linux_musl_base::opts();
-    base.cpu = "pentium4".to_string();
+    base.cpu = "pentium4".into();
     base.max_atomic_width = Some(64);
-    base.pre_link_args.get_mut(&LinkerFlavor::Gcc).unwrap().push("-m32".to_string());
-    base.pre_link_args.get_mut(&LinkerFlavor::Gcc).unwrap().push("-Wl,-melf_i386".to_string());
-    base.stack_probes = true;
+    base.pre_link_args
+        .entry(LinkerFlavor::Gcc)
+        .or_default()
+        .push("-m32".into());
+    base.pre_link_args
+        .entry(LinkerFlavor::Gcc)
+        .or_default()
+        .push("-Wl,-melf_i386".into());
+    // don't use probe-stack=inline-asm until rust#83139 and rust#84667 are resolved
+    base.stack_probes = false;
 
     // The unwinder used by i686-unknown-linux-musl, the LLVM libunwind
     // implementation, apparently relies on frame pointers existing... somehow.
@@ -20,21 +27,15 @@ pub fn target() -> TargetResult {
     //
     // This may or may not be related to this bug:
     // https://llvm.org/bugs/show_bug.cgi?id=30879
-    base.eliminate_frame_pointer = false;
+    base.frame_pointer = FramePointer::Always;
 
-    Ok(Target {
-        llvm_target: "i686-unknown-linux-musl".to_string(),
-        target_endian: Endianness::Little,
-        target_pointer_width: 32,
-        target_c_int_width: "32".to_string(),
+    Target {
+        llvm_target: "i686-unknown-linux-musl".into(),
+        pointer_width: 32,
         data_layout: "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-\
             f64:32:64-f80:32-n8:16:32-S128"
-            .to_string(),
-        arch: "x86".to_string(),
-        target_os: "linux".to_string(),
-        target_env: "musl".to_string(),
-        target_vendor: "unknown".to_string(),
-        linker_flavor: LinkerFlavor::Gcc,
+            .into(),
+        arch: "x86".into(),
         options: base,
-    })
+    }
 }

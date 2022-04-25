@@ -683,13 +683,13 @@ impl Signatures {
             }
             ReturnType::Term => {
                 quote! {
-                    result(#(#result_argument_ident),*)
+                    arc_process.term_to_return_status(result(#(#result_argument_ident),*))
                 }
             }
         };
 
         quote! {
-            pub extern "C-unwind" fn native(#(#native_fn_arg),*) -> Term {
+            pub extern "C-unwind" fn native(#(#native_fn_arg),*) -> liblumen_alloc::erts::process::ffi::ErlangResult {
                 let arc_process = crate::runtime::process::current_process();
                 arc_process.reduce();
 

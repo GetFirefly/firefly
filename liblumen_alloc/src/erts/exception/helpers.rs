@@ -8,12 +8,12 @@ use super::{ArcError, Exception, RuntimeException};
 
 #[inline]
 pub fn badarg(trace: Arc<Trace>, source: Option<ArcError>) -> RuntimeException {
-    self::error(atom("badarg"), None, trace, source)
+    self::error(atom!(badarg), None, trace, source)
 }
 
 #[inline]
 pub fn badarith(trace: Arc<Trace>, source: Option<ArcError>) -> RuntimeException {
-    self::error(atom("badarith"), None, trace, source)
+    self::error(atom!(badarith), None, trace, source)
 }
 
 pub fn badarity(
@@ -22,35 +22,40 @@ pub fn badarity(
     args: Term,
     trace: Arc<Trace>,
     source: Option<ArcError>,
-) -> Exception {
+) -> RuntimeException {
     let fun_args = process.tuple_from_slice(&[fun, args]);
-    let tag = atom("badarity");
+    let tag = atom!(badarity);
     let reason = process.tuple_from_slice(&[tag, fun_args]);
 
-    Exception::Runtime(self::error(reason, None, trace, source))
+    self::error(reason, None, trace, source)
 }
 
 pub fn badfun(process: &Process, fun: Term, trace: Arc<Trace>, source: ArcError) -> Exception {
-    let tag = atom("badfun");
+    let tag = atom!(badfun);
     let reason = process.tuple_from_slice(&[tag, fun]);
     Exception::Runtime(self::error(reason, None, trace, Some(source)))
 }
 
 pub fn badkey(process: &Process, key: Term, trace: Arc<Trace>, source: ArcError) -> Exception {
-    let tag = atom("badkey");
+    let tag = atom!(badkey);
     let reason = process.tuple_from_slice(&[tag, key]);
     Exception::Runtime(self::error(reason, None, trace, Some(source)))
 }
 
-pub fn badmap(process: &Process, map: Term, trace: Arc<Trace>, source: ArcError) -> Exception {
-    let tag = atom("badmap");
+pub fn badmap(
+    process: &Process,
+    map: Term,
+    trace: Arc<Trace>,
+    source: Option<ArcError>,
+) -> RuntimeException {
+    let tag = atom!(badmap);
     let reason = process.tuple_from_slice(&[tag, map]);
-    Exception::Runtime(self::error(reason, None, trace, Some(source)))
+    self::error(reason, None, trace, source)
 }
 
 #[inline]
 pub fn undef(trace: Arc<Trace>, source: Option<ArcError>) -> Exception {
-    Exception::Runtime(self::exit(atom("undef"), trace, source))
+    Exception::Runtime(self::exit(atom!(undef), trace, source))
 }
 
 #[inline]
@@ -92,11 +97,4 @@ pub fn throw(reason: Term, trace: Arc<Trace>, source: Option<ArcError>) -> Runti
     use super::Throw;
 
     RuntimeException::Throw(Throw::new(reason, trace, source))
-}
-
-#[inline(always)]
-fn atom(s: &'static str) -> Term {
-    use crate::erts::term::prelude::Atom;
-
-    Atom::str_to_term(s)
 }

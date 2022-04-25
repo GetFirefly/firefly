@@ -348,8 +348,8 @@ impl TryFrom<TypedTerm> for Boxed<Tuple> {
 mod tests {
     use super::*;
 
-    use alloc::sync::Arc;
-    use core::ptr::NonNull;
+    use std::ptr::NonNull;
+    use std::sync::Arc;
 
     use crate::erts::testing::RegionHeap;
     use crate::erts::{scheduler, Node};

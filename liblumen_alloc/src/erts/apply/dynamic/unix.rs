@@ -9,20 +9,26 @@
 ///! implementation.
 use core::arch::global_asm;
 
-use crate::sys::dynamic_call::DynamicCallee;
 use cfg_if::cfg_if;
+
+use crate::erts::process::ffi::ErlangResult;
+use crate::erts::term::prelude::Term;
+
+use super::DynamicCallee;
+
 extern "C-unwind" {
+    #[allow(improper_ctypes)]
     #[link_name = "__lumen_dynamic_apply"]
-    pub fn apply(f: DynamicCallee, argv: *const usize, argc: usize) -> usize;
+    pub fn apply(f: DynamicCallee, argv: *const Term, argc: usize) -> ErlangResult;
 }
 
 cfg_if! {
     if #[cfg(all(target_os = "macos", target_arch = "x86_64"))] {
-        global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_macos.s"));
+        global_asm!(include_str!("asm/lumen_dynamic_apply_macos.s"));
     } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
-        global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_macos_aarch64.s"));
+        global_asm!(include_str!("asm/lumen_dynamic_apply_macos_aarch64.s"));
     } else if #[cfg(tarch_arch = "x86_64")] {
-        global_asm!(include_str!("dynamic_call/lumen_dynamic_apply_linux.s"));
+        global_asm!(include_str!("asm/lumen_dynamic_apply_linux.s"));
     } else {
         compile_error!("dynamic calls have not been implemented for this platform!");
     }
@@ -30,8 +36,12 @@ cfg_if! {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use core::mem;
+
+    use liblumen_term::Encoding;
+
+    use super::*;
+    use crate::erts::term::prelude::Term;
 
     #[test]
     fn basic_apply_test() {
@@ -40,12 +50,13 @@ mod tests {
         // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
         let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
         // Build up the args and call the function
-        let args = &[22, 11];
+        let args = &[fixnum!(22), fixnum!(11)];
         let argv = args.as_ptr();
         let argc = args.len();
         let result = unsafe { apply(callee, argv, argc) };
 
-        assert_eq!(result, 33);
+        let expected = ErlangResult::ok(fixnum!(33));
+        assert_eq!(result, expected);
     }
 
     #[test]
@@ -55,12 +66,13 @@ mod tests {
         // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
         let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
         // Build up the args and call the function
-        let args = &[22, 11];
+        let args = &[fixnum!(22), fixnum!(11)];
         let argv = args.as_ptr();
         let argc = args.len();
         let result = unsafe { apply(callee, argv, argc) };
 
-        assert_eq!(result, 33);
+        let expected = ErlangResult::ok(fixnum!(33));
+        assert_eq!(result, expected);
     }
 
     #[test]
@@ -70,14 +82,15 @@ mod tests {
         // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
         let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
         // Build up the args and call the function
-        let args = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+        let mut args = vec![];
+        args.resize(10, fixnum!(1));
         let (args, expected) = if cfg!(target_arch = "x86_64") {
             // On x86_64, we have 6 registers to use, so pass 8 arguments
             let slice = &args[0..7];
-            (slice, slice.iter().sum())
+            (slice, fixnum!(8))
         } else if cfg!(target_arch = "aarch64") {
             // On aarch64, we have 8 registers to use, so pass 10 arguments
-            (&args[0..], args.iter().sum())
+            (&args[0..], fixnum!(10))
         } else {
             panic!("need to update test case for this target");
         };
@@ -85,6 +98,7 @@ mod tests {
         let argc = args.len();
         let result = unsafe { apply(callee, argv, argc) };
 
+        let expected = ErlangResult::ok(expected);
         assert_eq!(result, expected);
     }
 
@@ -95,14 +109,15 @@ mod tests {
         // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
         let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
         // Build up the args and call the function
-        let args = [1, 1, 1, 1, 1, 1, 1, 1, 1];
+        let mut args = vec![];
+        args.resize(9, fixnum!(1));
         let (args, expected) = if cfg!(target_arch = "x86_64") {
             // On x86_64, we have 6 registers to use, so pass 7 arguments
             let slice = &args[0..6];
-            (slice, slice.iter().sum())
+            (slice, fixnum!(7))
         } else if cfg!(target_arch = "aarch64") {
             // On aarch64, we have 8 registers to use, so pass 9 arguments
-            (&args[0..], args.iter().sum())
+            (&args[0..], fixnum!(9))
         } else {
             panic!("need to update test case for this target");
         };
@@ -110,6 +125,7 @@ mod tests {
         let argc = args.len();
         let result = unsafe { apply(callee, argv, argc) };
 
+        let expected = ErlangResult::ok(expected);
         assert_eq!(result, expected);
     }
 
@@ -121,7 +137,7 @@ mod tests {
         // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
         let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
         // Build up the args and call the function
-        let args = &[22, 11];
+        let args = &[fixnum!(22), fixnum!(11)];
         let argv = args.as_ptr();
         let argc = args.len();
         let _result = unsafe { apply(callee, argv, argc) };
@@ -135,91 +151,132 @@ mod tests {
         // Transform the pointer to our DynamicCallee type alias, since that is what apply expects
         let callee = unsafe { mem::transmute::<*const (), DynamicCallee>(callee) };
         // Build up the args and call the function
-        let args = &[1, 1, 1, 1, 1, 1, 1, 1];
+        let mut args = vec![];
+        args.resize(8, fixnum!(1));
         let argv = args.as_ptr();
         let argc = args.len();
         let _result = unsafe { apply(callee, argv, argc) };
     }
 
-    fn panicky(_x: usize, _y: usize) -> usize {
+    fn panicky(_x: usize, _y: usize) -> ErlangResult {
         panic!("panicky");
     }
 
     extern "C-unwind" fn panicky_spilled(
-        _a: usize,
-        _b: usize,
-        _c: usize,
-        _d: usize,
-        _e: usize,
-        _f: usize,
-        _g: usize,
-    ) -> usize {
+        _a: Term,
+        _b: Term,
+        _c: Term,
+        _d: Term,
+        _e: Term,
+        _f: Term,
+        _g: Term,
+    ) -> ErlangResult {
         panic!("panicky");
     }
 
-    extern "C" fn adder(x: usize, y: usize) -> usize {
-        x + y
+    extern "C" fn adder(x: Term, y: Term) -> ErlangResult {
+        let result = x.decode_immediate() + y.decode_immediate();
+        ErlangResult::ok(fixnum!(result))
     }
 
-    fn adder_rust(x: usize, y: usize) -> usize {
-        x + y
+    fn adder_rust(x: Term, y: Term) -> ErlangResult {
+        let result = x.decode_immediate() + y.decode_immediate();
+        ErlangResult::ok(fixnum!(result))
     }
 
     #[cfg(target_arch = "x86_64")]
     extern "C" fn spilled_args_even(
-        a: usize,
-        b: usize,
-        c: usize,
-        d: usize,
-        e: usize,
-        f: usize,
-        g: usize,
-        h: usize,
-    ) -> usize {
-        a + b + c + d + e + f + g + h
+        a: Term,
+        b: Term,
+        c: Term,
+        d: Term,
+        e: Term,
+        f: Term,
+        g: Term,
+        h: Term,
+    ) -> ErlangResult {
+        let a = a.decode_immediate();
+        let b = b.decode_immediate();
+        let c = c.decode_immediate();
+        let d = d.decode_immediate();
+        let e = e.decode_immediate();
+        let f = f.decode_immediate();
+        let g = g.decode_immediate();
+        let h = h.decode_immediate();
+        let value = fixnum!(a + b + c + d + e + f + g + h);
+        ErlangResult::ok(value)
     }
 
     #[cfg(target_arch = "aarch64")]
     extern "C" fn spilled_args_even(
-        a: usize,
-        b: usize,
-        c: usize,
-        d: usize,
-        e: usize,
-        f: usize,
-        g: usize,
-        h: usize,
-        i: usize,
-        j: usize,
-    ) -> usize {
-        a + b + c + d + e + f + g + h + i + j
+        a: Term,
+        b: Term,
+        c: Term,
+        d: Term,
+        e: Term,
+        f: Term,
+        g: Term,
+        h: Term,
+        i: Term,
+        j: Term,
+    ) -> ErlangResult {
+        let a = a.decode_immediate();
+        let b = b.decode_immediate();
+        let c = c.decode_immediate();
+        let d = d.decode_immediate();
+        let e = e.decode_immediate();
+        let f = f.decode_immediate();
+        let g = g.decode_immediate();
+        let h = h.decode_immediate();
+        let i = i.decode_immediate();
+        let j = j.decode_immediate();
+        let value = fixnum!(a + b + c + d + e + f + g + h + i + j);
+        ErlangResult::ok(value)
     }
 
     #[cfg(target_arch = "x86_64")]
     extern "C" fn spilled_args_odd(
-        a: usize,
-        b: usize,
-        c: usize,
-        d: usize,
-        e: usize,
-        f: usize,
-        g: usize,
-    ) -> usize {
-        a + b + c + d + e + f + g
+        a: Term,
+        b: Term,
+        c: Term,
+        d: Term,
+        e: Term,
+        f: Term,
+        g: Term,
+    ) -> ErlangResult {
+        let a = a.decode_immediate();
+        let b = b.decode_immediate();
+        let c = c.decode_immediate();
+        let d = d.decode_immediate();
+        let e = e.decode_immediate();
+        let f = f.decode_immediate();
+        let g = g.decode_immediate();
+        let value = fixnum!(a + b + c + d + e + f + g);
+        ErlangResult::ok(value)
     }
 
     #[cfg(target_arch = "aarch64")]
     extern "C" fn spilled_args_odd(
-        a: usize,
-        b: usize,
-        c: usize,
-        d: usize,
-        e: usize,
-        f: usize,
-        g: usize,
-        h: usize,
-        i: usize,
-    ) -> usize {
-        a + b + c + d + e + f + g + h + i
+        a: Term,
+        b: Term,
+        c: Term,
+        d: Term,
+        e: Term,
+        f: Term,
+        g: Term,
+        h: Term,
+        i: Term,
+    ) -> ErlangResult {
+        let a = a.decode_immediate();
+        let b = b.decode_immediate();
+        let c = c.decode_immediate();
+        let d = d.decode_immediate();
+        let e = e.decode_immediate();
+        let f = f.decode_immediate();
+        let g = g.decode_immediate();
+        let h = h.decode_immediate();
+        let i = i.decode_immediate();
+        let value = fixnum!(a + b + c + d + e + f + g + h + i);
+        ErlangResult::ok(value)
     }
 }

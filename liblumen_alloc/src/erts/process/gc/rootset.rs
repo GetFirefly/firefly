@@ -1,7 +1,5 @@
-use core::fmt;
-use core::slice;
-
-use alloc::vec::Vec;
+use std::fmt;
+use std::slice;
 
 use crate::erts::term::prelude::{Boxed, Encoded, Term};
 

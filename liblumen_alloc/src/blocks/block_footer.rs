@@ -1,4 +1,4 @@
-use alloc::fmt::{self, Debug, Formatter};
+use std::fmt::{self, Debug, Formatter};
 
 use super::{FreeBlock, FreeBlockRef};
 

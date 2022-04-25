@@ -1,10 +1,12 @@
+use std::ptr::NonNull;
+
 use anyhow::*;
 
-use liblumen_core::sys::dynamic_call::DynamicCallee;
-
-use liblumen_alloc::erts::apply::find_symbol;
+use liblumen_alloc::erts::apply::{find_symbol, DynamicCallee};
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::ffi::ErlangResult;
 use liblumen_alloc::erts::process::trace::Trace;
+use liblumen_alloc::erts::process::{Frame, Native};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{Arity, ModuleFunctionArity};
 
@@ -16,11 +18,18 @@ extern "Rust" {
         module_function_arity: ModuleFunctionArity,
         callee: DynamicCallee,
         arguments: Vec<Term>,
-    ) -> Term;
+    ) -> ErlangResult;
 }
 
-#[native_implemented::function(erlang:apply/3)]
-fn result(module: Term, function: Term, arguments: Term) -> exception::Result<Term> {
+#[export_name = "erlang:apply/3"]
+pub extern "C-unwind" fn apply_3(module: Term, function: Term, arguments: Term) -> ErlangResult {
+    let arc_process = crate::runtime::process::current_process();
+    match apply_3_impl(module, function, arguments) {
+        Ok(result) => result,
+        Err(exception) => arc_process.return_status(Err(exception)),
+    }
+}
+fn apply_3_impl(module: Term, function: Term, arguments: Term) -> exception::Result<ErlangResult> {
     let module_atom = term_try_into_atom!(module)?;
     let function_atom = term_try_into_atom!(function)?;
     let argument_vec = arguments_term_to_vec(arguments)?;
@@ -53,3 +62,24 @@ fn result(module: Term, function: Term, arguments: Term) -> exception::Result<Te
         }
     }
 }
+
+pub fn frame() -> Frame {
+    frame_for_native(NATIVE)
+}
+
+pub fn frame_for_native(native: Native) -> Frame {
+    Frame::new(module_function_arity(), native)
+}
+
+pub fn module_function_arity() -> ModuleFunctionArity {
+    ModuleFunctionArity {
+        module: Atom::from_str("erlang"),
+        function: Atom::from_str("apply"),
+        arity: ARITY,
+    }
+}
+
+pub const ARITY: Arity = 3;
+pub const NATIVE: Native = Native::Three(apply_3);
+pub const CLOSURE_NATIVE: Option<NonNull<std::ffi::c_void>> =
+    Some(unsafe { NonNull::new_unchecked(apply_3 as *mut std::ffi::c_void) });

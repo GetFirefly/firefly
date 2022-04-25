@@ -6,8 +6,8 @@ use clap::{ArgMatches, ErrorKind};
 
 use liblumen_target as target;
 use liblumen_target::spec::{
-    CodeModel, LinkerFlavor, MergeFunctions, PanicStrategy, RelocModel, RelroLevel, Target,
-    TargetError, TlsModel,
+    CodeModel, LinkerFlavor, MergeFunctions, PanicStrategy, RelocModel, RelroLevel, SplitDebugInfo,
+    Target, TargetError, TlsModel,
 };
 use liblumen_util::diagnostics::ColorArg;
 
@@ -160,6 +160,15 @@ impl ParseOption for PanicStrategy {
             })
     }
 }
+impl ParseOption for SplitDebugInfo {
+    fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
+        match matches.value_of(info.name) {
+            None => Err(required_option_missing(info)),
+            Some(s) => SplitDebugInfo::from_str(s)
+                .map_err(|_| invalid_value(info, "invalid split debuginfo type")),
+        }
+    }
+}
 impl ParseOption for Target {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
         let triple = match matches.value_of(info.name) {
@@ -191,7 +200,7 @@ impl ParseOption for ColorArg {
     }
 }
 
-pub(in crate::config) fn invalid_value(info: &OptionInfo, description: &str) -> clap::Error {
+pub(in crate) fn invalid_value(info: &OptionInfo, description: &str) -> clap::Error {
     clap::Error {
         kind: ErrorKind::InvalidValue,
         message: description.to_string(),
@@ -199,7 +208,7 @@ pub(in crate::config) fn invalid_value(info: &OptionInfo, description: &str) -> 
     }
 }
 
-pub(in crate::config) fn required_option_missing(info: &OptionInfo) -> clap::Error {
+pub(in crate) fn required_option_missing(info: &OptionInfo) -> clap::Error {
     clap::Error {
         kind: ErrorKind::MissingRequiredArgument,
         message: format!("required argument was not provided"),

@@ -33,13 +33,13 @@ ___lumen_swap_stack:
     stp  x19, x20, [x0, #80]
 
     ; Restore the callee-saved registers of `new`
-    ldp  x11, x29, [x0]
+    ldp  x11, x29, [x1]
     mov  x11, sp
-    ldp  x27, x28, [x0, #16]
-    ldp  x25, x26, [x0, #32]
-    ldp  x23, x24, [x0, #48]
-    ldp  x21, x22, [x0, #64]
-    ldp  x19, x20, [x0, #80]
+    ldp  x27, x28, [x1, #16]
+    ldp  x25, x26, [x1, #32]
+    ldp  x23, x24, [x1, #48]
+    ldp  x21, x22, [x1, #64]
+    ldp  x19, x20, [x1, #80]
 
     ; The value of all the callee-saved registers has changed, so we
     ; need to inform the unwinder of that fact before proceeding
@@ -65,6 +65,7 @@ ___lumen_swap_stack:
 
     ; Ensure we never perform initialization twice
     ldr  x20, #0
+    str  x20, [x1, #88]
     ; Make sure we initialize the return address register from x10
     ; This address returns to the point in the scheduler where it invoked swap_stack
     mov x30, x10
@@ -95,18 +96,20 @@ ___lumen_swap_stack:
     .cfi_offset w30, -8
     .cfi_offset w29, -16
 
-    ; Now that the frames are linked, we can call the entry point. For now, this
-    ; is __lumen_trap_exceptions, which expects to receive two arguments: the function
-    ; being wrapped by the exception handler, and the value of the closure environment,
-    ; _if_ it is a closure being called, otherwise the value of that argument is Term::NONE
-    mov x21, x0
-    mov x19, x1
+    ; Now that the frames are linked, we can call the entry point.
+    ; The only argument is the value of the closure environment (or Term::NONE if not a closure)
+    mov x19, x0
+    br x21
 
-    ; We're all set to call the start entry function!
-    ; NOTE: This call never truly returns, as the exception handler calls __lumen_builtin_exit
-    ; with the return value of the 'real' entry function, or with an exception if one
-    ; is caught. However, swap_stack _does_ return for all other swaps, just not the first.
-    br x22
+    ; When we return to this point, the process has fully unwound and should exit, returning
+    ; back to the scheduler. We handle this by calling __lumen_builtin_exit, which sets up the
+    ; process status, and then yields to the scheduler. Control never returns here, so we hint
+    ; as such by which branch instruction we use
+    ;
+    ; NOTE: We know that the first two registers, i.e. x0/x1 will hold the two fields of the
+    ; ErlangResult struct, as these registers are also used when returning that struct. In
+    ; short, we're return-calling :P
+    b __lumen_builtin_exit
 
 L_resume:
     ; We land here only on a context switch, and since the last switch _away_ from

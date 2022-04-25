@@ -1,15 +1,14 @@
 use core::slice;
 use std::env::ArgsOs;
-
-use once_cell::sync::OnceCell;
+use std::lazy::SyncOnceCell;
 
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_rt_core::process::current_process;
 
-static ARGV: OnceCell<Vec<String>> = OnceCell::new();
-static ARGV_TERM: OnceCell<Vec<BinaryLiteral>> = OnceCell::new();
+static ARGV: SyncOnceCell<Vec<String>> = SyncOnceCell::new();
+static ARGV_TERM: SyncOnceCell<Vec<BinaryLiteral>> = SyncOnceCell::new();
 
 #[allow(unused)]
 pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {

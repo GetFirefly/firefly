@@ -20,7 +20,7 @@ use anyhow::bail;
 use clap::ArgMatches;
 
 use liblumen_intern::Symbol;
-use liblumen_target::spec::{CodeModel, PanicStrategy, RelocModel, TlsModel};
+use liblumen_target::spec::{CodeModel, RelocModel, SplitDebugInfo, TlsModel};
 use liblumen_target::{self as target, Target};
 use liblumen_util::diagnostics::{ColorArg, ColorChoice, FileName};
 use liblumen_util::error::{HelpRequested, Verbosity};
@@ -76,7 +76,7 @@ pub struct Options {
     pub source_path_prefix: Vec<(PathBuf, PathBuf)>,
     pub search_paths: Vec<SearchPath>,
     pub include_path: VecDeque<PathBuf>,
-    pub link_libraries: Vec<(String, Option<String>, Option<NativeLibraryKind>)>,
+    pub link_libraries: Vec<(String, Option<String>, NativeLibraryKind)>,
     pub defines: HashMap<String, Option<String>>,
 
     pub cli_forced_thinlto_off: bool,
@@ -166,7 +166,7 @@ impl Options {
         };
 
         let target: Target = ParseOption::parse_option(&option!("target"), &args)?;
-        match &target.target_pointer_width {
+        match &target.pointer_width {
             32 | 64 => (),
             w => {
                 return Err(str_to_clap_err(
@@ -192,29 +192,15 @@ impl Options {
         let mut defines = default_configuration(&target);
 
         let opt_level = if args.is_present("opt-level") {
-            if codegen_opts.opt_level.is_some() {
-                // Prefer more precise option
-                codegen_opts.opt_level.unwrap()
-            } else {
-                ParseOption::parse_option(&option!("opt-level"), &args)?
-            }
+            ParseOption::parse_option(&option!("opt-level"), &args)?
         } else {
-            codegen_opts.opt_level.unwrap_or_default()
+            codegen_opts.opt_level
         };
 
         let debug_info = if args.is_present("debug") {
-            if codegen_opts.debuginfo.is_some() {
-                // Prefer more precise option
-                codegen_opts.debuginfo.clone().unwrap()
-            } else {
-                ParseOption::parse_option(&option!("debug"), &args)?
-            }
+            ParseOption::parse_option(&option!("debug"), &args)?
         } else {
-            if codegen_opts.debuginfo.is_none() && opt_level > OptLevel::Default {
-                DebugInfo::None
-            } else {
-                codegen_opts.debuginfo.unwrap_or_default()
-            }
+            debugging_opts.debuginfo
         };
 
         let debug_assertions = codegen_opts.debug_assertions.unwrap_or(false);
@@ -319,7 +305,7 @@ impl Options {
             let triple = target::host_triple().to_string();
             Target::search(&triple).unwrap()
         });
-        match &target.target_pointer_width {
+        match &target.pointer_width {
             32 | 64 => (),
             w => {
                 return Err(str_to_clap_err(
@@ -391,14 +377,6 @@ impl Options {
             })
     }
 
-    /// Returns the panic strategy for this compile session. If the user explicitly selected one
-    /// using '-C panic', use that, otherwise use the panic strategy defined by the target.
-    pub fn panic_strategy(&self) -> PanicStrategy {
-        self.codegen_opts
-            .panic
-            .unwrap_or(self.target.options.panic_strategy)
-    }
-
     pub fn lto(&self) -> Lto {
         match self.codegen_opts.lto {
             LtoCli::No => Lto::No,
@@ -438,6 +416,21 @@ impl Options {
         self.codegen_opts
             .tls_model
             .unwrap_or(self.target.options.tls_model)
+    }
+
+    pub fn is_wasi_reactor(&self) -> bool {
+        self.target.options.os == "wasi"
+            && self.codegen_opts.wasi_exec_model == Some(WasiExecModel::Reactor)
+    }
+
+    pub fn split_debuginfo(&self) -> SplitDebugInfo {
+        self.debugging_opts
+            .split_debuginfo
+            .unwrap_or(self.target.options.split_debuginfo)
+    }
+
+    pub fn target_can_use_split_dwarf(&self) -> bool {
+        !self.target.options.is_like_windows && !self.target.options.is_like_osx
     }
 
     /// Check whether this compile session and crate type use static crt.
@@ -498,6 +491,11 @@ impl Options {
     /// Returns `true` if there will be an output file generated.
     pub fn will_create_output_file(&self) -> bool {
         !self.debugging_opts.parse_only // The file is just being parsed
+    }
+
+    /// Returns a list of directories where target-specific tool binaries are located.
+    pub fn get_tools_search_paths(&self, self_contained: bool) -> Vec<PathBuf> {
+        filesearch::get_tools_search_paths(&self.sysroot, self_contained)
     }
 }
 
@@ -594,23 +592,20 @@ fn detect_app<'a>(
 
 /// Generate a default project configuration for the current session
 fn default_configuration(target: &Target) -> HashMap<String, Option<String>> {
-    let end = target.target_endian.clone();
-    let arch = target.arch.clone();
-    let wordsz = target.target_pointer_width;
-    let os = target.target_os.clone();
-    let env = target.target_env.clone();
-    let vendor = target.target_vendor.clone();
+    let end = target.options.endianness.to_string();
+    let arch = target.arch.to_string();
+    let wordsz = target.pointer_width.to_string();
+    let os = target.options.os.to_string();
+    let env = target.options.env.to_string();
+    let vendor = target.options.vendor.to_string();
 
     let mut ret = HashMap::default();
     ret.reserve(6); // the minimum number of insertions
                     // Target bindings.
     ret.insert("TARGET_OS".to_string(), Some(os));
-    if let Some(ref fam) = target.options.target_family {
-        ret.insert("TARGET_FAMILY".to_string(), Some(fam.to_string()));
-    }
-    ret.insert("TARGET_POINTER_WIDTH".to_string(), Some(wordsz.to_string()));
+    ret.insert("TARGET_POINTER_WIDTH".to_string(), Some(wordsz));
     ret.insert("TARGET_ARCH".to_string(), Some(arch));
-    ret.insert("TARGET_ENDIANESS".to_string(), Some(end.to_string()));
+    ret.insert("TARGET_ENDIANESS".to_string(), Some(end));
     ret.insert("TARGET_ENV".to_string(), Some(env));
     ret.insert("TARGET_VENDOR".to_string(), Some(vendor));
     ret
@@ -628,31 +623,96 @@ fn parse_key_value(value: &str) -> Result<Define, clap::Error> {
 
 fn parse_link_libraries<'a>(
     matches: &ArgMatches<'a>,
-) -> Result<Vec<(String, Option<String>, Option<NativeLibraryKind>)>, clap::Error> {
+) -> Result<Vec<(String, Option<String>, NativeLibraryKind)>, clap::Error> {
     match matches.values_of("link-library") {
         None => return Ok(Vec::new()),
         Some(values) => {
             let mut link_libraries = Vec::new();
             for value in values {
                 // Parse string of the form "[KIND=]lib[:new_name]",
-                // where KIND is one of "dylib", "framework", "static".
+                //
+                // * KIND is of the form `TYPE[:([+-]MODIFIER,?)*]
+                // * TYPE is one of "dylib", "framework", "static".
+                // * MODIFIER is one of "bundle", "as-needed", "whole-archive"
+                //
+                // When a modifier is `-`, it implies false; when `+`, it implies true
                 let mut parts = value.splitn(2, '=');
                 let kind = parts.next().unwrap();
                 let (name, kind) = match (parts.next(), kind) {
                     (None, name) => (name, None),
-                    (Some(name), "dylib") => (name, Some(NativeLibraryKind::NativeUnknown)),
-                    (Some(name), "framework") => (name, Some(NativeLibraryKind::NativeFramework)),
-                    (Some(name), "static") => (name, Some(NativeLibraryKind::NativeStatic)),
-                    (Some(name), "static-nobundle") => {
-                        (name, Some(NativeLibraryKind::NativeStaticNobundle))
+                    (Some(name), kind) => (name, Some(kind)),
+                };
+                let (kind, modifiers) = match kind {
+                    None => (None, vec![]),
+                    Some(kind) => match kind.split_once(':') {
+                        None => (Some(kind), vec![]),
+                        Some((kind, modifiers)) => {
+                            let mods = modifiers
+                                .split(',')
+                                .map(|m| match m.split_at(1) {
+                                    ("-", m) => Some((m, false)),
+                                    ("+", m) => Some((m, true)),
+                                    _ => None,
+                                })
+                                .filter_map(|m| m)
+                                .collect::<Vec<_>>();
+                            (Some(kind), mods)
+                        }
+                    },
+                };
+                let lib = match (kind, modifiers) {
+                    (None, _mods) => NativeLibraryKind::Unspecified,
+                    (Some("dylib"), mods) => {
+                        let as_needed =
+                            mods.iter().find_map(
+                                |(m, val)| if m == &"as-needed" { Some(*val) } else { None },
+                            );
+                        NativeLibraryKind::Dylib { as_needed }
                     }
-                    (_, s) => {
+                    (Some("framework"), mods) => {
+                        let as_needed =
+                            mods.iter().find_map(
+                                |(m, val)| if m == &"as-needed" { Some(*val) } else { None },
+                            );
+                        NativeLibraryKind::Framework { as_needed }
+                    }
+                    (Some("static"), mods) => {
+                        let bundle =
+                            mods.iter().find_map(
+                                |(m, val)| if m == &"bundle" { Some(*val) } else { None },
+                            );
+                        let whole_archive = mods.iter().find_map(|(m, val)| {
+                            if m == &"whole-archive" {
+                                Some(*val)
+                            } else {
+                                None
+                            }
+                        });
+                        NativeLibraryKind::Static {
+                            bundle,
+                            whole_archive,
+                        }
+                    }
+                    (Some("static-nobundle"), mods) => {
+                        let whole_archive = mods.iter().find_map(|(m, val)| {
+                            if m == &"whole-archive" {
+                                Some(*val)
+                            } else {
+                                None
+                            }
+                        });
+                        NativeLibraryKind::Static {
+                            bundle: Some(false),
+                            whole_archive,
+                        }
+                    }
+                    (Some(other), _mods) => {
                         return Err(str_to_clap_err(
                             "link-library",
                             &format!(
                                 "unknown library kind `{}`, expected \
-                                 one of dylib, framework, or static",
-                                s
+                                 one of static, dylib, or framework",
+                                other
                             ),
                         ))
                     }
@@ -660,7 +720,7 @@ fn parse_link_libraries<'a>(
                 let mut name_parts = name.splitn(2, ':');
                 let name = name_parts.next().unwrap();
                 let new_name = name_parts.next();
-                link_libraries.push((name.to_owned(), new_name.map(|n| n.to_owned()), kind));
+                link_libraries.push((name.to_owned(), new_name.map(|n| n.to_owned()), lib));
             }
             Ok(link_libraries)
         }

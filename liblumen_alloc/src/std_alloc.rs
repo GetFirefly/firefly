@@ -33,11 +33,8 @@
 ///! carriers are allocated when allocators on other threads have carriers that could have
 ///! filled the request. See [CarrierMigration.md] in the OTP documentation for information
 ///! about how that works and the rationale.
-use core::cmp;
-use core::ptr::{self, NonNull};
-
-#[cfg(not(test))]
-use alloc::vec::Vec;
+use std::cmp;
+use std::ptr::{self, NonNull};
 
 use cfg_if::cfg_if;
 use lazy_static::lazy_static;

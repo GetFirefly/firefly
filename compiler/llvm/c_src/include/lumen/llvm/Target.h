@@ -40,13 +40,13 @@ enum class SizeLevel {
 };
 
 enum class RelocModel {
-  Default,
   Static,
-  PIC,
+  Pic,
+  Pie,
   DynamicNoPic,
-  ROPI,
-  RWPI,
-  ROPIRWPI,
+  Ropi,
+  Rwpi,
+  RopiRwpi,
 };
 
 struct TargetMachineConfig {

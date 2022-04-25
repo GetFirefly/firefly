@@ -150,7 +150,12 @@ where
         .maybe_emit(&input_info, OutputType::LLVMBitcode)
         .map(|filename| db.output_dir().join(filename));
 
-    let compiled = CompiledModule::new(module_sym, obj_path, bc_path);
+    let compiled = CompiledModule {
+        name: module_sym,
+        object: obj_path,
+        dwarf_object: None,
+        bytecode: bc_path,
+    };
 
     debug!("compilation finished for {:?}", input);
     diagnostics.success("Compiled", format!("{}", &module_name));

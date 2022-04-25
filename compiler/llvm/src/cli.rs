@@ -29,19 +29,19 @@ pub fn init(options: &Options) {
         args.push(CString::new("-mlir-timing").unwrap());
         args.push(CString::new("-mlir-timing-display=tree").unwrap());
     }
-    if options.debugging_opts.print_passes_before {
+    if options.debugging_opts.mlir_print_passes_before {
         args.push(CString::new("-mlir-print-ir-before-all").unwrap());
         args.push(CString::new("-print-before-all").unwrap());
     }
-    if options.debugging_opts.print_passes_after {
+    if options.debugging_opts.mlir_print_passes_after {
         args.push(CString::new("-mlir-print-ir-after-all").unwrap());
         args.push(CString::new("-print-after-all").unwrap());
     }
-    if options.debugging_opts.print_passes_on_change {
+    if options.debugging_opts.mlir_print_passes_on_change {
         args.push(CString::new("-mlir-print-ir-after-change").unwrap());
         args.push(CString::new("-print-changed").unwrap());
     }
-    if options.debugging_opts.print_passes_on_failure {
+    if options.debugging_opts.mlir_print_passes_on_failure {
         args.push(CString::new("-mlir-print-ir-after-failure").unwrap());
     }
     if options.debugging_opts.mlir_print_module_scope {
@@ -94,7 +94,7 @@ pub fn init(options: &Options) {
         args.push(CString::new("-time-passes").unwrap());
     }
     match options
-        .debugging_opts
+        .codegen_opts
         .merge_functions
         .unwrap_or(options.target.options.merge_functions)
     {

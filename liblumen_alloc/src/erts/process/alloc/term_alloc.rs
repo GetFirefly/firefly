@@ -1,11 +1,9 @@
-use core::alloc::Layout;
-use core::any::type_name;
-use core::ffi::c_void;
-use core::ptr::{self, NonNull};
-use core::str::Chars;
-
-use alloc::sync::Arc;
-use alloc::vec::Vec;
+use std::alloc::Layout;
+use std::any::type_name;
+use std::ffi::c_void;
+use std::ptr::{self, NonNull};
+use std::str::Chars;
+use std::sync::Arc;
 
 use hashbrown::HashMap;
 

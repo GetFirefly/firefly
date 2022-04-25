@@ -5,6 +5,7 @@
 #![feature(crate_visibility_modifier)]
 #![feature(core_intrinsics)]
 #![feature(c_unwind)]
+#![feature(once_cell)]
 
 #[cfg(not(all(unix, any(target_arch = "x86_64", target_arch = "aarch64"))))]
 compile_error!("lumen_rt_minimal does not currently support this architecture!");

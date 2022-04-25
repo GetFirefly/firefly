@@ -1,13 +1,10 @@
+use std::backtrace::Backtrace;
 ///! This module exposes 32-bit architecture specific values and functions
 ///!
 ///! See the module doc in arch_64.rs for more information
-use core::cmp;
-use core::convert::TryInto;
-use core::fmt;
-
-use alloc::sync::Arc;
-
-use std::backtrace::Backtrace;
+use std::cmp;
+use std::fmt;
+use std::sync::Arc;
 
 use crate::erts::exception::InternalResult;
 
@@ -44,6 +41,11 @@ impl RawTerm {
     pub const HEADER_EXTERN_PORT: u32 = Encoding::TAG_EXTERN_PORT;
     pub const HEADER_EXTERN_REF: u32 = Encoding::TAG_EXTERN_REF;
     pub const HEADER_MAP: u32 = Encoding::TAG_MAP;
+
+    #[inline(always)]
+    pub fn is_none(&self) -> bool {
+        self.0 == Encoding::NONE
+    }
 
     #[inline]
     fn type_of(&self) -> Tag<u32> {
@@ -724,7 +726,7 @@ pub mod tests {
     fn closure_encoding_arch32() {
         use crate::erts::process::Process;
         use crate::erts::term::closure::*;
-        use alloc::sync::Arc;
+        use std::sync::Arc;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::new(1, 0).unwrap();
@@ -957,7 +959,7 @@ pub mod tests {
     #[test]
     fn external_pid_encoding_arch32() {
         use crate::erts::Node;
-        use alloc::sync::Arc;
+        use std::sync::Arc;
 
         let mut heap = RegionHeap::default();
 

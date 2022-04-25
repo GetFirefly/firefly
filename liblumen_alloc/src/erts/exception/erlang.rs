@@ -51,43 +51,6 @@ pub struct ErlangException {
     trace: *mut Trace,
     fragment: Option<NonNull<HeapFragment>>,
 }
-
-#[export_name = "__lumen_build_stacktrace"]
-pub extern "C" fn capture_trace() -> *mut Trace {
-    let trace = Trace::capture();
-    Trace::into_raw(trace)
-}
-
-#[export_name = "__lumen_stacktrace_to_term"]
-pub extern "C" fn trace_to_term(trace: *mut Trace) -> Term {
-    if trace.is_null() {
-        return Term::NIL;
-    }
-    let trace = unsafe { Trace::from_raw(trace) };
-    if let Ok(term) = trace.as_term() {
-        term
-    } else {
-        Term::NIL
-    }
-}
-
-#[export_name = "__lumen_builtin_raise/2"]
-pub extern "C" fn capture_and_raise(kind: Term, reason: Term) -> *mut ErlangException {
-    let err = ErlangException::new(kind, reason, Trace::capture());
-    Box::into_raw(err)
-}
-
-#[export_name = "__lumen_builtin_raise/3"]
-pub extern "C" fn raise(kind: Term, reason: Term, trace: *mut Trace) -> *mut ErlangException {
-    let err = ErlangException::new(kind, reason, unsafe { Trace::from_raw(trace) });
-    Box::into_raw(err)
-}
-
-#[export_name = "__lumen_cleanup_exception"]
-pub unsafe extern "C" fn cleanup(ptr: *mut ErlangException) {
-    let _ = Box::from_raw(ptr);
-}
-
 impl ErlangException {
     pub fn new(kind: Term, reason: Term, trace: Arc<Trace>) -> Box<ErlangException> {
         let header = Header::<Tuple>::from_arity(3);

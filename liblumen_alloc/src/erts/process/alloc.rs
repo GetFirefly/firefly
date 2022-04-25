@@ -25,8 +25,7 @@ use core::ptr::{self, NonNull};
 
 use lazy_static::lazy_static;
 
-use liblumen_core::sys::dynamic_call::DynamicCallee;
-
+use crate::erts::apply::DynamicCallee;
 use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::Term;
 

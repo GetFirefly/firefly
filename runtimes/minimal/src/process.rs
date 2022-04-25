@@ -1,13 +1,13 @@
-use liblumen_core::sys::dynamic_call::DynamicCallee;
-
 use liblumen_alloc::erts;
+use liblumen_alloc::erts::apply::DynamicCallee;
+use liblumen_alloc::erts::process::ffi::ErlangResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 
 pub use lumen_rt_core::process::{current_process, monitor, replace_log_exit, set_log_exit, spawn};
 
 #[export_name = "lumen_rt_apply_2"]
-pub fn apply_2(function_boxed_closure: Boxed<Closure>, mut arguments: Vec<Term>) -> Term {
+pub fn apply_2(function_boxed_closure: Boxed<Closure>, mut arguments: Vec<Term>) -> ErlangResult {
     let arity = function_boxed_closure.arity();
     let arguments_len = arguments.len();
 
@@ -44,6 +44,6 @@ pub fn apply_3(
     _module_function_arity: ModuleFunctionArity,
     callee: DynamicCallee,
     arguments: Vec<Term>,
-) -> Term {
+) -> ErlangResult {
     unsafe { erts::apply::apply_callee(callee, arguments.as_slice()) }
 }

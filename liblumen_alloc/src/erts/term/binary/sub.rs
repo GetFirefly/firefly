@@ -1,10 +1,8 @@
-use core::alloc::Layout;
-use core::convert::TryFrom;
-use core::fmt;
-use core::ptr;
-use core::slice;
-
-use alloc::boxed::Box;
+use std::alloc::Layout;
+use std::convert::TryFrom;
+use std::fmt;
+use std::ptr;
+use std::slice;
 
 use crate::borrow::CloneToProcess;
 use crate::erts;

@@ -1,5 +1,3 @@
-use std::convert::From;
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::ArgMatches;
@@ -103,44 +101,6 @@ impl ParseOption for LtoCli {
                     "unrecognized lto type, expected one of thin|fat|true|false|yes|no",
                 )
             })
-    }
-}
-
-/// The linker plugin to use
-#[derive(Debug, Clone, PartialEq, Hash)]
-pub enum LinkerPluginLto {
-    Plugin(PathBuf),
-    Auto,
-    Disabled,
-}
-impl Default for LinkerPluginLto {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
-impl LinkerPluginLto {
-    pub fn enabled(&self) -> bool {
-        match *self {
-            LinkerPluginLto::Plugin(_) | LinkerPluginLto::Auto => true,
-            LinkerPluginLto::Disabled => false,
-        }
-    }
-}
-impl From<&str> for LinkerPluginLto {
-    fn from(s: &str) -> Self {
-        match s {
-            "" => Self::default(),
-            "false" | "disabled" => Self::Disabled,
-            path => Self::Plugin(PathBuf::from(path)),
-        }
-    }
-}
-impl ParseOption for LinkerPluginLto {
-    fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
-        Ok(matches
-            .value_of(info.name)
-            .map(Self::from)
-            .unwrap_or(Self::Auto))
     }
 }
 

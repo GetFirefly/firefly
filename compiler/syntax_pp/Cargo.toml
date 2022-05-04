@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 build = "build.rs"
 
 [dependencies]
-liblumen_beam = { path = "../../liblumen_beam" }
+liblumen_beam = { path = "../library/beam" }
 liblumen_diagnostics = { path = "../diagnostics" }
 liblumen_intern = { path = "../intern" }
 liblumen_number = { path = "../number" }

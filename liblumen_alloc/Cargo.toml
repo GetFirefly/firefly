@@ -17,7 +17,7 @@ dashmap = "5.2"
 heapless = "0.7"
 lazy_static = "1.4"
 liblumen_core = { path = "../liblumen_core" }
-liblumen_arena = { path = "../liblumen_arena"}
+liblumen_arena = { path = "../library/arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
 liblumen_term = { path = "../compiler/term" }
 log = "0.4"

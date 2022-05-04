@@ -6,4 +6,4 @@ publish = false
 edition = "2021"
 
 [dependencies]
-liblumen_core = { path = "../../liblumen_core" }
+liblumen_core = { path = "../../library/core" }

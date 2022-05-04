@@ -13,7 +13,7 @@ crate-type = ["staticlib", "rlib"]
 anyhow = "1.0.11"
 js-sys = "0.3.25"
 liblumen_alloc = { path = "../../liblumen_alloc" }
-liblumen_core = { path = "../../liblumen_core" }
+liblumen_core = { path = "../../library/core" }
 liblumen_otp = { path = "../otp" }
 lumen_rt_full = { path = "../../runtimes/full" }
 panic-control = "0.1.4"

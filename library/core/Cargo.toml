@@ -9,7 +9,7 @@ build = "build.rs"
 [dependencies]
 cfg-if = "1.0"
 lazy_static = "1.4"
-liblumen_core_macros = { path = "../liblumen_core_macros" }
+liblumen_core_macros = { path = "../core-macros" }
 parking_lot = "0.12"
 
 [dependencies.lock_api]

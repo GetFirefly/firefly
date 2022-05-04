@@ -21,7 +21,7 @@ bus = "2.2"
 signal-hook = "0.3"
 libc = "0.2"
 
-liblumen_core = { path = "../../liblumen_core" }
+liblumen_core = { path = "../../library/core" }
 liblumen_term = { path = "../../compiler/term" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
 liblumen_crt = { path = "../crt" }

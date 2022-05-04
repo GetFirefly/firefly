@@ -15,8 +15,7 @@ num-bigint = "0.4"
 tempfile = "3.3"
 thiserror = "1.0"
 
-liblumen_alloc = { path = "../../liblumen_alloc" }
-liblumen_core = { path = "../../liblumen_core" }
+liblumen_core = { path = "../../library/core" }
 liblumen_compiler_macros = { path = "../macros" }
 liblumen_diagnostics = { path = "../diagnostics" }
 liblumen_llvm = { path = "../llvm" }

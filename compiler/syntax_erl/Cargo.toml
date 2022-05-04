@@ -18,7 +18,7 @@ liblumen_number = { path = "../number" }
 liblumen_pass = { path = "../pass" }
 liblumen_parser = { path = "../parser" }
 liblumen_syntax_core = { path = "../syntax_core" }
-liblumen_util = { path = "../../liblumen_util" }
+liblumen_util = { path = "../util" }
 
 anyhow = "1.0"
 cranelift-entity = "0.81"

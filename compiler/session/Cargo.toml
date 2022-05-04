@@ -16,4 +16,4 @@ logos-derive = "0.12"
 liblumen_compiler_macros = { path = "../macros" }
 liblumen_intern = { path = "../intern" }
 liblumen_target = { path = "../target" }
-liblumen_util = { path = "../../liblumen_util" }
+liblumen_util = { path = "../util" }

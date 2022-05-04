@@ -17,7 +17,7 @@ liblumen_intern = { path = "../intern" }
 liblumen_llvm = { path = "../llvm" }
 liblumen_session = { path = "../session" }
 liblumen_target = { path = "../target" }
-liblumen_util = { path = "../../liblumen_util" }
+liblumen_util = { path = "../util" }
 liblumen_pass = { path = "../pass" }
 liblumen_diagnostics = { path = "../diagnostics" }
 liblumen_compiler_macros = { path = "../macros" }

@@ -16,7 +16,7 @@ anyhow = "1.0"
 clap = "2.34"
 env_logger = "0.9"
 human-panic = "1.0"
-liblumen_util = { path = "../liblumen_util" }
+liblumen_util = { path = "../compiler/util" }
 liblumen_compiler = { path = "../compiler/driver" }
 liblumen_session = { path = "../compiler/session" }
 log = "0.4"

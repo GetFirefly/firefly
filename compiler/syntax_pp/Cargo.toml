@@ -15,7 +15,7 @@ liblumen_diagnostics = { path = "../diagnostics" }
 liblumen_intern = { path = "../intern" }
 liblumen_number = { path = "../number" }
 liblumen_parser = { path = "../parser" }
-liblumen_util = { path = "../../liblumen_util" }
+liblumen_util = { path = "../util" }
 liblumen_syntax_erl = { path = "../syntax_erl" }
 
 anyhow = "1.0"

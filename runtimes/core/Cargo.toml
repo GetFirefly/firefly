@@ -12,8 +12,8 @@ chrono = "0.4"
 dashmap = "5.2"
 lazy_static = "1.4"
 libc = "0.2"
-liblumen_core = { path = "../../library/core" }
-liblumen_alloc = { path = "../../liblumen_alloc" }
+liblumen_rt = { path = "../../library/rt" }
+liblumen_alloc = { path = "../../library/alloc" }
 log = "0.4"
 num-bigint = "0.4"
 num_enum = "0.5"

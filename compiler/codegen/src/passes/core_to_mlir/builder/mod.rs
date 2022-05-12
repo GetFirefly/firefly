@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
-use liblumen_core::symbols::FunctionSymbol;
+use liblumen_rt::function::FunctionSymbol;
 use liblumen_diagnostics::{CodeMap, SourceSpan};
 use liblumen_intern::{symbols, Symbol};
 use liblumen_llvm::Linkage;

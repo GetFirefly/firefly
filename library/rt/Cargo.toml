@@ -1,0 +1,37 @@
+[package]
+name = "liblumen_rt"
+description = "The core runtime library, providing fundamental types and functionality"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+publish = false
+edition = "2021"
+
+[features]
+default = ["std"]
+std = ["anyhow/std", "backtrace/std", "num-bigint/std", "rpds/std"]
+
+[dependencies]
+liblumen_alloc = { path = "../alloc" }
+liblumen_system = { path = "../system" }
+seq-macro = "0.3"
+
+[dependencies.anyhow]
+version = "1.0"
+default-features = false
+
+[dependencies.backtrace]
+version = "0.3"
+default-features = false
+
+[dependencies.num-bigint]
+version = "0.4"
+default-features = false
+
+[dependencies.num-traits]
+version = "0.2"
+default-features = false
+features = ["i128"]
+
+[dependencies.rpds]
+version = "0.11"
+default-features = false

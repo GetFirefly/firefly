@@ -4,7 +4,7 @@ members = [
   "compiler/*", 
   "liblumen_*", 
   "lumen", 
-  "native_implemented/*", 
+#  "native_implemented/*", 
   "runtimes/*",
 ]
 
@@ -13,7 +13,11 @@ default-members = [
 ]
 
 exclude = [
+  "liblumen_alloc",
+  "liblumen_alloc_macros",
+  "native_implemented/*",
   "compiler/codegen_llvm",
+  "runtimes/full",
   "examples"
 ]
 

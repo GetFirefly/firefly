@@ -1,18 +1,13 @@
 mod queries;
 mod query_groups;
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-
-use parking_lot::Mutex;
 
 use log::debug;
 
 use salsa::Snapshot;
 
-use liblumen_core::symbols::FunctionSymbol;
-use liblumen_intern::Symbol;
 use liblumen_session::{Options, OutputType};
 use liblumen_util::diagnostics::{CodeMap, DiagnosticsHandler};
 use liblumen_util::emit::Emit;
@@ -38,20 +33,13 @@ pub struct Compiler {
     runtime: salsa::Runtime<Compiler>,
     diagnostics: Arc<DiagnosticsHandler>,
     codemap: Arc<CodeMap>,
-    atoms: Arc<Mutex<HashSet<Symbol>>>,
-    symbols: Arc<Mutex<HashSet<FunctionSymbol>>>,
 }
 impl Compiler {
     pub fn new(codemap: Arc<CodeMap>, diagnostics: Arc<DiagnosticsHandler>) -> Self {
-        let mut atoms = HashSet::default();
-        atoms.insert(Symbol::intern("false"));
-        atoms.insert(Symbol::intern("true"));
         Self {
             runtime: Default::default(),
             diagnostics,
             codemap,
-            atoms: Arc::new(Mutex::new(atoms)),
-            symbols: Arc::new(Mutex::new(HashSet::default())),
         }
     }
 }

@@ -29,7 +29,6 @@ liblumen_session = { path = "../session" }
 liblumen_target = { path = "../target" }
 liblumen_codegen = { path = "../codegen" }
 liblumen_util = { path = "../util" }
-liblumen_core = { path = "../../library/core" }
 liblumen_intern = { path = "../intern" }
 liblumen_llvm = { path = "../llvm" }
 liblumen_mlir = { path = "../mlir" }

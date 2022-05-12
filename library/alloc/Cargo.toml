@@ -1,0 +1,16 @@
+[package]
+name = "liblumen_alloc"
+description = "Memory management, garbage collection, and fundamental allocator-aware types."
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+publish = false
+edition = "2021"
+
+[dependencies]
+liblumen_system = { path = "../system" }
+static_assertions = "1.1"
+thiserror = "1.0"
+
+[dependencies.intrusive-collections]
+version = "0.9"
+features = ["nightly"]

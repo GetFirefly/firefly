@@ -225,6 +225,11 @@ pub trait Builder {
     fn get_integer_attr<I: IntegerLike>(&self, ty: I, value: i64) -> IntegerAttr {
         unsafe { mlir_builder_get_integer_attr(self.base(), ty.base(), value) }
     }
+    /// Get an attribute which has an integer value of the given type
+    /// NOTE: This will panic if a non-primitive integer type is provided
+    unsafe fn get_integer_attr_unchecked(&self, ty: TypeBase, value: i64) -> IntegerAttr {
+        mlir_builder_get_integer_attr(self.base(), ty, value)
+    }
     /// Get an attribute which has an i8 integer value
     fn get_i8_attr(&self, value: i8) -> IntegerAttr {
         unsafe { mlir_builder_get_i8_attr(self.base(), value) }

@@ -34,7 +34,7 @@ impl Trace {
     #[cfg(feature = "std")]
     pub fn capture() -> Arc<Self> {
         // Allocates a new trace on the heap
-        let trace_arc = Self::new();
+        let trace_arc = Self::new(Vec::with_capacity(Self::MAX_FRAMES));
         let ptr = Arc::as_ptr(&trace_arc) as *mut Trace;
         let trace = unsafe { &mut *ptr };
         //let stackmap = StackMap::get();
@@ -50,7 +50,7 @@ impl Trace {
             //let symbol_address = frame.symbol_address();
             //if stackmap.find_function(symbol_address).is_some() {
             depth += 1;
-            trace.push_frame(frame);
+            trace.push_frame(Box::new(frame));
             //}
 
             depth < Self::MAX_FRAMES

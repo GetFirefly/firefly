@@ -184,7 +184,7 @@ def CIR_ConstantOp : CIR_Op<"constant",
     }];
 
     let arguments = (ins AnyAttr:$value);
-    let results = (outs CIR_AnyTerm:$result);
+    let results = (outs AnyType:$result);
 
     let builders = [
       OpBuilder<(ins "Attribute":$value),
@@ -297,15 +297,43 @@ def CIR_IsNullOp : CIR_Op<"is_null", [NoSideEffect]> {
   }];
 }
 
-def CIR_TypeOfImmediateOp : CIR_Op<"typeof.imm", [NoSideEffect]> {
-  let summary = "Returns the type tag of the given immediate";
-  let description = [{
-    This operation is used to examine the type of an immediate term value, returning
-    its primitive type tag as a raw integer value for dispatch.
+def CIR_TruncOp : CIR_Op<"trunc", [NoSideEffect]> {
+  let summary = "Returns the provided integer truncated to the given type bitwidth";
 
-    For boxed values, this op will return the type of the box itself, i.e.
-    TermKind::Box or TermKind::List. Boxed literals are treated as boxes of the
-    appropriate type.
+  let arguments = (ins AnyType:$value);
+  let results = (outs AnyInteger:$result);
+
+  let assemblyFormat = [{
+    operands attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def CIR_ZExtOp : CIR_Op<"zext", [NoSideEffect]> {
+  let summary = "Returns the provided integer zero-extended to the given type bitwidth";
+
+  let arguments = (ins AnyType:$value);
+  let results = (outs AnyInteger:$result);
+
+  let assemblyFormat = [{
+    operands attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def CIR_ICmpOp : CIR_Op<"icmp", [NoSideEffect, SameTypeOperands]> {
+  let summary = "Performs a raw integer comparison operation";
+
+  let arguments = (ins ICmpPredicate:$predicate, AnyInteger:$lhs, AnyInteger:$rhs);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $predicate $lhs `,` $rhs `:` type($lhs) attr-dict
+  }];
+}
+
+def CIR_TypeOfOp : CIR_Op<"typeof", [MemoryEffects<[MemRead]>]> {
+  let summary = "Returns the type information of the given term value";
+  let description = [{
+    This operation returns the type code associated with the term type of the given value.
   }];
 
   let arguments = (ins CIR_AnyTerm:$value);
@@ -316,41 +344,52 @@ def CIR_TypeOfImmediateOp : CIR_Op<"typeof.imm", [NoSideEffect]> {
   }];
 }
 
-def CIR_TypeOfBoxOp : CIR_Op<"typeof.box", [MemoryEffects<[MemRead]>]> {
-  let summary = "Returns the type tag and arity of the given boxed value";
+def CIR_IsListOp : CIR_Op<"is_list", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for lists.";
   let description = [{
-    This operation is used to extract data from the header of a boxed term.
-
-    It is assumed that the value given to this operation is guaranteed to be
-    of type TermKind::Box. It is unsafe, and undefined behavior, to pass this
-    op a value which has not been first checked with TypeOfImmediate.
-
-    This op unwraps the box pointer and dereferences the term header it points to,
-    then extracts the kind and arity stored there, returning them for use.
+    This operation returns true if the given term is nil or a pointer to a cons cell.
   }];
 
   let arguments = (ins CIR_AnyTerm:$value);
-  let results = (outs Index:$kind, Index:$arity);
+  let results = (outs I1:$result);
 
   let assemblyFormat = [{
     $value `:` type($value) attr-dict
   }];
+
+  //let hasFolder = 1;
 }
 
-def CIR_TypeOfOp : CIR_Op<"typeof", [MemoryEffects<[MemRead]>]> {
-  let summary = "Returns the type information of the given term value";
+def CIR_IsNumberOp : CIR_Op<"is_number", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for numbers.";
   let description = [{
-    This operation builds on top of TypeOfImmediate and TypeOfBox to obtain the
-    primitive type tag for the given term; and the arity of the term, i.e.
-    size in words;
+    This operation returns true if the given term is any integer type or a float.
   }];
 
   let arguments = (ins CIR_AnyTerm:$value);
-  let results = (outs Index:$kind, Index:$arity);
+  let results = (outs I1:$result);
 
   let assemblyFormat = [{
     $value `:` type($value) attr-dict
   }];
+
+  //let hasFolder = 1;
+}
+
+def CIR_IsAtomOp : CIR_Op<"is_atom", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for atoms.";
+  let description = [{
+    This operation returns true if the given term is a valid atom or boolean value.
+  }];
+
+  let arguments = (ins CIR_AnyTerm:$value);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
+  }];
+
+  //let hasFolder = 1;
 }
 
 def CIR_IsTypeOp : CIR_Op<"is_type", [MemoryEffects<[MemRead]>]> {
@@ -379,6 +418,23 @@ def CIR_IsTypeOp : CIR_Op<"is_type", [MemoryEffects<[MemRead]>]> {
       return expected();
     }
   }];
+}
+
+def CIR_IsTupleOp : CIR_Op<"is_tuple", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for tuples.";
+  let description = [{
+    This operation determines if the given term is a tuple, and also determines the
+    arity of the tuple if it is one.
+  }];
+
+  let arguments = (ins CIR_AnyTerm:$value);
+  let results = (outs I1:$result, I32:$arity);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
+  }];
+
+  //let hasFolder = 1;
 }
 
 def CIR_IsTaggedTupleOp : CIR_Op<"is_tagged_tuple", [MemoryEffects<[MemRead]>]> {

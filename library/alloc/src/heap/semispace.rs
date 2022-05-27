@@ -174,7 +174,7 @@ where
     }
 
     #[inline]
-    fn contains(&self, ptr: *const u8) -> bool {
+    fn contains<T: ?Sized>(&self, ptr: *const T) -> bool {
         self.immature.contains(ptr) || self.mature.contains(ptr)
     }
 }

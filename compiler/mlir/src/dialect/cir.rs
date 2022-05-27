@@ -797,8 +797,7 @@ primitive_cir_type!(NilType, nil);
 primitive_cir_type!(ConsType, cons);
 primitive_cir_type!(MapType, map);
 primitive_cir_type!(BitsType, bits);
-primitive_cir_type!(HeapbinType, heapbin);
-primitive_cir_type!(ProcbinType, procbin);
+primitive_cir_type!(BinaryType, binary);
 primitive_cir_type!(PidType, pid);
 primitive_cir_type!(PortType, port);
 primitive_cir_type!(ReferenceType, reference);
@@ -920,6 +919,98 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     }
 }
 
+/// Represents a raw integer truncation
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct TruncOp(OperationBase);
+impl Operation for TruncOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_trunc<V: Value>(&self, loc: Location, value: V, ty: TypeBase) -> TruncOp {
+        extern "C" {
+            fn mlirCirTruncOp(
+                builder: OpBuilderBase,
+                location: Location,
+                value: ValueBase,
+                ty: TypeBase,
+            ) -> TruncOp;
+        }
+
+        unsafe { mlirCirTruncOp(self.base().into(), loc, value.base(), ty) }
+    }
+}
+
+/// Represents zero-extension of a raw integer
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ZExtOp(OperationBase);
+impl Operation for ZExtOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_zext<V: Value>(&self, loc: Location, value: V, ty: TypeBase) -> ZExtOp {
+        extern "C" {
+            fn mlirCirZExtOp(
+                builder: OpBuilderBase,
+                location: Location,
+                value: ValueBase,
+                ty: TypeBase,
+            ) -> ZExtOp;
+        }
+
+        unsafe { mlirCirZExtOp(self.base().into(), loc, value.base(), ty) }
+    }
+}
+
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ICmpPredicate {
+    Eq = 0,
+    Neq,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+}
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct ICmpOp(OperationBase);
+impl Operation for ICmpOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_icmp<L: Value, R: Value>(
+        &self,
+        loc: Location,
+        predicate: ICmpPredicate,
+        lhs: L,
+        rhs: R,
+    ) -> ICmpOp {
+        extern "C" {
+            fn mlirCirICmpOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                predicate: ICmpPredicate,
+                lhs: ValueBase,
+                rhs: ValueBase,
+            ) -> ICmpOp;
+        }
+
+        unsafe { mlirCirICmpOp(self.base().into(), loc, predicate, lhs.base(), rhs.base()) }
+    }
+}
+
 /// Represents a logical boolean op, e.g. and/andalso, or/orelse, xor, not
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -1010,82 +1101,10 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     }
 }
 
-/// Represents extraction of the primitive type tag from an immediate value
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TypeOfImmediateOp(OperationBase);
-impl Operation for TypeOfImmediateOp {
-    fn base(&self) -> OperationBase {
-        self.0
-    }
-}
-impl<'a, B: OpBuilder> CirBuilder<'a, B> {
-    #[inline]
-    pub fn build_typeof_immediate<V: Value>(&self, loc: Location, value: V) -> TypeOfImmediateOp {
-        extern "C" {
-            fn mlirCirTypeOfImmediateOp(
-                builder: OpBuilderBase,
-                loc: Location,
-                value: ValueBase,
-            ) -> TypeOfImmediateOp;
-        }
-
-        unsafe { mlirCirTypeOfImmediateOp(self.base().into(), loc, value.base()) }
-    }
-}
-
-/// Represents extraction of the primitive type tag and arity value from a term header
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TypeOfBoxOp(OperationBase);
-impl TypeOfBoxOp {
-    /// Returns the result corresponding to the type tag of the header
-    pub fn tag(&self) -> OpResult {
-        self.0.get_result(0)
-    }
-
-    /// Returns the result corresponding to the value of the header
-    pub fn value(&self) -> OpResult {
-        self.0.get_result(1)
-    }
-}
-impl Operation for TypeOfBoxOp {
-    fn base(&self) -> OperationBase {
-        self.0
-    }
-}
-impl<'a, B: OpBuilder> CirBuilder<'a, B> {
-    #[inline]
-    pub fn build_typeof_box<V: Value>(&self, loc: Location, value: V) -> TypeOfBoxOp {
-        extern "C" {
-            fn mlirCirTypeOfBoxOp(
-                builder: OpBuilderBase,
-                loc: Location,
-                value: ValueBase,
-            ) -> TypeOfBoxOp;
-        }
-
-        unsafe { mlirCirTypeOfBoxOp(self.base().into(), loc, value.base()) }
-    }
-}
-
-/// Represents extraction of the primitive type tag and arity value (if applicable) from a term
+/// Represents extraction of the primitive type code from a term
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct TypeOfOp(OperationBase);
-impl TypeOfOp {
-    /// Returns the result corresponding to the type tag of the input value
-    pub fn tag(&self) -> OpResult {
-        self.0.get_result(0)
-    }
-
-    /// Returns the result corresponding to the arity of the input value
-    ///
-    /// NOTE: For immediate terms, the arity is always 0
-    pub fn arity(&self) -> OpResult {
-        self.0.get_result(1)
-    }
-}
 impl Operation for TypeOfOp {
     fn base(&self) -> OperationBase {
         self.0

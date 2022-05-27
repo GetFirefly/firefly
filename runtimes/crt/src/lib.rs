@@ -1,4 +1,3 @@
-#![feature(termination_trait_lib)]
 #![feature(rustc_attrs)]
 #![feature(c_unwind)]
 
@@ -16,7 +15,7 @@ extern "C" {
     fn lumen_entry() -> i32;
 
     #[allow(improper_ctypes)]
-    #[link_name = "__lumen_lang_start_internal"]
+    #[link_name = env!("LANG_START_SYMBOL_NAME")]
     fn lang_start(main: &dyn Fn() -> i32, argc: isize, argv: *const *const i8) -> isize;
 }
 
@@ -33,16 +32,13 @@ pub extern "C" fn main(argc: i32, argv: *const *const std::os::raw::c_char) -> i
 /// up the schedulers and other high-level runtime functionality.
 #[rustc_main]
 pub fn main_internal() -> i32 {
-    use crate::atoms::*;
-    use crate::symbols::*;
-
     // Initialize atom table
-    if unsafe { InitializeLumenAtomTable(ATOMS_START, ATOMS_END) } == false {
+    if unsafe { atoms::init(atoms::start(), atoms::end()) } == false {
         return 102;
     }
 
     // Initialize the dispatch table
-    if unsafe { InitializeLumenDispatchTable(DISPATCH_START, DISPATCH_END) } == false {
+    if unsafe { symbols::init(symbols::start(), symbols::end()) } == false {
         return 103;
     }
 

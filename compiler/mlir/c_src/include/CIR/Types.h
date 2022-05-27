@@ -5,8 +5,6 @@
 #include "mlir/IR/SubElementInterfaces.h"
 #include "mlir/IR/Types.h"
 
-#include "lumen/term/Encoding.h"
-
 namespace mlir {
 // class AsmPrinter;
 // class DialectAsmParser;

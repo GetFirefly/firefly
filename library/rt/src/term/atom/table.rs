@@ -1,11 +1,17 @@
-use alloc::collections::HashMap;
+use core::alloc::Layout;
+use core::fmt;
+use core::mem;
+use core::ptr::{self, NonNull};
 use core::slice;
 use core::str;
 
+use hashbrown::HashMap;
 use lazy_static::lazy_static;
 
 use liblumen_arena::DroplessArena;
 use liblumen_system::sync::RwLock;
+
+use super::{Atom, AtomError};
 
 lazy_static! {
     /// The atom table used by the runtime system
@@ -25,9 +31,11 @@ impl fmt::Display for TryAtomFromTermError {
 /// The compiler generates a record of this type for each atom, referencing the string
 /// value of the atom elsewhere in memory (where depends on whether the atom was generated at
 /// compile-time or runtime).
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub(super) struct AtomData {
+///
+/// NOTE: This struct must have a size that is a power of 8
+#[derive(Debug, Copy, Clone)]
+#[repr(C, align(8))]
+pub struct AtomData {
     size: usize,
     ptr: *const u8,
 }
@@ -44,9 +52,14 @@ impl AtomData {
         ptr: Self::TRUE_VALUE.as_ptr(),
     };
 
-    unsafe fn as_str(&self) -> &'static str {
-        let bytes = unsafe { slice::from_raw_parts::<'static, _>(self.ptr, self.size) };
-        str::from_utf8(bytes).unwrap()
+    #[inline]
+    pub unsafe fn as_str(&self) -> Option<&'static str> {
+        str::from_utf8(self.as_bytes()).ok()
+    }
+
+    #[inline(always)]
+    pub unsafe fn as_bytes(&self) -> &'static [u8] {
+        slice::from_raw_parts::<'static, _>(self.ptr, self.size)
     }
 }
 
@@ -70,7 +83,7 @@ pub unsafe extern "C-unwind" fn init(start: *const AtomData, end: *const AtomDat
         "invalid atom data range"
     );
     let len = end.offset_from(start);
-    let data = slice::from_raw_parts::<'static, _>(start, len);
+    let data = slice::from_raw_parts::<'static, _>(start, len as usize);
 
     let mut default_table = ATOMS.write();
     default_table.extend(data);
@@ -82,7 +95,9 @@ pub unsafe extern "C-unwind" fn init(start: *const AtomData, end: *const AtomDat
 /// and thus doesn't require allocating space for and cloning the value. This is faster in that regard, but
 /// still has all of the downsides that come with acquiring a write lock on the atom table.
 #[inline]
-pub(super) unsafe fn get_data_or_insert_static(name: &'static str) -> Result<NonNull<AtomData>, AtomError> {
+pub(super) unsafe fn get_data_or_insert_static(
+    name: &'static str,
+) -> Result<NonNull<AtomData>, AtomError> {
     ATOMS.write().get_data_or_insert_static(name)
 }
 
@@ -106,39 +121,50 @@ pub(super) fn get_data(name: &str) -> Option<NonNull<AtomData>> {
     ATOMS.read().get_data(name)
 }
 
-/// Dumps all of the atoms in the atom table to stdout
-pub fn dump_atoms() {
-    let table = ATOMS.read();
-    table.dump();
-}
-
 /// This struct represents the atom table, of which a program will only ever have one at a time,
 /// with static lifetime. The atoms it contains are never collected.
 struct AtomTable {
     ids: HashMap<&'static str, NonNull<AtomData>>,
     arena: DroplessArena,
 }
+// By default, `NonNull<T>` is neither send nor sync, as such pointers may alias, however, in our
+// case, the pointers are to data which is pinned, 'static, read-only, and does not support interior mutability,
+// making such pointers trivially Send and Sync.
+//
+// Furthermore, to mutate the atom table (by adding new atoms), one has to acquire an exclusive write lock,
+// which guarantees that the table itself is also Send and Sync
+unsafe impl Send for AtomTable {}
+unsafe impl Sync for AtomTable {}
 impl Default for AtomTable {
     fn default() -> Self {
         Self::new(Self::DEFAULT_ATOMS)
     }
 }
+impl fmt::Debug for AtomTable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (_name, data) in self.ids.iter() {
+            let atom = Atom(*data);
+            writeln!(f, "atom(value = {}, ptr = {:p})", &atom, data)?;
+        }
+        Ok(())
+    }
+}
 impl AtomTable {
-    const DEFAULT_ATOMS: &'static [AtomData] = [AtomData::FALSE, AtomData::TRUE];
+    const DEFAULT_ATOMS: &'static [AtomData] = &[AtomData::FALSE, AtomData::TRUE];
 
     fn new(data: &'static [AtomData]) -> Self {
         let mut table = Self {
             ids: HashMap::with_capacity(100),
             arena: DroplessArena::default(),
         };
-        self.extend(data);
+        table.extend(data);
         table
     }
 
     fn extend(&mut self, data: &'static [AtomData]) {
         for atom in data {
             let ptr = unsafe { NonNull::new_unchecked(atom as *const AtomData as *mut AtomData) };
-            let name = unsafe { atom.as_str() };
+            let name = unsafe { atom.as_str().unwrap() };
             self.ids.entry(name).or_insert(ptr);
         }
     }
@@ -155,7 +181,10 @@ impl AtomTable {
     }
 
     // SAFETY: See insert_static for the safety constraints
-    unsafe fn get_data_or_insert_static(&mut self, name: &'static str) -> Result<NonNull<AtomData>, AtomError> {
+    unsafe fn get_data_or_insert_static(
+        &mut self,
+        name: &'static str,
+    ) -> Result<NonNull<AtomData>, AtomError> {
         match self.get_data(name) {
             Some(existing_id) => Ok(existing_id),
             None => self.insert_static(name),
@@ -175,7 +204,10 @@ impl AtomTable {
     // the static lifetime, and so we can construct `&'static str` from them safely.
     unsafe fn insert_static(&mut self, name: &'static str) -> Result<NonNull<AtomData>, AtomError> {
         let bytes = name.as_bytes();
-        let data = self.alloc_data(AtomData { ptr: bytes.as_ptr(), size: bytes.len() });
+        let data = self.alloc_data(AtomData {
+            ptr: bytes.as_ptr(),
+            size: bytes.len(),
+        });
         self.ids.insert(name, data);
 
         Ok(data)
@@ -187,8 +219,11 @@ impl AtomTable {
         use core::intrinsics::unlikely;
 
         if unlikely(name.len() == 0) {
-            let data = self.alloc_data(AtomData { ptr: ptr::null_mut(), size: 0 });
-            self.ids.insert(name, data);
+            let data = self.alloc_data(AtomData {
+                ptr: ptr::null_mut(),
+                size: 0,
+            });
+            self.ids.insert("", data);
 
             return Ok(data);
         }
@@ -197,7 +232,10 @@ impl AtomTable {
         let bytes = name.as_bytes();
         let size = bytes.len();
         let (layout, value_offset) = Layout::new::<AtomData>()
-            .extend(Layout::from_size_align_unchecked(size, mem::align_of::<u8>())
+            .extend(Layout::from_size_align_unchecked(
+                size,
+                mem::align_of::<u8>(),
+            ))
             .unwrap();
         let layout = layout.pad_to_align();
         let ptr = self.arena.alloc_raw(layout);
@@ -205,31 +243,27 @@ impl AtomTable {
         let value_ptr = ptr.add(value_offset);
         let data_ptr: *mut AtomData = ptr.cast();
         // Write metadata
-        data_ptr.write(AtomData { ptr: value_ptr, size: size });
+        data_ptr.write(AtomData {
+            ptr: value_ptr,
+            size,
+        });
         // Write atom data
         ptr::copy_nonoverlapping(bytes.as_ptr(), value_ptr, size);
 
-        let data = NonNull::new_unchecked(data_ptr)
+        let data = NonNull::new_unchecked(data_ptr);
 
         // Register in atom table
-        self.ids.insert(data.as_ref().as_str(), data);
+        self.ids.insert(data.as_ref().as_str().unwrap(), data);
 
         Ok(data)
     }
 
-    unsafe fn alloc_data(data: AtomData) -> NonNull<AtomData> {
+    unsafe fn alloc_data(&mut self, data: AtomData) -> NonNull<AtomData> {
         let layout = Layout::new::<AtomData>();
 
-        let ptr = self.arena.alloc_raw(layout);
+        let ptr = self.arena.alloc_raw(layout) as *mut AtomData;
         ptr.write(data);
 
         NonNull::new_unchecked(ptr)
-    }
-
-    fn dump(&self) {
-        for (name, data) in self.ids.iter() {
-            let atom = Atom(*data);
-            println!("atom(value = {}, ptr = {:p})", &atom, data);
-        }
     }
 }

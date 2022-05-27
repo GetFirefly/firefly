@@ -58,8 +58,6 @@ impl salsa::ParallelDatabase for Compiler {
             runtime: self.runtime.snapshot(self),
             diagnostics: self.diagnostics.clone(),
             codemap: self.codemap.clone(),
-            atoms: self.atoms.clone(),
-            symbols: self.symbols.clone(),
         })
     }
 }

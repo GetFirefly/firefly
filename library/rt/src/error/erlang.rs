@@ -4,6 +4,7 @@ use core::ptr::NonNull;
 
 use liblumen_alloc::fragment::HeapFragment;
 
+use crate::backtrace::Trace;
 use crate::term::{Atom, OpaqueTerm, Term};
 
 /// The raw representation of an Erlang panic.
@@ -47,68 +48,23 @@ pub struct ErlangException {
 impl ErlangException {
     pub fn new(kind: Atom, reason: Term, trace: Arc<Trace>) -> Box<Self> {
         let trace = Trace::into_raw(trace);
-        if reason.is_immediate() {
-            return Box::new(Self {
-                kind,
-                reason: reason.into(),
-                trace,
-                fragment: None,
-            });
-        }
 
-        if let Ok((reason, fragment)) = reason.clone_into_fragment() {
-            Box::new(Self {
-                kind,
-                reason: reason.into(),
-                trace,
-                fragment: Some(fragment),
-            })
-        } else {
-            Box::new(Self {
-                kind,
-                reason: Atom::str_to_term("unavailable"),
-                trace,
-                fragment: None,
-            })
-        }
-    }
-
-    /// When a throw propagates to the top of a process stack, it
-    /// gets converted to an exit with `{nocatch, Reason}` as the
-    /// exit reason. To facilitate that, we allocate the needed
-    /// space in advance if we already required a fragment, otherwise
-    /// we create one on demand if possible. If we can't allocate one,
-    /// then we have to panic
-    pub fn set_nocatch(&mut self) {
-        if self.fragment.is_none() {
-            let layout = Tuple::layout_for_len(2);
-            let nn = HeapFragment::new(layout).expect("out of memory");
-            self.fragment = Some(nn);
-        }
-
-        let frag = self
-            .fragment
-            .map(|nn| unsafe { &mut *nn.as_ptr() })
-            .unwrap();
-        let mut nocatch_reason = frag.mut_tuple(2).unwrap();
-
-        let nocatch = Atom::str_to_term("nocatch");
-        nocatch_reason.set_element(0, nocatch).unwrap();
-        nocatch_reason.set_element(1, self.reason).unwrap();
-
-        // Update kind and reason
-        self.kind = Atom::EXIT.as_term();
-        self.reason = nocatch_reason.into();
+        Box::new(Self {
+            kind,
+            reason: reason.into(),
+            trace,
+            fragment: None,
+        })
     }
 
     #[inline]
-    pub fn kind(&self) -> Term {
+    pub fn kind(&self) -> Atom {
         self.kind
     }
 
     #[inline]
     pub fn reason(&self) -> Term {
-        self.reason
+        self.reason.into()
     }
 
     #[inline]
@@ -138,55 +94,5 @@ impl Drop for ErlangException {
         }
         // Drop our trace reference
         let _ = unsafe { Trace::from_raw(self.trace) };
-    }
-}
-impl CloneToProcess for ErlangException {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
-    where
-        A: ?Sized + TermAlloc,
-    {
-        let reason = self.reason.clone_to_heap(heap)?;
-        let trace = self.trace().as_term()?;
-        let tuple = unsafe {
-            let ptr = heap
-                .alloc_layout(Layout::new::<Self>())?
-                .cast::<Self>()
-                .as_ptr();
-
-            ptr.write(Self {
-                _header: self._header,
-                kind: self.kind,
-                reason,
-                trace: ptr::null_mut(),
-                fragment: None,
-            });
-
-            let mut tuple = Tuple::from_raw_term(ptr as *mut Term);
-            tuple.set_element(2, trace).unwrap();
-
-            tuple
-        };
-
-        Ok(tuple.into())
-    }
-
-    fn layout(&self) -> Layout {
-        // Account for possibility that this could be promoted to a nocatch
-        // error, in which case we need a 2-element tuple to fill
-        let (layout, _) = Tuple::layout_for_len(3)
-            .extend(Tuple::layout_for_len(2))
-            .unwrap();
-        let tuple_size = layout.size();
-        let reason_size = self.reason.size_in_words() * mem::size_of::<Term>();
-        let size = tuple_size + reason_size;
-        let align = layout.align();
-
-        Layout::from_size_align(size, align).unwrap()
-    }
-
-    /// Returns the size in words needed to allocate this value
-    #[inline]
-    fn size_in_words(&self) -> usize {
-        crate::erts::to_word_size(self.layout().size())
     }
 }

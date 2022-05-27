@@ -1,4 +1,5 @@
 use liblumen_diagnostics::SourceSpan;
+use liblumen_mlir::cir::ICmpPredicate;
 use liblumen_mlir::*;
 use liblumen_number::Integer;
 use liblumen_syntax_core::{self as syntax_core, ir::instructions::*, DataFlowGraph};
@@ -227,23 +228,48 @@ impl<'m> ModuleBuilder<'m> {
     ) -> anyhow::Result<()> {
         let loc = self.location_from_span(span);
         let arg = self.values[&op.arg];
+        let results = dfg.inst_results(inst);
         let mlir_op = match op.op {
             Opcode::IsNull => self.cir().build_is_null(loc, arg).base(),
+            Opcode::Cast => {
+                let builder = self.cir();
+                let result = dfg.first_result(inst);
+                let ty =
+                    translate_ir_type(self.module, self.options, &builder, &dfg.value_type(result));
+                builder.build_cast(loc, arg, ty).base()
+            }
+            Opcode::Trunc => {
+                let builder = self.cir();
+                let result = dfg.first_result(inst);
+                let ty =
+                    translate_ir_type(self.module, self.options, &builder, &dfg.value_type(result));
+                builder.build_trunc(loc, arg, ty).base()
+            }
+            Opcode::Zext => {
+                let builder = self.cir();
+                let result = dfg.first_result(inst);
+                let ty =
+                    translate_ir_type(self.module, self.options, &builder, &dfg.value_type(result));
+                builder.build_zext(loc, arg, ty).base()
+            }
             Opcode::Head => self.cir().build_head(loc, arg).base(),
             Opcode::Tail => self.cir().build_tail(loc, arg).base(),
             Opcode::Neg => {
                 let neg1 = self.get_or_declare_function("erlang:-/1").unwrap();
-                self.cir().build_call(loc, neg1, &[arg]).base()
+                let op = self.cir().build_call(loc, neg1, &[arg]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Not => self.cir().build_not(loc, arg).base(),
             Opcode::Bnot => {
                 let bnot1 = self.get_or_declare_function("erlang:bnot/1").unwrap();
-                self.cir().build_call(loc, bnot1, &[arg]).base()
+                let op = self.cir().build_call(loc, bnot1, &[arg]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             other => unimplemented!("no lowering for unary op with opcode {:?}", other),
         };
 
-        let results = dfg.inst_results(inst);
         for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
             self.values.insert(value, op_result.base());
         }
@@ -258,6 +284,7 @@ impl<'m> ModuleBuilder<'m> {
         op: &UnaryOpImm,
     ) -> anyhow::Result<()> {
         let loc = self.location_from_span(span);
+        let results = dfg.inst_results(inst);
         let mlir_op = match op.op {
             Opcode::ImmNull => {
                 let builder = self.cir();
@@ -267,6 +294,42 @@ impl<'m> ModuleBuilder<'m> {
                 let null = builder.build_null(loc, ty);
                 self.values.insert(result, null.get_result(0).base());
                 return Ok(());
+            }
+            Opcode::Zext => {
+                use liblumen_syntax_core::{PrimitiveType, Type as CoreType};
+
+                let builder = self.cir();
+                let result = dfg.first_result(inst);
+                let Immediate::Integer(i) = op.imm else { panic!("expected integer immediate"); };
+                let CoreType::Primitive(prim) = dfg.value_type(result) else { panic!("expected primitive type"); };
+                let (ty, attr) = match prim {
+                    PrimitiveType::I1 => (
+                        builder.get_i1_type().base(),
+                        builder.get_bool_attr(i > 0).base(),
+                    ),
+                    PrimitiveType::I8 => (
+                        builder.get_i8_type().base(),
+                        builder.get_i8_attr(i.try_into().unwrap()).base(),
+                    ),
+                    PrimitiveType::I16 => (
+                        builder.get_i16_type().base(),
+                        builder.get_i16_attr(i.try_into().unwrap()).base(),
+                    ),
+                    PrimitiveType::I32 => (
+                        builder.get_i32_type().base(),
+                        builder.get_i32_attr(i.try_into().unwrap()).base(),
+                    ),
+                    PrimitiveType::I64 => (
+                        builder.get_i64_type().base(),
+                        builder.get_i64_attr(i).base(),
+                    ),
+                    PrimitiveType::Isize => (
+                        builder.get_index_type().base(),
+                        builder.get_index_attr(i).base(),
+                    ),
+                    _ => panic!("expected primitive integer type"),
+                };
+                builder.build_constant(loc, ty, attr).base()
             }
             Opcode::ImmInt
             | Opcode::ImmFloat
@@ -291,7 +354,9 @@ impl<'m> ModuleBuilder<'m> {
             Opcode::Neg => {
                 let imm = self.immediate_to_constant(loc, op.imm);
                 let neg1 = self.get_or_declare_function("erlang:-/1").unwrap();
-                self.cir().build_call(loc, neg1, &[imm]).base()
+                let op = self.cir().build_call(loc, neg1, &[imm]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Not => {
                 let imm = self.immediate_to_constant(loc, op.imm);
@@ -300,12 +365,13 @@ impl<'m> ModuleBuilder<'m> {
             Opcode::Bnot => {
                 let imm = self.immediate_to_constant(loc, op.imm);
                 let bnot1 = self.get_or_declare_function("erlang:bnot/1").unwrap();
-                self.cir().build_call(loc, bnot1, &[imm]).base()
+                let op = self.cir().build_call(loc, bnot1, &[imm]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             other => unimplemented!("no lowering for unary op immediate with opcode {}", other),
         };
 
-        let results = dfg.inst_results(inst);
         for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
             self.values.insert(value, op_result.base());
         }
@@ -321,6 +387,7 @@ impl<'m> ModuleBuilder<'m> {
     ) -> anyhow::Result<()> {
         let loc = self.location_from_span(span);
         let imm = self.const_to_constant(loc, &dfg.constant(op.imm));
+        let results = dfg.inst_results(inst);
         let mlir_op = match op.op {
             Opcode::ConstBigInt
             | Opcode::ConstBinary
@@ -332,17 +399,20 @@ impl<'m> ModuleBuilder<'m> {
             }
             Opcode::Neg => {
                 let neg1 = self.get_or_declare_function("erlang:-/1").unwrap();
-                self.cir().build_call(loc, neg1, &[imm]).base()
+                let op = self.cir().build_call(loc, neg1, &[imm]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Not => self.cir().build_not(loc, imm).base(),
             Opcode::Bnot => {
                 let bnot1 = self.get_or_declare_function("erlang:bnot/1").unwrap();
-                self.cir().build_call(loc, bnot1, &[imm]).base()
+                let op = self.cir().build_call(loc, bnot1, &[imm]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             other => unimplemented!("no lowering for unary op constant with opcode {}", other),
         };
 
-        let results = dfg.inst_results(inst);
         for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
             self.values.insert(value, op_result.base());
         }
@@ -359,48 +429,93 @@ impl<'m> ModuleBuilder<'m> {
         let loc = self.location_from_span(span);
         let lhs = self.values[&op.args[0]];
         let rhs = self.values[&op.args[1]];
+        let results = dfg.inst_results(inst);
         let mlir_op = match op.op {
             Opcode::Cons => self.cir().build_cons(loc, lhs, rhs).base(),
             Opcode::GetElement => self.cir().build_get_element(loc, lhs, rhs).base(),
             Opcode::ListConcat => {
                 let callee = self.get_or_declare_function("erlang:++/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::ListSubtract => {
                 let callee = self.get_or_declare_function("erlang:--/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
+            Opcode::IcmpEq => self
+                .cir()
+                .build_icmp(loc, ICmpPredicate::Eq, lhs, rhs)
+                .base(),
+            Opcode::IcmpNeq => self
+                .cir()
+                .build_icmp(loc, ICmpPredicate::Neq, lhs, rhs)
+                .base(),
+            Opcode::IcmpGt => self
+                .cir()
+                .build_icmp(loc, ICmpPredicate::Gt, lhs, rhs)
+                .base(),
+            Opcode::IcmpGte => self
+                .cir()
+                .build_icmp(loc, ICmpPredicate::Gte, lhs, rhs)
+                .base(),
+            Opcode::IcmpLt => self
+                .cir()
+                .build_icmp(loc, ICmpPredicate::Lt, lhs, rhs)
+                .base(),
+            Opcode::IcmpLte => self
+                .cir()
+                .build_icmp(loc, ICmpPredicate::Lte, lhs, rhs)
+                .base(),
             Opcode::Eq => {
                 let callee = self.get_or_declare_function("erlang:==/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::EqExact => {
                 let callee = self.get_or_declare_function("erlang:=:=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Neq => {
                 let callee = self.get_or_declare_function("erlang:/=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::NeqExact => {
                 let callee = self.get_or_declare_function("erlang:=/=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Gt => {
                 let callee = self.get_or_declare_function("erlang:>/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Gte => {
                 let callee = self.get_or_declare_function("erlang:>=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Lt => {
                 let callee = self.get_or_declare_function("erlang:</2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Lte => {
                 let callee = self.get_or_declare_function("erlang:=</2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::And => self.cir().build_and(loc, lhs, rhs).base(),
             Opcode::AndAlso => self.cir().build_andalso(loc, lhs, rhs).base(),
@@ -409,52 +524,73 @@ impl<'m> ModuleBuilder<'m> {
             Opcode::Xor => self.cir().build_xor(loc, lhs, rhs).base(),
             Opcode::Band => {
                 let callee = self.get_or_declare_function("erlang:band/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bor => {
                 let callee = self.get_or_declare_function("erlang:bor/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bxor => {
                 let callee = self.get_or_declare_function("erlang:bxor/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bsl => {
                 let callee = self.get_or_declare_function("erlang:bsl/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bsr => {
                 let callee = self.get_or_declare_function("erlang:bsr/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Div => {
                 let callee = self.get_or_declare_function("erlang:div/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Rem => {
                 let callee = self.get_or_declare_function("erlang:rem/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Add => {
                 let callee = self.get_or_declare_function("erlang:+/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Sub => {
                 let callee = self.get_or_declare_function("erlang:-/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Mul => {
                 let callee = self.get_or_declare_function("erlang:*/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Fdiv => {
                 let callee = self.get_or_declare_function("erlang:fdiv/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             other => unimplemented!("no lowering for binary op with opcode {}", other),
         };
 
-        let results = dfg.inst_results(inst);
         for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
             self.values.insert(value, op_result.base());
         }
@@ -470,6 +606,7 @@ impl<'m> ModuleBuilder<'m> {
     ) -> anyhow::Result<()> {
         let loc = self.location_from_span(span);
         let lhs = self.values[&op.arg];
+        let results = dfg.inst_results(inst);
         let mlir_op = match op.op {
             Opcode::Cons => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
@@ -490,45 +627,85 @@ impl<'m> ModuleBuilder<'m> {
                     _ => panic!("invalid is_tagged_tuple binary immediate op, only atom immediates are supported"),
                 }
             }
+            Opcode::IcmpEq => {
+                let rhs = self.immediate_to_constant(loc, op.imm);
+                self.cir().build_icmp(loc, ICmpPredicate::Eq, lhs, rhs).base()
+            }
+            Opcode::IcmpNeq => {
+                let rhs = self.immediate_to_constant(loc, op.imm);
+                self.cir().build_icmp(loc, ICmpPredicate::Neq, lhs, rhs).base()
+            }
+            Opcode::IcmpGt => {
+                let rhs = self.immediate_to_constant(loc, op.imm);
+                self.cir().build_icmp(loc, ICmpPredicate::Gt, lhs, rhs).base()
+            }
+            Opcode::IcmpGte => {
+                let rhs = self.immediate_to_constant(loc, op.imm);
+                self.cir().build_icmp(loc, ICmpPredicate::Gte, lhs, rhs).base()
+            }
+            Opcode::IcmpLt => {
+                let rhs = self.immediate_to_constant(loc, op.imm);
+                self.cir().build_icmp(loc, ICmpPredicate::Lt, lhs, rhs).base()
+            }
+            Opcode::IcmpLte => {
+                let rhs = self.immediate_to_constant(loc, op.imm);
+                self.cir().build_icmp(loc, ICmpPredicate::Lte, lhs, rhs).base()
+            }
             Opcode::Eq => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:==/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::EqExact => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:=:=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Neq => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:/=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::NeqExact => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:=/=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Gt => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:>/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Gte => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:>=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Lt => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:</2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Lte => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:=</2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::And => {
                 match op.imm {
@@ -563,62 +740,83 @@ impl<'m> ModuleBuilder<'m> {
             Opcode::Band => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:band/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bor => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:bor/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bxor => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:bxor/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bsl => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:bsl/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bsr => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:bsr/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Div => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:div/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Rem => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:rem/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Add => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:+/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Sub => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:-/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Mul => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:*/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Fdiv => {
                 let rhs = self.immediate_to_constant(loc, op.imm);
                 let callee = self.get_or_declare_function("erlang:fdiv/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             other => unimplemented!("no lowering for binary immediate op with opcode {}", other),
         };
 
-        let results = dfg.inst_results(inst);
         for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
             self.values.insert(value, op_result.base());
         }
@@ -634,6 +832,7 @@ impl<'m> ModuleBuilder<'m> {
     ) -> anyhow::Result<()> {
         let loc = self.location_from_span(span);
         let lhs = self.values[&op.arg];
+        let results = dfg.inst_results(inst);
         let mlir_op = match op.op {
             Opcode::Cons => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
@@ -657,42 +856,58 @@ impl<'m> ModuleBuilder<'m> {
             Opcode::Eq => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:==/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::EqExact => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:=:=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Neq => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:/=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::NeqExact => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:=/=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Gt => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:>/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Gte => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:>=/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Lt => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:</2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Lte => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:=</2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::And => {
                 match dfg.constant_type(op.imm) {
@@ -727,62 +942,83 @@ impl<'m> ModuleBuilder<'m> {
             Opcode::Band => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:band/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bor => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:bor/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bxor => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:bxor/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bsl => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:bsl/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Bsr => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:bsr/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Div => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:div/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Rem => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:rem/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Add => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:+/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Sub => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:-/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Mul => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:*/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             Opcode::Fdiv => {
                 let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                 let callee = self.get_or_declare_function("erlang:fdiv/2").unwrap();
-                self.cir().build_call(loc, callee, &[lhs, rhs]).base()
+                let op = self.cir().build_call(loc, callee, &[lhs, rhs]).base();
+                self.values.insert(results[0], op.get_result(1).base());
+                return Ok(());
             }
             other => unimplemented!("no lowering for binary constant op with opcode {}", other),
         };
 
-        let results = dfg.inst_results(inst);
         for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
             self.values.insert(value, op_result.base());
         }
@@ -827,11 +1063,11 @@ impl<'m> ModuleBuilder<'m> {
         let current_function: FuncOp = self.current_block.operation().unwrap().try_into().unwrap();
         let func_type = current_function.get_type();
         let arg = self.values[&op.arg];
-        // Only None is supported as an immediate for this op currently
-        assert_eq!(op.imm, Immediate::None);
+        // Only Bool is supported as an immediate for this op currently
+        let Immediate::Bool(flag) = op.imm else { panic!("expected boolean immediate"); };
         let arg_type = arg.get_type();
-        let expected_arg_type = func_type.get_result(0).unwrap();
-        let expected_imm_type = func_type.get_result(1).unwrap();
+        let expected_imm_type = func_type.get_result(0).unwrap();
+        let expected_arg_type = func_type.get_result(1).unwrap();
 
         let builder = self.cir();
         let arg = if arg_type == expected_arg_type {
@@ -840,9 +1076,14 @@ impl<'m> ModuleBuilder<'m> {
             let cast = builder.build_cast(loc, arg, expected_arg_type);
             cast.get_result(0).base()
         };
-        let imm = builder.build_null(loc, expected_imm_type);
 
-        builder.build_return(loc, &[arg, imm.get_result(0).base()]);
+        let imm = builder.build_constant(
+            loc,
+            expected_imm_type,
+            builder.get_integer_attr(builder.get_i1_type(), flag as i64),
+        );
+
+        builder.build_return(loc, &[imm.get_result(0).base(), arg]);
         Ok(())
     }
 
@@ -1199,9 +1440,9 @@ fn translate_term_ir_type<'a, B: OpBuilder>(
         TermType::Float => builder.get_cir_float_type().base().base(),
         TermType::Number => builder.get_cir_number_type().base(),
         TermType::Atom => builder.get_cir_atom_type().base(),
-        TermType::Bitstring | TermType::Binary => {
-            builder.get_cir_box_type(builder.get_cir_bits_type()).base()
-        }
+        TermType::Bitstring | TermType::Binary => builder
+            .get_cir_box_type(builder.get_cir_binary_type())
+            .base(),
         TermType::Nil => builder.get_cir_nil_type().base(),
         TermType::List(_) | TermType::MaybeImproperList => {
             builder.get_cir_box_type(builder.get_cir_cons_type()).base()

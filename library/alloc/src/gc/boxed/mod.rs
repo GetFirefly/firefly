@@ -1,3 +1,3 @@
 mod gcbox;
 
-pub use self::gcbox::GcBox;
+pub use self::gcbox::*;

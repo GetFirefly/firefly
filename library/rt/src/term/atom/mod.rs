@@ -1,16 +1,15 @@
 mod table;
 
-use self::table::{self, AtomData};
+pub use self::table::AtomData;
 
-use core::any::TypeId;
 use core::convert::AsRef;
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
+use core::mem;
 use core::ptr::{self, NonNull};
-use core::slice;
-use core::str::{self, Utf8Error};
+use core::str::{self, FromStr, Utf8Error};
 
-use super::{Term, Type};
+use super::OpaqueTerm;
 
 /// The maximum length of an atom (255)
 pub const MAX_ATOM_LENGTH: usize = u16::max_value() as usize;
@@ -29,6 +28,12 @@ impl std::error::Error for AtomError {
             Self::InvalidString(ref err) => Some(err),
             _ => None,
         }
+    }
+}
+impl From<Utf8Error> for AtomError {
+    #[inline]
+    fn from(err: Utf8Error) -> Self {
+        Self::InvalidString(err)
     }
 }
 impl Display for AtomError {
@@ -54,6 +59,7 @@ impl PartialEq for AtomError {
 /// An atom is an interned string value with fast, constant-time equality comparison,
 /// can be encoded as an immediate value, and only requires allocation once over the lifetime
 /// of the program.
+#[repr(transparent)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Atom(NonNull<AtomData>);
 impl Atom {
@@ -64,39 +70,10 @@ impl Atom {
 
     /// Creates a new atom from a slice of bytes interpreted as Latin-1.
     ///
-    /// Returns `Err` if the atom name is invalid or the table overflows
-    #[inline]
-    pub fn try_from_latin1_bytes(name: &[u8]) -> Result<Self, AtomError> {
-        Self::try_from_str(str::from_utf8(name)?)
-    }
-
-    /// Like `try_from_latin1_bytes`, but requires that the atom already exists
-    ///
     /// Returns `Err` if the atom does not exist
     #[inline]
     pub fn try_from_latin1_bytes_existing(name: &[u8]) -> Result<Self, AtomError> {
         Self::try_from_str_existing(str::from_utf8(name)?)
-    }
-
-    /// Creates a new atom from a `str`.
-    ///
-    /// Panics if the name is invalid or the table overflows
-    #[inline]
-    pub fn from_str<S: AsRef<str>>(s: S) -> Self {
-        Self::try_from_str(s).unwrap()
-    }
-
-    /// Creates a new atom from a `str`.
-    ///
-    /// Returns `Err` if the atom name is invalid or the table overflows
-    #[inline]
-    pub fn try_from_str<S: AsRef<str>>(s: S) -> Result<Self, AtomError> {
-        let name = s.as_ref();
-        Self::validate(name)?;
-        if let Some(data) = table::get_data(name) {
-            return Ok(Self(data));
-        }
-        Ok(Self(table::get_id_or_insert(name)?))
     }
 
     /// Creates a new atom from a `str`, but only if the atom already exists
@@ -118,7 +95,7 @@ impl Atom {
     /// Panics if the name is invalid, the table overflows, or term encoding fails
     #[inline]
     pub fn str_to_term<S: AsRef<str>>(s: S) -> OpaqueTerm {
-        Self::from_str(s).into()
+        Self::from_str(s.as_ref()).unwrap().into()
     }
 
     /// This function is intended for internal use only.
@@ -134,6 +111,8 @@ impl Atom {
     /// If any of these constraints are violated, the behavior is undefined.
     #[inline]
     pub(crate) unsafe fn from_raw_cstr(ptr: *const core::ffi::c_char) -> Self {
+        use core::ffi::CStr;
+
         let cs = CStr::from_ptr::<'static>(ptr);
         let name = cs.to_str().unwrap_or_else(|error| {
             panic!(
@@ -142,7 +121,7 @@ impl Atom {
                 error,
             )
         });
-        Self(table::get_id_or_insert_static(name).unwrap())
+        Self(table::get_data_or_insert_static(name).unwrap())
     }
 
     /// Returns `true` if this atom represents a boolean
@@ -161,18 +140,18 @@ impl Atom {
     /// Gets the string value of this atom
     pub fn as_str(&self) -> &'static str {
         // SAFETY: Atom contents are validated when creating the raw atom data, so converting back to str is safe
-        unsafe { self.0.as_ref().as_str() }
+        unsafe { self.0.as_ref().as_str().unwrap() }
     }
 
     #[inline(always)]
-    pub(super) fn ptr(&self) -> *const AtomData {
+    pub(super) fn as_ptr(&self) -> *const AtomData {
         self.0.as_ptr()
     }
 
     /// Returns true if this atom requires quotes when printing as an Erlang term
     pub fn needs_quotes(&self) -> bool {
         // See https://github.com/erlang/otp/blob/ca83f680aab717fe65634247d16f18a8cbfc6d8d/erts/emulator/beam/erl_printf_term.c#L193-L212
-        let mut chars = self.name().chars();
+        let mut chars = self.as_str().chars();
 
         match chars.next() {
             Some(first_char) => {
@@ -207,12 +186,43 @@ impl From<NonNull<AtomData>> for Atom {
     }
 }
 impl From<bool> for Atom {
-    fn from(b: bool) -> Atom {
+    #[inline]
+    fn from(b: bool) -> Self {
         if b {
             Self::TRUE
         } else {
             Self::FALSE
         }
+    }
+}
+impl TryFrom<&str> for Atom {
+    type Error = AtomError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        Self::validate(s)?;
+        if let Some(data) = table::get_data(s) {
+            return Ok(Self(data));
+        }
+        Ok(Self(unsafe { table::get_data_or_insert(s)? }))
+    }
+}
+impl TryFrom<&[u8]> for Atom {
+    type Error = AtomError;
+
+    #[inline]
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        Atom::try_from(str::from_utf8(bytes)?)
+    }
+}
+impl FromStr for Atom {
+    type Err = AtomError;
+
+    /// Creates a new atom from a `str`.
+    ///
+    /// Returns `Err` if the atom name is invalid or the table overflows
+    #[inline(always)]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Atom::try_from(s)
     }
 }
 impl PartialOrd for Atom {
@@ -237,11 +247,12 @@ impl Debug for Atom {
 }
 impl fmt::Pointer for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:p}", self.ptr())
+        write!(f, "{:p}", self.as_ptr())
     }
 }
 impl Display for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use core::fmt::Write;
         let needs_quotes = self.needs_quotes();
 
         if needs_quotes {

@@ -243,6 +243,11 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
+    fn cast(self, arg: Value, ty: Type, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Unary(Opcode::Cast, ty, arg, span);
+        dfg.first_result(inst)
+    }
+
     fn binary_from_str(self, s: &str, span: SourceSpan) -> Value {
         self.binary_from_bytes(s.as_bytes(), span)
     }
@@ -325,6 +330,158 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
+    fn trunc(self, arg: Value, ty: PrimitiveType, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Unary(Opcode::Trunc, Type::Primitive(ty), arg, span);
+        dfg.first_result(inst)
+    }
+
+    fn zext(self, arg: Value, ty: PrimitiveType, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Unary(Opcode::Zext, Type::Primitive(ty), arg, span);
+        dfg.first_result(inst)
+    }
+
+    fn zext_imm(self, imm: i64, ty: PrimitiveType, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.UnaryImm(
+            Opcode::Zext,
+            Type::Primitive(ty),
+            Immediate::Integer(imm),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_eq(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(
+            Opcode::IcmpEq,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            rhs,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_eq_imm(self, lhs: Value, rhs: i64, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::IcmpEq,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            Immediate::Integer(rhs),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_neq(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(
+            Opcode::IcmpNeq,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            rhs,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_neq_imm(self, lhs: Value, rhs: i64, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::IcmpNeq,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            Immediate::Integer(rhs),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_gt(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(
+            Opcode::IcmpGt,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            rhs,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_gt_imm(self, lhs: Value, rhs: i64, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::IcmpGt,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            Immediate::Integer(rhs),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_gte(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(
+            Opcode::IcmpGte,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            rhs,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_gte_imm(self, lhs: Value, rhs: i64, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::IcmpGte,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            Immediate::Integer(rhs),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_lt(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(
+            Opcode::IcmpLt,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            rhs,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_lt_imm(self, lhs: Value, rhs: i64, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::IcmpLt,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            Immediate::Integer(rhs),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_lte(self, lhs: Value, rhs: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.Binary(
+            Opcode::IcmpLte,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            rhs,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn icmp_lte_imm(self, lhs: Value, rhs: i64, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::IcmpLte,
+            Type::Primitive(PrimitiveType::I1),
+            lhs,
+            Immediate::Integer(rhs),
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
     fn br(mut self, block: Block, args: &[Value], span: SourceSpan) -> Inst {
         let mut vlist = ValueList::default();
         {
@@ -356,12 +513,16 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self.Br(Opcode::BrUnless, ty, block, vlist, span).0
     }
 
-    fn ret(self, returning: Value, exception: Value, span: SourceSpan) -> Inst {
-        self.Ret(returning, exception, span).0
+    fn ret(self, is_err: Value, returning: Value, span: SourceSpan) -> Inst {
+        self.Ret(is_err, returning, span).0
     }
 
-    fn ret_imm(self, returning: Value, exception: Immediate, span: SourceSpan) -> Inst {
-        self.RetImm(returning, exception, span).0
+    fn ret_ok(self, returning: Value, span: SourceSpan) -> Inst {
+        self.RetImm(Immediate::Bool(false), returning, span).0
+    }
+
+    fn ret_err(self, returning: Value, span: SourceSpan) -> Inst {
+        self.RetImm(Immediate::Bool(true), returning, span).0
     }
 
     fn call(mut self, callee: FuncRef, args: &[Value], span: SourceSpan) -> Inst {
@@ -819,13 +980,13 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     #[allow(non_snake_case)]
     fn Ret(
         self,
+        is_err: Value,
         returning: Value,
-        exception: Value,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::Ret(Ret {
             op: Opcode::Ret,
-            args: [returning, exception],
+            args: [is_err, returning],
         });
         self.build(data, Type::Invalid, span)
     }
@@ -833,14 +994,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     #[allow(non_snake_case)]
     fn RetImm(
         self,
+        is_err: Immediate,
         returning: Value,
-        exception: Immediate,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::RetImm(RetImm {
             op: Opcode::Ret,
+            imm: is_err,
             arg: returning,
-            imm: exception,
         });
         self.build(data, Type::Invalid, span)
     }

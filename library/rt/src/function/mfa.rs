@@ -14,6 +14,15 @@ pub struct ModuleFunctionArity {
     pub function: Atom,
     pub arity: u8,
 }
+impl ModuleFunctionArity {
+    pub fn new(module: Atom, function: Atom, arity: usize) -> Self {
+        Self {
+            module,
+            function,
+            arity: arity.try_into().unwrap(),
+        }
+    }
+}
 impl From<FunctionSymbol> for ModuleFunctionArity {
     #[inline]
     fn from(sym: FunctionSymbol) -> Self {
@@ -31,15 +40,15 @@ impl FromStr for ModuleFunctionArity {
         let Some((module, rest)) = s.split_once(':') else { return Err(()); };
         let Some((function, arity)) = rest.split_once('/') else { return Err(()); };
 
-        let module = Atom::from(module);
-        let function = Atom::from(function);
+        let module = Atom::try_from(module).unwrap();
+        let function = Atom::try_from(function).unwrap();
         let Ok(arity) = arity.parse::<u8>() else { return Err(()); };
 
-        Self {
+        Ok(Self {
             module,
             function,
             arity,
-        }
+        })
     }
 }
 impl fmt::Debug for ModuleFunctionArity {

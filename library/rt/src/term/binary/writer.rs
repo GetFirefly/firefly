@@ -20,11 +20,8 @@ impl<'a> BinaryWriter<'a> {
     /// write!(w, "Hello, {}!", name)?;
     /// ```
     pub fn new(data: &'a mut [u8]) -> Self {
-        Self {
-            data,
-            len: data.len(0,)
-            pos: 0,
-        }
+        let len = data.len();
+        Self { data, len, pos: 0 }
     }
 
     /// Write a `str` via this writer
@@ -61,7 +58,11 @@ impl<'a> BinaryWriter<'a> {
         // taking only the number of bytes remaining if the entire string is too large.
         let bytes_size = bytes.len();
         let writable = self.len - self.pos;
-        let len = if bytes_size > writable { writable } else { bytes_size };
+        let len = if bytes_size > writable {
+            writable
+        } else {
+            bytes_size
+        };
 
         // Copy the bytes from `s` into `self.data`
         let buf = &mut self.data[self.pos..(self.pos + len)];

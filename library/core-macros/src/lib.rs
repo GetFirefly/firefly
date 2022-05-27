@@ -142,11 +142,10 @@ pub fn entry(args: TokenStream, input: TokenStream) -> TokenStream {
             }
         },
         EntryOutput::Default => {
-            let success_code = libc::EXIT_SUCCESS;
             quote_spanned! { span =>
                 pub unsafe extern "C" fn #entry_ident() -> i32 {
                     #ident();
-                    #success_code
+                    0
                 }
             }
         }

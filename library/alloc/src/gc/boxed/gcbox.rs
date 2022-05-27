@@ -1,4 +1,4 @@
-use alloc::alloc::{Allocator, Global, Layout};
+use alloc::alloc::{AllocError, Allocator, Global, Layout};
 use alloc::borrow::{self, Cow};
 use core::any::{Any, TypeId};
 use core::fmt::{self, Debug, Display};
@@ -44,18 +44,18 @@ where
     PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
 {
     pub fn new(value: T) -> Self {
-        Self::new_in(value, Global)
+        Self::new_in(value, Global).unwrap()
     }
 
     pub fn new_uninit() -> GcBox<MaybeUninit<T>> {
-        Self::new_uninit_in(Global)
+        Self::new_uninit_in(Global).unwrap()
     }
 
-    pub fn new_in<A: Allocator>(value: T, alloc: A) -> Self {
+    pub fn new_in<A: Allocator>(value: T, alloc: A) -> Result<Self, AllocError> {
         let meta = Metadata::new::<T>(&value);
         let value_layout = Layout::for_value(&value);
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = alloc.allocate(layout).unwrap().cast();
+        let ptr: NonNull<u8> = alloc.allocate(layout)?.cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let boxed = Self {
@@ -64,14 +64,14 @@ where
             };
             ptr::write(header(boxed.ptr.as_ptr()), meta);
             ptr::write(boxed.ptr.as_ptr().cast(), value);
-            boxed
+            Ok(boxed)
         }
     }
 
-    pub fn new_uninit_in<A: Allocator>(alloc: A) -> GcBox<MaybeUninit<T>> {
+    pub fn new_uninit_in<A: Allocator>(alloc: A) -> Result<GcBox<MaybeUninit<T>>, AllocError> {
         let value_layout = Layout::new::<T>();
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = alloc.allocate(layout).unwrap().cast();
+        let ptr: NonNull<u8> = alloc.allocate(layout)?.cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let meta = Metadata::new::<T>(ptr.as_ptr() as *mut T);
@@ -80,7 +80,7 @@ where
                 _marker: PhantomData::<MaybeUninit<T>>,
             };
             ptr::write(header(boxed.ptr.as_ptr()), meta);
-            boxed
+            Ok(boxed)
         }
     }
 }
@@ -91,15 +91,18 @@ where
     PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
 {
     pub fn new_unsize<V: Unsize<T>>(value: V) -> Self {
-        Self::new_unsize_in(value, Global)
+        Self::new_unsize_in(value, Global).unwrap()
     }
 
-    pub fn new_unsize_in<V: Unsize<T>, A: Allocator>(value: V, alloc: A) -> Self {
+    pub fn new_unsize_in<V: Unsize<T>, A: Allocator>(
+        value: V,
+        alloc: A,
+    ) -> Result<Self, AllocError> {
         let unsized_: &T = &value;
         let meta = Metadata::new::<T>(unsized_);
         let value_layout = Layout::for_value(&value);
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = alloc.allocate(layout).unwrap().cast();
+        let ptr: NonNull<u8> = alloc.allocate(layout)?.cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let boxed = Self {
@@ -109,7 +112,7 @@ where
             ptr::write(header(boxed.ptr.as_ptr().cast()), meta);
             let ptr: *mut T = boxed.value();
             ptr::write(ptr.cast(), value);
-            boxed
+            Ok(boxed)
         }
     }
 
@@ -153,7 +156,7 @@ where
     /// use a combination of this function, a jump table of type ids, and subsequent unchecked casts.
     /// This allows for efficient pointer casts while ensuring we don't improperly cast a pointer to
     /// the wrong type.
-    pub(crate) unsafe fn type_id(raw: *mut u8) -> TypeId {
+    pub unsafe fn type_id(raw: *mut u8) -> TypeId {
         debug_assert!(!raw.is_null());
         let header = &*header(raw);
         header.ty
@@ -211,10 +214,10 @@ where
     /// but ensure that the pointee is the correct type.
     ///
     /// NOTE: Seriously, don't use this.
-    pub(crate) unsafe fn from_raw_unchecked(raw: *mut ()) -> Self {
+    pub unsafe fn from_raw_unchecked(raw: *mut u8) -> Self {
         debug_assert!(!raw.is_null());
         Self {
-            ptr: NonNull::new_unchecked(raw.cast()),
+            ptr: NonNull::new_unchecked(raw),
             _marker: PhantomData,
         }
     }
@@ -222,6 +225,11 @@ where
     pub fn into_raw(boxed: Self) -> *mut T {
         let boxed = mem::ManuallyDrop::new(boxed);
         (*boxed).value()
+    }
+
+    #[inline]
+    pub fn as_ptr(boxed: &Self) -> *mut u8 {
+        boxed.ptr.as_ptr()
     }
 
     pub unsafe fn drop_in<A: Allocator>(boxed: Self, alloc: A) {
@@ -332,15 +340,15 @@ where
     T: ?Sized + 'static + Pointee<Metadata = usize>,
 {
     pub fn with_capacity(cap: usize) -> Self {
-        Self::with_capacity_in(cap, Global)
+        Self::with_capacity_in(cap, Global).unwrap()
     }
 
-    pub fn with_capacity_in<A: Allocator>(cap: usize, alloc: A) -> Self {
+    pub fn with_capacity_in<A: Allocator>(cap: usize, alloc: A) -> Result<Self, AllocError> {
         let empty = ptr::from_raw_parts::<T>(ptr::null() as *const (), cap);
         let meta = Metadata::new::<T>(empty);
         let value_layout = unsafe { Layout::for_value_raw(empty) };
         let (layout, value_offset) = Layout::new::<Metadata>().extend(value_layout).unwrap();
-        let ptr: NonNull<u8> = alloc.allocate(layout).unwrap().cast();
+        let ptr: NonNull<u8> = alloc.allocate(layout)?.cast();
         unsafe {
             let ptr = NonNull::new_unchecked(ptr.as_ptr().add(value_offset));
             let boxed = Self {
@@ -348,7 +356,7 @@ where
                 _marker: PhantomData,
             };
             ptr::write(header(boxed.ptr.as_ptr()), meta);
-            boxed
+            Ok(boxed)
         }
     }
 }
@@ -356,20 +364,23 @@ where
 impl<T> GcBox<[T]> {
     #[inline]
     pub fn new_uninit_slice(len: usize) -> GcBox<[MaybeUninit<T>]> {
-        GcBox::new_uninit_slice_in(len, Global)
+        GcBox::new_uninit_slice_in(len, Global).unwrap()
     }
 
     #[inline]
-    pub fn new_uninit_slice_in<A: Allocator>(len: usize, alloc: A) -> GcBox<[MaybeUninit<T>]> {
+    pub fn new_uninit_slice_in<A: Allocator>(
+        len: usize,
+        alloc: A,
+    ) -> Result<GcBox<[MaybeUninit<T>]>, AllocError> {
         GcBox::<[MaybeUninit<T>]>::with_capacity_in(len, alloc)
     }
 }
 
 impl<T: Clone> GcBox<[T]> {
-    pub fn to_boxed_slice_in<A: Allocator>(slice: &[T], alloc: A) -> Self {
-        let mut boxed = GcBox::<[MaybeUninit<T>]>::with_capacity_in(slice.len(), alloc);
+    pub fn to_boxed_slice_in<A: Allocator>(slice: &[T], alloc: A) -> Result<Self, AllocError> {
+        let mut boxed = GcBox::<[MaybeUninit<T>]>::with_capacity_in(slice.len(), alloc)?;
         boxed.write_slice_cloned(slice);
-        unsafe { boxed.assume_init() }
+        Ok(unsafe { boxed.assume_init() })
     }
 }
 
@@ -756,7 +767,7 @@ impl Metadata {
 
     /// Returns true if this metadata is for a value of type T
     #[inline]
-    fn is<T: ?Sized + Any>(&self) -> bool {
+    fn is<T: ?Sized + 'static>(&self) -> bool {
         self.ty == TypeId::of::<T>()
     }
 }

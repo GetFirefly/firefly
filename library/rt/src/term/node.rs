@@ -1,9 +1,10 @@
 use core::hash::{Hash, Hasher};
-use core::sync::AtomicPtr;
+use core::ptr::NonNull;
+use core::sync::atomic::AtomicPtr;
 
-use super::{Atom, AtomData};
+use super::{atom::AtomData, Atom};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Node {
     id: usize,
     name: AtomicPtr<AtomData>,
@@ -27,7 +28,9 @@ impl Node {
 
     /// Returns the name of this node as an atom, if one was set
     pub fn name(&self) -> Option<Atom> {
-        NonNull::new(self.name.load()).map(|ptr| ptr.into())
+        use core::sync::atomic::Ordering;
+
+        NonNull::new(self.name.load(Ordering::Relaxed)).map(|ptr| ptr.into())
     }
 
     /// Returns the creation time of this node

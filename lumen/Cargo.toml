@@ -25,4 +25,4 @@ log = "0.4"
 unwind = { path = "../compiler/unwind" }
 panic = { path = "../compiler/panic" }
 liblumen_crt = { path = "../runtimes/crt" }
-lumen_rt_minimal = { path = "../runtimes/minimal" }
+lumen_rt_tiny = { path = "../runtimes/tiny" }

@@ -1,18 +1,20 @@
 use alloc::sync::Arc;
-use core::any::TypeId;
+use core::any::{Any, TypeId};
 use core::fmt::{self, Display};
+use core::hash::{Hash, Hasher};
+use core::ptr;
 
-use crate::alloc::GcBox;
+use liblumen_alloc::gc::GcBox;
 
-use super::{Term, Pid, Node};
+use super::{Node, Pid, Term};
 
 /// This struct abstracts over the various types of reference payloads
 #[derive(Debug, Clone)]
 pub enum Reference {
-    Local { pub id: ReferenceId },
-    Pid { pub id: ReferenceId, pub pid: Pid },
-    Magic { pub id: ReferenceId, ptr: *mut () },
-    External { pub id: ReferenceId, pub node: Arc<Node> },
+    Local { id: ReferenceId },
+    Pid { id: ReferenceId, pid: Pid },
+    Magic { id: ReferenceId, ptr: *mut dyn Any },
+    External { id: ReferenceId, node: Arc<Node> },
 }
 impl Reference {
     pub const TYPE_ID: TypeId = TypeId::of::<Reference>();
@@ -21,8 +23,11 @@ impl Reference {
     ///
     /// This is the only way to create a magic ref, as we can safely type check
     /// the pointee for casts back to concrete type.
-    pub fn new_magic<T: ?Sized>(id: ReferenceId, boxed: GcBox<T>) -> Self {
-        Self::Magic { id, ptr: GcBox::into_raw(boxed).cast() }
+    pub fn new_magic(id: ReferenceId, boxed: GcBox<dyn Any>) -> Self {
+        Self::Magic {
+            id,
+            ptr: GcBox::into_raw(boxed),
+        }
     }
 
     /// Return the underlying reference identifier for this ref
@@ -35,10 +40,10 @@ impl Reference {
         }
     }
 
-    /// Returns the magic pointer, if this is a magic reference
-    pub fn magic(&self) -> Option<*mut ()> {
+    /// If this is a magic reference, returns the reference bound to the lifetime of this value
+    pub fn magic(&self) -> Option<&dyn Any> {
         match self {
-            Self::Magic { ptr, .. } => Some(ptr),
+            Self::Magic { ptr, .. } => Some(&*ptr),
             _ => None,
         }
     }
@@ -64,7 +69,7 @@ impl TryFrom<Term> for Reference {
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         match term {
-            Term::Reference(reference) => Ok(Reference::clone(&reference)),
+            Term::Reference(reference) => Ok(Reference::clone(reference.as_ref())),
             _ => Err(()),
         }
     }
@@ -72,15 +77,10 @@ impl TryFrom<Term> for Reference {
 impl Display for Reference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Local { id }
-            | Self::Pid { id, ..}
-            | Self::Magic { id, => write!(f, "#Ref<0.{}>", id),
-            Self::External { id, node } => write!(
-                f,
-                "#Ref<{}.{}>",
-                node.id(),
-                id,
-            ),
+            Self::Local { id } | Self::Pid { id, .. } | Self::Magic { id, .. } => {
+                write!(f, "#Ref<0.{}>", id)
+            }
+            Self::External { id, node } => write!(f, "#Ref<{}.{}>", node.id(), id,),
         }
     }
 }
@@ -91,9 +91,18 @@ impl PartialEq for Reference {
             (Self::Local { id: x }, Self::Local { id: y, .. }) => x.eq(y),
             (Self::Pid { id: x, .. }, Self::Pid { id: y, .. }) => x.eq(y),
             (Self::Magic { id: x, .. }, Self::Magic { id: y, .. }) => x.eq(y),
-            (Self::External { id: xid, node: xnode, .. }, Self::External { id: yid, node: ynode, .. }) => {
-                xnode.eq(ynode) && xid.eq(yid)
-            }
+            (
+                Self::External {
+                    id: xid,
+                    node: xnode,
+                    ..
+                },
+                Self::External {
+                    id: yid,
+                    node: ynode,
+                    ..
+                },
+            ) => xnode.eq(ynode) && xid.eq(yid),
             _ => false,
         }
     }
@@ -108,15 +117,45 @@ impl Ord for Reference {
         use core::cmp::Ordering;
 
         match (self, other) {
-            (Self::External { id: xid, node: xnode, .. }, Self::External { id: yid, node: ynode }) => {
-                match xnode.cmp(ynode) {
-                    Ordering::Equal => xid.cmp(yid),
-                    other => other,
-                }
-            }
+            (
+                Self::External {
+                    id: xid,
+                    node: xnode,
+                    ..
+                },
+                Self::External {
+                    id: yid,
+                    node: ynode,
+                },
+            ) => match xnode.cmp(ynode) {
+                Ordering::Equal => xid.cmp(yid),
+                other => other,
+            },
             (Self::External { .. }, _) => Ordering::Greater,
             (_, Self::External { .. }) => Ordering::Less,
             _ => self.id().cmp(&other.id()),
+        }
+    }
+}
+impl Hash for Reference {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::Local { id } => {
+                id.hash(state);
+            }
+            Self::Pid { id, pid } => {
+                id.hash(state);
+                pid.hash(state);
+            }
+            Self::Magic { id, ptr } => {
+                id.hash(state);
+                ptr::hash(*ptr, state);
+            }
+            Self::External { id, node } => {
+                id.hash(state);
+                node.hash(state);
+            }
         }
     }
 }
@@ -130,7 +169,7 @@ impl ReferenceId {
     pub fn new(scheduler_id: u16, id: u64) -> Self {
         const MASK: u64 = 0xFFFF << 48;
         assert_eq!(id & MASK, 0, "invalid reference id, value is too large");
-        let id = id | (scheduler_id as u64 << 48);
+        let id = id | ((scheduler_id as u64) << 48);
         Self(unsafe { core::mem::transmute::<u64, [u16; 4]>(id) })
     }
 

@@ -1,3 +1,4 @@
+use alloc::sync::Arc;
 use core::any::TypeId;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
@@ -22,9 +23,9 @@ impl Port {
 impl TryFrom<Term> for Port {
     type Error = ();
 
-    fn from(term: Term) -> Result<Self, Self::Error> {
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
         match term {
-            Term::Port(port) => Ok(Port::clone(&port)),
+            Term::Port(port) => Ok(Port::clone(port.as_ref())),
             _ => Err(()),
         }
     }

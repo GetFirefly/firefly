@@ -3,13 +3,13 @@ use core::any::TypeId;
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
-use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
 use liblumen_alloc::gc::GcBox;
-use liblumen_alloc::rc::RcBox;
+use liblumen_alloc::heap::Heap;
+use liblumen_alloc::rc::Rc;
 
-use super::{OpaqueTerm, Term};
+use super::{BinaryData, BinaryFlags, BinaryWriter, Encoding, OpaqueTerm, Term, TupleIndex};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum CharlistToBinaryError {
@@ -31,17 +31,20 @@ impl Cons {
     ///
     /// NOTE: The returned cell is wrapped in `MaybeUninit<T>` because the head/tail require
     /// initialization.
-    pub fn new_in<A: Allocator>(alloc: A) -> Result<NonNull<MaybeUninit<Cons>>, AllocError> {
-        alloc.allocate(Layout::<Cons>::new()).map(|ptr| ptr.cast())
+    pub fn new_in<A: Allocator>(alloc: A) -> Result<NonNull<Cons>, AllocError> {
+        alloc.allocate(Layout::new::<Cons>()).map(|ptr| ptr.cast())
     }
 
     /// Constructs a list from the given slice, the output of which will be in the same order as the slice.
-    pub fn from_slice<A: Allocator>(slice: &[Term], alloc: A) -> Result<NonNull<Cons>, AllocError> {
-        let mut builder = ListBuilder::new(alloc);
+    pub fn from_slice<H: Heap>(
+        slice: &[Term],
+        heap: H,
+    ) -> Result<Option<NonNull<Cons>>, AllocError> {
+        let mut builder = ListBuilder::new(&heap);
         for value in slice.iter().rev() {
-            builder.push(value)?;
+            builder.push(*value)?;
         }
-        builder.finish()
+        Ok(builder.finish())
     }
     /// During garbage collection, when a list cell is moved to the new heap, a
     /// move marker is left in the original location. For a cons cell, the move
@@ -94,16 +97,17 @@ impl Cons {
     /// at the given index.
     ///
     /// If no key is found, returns 'badarg'
-    pub fn keyfind<I, K: Into<Term>>(&self, index: I, key: K) -> anyhow::Result<Option<Term>>
+    pub fn keyfind<I, K: Into<Term>>(&self, index: I, key: K) -> Result<Option<Term>, ImproperList>
     where
         I: TupleIndex + Copy,
     {
         let key = key.into();
         for result in self.iter() {
-            let Term::Tuple(tup) = result? else { continue; };
-            let Ok(candidate) = tup.get_element(index) else { continue; };
+            let Term::Tuple(ptr) = result? else { continue; };
+            let tuple = unsafe { ptr.as_ref() };
+            let Ok(candidate) = tuple.get_element(index) else { continue; };
             if candidate == key {
-                return Ok(Some(Term::Tuple(tup)));
+                return Ok(Some(Term::Tuple(ptr)));
             }
         }
 
@@ -114,22 +118,22 @@ impl Cons {
 // Charlists
 impl Cons {
     /// Constructs a charlist from the given string
-    pub fn charlist_from_str<A: Allocator>(s: &str, alloc: A) -> Result<NonNull<Cons>, AllocError> {
-        let mut builder = ListBuilder::new(alloc);
+    pub fn charlist_from_str<H: Heap>(
+        s: &str,
+        heap: H,
+    ) -> Result<Option<NonNull<Cons>>, AllocError> {
+        let mut builder = ListBuilder::new(&heap);
         for c in s.chars().rev() {
             builder.push(Term::Int((c as u32) as i64))?;
         }
-        builder.finish()
+        Ok(builder.finish())
     }
 
     /// Converts a charlist to a binary value.
     ///
     /// NOTE: This function will return an error if the list is not a charlist. It will also return
     /// an error if we are unable to allocate memory for the binary.
-    pub fn charlist_to_binary<A: Allocator>(
-        &self,
-        alloc: A,
-    ) -> Result<Term, CharlistToBinaryError> {
+    pub fn charlist_to_binary<H: Heap>(&self, heap: H) -> Result<Term, CharlistToBinaryError> {
         // We need to know whether or not the resulting binary should be allocated in `alloc`,
         // or on the global heap as a reference-counted binary. We also want to determine the target
         // encoding. So we'll scan the list twice, once to gather the size in bytes + encoding, the second
@@ -138,46 +142,55 @@ impl Cons {
             .get_charlist_size_and_encoding()
             .ok_or_else(|| CharlistToBinaryError::InvalidList)?;
         if len < 64 {
-            self.charlist_to_heap_binary(len, encoding, alloc)
+            self.charlist_to_heap_binary(len, encoding, heap)
         } else {
             self.charlist_to_refc_binary(len, encoding)
         }
     }
 
     /// Writes this charlist to a GcBox, i.e. allocates on a process heap
-    fn charlist_to_heap_binary<A: Allocator>(&self, len: usize, encoding: Encoding, alloc: A) -> Result<Term, CharlistToBinaryError> {
-        let mut gcbox = GcBox::<BinaryData>::with_capacity_in(len, alloc).map_err(|_| CharlistToBinaryError::AllocError)?;
+    fn charlist_to_heap_binary<H: Heap>(
+        &self,
+        len: usize,
+        encoding: Encoding,
+        heap: H,
+    ) -> Result<Term, CharlistToBinaryError> {
+        let mut gcbox = GcBox::<BinaryData>::with_capacity_in(len, heap)
+            .map_err(|_| CharlistToBinaryError::AllocError)?;
         {
-            let value = unsafe { GcBox::get_mut_unchecked(&mut gcbox) };
-            value.flags = BinaryFlags::new(encoding);
-            let mut writer = value.write();
+            unsafe {
+                gcbox.set_flags(BinaryFlags::new(len, encoding));
+            }
+            let mut writer = gcbox.write();
             if encoding == Encoding::Utf8 {
-                self.write_unicode_charlist_to_buffer(&mut writer).unwrap();
+                self.write_unicode_charlist_to_buffer(&mut writer)?;
             } else {
-                self.write_raw_charlist_to_buffer(&mut writer);
+                self.write_raw_charlist_to_buffer(&mut writer)?;
             }
         }
         Ok(gcbox.into())
     }
 
-    /// Writes this charlist to an RcBox, i.e. allocates on the global heap
+    /// Writes this charlist to an Rc, i.e. allocates on the global heap
     fn charlist_to_refc_binary(
         &self,
         len: usize,
         encoding: Encoding,
     ) -> Result<Term, CharlistToBinaryError> {
-        let mut rcbox = RcBox::<BinaryData>::with_capacity(len);
+        let mut rc = Rc::<BinaryData>::with_capacity(len);
         {
-            let value = unsafe { RcBox::get_mut_unchecked(&mut rcbox) };
-            value.flags = BinaryFlags::new(encoding);
+            let value = unsafe { Rc::get_mut_unchecked(&mut rc) };
+            unsafe {
+                value.set_flags(BinaryFlags::new(len, encoding));
+            }
             let mut writer = value.write();
             if encoding == Encoding::Utf8 {
-                self.write_unicode_charlist_to_buffer(&mut writer).unwrap();
+                self.write_unicode_charlist_to_buffer(&mut writer)?;
             } else {
-                self.write_raw_charlist_to_buffer(&mut writer);
+                self.write_raw_charlist_to_buffer(&mut writer)?;
             }
         }
-        Ok(rcbox.into())
+        Ok(Rc::into_weak(rc).into())
     }
 
     /// Writes this charlist codepoint-by-codepoint to a buffer via the provided writer
@@ -185,22 +198,30 @@ impl Cons {
     /// By the time this has called, we should already have validated that the list is valid unicode codepoints,
     /// and that the binary we've allocated has enough raw bytes to hold the contents of this charlist. This
     /// should not be called directly otherwise.
-    fn write_unicode_charlist_to_buffer<W: fmt::Write>(&self, writer: &mut W) {
+    fn write_unicode_charlist_to_buffer<W: fmt::Write>(
+        &self,
+        writer: &mut W,
+    ) -> Result<(), CharlistToBinaryError> {
         for element in self.iter() {
-            let Ok(Term::Int(codepoint)) = element else { return Err(CharlistToBinary::InvalidList.into()); }
+            let Ok(Term::Int(codepoint)) = element else { return Err(CharlistToBinaryError::InvalidList); };
             let codepoint = codepoint.try_into().unwrap();
             let c = unsafe { char::from_u32_unchecked(codepoint) };
             writer.write_char(c).unwrap()
         }
+        Ok(())
     }
 
     /// Same as `write_unicode_charlist_to_buffer`, but for ASCII charlists, which is slightly more efficient
     /// since we can skip the unicode conversion overhead.
-    fn write_raw_charlist_to_buffer(&self, writer: &mut BinaryWriter<'_>) {
+    fn write_raw_charlist_to_buffer(
+        &self,
+        writer: &mut BinaryWriter<'_>,
+    ) -> Result<(), CharlistToBinaryError> {
         for element in self.iter() {
-            let Ok(Term::Int(byte)) = element else { return Err(CharlistToBinary::InvalidList) };
+            let Ok(Term::Int(byte)) = element else { return Err(CharlistToBinaryError::InvalidList); };
             writer.push_byte(byte.try_into().unwrap());
         }
+        Ok(())
     }
 
     /// This function walks the entire list, calculating the total bytes required to hold all of the characters,
@@ -211,18 +232,18 @@ impl Cons {
         let mut len = 0;
         let mut encoding = Encoding::Utf8;
         for element in self.iter() {
-            match element.map_err(|_| CharlistToBinaryError::InvalidList)? {
+            match element.ok()? {
                 Term::Int(codepoint) => match encoding {
                     // If we think we have a valid utf-8 charlist, we do some extra validation
                     Encoding::Utf8 => {
                         match codepoint.try_into() {
                             Ok(codepoint) => match char::from_u32(codepoint) {
-                                Some(c) => {
+                                Some(_) => {
                                     len += len_utf8(codepoint);
                                 }
                                 None if codepoint > 255 => {
                                     // Invalid UTF-8 codepoint and not a valid byte value, this isn't a charlist
-                                    return Err(CharlistToBinaryError::InvalidList);
+                                    return None;
                                 }
                                 None => {
                                     // This is either a valid latin1 codepoint, or a plain byte, determine which,
@@ -236,13 +257,13 @@ impl Cons {
                                 }
                             },
                             // The codepoint exceeds the valid range for u32, cannot be a charlist
-                            Err(_) => return Err(CharlistToBinaryError::InvalidList),
+                            Err(_) => return None,
                         }
                     }
                     // Likewise for Latin1
                     Encoding::Latin1 => {
                         if codepoint > 255 {
-                            return Err(CharlistToBinaryError::InvalidList);
+                            return None;
                         }
                         len += 1;
                         if !Encoding::is_latin1_byte(codepoint.try_into().unwrap()) {
@@ -251,12 +272,12 @@ impl Cons {
                     }
                     Encoding::Raw => {
                         if codepoint > 255 {
-                            return Err(CharlistToBinaryError::InvalidList);
+                            return None;
                         }
                         len += 1;
                     }
                 },
-                _ => return Err(CharlistToBinaryError::InvalidList),
+                _ => return None,
             }
         }
 
@@ -268,7 +289,7 @@ impl Cons {
         self.iter().all(|result| match result {
             Ok(element) => {
                 // See https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L128-L129
-                let Ok(c) = char::try_from(element) else { return false; };
+                let Ok(c) = element.as_char() else { return false; };
                 // https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L132
                 c.is_ascii_graphic() || c.is_ascii_whitespace()
             }
@@ -284,12 +305,12 @@ impl PartialEq for Cons {
     }
 }
 impl PartialOrd for Cons {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 impl Ord for Cons {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.iter().cmp(other.iter())
     }
 }
@@ -302,6 +323,8 @@ impl Hash for Cons {
 }
 impl Debug for Cons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use core::fmt::Write;
+
         f.write_char('[')?;
         for (i, value) in self.iter().enumerate() {
             match value {
@@ -316,6 +339,8 @@ impl Debug for Cons {
 }
 impl Display for Cons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use core::fmt::Write;
+
         // See https://github.com/erlang/otp/blob/b8e11b6abe73b5f6306e8833511fcffdb9d252b5/erts/emulator/beam/erl_printf_term.c#L423-443
         if self.is_printable_string() {
             f.write_char('\"')?;
@@ -378,7 +403,7 @@ impl Iter<'_> {
     }
 }
 
-impl std::iter::FusedIterator for Iter<'_> {}
+impl core::iter::FusedIterator for Iter<'_> {}
 
 impl Iterator for Iter<'_> {
     type Item = Result<Term, ImproperList>;
@@ -401,8 +426,8 @@ impl Iterator for Iter<'_> {
                         self.tail = None;
                         next
                     }
-                    Term::Cons(cons) => {
-                        let cons = unsafe { &*cons };
+                    Term::Cons(ptr) => {
+                        let cons = unsafe { ptr.as_ref() };
                         self.head = Some(Ok(cons.head()));
                         self.tail = Some(cons.tail);
                         next
@@ -419,33 +444,38 @@ impl Iterator for Iter<'_> {
     }
 }
 
-pub struct ListBuilder<'a, A: Allocator> {
-    alloc: &'a mut A,
+pub struct ListBuilder<'a, H: Heap> {
+    heap: &'a H,
     head: Option<NonNull<Cons>>,
 }
-impl<'a, A: Allocator> ListBuilder<'a, A> {
-    pub fn new(alloc: &'a mut A) -> Self {
-        Self { alloc, head: None }
+impl<'a, H: Heap> ListBuilder<'a, H> {
+    pub fn new(heap: &'a H) -> Self {
+        Self { heap, head: None }
     }
 
     pub fn push(&mut self, value: Term) -> Result<(), AllocError> {
-        let head = value.clone_into(&mut self.alloc)?;
+        let head = value.clone_to_heap(self.heap)?.into();
         match self.head.take() {
             None => {
-                let cell = Cons::new_in(&mut self.alloc)?;
-                cell.as_mut().write(Cons {
-                    head,
-                    tail: OpaqueTerm::NIL,
-                });
-                self.head.insert(cell.cast());
+                let cell = Cons::new_in(self.heap)?;
+                unsafe {
+                    cell.as_ptr().write(Cons {
+                        head,
+                        tail: OpaqueTerm::NIL,
+                    });
+                }
+                self.head = Some(cell.cast());
             }
             Some(tail) => {
                 let tail: OpaqueTerm = tail.into();
-                let cell = Cons::new_in(&mut self.alloc)?;
-                cell.as_mut().write(Cons { head, tail });
-                self.head.insert(cell.cast());
+                let cell = Cons::new_in(self.heap)?;
+                unsafe {
+                    cell.as_ptr().write(Cons { head, tail });
+                }
+                self.head = Some(cell.cast());
             }
         }
+        Ok(())
     }
 
     pub fn finish(mut self) -> Option<NonNull<Cons>> {

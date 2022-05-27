@@ -213,8 +213,8 @@ impl DataFlowGraph {
                 // An indirect call has no signature, but we know it must be Erlang
                 // convention, and thus multi-value return
                 Opcode::CallIndirect => {
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, ty);
-                    self.append_result(inst, Type::Exception);
                     2
                 }
                 // Binary matches produce three results, a success flag, the matched value, and the rest of the binary
@@ -293,7 +293,29 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(ty));
                     1
                 }
-                // These boolean operators always produce boolean outputs
+                // Casts produce a single output from a single input
+                Opcode::Cast => {
+                    self.append_result(inst, ty);
+                    1
+                }
+                // These unary integer operators always produce primitive type outputs
+                Opcode::Trunc | Opcode::Zext => {
+                    self.append_result(inst, ty);
+                    1
+                }
+                // These boolean operators always produce primitive boolean outputs
+                Opcode::IcmpEq
+                | Opcode::IcmpNeq
+                | Opcode::IcmpGt
+                | Opcode::IcmpGte
+                | Opcode::IcmpLt
+                | Opcode::IcmpLte
+                | Opcode::IsType
+                | Opcode::IsTaggedTuple => {
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    1
+                }
+                // These boolean operators always produce boolean term outputs
                 Opcode::Eq
                 | Opcode::EqExact
                 | Opcode::Neq
@@ -306,9 +328,7 @@ impl DataFlowGraph {
                 | Opcode::AndAlso
                 | Opcode::Or
                 | Opcode::OrElse
-                | Opcode::Not
-                | Opcode::IsType
-                | Opcode::IsTaggedTuple => {
+                | Opcode::Not => {
                     self.append_result(inst, Type::Term(TermType::Bool));
                     1
                 }

@@ -1,15 +1,34 @@
-use liblumen_core::symbols::FunctionSymbol;
+use core::arch::asm;
 
-extern "C" {
-    #[link_name = "__lumen_dispatch_start"]
-    pub static DISPATCH_START: *const FunctionSymbol;
+use liblumen_rt::function::FunctionSymbol;
 
-    #[link_name = "__lumen_dispatch_end"]
-    pub static DISPATCH_END: *const FunctionSymbol;
+extern "C-unwind" {
+    #[link_name = "__lumen_initialize_dispatch_table"]
+    pub fn init(start: *const FunctionSymbol, end: *const FunctionSymbol) -> bool;
+}
 
-    /// This function is defined in `liblumen_alloc::erts::apply`
-    pub fn InitializeLumenDispatchTable(
-        start: *const FunctionSymbol,
-        end: *const FunctionSymbol,
-    ) -> bool;
+pub(super) fn start() -> *const FunctionSymbol {
+    let mut ptr: *mut FunctionSymbol = core::ptr::null_mut();
+    unsafe {
+        asm!(
+            "adrp {x}, section$start$__DATA$__dispatch@GOTPAGE",
+            "ldr {x}, [{x}, section$start$__DATA$__dispatch@GOTPAGEOFF]",
+            x = inout(reg) ptr,
+            options(readonly, preserves_flags, nostack)
+        );
+    }
+    ptr
+}
+
+pub(super) fn end() -> *const FunctionSymbol {
+    let mut ptr: *mut FunctionSymbol = core::ptr::null_mut();
+    unsafe {
+        asm!(
+            "adrp {x}, section$end$__DATA$__dispatch@GOTPAGE",
+            "ldr {x}, [{x}, section$end$__DATA$__dispatch@GOTPAGEOFF]",
+            x = inout(reg) ptr,
+            options(readonly, preserves_flags, nostack)
+        );
+    }
+    ptr
 }

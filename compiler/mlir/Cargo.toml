@@ -28,9 +28,4 @@ rand = "0.8"
 anyhow = "1.0"
 cmake = "0.1"
 which = "4.0"
-handlebars = "3.5"
-heck = "0.4"
 liblumen_llvm = { path = "../llvm" }
-serde = { version = "1.0", features = ["derive"] }
-#serde_derive = "1.0"
-serde_json = "1.0"

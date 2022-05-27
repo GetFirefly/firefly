@@ -1,8 +1,14 @@
+mod apply;
 mod mfa;
 
+pub use self::apply::*;
 pub use self::mfa::ModuleFunctionArity;
 
+use crate::error::ErlangException;
 use crate::term::Atom;
+
+/// This type reflects the implicit return type expected by the Erlang calling convention
+pub type ErlangResult = Result<crate::term::OpaqueTerm, core::ptr::NonNull<ErlangException>>;
 
 /// This struct represents the serialized form of a symbol table entry
 ///
@@ -10,7 +16,9 @@ use crate::term::Atom;
 /// `ModuleFunctionArity` with an extra field (the function pointer).
 /// This allows the symbol table to use ModuleFunctionArity without
 /// requiring
-#[repr(C)]
+///
+/// NOTE: This struct must have a size that is a power of 8
+#[repr(C, align(8))]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionSymbol {
     /// Module name atom

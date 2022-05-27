@@ -125,8 +125,7 @@ bool mlir::cir::isCIRType(Type type) {
       CIRMapType,
       CIRFunType,
       CIRBitsType,
-      CIRHeapbinType,
-      CIRProcbinType,
+      CIRBinaryType,
       CIRBoxType,
       CIRPidType,
       CIRReferenceType,
@@ -152,8 +151,7 @@ bool mlir::cir::isTermType(Type type) {
 bool mlir::cir::isImmediateType(Type type) { return type.isa<ImmediateType>(); }
 
 bool mlir::cir::isBoxableType(Type type) {
-  if (type.isa<BoxedType, TupleType, CIRFloatType, CIRIntegerType,
-               CIRNumberType>()) {
+  if (type.isa<BoxedType, TupleType, CIRIntegerType, CIRNumberType>()) {
     return true;
   }
   return false;
@@ -164,7 +162,5 @@ bool mlir::cir::isTypePrimitiveNumeric(Type ty) {
     return true;
   if (ty.isa<CIRNumberType, CIRIntegerType, CIRFloatType, CIRIsizeType>())
     return true;
-  if (auto boxTy = ty.dyn_cast<CIRBoxType>())
-    return boxTy.getElementType().isa<CIRFloatType>();
   return false;
 }

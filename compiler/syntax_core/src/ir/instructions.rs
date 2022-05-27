@@ -209,6 +209,9 @@ pub enum Opcode {
     ConstList,
     ConstMap,
     IsNull,
+    Cast,
+    Trunc,
+    Zext,
     Add,
     Sub,
     Mul,
@@ -218,6 +221,12 @@ pub enum Opcode {
     Neg,
     Not,
     Bnot,
+    IcmpEq,
+    IcmpNeq,
+    IcmpGt,
+    IcmpGte,
+    IcmpLt,
+    IcmpLte,
     Eq,
     EqExact,
     Neq,
@@ -322,6 +331,12 @@ impl Opcode {
             | Self::Bxor
             | Self::Bsl
             | Self::Bsr
+            | Self::IcmpEq
+            | Self::IcmpNeq
+            | Self::IcmpGt
+            | Self::IcmpGte
+            | Self::IcmpLt
+            | Self::IcmpLte
             | Self::Eq
             | Self::EqExact
             | Self::Neq
@@ -332,6 +347,9 @@ impl Opcode {
             | Self::Lte => 2,
             // Unary ops always have one
             Self::IsNull
+            | Self::Cast
+            | Self::Trunc
+            | Self::Zext
             | Self::Neg
             | Self::Not
             | Self::Bnot
@@ -362,7 +380,7 @@ impl Opcode {
             Self::BrIf | Self::BrUnless => 1,
             // Unconditional branches have no fixed arguments
             Self::Br => 0,
-            // Returns require at least one argument, but in general two are present, the second being the exception flag
+            // Returns require at least one argument
             Self::Ret => 1,
             // The following primops expect no arguments
             Self::BuildStacktrace => 0,
@@ -397,6 +415,9 @@ impl fmt::Display for Opcode {
             Self::ConstList => f.write_str("const.list"),
             Self::ConstMap => f.write_str("const.map"),
             Self::IsNull => f.write_str("is_null"),
+            Self::Cast => f.write_str("cast"),
+            Self::Trunc => f.write_str("trunc"),
+            Self::Zext => f.write_str("zext"),
             Self::Br => f.write_str("br"),
             Self::BrIf => f.write_str("br.if"),
             Self::BrUnless => f.write_str("br.unless"),
@@ -420,6 +441,12 @@ impl fmt::Display for Opcode {
             Self::Bxor => f.write_str("bxor"),
             Self::Bsl => f.write_str("bsl"),
             Self::Bsr => f.write_str("bsr"),
+            Self::IcmpEq => f.write_str("icmp.eq"),
+            Self::IcmpNeq => f.write_str("icmp.neq"),
+            Self::IcmpGt => f.write_str("icmp.gt"),
+            Self::IcmpGte => f.write_str("icmp.gte"),
+            Self::IcmpLt => f.write_str("icmp.lt"),
+            Self::IcmpLte => f.write_str("icmp.lte"),
             Self::Eq => f.write_str("eq"),
             Self::EqExact => f.write_str("eq.exact"),
             Self::Neq => f.write_str("neq"),
@@ -613,8 +640,8 @@ pub struct Ret {
 #[derive(Debug, Clone)]
 pub struct RetImm {
     pub op: Opcode,
-    pub arg: Value,
     pub imm: Immediate,
+    pub arg: Value,
 }
 
 /// A primop that takes a variable number of terms

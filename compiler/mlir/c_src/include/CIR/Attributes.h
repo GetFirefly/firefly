@@ -2,12 +2,14 @@
 
 #include "CIR-c/AtomRef.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 
 namespace llvm {
 class StringRef;
 } // namespace llvm
 
 namespace mlir {
+class IntegerAttr;
 namespace cir {
 class CIRAtomType;
 
@@ -46,6 +48,8 @@ llvm::hash_code hash_value(const AtomRef &atom);
 //===----------------------------------------------------------------------===//
 // Tablegen
 //===----------------------------------------------------------------------===//
+
+#include "CIR/CIREnums.h.inc"
 
 #define GET_ATTRDEF_CLASSES
 #include "CIR/CIRAttributes.h.inc"

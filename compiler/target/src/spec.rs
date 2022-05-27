@@ -19,7 +19,23 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-pub use liblumen_term::EncodingType;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EncodingType {
+    /// Use the default encoding based on target pointer width
+    Default,
+    /// Use a 32-bit encoding
+    Encoding32,
+    /// Use a 64-bit encoding
+    Encoding64,
+    /// An alternative 64-bit encoding, based on NaN-boxing
+    Encoding64Nanboxed,
+}
+impl EncodingType {
+    #[inline(always)]
+    pub fn is_nanboxed(self) -> bool {
+        self == Self::Encoding64Nanboxed
+    }
+}
 
 use self::abi::Abi;
 use self::crt_objects::{CrtObjects, CrtObjectsFallback};
@@ -900,7 +916,7 @@ impl Default for TargetOptions {
     fn default() -> TargetOptions {
         TargetOptions {
             is_builtin: false,
-            encoding: EncodingType::Default,
+            encoding: EncodingType::Encoding64Nanboxed,
             endianness: Endianness::Little,
             c_int_width: "32".into(),
             os: "none".into(),

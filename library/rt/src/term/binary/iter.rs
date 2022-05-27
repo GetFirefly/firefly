@@ -21,7 +21,7 @@ impl<'a> ByteIter<'a> {
     /// NOTE: This function will panic if the required number of bytes expressed by the offset and length
     /// in bits is greater than the number of bytes present in the slice
     pub fn new(data: &'a [u8], bit_offset: u8, num_bits: usize) -> Self {
-        let total_bits = num_bits + bit_offset;
+        let total_bits = num_bits + bit_offset as usize;
         let len = (total_bits / 8) + ((total_bits % 8 > 0) as usize);
         assert!(data.len() >= len);
         Self {
@@ -202,4 +202,4 @@ impl<'a> iter::ExactSizeIterator for ByteIter<'a> {
     }
 }
 impl<'a> iter::FusedIterator for ByteIter<'a> {}
-impl<'a> iter::TrustedLen for ByteIter<'a> {}
+unsafe impl<'a> iter::TrustedLen for ByteIter<'a> {}

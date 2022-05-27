@@ -1,3 +1,4 @@
+use alloc::format;
 use core::fmt;
 use core::str::FromStr;
 
@@ -36,19 +37,19 @@ impl Encoding {
 
     #[inline]
     pub fn is_latin1(s: &[u8]) -> bool {
-        s.iter().copied().all(|b| is_latin1_byte(b))
+        s.iter().copied().all(|b| Self::is_latin1_byte(b))
     }
 
     #[inline(always)]
     pub fn is_latin1_byte(byte: u8) -> bool {
         // The Latin-1 codepage starts at 0x20, skips 0x7F-0x9F, then continues to 0xFF
-        (digit <= 0x1F) | ((digit >= 0x7F) & (digit <= 0x9F))
+        (byte <= 0x1F) | ((byte >= 0x7F) & (byte <= 0x9F))
     }
 }
 impl FromStr for Encoding {
     type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Error> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "raw" => Ok(Self::Raw),
             "latin1" => Ok(Self::Latin1),
@@ -78,14 +79,14 @@ impl TryFrom<Term> for Encoding {
             Term::Atom(a) => a.as_str().parse(),
             other => Err(anyhow!(
                 "invalid encoding name: expected atom; got {}",
-                other.type_of()
+                &other
             )),
         }
     }
 }
 // Support converting from atom terms to `Encoding` type
 impl TryFrom<Atom> for Encoding {
-    type Error = InvalidEncodingNameError;
+    type Error = anyhow::Error;
 
     #[inline]
     fn try_from(atom: Atom) -> Result<Self, Self::Error> {
@@ -102,30 +103,45 @@ impl TryFrom<Atom> for Encoding {
 #[repr(transparent)]
 pub struct BinaryFlags(usize);
 impl BinaryFlags {
-    const FLAG_IS_RAW_BIN: usize = 1;
-    const FLAG_IS_LATIN1_BIN: usize = 1 << 1;
-    const FLAG_IS_UTF8_BIN: usize = 1 << 2;
-    const FLAG_IS_LITERAL: usize = 1 << 3;
+    const FLAG_IS_RAW_BIN: usize = 0x01;
+    const FLAG_IS_LATIN1_BIN: usize = 0x02;
+    const FLAG_IS_UTF8_BIN: usize = 0x04;
+    const FLAG_IS_LITERAL: usize = 0x08;
     const FLAG_ENCODING_MASK: usize = 0b111;
+    const FLAG_META_MASK: usize = 0b1111;
+    const FLAG_SIZE_SHIFT: usize = 4;
 
     /// Converts an `Encoding` to a raw flags bitset
     #[inline]
-    pub fn new(encoding: Encoding) -> Self {
-        match encoding {
-            Encoding::Raw => Self(Self::FLAG_IS_RAW_BIN),
-            Encoding::Latin1 => Self(Self::FLAG_IS_LATIN1_BIN),
-            Encoding::Utf8 => Self(Self::FLAG_IS_UTF8_BIN),
-        }
+    pub fn new(size: usize, encoding: Encoding) -> Self {
+        let meta = match encoding {
+            Encoding::Raw => Self::FLAG_IS_RAW_BIN,
+            Encoding::Latin1 => Self::FLAG_IS_LATIN1_BIN,
+            Encoding::Utf8 => Self::FLAG_IS_UTF8_BIN,
+        };
+        Self((size << Self::FLAG_SIZE_SHIFT) | meta)
     }
 
     /// Converts an `Encoding` to a raw flags bitset for a binary literal
     #[inline]
-    pub fn new_literal(encoding: Encoding) -> Self {
-        match encoding {
-            Encoding::Raw => Self(Self::FLAG_IS_LITERAL | Self::FLAG_IS_RAW_BIN),
-            Encoding::Latin1 => Self(Self::FLAG_IS_LITERAL | Self::FLAG_IS_LATIN1_BIN),
-            Encoding::Utf8 => Self(Self::FLAG_IS_LITERAL | Self::FLAG_IS_UTF8_BIN),
-        }
+    pub fn new_literal(size: usize, encoding: Encoding) -> Self {
+        let meta = match encoding {
+            Encoding::Raw => Self::FLAG_IS_LITERAL | Self::FLAG_IS_RAW_BIN,
+            Encoding::Latin1 => Self::FLAG_IS_LITERAL | Self::FLAG_IS_LATIN1_BIN,
+            Encoding::Utf8 => Self::FLAG_IS_LITERAL | Self::FLAG_IS_UTF8_BIN,
+        };
+        Self((size << Self::FLAG_SIZE_SHIFT) | meta)
+    }
+
+    /// Replaces the size value of the given flags with the provided size in bytes
+    pub fn with_size(self, size: usize) -> Self {
+        Self((self.0 & Self::FLAG_META_MASK) | (size << Self::FLAG_SIZE_SHIFT))
+    }
+
+    /// Returns the byte size of the binary associated with these flags
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.0 >> Self::FLAG_SIZE_SHIFT
     }
 
     #[inline]
@@ -164,6 +180,7 @@ impl BinaryFlags {
 impl fmt::Debug for BinaryFlags {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("BinaryFlags")
+            .field("size", &self.size())
             .field("encoding", &format_args!("{}", self.as_encoding()))
             .field("literal", &self.is_literal())
             .finish()

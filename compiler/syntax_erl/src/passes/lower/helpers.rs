@@ -35,13 +35,12 @@ impl<'m> LowerFunctionToCore<'m> {
             let func = builder.get_or_register_callee(callee);
             builder.ins().call(func, args.as_slice(), span)
         };
-        let (result, exception) = {
+        let (is_err, result) = {
             let results = builder.inst_results(inst);
             (results[0], results[1])
         };
-        let ok = builder.ins().is_null(exception, span);
         let landing_pad = self.current_landing_pad(builder);
-        builder.ins().br_unless(ok, landing_pad, &[exception], span);
+        builder.ins().br_if(is_err, landing_pad, &[result], span);
         Ok(result)
     }
 
@@ -154,10 +153,10 @@ impl<'m> LowerFunctionToCore<'m> {
             let current_block = builder.current_block();
             let landing_pad = builder.create_block();
             let span = SourceSpan::default();
-            let exception = builder.append_block_param(landing_pad, Type::Exception, span);
+            let exception =
+                builder.append_block_param(landing_pad, Type::Term(TermType::Any), span);
             builder.switch_to_block(landing_pad);
-            let result = builder.ins().none(span);
-            builder.ins().ret(result, exception, span);
+            builder.ins().ret_err(exception, span);
             builder.switch_to_block(current_block);
             self.landing_pads.push(landing_pad);
             landing_pad

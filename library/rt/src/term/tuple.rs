@@ -1,11 +1,15 @@
 use alloc::alloc::{AllocError, Allocator, Layout};
+use alloc::format;
 use core::any::TypeId;
 use core::convert::AsRef;
 use core::fmt::{self, Debug};
 use core::hash::{Hash, Hasher};
+use core::ops::Range;
 use core::ptr::{self, NonNull};
 
-use super::{OpaqueTerm, Term, Type, Value};
+use anyhow::anyhow;
+
+use super::{OpaqueTerm, Term, TupleIndex};
 
 pub struct Tuple([OpaqueTerm]);
 impl Tuple {
@@ -18,15 +22,12 @@ impl Tuple {
     /// It is not safe to use the pointer returned from this function without first initializing all
     /// of the tuple elements with valid values. This function does not guarantee that the elements are
     /// in any particular state, so use of the tuple without the initialization step is undefined behavior.
-    pub unsafe fn new_in<A: Allocator>(
-        capacity: usize,
-        alloc: A,
-    ) -> Result<NonNull<Tuple>, AllocError> {
-        let (layout, value_offset) = Layout::<usize>::new()
-            .extend(Layout::<OpaqueTerm>::array(capacity).unwrap())
+    pub fn new_in<A: Allocator>(capacity: usize, alloc: A) -> Result<NonNull<Tuple>, AllocError> {
+        let (layout, value_offset) = Layout::new::<usize>()
+            .extend(Layout::array::<OpaqueTerm>(capacity).unwrap())
             .unwrap();
-        let ptr: NonNull<u8> = alloc.allocate(layout)?.cast();
-        let ptr = ptr::from_raw_parts_mut(ptr.add(value_offset).cast(), capacity);
+        let ptr: *mut u8 = alloc.allocate(layout)?.cast().as_ptr();
+        let ptr = unsafe { ptr::from_raw_parts_mut(ptr.add(value_offset).cast(), capacity) };
         Ok(unsafe { NonNull::new_unchecked(ptr) })
     }
 
@@ -38,9 +39,11 @@ impl Tuple {
         slice: &[OpaqueTerm],
         alloc: A,
     ) -> Result<NonNull<Tuple>, AllocError> {
-        let tuple = Self::new_in(slice.len(), alloc)?;
-        tuple.as_mut().copy_from_slice(slice);
-        tuple
+        unsafe {
+            let mut tuple = Self::new_in(slice.len(), alloc)?;
+            tuple.as_mut().copy_from_slice(slice);
+            Ok(tuple)
+        }
     }
 
     /// Gets the size of this tuple
@@ -53,26 +56,26 @@ impl Tuple {
         self.0.is_empty()
     }
 
-    /// Returns the element at 0-based index `index` as a `Value`
+    /// Returns the element at 0-based index `index` as a `Term`
     ///
     /// If the index is out of bounds, returns `None`
-    pub fn get(&self, index: usize) -> Option<Value> {
+    pub fn get(&self, index: usize) -> Option<Term> {
         self.0.get(index).copied().map(|term| term.into())
     }
 
-    /// Returns the element at the given 0-based index as a `Value` without bounds checks
+    /// Returns the element at the given 0-based index as a `Term` without bounds checks
     ///
     /// # Safety
     ///
     /// Calling this function with an out-of-bounds index is undefined behavior
-    pub unsafe fn get_unchecked(&self, index: usize) -> Value {
+    pub unsafe fn get_unchecked(&self, index: usize) -> Term {
         let term = *self.0.get_unchecked(index);
         term.into()
     }
 
     /// Like `get` but with either 0 or 1-based indexing.
     #[inline]
-    pub fn get_element<I: TupleIndex>(&self, index: I) -> anyhow::Result<Value> {
+    pub fn get_element<I: TupleIndex>(&self, index: I) -> anyhow::Result<Term> {
         let index: usize = index.into();
         self.get(index).ok_or_else(|| {
             anyhow!(
@@ -118,7 +121,13 @@ impl Tuple {
         &self.0
     }
 
-    /// Get an iterator over the elements of this tuple as `Value`
+    /// Get this tuple as a mutable slice of raw elements
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [OpaqueTerm] {
+        &mut self.0
+    }
+
+    /// Get an iterator over the elements of this tuple as `Term`
     pub fn iter(&self) -> TupleIter<'_> {
         TupleIter::new(self)
     }
@@ -141,14 +150,27 @@ impl Debug for Tuple {
         f.write_str("}")
     }
 }
+impl fmt::Display for Tuple {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("{")?;
+        for (i, element) in self.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", {}", element)?;
+            } else {
+                write!(f, "{}", element)?;
+            }
+        }
+        f.write_str("}")
+    }
+}
 impl PartialOrd for Tuple {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 impl Ord for Tuple {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        use std::cmp::Ordering;
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        use core::cmp::Ordering;
         let by_len = self.len().cmp(&other.len());
         if by_len != Ordering::Equal {
             return by_len;
@@ -197,7 +219,7 @@ impl TupleIter<'_> {
     }
 }
 impl<'a> Iterator for TupleIter<'a> {
-    type Item = Value;
+    type Item = Term;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.alive
@@ -235,4 +257,4 @@ impl<'a> core::iter::ExactSizeIterator for TupleIter<'a> {
     }
 }
 impl<'a> core::iter::FusedIterator for TupleIter<'a> {}
-impl<'a> core::iter::TrustedLen for TupleIter<'a> {}
+unsafe impl<'a> core::iter::TrustedLen for TupleIter<'a> {}

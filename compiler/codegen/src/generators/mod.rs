@@ -4,10 +4,10 @@
 
 use std::collections::HashSet;
 
-use liblumen_core::symbols::FunctionSymbol;
 use liblumen_intern::Symbol;
 use liblumen_llvm::target::TargetMachine;
 use liblumen_llvm::Context;
+use liblumen_rt::function::FunctionSymbol;
 use liblumen_session::Options;
 
 use crate::meta::CodegenResults;

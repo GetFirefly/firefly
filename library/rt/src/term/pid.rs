@@ -9,8 +9,8 @@ use super::{Node, Term};
 /// This struct abstracts over the locality of a process identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Pid {
-    Local { id: ProcessId }
-    External { id: ProcessId, node: Arc<Node> }
+    Local { id: ProcessId },
+    External { id: ProcessId, node: Arc<Node> },
 }
 impl Pid {
     pub const TYPE_ID: TypeId = TypeId::of::<Pid>();
@@ -39,14 +39,15 @@ impl Pid {
     /// time.
     #[inline]
     pub fn next() -> Self {
-        Self::Local { id: ProcessId::next() }
+        Self::Local {
+            id: ProcessId::next(),
+        }
     }
 
     /// Returns the raw process identifier
     pub fn id(&self) -> ProcessId {
         match self {
-            Self::Local { id }
-            | Self::External { id, .. } => *id,
+            Self::Local { id } | Self::External { id, .. } => *id,
         }
     }
 
@@ -63,7 +64,7 @@ impl TryFrom<Term> for Pid {
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         match term {
-            Term::Pid(pid) => Ok(Pid::clone(&pid)),
+            Term::Pid(pid) => Ok(Pid::clone(pid.as_ref())),
             _ => Err(()),
         }
     }
@@ -72,7 +73,9 @@ impl Display for Pid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Local { id } => write!(f, "<0.{}.{}>", id.number(), id.serial()),
-            Self::External { id, node } => write!(f, "<{}.{}.{}>", node.id(), id.number(), id.serial()),
+            Self::External { id, node } => {
+                write!(f, "<{}.{}.{}>", node.id(), id.number(), id.serial())
+            }
         }
     }
 }
@@ -84,12 +87,20 @@ impl Ord for Pid {
         match (self, other) {
             (Self::Local { id: x }, Self::Local { id: y }) => x.cmp(y),
             (Self::Local { .. }, _) => Ordering::Less,
-            (Self::External { id: xid, node: xnode }, Self::External { id: yid, node: ynode }) => {
-                match xnode.cmp(ynode) {
-                    Ordering::Equal => xid.cmp(yid),
-                    other => other,
-                }
-            }
+            (
+                Self::External {
+                    id: xid,
+                    node: xnode,
+                },
+                Self::External {
+                    id: yid,
+                    node: ynode,
+                },
+            ) => match xnode.cmp(ynode) {
+                Ordering::Equal => xid.cmp(yid),
+                other => other,
+            },
+            (Self::External { .. }, _) => Ordering::Greater,
         }
     }
 }
@@ -133,11 +144,6 @@ impl ProcessId {
         (self.0 & Self::SERIAL_MASK >> 32) as u32
     }
 
-    #[inline(always)]
-    pub(crate) fn as_u64(self) -> u64 {
-        self.0
-    }
-
     /// Creates a process identifier from the given number and serial components, manually.
     ///
     /// This function will return `Err` if either component is out of range.
@@ -162,8 +168,14 @@ impl ProcessId {
     /// validated or are guaranteed to be valid. Callers must always uphold the guarantees provided
     /// by this module (i.e. in terms of the valid range of the number and serial components).
     pub unsafe fn new_unchecked(number: u64, serial: u64) -> Self {
-        debug_assert!(serial <= Self::SERIAL_MAX, "invalid pid, serial is too large");
-        debug_assert!(number <= Self::NUMBER_MAX, "invalid pid, number is too large");
+        debug_assert!(
+            serial <= Self::SERIAL_MAX,
+            "invalid pid, serial is too large"
+        );
+        debug_assert!(
+            number <= Self::NUMBER_MAX,
+            "invalid pid, number is too large"
+        );
 
         Self::from_raw((serial << 32) | number)
     }
@@ -182,14 +194,24 @@ impl ProcessId {
 
         static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-        Self(COUNTER.fetch_update(SeqCst, SeqCst, calculate_next_pid).unwrap())
+        Self(
+            COUNTER
+                .fetch_update(SeqCst, SeqCst, calculate_next_pid)
+                .unwrap(),
+        )
     }
 
     /// Given a the raw process id value (as a usize), reifies it into a `ProcessId`
     #[inline]
-    pub unsafe const fn from_raw(pid: u64) -> Self {
-        debug_assert!(pid & Self::SERIAL_MASK <= Self::SERIAL_MAX, "invalid pid, serial is too large");
-        debug_assert!(pid & Self::NUMBER_MASK <= Self::NUMBER_MAX, "invalid pid, number is too large");
+    pub unsafe fn from_raw(pid: u64) -> Self {
+        debug_assert!(
+            pid & Self::SERIAL_MASK <= Self::SERIAL_MAX,
+            "invalid pid, serial is too large"
+        );
+        debug_assert!(
+            pid & Self::NUMBER_MASK <= Self::NUMBER_MAX,
+            "invalid pid, number is too large"
+        );
         Self(pid)
     }
 }
@@ -213,13 +235,13 @@ fn calculate_next_pid(x: u64) -> Option<u64> {
     const SERIAL_INC: u64 = 1 << 16;
 
     // Fast path
-    if unsafe { likely(x & ProcessId::NUMBER_MASK < ProcessId::NUMBER_MAX) } {
+    if likely(x & ProcessId::NUMBER_MASK < ProcessId::NUMBER_MAX) {
         return Some(x + NUMBER_INC);
     }
 
     // Slow path
     let next = (x & ProcessId::SERIAL_MASK) + SERIAL_INC;
-    if unsafe { likely(next & ProcessId::SERIAL_MASK <= ProcessId::SERIAL_MAX) } {
+    if likely(next & ProcessId::SERIAL_MASK <= ProcessId::SERIAL_MAX) {
         return Some(next);
     }
 
@@ -237,9 +259,13 @@ mod tests {
     fn pid_rollover() {
         const MAX_PID: u64 = ProcessId::SERIAL_MAX | ProcessId::NUMBER_MAX;
         static SERIAL_ROLLOVER: AtomicU64 = AtomicU64::new(MAX_PID);
-        let next = SERIAL_ROLLOVER.fetch_update(SeqCst, SeqCst, calculate_next_pid).unwrap();
+        let next = SERIAL_ROLLOVER
+            .fetch_update(SeqCst, SeqCst, calculate_next_pid)
+            .unwrap();
         assert_eq!(next.as_u64(), MAX_PID);
-        let next = SERIAL_ROLLOVER.fetch_update(SeqCst, SeqCst, calculate_next_pid).unwrap();
+        let next = SERIAL_ROLLOVER
+            .fetch_update(SeqCst, SeqCst, calculate_next_pid)
+            .unwrap();
         assert_eq!(next.as_u64(), 0);
     }
 
@@ -247,9 +273,13 @@ mod tests {
     fn pid_serial_increment() {
         const MAX_NUM: u64 = ProcessId::NUMBER_MAX;
         static NUM_ROLLOVER: AtomicU64 = AtomicU64::new(MAX_NUM);
-        let next = NUM_ROLLOVER.fetch_update(SeqCst, SeqCst, calculate_next_pid).unwrap();
+        let next = NUM_ROLLOVER
+            .fetch_update(SeqCst, SeqCst, calculate_next_pid)
+            .unwrap();
         assert_eq!(next.as_u64(), MAX_NUM);
-        let next = NUM_ROLLOVER.fetch_update(SeqCst, SeqCst, calculate_next_pid).unwrap();
+        let next = NUM_ROLLOVER
+            .fetch_update(SeqCst, SeqCst, calculate_next_pid)
+            .unwrap();
         assert_eq!(next.as_u64(), (1u64 << 32));
     }
 }

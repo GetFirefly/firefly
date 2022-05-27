@@ -25,9 +25,7 @@ impl Frame for backtrace::BacktraceFrame {
             } else {
                 None
             };
-            let filename = symbol
-                .filename()
-                .and_then(|p| p.to_string_lossy().into_owned());
+            let filename = symbol.filename().map(|p| p.to_string_lossy().into_owned());
             let line = symbol.lineno();
             result = Some(Symbolication {
                 mfa,
@@ -69,7 +67,9 @@ impl TraceFrame {
     #[inline]
     fn set_symbol(&self, symbol: Option<Symbolication>) -> Option<&Symbolication> {
         let ptr = self.symbol.get();
-        ptr.write(symbol);
+        unsafe {
+            ptr.write(symbol);
+        }
         unsafe { &*ptr }.as_ref()
     }
 

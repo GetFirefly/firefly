@@ -2,7 +2,6 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 CRATE_WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
-LIBLUMEN_TERM_INCLUDE_DIR="${CRATE_WORKSPACE_DIR}/compiler/term/c_src/include"
 LIBLUMEN_MLIR_INCLUDE_DIR="${CRATE_WORKSPACE_DIR}/compiler/mlir/c_src/include"
 
 tablegen=
@@ -40,7 +39,7 @@ mkdir -p "$(dirname "$tablegen_output")"
 
 # Run llvm-tablegen on the given input file, with all includes covering all builtin and Lumen dialects
 # The result is a JSON file written to $tablegen_json
-if ! "$tablegen" -I"${LLVM_PREFIX}/include" -I"${LIBLUMEN_TERM_INCLUDE_DIR}" -I"${LIBLUMEN_MLIR_INCLUDE_DIR}" --dump-json -o "$tablegen_json" "${tablegen_input}"; then
+if ! "$tablegen" -I"${LLVM_PREFIX}/include" -I"${LIBLUMEN_MLIR_INCLUDE_DIR}" --dump-json -o "$tablegen_json" "${tablegen_input}"; then
    echo "Error occurred while dumping json representation of ${tablegen_input}"
    exit 1
 fi

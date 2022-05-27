@@ -1,0 +1,20 @@
+[package]
+name = "lumen_rt_tiny"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@fastmail.com>"]
+publish = false
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+anyhow = "1.0"
+bus = "2.2"
+signal-hook = "0.3"
+libc = "0.2"
+
+liblumen_arena = { path = "../../library/arena" }
+liblumen_alloc = { path = "../../library/alloc" }
+liblumen_crt = { path = "../crt" }
+liblumen_rt = { path = "../../library/rt" }

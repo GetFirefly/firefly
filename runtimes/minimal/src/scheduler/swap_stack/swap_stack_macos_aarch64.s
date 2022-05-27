@@ -109,7 +109,7 @@ ___lumen_swap_stack:
     ; NOTE: We know that the first two registers, i.e. x0/x1 will hold the two fields of the
     ; ErlangResult struct, as these registers are also used when returning that struct. In
     ; short, we're return-calling :P
-    b __lumen_builtin_exit
+    b ___lumen_builtin_exit
 
 L_resume:
     ; We land here only on a context switch, and since the last switch _away_ from

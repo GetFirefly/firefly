@@ -13,32 +13,49 @@ mod port;
 mod reference;
 mod tuple;
 
-pub use self::atom::Atom;
-pub use self::binary::Binary;
+pub use self::atom::{Atom, AtomData};
+pub use self::binary::*;
 pub use self::closure::Closure;
 pub use self::float::Float;
 pub use self::index::{NonPrimitiveIndex, OneBasedIndex, TupleIndex, ZeroBasedIndex};
 pub use self::integer::BigInteger;
-pub use self::list::Cons;
+pub use self::list::{Cons, ListBuilder};
 pub use self::map::Map;
 pub use self::node::Node;
-pub use self::opaque::OpaqueTerm;
+pub use self::opaque::{OpaqueTerm, TermType};
 pub use self::pid::{Pid, ProcessId};
 pub use self::port::{Port, PortId};
-pub use self::reference::{LocalRef, Reference};
+pub use self::reference::{Reference, ReferenceId};
 pub use self::tuple::Tuple;
 
-use alloc::alloc::Allocator;
-use core::any::Any;
-use core::ops::Deref;
+use alloc::alloc::AllocError;
+use core::fmt;
 use core::ptr::NonNull;
 
-use static_assertions::assert_eq_size;
-
 use liblumen_alloc::gc::GcBox;
+use liblumen_alloc::heap::Heap;
+use liblumen_alloc::rc::{Rc, Weak};
 
-assert_eq_size!(Term, (u32, u64));
-
+/// `Term` is two things:
+///
+/// * An enumeration of the types that can be represented as Erlang values,
+/// unifying them under a single conceptual value type, i.e. term. As such,
+/// Term is how comparisons/equality/etc. are defined between value types.
+///
+/// * The decoded form of `OpaqueTerm`. `OpaqueTerm` is a compact encoding intended to
+/// guarantee that passing around a term value in Erlang code is always the same size (i.e.
+/// u64 on 64-bit systems). This invariant is not needed in Rust, and it is more ergonomic
+/// and performant to pass around a less compact represenetation. However, we want to preserve
+/// the `Copy`-ability of the `OpaqueTerm` representation, so `Term` still requires some care
+/// when performing certain operations such as cloning and dropping, where the underlying type
+/// may have additional invariants that `Term` does not know about. For example, we use trait
+/// objects for the various binary types to keep things simple when working with them as terms,
+/// but when garbage collecting, we must make sure that we operate on the concrete type,
+/// as some binaries are heap-allocated while others are reference-counted, and the semantics
+/// of how those are collected are different.
+///
+/// See notes on the individual variants for why a specific representation was chosen for that
+/// variant.
 #[derive(Debug, Copy, Clone, Hash)]
 #[repr(C)]
 pub enum Term {
@@ -49,67 +66,122 @@ pub enum Term {
     Int(i64),
     BigInt(GcBox<BigInteger>),
     Float(Float),
+    /// Cons cells are not allocated via a box type, but are instead differentiated
+    /// from other boxed terms by the pointer tagging scheme
     Cons(NonNull<Cons>),
+    /// Tuples, like Cons, is not allocated via a box type, but has its own pointer tag scheme
     Tuple(NonNull<Tuple>),
     Map(GcBox<Map>),
     Closure(GcBox<Closure>),
     Pid(GcBox<Pid>),
     Port(GcBox<Port>),
     Reference(GcBox<Reference>),
-    Binary(GcBox<Binary>),
+    HeapBinary(GcBox<BinaryData>),
+    RcBinary(Weak<BinaryData>),
+    RefBinary(GcBox<BitSlice>),
+    ConstantBinary(&'static BinaryData),
 }
 impl Term {
-    pub fn clone_in<A: Allocator>(&self, alloc: A) -> Self {
-        match self {
+    pub fn clone_to_heap<H: Heap>(self, heap: H) -> Result<Self, AllocError> {
+        let cloned = match self {
             Self::None => Self::None,
             Self::Nil => Self::Nil,
-            Self::Bool(b) => Self::Bool(*b),
-            Self::Atom(a) => Self::Atom(*a),
-            Self::Int(i) => Self::Int(*i),
-            Self::Float(f) => Self::Float(*f),
-            Self::BigInt(i) => {
-                let mut empty = GcBox::new_uninit_in(alloc);
-                empty.write((&**i).clone());
-                Self::BigInt(unsafe { empty.assume_init() })
-            }
-            Self::Cons(boxed) => {
-                let old = unsafe { boxed.as_ref() };
-                let cons = Cons::new_in(alloc).unwrap();
-                unsafe {
-                    cons.as_ptr().write(*old);
+            Self::Bool(b) => Self::Bool(b),
+            Self::Atom(a) => Self::Atom(a),
+            Self::Int(i) => Self::Int(i),
+            Self::Float(f) => Self::Float(f),
+            Self::BigInt(boxed) => {
+                if heap.contains(GcBox::as_ptr(&boxed)) {
+                    Self::BigInt(boxed)
+                } else {
+                    let mut empty = GcBox::new_uninit_in(heap)?;
+                    empty.write((&*boxed).clone());
+                    Self::BigInt(unsafe { empty.assume_init() })
                 }
-                Self::Cons(cons)
             }
-            Self::Tuple(tup) => {
-                let tup = unsafe { tup.as_ref() };
-                let len = tup.len();
-                let mut cloned = Tuple::new_in(len, alloc).unwrap();
-                unsafe {
-                    cloned.as_mut().copy_from_slice(tup.as_slice());
+            Self::Cons(ptr) => {
+                if heap.contains(ptr.as_ptr()) {
+                    Self::Cons(ptr)
+                } else {
+                    let old = unsafe { ptr.as_ref() };
+                    let mut cons = Cons::new_in(heap)?;
+                    unsafe {
+                        cons.as_uninit_mut().write(*old);
+                    }
+                    Self::Cons(cons)
                 }
-                Self::Tuple(cloned)
             }
-            Self::Map(map) => Self::Map(GcBox::new_in((&**map).clone(), alloc)),
-            Self::Closure(fun) => {
-                let len = fun.len();
-                let mut cloned = GcBox::<Closure>::with_capacity_in(len, alloc);
-                cloned.copy_from(&fun);
-                Self::Closure(cloned)
-            }
-            Self::Pid(pid) => Self::Pid(GcBox::new_in((&**pid).clone(), alloc)),
-            Self::Port(port) => Self::Port(GcBox::new_in((&**port).clone(), alloc)),
-            Self::Reference(r) => Self::Reference(GcBox::new_in((&**r).clone(), alloc)),
-            Self::Binary(b) => {
-                let flags = b.flags();
-                let len = b.len();
-                let mut cloned = GcBox::<Binary>::with_capacity_in(len, alloc);
-                unsafe {
-                    cloned.set_flags(flags);
+            Self::Tuple(ptr) => {
+                if heap.contains(ptr.as_ptr()) {
+                    Self::Tuple(ptr)
+                } else {
+                    let tuple = unsafe { ptr.as_ref() };
+                    Self::Tuple(Tuple::from_slice(tuple.as_slice(), heap)?)
                 }
-                cloned.copy_from_slice(b.as_bytes());
-                Self::Binary(cloned)
             }
-        }
+            Self::Map(boxed) => {
+                if heap.contains(GcBox::as_ptr(&boxed)) {
+                    Self::Map(boxed)
+                } else {
+                    Self::Map(GcBox::new_in((&*boxed).clone(), heap)?)
+                }
+            }
+            Self::Closure(boxed) => {
+                if heap.contains(GcBox::as_ptr(&boxed)) {
+                    Self::Closure(boxed)
+                } else {
+                    let mut cloned = GcBox::<Closure>::with_capacity_in(boxed.env_size(), heap)?;
+                    cloned.copy_from(&boxed);
+                    Self::Closure(cloned)
+                }
+            }
+            Self::Pid(boxed) => {
+                if heap.contains(GcBox::as_ptr(&boxed)) {
+                    Self::Pid(boxed)
+                } else {
+                    Self::Pid(GcBox::new_in((&*boxed).clone(), heap)?)
+                }
+            }
+            Self::Port(boxed) => {
+                if heap.contains(GcBox::as_ptr(&boxed)) {
+                    Self::Port(boxed)
+                } else {
+                    Self::Port(GcBox::new_in((&*boxed).clone(), heap)?)
+                }
+            }
+            Self::Reference(boxed) => {
+                if heap.contains(GcBox::as_ptr(&boxed)) {
+                    Self::Reference(boxed)
+                } else {
+                    Self::Reference(GcBox::new_in((&*boxed).clone(), heap)?)
+                }
+            }
+            Self::HeapBinary(boxed) => {
+                if heap.contains(GcBox::as_ptr(&boxed)) {
+                    Self::HeapBinary(boxed)
+                } else {
+                    let bytes = boxed.as_bytes();
+                    let mut cloned = GcBox::<BinaryData>::with_capacity_in(bytes.len(), heap)?;
+                    {
+                        unsafe {
+                            cloned.set_flags(boxed.flags());
+                        }
+                        cloned.copy_from_slice(bytes);
+                    }
+                    Self::HeapBinary(cloned)
+                }
+            }
+            Self::RcBinary(ref weak) => Self::RcBinary(Rc::into_weak(Weak::upgrade(weak))),
+            Self::RefBinary(boxed) => {
+                if heap.contains(GcBox::as_ptr(&boxed)) {
+                    Self::RefBinary(boxed)
+                } else {
+                    Self::RefBinary(GcBox::<BitSlice>::new_in((&*boxed).clone(), heap)?)
+                }
+            }
+            Self::ConstantBinary(bytes) => Self::ConstantBinary(bytes),
+        };
+        Ok(cloned)
     }
 
     pub fn is_none(&self) -> bool {
@@ -142,47 +214,70 @@ impl Term {
 
     pub fn as_map(&self) -> Option<&Map> {
         match self {
-            Self::Map(map) => Some(map.deref()),
+            Self::Map(map) => Some(map.as_ref()),
             _ => None,
         }
     }
 
     pub fn as_closure(&self) -> Option<&Closure> {
         match self {
-            Self::Closure(fun) => Some(fun.deref()),
+            Self::Closure(fun) => Some(fun.as_ref()),
             _ => None,
         }
     }
     pub fn as_pid(&self) -> Option<&Pid> {
         match self {
-            Self::Pid(pid) => Some(pid.deref()),
+            Self::Pid(pid) => Some(pid.as_ref()),
             _ => None,
         }
     }
 
     pub fn as_port(&self) -> Option<&Port> {
         match self {
-            Self::Port(port) => Some(port.deref()),
+            Self::Port(port) => Some(port.as_ref()),
             _ => None,
         }
     }
 
     pub fn as_reference(&self) -> Option<&Reference> {
         match self {
-            Self::Reference(r) => Some(r.deref()),
+            Self::Reference(r) => Some(r.as_ref()),
             _ => None,
         }
     }
 
-    pub fn as_binary(&self) -> Option<&Binary> {
+    pub fn as_bitstring(&self) -> Option<&dyn Bitstring> {
         match self {
-            Self::Binary(bin) => Some(bin.deref()),
+            Self::HeapBinary(boxed) => Some(boxed),
+            Self::RcBinary(boxed) => Some(boxed),
+            Self::RefBinary(boxed) => Some(boxed),
+            Self::ConstantBinary(bytes) => Some(bytes),
             _ => None,
         }
+    }
+
+    pub fn is_bitstring(&self) -> bool {
+        match self {
+            Self::HeapBinary(_)
+            | Self::RcBinary(_)
+            | Self::RefBinary(_)
+            | Self::ConstantBinary(_) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn as_char(self) -> Result<char, ()> {
+        self.try_into()
     }
 
     pub fn exact_eq(&self, other: &Self) -> bool {
-        if std::mem::discriminant(self) != std::mem::discriminant(other) {
+        // With exception of bitstring variants, if the discriminant is different, the
+        // types can never be exactly equal
+        if core::mem::discriminant(self) != core::mem::discriminant(other) {
+            if self.is_bitstring() && other.is_bitstring() {
+                return self.eq(other);
+            }
             return false;
         }
         self.eq(other)
@@ -196,6 +291,21 @@ impl From<bool> for Term {
 impl From<Atom> for Term {
     fn from(a: Atom) -> Self {
         Self::Atom(a)
+    }
+}
+impl TryFrom<usize> for Term {
+    type Error = ();
+    #[inline]
+    fn try_from(i: usize) -> Result<Self, ()> {
+        let i: i64 = i.try_into().map_err(|_| ())?;
+        i.try_into()
+    }
+}
+impl TryFrom<isize> for Term {
+    type Error = ();
+    #[inline]
+    fn try_from(i: isize) -> Result<Self, ()> {
+        (i as i64).try_into()
     }
 }
 impl TryFrom<i64> for Term {
@@ -258,86 +368,140 @@ impl From<GcBox<Reference>> for Term {
         Self::Reference(term)
     }
 }
-impl From<GcBox<Binary>> for Term {
-    fn from(term: GcBox<Binary>) -> Self {
-        Self::Binary(term)
+impl From<GcBox<BinaryData>> for Term {
+    fn from(term: GcBox<BinaryData>) -> Self {
+        Self::HeapBinary(term)
+    }
+}
+impl From<Weak<BinaryData>> for Term {
+    fn from(term: Weak<BinaryData>) -> Self {
+        Self::RcBinary(term)
+    }
+}
+impl From<GcBox<BitSlice>> for Term {
+    fn from(term: GcBox<BitSlice>) -> Self {
+        Self::RefBinary(term)
+    }
+}
+impl From<&'static BinaryData> for Term {
+    fn from(term: &'static BinaryData) -> Self {
+        Self::ConstantBinary(term)
     }
 }
 impl TryInto<bool> for Term {
-    type Error = Term;
+    type Error = ();
     fn try_into(self) -> Result<bool, Self::Error> {
         match self {
             Self::Bool(b) => Ok(b),
             Self::Atom(a) if a.is_boolean() => Ok(a.as_boolean()),
-            other => Err(other),
+            _ => Err(()),
         }
     }
 }
 impl TryInto<Atom> for Term {
-    type Error = Term;
+    type Error = ();
     fn try_into(self) -> Result<Atom, Self::Error> {
         match self {
             Self::Atom(a) => Ok(a),
             Self::Bool(b) => Ok(b.into()),
-            other => Err(other),
+            _ => Err(()),
+        }
+    }
+}
+impl TryInto<char> for Term {
+    type Error = ();
+    fn try_into(self) -> Result<char, Self::Error> {
+        const MAX: i64 = char::MAX as u32 as i64;
+
+        let i: i64 = self.try_into()?;
+
+        if i >= 0 && i <= MAX {
+            (i as u32).try_into().map_err(|_| ())
+        } else {
+            Err(())
         }
     }
 }
 impl TryInto<i64> for Term {
-    type Error = Term;
+    type Error = ();
+    #[inline]
     fn try_into(self) -> Result<i64, Self::Error> {
         match self {
             Self::Int(i) => Ok(i),
             Self::BigInt(i) => match i.as_i64() {
                 Some(i) => Ok(i),
-                None => Err(self),
+                None => Err(()),
             },
-            other => Err(other),
+            _ => Err(()),
         }
     }
 }
 impl TryInto<NonNull<Cons>> for Term {
-    type Error = Term;
+    type Error = ();
     fn try_into(self) -> Result<NonNull<Cons>, Self::Error> {
         match self {
             Self::Cons(c) => Ok(c),
-            other => Err(other),
+            _ => Err(()),
         }
     }
 }
 impl TryInto<NonNull<Tuple>> for Term {
-    type Error = Term;
+    type Error = ();
     fn try_into(self) -> Result<NonNull<Tuple>, Self::Error> {
         match self {
             Self::Tuple(t) => Ok(t),
-            other => Err(other),
+            _ => Err(()),
         }
     }
 }
 impl TryInto<GcBox<BigInteger>> for Term {
-    type Error = Term;
+    type Error = ();
     fn try_into(self) -> Result<GcBox<BigInteger>, Self::Error> {
         match self {
             Self::BigInt(i) => Ok(i),
-            other => Err(other),
+            _ => Err(()),
         }
     }
 }
 impl TryInto<f64> for Term {
-    type Error = Term;
+    type Error = ();
     fn try_into(self) -> Result<f64, Self::Error> {
         match self {
             Self::Float(f) => Ok(f.into()),
-            other => Err(other),
+            _ => Err(()),
         }
     }
 }
 impl TryInto<Float> for Term {
-    type Error = Term;
+    type Error = ();
     fn try_into(self) -> Result<Float, Self::Error> {
         match self {
             Self::Float(f) => Ok(f),
-            other => Err(other),
+            _ => Err(()),
+        }
+    }
+}
+impl fmt::Display for Term {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::None => write!(f, "NONE"),
+            Self::Nil => f.write_str("[]"),
+            Self::Bool(term) => write!(f, "{}", term),
+            Self::Atom(term) => write!(f, "{}", term),
+            Self::Int(term) => write!(f, "{}", term),
+            Self::BigInt(term) => write!(f, "{}", term),
+            Self::Float(term) => write!(f, "{}", term),
+            Self::Cons(ptr) => write!(f, "{}", unsafe { ptr.as_ref() }),
+            Self::Tuple(ptr) => write!(f, "{}", unsafe { ptr.as_ref() }),
+            Self::Map(boxed) => write!(f, "{}", boxed),
+            Self::Closure(boxed) => write!(f, "{}", boxed),
+            Self::Pid(boxed) => write!(f, "{}", boxed),
+            Self::Port(boxed) => write!(f, "{}", boxed),
+            Self::Reference(boxed) => write!(f, "{}", boxed),
+            Self::HeapBinary(boxed) => write!(f, "{}", boxed),
+            Self::RcBinary(boxed) => write!(f, "{}", boxed),
+            Self::RefBinary(boxed) => write!(f, "{}", boxed),
+            Self::ConstantBinary(bytes) => write!(f, "{}", bytes),
         }
     }
 }
@@ -401,21 +565,45 @@ impl PartialEq for Term {
                 Self::Reference(y) => x == y,
                 _ => false,
             },
-            Self::Binary(x) => match other {
-                Self::Binary(y) => x == y,
+            Self::HeapBinary(x) => match other {
+                Self::ConstantBinary(y) => x.as_ref().eq(y),
+                Self::HeapBinary(y) => x.as_ref().eq(y.as_ref()),
+                Self::RcBinary(y) => x.as_ref().eq(y.as_ref()),
+                Self::RefBinary(y) => x.as_ref().eq(y.as_ref()),
+                _ => false,
+            },
+            Self::RcBinary(x) => match other {
+                Self::ConstantBinary(y) => x.as_ref().eq(y),
+                Self::HeapBinary(y) => x.as_ref().eq(y.as_ref()),
+                Self::RcBinary(y) => x.as_ref().eq(y.as_ref()),
+                Self::RefBinary(y) => x.as_ref().eq(y.as_ref()),
+                _ => false,
+            },
+            Self::RefBinary(x) => match other {
+                Self::ConstantBinary(y) => x.as_ref().eq(y),
+                Self::HeapBinary(y) => x.as_ref().eq(y),
+                Self::RcBinary(y) => x.as_ref().eq(y),
+                Self::RefBinary(y) => x.as_ref().eq(y),
+                _ => false,
+            },
+            Self::ConstantBinary(x) => match other {
+                Self::ConstantBinary(y) => x.eq(y),
+                Self::HeapBinary(y) => x.as_bytes().eq(y.as_bytes()),
+                Self::RcBinary(y) => x.as_bytes().eq(y.as_bytes()),
+                Self::RefBinary(y) => y.as_ref().eq(x),
                 _ => false,
             },
         }
     }
 }
 impl PartialOrd for Term {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 impl Ord for Term {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        use std::cmp::Ordering;
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        use core::cmp::Ordering;
 
         match self {
             // None is always least
@@ -430,16 +618,8 @@ impl Ord for Term {
             Self::Int(x) => match other {
                 Self::None => Ordering::Greater,
                 Self::Int(y) => x.cmp(y),
-                Self::BigInt(y) => match (&**y).partial_cmp(x).unwrap() {
-                    Ordering::Less => Ordering::Greater,
-                    Ordering::Greater => Ordering::Less,
-                    equal => equal,
-                },
-                Self::Float(y) => match y.partial_cmp(x).unwrap() {
-                    Ordering::Less => Ordering::Greater,
-                    Ordering::Greater => Ordering::Less,
-                    equal => equal,
-                },
+                Self::BigInt(y) => (&**y).partial_cmp(x).unwrap().reverse(),
+                Self::Float(y) => y.partial_cmp(x).unwrap().reverse(),
                 _ => Ordering::Less,
             },
             Self::BigInt(x) => match other {
@@ -578,8 +758,32 @@ impl Ord for Term {
                 | Self::Nil => Ordering::Greater,
                 _ => Ordering::Less,
             },
-            Self::Binary(x) => match other {
-                Self::Binary(y) => x.cmp(y),
+            Self::HeapBinary(x) => match other {
+                Self::ConstantBinary(y) => x.as_bytes().cmp(y.as_bytes()),
+                Self::HeapBinary(y) => x.cmp(y),
+                Self::RcBinary(y) => (&**x).partial_cmp(y).unwrap(),
+                Self::RefBinary(y) => (&**x).partial_cmp(y).unwrap(),
+                _ => Ordering::Greater,
+            },
+            Self::RcBinary(x) => match other {
+                Self::ConstantBinary(y) => x.as_bytes().cmp(y.as_bytes()),
+                Self::HeapBinary(y) => (&**x).partial_cmp(y).unwrap(),
+                Self::RcBinary(y) => x.cmp(y),
+                Self::RefBinary(y) => (&**x).partial_cmp(y).unwrap(),
+                _ => Ordering::Greater,
+            },
+            Self::RefBinary(x) => match other {
+                Self::ConstantBinary(y) => (&**x).partial_cmp(y).unwrap(),
+                Self::HeapBinary(y) => (&**x).partial_cmp(y).unwrap(),
+                Self::RcBinary(y) => (&**x).partial_cmp(y).unwrap(),
+                Self::RefBinary(y) => x.cmp(y),
+                _ => Ordering::Greater,
+            },
+            Self::ConstantBinary(x) => match other {
+                Self::ConstantBinary(y) => x.cmp(y),
+                Self::HeapBinary(y) => x.as_bytes().cmp(y.as_bytes()),
+                Self::RcBinary(y) => x.as_bytes().cmp(y.as_bytes()),
+                Self::RefBinary(y) => (&**y).partial_cmp(x).unwrap().reverse(),
                 _ => Ordering::Greater,
             },
         }

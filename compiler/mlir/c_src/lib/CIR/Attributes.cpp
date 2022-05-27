@@ -115,6 +115,8 @@ double CIRFloatAttr::getValueAsDouble(APFloat value) {
 /// Tablegen
 //===----------------------------------------------------------------------===//
 
+#include "CIR/CIREnums.cpp.inc"
+
 #define GET_ATTRDEF_CLASSES
 #include "CIR/CIRAttributes.cpp.inc"
 

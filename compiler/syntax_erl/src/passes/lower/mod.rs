@@ -55,7 +55,10 @@ impl Pass for AstToCore {
                 module: module.name(),
                 name: fun.name.name,
                 params,
-                results: vec![Type::Term(TermType::Any), Type::Exception],
+                results: vec![
+                    Type::Primitive(PrimitiveType::I1),
+                    Type::Term(TermType::Any),
+                ],
             };
             let id = ir_module.declare_function(signature.clone());
             debug!(
@@ -219,7 +222,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 let current_block = builder.current_block();
                 let trampoline = builder.create_block();
                 let span = clause.span;
-                builder.append_block_param(trampoline, Type::Exception, span);
+                builder.append_block_param(trampoline, Type::Term(TermType::Any), span);
                 builder.ins().br(next_clause_block, &[], span);
                 builder.switch_to_block(current_block);
                 Some(next_clause_block)
@@ -229,7 +232,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 let pattern_fail_block = builder.create_block();
                 // All landing pads require the exception argument
                 let span = clause.span;
-                builder.append_block_param(pattern_fail_block, Type::Exception, span);
+                builder.append_block_param(pattern_fail_block, Type::Term(TermType::Any), span);
                 builder.switch_to_block(pattern_fail_block);
                 // erlang:raise(error, function_clause, Trace).
                 let class = builder.ins().atom(symbols::Error, span);
@@ -303,9 +306,7 @@ impl<'m> LowerFunctionToCore<'m> {
             } else {
                 let last_expression_span = clause.body.last().map(|e| e.span()).unwrap();
                 let (result, _) = self.lower_block(builder, clause.body)?;
-                builder
-                    .ins()
-                    .ret_imm(result, Immediate::None, last_expression_span);
+                builder.ins().ret_ok(result, last_expression_span);
             }
             return Ok(());
         }
@@ -331,7 +332,7 @@ impl<'m> LowerFunctionToCore<'m> {
             .skip(1) // Skip the first block as we use the entry for it
             .map(|guard| {
                 let guard_block = builder.create_block();
-                builder.append_block_param(guard_block, Type::Exception, guard.span);
+                builder.append_block_param(guard_block, Type::Term(TermType::Any), guard.span);
                 guard_block
             })
             .collect::<Vec<_>>();
@@ -346,9 +347,7 @@ impl<'m> LowerFunctionToCore<'m> {
         builder.switch_to_block(guard_sequence_passed);
         let last_expression_span = clause.body.last().map(|e| e.span()).unwrap();
         let (result, _) = self.lower_block(builder, clause.body)?;
-        builder
-            .ins()
-            .ret_imm(result, Immediate::None, last_expression_span);
+        builder.ins().ret_ok(result, last_expression_span);
 
         Ok(())
     }
@@ -389,7 +388,9 @@ impl<'m> LowerFunctionToCore<'m> {
         let cond = builder
             .ins()
             .eq_exact_imm(result, Immediate::Bool(true), span);
-        let exception = builder.ins().null(Type::Exception, span);
+        // TODO: This should probably be a match_fail error, but the value
+        // is actually unused, so we simply use Term::None
+        let exception = builder.ins().none(span);
         builder
             .ins()
             .br_unless(cond, guard_failed, &[exception], span);

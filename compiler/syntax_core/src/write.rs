@@ -140,7 +140,7 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
             dfg.display_constant(w, *imm)
         }
         InstData::Ret(Ret { args, .. }) => write!(w, " {}", DisplayValues(args.as_slice())),
-        InstData::RetImm(RetImm { arg, imm, .. }) => write!(w, " {}, {}", arg, imm),
+        InstData::RetImm(RetImm { arg, imm, .. }) => write!(w, " {}, {}", imm, arg),
         InstData::Call(Call { args, .. }) => {
             let func_data = dfg.call_signature(inst).unwrap();
             write!(

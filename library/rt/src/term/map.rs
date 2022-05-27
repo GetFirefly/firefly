@@ -1,13 +1,18 @@
+use alloc::alloc::{AllocError, Allocator};
+use alloc::format;
+use alloc::vec::Vec;
 use core::any::TypeId;
 use core::convert::AsRef;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 
+use anyhow::anyhow;
+use liblumen_alloc::gc::GcBox;
 use rpds::HashTrieMap;
 
 pub use rpds::map::hash_trie_map::{Iter, IterKeys, IterValues};
 
-use super::Term;
+use super::{Cons, Term};
 
 #[derive(Clone)]
 pub struct Map {
@@ -23,6 +28,11 @@ impl Map {
         }
     }
 
+    /// Create a new, empty map in the given allocator
+    pub fn new_in<A: Allocator>(alloc: A) -> Result<GcBox<Self>, AllocError> {
+        GcBox::new_in(Self::new(), alloc)
+    }
+
     /// Create a map, initialized with key/value pairs from the given iterator
     pub fn new_from_iter<I: Iterator<Item = (Term, Term)>>(items: I) -> Self {
         let mut map = HashTrieMap::new();
@@ -32,25 +42,48 @@ impl Map {
         Self { map }
     }
 
+    /// Create a map with the given allocator, initialized with key/value pairs from the given iterator
+    pub fn new_from_iter_in<A: Allocator, I: Iterator<Item = (Term, Term)>>(
+        items: I,
+        alloc: A,
+    ) -> Result<GcBox<Self>, AllocError> {
+        GcBox::new_in(Self::new_from_iter(items), alloc)
+    }
+
     /// Create a map, initialized with key/value pairs from the given list term
     pub fn from_keyword_list(list: &Cons) -> anyhow::Result<Self> {
         let mut map = Self::new();
         for result in list.iter() {
             match result {
                 Ok(term) => match term {
-                    Term::Tuple(pair) if pair.len() == 2 => {
-                        let key = unsafe { pair.get_unchecked(0) };
-                        let value = unsafe { pair.get_unchecked(1) };
-                        map.insert_mut(key, value);
+                    Term::Tuple(ptr) => {
+                        let pair = unsafe { ptr.as_ref() };
+                        match pair.len() {
+                            2 => {
+                                let key = unsafe { pair.get_unchecked(0) };
+                                let value = unsafe { pair.get_unchecked(1) };
+                                map.insert_mut(key, value);
+                            }
+                            len => {
+                                return Err(anyhow!("expected tuple of arity 2, but got {}", len))
+                            }
+                        }
                     }
-                    Term::Tuple(tup) => {
-                        return Err(anyhow!("expected tuple of arity 2, but got {}", tup.len()))
-                    }
-                    other => return Err(anyhow!("expected tuple, but got {}", other.type_of())),
+                    other => return Err(anyhow!("expected tuple, but got {}", &other)),
                 },
                 Err(_improper) => return Err(anyhow!("list is improper")),
             }
         }
+
+        Ok(map)
+    }
+
+    /// Create a map with the given allocator, initialized with key/value pairs from the given list term
+    pub fn from_keyword_list_in<A: Allocator>(
+        list: &Cons,
+        alloc: A,
+    ) -> anyhow::Result<GcBox<Self>> {
+        Ok(GcBox::new_in(Self::from_keyword_list(list)?, alloc)?)
     }
 
     /// Returns the number of keys in this map
@@ -158,6 +191,18 @@ impl fmt::Debug for Map {
                 f.write_str(", ")?;
             }
             write!(f, "{:?} => {:?}", key, value)?;
+        }
+        f.write_str("}")
+    }
+}
+impl fmt::Display for Map {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("#{")?;
+        for (i, (key, value)) in self.iter().enumerate() {
+            if i > 0 {
+                f.write_str(", ")?;
+            }
+            write!(f, "{} => {}", key, value)?;
         }
         f.write_str("}")
     }

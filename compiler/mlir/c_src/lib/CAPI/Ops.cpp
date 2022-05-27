@@ -23,6 +23,31 @@ MlirOperation mlirCirIsNullOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
+MlirOperation mlirCirTruncOp(MlirOpBuilder bldr, MlirLocation location,
+                             MlirValue value, MlirType ty) {
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op = builder->create<cir::TruncOp>(unwrap(location), unwrap(ty),
+                                                unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirZExtOp(MlirOpBuilder bldr, MlirLocation location,
+                            MlirValue value, MlirType ty) {
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::ZExtOp>(unwrap(location), unwrap(ty), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirICmpOp(MlirOpBuilder bldr, MlirLocation location,
+                            unsigned predicate, MlirValue lhs, MlirValue rhs) {
+  OpBuilder *builder = unwrap(bldr);
+  auto pred = static_cast<cir::ICmpPredicate>(predicate);
+  Operation *op = builder->create<cir::ICmpOp>(unwrap(location), pred,
+                                               unwrap(lhs), unwrap(rhs));
+  return wrap(op);
+}
+
 MlirOperation mlirCirCastOp(MlirOpBuilder bldr, MlirLocation location,
                             MlirValue value, MlirType toTy) {
   OpBuilder *builder = unwrap(bldr);
@@ -91,22 +116,6 @@ MlirOperation mlirCirNotOp(MlirOpBuilder bldr, MlirLocation location,
                            MlirValue value) {
   OpBuilder *builder = unwrap(bldr);
   Operation *op = builder->create<cir::NotOp>(unwrap(location), unwrap(value));
-  return wrap(op);
-}
-
-MlirOperation mlirCirTypeOfImmediateOp(MlirOpBuilder bldr,
-                                       MlirLocation location, MlirValue value) {
-  OpBuilder *builder = unwrap(bldr);
-  Operation *op =
-      builder->create<cir::TypeOfImmediateOp>(unwrap(location), unwrap(value));
-  return wrap(op);
-}
-
-MlirOperation mlirCirTypeOfBoxOp(MlirOpBuilder bldr, MlirLocation location,
-                                 MlirValue value) {
-  OpBuilder *builder = unwrap(bldr);
-  Operation *op =
-      builder->create<cir::TypeOfBoxOp>(unwrap(location), unwrap(value));
   return wrap(op);
 }
 

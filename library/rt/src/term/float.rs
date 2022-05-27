@@ -2,7 +2,7 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ops::Deref;
 
-use super::{BigInteger, Term};
+use super::BigInteger;
 
 #[derive(Copy, Clone, PartialEq, PartialOrd)]
 #[repr(transparent)]
@@ -18,7 +18,12 @@ impl Float {
 }
 impl fmt::Debug for Float {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+        fmt::Debug::fmt(&self.0, f)
+    }
+}
+impl fmt::Display for Float {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
     }
 }
 impl Into<f64> for Float {
@@ -82,8 +87,8 @@ impl PartialEq<BigInteger> for Float {
     }
 }
 impl PartialOrd<i64> for Float {
-    fn partial_cmp(&self, y: &i64) -> Option<std::cmp::Ordering> {
-        use std::cmp::Ordering;
+    fn partial_cmp(&self, y: &i64) -> Option<core::cmp::Ordering> {
+        use core::cmp::Ordering;
 
         match self.0 {
             x if x.is_infinite() => {
@@ -110,8 +115,8 @@ impl PartialOrd<i64> for Float {
     }
 }
 impl PartialOrd<BigInteger> for Float {
-    fn partial_cmp(&self, y: &BigInteger) -> Option<std::cmp::Ordering> {
-        use std::cmp::Ordering;
+    fn partial_cmp(&self, y: &BigInteger) -> Option<core::cmp::Ordering> {
+        use core::cmp::Ordering;
 
         match self.0 {
             x if x.is_infinite() => {

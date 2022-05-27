@@ -378,7 +378,7 @@ fn main() -> Result<(), ()> {
 
     println!("Installing runtime libraries..");
 
-    let lumenlibs = &["lumen_rt_minimal", "liblumen_otp"];
+    let lumenlibs = &["lumen_rt_tiny", "panic", "unwind"];
     for lib in lumenlibs.iter().copied() {
         if let Some(files) = deps.get(lib) {
             for file in files.iter() {

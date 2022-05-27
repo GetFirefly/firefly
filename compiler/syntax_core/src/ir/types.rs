@@ -298,9 +298,9 @@ pub enum Type {
     Term(TermType),
     // This type is equivalent to Rust's Never/! type, i.e. it indicates that a function never returns
     NoReturn,
-    // This type maps to ErlangException in liblumen_alloc
+    // This type maps to ErlangException in liblumen_rt
     Exception,
-    // This type maps to Trace in liblumen_alloc
+    // This type maps to Trace in liblumen_rt
     ExceptionTrace,
     // This type maps to ReceiveContext in lumen_rt_minimal
     RecvContext,

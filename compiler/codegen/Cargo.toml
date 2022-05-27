@@ -26,7 +26,6 @@ liblumen_rt = { path = "../../library/rt" }
 liblumen_session = { path = "../session" }
 liblumen_syntax_core = { path = "../syntax_core" }
 liblumen_target = { path = "../target" }
-liblumen_term = { path = "../term" }
 liblumen_util = { path = "../util" }
 
 [build-dependencies]

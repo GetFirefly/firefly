@@ -87,8 +87,8 @@ pub trait Heap: Allocator {
 
     /// Returns true if this heap contains the allocation pointed to by `ptr`
     #[inline]
-    fn contains(&self, ptr: *const u8) -> bool {
-        self.as_ptr_range().contains(&ptr)
+    fn contains<T: ?Sized>(&self, ptr: *const T) -> bool {
+        self.as_ptr_range().contains(&ptr.cast())
     }
 }
 
@@ -137,7 +137,7 @@ where
     }
 
     #[inline]
-    fn contains(&self, ptr: *const u8) -> bool {
+    fn contains<T: ?Sized>(&self, ptr: *const T) -> bool {
         (**self).contains(ptr)
     }
 }

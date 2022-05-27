@@ -2,6 +2,8 @@ use core::cmp;
 use core::ops;
 use core::slice;
 
+use anyhow::anyhow;
+
 use super::{BigInteger, OpaqueTerm, Term, Tuple};
 
 /// A marker trait for index types
@@ -12,12 +14,6 @@ pub trait NonPrimitiveIndex: Sized {}
 macro_rules! bad_index {
     () => {
         anyhow!("invalid index: bad argument")
-    };
-}
-
-macro_rules! out_of_bounds {
-    ($idx:expr, $max:expr) => {
-        anyhow!("invalid index {}, exceeds max length of {}", $idx, $max)
     };
 }
 
@@ -46,7 +42,7 @@ impl TryFrom<&BigInteger> for OneBasedIndex {
     type Error = anyhow::Error;
 
     fn try_from(n: &BigInteger) -> Result<Self, Self::Error> {
-        Self::new(n.try_into()?)
+        Self::new(n.try_into().map_err(|_| bad_index!())?)
     }
 }
 impl TryFrom<i64> for OneBasedIndex {
@@ -69,8 +65,8 @@ impl TryFrom<Term> for OneBasedIndex {
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         match term {
-            Term::Int(i) => (*i).try_into(),
-            Term::BigInt(i) => i.try_into(),
+            Term::Int(i) => i.try_into(),
+            Term::BigInt(i) => i.as_ref().try_into(),
             _ => Err(bad_index!()),
         }
     }
@@ -141,6 +137,13 @@ impl Default for ZeroBasedIndex {
         Self(0)
     }
 }
+impl TryFrom<i64> for ZeroBasedIndex {
+    type Error = anyhow::Error;
+
+    fn try_from(n: i64) -> Result<Self, Self::Error> {
+        Ok(Self::new(n.try_into()?))
+    }
+}
 impl TryFrom<OpaqueTerm> for ZeroBasedIndex {
     type Error = anyhow::Error;
 
@@ -154,8 +157,8 @@ impl TryFrom<Term> for ZeroBasedIndex {
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         match term {
-            Term::Int(i) => (*i).try_into(),
-            Term::BigInt(i) => i.try_into(),
+            Term::Int(i) => i.try_into().map_err(|_| bad_index!()),
+            Term::BigInt(i) => i.as_i64().ok_or_else(|| bad_index!())?.try_into(),
             _ => Err(bad_index!()),
         }
     }
@@ -186,7 +189,7 @@ impl PartialEq<usize> for ZeroBasedIndex {
 }
 impl PartialEq<OneBasedIndex> for ZeroBasedIndex {
     fn eq(&self, other: &OneBasedIndex) -> bool {
-        let index: ZeroBasedIndex = other.into();
+        let index: ZeroBasedIndex = (*other).into();
         self.0 == index.0
     }
 }
@@ -198,7 +201,7 @@ impl PartialOrd<usize> for ZeroBasedIndex {
 }
 impl PartialOrd<OneBasedIndex> for ZeroBasedIndex {
     fn partial_cmp(&self, other: &OneBasedIndex) -> Option<core::cmp::Ordering> {
-        let index: ZeroBasedIndex = other.into();
+        let index: ZeroBasedIndex = (*other).into();
         self.partial_cmp(&index)
     }
 }
@@ -227,7 +230,7 @@ impl ops::Index<ops::RangeFull> for Tuple {
 
     #[inline]
     fn index(&self, index: ops::RangeFull) -> &Self::Output {
-        ops::Index::index(self.elements(), index)
+        ops::Index::index(self.as_slice(), index)
     }
 }
 
@@ -235,33 +238,33 @@ impl ops::Index<ops::RangeFull> for Tuple {
 impl TupleIndex for usize {}
 
 impl ops::Index<usize> for Tuple {
-    type Output = Term;
+    type Output = OpaqueTerm;
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        <usize as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.elements())
+        <usize as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_slice())
     }
 }
 impl ops::IndexMut<usize> for Tuple {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        <usize as slice::SliceIndex<[OpaqueTerm]>>::index_mut(index, self.elements_mut())
+        <usize as slice::SliceIndex<[OpaqueTerm]>>::index_mut(index, self.as_mut_slice())
     }
 }
 impl ops::Index<ops::RangeTo<usize>> for Tuple {
-    type Output = [Term];
+    type Output = [OpaqueTerm];
 
     #[inline]
     fn index(&self, index: ops::RangeTo<usize>) -> &Self::Output {
-        <ops::RangeTo<usize> as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.elements())
+        <ops::RangeTo<usize> as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_slice())
     }
 }
 impl ops::Index<ops::RangeFrom<usize>> for Tuple {
-    type Output = [Term];
+    type Output = [OpaqueTerm];
 
     #[inline]
     fn index(&self, index: ops::RangeFrom<usize>) -> &Self::Output {
-        <ops::RangeFrom<usize> as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.elements())
+        <ops::RangeFrom<usize> as slice::SliceIndex<[OpaqueTerm]>>::index(index, self.as_slice())
     }
 }
 
@@ -276,7 +279,7 @@ where
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
         let uindex: usize = index.into();
-        ops::Index::index(self.elements(), uindex)
+        ops::Index::index(self.as_slice(), uindex)
     }
 }
 
@@ -287,7 +290,7 @@ where
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         let uindex: usize = index.into();
-        ops::IndexMut::index_mut(self.elements_mut(), uindex)
+        ops::IndexMut::index_mut(self.as_mut_slice(), uindex)
     }
 }
 
@@ -300,7 +303,7 @@ where
     #[inline]
     fn index(&self, index: ops::RangeTo<I>) -> &Self::Output {
         let uindex: usize = index.end.into();
-        ops::Index::index(self.elements(), ops::RangeTo { end: uindex })
+        ops::Index::index(self.as_slice(), ops::RangeTo { end: uindex })
     }
 }
 
@@ -313,6 +316,6 @@ where
     #[inline]
     fn index(&self, index: ops::RangeFrom<I>) -> &Self::Output {
         let uindex: usize = index.start.into();
-        ops::Index::index(self.elements(), ops::RangeFrom { start: uindex })
+        ops::Index::index(self.as_slice(), ops::RangeFrom { start: uindex })
     }
 }

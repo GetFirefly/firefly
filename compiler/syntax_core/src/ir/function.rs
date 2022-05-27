@@ -344,7 +344,10 @@ impl Signature {
         let cap = name.arity as usize;
         let mut params = Vec::with_capacity(cap);
         params.resize(cap, Type::Term(TermType::Any));
-        let results = vec![Type::Term(TermType::Any), Type::Exception];
+        let results = vec![
+            Type::Primitive(PrimitiveType::I1),
+            Type::Term(TermType::Any),
+        ];
         Self {
             visibility,
             cc,

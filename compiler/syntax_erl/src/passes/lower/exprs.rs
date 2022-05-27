@@ -406,7 +406,7 @@ impl<'m> LowerFunctionToCore<'m> {
         // The landing pad is where control will land when an exception occurs
         // It receives a single block argument which is the exception to handle
         let landing_pad = builder.create_block();
-        let exception = builder.append_block_param(landing_pad, Type::Exception, span);
+        let exception = builder.append_block_param(landing_pad, Type::Term(TermType::Any), span);
         // The result block is where the fork in control is rejoined, it receives a single block argument which is
         // either the normal return value, or the caught/wrapped exception value
         let result_block = builder.create_block();
@@ -418,6 +418,7 @@ impl<'m> LowerFunctionToCore<'m> {
 
         // Now, in the landing pad, check what type of exception we have and branch accordingly
         builder.switch_to_block(landing_pad);
+        let exception = builder.ins().cast(exception, Type::Exception, span);
         // All three types of exception require us to have the class and reason handy
         let class = builder.ins().exception_class(exception, span);
         let reason = builder.ins().exception_reason(exception, span);

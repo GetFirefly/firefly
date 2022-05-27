@@ -64,12 +64,9 @@ MLIR_CAPI_EXPORTED bool mlirCirIsAFunType(MlirType type);
 /// Creates a cir.bits type
 MLIR_CAPI_EXPORTED MlirType mlirCirBitsTypeGet(MlirContext ctx);
 MLIR_CAPI_EXPORTED bool mlirCirIsABitsType(MlirType type);
-/// Creates a cir.heapbin type
-MLIR_CAPI_EXPORTED MlirType mlirCirHeapbinTypeGet(MlirContext ctx);
-MLIR_CAPI_EXPORTED bool mlirCirIsAHeapbinType(MlirType type);
-/// Creates a cir.procbin type
-MLIR_CAPI_EXPORTED MlirType mlirCirProcbinTypeGet(MlirContext ctx);
-MLIR_CAPI_EXPORTED bool mlirCirIsAProcbinType(MlirType type);
+/// Creates a cir.binary type
+MLIR_CAPI_EXPORTED MlirType mlirCirBinaryTypeGet(MlirContext ctx);
+MLIR_CAPI_EXPORTED bool mlirCirIsABinaryType(MlirType type);
 /// Creates a cir.box type
 MLIR_CAPI_EXPORTED MlirType mlirCirBoxTypeGet(MlirType pointee);
 MLIR_CAPI_EXPORTED bool mlirCirIsABoxType(MlirType type);
@@ -153,6 +150,19 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirIsNullOp(MlirOpBuilder builder,
                                                  MlirLocation location,
                                                  MlirValue value);
 
+MLIR_CAPI_EXPORTED MlirOperation mlirCirTruncOp(MlirOpBuilder builder,
+                                                MlirLocation location,
+                                                MlirValue value, MlirType ty);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirZExtOp(MlirOpBuilder builder,
+                                               MlirLocation location,
+                                               MlirValue value, MlirType ty);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirICmpOp(MlirOpBuilder builder,
+                                               MlirLocation location,
+                                               unsigned predicate,
+                                               MlirValue lhs, MlirValue rhs);
+
 MLIR_CAPI_EXPORTED MlirOperation mlirCirCastOp(MlirOpBuilder builder,
                                                MlirLocation location,
                                                MlirValue value, MlirType ty);
@@ -189,14 +199,6 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirXorOp(MlirOpBuilder builder,
 MLIR_CAPI_EXPORTED MlirOperation mlirCirNotOp(MlirOpBuilder builder,
                                               MlirLocation location,
                                               MlirValue value);
-
-MLIR_CAPI_EXPORTED MlirOperation mlirCirTypeOfImmediateOp(MlirOpBuilder builder,
-                                                          MlirLocation location,
-                                                          MlirValue value);
-
-MLIR_CAPI_EXPORTED MlirOperation mlirCirTypeOfBoxOp(MlirOpBuilder builder,
-                                                    MlirLocation location,
-                                                    MlirValue value);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirTypeOfOp(MlirOpBuilder builder,
                                                  MlirLocation location,

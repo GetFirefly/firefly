@@ -126,20 +126,12 @@ bool mlirCirIsABitsType(MlirType type) {
   return unwrap(type).isa<CIRBitsType>();
 }
 
-MlirType mlirCirHeapbinTypeGet(MlirContext ctx) {
-  return wrap(CIRHeapbinType::get(unwrap(ctx)));
+MlirType mlirCirBinaryTypeGet(MlirContext ctx) {
+  return wrap(CIRBinaryType::get(unwrap(ctx)));
 }
 
-bool mlirCirIsAHeapbinType(MlirType type) {
-  return unwrap(type).isa<CIRHeapbinType>();
-}
-
-MlirType mlirCirProcbinTypeGet(MlirContext ctx) {
-  return wrap(CIRProcbinType::get(unwrap(ctx)));
-}
-
-bool mlirCirIsAProcbinType(MlirType type) {
-  return unwrap(type).isa<CIRProcbinType>();
+bool mlirCirIsABinaryType(MlirType type) {
+  return unwrap(type).isa<CIRBinaryType>();
 }
 
 MlirType mlirCirBoxTypeGet(MlirType pointee) {

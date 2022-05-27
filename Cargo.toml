@@ -17,7 +17,9 @@ exclude = [
   "liblumen_alloc_macros",
   "native_implemented/*",
   "compiler/codegen_llvm",
+  "runtimes/core",
   "runtimes/full",
+  "runtimes/minimal",
   "examples"
 ]
 

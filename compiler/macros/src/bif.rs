@@ -268,7 +268,7 @@ fn define_bif_internal(spec: BifSpec, is_guard: bool) -> TokenStream {
             module: #module,
             name: liblumen_intern::Symbol::intern(#name_lit),
             params: vec![#params],
-            results: vec![#result_ty, crate::Type::Exception],
+            results: vec![crate::Type::Primitive(crate::PrimitiveType::I1), #result_ty],
         }
     };
     TokenStream::from(quoted)

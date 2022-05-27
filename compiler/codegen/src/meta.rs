@@ -84,18 +84,28 @@ impl ProjectInfo {
                 verbatim: None,
             });
         } else {
+            info.used_deps.push(Dependency {
+                name: Symbol::intern("unwind"),
+                source: Some(lumenlib_dir.join(&format!("{}unwind.rlib", prefix))),
+            });
+            info.used_deps.push(Dependency {
+                name: Symbol::intern("panic"),
+                source: Some(lumenlib_dir.join(&format!("{}panic.rlib", prefix))),
+            });
             info.used_libraries.push(NativeLibrary {
                 kind: NativeLibraryKind::Static {
                     bundle: None,
                     whole_archive: None,
                 },
-                name: Some("lumen_rt_minimal".to_string()),
+                name: Some("lumen_rt_tiny".to_string()),
                 verbatim: None,
             });
+            /*
             info.used_deps.push(Dependency {
                 name: Symbol::intern("liblumen_otp"),
                 source: Some(lumenlib_dir.join(&format!("{}liblumen_otp.rlib", prefix))),
             });
+            */
         }
 
         // Add user-provided libraries

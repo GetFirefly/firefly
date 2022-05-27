@@ -56,10 +56,6 @@ class CIR_Type<string name, list<Trait> traits = [],
              string baseCppClass = "::mlir::Type">
     : TypeDef<CIR_Dialect, !strconcat("CIR", name), !listconcat(traits, [TermTypeInterface]), baseCppClass> {
   let mnemonic = ?;
-
-  let extraClassDeclaration = [{
-    ::lumen::TermKind::Kind getTermKind() { return ::lumen::TermKind::}] # name # [{; }
-  }];
 }
 
 class CIR_BoxedType<string name, list<Trait> traits = [],
@@ -72,11 +68,6 @@ class CIR_ImmediateType<string name, list<Trait> traits = [],
     : CIR_Type<name, !listconcat(traits, [ImmediateTypeInterface, MemRefElementTypeInterface]), baseCppClass> {
 }
 
-class CIR_TargetSensitiveReprType<string name, list<Trait> traits = [],
-                        string baseCppClass = "::mlir::Type">
-    : CIR_Type<name, !listconcat(traits, [TargetSensitiveReprTypeInterface]), baseCppClass> {
-}
-
 def CIR_NoneType : CIR_ImmediateType<"None"> {
   let mnemonic = "none";
   let summary = "A type that represents an invalid term, and has a corresponding runtime representation";
@@ -85,10 +76,6 @@ def CIR_NoneType : CIR_ImmediateType<"None"> {
 def CIR_OpaqueTermType : TypeDef<CIR_Dialect, "CIROpaqueTerm", [ImmediateTypeInterface, TermTypeInterface], "::mlir::Type"> {
   let mnemonic = "term";
   let summary = "A type that represents a valid term of unknown concrete type. It can be treated as an immediate";
-
-  let extraClassDeclaration = [{
-    ::lumen::TermKind::Kind getTermKind() { return ::lumen::TermKind::Term; }
-  }];
 }
 
 def CIR_NumberType : CIR_Type<"Number"> {
@@ -101,15 +88,9 @@ def CIR_IntegerType : CIR_Type<"Integer"> {
   let summary = "A type that represents an integer term of either fixed or arbitrary width.";
 }
 
-def CIR_FloatType : CIR_TargetSensitiveReprType<"Float"> {
+def CIR_FloatType : CIR_ImmediateType<"Float"> {
   let mnemonic = "float";
   let summary = "A type that represents a floating-point term. The runtime representation of this varies.";
-
-  let extraClassDeclaration = [{
-    ::lumen::TermKind::Kind getTermKind() { return ::lumen::TermKind::Float; }
-
-    bool isImmediate(const ::lumen::Encoding &encoding) { return encoding.supportsNanboxing; }
-  }];
 }
 
 def CIR_AtomType : CIR_ImmediateType<"Atom"> {
@@ -166,20 +147,15 @@ def CIR_MapType : CIR_BoxedType<"Map"> {
 
 def CIR_BitsType : CIR_BoxedType<"Bits"> {
   let mnemonic = "bits";
-  let summary = "A type that represents a bitstring/binary term.";
+  let summary = "A type that represents a bitstring term.";
 }
 
-def CIR_HeapbinType : CIR_BoxedType<"Heapbin"> {
-  let mnemonic = "heapbin";
-  let summary = "A type that represents a small binary allocated on the current process heap.";
+def CIR_BinaryType : CIR_BoxedType<"Binary"> {
+  let mnemonic = "binary";
+  let summary = "A type that represents a bitstring evenly divisible into units of 8 bits";
 }
 
-def CIR_ProcbinType : CIR_BoxedType<"Procbin"> {
-  let mnemonic = "procbin";
-  let summary = "A type that represents a reference-counted binary allocated on the global heap.";
-}
-
-def CIR_PidType : CIR_Type<"Pid"> {
+def CIR_PidType : CIR_BoxedType<"Pid"> {
   let mnemonic = "pid";
   let summary = "A type that represents a local or external process identifier term.";
 }
@@ -223,7 +199,6 @@ def CIR_FunType : CIR_BoxedType<"Fun", [DeclareTypeInterfaceMethods<SubElementTy
   let genAccessors = 1;
   let hasCustomAssemblyFormat = 1;
   let extraClassDeclaration = [{
-    ::lumen::TermKind::Kind getTermKind() { return ::lumen::TermKind::Fun; }
     unsigned getArity() const;
     unsigned getEnvArity() const { return getEnvTypes().size(); }
     bool isThin() const { return getEnvArity() == 0; }

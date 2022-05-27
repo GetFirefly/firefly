@@ -5,7 +5,7 @@ use core::ops::Deref;
 use num_bigint::{BigInt, Sign};
 use num_traits::ToPrimitive;
 
-use super::{Float, Term};
+use super::Float;
 
 /// BigIntegers are arbitrary-width integers whose size is too large to fit in
 /// an immediate/SmallInteger value.
@@ -64,6 +64,15 @@ impl From<BigInt> for BigInteger {
         Self(value)
     }
 }
+impl TryInto<usize> for &BigInteger {
+    type Error = ();
+
+    #[inline]
+    fn try_into(self) -> Result<usize, Self::Error> {
+        let i = self.as_i64().ok_or(())?;
+        i.try_into().map_err(|_| ())
+    }
+}
 impl Eq for BigInteger {}
 impl PartialEq for BigInteger {
     fn eq(&self, other: &Self) -> bool {
@@ -116,11 +125,7 @@ impl PartialOrd<Float> for BigInteger {
                     Ordering::Less
                 };
                 let Some(x) = self.as_i64() else { return Some(too_large); };
-                match other.partial_cmp(&x)? {
-                    Ordering::Greater => Some(Ordering::Less),
-                    Ordering::Less => Some(Ordering::Greater),
-                    other => Some(other),
-                }
+                Some(other.partial_cmp(&x)?.reverse())
             }
         }
     }

@@ -265,6 +265,7 @@ pub enum Opcode {
     SetElement,
     // Map Operations
     Map,
+    MapGet,
     MapPut,
     MapUpdate,
     // Binary Operations
@@ -368,6 +369,8 @@ impl Opcode {
             Self::Cons | Self::ListConcat | Self::ListSubtract => 2,
             // Creating a map has no arguments
             Self::Map => 0,
+            // Fetching from a map takes 2 arguments, map/key
+            Self::MapGet => 2,
             // Inserting/updating a map takes 3 arguments, map/key/value
             Self::MapPut | Self::MapUpdate => 3,
             // Creating a fun only requires the callee, the environment is variable-sized
@@ -465,6 +468,7 @@ impl fmt::Display for Opcode {
             Self::ListSubtract => f.write_str("list.subtract"),
             Self::Tuple => f.write_str("tuple"),
             Self::Map => f.write_str("map"),
+            Self::MapGet => f.write_str("map.get"),
             Self::MapPut => f.write_str("map.put"),
             Self::MapUpdate => f.write_str("map.update"),
             Self::IsTaggedTuple => f.write_str("tuple.is_tagged"),
@@ -673,7 +677,7 @@ pub struct BitsMatch {
 
 #[derive(Debug, Clone)]
 pub struct BitsPush {
-    pub spec: BinaryEntrySpecifier,
+    pub spec: Option<BinaryEntrySpecifier>,
     pub args: ValueList,
 }
 

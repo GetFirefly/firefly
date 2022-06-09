@@ -15,6 +15,7 @@ num-bigint = "0.4"
 tempfile = "3.3"
 thiserror = "1.0"
 
+liblumen_binary = { path = "../binary" }
 liblumen_compiler_macros = { path = "../macros" }
 liblumen_diagnostics = { path = "../diagnostics" }
 liblumen_llvm = { path = "../llvm" }

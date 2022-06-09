@@ -28,23 +28,24 @@ using namespace mlir::cir;
 
 #define PASS_NAME "convert-cir-to-llvm"
 
-const uint64_t NANBOX_SIGN_BIT = ((uint64_t)0x01) << 63;
+const uint64_t NANBOX_SIGN_BIT = 0x01ull << 63;
 // Also the sign bit for Integer
-const uint64_t NANBOX_SIGNAL_BIT = ((uint64_t)0x01) << 51;
+const uint64_t NANBOX_SIGNAL_BIT = 0x01ull << 51;
 // Also the tag for Integer
-const uint64_t NANBOX_NEG_INFINITY = ((uint64_t)0xFFF) << 52;
+const uint64_t NANBOX_NEG_INFINITY = 0xFFFull << 52;
 // Also the tag for Nil
-const uint64_t NANBOX_INFINITY = NANBOX_NEG_INFINITY & !NANBOX_SIGN_BIT;
+const uint64_t NANBOX_INFINITY = NANBOX_NEG_INFINITY & ~NANBOX_SIGN_BIT;
 // Infinity is also the minimal NaN value, non-canonical
 const uint64_t NANBOX_NAN = NANBOX_INFINITY;
 // Also the tag for None
 const uint64_t NANBOX_CANONICAL_NAN = NANBOX_NEG_INFINITY >> 1;
 
-const uint64_t NANBOX_INTEGER_MASK = !NANBOX_NEG_INFINITY;
+const uint64_t NANBOX_INTEGER_MASK = ~NANBOX_NEG_INFINITY;
 const uint64_t NANBOX_INTEGER_NEG = NANBOX_NEG_INFINITY | NANBOX_SIGNAL_BIT;
-const uint64_t NANBOX_TAG_MASK = (uint64_t)0xFF;
-const uint64_t NANBOX_PTR_MASK = !(NANBOX_NEG_INFINITY | NANBOX_TAG_MASK);
-const uint64_t NANBOX_MANTISSA_MASK = !(NANBOX_CANONICAL_NAN | NANBOX_SIGN_BIT);
+const uint64_t NANBOX_TAG_MASK = 0xFull;
+const uint64_t NANBOX_PTR_MASK = ~(NANBOX_NEG_INFINITY | NANBOX_TAG_MASK);
+// const uint64_t NANBOX_MANTISSA_MASK = !(NANBOX_CANONICAL_NAN |
+// NANBOX_SIGN_BIT);
 
 namespace TermKind {
 enum Kind {
@@ -88,16 +89,22 @@ public:
                    const LowerToLLVMOptions &options,
                    const DataLayoutAnalysis *analysis = nullptr)
       : LLVMTypeConverter(ctx, options, analysis), useMachOMangling(isMachO) {
+    // All immediates are lowered to opaque term type, as they must be encoded
     addConversion([&](CIRNoneType) { return getTermType(); });
     addConversion([&](CIROpaqueTermType) { return getTermType(); });
     addConversion([&](CIRNumberType) { return getTermType(); });
     addConversion([&](CIRIntegerType) { return getTermType(); });
-    addConversion([&](CIRFloatType) { return getFloatType(); });
+    addConversion([&](CIRFloatType) { return getTermType(); });
     addConversion([&](CIRAtomType) { return getTermType(); });
     addConversion([&](CIRBoolType) { return getTermType(); });
     addConversion([&](CIRIsizeType) { return getTermType(); });
-    addConversion([&](CIRBigIntType) { return getBigIntType(); });
     addConversion([&](CIRNilType) { return getTermType(); });
+    // All boxed types are lowered to their pointee representations, but boxes
+    // are opaque terms as we must encode pointers when lowering boxed types.
+    // The boxed types themselves should _not_ be lowered to pointer types,
+    // that's what PtrType/BoxType are for
+    addConversion([&](CIRBoxType) { return getTermType(); });
+    addConversion([&](CIRBigIntType) { return getBigIntType(); });
     addConversion([&](CIRConsType) { return getConsType(); });
     addConversion([&](CIRMapType) { return getMapType(); });
     addConversion([&](CIRBitsType) { return getBinaryDataType(); });
@@ -105,11 +112,13 @@ public:
     addConversion([&](CIRPidType) { return getTermType(); });
     addConversion([&](CIRPortType) { return getTermType(); });
     addConversion([&](CIRReferenceType) { return getTermType(); });
-    addConversion([&](CIRBoxType type) { return convertBoxType(type); });
     addConversion([&](CIRFunType type) { return convertFunType(type); });
     addConversion([&](CIRExceptionType) { return getExceptionType(); });
     addConversion([&](CIRTraceType) { return getTraceType(); });
     addConversion([&](CIRRecvContextType) { return getRecvContextType(); });
+    addConversion([&](CIRBinaryBuilderType) { return getBinaryBuilderType(); });
+    // For times where we want to reify an unencoded pointer type, we use
+    // PtrType not BoxType
     addConversion([&](PtrType type) {
       return LLVM::LLVMPointerType::get(convertType(type.getElementType()));
     });
@@ -268,6 +277,15 @@ public:
     return closureTy;
   }
 
+  // This function returns the equivalent representation of Rust's `Result<T,
+  // *mut ErlangException>`, where T is pointer-sized. This is used as the
+  // general return type of runtime functions that are fallible.
+  Type getResultType(Type okTy) {
+    MLIRContext *context = &getContext();
+    auto isizeTy = getIsizeType();
+    return LLVM::LLVMStructType::getLiteral(context, {isizeTy, okTy});
+  }
+
   // This function returns the target-specific exception representation
   Type getExceptionType() {
     MLIRContext *context = &getContext();
@@ -312,6 +330,14 @@ public:
     auto msgDataTy = LLVM::LLVMStructType::getLiteral(context, {i32Ty, termTy});
     assert(succeeded(messageTy.setBody({linkTy, msgDataTy}, /*packed=*/false)));
     return messageTy;
+  }
+
+  // Corresponds to *mut BinaryBuilder in liblumen_rt
+  Type getBinaryBuilderType() {
+    MLIRContext *context = &getContext();
+    auto builderTy =
+        LLVM::LLVMStructType::getOpaque("erlang::BinaryBuilder", context);
+    return LLVM::LLVMPointerType::get(builderTy);
   }
 
   // Corresponds to ReceiveContext in lumen_rt_minimal
@@ -472,10 +498,16 @@ protected:
   }
   Type getBitSliceType() const { return getTypeConverter()->getBitSliceType(); }
   Type getClosureType() const { return getTypeConverter()->getClosureType(); }
+  Type getResultType(Type okTy) const {
+    return getTypeConverter()->getResultType(okTy);
+  }
   Type getExceptionType() const {
     return getTypeConverter()->getExceptionType();
   }
   Type getTraceType() const { return getTypeConverter()->getTraceType(); }
+  Type getBinaryBuilderType() const {
+    return getTypeConverter()->getBinaryBuilderType();
+  }
   Type getRecvContextType() const {
     return getTypeConverter()->getRecvContextType();
   }
@@ -506,15 +538,18 @@ protected:
   // This function builds an LLVM::ConstantOp with an isize value and result
   // type
   Value createI32Constant(OpBuilder &builder, Location loc,
-                          unsigned value) const {
-    return createIndexAttrConstant(builder, loc, getI32Type(), value);
+                          int32_t value) const {
+    return builder.create<LLVM::ConstantOp>(loc, getI32Type(),
+                                            builder.getI32IntegerAttr(value));
   }
 
   // This function builds an LLVM::ConstantOp with an isize value and result
   // type
   Value createIsizeConstant(OpBuilder &builder, Location loc,
                             uint64_t value) const {
-    return createIndexAttrConstant(builder, loc, getIsizeType(), value);
+    auto isizeTy = getIsizeType();
+    return builder.create<LLVM::ConstantOp>(
+        loc, isizeTy, builder.getIntegerAttr(isizeTy, value));
   }
 
   // This function builds an LLVM::ConstantOp with a value of term type
@@ -522,7 +557,7 @@ protected:
                            uint64_t value) const {
     auto termTy = getTermType();
     return builder.create<LLVM::ConstantOp>(
-        loc, termTy, builder.getIntegerAttr(getI64Type(), value));
+        loc, termTy, builder.getIntegerAttr(termTy, value));
   }
 
   // This function builds an LLVM::GlobalOp representing a constnat value of the
@@ -560,14 +595,64 @@ protected:
 
   // This function is used to construct an LLVM constant for an Erlang float
   // term
-  Value createFloatConstant(ConversionPatternRewriter &builder, Location loc,
-                            APFloat value, ModuleOp &module) const {
+  Value createFloatConstant(OpBuilder &builder, Location loc, APFloat value,
+                            ModuleOp &module) const {
     // When nanboxed, floats have no tag, but cannot be NaN, as NaN bits are
     // used for term tagging
     assert(!value.isNaN() && "invalid floating point constant for target, "
                              "floats must not be NaN!");
     return createIntegerConstant(builder, loc,
                                  value.bitcastToAPInt().getZExtValue());
+  }
+
+  Value createBinaryDataConstant(OpBuilder &builder, Location loc,
+                                 StringRef value, bool isUtf8,
+                                 ModuleOp &module) const {
+    llvm::SHA1 hasher;
+    hasher.update(value);
+    auto hash = llvm::toHex(hasher.result(), true);
+    auto globalName = std::string("binary_") + hash;
+
+    auto isizeTy = getIsizeType();
+    auto charsTy = LLVM::LLVMArrayType::get(builder.getI8Type(), value.size());
+    auto dataTy = LLVM::LLVMStructType::getLiteral(builder.getContext(),
+                                                   {isizeTy, charsTy});
+
+    auto dataConst = module.lookupSymbol<LLVM::GlobalOp>(globalName);
+    if (!dataConst) {
+      PatternRewriter::InsertionGuard insertGuard(builder);
+      builder.setInsertionPointToStart(module.getBody());
+
+      dataConst = builder.create<LLVM::GlobalOp>(
+          loc, dataTy, /*isConstant=*/false, LLVM::Linkage::LinkonceODR,
+          LLVM::ThreadLocalMode::NotThreadLocal, globalName, Attribute(),
+          /*alignment=*/8, /*addrspace=*/0, /*dso_local=*/false);
+
+      auto &initRegion = dataConst.getInitializerRegion();
+      builder.createBlock(&initRegion);
+
+      uint64_t size = value.size();
+      uint64_t flags = (size << 4) | 0x08;
+      if (isUtf8) {
+        flags |= 0x04;
+      } else {
+        flags |= 0x01;
+      }
+
+      Value dataFlags = createIsizeConstant(builder, loc, flags);
+      Value dataRaw = builder.create<LLVM::ConstantOp>(
+          loc, charsTy, builder.getStringAttr(value.str()));
+
+      Value data = builder.create<LLVM::UndefOp>(loc, dataTy);
+      data = builder.create<LLVM::InsertValueOp>(loc, data, dataFlags,
+                                                 builder.getI64ArrayAttr(0));
+      data = builder.create<LLVM::InsertValueOp>(loc, data, dataRaw,
+                                                 builder.getI64ArrayAttr(1));
+      builder.create<LLVM::ReturnOp>(loc, data);
+    }
+
+    Value ptr = builder.create<LLVM::AddressOfOp>(loc, dataConst);
+    return encodeLiteralPtr(builder, loc, ptr);
   }
 
   // This function is used to obtain an atom value corresponding to the given
@@ -597,11 +682,28 @@ protected:
   // string. Returns the address to the data record
   Value createAtomDataGlobal(OpBuilder &builder, Location loc, ModuleOp &module,
                              StringRef value) const {
-    // Hash the atom to get a unique id based on the content
-    llvm::SHA1 hasher;
-    hasher.update(value);
-    auto hash = llvm::toHex(hasher.result(), true);
-    auto globalName = std::string("atom_") + hash;
+    // Hash the atom if it is not a bare atom, as the atom value may not be
+    // representable as a symbol, but we want them to nevertheless have a
+    // consistent unique id. By allowing bare atoms to use their value as part
+    // of the symbol name, we can also manually define atoms in liblumen_rt
+    // which are used by the runtime for comparisons.
+    auto notfound = ~size_t(0);
+    bool isBareAtom = value.find_if_not([](char c) {
+      return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+             (c >= '0' && c <= '9') || c == '_' || c == '@';
+    }) == notfound;
+
+    std::string globalName;
+    std::string hash;
+    if (!isBareAtom) {
+      llvm::SHA1 hasher;
+      hasher.update(value);
+      hash = llvm::toHex(hasher.result(), true);
+      globalName = std::string("atom_") + hash;
+    } else {
+      hash = value.str();
+      globalName = std::string("atom_") + value.str();
+    }
 
     auto dataConst = module.lookupSymbol<LLVM::GlobalOp>(globalName);
     if (!dataConst) {
@@ -935,18 +1037,13 @@ struct ConstantOpLowering : public ConvertCIROpToLLVMPattern<cir::ConstantOp> {
   matchAndRewrite(cir::ConstantOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto resultType = op.getResult().getType();
-    Type cirType;
-    if (auto boxType = resultType.dyn_cast<CIRBoxType>())
-      cirType = boxType.getElementType();
-    else
-      cirType = resultType;
 
     // Determine what type of constant this is and lower appropriately
     auto loc = op.getLoc();
     auto attr = adaptor.value();
     auto module = op->getParentOfType<ModuleOp>();
     auto replacement =
-        TypeSwitch<Type, Value>(cirType)
+        TypeSwitch<Type, Value>(resultType)
             .Case<IntegerType>([&](IntegerType ty) {
               return rewriter.create<LLVM::ConstantOp>(loc, ty, attr);
             })
@@ -954,6 +1051,7 @@ struct ConstantOpLowering : public ConvertCIROpToLLVMPattern<cir::ConstantOp> {
               return createTermConstant(rewriter, loc, NANBOX_CANONICAL_NAN);
             })
             .Case<CIRNilType>([&](CIRNilType) {
+              assert(NANBOX_INFINITY != 0);
               return createTermConstant(rewriter, loc, NANBOX_INFINITY);
             })
             .Case<CIRIntegerType>([&](CIRIntegerType) {
@@ -977,6 +1075,17 @@ struct ConstantOpLowering : public ConvertCIROpToLLVMPattern<cir::ConstantOp> {
               return createTermConstant(rewriter, loc,
                                         NANBOX_CANONICAL_NAN |
                                             (uint64_t)(isTrue ? 0x03 : 0x02));
+            })
+            .Case<CIRBoxType>([&](CIRBoxType boxTy) {
+              return TypeSwitch<Type, Value>(boxTy.getElementType())
+                  .Case<CIRBitsType>([&](CIRBitsType) {
+                    StringRef str = attr.cast<StringAttr>().getValue();
+                    bool isUtf8 =
+                        op->getAttrOfType<BoolAttr>("utf8").getValue();
+                    return createBinaryDataConstant(rewriter, loc, str, isUtf8,
+                                                    module);
+                  })
+                  .Default([](Type) { return nullptr; });
             })
             .Default([](Type) { return nullptr; });
 
@@ -1056,28 +1165,54 @@ struct CastOpLowering : public ConvertCIROpToLLVMPattern<cir::CastOp> {
       // Casts from concrete term type to opaque term type are no-ops
       if (inputType.isa<TermType>() && outputType.isa<CIROpaqueTermType>()) {
         results.push_back(input);
-      } else if (inputType.isa<CIRBoolType>() && outputType.isInteger(1)) {
-        // To cast from a boolean term to its value, we extract the atom symbol
-        // id and truncate to i1
-        Value raw =
-            rewriter.create<LLVM::BitcastOp>(loc, getIsizeType(), input);
-        Value truncated = rewriter.create<LLVM::TruncOp>(loc, getI1Type(), raw);
-        results.push_back(truncated);
-      } else if (inputType.isInteger(1) && outputType.isa<TermType>()) {
+        continue;
+      }
+
+      // Casts from opaque term type to any term type are no-ops
+      if (inputType.isa<CIROpaqueTermType>() && outputType.isa<TermType>()) {
+        results.push_back(input);
+        continue;
+      }
+
+      // Casts from Erlang primitives to LLVM primitives
+      if (inputType.isa<CIRBoolType>() && outputType.isInteger(1)) {
+        // To cast from a boolean term to its value, we know that we can
+        // truncate to i1 due to how true/false terms are encoded
+        results.push_back(
+            rewriter.create<LLVM::TruncOp>(loc, getI1Type(), input));
+        continue;
+      }
+
+      if (inputType.isa<CIRIsizeType>() && outputType.isa<IntegerType>()) {
+        IntegerType intTy = outputType.cast<IntegerType>();
+        Value integer = decodeInteger(rewriter, loc, input);
+        if (intTy.getWidth() == 64) {
+          results.push_back(integer);
+        } else {
+          results.push_back(
+              rewriter.create<LLVM::TruncOp>(loc, outputType, input));
+        }
+        continue;
+      }
+
+      // Casts from LLVM primitives to Erlang primitives
+      if (inputType.isInteger(1) &&
+          outputType.isa<CIRBoolType, CIROpaqueTermType>()) {
         // To cast from i1 to a boolean term, we treat the value as the symbol
         // id, zext and encode as an atom
-        Value symbol =
-            rewriter.create<LLVM::ZExtOp>(loc, getIsizeType(), input);
+        Value symbol = rewriter.create<LLVM::ZExtOp>(loc, getTermType(), input);
         Value tag =
-            createIsizeConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x02);
-        Value encoded = rewriter.create<LLVM::OrOp>(loc, symbol, tag);
-        results.push_back(encoded);
-      } else {
-        // No other casts are supported currently
-        return rewriter.notifyMatchFailure(
-            op,
-            "failed to lower cast, unsupported source/target type combination");
+            createTermConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x02);
+        results.push_back(rewriter.create<LLVM::OrOp>(loc, symbol, tag));
+        continue;
       }
+
+      // No other casts are supported currently
+      inputType.dump();
+      outputType.dump();
+      return rewriter.notifyMatchFailure(
+          op,
+          "failed to lower cast, unsupported source/target type combination");
     }
 
     rewriter.replaceOp(op, results);
@@ -1473,6 +1608,97 @@ struct IsNumberOpLowering : public ConvertCIROpToLLVMPattern<cir::IsNumberOp> {
 };
 
 //===---------===//
+// IsFloatOp
+//===---------===//
+struct IsFloatOpLowering : public ConvertCIROpToLLVMPattern<cir::IsFloatOp> {
+  using ConvertCIROpToLLVMPattern<cir::IsFloatOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::IsFloatOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto value = adaptor.value();
+
+    // The value is a float if it is not NaN
+    Value mask = createIsizeConstant(rewriter, loc, NANBOX_NAN);
+    Value masked = rewriter.create<LLVM::AndOp>(loc, value, mask);
+    rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::ne,
+                                              value, masked);
+    return success();
+  }
+};
+
+//===---------===//
+// IsIntegerOp
+//===---------===//
+struct IsIntegerOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::IsIntegerOp> {
+  using ConvertCIROpToLLVMPattern<cir::IsIntegerOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::IsIntegerOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto value = adaptor.value();
+
+    // _lumen_builtin_typeof == TermKind::Int
+    Value ty = rewriter.create<cir::TypeOfOp>(loc, value);
+    Value expected = createI32Constant(rewriter, loc, TermKind::Int);
+    rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq, ty,
+                                              expected);
+    return success();
+  }
+};
+
+//===---------===//
+// IsIsizeOp
+//===---------===//
+struct IsIsizeOpLowering : public ConvertCIROpToLLVMPattern<cir::IsIsizeOp> {
+  using ConvertCIROpToLLVMPattern<cir::IsIsizeOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::IsIsizeOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto value = adaptor.value();
+
+    // value & NEG_INFINITY == NEG_INFINITY
+    Value mask = createIsizeConstant(rewriter, loc, NANBOX_NEG_INFINITY);
+    Value masked = rewriter.create<LLVM::AndOp>(loc, value, mask);
+    rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
+                                              masked, mask);
+    return success();
+  }
+};
+
+//===---------===//
+// IsBigIntOp
+//===---------===//
+struct IsBigIntOpLowering : public ConvertCIROpToLLVMPattern<cir::IsBigIntOp> {
+  using ConvertCIROpToLLVMPattern<cir::IsBigIntOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::IsBigIntOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto value = adaptor.value();
+
+    // value & NEG_INFINITY != NEG_INFINITY && __lumen_builtin_typeof ==
+    // TermKind::Int
+    Value ty = rewriter.create<cir::TypeOfOp>(loc, value);
+    Value expected = createI32Constant(rewriter, loc, TermKind::Int);
+    Value isInt = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
+                                                ty, expected);
+    Value mask = createIsizeConstant(rewriter, loc, NANBOX_NEG_INFINITY);
+    Value masked = rewriter.create<LLVM::AndOp>(loc, value, mask);
+    Value notSmallInt = rewriter.create<LLVM::ICmpOp>(
+        loc, LLVM::ICmpPredicate::ne, masked, mask);
+    rewriter.replaceOpWithNewOp<LLVM::AndOp>(op, isInt, notSmallInt);
+    return success();
+  }
+};
+
+//===---------===//
 // IsAtomOp
 //===---------===//
 struct IsAtomOpLowering : public ConvertCIROpToLLVMPattern<cir::IsAtomOp> {
@@ -1481,6 +1707,7 @@ struct IsAtomOpLowering : public ConvertCIROpToLLVMPattern<cir::IsAtomOp> {
   LogicalResult
   matchAndRewrite(cir::IsAtomOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+
     auto loc = op.getLoc();
     auto input = adaptor.value();
 
@@ -1506,6 +1733,34 @@ struct IsAtomOpLowering : public ConvertCIROpToLLVMPattern<cir::IsAtomOp> {
 };
 
 //===---------===//
+// IsBoolOp
+//===---------===//
+struct IsBoolOpLowering : public ConvertCIROpToLLVMPattern<cir::IsBoolOp> {
+  using ConvertCIROpToLLVMPattern<cir::IsBoolOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::IsBoolOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    auto loc = op.getLoc();
+    auto value = adaptor.value();
+
+    // The value is a bool if it is equal to either the 'true' or 'false'
+    // atoms
+    Value constFalse =
+        createIsizeConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x02);
+    Value isFalse = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
+                                                  value, constFalse);
+    Value constTrue =
+        createIsizeConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x03);
+    Value isTrue = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
+                                                 value, constTrue);
+    rewriter.replaceOpWithNewOp<LLVM::OrOp>(op, isFalse, isTrue);
+    return success();
+  }
+};
+
+//===---------===//
 // IsTypeOp
 //===---------===//
 struct IsTypeOpLowering : public ConvertCIROpToLLVMPattern<cir::IsTypeOp> {
@@ -1519,26 +1774,6 @@ struct IsTypeOpLowering : public ConvertCIROpToLLVMPattern<cir::IsTypeOp> {
     auto value = adaptor.value();
 
     if (auto boxTy = expectedType.dyn_cast<CIRBoxType>()) {
-      if (boxTy.isa<CIRConsType>()) {
-        rewriter.replaceOpWithNewOp<cir::IsListOp>(op, value);
-        return success();
-      }
-
-      if (boxTy.isa<CIRBigIntType>()) {
-        // value & NEG_INFINITY != NEG_INFINITY && __lumen_builtin_typeof ==
-        // TermKind::Int
-        Value ty = rewriter.create<cir::TypeOfOp>(loc, value);
-        Value expected = createI32Constant(rewriter, loc, TermKind::Int);
-        Value isInt = rewriter.create<LLVM::ICmpOp>(
-            loc, LLVM::ICmpPredicate::eq, ty, expected);
-        Value mask = createIsizeConstant(rewriter, loc, NANBOX_NEG_INFINITY);
-        Value masked = rewriter.create<LLVM::AndOp>(loc, value, mask);
-        Value notSmallInt = rewriter.create<LLVM::ICmpOp>(
-            loc, LLVM::ICmpPredicate::ne, masked, mask);
-        rewriter.replaceOpWithNewOp<LLVM::AndOp>(op, isInt, notSmallInt);
-        return success();
-      }
-
       TermKind::Kind expectedTermKind = TermKind::Invalid;
       if (boxTy.isa<CIRMapType>()) {
         expectedTermKind = TermKind::Map;
@@ -1562,59 +1797,6 @@ struct IsTypeOpLowering : public ConvertCIROpToLLVMPattern<cir::IsTypeOp> {
       Value expected = createI32Constant(rewriter, loc, expectedTermKind);
       rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq, ty,
                                                 expected);
-      return success();
-
-    } else if (expectedType.isa<CIRNumberType>()) {
-      rewriter.replaceOpWithNewOp<cir::IsNumberOp>(op, value);
-      return success();
-    } else if (expectedType.isa<CIRAtomType>()) {
-      rewriter.replaceOpWithNewOp<cir::IsAtomOp>(op, value);
-      return success();
-    } else if (expectedType.isa<CIRBoolType>()) {
-      // The value is a bool if it is equal to either the 'true' or 'false'
-      // atoms
-      Value constFalse =
-          createIsizeConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x02);
-      Value isFalse = rewriter.create<LLVM::ICmpOp>(
-          loc, LLVM::ICmpPredicate::eq, value, constFalse);
-      Value constTrue =
-          createIsizeConstant(rewriter, loc, NANBOX_CANONICAL_NAN | 0x03);
-      Value isTrue = rewriter.create<LLVM::ICmpOp>(loc, LLVM::ICmpPredicate::eq,
-                                                   value, constTrue);
-      rewriter.replaceOpWithNewOp<LLVM::OrOp>(op, isFalse, isTrue);
-      return success();
-    } else if (expectedType.isa<CIRFloatType>()) {
-      // The value is a float if it is not NaN
-      Value mask = createIsizeConstant(rewriter, loc, NANBOX_NAN);
-      Value masked = rewriter.create<LLVM::AndOp>(loc, value, mask);
-      rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::ne,
-                                                value, masked);
-      return success();
-    } else if (expectedType.isa<CIRIsizeType>()) {
-      // value & NEG_INFINITY == NEG_INFINITY
-      Value mask = createIsizeConstant(rewriter, loc, NANBOX_NEG_INFINITY);
-      Value masked = rewriter.create<LLVM::AndOp>(loc, value, mask);
-      rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
-                                                masked, mask);
-      return success();
-    } else if (expectedType.isa<CIRIntegerType>()) {
-      // _lumen_builtin_typeof == TermKind::Int
-      Value ty = rewriter.create<cir::TypeOfOp>(loc, value);
-      Value expected = createI32Constant(rewriter, loc, TermKind::Int);
-      rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq, ty,
-                                                expected);
-      return success();
-    } else if (expectedType.isa<CIRNilType>()) {
-      // value == INFINITY
-      Value nil = createIsizeConstant(rewriter, loc, NANBOX_INFINITY);
-      rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
-                                                value, nil);
-      return success();
-    } else if (expectedType.isa<CIRNoneType>()) {
-      // value == CANONICAL_NAN
-      Value none = createIsizeConstant(rewriter, loc, NANBOX_CANONICAL_NAN);
-      rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(op, LLVM::ICmpPredicate::eq,
-                                                value, none);
       return success();
     } else {
       return rewriter.notifyMatchFailure(
@@ -1764,15 +1946,14 @@ struct TailOpLowering : public ConvertCIROpToLLVMPattern<cir::TailOp> {
     // compiler has already generated those checks
 
     // First, unbox the pointer as a pointer to a cons cell
-    auto i32Ty = rewriter.getI32Type();
-    auto cellTy = getConsType();
+    auto termPtrTy = LLVM::LLVMPointerType::get(getTermType());
     Value ptr = decodeListPtr(rewriter, loc, adaptor.cell());
 
     // Then, calculate the pointer to the tail cell
-    Value base = createIsizeConstant(rewriter, loc, 0);
-    Value one = createIndexAttrConstant(rewriter, loc, i32Ty, 1);
-    auto tailPtr =
-        rewriter.create<LLVM::GEPOp>(loc, cellTy, ptr, ValueRange({base, one}));
+    Value base = createI32Constant(rewriter, loc, 0);
+    Value one = createI32Constant(rewriter, loc, 1);
+    Value tailPtr = rewriter.create<LLVM::GEPOp>(loc, termPtrTy, ptr,
+                                                 ValueRange({base, one}));
 
     // Then return the result of loading the value from the calculated pointer
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, tailPtr);
@@ -1870,6 +2051,58 @@ struct SetElementOpLowering
     // Then store the input value at the calculated pointer
     rewriter.create<LLVM::StoreOp>(loc, elemPtr, value);
     rewriter.replaceOp(op, ValueRange({tuple}));
+    return success();
+  }
+};
+
+//===------------===//
+// MapOp
+//===------------===//
+struct MapOpLowering : public ConvertCIROpToLLVMPattern<cir::MapOp> {
+  using ConvertCIROpToLLVMPattern<cir::MapOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::MapOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto termTy = getTermType();
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_map_empty");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(termTy, ArrayRef<Type>{});
+      insertFunctionDeclaration(rewriter, loc, module, "__lumen_map_empty",
+                                calleeType);
+    }
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
+        op, TypeRange({termTy}), "__lumen_map_empty", ValueRange());
+    return success();
+  }
+};
+
+//===------------===//
+// MapGetOp
+//===------------===//
+struct MapGetOpLowering : public ConvertCIROpToLLVMPattern<cir::MapGetOp> {
+  using ConvertCIROpToLLVMPattern<cir::MapGetOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::MapGetOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto map = adaptor.map();
+    auto key = adaptor.key();
+
+    auto termTy = getTermType();
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_map_get");
+    if (!callee) {
+      auto calleeType =
+          LLVM::LLVMFunctionType::get(termTy, ArrayRef<Type>{termTy, termTy});
+      insertFunctionDeclaration(rewriter, loc, module, "__lumen_map_get",
+                                calleeType);
+    }
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
+        op, TypeRange({termTy}), "__lumen_map_get", ValueRange({map, key}));
     return success();
   }
 };
@@ -2260,6 +2493,446 @@ struct DispatchTableOpLowering
   }
 };
 
+//===------------===//
+// BinaryInitOp
+//===------------===//
+struct BinaryInitOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryInitOp> {
+  using ConvertCIROpToLLVMPattern<cir::BinaryInitOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryInitOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto builderTy = getBinaryBuilderType();
+
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_binary_init");
+    if (!callee) {
+      auto calleeType =
+          LLVM::LLVMFunctionType::get(builderTy, ArrayRef<Type>{});
+      insertFunctionDeclaration(rewriter, loc, module, "__lumen_binary_init",
+                                calleeType);
+    }
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
+        op, TypeRange({builderTy}), "__lumen_binary_init", ValueRange());
+    return success();
+  }
+};
+
+//===------------===//
+// BinaryFinishOp
+//===------------===//
+struct BinaryFinishOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryFinishOp> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryFinishOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryFinishOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto bin = adaptor.builder();
+    auto builderTy = getBinaryBuilderType();
+    auto termTy = getTermType();
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto resultTy = getResultType(termTy);
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_binary_finish");
+    if (!callee) {
+      auto calleeType =
+          LLVM::LLVMFunctionType::get(resultTy, ArrayRef<Type>{builderTy});
+      insertFunctionDeclaration(rewriter, loc, module, "__lumen_binary_finish",
+                                calleeType);
+    }
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, TypeRange({resultTy}), "__lumen_binary_finish", ValueRange({bin}));
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value result = rewriter.create<LLVM::ExtractValueOp>(
+        loc, termTy, callResult, rewriter.getI32ArrayAttr({1}));
+
+    rewriter.replaceOp(op, ValueRange({isErr, result}));
+    return success();
+  }
+};
+
+//===------------===//
+// BinaryPushIntegerOp
+//===------------===//
+struct BinaryPushIntegerOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryPushIntegerOp> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryPushIntegerOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryPushIntegerOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto bin = adaptor.builder();
+    auto value = adaptor.value();
+    auto size = adaptor.size();
+
+    auto isSigned = createBoolConstant(rewriter, loc, adaptor.isSigned());
+    auto endianness =
+        createI32Constant(rewriter, loc, wrap(adaptor.endianness().getValue()));
+    auto unit = createI32Constant(rewriter, loc, adaptor.unit());
+
+    auto builderTy = getBinaryBuilderType();
+    auto termTy = getTermType();
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto i32Ty = getI32Type();
+    auto exceptionTy = getExceptionType();
+    auto resultTy = getResultType(exceptionTy);
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_binary_push_integer");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(
+          resultTy,
+          ArrayRef<Type>{builderTy, termTy, termTy, i1Ty, i32Ty, i32Ty});
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__lumen_binary_push_integer", calleeType);
+    }
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, TypeRange({resultTy}), "__lumen_binary_push_integer",
+        ValueRange({bin, value, size, isSigned, endianness, unit}));
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value result = rewriter.create<LLVM::ExtractValueOp>(
+        loc, termTy, callResult, rewriter.getI32ArrayAttr({1}));
+
+    rewriter.replaceOp(op, ValueRange({isErr, result}));
+    return success();
+  }
+};
+
+//===------------===//
+// BinaryPushFloatOp
+//===------------===//
+struct BinaryPushFloatOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryPushFloatOp> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryPushFloatOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryPushFloatOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto bin = adaptor.builder();
+    auto value = adaptor.value();
+    auto size = adaptor.size();
+
+    auto endianness =
+        createI32Constant(rewriter, loc, wrap(adaptor.endianness().getValue()));
+    auto unit = createI32Constant(rewriter, loc, adaptor.unit());
+
+    auto builderTy = getBinaryBuilderType();
+    auto termTy = getTermType();
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto i32Ty = getI32Type();
+    auto exceptionTy = getExceptionType();
+    auto resultTy = getResultType(exceptionTy);
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_binary_push_float");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(
+          resultTy, ArrayRef<Type>{builderTy, termTy, termTy, i32Ty, i32Ty});
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__lumen_binary_push_float", calleeType);
+    }
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, TypeRange({resultTy}), "__lumen_binary_push_float",
+        ValueRange({bin, value, size, endianness, unit}));
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value result = rewriter.create<LLVM::ExtractValueOp>(
+        loc, termTy, callResult, rewriter.getI32ArrayAttr({1}));
+
+    rewriter.replaceOp(op, ValueRange({isErr, result}));
+    return success();
+  }
+};
+
+//===------------===//
+// BinaryPushUtf8Op
+//===------------===//
+struct BinaryPushUtf8OpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryPushUtf8Op> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryPushUtf8Op>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryPushUtf8Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto bin = adaptor.builder();
+    auto value = adaptor.value();
+
+    auto builderTy = getBinaryBuilderType();
+    auto termTy = getTermType();
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto exceptionTy = getExceptionType();
+    auto resultTy = getResultType(exceptionTy);
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_binary_push_utf8");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(
+          resultTy, ArrayRef<Type>{builderTy, termTy});
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__lumen_binary_push_utf8", calleeType);
+    }
+    auto callOp = rewriter.create<LLVM::CallOp>(loc, TypeRange({resultTy}),
+                                                "__lumen_binary_push_utf8",
+                                                ValueRange({bin, value}));
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value result = rewriter.create<LLVM::ExtractValueOp>(
+        loc, termTy, callResult, rewriter.getI32ArrayAttr({1}));
+
+    rewriter.replaceOp(op, ValueRange({isErr, result}));
+    return success();
+  }
+};
+
+//===------------===//
+// BinaryPushUtf16Op
+//===------------===//
+struct BinaryPushUtf16OpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryPushUtf16Op> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryPushUtf16Op>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryPushUtf16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto bin = adaptor.builder();
+    auto value = adaptor.value();
+
+    auto endianness =
+        createI32Constant(rewriter, loc, wrap(adaptor.endianness().getValue()));
+
+    auto builderTy = getBinaryBuilderType();
+    auto termTy = getTermType();
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto i32Ty = getI32Type();
+    auto exceptionTy = getExceptionType();
+    auto resultTy = getResultType(exceptionTy);
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_binary_push_utf16");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(
+          resultTy, ArrayRef<Type>{builderTy, termTy, i32Ty});
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__lumen_binary_push_utf16", calleeType);
+    }
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, TypeRange({resultTy}), "__lumen_binary_push_utf16",
+        ValueRange({bin, value, endianness}));
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value result = rewriter.create<LLVM::ExtractValueOp>(
+        loc, termTy, callResult, rewriter.getI32ArrayAttr({1}));
+
+    rewriter.replaceOp(op, ValueRange({isErr, result}));
+    return success();
+  }
+};
+
+//===------------===//
+// BinaryPushUtf32Op
+//===------------===//
+struct BinaryPushUtf32OpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryPushUtf32Op> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryPushUtf32Op>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryPushUtf32Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto bin = adaptor.builder();
+    auto value = adaptor.value();
+
+    auto endianness =
+        createI32Constant(rewriter, loc, wrap(adaptor.endianness().getValue()));
+
+    auto builderTy = getBinaryBuilderType();
+    auto termTy = getTermType();
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto i32Ty = getI32Type();
+    auto exceptionTy = getExceptionType();
+    auto resultTy = getResultType(exceptionTy);
+    auto module = op->getParentOfType<ModuleOp>();
+    Operation *callee = module.lookupSymbol("__lumen_binary_push_utf32");
+    if (!callee) {
+      auto calleeType = LLVM::LLVMFunctionType::get(
+          resultTy, ArrayRef<Type>{builderTy, termTy, i32Ty});
+      insertFunctionDeclaration(rewriter, loc, module,
+                                "__lumen_binary_push_utf32", calleeType);
+    }
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, TypeRange({resultTy}), "__lumen_binary_push_utf32",
+        ValueRange({bin, value, endianness}));
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value result = rewriter.create<LLVM::ExtractValueOp>(
+        loc, termTy, callResult, rewriter.getI32ArrayAttr({1}));
+
+    rewriter.replaceOp(op, ValueRange({isErr, result}));
+    return success();
+  }
+};
+
+//===------------===//
+// BinaryPushBitsOp
+//===------------===//
+struct BinaryPushBitsOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryPushBitsOp> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryPushBitsOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryPushBitsOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto bin = adaptor.builder();
+    auto value = adaptor.value();
+    auto size = adaptor.size();
+
+    auto builderTy = getBinaryBuilderType();
+    auto termTy = getTermType();
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto i32Ty = getI32Type();
+    auto exceptionTy = getExceptionType();
+    auto resultTy = getResultType(exceptionTy);
+    auto module = op->getParentOfType<ModuleOp>();
+
+    Operation *callOp;
+    if (size) {
+      auto unit = createI32Constant(rewriter, loc, adaptor.unit());
+
+      Operation *callee = module.lookupSymbol("__lumen_binary_push_bits");
+      if (!callee) {
+        auto calleeType = LLVM::LLVMFunctionType::get(
+            resultTy, ArrayRef<Type>{builderTy, termTy, termTy, i32Ty});
+        insertFunctionDeclaration(rewriter, loc, module,
+                                  "__lumen_binary_push_bits", calleeType);
+      }
+      callOp = rewriter.create<LLVM::CallOp>(
+          loc, TypeRange({resultTy}), "__lumen_binary_push_bits",
+          ValueRange({bin, value, size, unit}));
+    } else {
+      Operation *callee = module.lookupSymbol("__lumen_binary_push_bits_all");
+      if (!callee) {
+        auto calleeType = LLVM::LLVMFunctionType::get(
+            resultTy, ArrayRef<Type>{builderTy, termTy});
+        insertFunctionDeclaration(rewriter, loc, module,
+                                  "__lumen_binary_push_bits_all", calleeType);
+      }
+      callOp = rewriter.create<LLVM::CallOp>(loc, TypeRange({resultTy}),
+                                             "__lumen_binary_push_bits_all",
+                                             ValueRange({bin, value}));
+    }
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value result = rewriter.create<LLVM::ExtractValueOp>(
+        loc, termTy, callResult, rewriter.getI32ArrayAttr({1}));
+
+    rewriter.replaceOp(op, ValueRange({isErr, result}));
+    return success();
+  }
+};
+
+//===------------===//
+// BinaryPushAnyOp
+//===------------===//
+struct BinaryPushAnyOpLowering
+    : public ConvertCIROpToLLVMPattern<cir::BinaryPushAnyOp> {
+  using ConvertCIROpToLLVMPattern<
+      cir::BinaryPushAnyOp>::ConvertCIROpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(cir::BinaryPushAnyOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto bin = adaptor.builder();
+    auto value = adaptor.value();
+    auto size = adaptor.size();
+
+    auto builderTy = getBinaryBuilderType();
+    auto termTy = getTermType();
+    auto isizeTy = getIsizeType();
+    auto i1Ty = getI1Type();
+    auto exceptionTy = getExceptionType();
+    auto resultTy = getResultType(exceptionTy);
+    auto module = op->getParentOfType<ModuleOp>();
+
+    Operation *callOp;
+    if (size) {
+      Operation *callee = module.lookupSymbol("__lumen_binary_push_any_sized");
+      if (!callee) {
+        auto calleeType = LLVM::LLVMFunctionType::get(
+            resultTy, ArrayRef<Type>{builderTy, termTy, termTy});
+        insertFunctionDeclaration(rewriter, loc, module,
+                                  "__lumen_binary_push_any_sized", calleeType);
+      }
+      callOp = rewriter.create<LLVM::CallOp>(loc, TypeRange({resultTy}),
+                                             "__lumen_binary_push_any_sized",
+                                             ValueRange({bin, value, size}));
+    } else {
+      Operation *callee = module.lookupSymbol("__lumen_binary_push_any");
+      if (!callee) {
+        auto calleeType = LLVM::LLVMFunctionType::get(
+            resultTy, ArrayRef<Type>{builderTy, termTy});
+        insertFunctionDeclaration(rewriter, loc, module,
+                                  "__lumen_binary_push_any", calleeType);
+      }
+      callOp = rewriter.create<LLVM::CallOp>(loc, TypeRange({resultTy}),
+                                             "__lumen_binary_push_any",
+                                             ValueRange({bin, value}));
+    }
+
+    Value callResult = callOp->getResult(0);
+    Value isErrWide = rewriter.create<LLVM::ExtractValueOp>(
+        loc, isizeTy, callResult, rewriter.getI32ArrayAttr({0}));
+    Value isErr = rewriter.create<LLVM::TruncOp>(loc, i1Ty, isErrWide);
+    Value result = rewriter.create<LLVM::ExtractValueOp>(
+        loc, termTy, callResult, rewriter.getI32ArrayAttr({1}));
+
+    rewriter.replaceOp(op, ValueRange({isErr, result}));
+    return success();
+  }
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -2362,6 +3035,8 @@ void ConvertCIRToLLVMPass::runOnOperation() {
   patterns.add<TupleOpLowering>(typeConverter);
   patterns.add<SetElementOpLowering>(typeConverter);
   patterns.add<GetElementOpLowering>(typeConverter);
+  patterns.add<MapOpLowering>(typeConverter);
+  patterns.add<MapGetOpLowering>(typeConverter);
   patterns.add<RaiseOpLowering>(typeConverter);
   patterns.add<BuildStacktraceOpLowering>(typeConverter);
   patterns.add<ExceptionClassOpLowering>(typeConverter);
@@ -2373,13 +3048,15 @@ void ConvertCIRToLLVMPass::runOnOperation() {
   patterns.add<RecvPeekOpLowering>(typeConverter);
   patterns.add<RecvPopOpLowering>(typeConverter);
   patterns.add<RecvDoneOpLowering>(typeConverter);
-  // patterns.add<BinaryStartOpLowering>(typeConverter);
-  // patterns.add<BinaryFinishOpLowering>(typeConverter);
-  // patterns.add<BinaryPushIntegerOpLowering>(typeConverter);
-  // patterns.add<BinaryPushFloatOpLowering>(typeConverter);
-  // patterns.add<BinaryPushUtf8OpLowering>(typeConverter);
-  // patterns.add<BinaryPushUtf16OpLowering>(typeConverter);
-  // patterns.add<BinaryPushBitsOpLowering>(typeConverter);
+  patterns.add<BinaryInitOpLowering>(typeConverter);
+  patterns.add<BinaryFinishOpLowering>(typeConverter);
+  patterns.add<BinaryPushIntegerOpLowering>(typeConverter);
+  patterns.add<BinaryPushFloatOpLowering>(typeConverter);
+  patterns.add<BinaryPushUtf8OpLowering>(typeConverter);
+  patterns.add<BinaryPushUtf16OpLowering>(typeConverter);
+  patterns.add<BinaryPushUtf32OpLowering>(typeConverter);
+  patterns.add<BinaryPushBitsOpLowering>(typeConverter);
+  patterns.add<BinaryPushAnyOpLowering>(typeConverter);
 
   // When complete, we want to be lowered completely to LLVM dialect, so we're
   // applying this as a full conversion. Doing so means that when this pass

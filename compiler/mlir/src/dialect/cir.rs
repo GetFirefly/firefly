@@ -316,7 +316,7 @@ impl ::std::fmt::Display for BoolAttr {
 
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
-    pub fn get_bool_attr(&self, value: bool) -> BoolAttr {
+    pub fn get_cir_bool_attr(&self, value: bool) -> BoolAttr {
         BoolAttr::get(self.context(), value)
     }
 }
@@ -1147,6 +1147,189 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     }
 }
 
+/// Represents a predicate that answers whether a value is a list
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsListOp(OperationBase);
+impl Operation for IsListOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_list<V: Value>(&self, loc: Location, value: V) -> IsListOp {
+        extern "C" {
+            fn mlirCirIsListOp(builder: OpBuilderBase, loc: Location, value: ValueBase)
+                -> IsListOp;
+        }
+
+        unsafe { mlirCirIsListOp(self.base().into(), loc, value.base()) }
+    }
+}
+
+/// Represents a predicate that answers whether a value is a number
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsNumberOp(OperationBase);
+impl Operation for IsNumberOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_number<V: Value>(&self, loc: Location, value: V) -> IsNumberOp {
+        extern "C" {
+            fn mlirCirIsNumberOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                value: ValueBase,
+            ) -> IsNumberOp;
+        }
+
+        unsafe { mlirCirIsNumberOp(self.base().into(), loc, value.base()) }
+    }
+}
+
+/// Represents a predicate that answers whether a value is a float
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsFloatOp(OperationBase);
+impl Operation for IsFloatOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_float<V: Value>(&self, loc: Location, value: V) -> IsFloatOp {
+        extern "C" {
+            fn mlirCirIsFloatOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                value: ValueBase,
+            ) -> IsFloatOp;
+        }
+
+        unsafe { mlirCirIsFloatOp(self.base().into(), loc, value.base()) }
+    }
+}
+
+/// Represents a predicate that answers whether a value is an integer
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsIntegerOp(OperationBase);
+impl Operation for IsIntegerOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_integer<V: Value>(&self, loc: Location, value: V) -> IsIntegerOp {
+        extern "C" {
+            fn mlirCirIsIntegerOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                value: ValueBase,
+            ) -> IsIntegerOp;
+        }
+
+        unsafe { mlirCirIsIntegerOp(self.base().into(), loc, value.base()) }
+    }
+}
+
+/// Represents a predicate that answers whether a value is a fixed-width integer
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsIsizeOp(OperationBase);
+impl Operation for IsIsizeOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_isize<V: Value>(&self, loc: Location, value: V) -> IsIsizeOp {
+        extern "C" {
+            fn mlirCirIsIsizeOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                value: ValueBase,
+            ) -> IsIsizeOp;
+        }
+
+        unsafe { mlirCirIsIsizeOp(self.base().into(), loc, value.base()) }
+    }
+}
+
+/// Represents a predicate that answers whether a value is a big integer
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsBigIntOp(OperationBase);
+impl Operation for IsBigIntOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_bigint<V: Value>(&self, loc: Location, value: V) -> IsBigIntOp {
+        extern "C" {
+            fn mlirCirIsBigIntOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                value: ValueBase,
+            ) -> IsBigIntOp;
+        }
+
+        unsafe { mlirCirIsBigIntOp(self.base().into(), loc, value.base()) }
+    }
+}
+
+/// Represents a predicate that answers whether a value is an atom
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsAtomOp(OperationBase);
+impl Operation for IsAtomOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_atom<V: Value>(&self, loc: Location, value: V) -> IsAtomOp {
+        extern "C" {
+            fn mlirCirIsAtomOp(builder: OpBuilderBase, loc: Location, value: ValueBase)
+                -> IsAtomOp;
+        }
+
+        unsafe { mlirCirIsAtomOp(self.base().into(), loc, value.base()) }
+    }
+}
+
+/// Represents a predicate that answers whether a value is a boolean
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct IsBoolOp(OperationBase);
+impl Operation for IsBoolOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_is_bool<V: Value>(&self, loc: Location, value: V) -> IsBoolOp {
+        extern "C" {
+            fn mlirCirIsBoolOp(builder: OpBuilderBase, loc: Location, value: ValueBase)
+                -> IsBoolOp;
+        }
+
+        unsafe { mlirCirIsBoolOp(self.base().into(), loc, value.base()) }
+    }
+}
+
 /// Represents a type check for tagged tuples, i.e. it checks that the given value is a tuple,
 /// has at least one element, and that the first element is an atom equal to the one given
 #[repr(transparent)]
@@ -1393,6 +1576,51 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
         }
 
         unsafe { mlirCirGetElementOp(self.base().into(), loc, tuple.base(), index.base()) }
+    }
+}
+
+/// Represents creating an empty map
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct MapOp(OperationBase);
+impl Operation for MapOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_map(&self, loc: Location) -> MapOp {
+        extern "C" {
+            fn mlirCirMapOp(builder: OpBuilderBase, loc: Location) -> MapOp;
+        }
+
+        unsafe { mlirCirMapOp(self.base().into(), loc) }
+    }
+}
+
+/// Represents fetching a key from a map
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct MapGetOp(OperationBase);
+impl Operation for MapGetOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_map_get<M: Value, K: Value>(&self, loc: Location, map: M, key: K) -> MapGetOp {
+        extern "C" {
+            fn mlirCirMapGetOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                map: ValueBase,
+                key: ValueBase,
+            ) -> MapGetOp;
+        }
+
+        unsafe { mlirCirMapGetOp(self.base().into(), loc, map.base(), key.base()) }
     }
 }
 
@@ -1687,26 +1915,20 @@ impl Value for BinaryBuilder {
 /// Represents initializing construction of a new binary value
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct BinaryStartOp(OperationBase);
-impl BinaryStartOp {
-    /// Returns the BinaryBuilder produced by this operation
-    pub fn builder(&self) -> BinaryBuilder {
-        BinaryBuilder(self.get_result(0))
-    }
-}
-impl Operation for BinaryStartOp {
+pub struct BinaryInitOp(OperationBase);
+impl Operation for BinaryInitOp {
     fn base(&self) -> OperationBase {
         self.0
     }
 }
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
-    pub fn build_binary_start(&self, loc: Location) -> BinaryStartOp {
+    pub fn build_binary_init(&self, loc: Location) -> BinaryInitOp {
         extern "C" {
-            fn mlirCirBinaryStartOp(builder: OpBuilderBase, loc: Location) -> BinaryStartOp;
+            fn mlirCirBinaryInitOp(builder: OpBuilderBase, loc: Location) -> BinaryInitOp;
         }
 
-        unsafe { mlirCirBinaryStartOp(self.base().into(), loc) }
+        unsafe { mlirCirBinaryInitOp(self.base().into(), loc) }
     }
 }
 
@@ -1721,7 +1943,7 @@ impl Operation for BinaryFinishOp {
 }
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
-    pub fn build_binary_finish(&self, loc: Location, bin_builder: BinaryBuilder) -> BinaryFinishOp {
+    pub fn build_binary_finish(&self, loc: Location, bin_builder: ValueBase) -> BinaryFinishOp {
         extern "C" {
             fn mlirCirBinaryFinishOp(
                 builder: OpBuilderBase,
@@ -1730,7 +1952,7 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
             ) -> BinaryFinishOp;
         }
 
-        unsafe { mlirCirBinaryFinishOp(self.base().into(), loc, bin_builder.base()) }
+        unsafe { mlirCirBinaryFinishOp(self.base().into(), loc, bin_builder) }
     }
 }
 
@@ -1744,38 +1966,14 @@ impl Operation for BinaryPushIntegerOp {
     }
 }
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
-    /// Pushes the given value as an unsigned integer of `num_bits` bits, in big-endian order
-    #[inline]
-    pub fn build_binary_push_uint<V: Value, S: Value>(
-        &self,
-        loc: Location,
-        bin_builder: BinaryBuilder,
-        value: V,
-        num_bits: S,
-    ) -> BinaryPushIntegerOp {
-        self.build_binary_push_integer(loc, bin_builder, value, num_bits, false, Endianness::Big, 1)
-    }
-
-    /// Pushes the given value as a signed integer of `num_bits` bits, in big-endian order
-    #[inline]
-    pub fn build_binary_push_int<V: Value, S: Value>(
-        &self,
-        loc: Location,
-        bin_builder: BinaryBuilder,
-        value: V,
-        num_bits: S,
-    ) -> BinaryPushIntegerOp {
-        self.build_binary_push_integer(loc, bin_builder, value, num_bits, true, Endianness::Big, 1)
-    }
-
     /// Pushes the given value as an integer, using the provided details to specify the encoding
     #[inline]
     pub fn build_binary_push_integer<V: Value, S: Value>(
         &self,
         loc: Location,
-        bin_builder: BinaryBuilder,
+        bin_builder: ValueBase,
         value: V,
-        num_bits: S,
+        size: S,
         is_signed: bool,
         endianness: Endianness,
         unit: u32,
@@ -1786,7 +1984,7 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
                 loc: Location,
                 bin_builder: ValueBase,
                 value: ValueBase,
-                num_bits: ValueBase,
+                size: ValueBase,
                 is_signed: bool,
                 endianness: Endianness,
                 unit: u32,
@@ -1799,7 +1997,7 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
                 loc,
                 bin_builder.base(),
                 value.base(),
-                num_bits.base(),
+                size.base(),
                 is_signed,
                 endianness,
                 unit,
@@ -1822,9 +2020,9 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     pub fn build_binary_push_float<V: Value, S: Value>(
         &self,
         loc: Location,
-        bin_builder: BinaryBuilder,
+        bin_builder: ValueBase,
         value: V,
-        num_bits: S,
+        size: S,
         endianness: Endianness,
         unit: u32,
     ) -> BinaryPushFloatOp {
@@ -1834,7 +2032,7 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
                 loc: Location,
                 bin_builder: ValueBase,
                 value: ValueBase,
-                num_bits: ValueBase,
+                size: ValueBase,
                 endianness: Endianness,
                 unit: u32,
             ) -> BinaryPushFloatOp;
@@ -1846,7 +2044,7 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
                 loc,
                 bin_builder.base(),
                 value.base(),
-                num_bits.base(),
+                size.base(),
                 endianness,
                 unit,
             )
@@ -1868,7 +2066,7 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     pub fn build_binary_push_utf8<V: Value>(
         &self,
         loc: Location,
-        bin_builder: BinaryBuilder,
+        bin_builder: ValueBase,
         value: V,
     ) -> BinaryPushUtf8Op {
         extern "C" {
@@ -1900,7 +2098,7 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     pub fn build_binary_push_utf16<V: Value>(
         &self,
         loc: Location,
-        bin_builder: BinaryBuilder,
+        bin_builder: ValueBase,
         value: V,
         endianness: Endianness,
     ) -> BinaryPushUtf16Op {
@@ -1926,6 +2124,46 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     }
 }
 
+/// Represents pushing a utf-32 codepoint on to a binary builder
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct BinaryPushUtf32Op(OperationBase);
+impl Operation for BinaryPushUtf32Op {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_binary_push_utf32<V: Value>(
+        &self,
+        loc: Location,
+        bin_builder: ValueBase,
+        value: V,
+        endianness: Endianness,
+    ) -> BinaryPushUtf16Op {
+        extern "C" {
+            fn mlirCirBinaryPushUtf32Op(
+                builder: OpBuilderBase,
+                loc: Location,
+                bin_builder: ValueBase,
+                value: ValueBase,
+                endianness: Endianness,
+            ) -> BinaryPushUtf16Op;
+        }
+
+        unsafe {
+            mlirCirBinaryPushUtf32Op(
+                self.base().into(),
+                loc,
+                bin_builder.base(),
+                value.base(),
+                endianness,
+            )
+        }
+    }
+}
+
 /// Represents pushing a binary/bitstring value on to a binary builder
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -1937,13 +2175,34 @@ impl Operation for BinaryPushBitsOp {
 }
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
-    pub fn build_binary_push_bits<V: Value, S: Value, U: Value>(
+    pub fn build_binary_push_bits_all<V: Value>(
         &self,
         loc: Location,
-        bin_builder: BinaryBuilder,
+        bin_builder: ValueBase,
         value: V,
-        num_bits: S,
-        unit: U,
+    ) -> BinaryPushBitsOp {
+        extern "C" {
+            fn mlirCirBinaryPushBitsAllOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                bin_builder: ValueBase,
+                value: ValueBase,
+            ) -> BinaryPushBitsOp;
+        }
+
+        unsafe {
+            mlirCirBinaryPushBitsAllOp(self.base().into(), loc, bin_builder.base(), value.base())
+        }
+    }
+
+    #[inline]
+    pub fn build_binary_push_bits<V: Value, S: Value>(
+        &self,
+        loc: Location,
+        bin_builder: ValueBase,
+        value: V,
+        size: S,
+        unit: u32,
     ) -> BinaryPushBitsOp {
         extern "C" {
             fn mlirCirBinaryPushBitsOp(
@@ -1951,8 +2210,8 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
                 loc: Location,
                 bin_builder: ValueBase,
                 value: ValueBase,
-                num_bits: ValueBase,
-                unit: ValueBase,
+                size: ValueBase,
+                unit: u32,
             ) -> BinaryPushBitsOp;
         }
 
@@ -1962,8 +2221,67 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
                 loc,
                 bin_builder.base(),
                 value.base(),
-                num_bits.base(),
-                unit.base(),
+                size.base(),
+                unit,
+            )
+        }
+    }
+}
+
+/// Represents pushing a term of any type on to a binary builder, optionally with a specified size
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct BinaryPushAnyOp(OperationBase);
+impl Operation for BinaryPushAnyOp {
+    fn base(&self) -> OperationBase {
+        self.0
+    }
+}
+impl<'a, B: OpBuilder> CirBuilder<'a, B> {
+    #[inline]
+    pub fn build_binary_push_any<V: Value>(
+        &self,
+        loc: Location,
+        bin_builder: ValueBase,
+        value: V,
+    ) -> BinaryPushAnyOp {
+        extern "C" {
+            fn mlirCirBinaryPushAnyOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                bin_builder: ValueBase,
+                value: ValueBase,
+            ) -> BinaryPushAnyOp;
+        }
+
+        unsafe { mlirCirBinaryPushAnyOp(self.base().into(), loc, bin_builder.base(), value.base()) }
+    }
+
+    #[inline]
+    pub fn build_binary_push_any_sized<V: Value, S: Value>(
+        &self,
+        loc: Location,
+        bin_builder: ValueBase,
+        value: V,
+        size: S,
+    ) -> BinaryPushAnyOp {
+        extern "C" {
+            fn mlirCirBinaryPushAnySizedOp(
+                builder: OpBuilderBase,
+                loc: Location,
+                bin_builder: ValueBase,
+                value: ValueBase,
+                size: ValueBase,
+            ) -> BinaryPushAnyOp;
+        }
+
+        unsafe {
+            mlirCirBinaryPushAnySizedOp(
+                self.base().into(),
+                loc,
+                bin_builder.base(),
+                value.base(),
+                size.base(),
             )
         }
     }

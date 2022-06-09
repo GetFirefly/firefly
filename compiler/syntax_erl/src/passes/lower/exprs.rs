@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use anyhow::bail;
 use either::Either;
-use liblumen_intern::{symbols, Symbol};
+use liblumen_intern::{symbols, Ident, Symbol};
 use liblumen_number::Integer;
 use liblumen_syntax_core::*;
 use log::debug;
@@ -212,10 +212,80 @@ impl<'m> LowerFunctionToCore<'m> {
 
     pub(super) fn lower_binary<'a>(
         &mut self,
-        _builder: &'a mut IrBuilder,
-        _bin: ast::Binary,
+        builder: &'a mut IrBuilder,
+        mut bin: ast::Binary,
     ) -> anyhow::Result<Value> {
-        todo!()
+        let span = bin.span;
+        // Special case constant binary strings
+        match bin.elements.len() {
+            0 => {
+                // Empty string constant
+                return Ok(builder
+                    .ins()
+                    .binary_from_ident(Ident::new(symbols::Invalid, span)));
+            }
+            1 => {
+                // If we have a string literal, we can emit a constant binary without the more complex
+                // instruction sequence used to produce the state machine required for constructing binaries
+                // dynamically
+                if let Some(ast::Literal::String(ident)) =
+                    bin.elements.first().and_then(|e| e.bit_expr.as_literal())
+                {
+                    return Ok(builder.ins().binary_from_ident(*ident));
+                }
+            }
+            _ => (),
+        }
+
+        // If we reach here, we have more than one component that need to be combined into a binary
+        // The state machine for this is essentialy the following pseudocode:
+        //
+        // let mut builder = primop bs_init_writable
+        // for element in elements {
+        //   if let Err(err) = primop bits_push, builder, element {
+        //     primop raise, err
+        //   }
+        // }
+        // match primop bs_close_writable, builder {
+        //   Ok(bin) => bin,
+        //   Err(err) => primop raise, err
+        // }
+
+        // First, create the builder
+        let bin_builder = builder.ins().bs_init_writable(span);
+
+        // Push all elements on the builder left to right
+        for element in bin.elements.drain(..) {
+            let value = self.lower_expr(builder, element.bit_expr)?;
+            let size = match element.bit_size {
+                None => None,
+                Some(sz) => Some(self.lower_expr(builder, sz)?),
+            };
+            let push =
+                builder
+                    .ins()
+                    .bs_push(element.specifier, bin_builder, value, size, element.span);
+            let (is_err, result) = {
+                let ins = builder.ins();
+                let results = ins.data_flow_graph().inst_results(push);
+                (results[0], results[1])
+            };
+            let landing_pad = self.current_landing_pad(builder);
+            builder.ins().br_if(is_err, landing_pad, &[result], span);
+        }
+
+        // Retreive the built binary, propagating the exception if one was raised
+        let close = builder.ins().bs_close_writable(bin_builder, span);
+        let (is_err, result) = {
+            let ins = builder.ins();
+            let results = ins.data_flow_graph().inst_results(close);
+            (results[0], results[1])
+        };
+        let landing_pad = self.current_landing_pad(builder);
+        builder.ins().br_if(is_err, landing_pad, &[result], span);
+        Ok(builder
+            .ins()
+            .cast(result, Type::Term(TermType::Bitstring), span))
     }
 
     pub(super) fn lower_lc<'a>(
@@ -238,7 +308,7 @@ impl<'m> LowerFunctionToCore<'m> {
         &mut self,
         builder: &'a mut IrBuilder,
         apply: ast::Apply,
-        is_tail: bool,
+        _is_tail: bool,
     ) -> anyhow::Result<Value> {
         let span = apply.span;
         let callee_span = apply.callee.span();

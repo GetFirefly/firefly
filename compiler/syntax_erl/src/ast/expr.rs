@@ -123,6 +123,13 @@ impl Expr {
             _ => None,
         }
     }
+
+    pub fn as_literal(&self) -> Option<&Literal> {
+        match self {
+            Expr::Literal(ref lit) => Some(lit),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -140,7 +147,7 @@ impl Var {
 
     #[inline]
     pub fn is_wildcard(&self) -> bool {
-        self.0.as_str() == "_"
+        self.0.name == symbols::WildcardMatch
     }
 }
 impl From<Ident> for Var {
@@ -224,6 +231,51 @@ impl PartialEq for MapProjection {
     }
 }
 
+/// Maps can have two different types of field assignment:
+///
+/// * assoc - inserts or updates the given key with the given value
+/// * exact - updates the given key with the given value, or produces an error
+#[derive(Debug, Clone)]
+pub enum MapField {
+    Assoc {
+        span: SourceSpan,
+        key: Expr,
+        value: Expr,
+    },
+    Exact {
+        span: SourceSpan,
+        key: Expr,
+        value: Expr,
+    },
+}
+impl MapField {
+    pub fn key(&self) -> Expr {
+        match self {
+            &MapField::Assoc { ref key, .. } => key.clone(),
+            &MapField::Exact { ref key, .. } => key.clone(),
+        }
+    }
+
+    pub fn value(&self) -> Expr {
+        match self {
+            &MapField::Assoc { ref value, .. } => value.clone(),
+            &MapField::Exact { ref value, .. } => value.clone(),
+        }
+    }
+
+    pub fn span(&self) -> SourceSpan {
+        match self {
+            MapField::Assoc { span, .. } => *span,
+            MapField::Exact { span, .. } => *span,
+        }
+    }
+}
+impl PartialEq for MapField {
+    fn eq(&self, other: &Self) -> bool {
+        (self.key() == other.key()) && (self.value() == other.value())
+    }
+}
+
 /// The set of literal values
 ///
 /// This does not include tuples, lists, and maps,
@@ -304,51 +356,6 @@ impl PartialOrd for Literal {
                 ln.partial_cmp(&rn)
             }
         }
-    }
-}
-
-/// Maps can have two different types of field assignment:
-///
-/// * assoc - inserts or updates the given key with the given value
-/// * exact - updates the given key with the given value, or produces an error
-#[derive(Debug, Clone)]
-pub enum MapField {
-    Assoc {
-        span: SourceSpan,
-        key: Expr,
-        value: Expr,
-    },
-    Exact {
-        span: SourceSpan,
-        key: Expr,
-        value: Expr,
-    },
-}
-impl MapField {
-    pub fn key(&self) -> Expr {
-        match self {
-            &MapField::Assoc { ref key, .. } => key.clone(),
-            &MapField::Exact { ref key, .. } => key.clone(),
-        }
-    }
-
-    pub fn value(&self) -> Expr {
-        match self {
-            &MapField::Assoc { ref value, .. } => value.clone(),
-            &MapField::Exact { ref value, .. } => value.clone(),
-        }
-    }
-
-    pub fn span(&self) -> SourceSpan {
-        match self {
-            MapField::Assoc { span, .. } => *span,
-            MapField::Exact { span, .. } => *span,
-        }
-    }
-}
-impl PartialEq for MapField {
-    fn eq(&self, other: &Self) -> bool {
-        (self.key() == other.key()) && (self.value() == other.value())
     }
 }
 

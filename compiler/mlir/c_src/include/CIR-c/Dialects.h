@@ -204,6 +204,38 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirTypeOfOp(MlirOpBuilder builder,
                                                  MlirLocation location,
                                                  MlirValue value);
 
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsListOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsNumberOp(MlirOpBuilder builder,
+                                                   MlirLocation location,
+                                                   MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsFloatOp(MlirOpBuilder builder,
+                                                  MlirLocation location,
+                                                  MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsIntegerOp(MlirOpBuilder builder,
+                                                    MlirLocation location,
+                                                    MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsIsizeOp(MlirOpBuilder builder,
+                                                  MlirLocation location,
+                                                  MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsBigIntOp(MlirOpBuilder builder,
+                                                   MlirLocation location,
+                                                   MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsAtomOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirIsBoolOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirValue value);
+
 MLIR_CAPI_EXPORTED MlirOperation mlirCirIsTypeOp(MlirOpBuilder builder,
                                                  MlirLocation location,
                                                  MlirValue value, MlirType ty);
@@ -250,6 +282,13 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirGetElementOp(MlirOpBuilder builder,
                                                      MlirValue tuple,
                                                      MlirValue index);
 
+MLIR_CAPI_EXPORTED MlirOperation mlirCirMapOp(MlirOpBuilder builder,
+                                              MlirLocation location);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirMapGetOp(MlirOpBuilder builder,
+                                                 MlirLocation location,
+                                                 MlirValue map, MlirValue key);
+
 MLIR_CAPI_EXPORTED MlirOperation mlirCirRaiseOp(MlirOpBuilder builder,
                                                 MlirLocation location,
                                                 MlirValue exceptionClass,
@@ -294,8 +333,8 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirRecvDoneOp(MlirOpBuilder builder,
                                                    MlirLocation location,
                                                    MlirValue recvContext);
 
-MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryStartOp(MlirOpBuilder builder,
-                                                      MlirLocation location);
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryInitOp(MlirOpBuilder builder,
+                                                     MlirLocation location);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryFinishOp(MlirOpBuilder builder,
                                                        MlirLocation location,
@@ -303,12 +342,12 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryFinishOp(MlirOpBuilder builder,
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushIntegerOp(
     MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
-    MlirValue value, MlirValue bits, bool isSigned, CirEndianness endianness,
+    MlirValue value, MlirValue size, bool isSigned, CirEndianness endianness,
     unsigned unit);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushFloatOp(
     MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
-    MlirValue value, MlirValue bits, CirEndianness endianness, unsigned unit);
+    MlirValue value, MlirValue size, CirEndianness endianness, unsigned unit);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushUtf8Op(MlirOpBuilder builder,
                                                          MlirLocation location,
@@ -319,9 +358,26 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushUtf16Op(
     MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
     MlirValue value, CirEndianness endianness);
 
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushUtf32Op(
+    MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
+    MlirValue value, CirEndianness endianness);
+
+MLIR_CAPI_EXPORTED MlirOperation
+mlirCirBinaryPushBitsAllOp(MlirOpBuilder builder, MlirLocation location,
+                           MlirValue binBuilder, MlirValue value);
+
 MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushBitsOp(
     MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
-    MlirValue value, MlirValue unit, MlirValue size);
+    MlirValue value, MlirValue size, unsigned unit);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushAnyOp(MlirOpBuilder builder,
+                                                        MlirLocation location,
+                                                        MlirValue binBuilder,
+                                                        MlirValue value);
+
+MLIR_CAPI_EXPORTED MlirOperation mlirCirBinaryPushAnySizedOp(
+    MlirOpBuilder builder, MlirLocation location, MlirValue binBuilder,
+    MlirValue value, MlirValue size);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirDispatchTableOp(MlirOpBuilder builder,
                                                         MlirLocation location,

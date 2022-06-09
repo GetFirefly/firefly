@@ -92,6 +92,9 @@ where
     // Lower to LLVM dialect
     let successful = pm.run(&module);
     if !successful {
+        use liblumen_mlir::Operation;
+        module.as_ref().dump();
+
         db.report_error(format!(
             "error occurred while lowering module '{}' to llvm dialect",
             &module_name

@@ -376,10 +376,90 @@ def CIR_IsNumberOp : CIR_Op<"is_number", [MemoryEffects<[MemRead]>]> {
   //let hasFolder = 1;
 }
 
+def CIR_IsFloatOp : CIR_Op<"is_float", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for floats.";
+  let description = [{
+    This operation returns true if the given term is a float
+  }];
+
+  let arguments = (ins CIR_AnyTerm:$value);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
+  }];
+
+  //let hasFolder = 1;
+}
+
+def CIR_IsIntegerOp : CIR_Op<"is_integer", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for integers.";
+  let description = [{
+    This operation returns true if the given term is any integer type.
+  }];
+
+  let arguments = (ins CIR_AnyTerm:$value);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
+  }];
+
+  //let hasFolder = 1;
+}
+
+def CIR_IsIsizeOp : CIR_Op<"is_isize", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for fixed-width integers.";
+  let description = [{
+    This operation returns true if the given term is a fixed-width integer value
+  }];
+
+  let arguments = (ins CIR_AnyTerm:$value);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
+  }];
+
+  //let hasFolder = 1;
+}
+
+def CIR_IsBigIntOp : CIR_Op<"is_bigint", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for big integers.";
+  let description = [{
+    This operation returns true if the given term is a big integer value
+  }];
+
+  let arguments = (ins CIR_AnyTerm:$value);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
+  }];
+
+  //let hasFolder = 1;
+}
+
 def CIR_IsAtomOp : CIR_Op<"is_atom", [MemoryEffects<[MemRead]>]> {
   let summary = "A type checking predicate for atoms.";
   let description = [{
     This operation returns true if the given term is a valid atom or boolean value.
+  }];
+
+  let arguments = (ins CIR_AnyTerm:$value);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
+  }];
+
+  //let hasFolder = 1;
+}
+
+def CIR_IsBoolOp : CIR_Op<"is_bool", [MemoryEffects<[MemRead]>]> {
+  let summary = "A type checking predicate for booleans.";
+  let description = [{
+    This operation returns true if the given term is a boolean value.
   }];
 
   let arguments = (ins CIR_AnyTerm:$value);
@@ -525,7 +605,7 @@ def CIR_TailOp : CIR_Op<"tl", [MemoryEffects<[MemRead]>]> {
   let results = (outs CIR_OpaqueTermType:$result);
 
   let assemblyFormat = [{
-    $cell attr-dict `:` type($result)
+    $cell attr-dict
   }];
 }
 
@@ -571,20 +651,34 @@ def CIR_GetElementOp : CIR_Op<"getelement", [MemoryEffects<[MemRead]>]> {
   }];
 }
 
-/*
-def CIR_MapOp : CIR_Op<"map", [MemAlloc]> {
+def CIR_MapOp : CIR_Op<"map.empty", [MemoryEffects<[MemAlloc]>]> {
   let summary = "A type constructor for maps.";
   let description = [{
     This operation allocates a new empty map.
   }];
 
-  let results = (outs CIR_BoxOf<CIR_Map>:$result);
+  let results = (outs CIR_BoxOf<CIR_MapType>:$result);
 
   let assemblyFormat = [{
-    attr-dict `:` type($result)
+    attr-dict
   }];
 }
 
+def CIR_MapGetOp : CIR_Op<"map.get", [MemoryEffects<[MemRead]>]> {
+  let summary = "A map primitive that fetches a value associated with a key from a map.";
+  let description = [{
+    This operation returns the term associated with the given key, otherwise None
+  }];
+
+  let arguments = (ins CIR_BoxOf<CIR_MapType>:$map, CIR_AnyTerm:$key);
+  let results = (outs CIR_OpaqueTermType:$result);
+
+  let assemblyFormat = [{
+    `(` $map `,` $key `:` type($key) `)` attr-dict
+  }];
+}
+
+/*
 def CIR_MapPutOp : CIR_Op<"map.put", [MemRead, MemWrite]> {
   let summary = "A map primitive that inserts/updates a value in the map";
   let description = [{
@@ -807,7 +901,7 @@ def CIR_RecvDoneOp : CIR_Op<"recv.done", [MemoryEffects<[MemRead, MemWrite]>]> {
   }];
 }
 
-def CIR_BinaryStartOp : CIR_Op<"binary.start", [MemoryEffects<[MemWrite]>]> {
+def CIR_BinaryInitOp : CIR_Op<"binary.init", [MemoryEffects<[MemWrite]>]> {
   let summary = "Creates a new binary builder";
   let description = [{
     This operation is used to initialize the state used to construct a binary
@@ -831,9 +925,9 @@ def CIR_BinaryFinishOp : CIR_Op<"binary.finish", [MemoryEffects<[MemRead, MemWri
   }];
 
   let arguments = (ins CIR_BinaryBuilderType:$builder);
-  let results = (outs CIR_BoxOf<CIR_BitsType>:$bin);
+  let results = (outs I1:$is_err, CIR_AnyTerm:$bin);
   let assemblyFormat = [{
-    $builder attr-dict
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 
@@ -843,13 +937,13 @@ def CIR_BinaryPushIntegerOp : CIR_Op<"binary.push.int", [MemoryEffects<[MemRead,
     This operation handles pushing a value of integer type on to the current binary builder, using the provided
     bitsize/flags to determine how the value will be encoded in the resulting binary.
   }];
-  let arguments = (ins PtrOf<CIR_BinaryBuilderType>:$builder,
-                       CIR_IntegerType:$value,
-                       I32:$bits,
+  let arguments = (ins CIR_BinaryBuilderType:$builder,
+                       CIR_AnyTerm:$value,
+                       CIR_AnyTerm:$size,
                        DefaultValuedAttr<BoolAttr, "false">:$isSigned,
                        DefaultValuedAttr<EndiannessAttr, "::mlir::cir::Endianness::Big">:$endianness,
-                       DefaultValuedAttr<I8Attr, "1">:$unit);
-  let results = (outs I1:$result);
+                       DefaultValuedAttr<I32Attr, "1">:$unit);
+  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
@@ -861,12 +955,12 @@ def CIR_BinaryPushFloatOp : CIR_Op<"binary.push.float", [MemoryEffects<[MemRead,
     This operation handles pushing a value of float type on to the current binary builder, using the provided
     bitsize/flags to determine how the value will be encoded in the resulting binary.
   }];
-  let arguments = (ins PtrOf<CIR_BinaryBuilderType>:$builder,
-                       CIR_FloatType:$value,
-                       I32:$bits,
+  let arguments = (ins CIR_BinaryBuilderType:$builder,
+                       CIR_AnyTerm:$value,
+                       CIR_AnyTerm:$size,
                        DefaultValuedAttr<EndiannessAttr, "::mlir::cir::Endianness::Big">:$endianness,
-                       DefaultValuedAttr<I8Attr, "1">:$unit);
-  let results = (outs I1:$result);
+                       DefaultValuedAttr<I32Attr, "1">:$unit);
+  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
@@ -877,8 +971,8 @@ def CIR_BinaryPushUtf8Op : CIR_Op<"binary.push.utf8", [MemoryEffects<[MemRead, M
   let description = [{
     This operation handles pushing a single utf-8 codepoint on to the current binary builder.
   }];
-  let arguments = (ins PtrOf<CIR_BinaryBuilderType>:$builder, CIR_IntegerType:$value);
-  let results = (outs I1:$result);
+  let arguments = (ins CIR_BinaryBuilderType:$builder, CIR_AnyTerm:$value);
+  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
@@ -890,10 +984,25 @@ def CIR_BinaryPushUtf16Op : CIR_Op<"binary.push.utf16", [MemoryEffects<[MemRead,
     This operation handles pushing a single utf-16 codepoint on to the current binary builder, using the
     provided flags to determine how the value will be encoded in the resulting binary.
   }];
-  let arguments = (ins PtrOf<CIR_BinaryBuilderType>:$builder,
-                       CIR_IntegerType:$value,
+  let arguments = (ins CIR_BinaryBuilderType:$builder,
+                       CIR_AnyTerm:$value,
                        DefaultValuedAttr<EndiannessAttr, "::mlir::cir::Endianness::Big">:$endianness);
-  let results = (outs I1:$result);
+  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def CIR_BinaryPushUtf32Op : CIR_Op<"binary.push.utf32", [MemoryEffects<[MemRead, MemWrite]>]> {
+  let summary = "Appends a utf-32 codepoint value on to the current binary";
+  let description = [{
+    This operation handles pushing a single utf-32 codepoint on to the current binary builder, using the
+    provided flags to determine how the value will be encoded in the resulting binary.
+  }];
+  let arguments = (ins CIR_BinaryBuilderType:$builder,
+                       CIR_AnyTerm:$value,
+                       DefaultValuedAttr<EndiannessAttr, "::mlir::cir::Endianness::Big">:$endianness);
+  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
@@ -910,11 +1019,27 @@ def CIR_BinaryPushBitsOp : CIR_Op<"binary.push.bits", [MemoryEffects<[MemRead, M
     the input is expected to uphold `total_size_in_bits % unit == 0`, otherwise an error will be raised.
   }];
 
-  let arguments = (ins PtrOf<CIR_BinaryBuilderType>:$builder,
-                       CIR_BoxOf<CIR_BitsType>:$value,
-                       CIR_IntegerType:$unit,
-                       Optional<CIR_IntegerType>:$size);
-  let results = (outs I1:$result);
+  let arguments = (ins CIR_BinaryBuilderType:$builder,
+                       CIR_AnyTerm:$value,
+                       Optional<CIR_AnyTerm>:$size,
+                       DefaultValuedAttr<I32Attr, "8">:$unit);
+  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
+  let assemblyFormat = [{
+    `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def CIR_BinaryPushAnyOp : CIR_Op<"binary.push.any", [MemoryEffects<[MemRead, MemWrite]>]> {
+  let summary = "Appends a term value on to the current binary";
+  let description = [{
+    This operation handles pushing an integer, float, or binary/string value using the default semantics
+    for those types, optionally with a specified size.
+  }];
+
+  let arguments = (ins CIR_BinaryBuilderType:$builder,
+                       CIR_AnyTerm:$value,
+                       Optional<CIR_AnyTerm>:$size);
+  let results = (outs I1:$is_err, CIR_ExceptionType:$err);
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];

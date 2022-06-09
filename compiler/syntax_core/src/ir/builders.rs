@@ -1,6 +1,6 @@
 use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::SourceSpan;
-use liblumen_intern::Symbol;
+use liblumen_intern::{Ident, Symbol};
 use liblumen_number::{BigInt, Integer};
 
 use super::*;
@@ -248,14 +248,38 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
-    fn binary_from_str(self, s: &str, span: SourceSpan) -> Value {
-        self.binary_from_bytes(s.as_bytes(), span)
+    fn binary_from_ident(mut self, id: Ident) -> Value {
+        let constant = {
+            self.data_flow_graph_mut()
+                .make_constant(ConstantItem::InternedStr(id.name))
+        };
+        let (inst, dfg) = self.UnaryConst(
+            Opcode::ConstBinary,
+            Type::Term(TermType::Binary),
+            constant,
+            id.span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn binary_from_string(mut self, s: String, span: SourceSpan) -> Value {
+        let constant = {
+            self.data_flow_graph_mut()
+                .make_constant(ConstantItem::String(s))
+        };
+        let (inst, dfg) = self.UnaryConst(
+            Opcode::ConstBinary,
+            Type::Term(TermType::Binary),
+            constant,
+            span,
+        );
+        dfg.first_result(inst)
     }
 
     fn binary_from_bytes(mut self, bytes: &[u8], span: SourceSpan) -> Value {
         let constant = {
             self.data_flow_graph_mut()
-                .make_constant(ConstantItem::Binary(bytes.to_vec().into()))
+                .make_constant(ConstantItem::Bytes(bytes.to_vec().into()))
         };
         let (inst, dfg) = self.UnaryConst(
             Opcode::ConstBinary,
@@ -612,6 +636,17 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
+    fn map_get(mut self, map: Value, key: Value, span: SourceSpan) -> Value {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.push(key, pool);
+        }
+        let (inst, dfg) = self.PrimOp(Opcode::MapGet, Type::Term(TermType::Any), vlist, span);
+        dfg.first_result(inst)
+    }
+
     fn map_put(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
         let (inst, dfg) = self.MapUpdate(Opcode::MapPut, map, key, value, span);
         dfg.first_result(inst)
@@ -736,26 +771,17 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self.PrimOp(Opcode::RecvWait, Type::Invalid, vlist, span).0
     }
 
-    fn bs_init_writable(mut self, size: Value, span: SourceSpan) -> Inst {
-        let mut vlist = ValueList::default();
-        {
-            let pool = &mut self.data_flow_graph_mut().value_lists;
-            vlist.push(size, pool);
-        }
-        self.PrimOp(
-            Opcode::BitsInitWritable,
-            Type::Term(TermType::Bitstring),
-            vlist,
-            span,
-        )
-        .0
+    fn bs_init_writable(self, span: SourceSpan) -> Value {
+        let vlist = ValueList::default();
+        let (inst, dfg) = self.PrimOp(Opcode::BitsInitWritable, Type::BinaryBuilder, vlist, span);
+        dfg.first_result(inst)
     }
 
     fn bs_init_writable_imm(self, size: usize, span: SourceSpan) -> Inst {
         let vlist = ValueList::default();
         self.PrimOpImm(
             Opcode::BitsInitWritable,
-            Type::Term(TermType::Bitstring),
+            Type::BinaryBuilder,
             Immediate::Integer(size.try_into().unwrap()),
             vlist,
             span,
@@ -763,19 +789,19 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         .0
     }
 
-    fn bs_close_writable(mut self, bin: Value, span: SourceSpan) -> Value {
+    fn bs_close_writable(mut self, bin: Value, span: SourceSpan) -> Inst {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(bin, pool);
         }
-        let (inst, dfg) = self.PrimOp(
+        self.PrimOp(
             Opcode::BitsCloseWritable,
             Type::Term(TermType::Bitstring),
             vlist,
             span,
-        );
-        dfg.first_result(inst)
+        )
+        .0
     }
 
     fn bs_match(
@@ -796,9 +822,10 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn bs_push(
         mut self,
-        spec: BinaryEntrySpecifier,
+        spec: Option<BinaryEntrySpecifier>,
         bin: Value,
         value: Value,
+        size: Option<Value>,
         span: SourceSpan,
     ) -> Inst {
         let mut vlist = ValueList::default();
@@ -806,6 +833,9 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(bin, pool);
             vlist.push(value, pool);
+            if let Some(sz) = size {
+                vlist.push(sz, pool);
+            }
         }
         self.BitsPush(spec, vlist, span).0
     }
@@ -1160,12 +1190,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     #[allow(non_snake_case)]
     fn BitsPush(
         self,
-        spec: BinaryEntrySpecifier,
+        spec: Option<BinaryEntrySpecifier>,
         args: ValueList,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::BitsPush(BitsPush { spec, args });
-        self.build(data, Type::Term(TermType::Bitstring), span)
+        self.build(data, Type::Term(TermType::Any), span)
     }
 
     #[allow(non_snake_case)]

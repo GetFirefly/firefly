@@ -11,7 +11,7 @@ use liblumen_pass::Pass;
 
 use crate::ast::{self, *};
 
-use self::inject::{AddAutoImports, DefinePseudoLocals};
+use self::inject::AddAutoImports;
 use self::verify::{VerifyOnLoadFunctions, VerifyTypeSpecs};
 
 /// This pass is responsible for taking a set of top-level forms and

@@ -54,18 +54,18 @@ class PtrOf<Type pointee> : Type<
 
 class CIR_Type<string name, list<Trait> traits = [],
              string baseCppClass = "::mlir::Type">
-    : TypeDef<CIR_Dialect, !strconcat("CIR", name), !listconcat(traits, [TermTypeInterface]), baseCppClass> {
+    : TypeDef<CIR_Dialect, !strconcat("CIR", name), !listconcat(traits, [DeclareTypeInterfaceMethods<TermTypeInterface>]), baseCppClass> {
   let mnemonic = ?;
 }
 
 class CIR_BoxedType<string name, list<Trait> traits = [],
                     string baseCppClass = "::mlir::Type">
-    : CIR_Type<name, !listconcat(traits, [BoxedTypeInterface]), baseCppClass> {
+    : CIR_Type<name, !listconcat(traits, [DeclareTypeInterfaceMethods<BoxedTypeInterface>]), baseCppClass> {
 }
 
 class CIR_ImmediateType<string name, list<Trait> traits = [],
                         string baseCppClass = "::mlir::Type">
-    : CIR_Type<name, !listconcat(traits, [ImmediateTypeInterface, MemRefElementTypeInterface]), baseCppClass> {
+    : CIR_Type<name, !listconcat(traits, [DeclareTypeInterfaceMethods<ImmediateTypeInterface>, DeclareTypeInterfaceMethods<MemRefElementTypeInterface>]), baseCppClass> {
 }
 
 def CIR_NoneType : CIR_ImmediateType<"None"> {

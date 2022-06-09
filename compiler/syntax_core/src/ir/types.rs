@@ -302,10 +302,12 @@ pub enum Type {
     Exception,
     // This type maps to Trace in liblumen_rt
     ExceptionTrace,
-    // This type maps to ReceiveContext in lumen_rt_minimal
+    // This type maps to ReceiveContext in lumen_rt_tiny
     RecvContext,
-    // This type maps to ReceiveState in lumen_rt_minimal
+    // This type maps to ReceiveState in lumen_rt_tiny
     RecvState,
+    // This type maps to BinaryBuilder in liblumen_rt
+    BinaryBuilder,
 }
 impl Type {
     pub fn tuple(arity: usize) -> Type {
@@ -362,6 +364,7 @@ impl fmt::Display for Type {
             Self::ExceptionTrace => f.write_str("trace"),
             Self::RecvContext => f.write_str("recv_context"),
             Self::RecvState => f.write_str("recv_state"),
+            Self::BinaryBuilder => f.write_str("binary_builder"),
         }
     }
 }

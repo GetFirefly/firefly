@@ -227,13 +227,16 @@ impl DataFlowGraph {
                 // Binary construction produces two results, a success flag and the new binary value
                 Opcode::BitsPush => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
-                    self.append_result(inst, Type::Term(TermType::Bitstring));
+                    // This value is either the none term or an exception, depending on the is_err flag
+                    self.append_result(inst, Type::Term(TermType::Any));
                     2
                 }
                 // When a binary is constructed, a single result is returned, the constructed binary
                 Opcode::BitsCloseWritable => {
-                    self.append_result(inst, Type::Term(TermType::Bitstring));
-                    1
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    // This value is always a bitstring when the is_err flag is not set
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    2
                 }
                 // Constants/immediates have known types
                 Opcode::ImmInt
@@ -349,6 +352,10 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::Tuple(None)));
                     1
                 }
+                Opcode::MapGet => {
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    1
+                }
                 Opcode::Map | Opcode::MapPut | Opcode::MapUpdate => {
                     self.append_result(inst, Type::Term(TermType::Map));
                     1
@@ -373,7 +380,7 @@ impl DataFlowGraph {
                     1
                 }
                 Opcode::BitsInitWritable => {
-                    self.append_result(inst, Type::Term(TermType::Bitstring));
+                    self.append_result(inst, Type::BinaryBuilder);
                     1
                 }
                 Opcode::ExceptionClass => {

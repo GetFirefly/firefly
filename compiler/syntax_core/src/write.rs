@@ -212,7 +212,17 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
                 }
             }
         }
-        InstData::BitsPush(BitsPush { spec, args, .. }) => {
+        InstData::BitsPush(BitsPush {
+            spec: None, args, ..
+        }) => {
+            let values = DisplayValues(args.as_slice(pool));
+            write!(w, ".any {}", values)
+        }
+        InstData::BitsPush(BitsPush {
+            spec: Some(spec),
+            args,
+            ..
+        }) => {
             let values = DisplayValues(args.as_slice(pool));
             match spec {
                 BinaryEntrySpecifier::Integer {

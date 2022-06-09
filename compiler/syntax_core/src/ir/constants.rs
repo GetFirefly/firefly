@@ -308,18 +308,58 @@ impl fmt::Display for ConstantData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum ConstantItem {
     Integer(Integer),
     Float(f64),
     Bool(bool),
     Atom(Symbol),
-    Binary(ConstantData),
+    Bytes(ConstantData),
+    String(String),
+    InternedStr(Symbol),
     Tuple(Vec<Constant>),
     List(Vec<Constant>),
     Map(Vec<(Constant, Constant)>),
 }
 impl Eq for ConstantItem {}
+impl PartialEq for ConstantItem {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Integer(x), Self::Integer(y)) => x.eq(y),
+            (Self::Integer(_), _) => false,
+            (Self::Float(x), Self::Float(y)) => x.eq(y),
+            (Self::Float(_), _) => false,
+            (Self::Bool(x), Self::Bool(y)) => x.eq(y),
+            (Self::Bool(_), _) => false,
+            (Self::Atom(x), Self::Atom(y)) => x.eq(y),
+            (Self::Atom(_), _) => false,
+            (Self::Bytes(x), other) => match other {
+                Self::Bytes(y) => x.eq(y),
+                Self::String(y) => x.as_slice().eq(y.as_bytes()),
+                Self::InternedStr(y) => x.as_slice().eq(y.as_str().get().as_bytes()),
+                _ => false,
+            },
+            (Self::String(x), other) => match other {
+                Self::Bytes(y) => x.as_bytes().eq(y.as_slice()),
+                Self::String(y) => x.eq(y),
+                Self::InternedStr(y) => x.as_str().eq(y.as_str().get()),
+                _ => false,
+            },
+            (Self::InternedStr(x), other) => match other {
+                Self::Bytes(y) => x.as_str().get().as_bytes().eq(y.as_slice()),
+                Self::String(y) => x.as_str().get().eq(y.as_str()),
+                Self::InternedStr(y) => x.eq(y),
+                _ => false,
+            },
+            (Self::Tuple(x), Self::Tuple(y)) => x.eq(y),
+            (Self::Tuple(_), _) => false,
+            (Self::List(x), Self::List(y)) => x.eq(y),
+            (Self::List(_), _) => false,
+            (Self::Map(x), Self::Map(y)) => x.eq(y),
+            (Self::Map(_), _) => false,
+        }
+    }
+}
 impl Hash for ConstantItem {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let d = std::mem::discriminant(self);
@@ -332,7 +372,9 @@ impl Hash for ConstantItem {
             }
             Self::Bool(b) => b.hash(state),
             Self::Atom(a) => a.hash(state),
-            Self::Binary(b) => b.as_slice().hash(state),
+            Self::Bytes(b) => b.as_slice().hash(state),
+            Self::String(b) => b.as_bytes().hash(state),
+            Self::InternedStr(b) => b.as_str().get().as_bytes().hash(state),
             Self::Tuple(e) => e.hash(state),
             Self::List(e) => e.hash(state),
             Self::Map(e) => e.hash(state),
@@ -346,7 +388,9 @@ impl ConstantItem {
             Self::Float(_) => Type::Term(TermType::Float),
             Self::Bool(_) => Type::Term(TermType::Bool),
             Self::Atom(_) => Type::Term(TermType::Atom),
-            Self::Binary(_) => Type::Term(TermType::Bitstring),
+            Self::Bytes(_) | Self::String(_) | Self::InternedStr(_) => {
+                Type::Term(TermType::Bitstring)
+            }
             Self::Tuple(_) => Type::Term(TermType::Tuple(None)),
             Self::List(_) => Type::Term(TermType::List(None)),
             Self::Map(_) => Type::Term(TermType::Map),
@@ -360,7 +404,9 @@ impl ConstantItem {
                 let bytes = b.to_signed_bytes_le();
                 bytes.len()
             }
-            Self::Binary(b) => b.len(),
+            Self::Bytes(b) => b.len(),
+            Self::String(b) => b.as_bytes().len(),
+            Self::InternedStr(b) => b.as_str().get().as_bytes().len(),
             Self::Tuple(ref elements) => elements
                 .iter()
                 .map(|i| pool.get(i).unwrap().byte_size(pool))
@@ -388,12 +434,31 @@ impl ConstantItem {
             Self::Float(flt) => write!(f, "{}", flt),
             Self::Bool(b) => write!(f, "{}", b),
             Self::Atom(s) => write!(f, "{}", s.as_interned_str()),
-            Self::Binary(b) => {
-                if let Ok(s) = std::str::from_utf8(b.as_slice()) {
-                    write!(f, "{:?}", s)
+            Self::Bytes(bytes) => {
+                if !bytes.is_empty() {
+                    write!(f, "0x")?;
+                    for b in bytes.iter().rev() {
+                        write!(f, "{:02x}", b)?;
+                    }
+                    Ok(())
                 } else {
-                    write!(f, "{}", b)
+                    write!(f, "0x0")
                 }
+            }
+            Self::String(s) => {
+                write!(f, "\"")?;
+                for c in s.escape_debug() {
+                    write!(f, "{}", c)?;
+                }
+                write!(f, "\"")
+            }
+            Self::InternedStr(b) => {
+                let s = b.as_str().get();
+                write!(f, "\"")?;
+                for c in s.escape_debug() {
+                    write!(f, "{}", c)?;
+                }
+                write!(f, "\"")
             }
             Self::Tuple(ref elements) => {
                 write!(f, "{{")?;

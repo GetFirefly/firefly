@@ -186,16 +186,15 @@ impl<'m> LowerFunctionToCore<'m> {
         // and consequently, whether or not this is a wildcard clause.
         let mut has_implicit_match = false;
         let mut has_explicit_match = false;
-        let mut has_guard = clause.guard.is_some();
+        let has_guard = clause.guard.is_some();
         let mut clause_param_symbol_set = HashSet::with_capacity(clause.params.len());
         {
             for param in clause.params.iter() {
                 if let Some(v) = param.as_var() {
-                    let sym = v.sym();
-                    if sym == symbols::WildcardMatch {
+                    if v.is_wildcard() {
                         continue;
                     }
-                    if !clause_param_symbol_set.insert(sym) {
+                    if !clause_param_symbol_set.insert(v.sym()) {
                         has_implicit_match = true;
                     }
                 } else {
@@ -223,9 +222,10 @@ impl<'m> LowerFunctionToCore<'m> {
                 let trampoline = builder.create_block();
                 let span = clause.span;
                 builder.append_block_param(trampoline, Type::Term(TermType::Any), span);
+                builder.switch_to_block(trampoline);
                 builder.ins().br(next_clause_block, &[], span);
                 builder.switch_to_block(current_block);
-                Some(next_clause_block)
+                Some(trampoline)
             } else {
                 // erlang:raise(error, function_clause, Trace).
                 let current_block = builder.current_block();
@@ -279,6 +279,7 @@ impl<'m> LowerFunctionToCore<'m> {
                         param,
                         value,
                         pattern_fail.expect("fallible patterns require a pattern_fail_block"),
+                        true,
                     )?;
                 } else {
                     // This is a new variable binding, so define it in scope of the remaining params
@@ -290,6 +291,7 @@ impl<'m> LowerFunctionToCore<'m> {
                     param,
                     value,
                     pattern_fail.expect("fallible patterns require a pattern_fail_block"),
+                    true,
                 )?;
             }
         }
@@ -324,27 +326,29 @@ impl<'m> LowerFunctionToCore<'m> {
         //   # If we reach the end of the sequence with no passing guards, the
         //   # entire sequence is considered failed
         //   return false
-        let mut guard_sequence = clause.guard.take().unwrap();
-        let guard_sequence_failed = pattern_fail.unwrap();
-        let guard_sequence_passed = builder.create_block();
-        let guard_blocks = guard_sequence
-            .iter()
-            .skip(1) // Skip the first block as we use the entry for it
-            .map(|guard| {
-                let guard_block = builder.create_block();
-                builder.append_block_param(guard_block, Type::Term(TermType::Any), guard.span);
-                guard_block
-            })
-            .collect::<Vec<_>>();
-        for (i, guard) in guard_sequence.drain(0..).enumerate() {
-            let guard_failed = guard_blocks
-                .get(i + 1)
-                .copied()
-                .unwrap_or(guard_sequence_failed);
-            self.lower_guard_sequence(builder, guard, guard_failed, guard_sequence_passed)?;
+        if let Some(mut guard_sequence) = clause.guard.take() {
+            let guard_sequence_failed = pattern_fail.unwrap();
+            let guard_sequence_passed = builder.create_block();
+            let guard_blocks = guard_sequence
+                .iter()
+                .skip(1) // Skip the first block as we use the entry for it
+                .map(|guard| {
+                    let guard_block = builder.create_block();
+                    builder.append_block_param(guard_block, Type::Term(TermType::Any), guard.span);
+                    guard_block
+                })
+                .collect::<Vec<_>>();
+            for (i, guard) in guard_sequence.drain(0..).enumerate() {
+                let guard_failed = guard_blocks
+                    .get(i + 1)
+                    .copied()
+                    .unwrap_or(guard_sequence_failed);
+                self.lower_guard_sequence(builder, guard, guard_failed, guard_sequence_passed)?;
+            }
+
+            builder.switch_to_block(guard_sequence_passed);
         }
 
-        builder.switch_to_block(guard_sequence_passed);
         let last_expression_span = clause.body.last().map(|e| e.span()).unwrap();
         let (result, _) = self.lower_block(builder, clause.body)?;
         builder.ins().ret_ok(result, last_expression_span);

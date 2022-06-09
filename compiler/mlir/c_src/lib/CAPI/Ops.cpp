@@ -127,6 +127,78 @@ MlirOperation mlirCirTypeOfOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
+MlirOperation mlirCirIsListOp(MlirOpBuilder bldr, MlirLocation location,
+                              MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsListOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirIsNumberOp(MlirOpBuilder bldr, MlirLocation location,
+                                MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsNumberOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirIsFloatOp(MlirOpBuilder bldr, MlirLocation location,
+                               MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsFloatOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirIsIntegerOp(MlirOpBuilder bldr, MlirLocation location,
+                                 MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsIntegerOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirIsIsizeOp(MlirOpBuilder bldr, MlirLocation location,
+                               MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsIsizeOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirIsBigIntOp(MlirOpBuilder bldr, MlirLocation location,
+                                MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsNumberOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirIsAtomOp(MlirOpBuilder bldr, MlirLocation location,
+                              MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsAtomOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
+MlirOperation mlirCirIsBoolOp(MlirOpBuilder bldr, MlirLocation location,
+                              MlirValue value) {
+
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op =
+      builder->create<cir::IsBoolOp>(unwrap(location), unwrap(value));
+  return wrap(op);
+}
+
 MlirOperation mlirCirIsTypeOp(MlirOpBuilder bldr, MlirLocation location,
                               MlirValue value, MlirType ty) {
 
@@ -223,6 +295,20 @@ MlirOperation mlirCirGetElementOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
+MlirOperation mlirCirMapOp(MlirOpBuilder bldr, MlirLocation location) {
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op = builder->create<cir::MapOp>(unwrap(location));
+  return wrap(op);
+}
+
+MlirOperation mlirCirMapGetOp(MlirOpBuilder bldr, MlirLocation location,
+                              MlirValue map, MlirValue key) {
+  OpBuilder *builder = unwrap(bldr);
+  Operation *op = builder->create<cir::MapGetOp>(unwrap(location), unwrap(map),
+                                                 unwrap(key));
+  return wrap(op);
+}
+
 MlirOperation mlirCirRaiseOp(MlirOpBuilder bldr, MlirLocation location,
                              MlirValue exceptionClass,
                              MlirValue exceptionReason,
@@ -316,54 +402,63 @@ MlirOperation mlirCirRecvDoneOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
-MlirOperation mlirCirBinaryStartOp(MlirOpBuilder bldr, MlirLocation location) {
+MlirOperation mlirCirBinaryInitOp(MlirOpBuilder bldr, MlirLocation location) {
   OpBuilder *builder = unwrap(bldr);
-  Operation *op = builder->create<cir::BinaryStartOp>(unwrap(location));
+  Operation *op = builder->create<cir::BinaryInitOp>(unwrap(location));
   return wrap(op);
 }
 
 MlirOperation mlirCirBinaryFinishOp(MlirOpBuilder bldr, MlirLocation location,
                                     MlirValue binBuilder) {
   OpBuilder *builder = unwrap(bldr);
-  Operation *op = builder->create<cir::BinaryFinishOp>(unwrap(location),
-                                                       unwrap(binBuilder));
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
+  Operation *op = builder->create<cir::BinaryFinishOp>(
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder));
   return wrap(op);
 }
 
 MlirOperation mlirCirBinaryPushIntegerOp(MlirOpBuilder bldr,
                                          MlirLocation location,
                                          MlirValue binBuilder, MlirValue value,
-                                         MlirValue bits, bool isSigned,
+                                         MlirValue size, bool isSigned,
                                          CirEndianness endianness,
                                          unsigned unit) {
   OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
   auto endianAttr = EndiannessAttr::get(
       builder->getContext(), builder->getI8Type(), unwrap(endianness));
   Operation *op = builder->create<cir::BinaryPushIntegerOp>(
-      unwrap(location), unwrap(binBuilder), unwrap(value), unwrap(bits),
-      isSigned, endianAttr, (uint8_t)unit);
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value), unwrap(size), isSigned, endianAttr, (uint32_t)unit);
   return wrap(op);
 }
 
 MlirOperation mlirCirBinaryPushFloatOp(MlirOpBuilder bldr,
                                        MlirLocation location,
                                        MlirValue binBuilder, MlirValue value,
-                                       MlirValue bits, CirEndianness endianness,
+                                       MlirValue size, CirEndianness endianness,
                                        unsigned unit) {
   OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
   auto endianAttr = EndiannessAttr::get(
       builder->getContext(), builder->getI8Type(), unwrap(endianness));
   Operation *op = builder->create<cir::BinaryPushFloatOp>(
-      unwrap(location), unwrap(binBuilder), unwrap(value), unwrap(bits),
-      endianAttr, (uint8_t)unit);
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value), unwrap(size), endianAttr, (uint32_t)unit);
   return wrap(op);
 }
 
 MlirOperation mlirCirBinaryPushUtf8Op(MlirOpBuilder bldr, MlirLocation location,
                                       MlirValue binBuilder, MlirValue value) {
   OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
   Operation *op = builder->create<cir::BinaryPushUtf8Op>(
-      unwrap(location), unwrap(binBuilder), unwrap(value));
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value));
   return wrap(op);
 }
 
@@ -372,20 +467,77 @@ MlirOperation mlirCirBinaryPushUtf16Op(MlirOpBuilder bldr,
                                        MlirValue binBuilder, MlirValue value,
                                        CirEndianness endianness) {
   OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
   auto endianAttr = EndiannessAttr::get(
       builder->getContext(), builder->getI8Type(), unwrap(endianness));
   Operation *op = builder->create<cir::BinaryPushUtf16Op>(
-      unwrap(location), unwrap(binBuilder), unwrap(value), endianAttr);
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value), endianAttr);
+  return wrap(op);
+}
+
+MlirOperation mlirCirBinaryPushUtf32Op(MlirOpBuilder bldr,
+                                       MlirLocation location,
+                                       MlirValue binBuilder, MlirValue value,
+                                       CirEndianness endianness) {
+  OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
+  auto endianAttr = EndiannessAttr::get(
+      builder->getContext(), builder->getI8Type(), unwrap(endianness));
+  Operation *op = builder->create<cir::BinaryPushUtf32Op>(
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value), endianAttr);
+  return wrap(op);
+}
+
+MlirOperation mlirCirBinaryPushBitsAllOp(MlirOpBuilder bldr,
+                                         MlirLocation location,
+                                         MlirValue binBuilder,
+                                         MlirValue value) {
+  OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
+  Operation *op = builder->create<cir::BinaryPushBitsOp>(
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value), nullptr);
   return wrap(op);
 }
 
 MlirOperation mlirCirBinaryPushBitsOp(MlirOpBuilder bldr, MlirLocation location,
                                       MlirValue binBuilder, MlirValue value,
-                                      MlirValue unit, MlirValue size) {
+                                      MlirValue size, unsigned unit) {
   OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
   Operation *op = builder->create<cir::BinaryPushBitsOp>(
-      unwrap(location), unwrap(binBuilder), unwrap(value), unwrap(unit),
-      unwrap(size));
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value), unwrap(size), (uint32_t)unit);
+  return wrap(op);
+}
+
+MlirOperation mlirCirBinaryPushAnyOp(MlirOpBuilder bldr, MlirLocation location,
+                                     MlirValue binBuilder, MlirValue value) {
+  OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
+  Operation *op = builder->create<cir::BinaryPushAnyOp>(
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value), nullptr);
+  return wrap(op);
+}
+
+MlirOperation mlirCirBinaryPushAnySizedOp(MlirOpBuilder bldr,
+                                          MlirLocation location,
+                                          MlirValue binBuilder, MlirValue value,
+                                          MlirValue size) {
+  OpBuilder *builder = unwrap(bldr);
+  auto i1Ty = builder->getI1Type();
+  auto termTy = builder->getType<CIROpaqueTermType>();
+  Operation *op = builder->create<cir::BinaryPushBitsOp>(
+      unwrap(location), TypeRange({i1Ty, termTy}), unwrap(binBuilder),
+      unwrap(value), unwrap(size));
   return wrap(op);
 }
 

@@ -822,6 +822,7 @@ dependencies = [
  "cc",
  "fxhash",
  "libc",
+ "liblumen_binary",
  "liblumen_compiler_macros",
  "liblumen_diagnostics",
  "liblumen_intern",

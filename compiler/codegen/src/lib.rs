@@ -5,7 +5,6 @@
 #![feature(let_else)]
 #![feature(once_cell)]
 
-pub mod generators;
 pub mod linker;
 pub mod meta;
 pub mod passes;

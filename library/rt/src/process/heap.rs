@@ -1,4 +1,5 @@
 use alloc::alloc::{AllocError, Allocator, Global, Layout};
+use core::cell::UnsafeCell;
 use core::mem;
 use core::ptr::{self, NonNull};
 
@@ -8,7 +9,7 @@ use crate::term::Term;
 
 pub struct ProcessHeap {
     range: *mut [u8],
-    top: *mut u8,
+    top: UnsafeCell<*mut u8>,
 }
 impl ProcessHeap {
     const DEFAULT_HEAP_SIZE: usize = 4 * 1024;
@@ -19,7 +20,7 @@ impl ProcessHeap {
         let nonnull = Global.allocate(layout).unwrap();
         Self {
             range: nonnull.as_ptr(),
-            top: nonnull.as_non_null_ptr().as_ptr(),
+            top: UnsafeCell::new(nonnull.as_non_null_ptr().as_ptr()),
         }
     }
 }
@@ -37,7 +38,7 @@ unsafe impl Allocator for ProcessHeap {
 
         // Calculate the base pointer of the allocation at the desired alignment,
         // then offset that pointer by the desired size to give us the new top
-        let top = self.top;
+        let top = unsafe { *self.top.get() };
         let offset = top.align_offset(layout.align());
         let base = unsafe { top.add(offset) };
         let new_top = unsafe { base.add(size) } as *const u8;
@@ -47,6 +48,9 @@ unsafe impl Allocator for ProcessHeap {
         let heap_size = self.range.len();
         let range = start..(unsafe { start.add(heap_size) });
         if range.contains(&new_top) {
+            unsafe {
+                self.top.get().write(new_top as *mut u8);
+            }
             Ok(unsafe { NonNull::new_unchecked(ptr::from_raw_parts_mut(base.cast(), size)) })
         } else {
             Err(AllocError)
@@ -87,7 +91,7 @@ impl Heap for ProcessHeap {
 
     #[inline]
     fn heap_top(&self) -> *mut u8 {
-        self.top
+        unsafe { *self.top.get() }
     }
 
     #[inline]

@@ -29,6 +29,7 @@ pub use self::reference::{Reference, ReferenceId};
 pub use self::tuple::Tuple;
 
 use alloc::alloc::AllocError;
+use core::convert::AsRef;
 use core::fmt;
 use core::ptr::NonNull;
 
@@ -481,6 +482,12 @@ impl TryInto<Float> for Term {
         }
     }
 }
+impl AsRef<Term> for Term {
+    #[inline(always)]
+    fn as_ref(&self) -> &Term {
+        self
+    }
+}
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -790,6 +797,7 @@ impl Ord for Term {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use core::alloc::Layout;
@@ -841,3 +849,4 @@ mod test {
         assert_eq!(iter.next(), None);
     }
 }
+*/

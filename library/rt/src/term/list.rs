@@ -414,11 +414,16 @@ impl Iterator for Iter<'_> {
         match next {
             None => next,
             Some(Err(_)) => {
+                self.head = None;
                 self.tail = None;
                 next
             }
-            Some(Ok(Term::Nil)) if self.tail.is_none() => Some(Ok(Term::Nil)),
-            _ => {
+            Some(Ok(Term::Nil)) if self.tail.is_none() => {
+                self.head = None;
+                self.tail = None;
+                Some(Ok(Term::Nil))
+            }
+            next => {
                 let tail = self.tail.unwrap();
                 match tail.into() {
                     Term::Nil => {
@@ -446,40 +451,44 @@ impl Iterator for Iter<'_> {
 
 pub struct ListBuilder<'a, H: Heap> {
     heap: &'a H,
-    head: Option<NonNull<Cons>>,
+    tail: Option<NonNull<Cons>>,
 }
 impl<'a, H: Heap> ListBuilder<'a, H> {
     pub fn new(heap: &'a H) -> Self {
-        Self { heap, head: None }
+        Self { heap, tail: None }
     }
 
     pub fn push(&mut self, value: Term) -> Result<(), AllocError> {
-        let head = value.clone_to_heap(self.heap)?.into();
-        match self.head.take() {
+        let value = value.clone_to_heap(self.heap)?.into();
+        match self.tail.take() {
             None => {
+                // This is the first value pushed, so we need to allocate a new cell
                 let cell = Cons::new_in(self.heap)?;
                 unsafe {
                     cell.as_ptr().write(Cons {
-                        head,
+                        head: value,
                         tail: OpaqueTerm::NIL,
                     });
                 }
-                self.head = Some(cell.cast());
+                self.tail = Some(cell.cast());
             }
             Some(tail) => {
-                let tail: OpaqueTerm = tail.into();
+                // We're consing a new element to an existing cell
                 let cell = Cons::new_in(self.heap)?;
                 unsafe {
-                    cell.as_ptr().write(Cons { head, tail });
+                    cell.as_ptr().write(Cons {
+                        head: value,
+                        tail: tail.into(),
+                    });
                 }
-                self.head = Some(cell.cast());
+                self.tail = Some(cell.cast());
             }
         }
         Ok(())
     }
 
     pub fn finish(mut self) -> Option<NonNull<Cons>> {
-        self.head.take()
+        self.tail.take()
     }
 }
 
@@ -497,5 +506,34 @@ fn len_utf8(code: u32) -> usize {
         3
     } else {
         4
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use crate::process::Process;
+    use crate::term::ProcessId;
+
+    #[test]
+    fn list_builder_builds_proper_lists() {
+        let process = Process::new(None, ProcessId::next(), "root:init/0".parse().unwrap());
+        let mut builder = ListBuilder::new(&process);
+        builder.push(Term::Int(3)).unwrap();
+        builder.push(Term::Int(2)).unwrap();
+        builder.push(Term::Int(1)).unwrap();
+        builder.push(Term::Int(0)).unwrap();
+        let ptr = builder.finish().unwrap();
+        let list = unsafe { ptr.as_ref() };
+
+        let mut iter = list.iter();
+        assert_eq!(iter.next(), Some(Ok(Term::Int(0))));
+        assert_eq!(iter.next(), Some(Ok(Term::Int(1))));
+        assert_eq!(iter.next(), Some(Ok(Term::Int(2))));
+        assert_eq!(iter.next(), Some(Ok(Term::Int(3))));
+        assert_eq!(iter.next(), Some(Ok(Term::Nil)));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
     }
 }

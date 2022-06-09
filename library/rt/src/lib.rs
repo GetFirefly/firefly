@@ -31,6 +31,7 @@
 #![feature(core_c_str)]
 #![feature(extern_types)]
 #![feature(c_unwind)]
+#![cfg_attr(test, feature(test))]
 
 extern crate alloc;
 #[cfg(feature = "std")]

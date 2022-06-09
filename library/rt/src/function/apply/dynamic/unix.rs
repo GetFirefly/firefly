@@ -34,6 +34,7 @@ cfg_if! {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use core::mem;
@@ -278,3 +279,4 @@ mod tests {
         ErlangResult::ok(value)
     }
 }
+*/

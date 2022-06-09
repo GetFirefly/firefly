@@ -336,6 +336,7 @@ impl OpaqueTerm {
     ///
     /// * cons cell
     /// * tuple
+    /// * binary literal
     /// * rc-allocated term
     /// * gcbox-allocated term
     #[inline]
@@ -346,8 +347,9 @@ impl OpaqueTerm {
         let is_container = tag >= CONS_TAG;
         let is_gcbox = tag == 0;
         let is_rc = (tag == RC_TAG) & (self.0 != TRUE);
+        let is_bin_literal = tag == LITERAL_TAG;
 
-        !is_float_or_int & (is_container | is_gcbox | is_rc)
+        !is_float_or_int & (is_container | is_gcbox | is_rc | is_bin_literal)
     }
 
     /// Returns true if this term is a non-null pointer to a GcBox<T> term

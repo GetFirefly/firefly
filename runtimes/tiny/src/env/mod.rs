@@ -1,9 +1,10 @@
 use std::alloc::Layout;
+use std::borrow::Borrow;
 use std::env::ArgsOs;
 use std::lazy::SyncOnceCell;
 use std::mem;
+use std::path::Path;
 use std::ptr;
-use std::slice;
 
 use anyhow::anyhow;
 
@@ -11,6 +12,73 @@ use liblumen_arena::DroplessArena;
 use liblumen_rt::term::{BinaryData, BinaryFlags, Encoding};
 
 static ARGV: SyncOnceCell<EnvTable> = SyncOnceCell::new();
+
+/// Returns all arguments this executable was invoked with
+pub fn argv() -> &'static [&'static BinaryData] {
+    ARGV.get().unwrap().argv.as_slice()
+}
+
+/// Performs one-time initialization of the environment for the current executable.
+/// This is used to cache the arguments vector as constant binary values.
+pub fn init(mut argv: ArgsOs) -> anyhow::Result<()> {
+    let mut table = EnvTable::with_capacity(argv.len());
+
+    let arg0 = argv.next().unwrap();
+    let arg0 = arg0.to_string_lossy();
+
+    // Allocate a single shared "empty" value for optionals below
+    let empty = unsafe { table.alloc(&[]) };
+
+    unsafe {
+        table.insert(arg0.as_bytes());
+    }
+
+    // Register `root` flag
+    let current_exe = std::env::current_exe()?;
+    let root = current_exe.parent().unwrap().to_string_lossy();
+    unsafe {
+        table.insert("-root".as_bytes());
+        table.insert(root.as_bytes());
+    }
+
+    // Register 'progname' flag
+    let arg0 = {
+        let arg0: &str = arg0.borrow();
+        Path::new(arg0)
+    };
+    let progname = arg0.file_name().unwrap().to_string_lossy();
+    unsafe {
+        table.insert("-progname".as_bytes());
+        table.insert(progname.as_bytes());
+    }
+
+    // Register `home` flag
+    if let Some(home) = dirs::home_dir() {
+        unsafe {
+            table.insert("-home".as_bytes());
+            let home = home.to_string_lossy();
+            table.insert(home.as_bytes());
+        }
+    } else {
+        unsafe {
+            table.insert("-home".as_bytes());
+            table.argv.push(empty);
+        }
+    }
+
+    for arg in argv {
+        let arg = arg.to_string_lossy();
+        unsafe {
+            table.insert(arg.as_bytes());
+        }
+    }
+
+    ARGV.set(table)
+        .map_err(|_| anyhow!("arguments were already initialized"))
+        .unwrap();
+
+    Ok(())
+}
 
 #[derive(Default)]
 struct EnvTable {
@@ -26,7 +94,12 @@ impl EnvTable {
     }
 
     unsafe fn insert(&mut self, bytes: &[u8]) {
-        // Allocate memory for atom metadata and value
+        let data = self.alloc(bytes);
+        self.argv.push(data);
+    }
+
+    unsafe fn alloc(&mut self, bytes: &[u8]) -> &'static BinaryData {
+        // Allocate memory for binary metadata and value
         let size = bytes.len();
         let (layout, value_offset) = Layout::new::<BinaryFlags>()
             .extend(Layout::from_size_align_unchecked(
@@ -47,61 +120,8 @@ impl EnvTable {
 
         // Reify as static reference
         let data_ptr: *const BinaryData = ptr::from_raw_parts(ptr.cast(), size);
-        let data: &'static BinaryData = &*data_ptr;
-
-        // Register in atom table
-        self.argv.push(data);
-    }
-
-    fn argv(&self) -> &[&'static BinaryData] {
-        self.argv.as_slice()
+        &*data_ptr
     }
 }
 unsafe impl Send for EnvTable {}
 unsafe impl Sync for EnvTable {}
-
-pub(crate) fn init_argv_from_slice(argv: ArgsOs) -> anyhow::Result<()> {
-    let mut table = EnvTable::with_capacity(argv.len());
-    for arg in argv {
-        let arg = arg.to_string_lossy();
-        unsafe {
-            table.insert(arg.as_bytes());
-        }
-    }
-    ARGV.set(table)
-        .map_err(|_| anyhow!("arguments were already initialized"))
-        .unwrap();
-
-    Ok(())
-}
-
-#[allow(unused)]
-pub(crate) fn init_argv(argv: *const *const std::os::raw::c_char, argc: u32) -> anyhow::Result<()> {
-    use std::ffi::CStr;
-
-    let argc = argc as usize;
-    if argc == 0 {
-        let _ = ARGV.set(Default::default());
-        return Ok(());
-    }
-
-    let argv = unsafe { slice::from_raw_parts::<'static>(argv, argc) };
-
-    let mut table = EnvTable::with_capacity(argc);
-    for arg_ptr in argv.iter().copied() {
-        let cs = unsafe { CStr::from_ptr::<'static>(arg_ptr) };
-        let arg = cs.to_string_lossy();
-        unsafe {
-            table.insert(arg.as_bytes());
-        }
-    }
-
-    ARGV.set(table)
-        .map_err(|_| anyhow!("arguments were already initialized"))
-        .unwrap();
-    Ok(())
-}
-
-pub fn get_argv() -> &'static [&'static BinaryData] {
-    ARGV.get().unwrap().argv()
-}

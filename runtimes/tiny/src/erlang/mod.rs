@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use liblumen_rt::function::ErlangResult;
 use liblumen_rt::term::*;
 
@@ -5,6 +7,19 @@ use liblumen_rt::term::*;
 pub extern "C-unwind" fn display(term: OpaqueTerm) -> ErlangResult {
     let term: Term = term.into();
     println!("{}", &term);
+    Ok(true.into())
+}
+
+#[export_name = "erlang:puts/1"]
+pub extern "C-unwind" fn puts(printable: OpaqueTerm) -> ErlangResult {
+    let printable: Term = printable.into();
+
+    let bits = printable.as_bitstring().unwrap();
+    assert!(bits.is_aligned());
+    assert!(bits.is_binary());
+    let bytes = unsafe { bits.as_bytes_unchecked() };
+    let mut stdout = std::io::stdout().lock();
+    stdout.write_all(bytes).unwrap();
     Ok(true.into())
 }
 

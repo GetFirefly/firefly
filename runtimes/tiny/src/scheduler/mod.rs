@@ -8,7 +8,7 @@ use std::ptr;
 use std::sync::{atomic::AtomicU64, Arc};
 use std::thread::{self, ThreadId};
 
-use liblumen_rt::function::{self, DynamicCallee, ModuleFunctionArity};
+use liblumen_rt::function::{DynamicCallee, ModuleFunctionArity};
 use liblumen_rt::process::{Process, ProcessStatus};
 use liblumen_rt::term::{OpaqueTerm, Pid, ProcessId};
 
@@ -182,7 +182,8 @@ impl Scheduler {
         //
         // If this process exits, the scheduler terminates
         let mfa: ModuleFunctionArity = "init:start/0".parse().unwrap();
-        let init_fn = function::find_symbol(&mfa).expect("unable to locate init:start/0 function!");
+        //let init_fn = function::find_symbol(&mfa).expect("unable to locate init:start/0 function!");
+        let init_fn = crate::init::start as DynamicCallee;
         let process = Arc::new(Process::new(Some(self.parent()), ProcessId::next(), mfa));
 
         let data = Arc::new(SchedulerData::new(process));

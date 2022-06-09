@@ -3,6 +3,7 @@
 #![feature(ptr_metadata)]
 #![feature(process_exitcode_internals)]
 #![feature(thread_local)]
+#![feature(let_else)]
 
 extern crate liblumen_crt;
 
@@ -28,7 +29,7 @@ pub unsafe extern "C" fn main() -> i32 {
 }
 
 fn main_internal(_name: &str, _version: &str, _argv: Vec<String>) -> anyhow::Result<()> {
-    self::env::init_argv_from_slice(std::env::args_os()).unwrap();
+    self::env::init(std::env::args_os()).unwrap();
 
     // This bus is used to receive signals across threads in the system
     let mut bus: Bus<Signal> = Bus::new(1);

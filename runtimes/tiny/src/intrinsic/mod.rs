@@ -9,6 +9,7 @@ use liblumen_rt::term::{OpaqueTerm, Term, TermType};
 
 use crate::scheduler;
 
+/// Constructs a new empty term of the given type and size on the current process heap
 #[export_name = "__lumen_builtin_malloc"]
 pub extern "C-unwind" fn malloc(kind: TermType, size: usize) -> *mut () {
     scheduler::with_current(|scheduler| {
@@ -24,6 +25,25 @@ pub extern "C-unwind" fn malloc(kind: TermType, size: usize) -> *mut () {
             ty => panic!("unexpected malloc type: {:?}", ty),
         }
     })
+}
+
+/// Constructs a new empty map on the current process heap
+#[export_name = "__lumen_map_empty"]
+pub extern "C-unwind" fn map_empty() -> OpaqueTerm {
+    scheduler::with_current(|scheduler| {
+        let arc_proc = scheduler.current_process();
+        let proc = arc_proc.deref();
+        Map::new_in(proc).unwrap().into()
+    })
+}
+
+/// This builtin differs from erlang:map_get/2 in that it is only called in contexts where
+/// we've already type checked the map, and we're simply fetching the given key from the map
+#[export_name = "__lumen_map_get"]
+pub extern "C-unwind" fn map_get(map: OpaqueTerm, key: OpaqueTerm) -> OpaqueTerm {
+    let Term::Map(map) = map.into() else { unreachable!() };
+    let key: Term = key.into();
+    map.get(&key).unwrap_or_else(|| Term::None).into()
 }
 
 #[export_name = "__lumen_build_stacktrace"]

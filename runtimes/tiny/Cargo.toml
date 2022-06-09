@@ -11,6 +11,7 @@ crate-type = ["staticlib"]
 [dependencies]
 anyhow = "1.0"
 bus = "2.2"
+dirs = "4.0"
 signal-hook = "0.3"
 libc = "0.2"
 

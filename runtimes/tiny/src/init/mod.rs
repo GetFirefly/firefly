@@ -1,31 +1,34 @@
 use liblumen_rt::function::ErlangResult;
-use liblumen_rt::process::Process;
 use liblumen_rt::term::{ListBuilder, OpaqueTerm};
 
 use crate::env;
 use crate::scheduler;
 
-#[export_name = "init:get_plain_arguments/0"]
-pub extern "C-unwind" fn get_plain_arguments() -> ErlangResult {
-    scheduler::with_current(|scheduler| {
-        get_plain_arguments_with_process(&scheduler.current_process())
-    })
+extern "C-unwind" {
+    #[link_name = "init:boot/1"]
+    fn boot(argv: OpaqueTerm) -> ErlangResult;
 }
 
-fn get_plain_arguments_with_process(process: &Process) -> ErlangResult {
-    let argv = env::get_argv();
-    if argv.is_empty() {
-        return Ok(OpaqueTerm::NIL);
-    }
-
-    let mut builder = ListBuilder::new(process);
-    for arg in argv.iter().copied() {
-        // TODO: Properly handle allocation failure
-        builder.push(arg.into()).unwrap();
-    }
-
-    match builder.finish() {
-        Some(ptr) => Ok(ptr.into()),
-        None => Ok(OpaqueTerm::NIL),
-    }
+/// This function acts as the entry point for the top-level `init` process.
+///
+/// Its job is to preprocess command-line arguments and boot the system.
+/// The actual boot process is handled in `init:boot/1`, or if substituted with
+/// a different module, `Module:boot/1`.
+///
+/// NOTE: When this function is invoked, it is on the stack of the new process, not the scheduler.
+pub(crate) extern "C-unwind" fn start() -> ErlangResult {
+    scheduler::with_current_process(|process| {
+        let argv = env::argv();
+        let args = {
+            let mut builder = ListBuilder::new(process);
+            for arg in argv.iter().rev().copied() {
+                builder.push(arg.into()).unwrap();
+            }
+            builder
+                .finish()
+                .map(|ptr| ptr.into())
+                .unwrap_or(OpaqueTerm::NIL)
+        };
+        unsafe { boot(args) }
+    })
 }

@@ -90,6 +90,7 @@ impl Pass for DefinePseudoLocals {
                 arity: 2,
                 clauses,
                 spec: None,
+                is_nif: false,
             };
             define_function(module, record_info_2);
         }

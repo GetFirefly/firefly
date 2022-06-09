@@ -1,6 +1,8 @@
 use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::SourceSpan;
+use liblumen_llvm::Linkage;
 use liblumen_mlir::cir::ICmpPredicate;
+use liblumen_mlir::llvm::LinkageAttr;
 use liblumen_mlir::*;
 use liblumen_number::Integer;
 use liblumen_syntax_core::{self as syntax_core, ir::instructions::*, DataFlowGraph};
@@ -17,13 +19,29 @@ impl<'m> ModuleBuilder<'m> {
         function: &syntax_core::Function,
     ) -> anyhow::Result<()> {
         debug!("building mlir function {}", function.signature.mfa());
+
         // Reset the block/value maps for this function
         self.blocks.clear();
         self.values.clear();
+
         // Declare the function
         let function_loc = self.location_from_span(function.span);
         let name = function.signature.mfa().to_string();
         let func = self.builder.get_func_by_symbol(name.as_str()).unwrap();
+
+        // If the function was declared/detected as implemented by a NIF, set the linkage
+        // to linkonce, this should allow the default code in the module to be used if at link
+        // time there is no stronger definition found
+        //
+        // This linkage type cannot be set on declarations, hence why we only set this attribute
+        // when generating the definition of the function.
+        if function.signature.is_nif() {
+            func.set_attribute_by_name(
+                "linkage",
+                LinkageAttr::get(self.builder.context(), Linkage::LinkOnceAny),
+            );
+        }
+
         let function_body = func.get_region(0);
         let mut tx_param_types = Vec::with_capacity(8);
         let mut tx_param_locs = Vec::with_capacity(8);

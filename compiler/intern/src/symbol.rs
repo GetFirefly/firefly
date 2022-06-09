@@ -330,7 +330,7 @@ macro_rules! declare_atoms {(
         /// Used *only* for testing that the declared atoms have no gaps
         /// NOTE: The length must be static, so it must be changed when new
         /// declared keywords are added to the list
-        pub(super) static DECLARED: [(Symbol, &'static str); 70] = [$(($konst, $string),)*];
+        pub(super) static DECLARED: [(Symbol, &'static str); 73] = [$(($konst, $string),)*];
     }
 
     impl Interner {
@@ -360,8 +360,8 @@ declare_atoms! {
     (7,  Catch,        "catch")
     (8,  End,          "end")
     (9,  Fun,          "fun")
-    (10,  If,           "if")
-    (11,  Of,           "of")
+    (10,  If,          "if")
+    (11,  Of,          "of")
     (12, Receive,      "receive")
     (13, When,         "when")
     (14, AndAlso,      "andalso")
@@ -385,43 +385,46 @@ declare_atoms! {
     (31, Compile,      "compile")
     (32, Vsn,          "vsn")
     (33, OnLoad,       "on_load")
-    (34, Behaviour,    "behaviour")
-    (35, Spec,         "spec")
-    (36, Callback,     "callback")
-    (37, Include,      "include")
-    (38, IncludeLib,   "include_lib")
-    (39, Define,       "define")
-    (40, Undef,        "undef")
-    (41, Ifdef,        "ifdef")
-    (42, Ifndef,       "ifndef")
-    (43, Else,         "else")
-    (44, Elif,         "elif")
-    (45, Endif,        "endif")
-    (46, Error,        "error")
-    (47, Warning,      "warning")
-    (48, File,         "file")
+    (34, Nifs,         "nifs")
+    (35, Behaviour,    "behaviour")
+    (36, Spec,         "spec")
+    (37, Callback,     "callback")
+    (38, Include,      "include")
+    (39, IncludeLib,   "include_lib")
+    (40, Define,       "define")
+    (41, Undef,        "undef")
+    (42, Ifdef,        "ifdef")
+    (43, Ifndef,       "ifndef")
+    (44, Else,         "else")
+    (45, Elif,         "elif")
+    (46, Endif,        "endif")
+    (47, Error,        "error")
+    (48, Warning,      "warning")
+    (49, File,         "file")
+    (50, Line,         "line")
     // Common words
-    (49, ModuleInfo,   "module_info")
-    (50, RecordInfo,   "record_info")
-    (51, BehaviourInfo,"behaviour_info")
-    (52, Exports,      "exports")
-    (53, Attributes,   "attributes")
-    (54, Native,       "native")
-    (55, Deprecated,   "deprecated")
-    (56, ModuleCapital,"MODULE")
-    (57, ModuleStringCapital,"MODULE_STRING")
-    (58, Throw,        "throw")
-    (59, Exit,         "exit")
-    (60, EXIT,         "EXIT")
-    (61, Undefined,    "undefined")
-    (62, WildcardMatch,"_")
-    (63, Erlang,       "erlang")
-    (64, BadRecord,    "badrecord")
-    (65, SetElement,   "setelement")
-    (66, FunctionClause, "function_clause")
-    (67, IfClause,     "if_clause")
-    (68, Send,         "send")
-    (69, Apply,        "apply")
+    (51, ModuleInfo,   "module_info")
+    (52, RecordInfo,   "record_info")
+    (53, BehaviourInfo,"behaviour_info")
+    (54, Exports,      "exports")
+    (55, Attributes,   "attributes")
+    (56, Native,       "native")
+    (57, Deprecated,   "deprecated")
+    (58, ModuleCapital,"MODULE")
+    (59, ModuleStringCapital,"MODULE_STRING")
+    (60, Throw,        "throw")
+    (61, Exit,         "exit")
+    (62, EXIT,         "EXIT")
+    (63, Undefined,    "undefined")
+    (64, WildcardMatch,"_")
+    (65, Erlang,       "erlang")
+    (66, BadRecord,    "badrecord")
+    (67, SetElement,   "setelement")
+    (68, FunctionClause, "function_clause")
+    (69, IfClause,     "if_clause")
+    (70, Send,         "send")
+    (71, Apply,        "apply")
+    (72, NifError,     "nif_error")
 }
 
 impl Symbol {
@@ -432,12 +435,12 @@ impl Symbol {
 
     /// Returns `true` if the token is a reserved attribute name
     pub fn is_reserved_attr(self) -> bool {
-        self >= symbols::Module && self <= symbols::Warning
+        self >= symbols::Module && self <= symbols::Line
     }
 
     /// Returns `true` if the token is a preprocessor directive name
     pub fn is_preprocessor_directive(self) -> bool {
-        self >= symbols::Include && self <= symbols::Warning
+        self >= symbols::Include && self <= symbols::Line
     }
 }
 

@@ -172,6 +172,8 @@ bitflags::bitflags! {
         /// * it is not an external reference
         /// * it is not a valid guard
         /// * has not been requested to be inlined
+        /// * is not a closure
+        /// * is not a nif
         const DEFAULT = 0;
         /// Indicates this function is visibile globally
         const PUBLIC = 1 << 0;
@@ -196,6 +198,8 @@ bitflags::bitflags! {
         /// * If it is non-escaping, it may be inlined and eliminated
         /// * If it escapes, it must be globally visible
         const CLOSURE = 1 << 5;
+        /// Indicates this function is defined as a NIF
+        const NIF = 1 << 6;
     }
 }
 impl fmt::Display for Visibility {
@@ -212,6 +216,9 @@ impl fmt::Display for Visibility {
         }
         if self.is_guard() {
             f.write_str(" guard")?;
+        }
+        if self.is_nif() {
+            f.write_str("nif")?;
         }
         Ok(())
     }
@@ -245,6 +252,12 @@ impl Visibility {
     #[inline(always)]
     pub fn is_guard(&self) -> bool {
         self.contains(Self::GUARD)
+    }
+
+    /// Returns true if this function is declared as a NIF
+    #[inline(always)]
+    pub fn is_nif(&self) -> bool {
+        self.contains(Self::NIF)
     }
 
     /// Returns true if this function is globally visible
@@ -401,6 +414,11 @@ impl Signature {
     /// Returns true if this function uses the Erlang calling convention
     pub fn is_erlang(&self) -> bool {
         self.cc == CallConv::Erlang
+    }
+
+    /// Returns true if this function was declared as a NIF
+    pub fn is_nif(&self) -> bool {
+        self.visibility.is_nif()
     }
 
     /// Returns the calling convention used by this function

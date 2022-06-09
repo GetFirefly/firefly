@@ -12,7 +12,7 @@ use liblumen_pass::Pass;
 use crate::ast::{self, *};
 
 use self::inject::AddAutoImports;
-use self::verify::{VerifyOnLoadFunctions, VerifyTypeSpecs};
+use self::verify::{VerifyNifs, VerifyOnLoadFunctions, VerifyTypeSpecs};
 
 /// This pass is responsible for taking a set of top-level forms and
 /// analyzing them in the context of a new module to produce a fully
@@ -23,6 +23,7 @@ use self::verify::{VerifyOnLoadFunctions, VerifyTypeSpecs};
 /// * If configured to do so, warns if functions are missing type specs
 /// * Warns about type specs for undefined functions
 /// * Warns about redefined attributes
+/// * Errors on invalid nif declarations
 /// * Errors on invalid syntax in built-in attributes (e.g. -import(..))
 /// * Errors on mismatched function clauses (name/arity)
 /// * Errors on unterminated function clauses
@@ -54,6 +55,7 @@ impl Pass for SemanticAnalysis {
             vsn: None,
             author: None,
             on_load: None,
+            nifs: HashSet::new(),
             compile: None,
             imports: HashMap::new(),
             exports: HashSet::new(),
@@ -82,7 +84,8 @@ impl Pass for SemanticAnalysis {
         let mut passes = AddAutoImports
             //.chain(DefinePseudoLocals)
             .chain(VerifyOnLoadFunctions::new(self.reporter.clone()))
-            .chain(VerifyTypeSpecs::new(self.reporter.clone()));
+            .chain(VerifyTypeSpecs::new(self.reporter.clone()))
+            .chain(VerifyNifs::new(self.reporter.clone()));
 
         passes.run(&mut module)?;
 

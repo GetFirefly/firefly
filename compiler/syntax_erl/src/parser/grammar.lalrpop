@@ -129,6 +129,8 @@ AttributeDefinition: Attribute = {
         => Attribute::Behaviour(span!(l, r), module),
     <l:@L> "-" "on_load" "(" <fun:FunctionName> ")" "." <r:@R>
         => Attribute::OnLoad(span!(l, r), fun),
+    <l:@L> "-" "nifs" "(" "[" <exports:CommaOpt<FunctionName>> "]" ")" "." <r:@R>
+        => Attribute::Nifs(span!(l, r), exports),
     TypeAttribute,
     TypeSpecAttribute,
     CallbackAttribute,
@@ -1080,6 +1082,7 @@ extern {
         "vsn" => Token::Vsn,
         "author" => Token::Author,
         "on_load" => Token::OnLoad,
+        "nifs" => Token::Nifs,
         "behaviour" => Token::Behaviour,
         "deprecated" => Token::Deprecated,
         "type" => Token::Type,

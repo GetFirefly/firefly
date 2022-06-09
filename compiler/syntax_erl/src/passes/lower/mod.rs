@@ -42,10 +42,15 @@ impl Pass for AstToCore {
         let mut functions = Vec::with_capacity(module.functions.len());
         for (name, fun) in module.functions.iter() {
             let name = Spanned::new(fun.span, *name);
-            let visibility = if module.exports.contains(&name) {
+            let base_visibility = if module.exports.contains(&name) {
                 Visibility::PUBLIC
             } else {
                 Visibility::DEFAULT
+            };
+            let visibility = if fun.is_nif {
+                base_visibility | Visibility::NIF
+            } else {
+                base_visibility
             };
             let mut params = vec![];
             params.resize(fun.arity as usize, Type::Term(TermType::Any));

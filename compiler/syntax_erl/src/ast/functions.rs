@@ -14,6 +14,7 @@ pub struct Function {
     pub name: Ident,
     pub arity: u8,
     pub spec: Option<TypeSpec>,
+    pub is_nif: bool,
     pub clauses: Vec<FunctionClause>,
 }
 impl PartialEq for Function {
@@ -22,6 +23,7 @@ impl PartialEq for Function {
             && self.arity == other.arity
             && self.clauses == other.clauses
             && self.spec == other.spec
+            && self.is_nif == other.is_nif
     }
 }
 impl Function {
@@ -103,6 +105,7 @@ impl Function {
             arity,
             clauses,
             spec: None,
+            is_nif: false,
         })
     }
 }

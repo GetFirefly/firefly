@@ -66,6 +66,7 @@ pub struct Module {
     pub author: Option<Expr>,
     pub compile: Option<CompileOptions>,
     pub on_load: Option<Spanned<syntax_core::FunctionName>>,
+    pub nifs: HashSet<Spanned<syntax_core::FunctionName>>,
     pub imports: HashMap<syntax_core::FunctionName, Spanned<syntax_core::Signature>>,
     pub exports: HashSet<Spanned<syntax_core::FunctionName>>,
     pub removed: HashMap<syntax_core::FunctionName, (SourceSpan, Ident)>,
@@ -120,6 +121,7 @@ impl Module {
             vsn: None,
             author: None,
             on_load: None,
+            nifs: HashSet::new(),
             compile: None,
             imports: HashMap::new(),
             exports: HashSet::new(),
@@ -189,6 +191,9 @@ impl PartialEq for Module {
             return false;
         }
         if self.on_load != other.on_load {
+            return false;
+        }
+        if self.nifs != other.nifs {
             return false;
         }
         if self.imports != other.imports {

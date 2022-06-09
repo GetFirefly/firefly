@@ -1,6 +1,7 @@
 use std::collections::btree_map::Entry;
 
-use liblumen_syntax_core::{self as syntax_core};
+use liblumen_intern::symbols;
+use liblumen_syntax_core as syntax_core;
 
 use crate::ast::*;
 
@@ -24,6 +25,32 @@ impl SemanticAnalysis {
                 "missing function spec",
                 &[(function.span, "expected type spec for this function")],
             );
+        }
+
+        let nif_name = Spanned::new(function.name.span, local_resolved_name.clone());
+        if module.nifs.contains(&nif_name) {
+            function.is_nif = true;
+        } else {
+            // Determine if the body of the function implicitly defines this as a NIF
+            // Such a function will have a single clause consisting only of a call to `erlang:nif_error/1`
+            if function.clauses.len() == 1 {
+                let clause = &function.clauses[0];
+                if clause.body.len() == 1 {
+                    if let Expr::Apply(Apply { callee, args, .. }) = &clause.body[0] {
+                        if args.len() == 1 {
+                            if let Expr::Remote(remote) = callee.as_ref() {
+                                if let Ok(name) = remote.try_eval(1) {
+                                    if name.module == Some(symbols::Erlang)
+                                        && name.function == symbols::NifError
+                                    {
+                                        function.is_nif = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         match module.functions.entry(local_resolved_name) {

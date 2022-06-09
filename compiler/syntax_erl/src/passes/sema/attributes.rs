@@ -97,6 +97,25 @@ impl SemanticAnalysis {
                     }
                 }
             }
+            Attribute::Nifs(span, mut nifs) => {
+                for nif in nifs.drain(..) {
+                    let local_export = Spanned::new(nif.span(), nif.to_local());
+                    match module.nifs.get(&local_export) {
+                        None => {
+                            module.nifs.insert(local_export);
+                        }
+                        Some(ref spanned) => {
+                            self.show_error(
+                                "duplicate -nif declaration",
+                                &[
+                                    (span, "duplicate declaration occurs here"),
+                                    (spanned.span(), "originally declared here"),
+                                ],
+                            );
+                        }
+                    }
+                }
+            }
             Attribute::Removed(span, mut removed) => {
                 for (name, description) in removed.drain(..) {
                     let local_name = name.to_local();

@@ -203,6 +203,7 @@ macro_rules! fun {
                     }
                 ],
                 spec: None,
+                is_nif: false,
             }
         }
     };
@@ -225,6 +226,7 @@ macro_rules! fun {
                 arity,
                 clauses,
                 spec: None,
+                is_nif: false,
             }
         }
     }

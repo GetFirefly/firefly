@@ -33,6 +33,53 @@ impl Pass for VerifyOnLoadFunctions {
     }
 }
 
+pub struct VerifyNifs {
+    reporter: Reporter,
+}
+impl VerifyNifs {
+    pub fn new(reporter: Reporter) -> Self {
+        Self { reporter }
+    }
+}
+impl Pass for VerifyNifs {
+    type Input<'a> = &'a mut Module;
+    type Output<'a> = &'a mut Module;
+
+    fn run<'a>(&mut self, module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+        // Verify that all of the nif declarations have a definition, and that the corresponding function was marked as such
+        for nif in module.nifs.iter() {
+            match module.functions.get(nif.as_ref()) {
+                None => {
+                    let span = nif.span();
+                    self.reporter.diagnostic(
+                        Diagnostic::error()
+                            .with_message("invalid -nif declaration")
+                            .with_labels(vec![Label::primary(span.source_id(), span)
+                                .with_message(
+                                    "the referenced function is not defined in this module",
+                                )]),
+                    );
+                }
+                Some(fun) => {
+                    if !fun.is_nif {
+                        let span = fun.span;
+                        self.reporter.diagnostic(
+                            Diagnostic::error()
+                                .with_message("misplaced -nif declaration")
+                                .with_labels(vec![Label::primary(span.source_id(), span)
+                                  .with_message(
+                                      "expected -nif declaration to precede the function it references"
+                                  )]),
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(module)
+    }
+}
+
 pub struct VerifyTypeSpecs {
     reporter: Reporter,
 }

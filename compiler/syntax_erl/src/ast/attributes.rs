@@ -222,6 +222,7 @@ pub enum Attribute {
     Vsn(SourceSpan, Expr),
     Author(SourceSpan, Expr),
     OnLoad(SourceSpan, Spanned<syntax_core::FunctionName>),
+    Nifs(SourceSpan, Vec<Spanned<syntax_core::FunctionName>>),
     Behaviour(SourceSpan, Ident),
     Deprecation(Vec<Deprecation>),
 }
@@ -248,6 +249,7 @@ impl PartialEq for Attribute {
             (&Attribute::Vsn(_, ref x), &Attribute::Vsn(_, ref y)) => x == y,
             (&Attribute::Author(_, ref x), &Attribute::Author(_, ref y)) => x == y,
             (&Attribute::OnLoad(_, ref x), &Attribute::OnLoad(_, ref y)) => x == y,
+            (&Attribute::Nifs(_, ref x), &Attribute::Nifs(_, ref y)) => x == y,
             (&Attribute::Behaviour(_, ref x), &Attribute::Behaviour(_, ref y)) => x == y,
             _ => false,
         }

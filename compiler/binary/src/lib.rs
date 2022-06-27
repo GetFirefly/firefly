@@ -1,28 +1,86 @@
-use std::cmp::Ord;
-use std::fmt;
-use std::hash::Hash;
-use std::marker::PhantomData;
-use std::ops::{BitAnd, BitOr, Not};
+#![no_std]
+#![feature(test)]
+#![feature(trusted_len)]
+#![feature(exact_size_is_empty)]
+#![feature(let_else)]
+#![feature(str_internals)]
+#![feature(const_option_ext)]
+#![feature(slice_take)]
 
-use num_traits::{CheckedShl, CheckedShr};
+extern crate alloc;
+#[cfg(any(test, feature = "std"))]
+extern crate std;
+#[cfg(test)]
+extern crate test;
 
-mod impls;
-
-mod slice;
-pub use self::slice::BitSlice;
+use core::fmt;
 
 mod bitvec;
+mod flags;
+pub(crate) mod helpers;
+mod iter;
+mod matcher;
+mod select;
+mod spec;
+mod traits;
+
 pub use self::bitvec::BitVec;
+pub use self::flags::{BinaryFlags, Encoding};
+pub use self::iter::ByteIter;
+pub use self::matcher::Matcher;
+pub use self::select::{MaybePartialByte, Selection};
+pub use self::spec::BinaryEntrySpecifier;
+pub use self::traits::{Aligned, Binary, Bitstring, FromEndianBytes, ToEndianBytes};
 
-mod integer;
-pub use self::integer::{carrier_to_integer, integer_to_carrier};
-
-mod extend;
-pub use self::extend::{Extend, ExtendWords};
-
+/// Represents how bytes of a value are laid out in memory:
+///
+/// Big-endian systems store the most-significant byte at the lowest memory address, and the least-significant
+/// byte at the highest memory address.
+///
+/// Little-endian systems store the least-significant byte at the lowest memory address, and the most-significant
+/// byte at the highest memory address.
+///
+/// When thinking about values like memory addresses or integers, we tend to think about the textual representation,
+/// as this is most often what we are presented with when printing them or viewing them in a debugger, and it can be
+/// a useful mental model too, however it can be a bit confusing to read them and reason about endianness.
+///
+/// This is because, generally, when we visualize memory the following rules are used:
+///
+/// * Bytes of memory are printed left-to-right, i.e. the left is the lowest memory address, and increases as you read towards the right.
+/// * Bits of a byte are the opposite; the most-significant bits appear first, decreasing to the least-significant.
+///
+/// So lets apply that to an example, a 16-bit integer 64542, as viewed on a little-endian machine:
+///
+///     * 0xfc1e (little-endian hex)
+///     * 0x1efc (big-endian hex)
+///     * 0b1111110000011110 (little-endian binary)
+///     * 0b0001111011111100 (big-endian binary)
+///
+/// Well that's confusing, The bytes appear to be backwards! The little-endian version has the most-significant bits in the least-significant
+/// byte, and the big-endian version has the least-significant bits in the most-significant byte. What's going on here?
+///
+/// What I find helps with this is to use the following rules instead:
+///
+/// * Define `origin` as the right-most byte in the sequence
+/// * Read bytes starting from the origin, i.e. right-to-left
+/// * Read bits within a byte left-to-right as normal (i.e. most-significant bit is on the left)
+/// * Endianness determines how to read the bytes from the origin; big-endian has the most-significant byte at the origin,
+/// and little-endian has the least-significant byte at the origin
+///
+/// If we apply those rules to the previous examples, we can see that the textual representation makes more sense now.
+/// The little-endian hex is read starting with the least-significant byte 0x1e, followed by 0xfc; while the big-endian
+/// integer is read starting with the most-significant byte 0xfc, followed by 0x1e.
+///
+/// But this can make calculating the value from the text representation a bit awkward still, is there a trick for that?
+/// The answer is to normalize out the endianness, so that we can always read a value from most-significant bytes (and bits)
+/// left-to-right. When the native endianness matches the endianness of the value (i.e. little-endian value on little-endian
+/// machine, or big-endian value on big-endian machine), this is already the case. When reading a value with non-native endianness
+/// though, we need to swap the order of the bytes first.
+///
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Endianness {
+    /// Most-significant bits "first"
     Big = 0,
     Little,
     Native,
@@ -33,256 +91,6 @@ impl fmt::Display for Endianness {
             Self::Big => f.write_str("big"),
             Self::Little => f.write_str("little"),
             Self::Native => f.write_str("native"),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum BinaryEntrySpecifier {
-    Integer {
-        signed: bool,
-        endianness: Endianness,
-        unit: i64,
-    },
-    Float {
-        endianness: Endianness,
-        unit: i64,
-    },
-    Bytes {
-        unit: i64,
-    },
-    Bits {
-        unit: i64,
-    },
-    Utf8,
-    Utf16 {
-        endianness: Endianness,
-    },
-    Utf32 {
-        endianness: Endianness,
-    },
-}
-
-impl BinaryEntrySpecifier {
-    pub fn has_size(&self) -> bool {
-        match self {
-            BinaryEntrySpecifier::Utf8 => false,
-            BinaryEntrySpecifier::Utf16 { .. } => false,
-            BinaryEntrySpecifier::Utf32 { .. } => false,
-            _ => true,
-        }
-    }
-    pub fn is_native_endian(&self) -> bool {
-        match self {
-            BinaryEntrySpecifier::Integer {
-                endianness: Endianness::Native,
-                ..
-            } => true,
-            BinaryEntrySpecifier::Float {
-                endianness: Endianness::Native,
-                ..
-            } => true,
-            BinaryEntrySpecifier::Utf16 {
-                endianness: Endianness::Native,
-                ..
-            } => true,
-            BinaryEntrySpecifier::Utf32 {
-                endianness: Endianness::Native,
-                ..
-            } => true,
-            _ => false,
-        }
-    }
-}
-
-impl Default for BinaryEntrySpecifier {
-    fn default() -> Self {
-        BinaryEntrySpecifier::Integer {
-            signed: false,
-            endianness: Endianness::Big,
-            unit: 1,
-        }
-    }
-}
-
-/// A primitive data type that can be used to store bits.
-/// Must be sized, copyable, and implement a set of
-/// elemental operations.
-pub trait BitTransport:
-    Sized
-    + Ord
-    + Copy
-    + Not<Output = Self>
-    + BitAnd<Output = Self>
-    + BitOr<Output = Self>
-    + CheckedShr
-    + CheckedShl
-    + Eq
-    + Hash
-    + fmt::Debug
-{
-    const SIZE: usize;
-    const BIT_SIZE: usize = Self::SIZE * 8;
-
-    const ZERO: Self;
-    const ONE: Self;
-    const MAX: Self;
-}
-
-impl BitTransport for u8 {
-    const SIZE: usize = 1;
-    const ZERO: u8 = 0;
-    const ONE: u8 = 0;
-    const MAX: u8 = 0xff;
-}
-
-/// The base trait for bit carriers.
-/// Has a certain bit length.
-pub trait BitCarrier {
-    type T: BitTransport;
-
-    /// The total length in bits.
-    fn bit_len(&self) -> usize;
-
-    /// Total word length including partial word at the end.
-    fn word_len(&self) -> usize {
-        (self.bit_len() + (Self::T::BIT_SIZE - 1)) / Self::T::BIT_SIZE
-    }
-    /// Number of bits in the padding word at the end.
-    fn partial_bit_len(&self) -> usize {
-        let rem = self.bit_len() % Self::T::BIT_SIZE;
-        if rem == 0 {
-            Self::T::BIT_SIZE
-        } else {
-            rem
-        }
-    }
-
-    fn extend_words_pad(
-        self,
-        extend: Self::T,
-        head_words: usize,
-        tail_words: usize,
-    ) -> ExtendWords<Self>
-    where
-        Self: Sized,
-    {
-        crate::extend::extend_words_pad(self, extend, head_words, tail_words)
-    }
-
-    fn slice_bits(self, offset: usize, length: usize) -> BitSlice<Self>
-    where
-        Self: Sized,
-    {
-        BitSlice::with_offset_length(self, offset, length)
-    }
-
-    fn extend_bits(self, extend: Self::T, head_bits: usize, tail_bits: usize) -> Extend<Self>
-    where
-        Self: Sized,
-    {
-        crate::extend::extend_bits(self, extend, head_bits, tail_bits)
-    }
-}
-
-pub trait BitRead: BitCarrier {
-    /// Reads the nth word from the data type.
-    /// The last word may be padded with arbitrary bits at the
-    /// least significant digit side.
-    fn read_word(&self, n: usize) -> Self::T;
-
-    fn read_bit(&self, bit_n: usize) -> bool {
-        let word_n = bit_n / Self::T::BIT_SIZE;
-        let sub_bit_n = bit_n % Self::T::BIT_SIZE;
-
-        let word = self.read_word(word_n);
-
-        let offset = (Self::T::BIT_SIZE - 1 - sub_bit_n) as u32;
-        (word & (Self::T::ONE << offset)) != Self::T::ZERO
-    }
-
-    fn read<P>(&self, to: &mut P)
-    where
-        Self: Sized,
-        P: BitWrite<T = Self::T>,
-    {
-        to.write(self)
-    }
-
-    fn iter_words(&self) -> CarrierWordIter<Self, Self::T>
-    where
-        Self: Sized,
-    {
-        CarrierWordIter {
-            inner: self,
-            _transport: PhantomData,
-            idx: 0,
-            rem: self.bit_len() + 8,
-        }
-    }
-}
-
-pub trait BitWrite: BitCarrier {
-    /// Sets the masked bits of element n to data.
-    /// Writes outside of the container with a non zero mask
-    /// not allowed.
-    fn write_word(&mut self, n: usize, data: Self::T, mask: Self::T);
-
-    /// Writes one bit carrier into another bit carrier of the
-    /// same length.
-    fn write<P>(&mut self, from: P)
-    where
-        P: BitRead<T = Self::T>,
-    {
-        assert!(self.bit_len() == from.bit_len());
-
-        let mut len = self.bit_len() as isize;
-        for n in 0..self.word_len() {
-            let num_bits = std::cmp::min(len as usize, Self::T::BIT_SIZE) as u32;
-            let mask = !((!Self::T::ZERO)
-                .checked_shr(num_bits)
-                .unwrap_or(Self::T::ZERO));
-
-            let read = from.read_word(n);
-            self.write_word(n, read, mask);
-            len -= Self::T::BIT_SIZE as isize;
-        }
-    }
-}
-
-pub fn copy<S, D, T>(from: S, mut to: D)
-where
-    S: BitRead<T = T>,
-    D: BitWrite<T = T>,
-    T: BitTransport,
-{
-    to.write(from)
-}
-
-pub struct CarrierWordIter<'a, I, T>
-where
-    I: BitRead<T = T>,
-    T: BitTransport,
-{
-    inner: &'a I,
-    _transport: PhantomData<T>,
-    idx: usize,
-    rem: usize,
-}
-impl<'a, I, T> Iterator for CarrierWordIter<'a, I, T>
-where
-    I: BitRead<T = T>,
-    T: BitTransport,
-{
-    type Item = T;
-    fn next(&mut self) -> Option<T> {
-        if self.rem < 8 {
-            None
-        } else {
-            let res = self.inner.read_word(self.idx);
-            self.rem -= 8;
-            self.idx += 1;
-            Some(res)
         }
     }
 }

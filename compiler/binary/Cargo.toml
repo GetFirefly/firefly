@@ -1,12 +1,27 @@
 [package]
 name = "liblumen_binary"
 version = "0.1.0"
-authors = ["Hans Elias B. Josephsen <me@hansihe.com>"]
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+std = ["anyhow/std"]
+
 [dependencies]
-num-traits = "0.2.14"
-num-bigint = "0.4.2"
+paste = "1.0"
+
+[dependencies.anyhow]
+version = "1.0"
+default-features = false
+
+[dependencies.num-traits]
+version = "0.2"
+default-features = false
+
+[dependencies.num-bigint]
+version = "0.4"
+default-features = false

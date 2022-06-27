@@ -810,8 +810,10 @@ dependencies = [
 name = "liblumen_binary"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "num-bigint 0.4.2",
  "num-traits",
+ "paste",
 ]
 
 [[package]]

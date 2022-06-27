@@ -2,6 +2,7 @@
 //! allows bidirectional lookup; i.e., given a value, one can easily find the
 //! type, and vice versa.
 #![allow(unused)]
+
 use std::cell::RefCell;
 use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
 use std::fmt;
@@ -14,6 +15,7 @@ use lazy_static::lazy_static;
 use rustc_hash::FxHashMap;
 
 use crate::arena::DroplessArena;
+use crate::symbols;
 
 use liblumen_diagnostics::SourceSpan;
 
@@ -81,6 +83,18 @@ impl Ident {
 
     pub fn as_interned_str(self) -> InternedString {
         self.name.as_interned_str()
+    }
+
+    pub fn is_keyword(self) -> bool {
+        self.name.is_keyword()
+    }
+
+    pub fn is_reserved_attr(self) -> bool {
+        self.name.is_reserved_attr()
+    }
+
+    pub fn is_preprocessor_directive(self) -> bool {
+        self.name.is_preprocessor_directive()
     }
 }
 
@@ -212,6 +226,30 @@ impl Symbol {
     pub fn as_usize(self) -> usize {
         self.0.as_usize()
     }
+
+    #[inline]
+    pub fn is_boolean(&self) -> bool {
+        // Booleans are always 0 or 1 by index
+        self.0.as_u32() < 2
+    }
+
+    /// Returns `true` if the token is a keyword, reserved in all name positions
+    #[inline]
+    pub fn is_keyword(self) -> bool {
+        symbols::is_keyword(self)
+    }
+
+    /// Returns `true` if the token is a reserved attribute name
+    #[inline]
+    pub fn is_reserved_attr(self) -> bool {
+        symbols::is_reserved(self)
+    }
+
+    /// Returns `true` if the token is a preprocessor directive name
+    #[inline]
+    pub fn is_preprocessor_directive(self) -> bool {
+        symbols::is_directive(self)
+    }
 }
 
 impl fmt::Debug for Symbol {
@@ -250,17 +288,11 @@ pub struct Interner {
 }
 
 impl Interner {
-    fn prefill(init: &[&str]) -> Self {
+    pub fn fresh() -> Self {
         let mut this = Interner::default();
-        for &string in init {
-            if string == "" {
-                // We can't allocate empty strings in the arena, so handle this here.
-                let name = Symbol::new(this.strings.len() as u32);
-                this.names.insert("", name);
-                this.strings.push("");
-            } else {
-                this.intern(string);
-            }
+        for (sym, s) in symbols::__SYMBOLS {
+            this.names.insert(s, *sym);
+            this.strings.push(s);
         }
         this
     }
@@ -311,150 +343,6 @@ impl Interner {
             Some(string) => string,
             None => self.get(self.gensyms[(SymbolIndex::MAX_AS_U32 - symbol.0.as_u32()) as usize]),
         }
-    }
-}
-
-// In this macro, there is the requirement that the name (the number) must be monotonically
-// increasing by one in the special identifiers, starting at 0; the same holds for the keywords,
-// except starting from the next number instead of zero.
-macro_rules! declare_atoms {(
-    $( ($index: expr, $konst: ident, $string: expr) )*
-) => {
-    pub mod symbols {
-        use super::Symbol;
-        $(
-            #[allow(non_upper_case_globals)]
-            pub const $konst: Symbol = super::Symbol::new($index);
-        )*
-
-        /// Used *only* for testing that the declared atoms have no gaps
-        /// NOTE: The length must be static, so it must be changed when new
-        /// declared keywords are added to the list
-        pub(super) static DECLARED: [(Symbol, &'static str); 73] = [$(($konst, $string),)*];
-    }
-
-    impl Interner {
-        pub fn fresh() -> Self {
-            let interner = Interner::prefill(&[$($string,)*]);
-            interner
-        }
-    }
-}}
-
-// NOTE: When determining whether an Ident is a keyword or not, we compare against
-// the ident table index, but if a hole is left in the table, then non-keyword idents
-// will be interned with an id in the keyword range. It is important to ensure there are
-// no holes, which means you have to adjust the indexes when adding a new keyword earlier
-// in the table
-declare_atoms! {
-    // We want true/false to correspond to 1/0 respectively for convenience
-    (0, False,         "false")
-    (1, True,          "true")
-    // Special reserved identifiers used internally, such as for error recovery
-    (2,  Invalid,      "")
-    // Keywords that are used in Erlang
-    (3,  After,        "after")
-    (4,  Begin,        "begin")
-    (5,  Case,         "case")
-    (6,  Try,          "try")
-    (7,  Catch,        "catch")
-    (8,  End,          "end")
-    (9,  Fun,          "fun")
-    (10,  If,          "if")
-    (11,  Of,          "of")
-    (12, Receive,      "receive")
-    (13, When,         "when")
-    (14, AndAlso,      "andalso")
-    (15, OrElse,       "orelse")
-    (16, Bnot,         "bnot")
-    (17, Not,          "not")
-    (18, Div,          "div")
-    (19, Rem,          "rem")
-    (20, Band,         "band")
-    (21, And,          "and")
-    (22, Bor,          "bor")
-    (23, Bxor,         "bxor")
-    (24, Bsl,          "bsl")
-    (25, Bsr,          "bsr")
-    (26, Or,           "or")
-    (27, Xor,          "xor")
-    // Not reserved words, but used in attributes or preprocessor directives
-    (28, Module,       "module")
-    (29, Export,       "export")
-    (30, Import,       "import")
-    (31, Compile,      "compile")
-    (32, Vsn,          "vsn")
-    (33, OnLoad,       "on_load")
-    (34, Nifs,         "nifs")
-    (35, Behaviour,    "behaviour")
-    (36, Spec,         "spec")
-    (37, Callback,     "callback")
-    (38, Include,      "include")
-    (39, IncludeLib,   "include_lib")
-    (40, Define,       "define")
-    (41, Undef,        "undef")
-    (42, Ifdef,        "ifdef")
-    (43, Ifndef,       "ifndef")
-    (44, Else,         "else")
-    (45, Elif,         "elif")
-    (46, Endif,        "endif")
-    (47, Error,        "error")
-    (48, Warning,      "warning")
-    (49, File,         "file")
-    (50, Line,         "line")
-    // Common words
-    (51, ModuleInfo,   "module_info")
-    (52, RecordInfo,   "record_info")
-    (53, BehaviourInfo,"behaviour_info")
-    (54, Exports,      "exports")
-    (55, Attributes,   "attributes")
-    (56, Native,       "native")
-    (57, Deprecated,   "deprecated")
-    (58, ModuleCapital,"MODULE")
-    (59, ModuleStringCapital,"MODULE_STRING")
-    (60, Throw,        "throw")
-    (61, Exit,         "exit")
-    (62, EXIT,         "EXIT")
-    (63, Undefined,    "undefined")
-    (64, WildcardMatch,"_")
-    (65, Erlang,       "erlang")
-    (66, BadRecord,    "badrecord")
-    (67, SetElement,   "setelement")
-    (68, FunctionClause, "function_clause")
-    (69, IfClause,     "if_clause")
-    (70, Send,         "send")
-    (71, Apply,        "apply")
-    (72, NifError,     "nif_error")
-}
-
-impl Symbol {
-    /// Returns `true` if the token is a keyword, reserved in all name positions
-    pub fn is_keyword(self) -> bool {
-        self > symbols::Invalid && self <= symbols::Xor
-    }
-
-    /// Returns `true` if the token is a reserved attribute name
-    pub fn is_reserved_attr(self) -> bool {
-        self >= symbols::Module && self <= symbols::Line
-    }
-
-    /// Returns `true` if the token is a preprocessor directive name
-    pub fn is_preprocessor_directive(self) -> bool {
-        self >= symbols::Include && self <= symbols::Line
-    }
-}
-
-impl Ident {
-    pub fn is_keyword(self) -> bool {
-        self.name.is_keyword()
-    }
-
-    pub fn is_reserved_attr(self) -> bool {
-        self.name.is_reserved_attr()
-    }
-
-    pub fn is_preprocessor_directive(self) -> bool {
-        self.name.is_preprocessor_directive()
     }
 }
 

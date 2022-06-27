@@ -8,6 +8,7 @@ extern crate alloc;
 extern crate test;
 
 pub mod arena;
-
 pub mod symbol;
-pub use symbol::{symbols, Ident, InternedString, LocalInternedString, Symbol};
+pub mod symbols;
+
+pub use symbol::{Ident, InternedString, LocalInternedString, Symbol};

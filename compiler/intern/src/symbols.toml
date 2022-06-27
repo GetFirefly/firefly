@@ -1,0 +1,119 @@
+[fundamental]
+false = { id = 0 }
+true = { id = 1 }
+empty = { value = "" }
+
+[keywords]
+after = { }
+and = { }
+and_also = { value = "andalso" }
+band = { }
+bnot = { }
+bor = { }
+bxor = { }
+bsl = { }
+bsr = { }
+begin = { }
+case = { }
+catch = { }
+div = { }
+end = { }
+fun = { }
+if = { }
+of = { }
+or_else = { value = "orelse" }
+or = { }
+not = { }
+receive = { }
+rem = { }
+try = { }
+when = { }
+xor = { }
+
+[attributes]
+behaviour = {}
+callback = {}
+compile = {}
+deprecated = {}
+export = {}
+import = {}
+module = {}
+nifs = {}
+on_load = {}
+spec = {}
+vsn = {}
+
+[preprocessor]
+define = {}
+else = {}
+elif = {}
+endif = {}
+error = {}
+file = {}
+ifdef = {}
+ifndef = {}
+include = {}
+include_lib = {}
+line = {}
+undef = {}
+warning = {}
+
+[punctuation]
+underscore = { value = "_" }
+equal = { value = "==" }
+equal_strict = { value = "=:=" }
+not_equal = { value = "/=" }
+not_equal_strict = { value = "=/=" }
+lt = { value = "<" }
+lte = { value = "=<" }
+gt = { value = ">" }
+gte = { value = ">=" }
+plus_plus = { value = "++" }
+minus_minus = { value = "--" }
+plus = { value = "+" }
+minus = { value = "-" }
+slash = { value = "/" }
+star = { value = "*" }
+bang = { value = "!" }
+
+[errors]
+badrecord = {}
+badmap = {}
+case_clause = {}
+function_clause = {}
+if_clause = {}
+nif_error = {}
+try_clause = {}
+
+[guards]
+is_boolean = {}
+is_function = {}
+is_integer = {}
+is_map = {}
+
+[bifs]
+apply = {}
+match_fail = {}
+make_fun = {}
+setelement = {}
+throw = {}
+
+[annotations]
+compiler_generated = {}
+id = {}
+
+[common]
+all = {}
+attributes = {}
+behaviour_info = {}
+erlang = {}
+exports = {}
+EXIT = {}
+exit = {}
+MODULE = {}
+MODULE_STRING = {}
+module_info = {}
+native = {}
+record_info = {}
+send = {}
+undefined = {}

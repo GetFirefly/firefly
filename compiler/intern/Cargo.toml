@@ -12,3 +12,7 @@ liblumen_diagnostics = { path = "../diagnostics" }
 
 rustc-hash = "1.1"
 lazy_static = "1.4"
+
+[build-dependencies]
+toml = { version = "0.5", features = ["preserve_order"] }
+Inflector = "0.11"

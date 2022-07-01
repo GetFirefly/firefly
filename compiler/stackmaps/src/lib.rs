@@ -1,4 +1,3 @@
-#![feature(crate_visibility_modifier)]
 ///! This library provides the means to access the LLVM-generated stack maps
 ///! included in a binary when the use of LLVM statepoints or patchpoints are
 ///! present in the IR used to generate objects in that binary.

@@ -17,7 +17,6 @@
 #![feature(c_unwind)]
 #![feature(abi_thiscall)]
 #![feature(rustc_attrs)]
-#![feature(crate_visibility_modifier)]
 #![panic_runtime]
 #![feature(panic_runtime)]
 

@@ -6,20 +6,20 @@ use super::*;
 
 /// A handle that points to a file in the database.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SourceId(crate NonZeroU32);
+pub struct SourceId(pub(crate) NonZeroU32);
 impl SourceId {
-    crate const UNKNOWN_SOURCE_ID: u32 = u32::max_value();
+    pub(crate) const UNKNOWN_SOURCE_ID: u32 = u32::max_value();
 
     pub const UNKNOWN: Self = Self(unsafe { NonZeroU32::new_unchecked(Self::UNKNOWN_SOURCE_ID) });
 
-    crate fn new(index: u32) -> Self {
+    pub(crate) fn new(index: u32) -> Self {
         assert!(index > 0);
         assert!(index < Self::UNKNOWN_SOURCE_ID);
         Self(NonZeroU32::new(index).unwrap())
     }
 
     #[inline]
-    crate fn get(self) -> u32 {
+    pub(crate) fn get(self) -> u32 {
         self.0.get()
     }
 }
@@ -34,7 +34,12 @@ pub struct SourceFile {
     parent: Option<SourceSpan>,
 }
 impl SourceFile {
-    crate fn new(id: SourceId, name: FileName, source: String, parent: Option<SourceSpan>) -> Self {
+    pub(crate) fn new(
+        id: SourceId,
+        name: FileName,
+        source: String,
+        parent: Option<SourceSpan>,
+    ) -> Self {
         let line_starts = codespan_reporting::files::line_starts(source.as_str())
             .map(|i| ByteIndex::from(i as u32))
             .collect();

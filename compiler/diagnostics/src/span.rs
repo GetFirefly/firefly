@@ -9,9 +9,9 @@ use super::{CodeMap, SourceId, SourceIndex};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SourceSpan {
-    crate source_id: SourceId,
-    crate start: ByteIndex,
-    crate end: ByteIndex,
+    pub(crate) source_id: SourceId,
+    pub(crate) start: ByteIndex,
+    pub(crate) end: ByteIndex,
 }
 impl Default for SourceSpan {
     #[inline(always)]

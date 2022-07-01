@@ -67,7 +67,7 @@
 ///!
 
 #[repr(C, packed)]
-crate struct StackMapHeader {
+pub(crate) struct StackMapHeader {
     version: u8,
     _reserved1: u8,
     _reserved2: u16,
@@ -113,7 +113,7 @@ pub struct FunctionInfo {
     pub address: usize,
     pub stack_size: usize,
     // See https://reviews.llvm.org/D23487
-    crate num_callsites: usize,
+    pub(crate) num_callsites: usize,
 }
 impl FunctionInfo {
     /// This function constructs an Iterator over the call sites for
@@ -124,7 +124,7 @@ impl FunctionInfo {
     /// This isn't ideal, but due to how the Stack Map region is laid out
     /// in memory, we don't have an alternative.
     #[inline]
-    crate fn callsites(
+    pub(crate) fn callsites(
         &self,
         base: *const CallSiteHeader,
     ) -> impl Iterator<Item = &'static CallSiteHeader> {
@@ -138,12 +138,12 @@ impl FunctionInfo {
 }
 
 #[repr(C, packed)]
-crate struct CallSiteHeader {
-    crate id: usize,
+pub(crate) struct CallSiteHeader {
+    pub(crate) id: usize,
     // This offset is from the function entry
-    crate code_offset: u32,
-    crate flags: u16,
-    crate num_locations: u16,
+    pub(crate) code_offset: u32,
+    pub(crate) flags: u16,
+    pub(crate) num_locations: u16,
 }
 
 /// An iterator over the CallSiteHeaders contained in the StackMap
@@ -215,7 +215,7 @@ impl ExactSizeIterator for CallSiteIterator {}
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
-crate enum LocationKind {
+pub(crate) enum LocationKind {
     Register = 1,
     Direct,
     Indirect,
@@ -224,26 +224,26 @@ crate enum LocationKind {
 }
 
 #[repr(C, packed)]
-crate struct ValueLocation {
-    crate kind: LocationKind,
+pub(crate) struct ValueLocation {
+    pub(crate) kind: LocationKind,
     // Expected to be 0
-    crate flags: u8,
-    crate location_size: u16,
+    pub(crate) flags: u8,
+    pub(crate) location_size: u16,
     // DWARF RegNum
-    crate reg_num: u16,
+    pub(crate) reg_num: u16,
     // Expected to be 0
-    crate _reserved: u16,
+    pub(crate) _reserved: u16,
     // Either an offset, or a "small constant"
-    crate offset: i32,
+    pub(crate) offset: i32,
 }
 impl ValueLocation {
     #[inline(always)]
-    crate fn is_base_pointer(&self, other: &Self) -> bool {
+    pub(crate) fn is_base_pointer(&self, other: &Self) -> bool {
         self == other
     }
 
     #[inline(always)]
-    crate fn is_indirect(&self) -> bool {
+    pub(crate) fn is_indirect(&self) -> bool {
         self.kind == LocationKind::Indirect
     }
 
@@ -253,7 +253,7 @@ impl ValueLocation {
     // and since it might be either the frame pointer or stack pointer.
     //
     // This function will always return the offset relative to the stack ptr.
-    crate fn convert_offset(&self, frame_size: usize) -> i32 {
+    pub(crate) fn convert_offset(&self, frame_size: usize) -> i32 {
         assert_eq!(self.kind, LocationKind::Indirect);
 
         match self.reg_num {
@@ -280,9 +280,9 @@ impl PartialEq for ValueLocation {
 }
 
 #[repr(C, packed)]
-crate struct LiveOutHeader {
-    crate _padding: u16,
-    crate num_liveouts: u16,
+pub(crate) struct LiveOutHeader {
+    pub(crate) _padding: u16,
+    pub(crate) num_liveouts: u16,
 }
 
 /// A "liveout" location are registers that
@@ -290,9 +290,9 @@ crate struct LiveOutHeader {
 /// be saved by the runtime. This is primarily of relevance
 /// to the PatchPoint intrinsics.
 #[repr(C, packed)]
-crate struct LiveOutLocation {
+pub(crate) struct LiveOutLocation {
     // DWARF RegNum
-    crate reg_num: u16,
-    crate flags: u8,
-    crate size_in_bytes: u8,
+    pub(crate) reg_num: u16,
+    pub(crate) flags: u8,
+    pub(crate) size_in_bytes: u8,
 }

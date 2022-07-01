@@ -2,7 +2,6 @@
 #![feature(termination_trait_lib)]
 #![feature(process_exitcode_placeholder)]
 #![feature(thread_local)]
-#![feature(crate_visibility_modifier)]
 #![feature(core_intrinsics)]
 #![feature(c_unwind)]
 #![feature(once_cell)]

@@ -1,4 +1,3 @@
-#![feature(crate_visibility_modifier)]
 // Used to permit specifying discriminant values on enums-with-fields
 #![feature(arbitrary_enum_discriminant)]
 // Used to represent FFI-opaque types

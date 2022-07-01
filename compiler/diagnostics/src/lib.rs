@@ -1,5 +1,3 @@
-#![feature(crate_visibility_modifier)]
-
 mod codemap;
 mod filename;
 mod index;
@@ -106,6 +104,56 @@ impl Reporter {
         diagnostic.severity = Severity::Error;
         let mut reporter = self.0.borrow_mut();
         reporter.diagnostic(diagnostic)
+    }
+
+    /// A convenience method to make expressing common error diagnostics easier
+    pub fn show_error(&self, message: &str, labels: &[(SourceSpan, &str)]) {
+        if labels.is_empty() {
+            self.diagnostic(Diagnostic::error().with_message(message));
+        } else {
+            let labels = labels
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(i, (span, message))| {
+                    if i > 0 {
+                        Label::secondary(span.source_id(), span).with_message(message)
+                    } else {
+                        Label::primary(span.source_id(), span).with_message(message)
+                    }
+                })
+                .collect();
+            self.diagnostic(
+                Diagnostic::error()
+                    .with_message(message)
+                    .with_labels(labels),
+            );
+        }
+    }
+
+    /// A convenience method to make expressing common warning diagnostics easier
+    pub fn show_warning(&mut self, message: &str, labels: &[(SourceSpan, &str)]) {
+        if labels.is_empty() {
+            self.diagnostic(Diagnostic::warning().with_message(message));
+        } else {
+            let labels = labels
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(i, (span, message))| {
+                    if i > 0 {
+                        Label::secondary(span.source_id(), span).with_message(message)
+                    } else {
+                        Label::primary(span.source_id(), span).with_message(message)
+                    }
+                })
+                .collect();
+            self.diagnostic(
+                Diagnostic::error()
+                    .with_message(message)
+                    .with_labels(labels),
+            );
+        }
     }
 }
 

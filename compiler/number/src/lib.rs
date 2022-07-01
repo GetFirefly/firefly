@@ -1,3 +1,10 @@
+#![feature(let_else)]
+#![no_std]
+
+extern crate alloc;
+#[cfg(test)]
+extern crate test;
+
 mod bigint_to_float;
 pub use bigint_to_float::bigint_to_double;
 
@@ -9,8 +16,6 @@ pub use float::{Float, FloatError};
 
 mod number;
 pub use number::Number;
-
-mod binary;
 
 pub use num_bigint as bigint;
 pub use num_bigint::BigInt;

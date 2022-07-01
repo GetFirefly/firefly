@@ -1,9 +1,9 @@
 use crate::{DivisionError, Float, FloatError};
 
-use std::cmp::Ordering;
-use std::fmt::{Display, Formatter};
-use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
-use std::str::FromStr;
+use core::cmp::Ordering;
+use core::fmt;
+use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub};
+use core::str::FromStr;
 
 pub use num_bigint::ToBigInt;
 use num_bigint::{BigInt, ParseBigIntError, Sign};
@@ -90,8 +90,8 @@ impl Integer {
     }
 }
 
-impl Display for Integer {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+impl fmt::Display for Integer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Integer::Small(int) => int.fmt(f),
             Integer::Big(int) => int.fmt(f),

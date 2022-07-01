@@ -1,5 +1,5 @@
-use std::cmp::Ordering;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use core::cmp::Ordering;
+use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::{Float, FloatError, Integer};
 
@@ -63,7 +63,7 @@ impl Ord for Number {
     fn cmp(&self, other: &Number) -> Ordering {
         match (self, other) {
             (Number::Integer(l), Number::Integer(r)) => l.cmp(r),
-            (Number::Float(l), Number::Float(r)) => l.cmp(r),
+            (Number::Float(l), Number::Float(r)) => l.partial_cmp(r).unwrap(),
             (Number::Integer(l), Number::Float(r)) => {
                 if r.is_precise() {
                     l.to_float().partial_cmp(&r.inner()).unwrap()

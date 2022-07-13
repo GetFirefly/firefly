@@ -195,11 +195,11 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
                 } => {
                     write!(w, ".float.{}({}) {}", endianness, unit, values)
                 }
-                BinaryEntrySpecifier::Bits { unit, .. } => {
-                    write!(w, ".bits({}) {}", unit, values)
+                BinaryEntrySpecifier::Binary { unit: 8, .. } => {
+                    write!(w, ".bytes {}", values)
                 }
-                BinaryEntrySpecifier::Bytes { unit, .. } => {
-                    write!(w, ".bytes({}) {}", unit, values)
+                BinaryEntrySpecifier::Binary { unit, .. } => {
+                    write!(w, ".bits({}) {}", unit, values)
                 }
                 BinaryEntrySpecifier::Utf8 => {
                     write!(w, ".utf8 {}", values)
@@ -242,11 +242,11 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
                 } => {
                     write!(w, ".float.{}({}) {}", endianness, unit, values)
                 }
-                BinaryEntrySpecifier::Bits { unit, .. } => {
-                    write!(w, ".bits({}) {}", unit, values)
+                BinaryEntrySpecifier::Binary { unit: 8, .. } => {
+                    write!(w, ".bytes {}", values)
                 }
-                BinaryEntrySpecifier::Bytes { unit, .. } => {
-                    write!(w, ".bytes({}) {}", unit, values)
+                BinaryEntrySpecifier::Binary { unit, .. } => {
+                    write!(w, ".bits({}) {}", unit, values)
                 }
                 BinaryEntrySpecifier::Utf8 => {
                     write!(w, ".utf8 {}", values)

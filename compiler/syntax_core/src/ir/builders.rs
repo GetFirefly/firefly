@@ -1180,8 +1180,8 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             BinaryEntrySpecifier::Utf8
             | BinaryEntrySpecifier::Utf16 { .. }
             | BinaryEntrySpecifier::Utf32 { .. } => Type::Term(TermType::Integer),
-            BinaryEntrySpecifier::Bits { .. } => Type::Term(TermType::Bitstring),
-            BinaryEntrySpecifier::Bytes { .. } => Type::Term(TermType::Binary),
+            BinaryEntrySpecifier::Binary { unit: 8, .. } => Type::Term(TermType::Binary),
+            BinaryEntrySpecifier::Binary { .. } => Type::Term(TermType::Bitstring),
         };
         let data = InstData::BitsMatch(BitsMatch { spec, args });
         self.build(data, ty, span)

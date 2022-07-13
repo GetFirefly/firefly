@@ -35,7 +35,7 @@ impl Scope {
         use std::collections::hash_map::Entry;
         debug_assert_ne!(
             name,
-            symbols::WildcardMatch,
+            symbols::Underscore,
             "the wildcard symbol '_' cannot be defined as a functino"
         );
 
@@ -50,7 +50,7 @@ impl Scope {
 
     /// Returns the function ref bound to the given name, if in scope
     pub fn function(&self, name: Symbol) -> Option<FuncRef> {
-        if name == symbols::WildcardMatch {
+        if name == symbols::Underscore {
             return None;
         }
         if let Some(f) = self.funs.get(&name) {
@@ -70,7 +70,7 @@ impl Scope {
         use std::collections::hash_map::Entry;
         debug_assert_ne!(
             name,
-            symbols::WildcardMatch,
+            symbols::Underscore,
             "the wildcard symbol '_' cannot be defined as a variable"
         );
 
@@ -85,7 +85,7 @@ impl Scope {
 
     /// Returns the value bound to the given name, if in scope
     pub fn var(&self, name: Symbol) -> Option<Value> {
-        if name == symbols::WildcardMatch {
+        if name == symbols::Underscore {
             return None;
         }
         if let Some(v) = self.vars.get(&name) {

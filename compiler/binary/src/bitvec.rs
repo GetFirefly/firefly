@@ -175,33 +175,57 @@ impl BitVec {
     }
 
     /// Writes a big integer value to the buffer in the specified endianness.
-    pub fn push_bigint(&mut self, i: &BigInt, endianness: Endianness) {
+    pub fn push_bigint(&mut self, i: &BigInt, signed: bool, endianness: Endianness) {
         let bytes = match endianness {
-            Endianness::Native => {
+            Endianness::Native if signed => {
                 if cfg!(target_endian = "big") {
                     i.to_signed_bytes_be()
                 } else {
                     i.to_signed_bytes_le()
                 }
             }
-            Endianness::Big => i.to_signed_bytes_be(),
-            Endianness::Little => i.to_signed_bytes_le(),
+            Endianness::Native => {
+                if cfg!(target_endian = "big") {
+                    i.to_bytes_be().1
+                } else {
+                    i.to_bytes_le().1
+                }
+            }
+            Endianness::Big if signed => i.to_signed_bytes_be(),
+            Endianness::Big => i.to_bytes_be().1,
+            Endianness::Little if signed => i.to_signed_bytes_le(),
+            Endianness::Little => i.to_bytes_le().1,
         };
         self.push_bytes(bytes.as_slice());
     }
 
     /// Like `push_ap_number`, but for big integer values.
-    pub fn push_ap_bigint(&mut self, i: &BigInt, bitsize: usize, endianness: Endianness) {
+    pub fn push_ap_bigint(
+        &mut self,
+        i: &BigInt,
+        bitsize: usize,
+        signed: bool,
+        endianness: Endianness,
+    ) {
         let bytes = match endianness {
-            Endianness::Native => {
+            Endianness::Native if signed => {
                 if cfg!(target_endian = "big") {
                     i.to_signed_bytes_be()
                 } else {
                     i.to_signed_bytes_le()
                 }
             }
-            Endianness::Big => i.to_signed_bytes_be(),
-            Endianness::Little => i.to_signed_bytes_le(),
+            Endianness::Native => {
+                if cfg!(target_endian = "big") {
+                    i.to_bytes_be().1
+                } else {
+                    i.to_bytes_le().1
+                }
+            }
+            Endianness::Big if signed => i.to_signed_bytes_be(),
+            Endianness::Big => i.to_bytes_be().1,
+            Endianness::Little if signed => i.to_signed_bytes_le(),
+            Endianness::Little => i.to_bytes_le().1,
         };
         self.push_bits(bytes.as_slice(), bitsize)
     }

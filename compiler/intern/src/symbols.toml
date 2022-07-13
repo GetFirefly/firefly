@@ -77,8 +77,10 @@ star = { value = "*" }
 bang = { value = "!" }
 
 [errors]
+badarg = {}
 badrecord = {}
 badmap = {}
+badmatch = {}
 case_clause = {}
 function_clause = {}
 if_clause = {}
@@ -95,6 +97,7 @@ is_map = {}
 apply = {}
 match_fail = {}
 make_fun = {}
+raise = {}
 setelement = {}
 throw = {}
 

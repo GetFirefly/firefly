@@ -11,6 +11,8 @@ use core::sync::atomic::AtomicUsize;
 
 use static_assertions::assert_eq_size;
 
+use liblumen_binary::{Aligned, Binary, BinaryFlags, Bitstring, ByteIter, Encoding};
+
 use crate::WriteCloneIntoRaw;
 
 /// Represents a non-owning reference to data allocated via `Rc<T>`
@@ -1043,6 +1045,164 @@ impl<T: Copy> From<Cow<'_, [T]>> for Rc<[T]> {
             Cow::Owned(slice) => Rc::from(slice.as_slice()),
         }
     }
+}
+
+impl<T> Bitstring for Rc<T>
+where
+    T: ?Sized + Bitstring,
+    PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
+{
+    #[inline]
+    fn byte_size(&self) -> usize {
+        self.as_ref().byte_size()
+    }
+
+    #[inline]
+    fn bit_size(&self) -> usize {
+        self.as_ref().bit_size()
+    }
+
+    #[inline]
+    fn trailing_bits(&self) -> u8 {
+        self.as_ref().trailing_bits()
+    }
+
+    #[inline]
+    fn bytes(&self) -> ByteIter<'_> {
+        self.as_ref().bytes()
+    }
+
+    #[inline]
+    fn is_aligned(&self) -> bool {
+        self.as_ref().is_aligned()
+    }
+
+    #[inline]
+    fn is_binary(&self) -> bool {
+        self.as_ref().is_binary()
+    }
+
+    #[inline]
+    unsafe fn as_bytes_unchecked(&self) -> &[u8] {
+        self.as_ref().as_bytes_unchecked()
+    }
+}
+
+impl<T> Bitstring for Weak<T>
+where
+    T: ?Sized + Bitstring,
+    PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
+{
+    #[inline]
+    fn byte_size(&self) -> usize {
+        self.as_ref().byte_size()
+    }
+
+    #[inline]
+    fn bit_size(&self) -> usize {
+        self.as_ref().bit_size()
+    }
+
+    #[inline]
+    fn trailing_bits(&self) -> u8 {
+        self.as_ref().trailing_bits()
+    }
+
+    #[inline]
+    fn bytes(&self) -> ByteIter<'_> {
+        self.as_ref().bytes()
+    }
+
+    #[inline]
+    fn is_aligned(&self) -> bool {
+        self.as_ref().is_aligned()
+    }
+
+    #[inline]
+    fn is_binary(&self) -> bool {
+        self.as_ref().is_binary()
+    }
+
+    #[inline]
+    unsafe fn as_bytes_unchecked(&self) -> &[u8] {
+        self.as_ref().as_bytes_unchecked()
+    }
+}
+
+impl<T> Binary for Rc<T>
+where
+    T: ?Sized + Binary,
+    PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
+{
+    #[inline]
+    fn flags(&self) -> BinaryFlags {
+        self.as_ref().flags()
+    }
+
+    #[inline]
+    fn is_raw(&self) -> bool {
+        self.as_ref().is_raw()
+    }
+
+    #[inline]
+    fn is_latin1(&self) -> bool {
+        self.as_ref().is_latin1()
+    }
+
+    #[inline]
+    fn is_utf8(&self) -> bool {
+        self.as_ref().is_utf8()
+    }
+
+    #[inline]
+    fn encoding(&self) -> Encoding {
+        self.as_ref().encoding()
+    }
+}
+
+impl<T> Binary for Weak<T>
+where
+    T: ?Sized + Binary,
+    PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
+{
+    #[inline]
+    fn flags(&self) -> BinaryFlags {
+        self.as_ref().flags()
+    }
+
+    #[inline]
+    fn is_raw(&self) -> bool {
+        self.as_ref().is_raw()
+    }
+
+    #[inline]
+    fn is_latin1(&self) -> bool {
+        self.as_ref().is_latin1()
+    }
+
+    #[inline]
+    fn is_utf8(&self) -> bool {
+        self.as_ref().is_utf8()
+    }
+
+    #[inline]
+    fn encoding(&self) -> Encoding {
+        self.as_ref().encoding()
+    }
+}
+
+impl<T> Aligned for Rc<T>
+where
+    T: ?Sized + Aligned,
+    PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
+{
+}
+
+impl<T> Aligned for Weak<T>
+where
+    T: ?Sized + Aligned,
+    PtrMetadata: From<<T as Pointee>::Metadata> + TryInto<<T as Pointee>::Metadata>,
+{
 }
 
 fn header(ptr: *mut u8) -> *mut Metadata {

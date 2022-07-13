@@ -1,14 +1,6 @@
-mod flags;
-mod iter;
 mod slice;
-mod traits;
-mod writer;
 
-pub use self::flags::{BinaryFlags, Encoding};
-pub use self::iter::ByteIter;
 pub use self::slice::BitSlice;
-pub use self::traits::{Aligned, Binary, Bitstring};
-pub use self::writer::BinaryWriter;
 
 use core::any::TypeId;
 use core::fmt;
@@ -17,6 +9,7 @@ use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
 
 use liblumen_alloc::rc::Rc;
+use liblumen_binary::{Aligned, Binary, BinaryFlags, Bitstring, Encoding};
 
 /// This represents binary data, i.e. byte-aligned, with a number of bits
 /// divisible by 8 evenly.
@@ -60,12 +53,6 @@ impl BinaryData {
     #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
-    }
-
-    /// Returns a BinaryWriter which can write to this binary.
-    #[inline]
-    pub fn write<'a>(&'a mut self) -> BinaryWriter<'a> {
-        BinaryWriter::new(&mut self.data)
     }
 
     /// Copies the bytes from the given slice into `self`
@@ -121,11 +108,6 @@ impl BinaryData {
         }
         rcbox
     }
-
-    #[inline]
-    pub fn full_byte_iter<'a>(&'a self) -> core::iter::Copied<core::slice::Iter<'a, u8>> {
-        self.data.iter().copied()
-    }
 }
 impl fmt::Debug for BinaryData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -135,7 +117,7 @@ impl fmt::Debug for BinaryData {
 impl fmt::Display for BinaryData {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        display_binary(self, f)
+        liblumen_binary::helpers::display_binary(self, f)
     }
 }
 impl Eq for BinaryData {}
@@ -222,34 +204,3 @@ impl Binary for BinaryData {
     }
 }
 impl Aligned for BinaryData {}
-
-/// Displays a raw binary using Erlang-style formatting
-pub(crate) fn display_binary<B: Binary + Aligned>(bin: B, f: &mut fmt::Formatter) -> fmt::Result {
-    use core::fmt::Write;
-
-    if let Some(s) = bin.as_str() {
-        f.write_str("<<\"")?;
-        for c in s.escape_default() {
-            f.write_char(c)?;
-        }
-        f.write_str("\">>")
-    } else {
-        display_raw_bytes(bin.as_bytes(), f)
-    }
-}
-
-/// Formats raw bytes using Erlang-style formatting
-pub(crate) fn display_raw_bytes(bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
-    f.write_str("<<")?;
-
-    let mut iter = bytes.iter().copied();
-
-    let Some(byte) = iter.next() else { return Ok(()); };
-    write!(f, "{}", byte)?;
-
-    for byte in iter {
-        write!(f, ",{}", byte)?;
-    }
-
-    f.write_str(">>")
-}

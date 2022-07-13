@@ -482,6 +482,20 @@ impl TryInto<Float> for Term {
         }
     }
 }
+// Support converting from atom terms to `Encoding` type
+impl TryInto<Encoding> for Term {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<Encoding, Self::Error> {
+        match term {
+            Self::Atom(a) => a.as_str().parse(),
+            other => Err(anyhow!(
+                "invalid encoding name: expected atom; got {}",
+                &other
+            )),
+        }
+    }
+}
 impl AsRef<Term> for Term {
     #[inline(always)]
     fn as_ref(&self) -> &Term {

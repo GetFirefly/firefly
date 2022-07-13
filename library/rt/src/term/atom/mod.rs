@@ -214,6 +214,15 @@ impl TryFrom<&[u8]> for Atom {
         Atom::try_from(str::from_utf8(bytes)?)
     }
 }
+// Support converting from atom terms to `Encoding` type
+impl TryInto<Encoding> for Atom {
+    type Error = anyhow::Error;
+
+    #[inline]
+    fn try_into(self) -> Result<Encoding, Self::Error> {
+        atom.as_str().parse()
+    }
+}
 impl FromStr for Atom {
     type Err = AtomError;
 

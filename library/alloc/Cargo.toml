@@ -7,6 +7,7 @@ publish = false
 edition = "2021"
 
 [dependencies]
+liblumen_binary = { path = "../../compiler/binary" }
 liblumen_system = { path = "../system" }
 static_assertions = "1.1"
 thiserror = "1.0"

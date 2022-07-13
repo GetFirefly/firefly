@@ -1,7 +1,7 @@
 use std::alloc::Layout;
 use std::borrow::Borrow;
 use std::env::ArgsOs;
-use std::lazy::SyncOnceCell;
+use std::sync::OnceLock;
 use std::mem;
 use std::path::Path;
 use std::ptr;
@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use liblumen_arena::DroplessArena;
 use liblumen_rt::term::{BinaryData, BinaryFlags, Encoding};
 
-static ARGV: SyncOnceCell<EnvTable> = SyncOnceCell::new();
+static ARGV: OnceLock<EnvTable> = OnceLock::new();
 
 /// Returns all arguments this executable was invoked with
 pub fn argv() -> &'static [&'static BinaryData] {

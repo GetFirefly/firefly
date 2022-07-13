@@ -5,7 +5,7 @@ use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::lazy::OnceCell;
+use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 use std::str;

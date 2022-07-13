@@ -1,8 +1,7 @@
 mod queue;
 
 use std::arch::global_asm;
-use std::cell::UnsafeCell;
-use std::lazy::OnceCell;
+use std::cell::{OnceCell, UnsafeCell};
 use std::mem;
 use std::ptr;
 use std::sync::{atomic::AtomicU64, Arc};

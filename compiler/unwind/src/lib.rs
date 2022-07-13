@@ -2,7 +2,7 @@
 #![feature(link_cfg)]
 #![feature(nll)]
 #![feature(c_unwind)]
-#![feature(static_nobundle)]
+#![link(kind = "static", modifiers = "-bundle")]
 #![cfg_attr(not(target_env = "msvc"), feature(libc))]
 
 cfg_if::cfg_if! {

@@ -627,6 +627,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
+name = "half"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c207b0ee023c7fce79daf01828163aaf53a1ddd0be8b1ef9541da7d41f6fa63a"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -785,6 +794,7 @@ name = "liblumen_alloc"
 version = "0.1.0"
 dependencies = [
  "intrusive-collections",
+ "liblumen_binary",
  "liblumen_system",
  "static_assertions",
  "thiserror",
@@ -811,6 +821,7 @@ name = "liblumen_binary"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "half",
  "num-bigint 0.4.2",
  "num-traits",
  "paste",
@@ -963,7 +974,7 @@ dependencies = [
 name = "liblumen_number"
 version = "0.1.0"
 dependencies = [
- "liblumen_binary",
+ "half",
  "num-bigint 0.4.2",
  "num-integer",
  "num-traits",
@@ -1131,6 +1142,12 @@ dependencies = [
  "liblumen_diagnostics",
  "thiserror",
 ]
+
+[[package]]
+name = "libm"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33a33a362ce288760ec6a508b94caaec573ae7d3bbbd91b87aa0bad4456839db"
 
 [[package]]
 name = "lock_api"
@@ -1339,6 +1356,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
 dependencies = [
  "autocfg",
+ "libm",
 ]
 
 [[package]]

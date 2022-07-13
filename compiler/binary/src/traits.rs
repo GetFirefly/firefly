@@ -1,3 +1,4 @@
+use half::f16;
 use paste::paste;
 
 use crate::{BinaryFlags, ByteIter, Encoding, Selection};
@@ -457,5 +458,5 @@ macro_rules! primitive_convert_bytes_impl_ {
 }
 
 primitive_convert_bytes_impl!(
-    u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, usize, isize, f32, f64
+    u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, usize, isize, f16, f32, f64
 );

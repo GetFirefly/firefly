@@ -12,7 +12,7 @@ mod integer;
 pub use integer::Integer;
 
 mod float;
-pub use float::{Float, FloatError};
+pub use float::{f16, Float, FloatError};
 
 mod number;
 pub use number::Number;

@@ -7,8 +7,9 @@ use core::mem;
 use core::num::FpCategory;
 use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
+pub use half::f16;
 use num_bigint::{BigInt, Sign};
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_traits::ToPrimitive;
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub struct Float(f64);
@@ -44,7 +45,7 @@ impl Float {
     }
 
     pub fn to_integer(&self) -> Integer {
-        Integer::Big(BigInt::from_f64(self.0).unwrap()).shrink()
+        Integer::Small(self.0 as i64)
     }
 
     /// Returns whether this float is more precise than an integer.
@@ -55,10 +56,40 @@ impl Float {
         self.0 >= Self::I64_LOWER_BOUNDARY && self.0 <= Self::I64_UPPER_BOUNDARY
     }
 }
+impl From<f64> for Float {
+    #[inline(always)]
+    fn from(f: f64) -> Self {
+        Self(f)
+    }
+}
+impl From<f32> for Float {
+    #[inline(always)]
+    fn from(f: f32) -> Self {
+        Self(f as f64)
+    }
+}
+impl From<f16> for Float {
+    #[inline(always)]
+    fn from(f: f16) -> Self {
+        Self(f.to_f64())
+    }
+}
 impl Into<f64> for Float {
     #[inline(always)]
     fn into(self) -> f64 {
         self.0
+    }
+}
+impl Into<f32> for Float {
+    #[inline(always)]
+    fn into(self) -> f32 {
+        self.0 as f32
+    }
+}
+impl Into<f16> for Float {
+    #[inline]
+    fn into(self) -> f16 {
+        f16::from_f64(self.0)
     }
 }
 impl Hash for Float {

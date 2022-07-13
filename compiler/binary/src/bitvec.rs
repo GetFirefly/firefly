@@ -328,6 +328,16 @@ impl BitVec {
         *ptr.add(self.pos) = byte << (8 - offset);
     }
 
+    /// Concatenantes the contents of another BitVec to this one
+    pub fn concat(&mut self, other: &Self) {
+        if other.bit_offset == 0 {
+            self.push_bytes(unsafe { other.as_bytes_unchecked() })
+        } else {
+            let bytes = unsafe { other.as_bytes_unchecked() };
+            self.push_bits(bytes, other.bit_size())
+        }
+    }
+
     /// Write a slice of bytes via this writer
     pub fn push_bytes(&mut self, bytes: &[u8]) {
         let len = bytes.len();

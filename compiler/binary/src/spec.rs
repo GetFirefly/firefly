@@ -12,10 +12,7 @@ pub enum BinaryEntrySpecifier {
         endianness: Endianness,
         unit: i64,
     },
-    Bytes {
-        unit: i64,
-    },
-    Bits {
+    Binary {
         unit: i64,
     },
     Utf8,
@@ -27,6 +24,12 @@ pub enum BinaryEntrySpecifier {
     },
 }
 impl BinaryEntrySpecifier {
+    pub const DEFAULT: Self = Self::Integer {
+        signed: false,
+        endianness: Endianness::Big,
+        unit: 1,
+    };
+
     pub fn is_float(&self) -> bool {
         match self {
             Self::Float { .. } => true,
@@ -36,10 +39,9 @@ impl BinaryEntrySpecifier {
 
     pub fn unit(&self) -> i64 {
         match self {
-            Self::Integer { unit, .. }
-            | Self::Float { unit, .. }
-            | Self::Bytes { unit, .. }
-            | Self::Bits { unit } => *unit,
+            Self::Integer { unit, .. } | Self::Float { unit, .. } | Self::Binary { unit, .. } => {
+                *unit
+            }
             _ => 1,
         }
     }
@@ -77,10 +79,6 @@ impl BinaryEntrySpecifier {
 }
 impl Default for BinaryEntrySpecifier {
     fn default() -> Self {
-        Self::Integer {
-            signed: false,
-            endianness: Endianness::Big,
-            unit: 1,
-        }
+        Self::DEFAULT
     }
 }

@@ -28,9 +28,9 @@ pub(super) fn start() -> *const AtomData {
     let mut ptr: *mut AtomData = core::ptr::null_mut();
     unsafe {
         asm!(
-            "mov {x}, [rip + section$start$__DATA$__atoms@GOTPCREL]",
-            x = inout(reg) ptr,
-            options(readonly, preserves_flags, nostack)
+            "movq section$start$__DATA$__atoms@GOTPCREL(%rip), %rax",
+            inout("rax") ptr,
+            options(raw, att_syntax, readonly, preserves_flags, nostack)
         );
     }
     ptr
@@ -55,9 +55,9 @@ pub(super) fn end() -> *const AtomData {
     let mut ptr: *mut AtomData = core::ptr::null_mut();
     unsafe {
         asm!(
-            "mov {x}, [rip + section$end$__DATA$__atoms@GOTPCREL]",
-            x = inout(reg) ptr,
-            options(readonly, preserves_flags, nostack)
+            "movq section$end$__DATA$__atoms@GOTPCREL(%rip), %rax",
+            inout("rax") ptr,
+            options(raw, att_syntax, readonly, preserves_flags, nostack)
         );
     }
     ptr

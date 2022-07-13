@@ -26,9 +26,9 @@ pub(super) fn start() -> *const FunctionSymbol {
     let mut ptr: *mut FunctionSymbol = core::ptr::null_mut();
     unsafe {
         asm!(
-        "mov {x}, [rip + section$start$__DATA$__dispatch@GOTPCREL]",
-        x = inout(reg) ptr,
-        options(readonly, preserves_flags, nostack)
+            "movq section$start$__DATA$__dipatch@GOTPCREL(%rip), %rax",
+            inout("rax") ptr,
+            options(raw, att_syntax, readonly, preserves_flags, nostack)
         );
     }
     ptr
@@ -53,9 +53,9 @@ pub(super) fn end() -> *const FunctionSymbol {
     let mut ptr: *mut FunctionSymbol = core::ptr::null_mut();
     unsafe {
         asm!(
-            "mov {x}, [rip + section$end$__DATA$__dispatch@GOTPCREL]",
-            x = inout(reg) ptr,
-            options(readonly, preserves_flags, nostack)
+            "movq section$end$__DATA$__dipatch@GOTPCREL(%rip), %rax",
+            inout("rax") ptr,
+            options(raw, att_syntax, readonly, preserves_flags, nostack)
         );
     }
     ptr

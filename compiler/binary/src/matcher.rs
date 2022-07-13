@@ -186,8 +186,8 @@ impl<'a> Matcher<'a> {
     }
 
     /// Matches a single utf-16 character from the input
-    pub fn match_utf16(&mut self) -> Option<char> {
-        let decoder = Utf16CodepointReader::new(Matcher::new(self.selection));
+    pub fn match_utf16(&mut self, endianness: Endianness) -> Option<char> {
+        let decoder = Utf16CodepointReader::new(Matcher::new(self.selection), endianness);
         let c = char::decode_utf16(decoder)
             .take(1)
             .fold(None, |_acc, c| c.ok())?;
@@ -196,8 +196,8 @@ impl<'a> Matcher<'a> {
     }
 
     /// Matches a single utf-32 character from the input
-    pub fn match_utf32(&mut self) -> Option<char> {
-        let raw: u32 = self.read_number(Endianness::Native)?;
+    pub fn match_utf32(&mut self, endianness: Endianness) -> Option<char> {
+        let raw: u32 = self.read_number(endianness)?;
         let c = char::from_u32(raw)?;
         self.selection = self.selection.shrink_front(32);
         Some(c)
@@ -248,10 +248,14 @@ impl<'a> Matcher<'a> {
 
 struct Utf16CodepointReader<'a> {
     matcher: Matcher<'a>,
+    endianness: Endianness,
 }
 impl<'a> Utf16CodepointReader<'a> {
-    fn new(matcher: Matcher<'a>) -> Self {
-        Self { matcher }
+    fn new(matcher: Matcher<'a>, endianness: Endianness) -> Self {
+        Self {
+            matcher,
+            endianness,
+        }
     }
 }
 impl<'a> Iterator for Utf16CodepointReader<'a> {
@@ -259,7 +263,7 @@ impl<'a> Iterator for Utf16CodepointReader<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.matcher.match_number(Endianness::Native)
+        self.matcher.match_number(self.endianness)
     }
 }
 
@@ -302,7 +306,7 @@ mod test {
             core::slice::from_raw_parts(ptr, len)
         };
         let mut matcher = Matcher::with_slice(bytes.into());
-        let c: Option<char> = matcher.match_utf16();
+        let c: Option<char> = matcher.match_utf16(Endianness::Native);
         assert_eq!(c, Some('ø'));
 
         let expected = '😀';
@@ -314,7 +318,7 @@ mod test {
             core::slice::from_raw_parts(ptr, len)
         };
         let mut matcher = Matcher::with_slice(bytes.into());
-        let c: Option<char> = matcher.match_utf16();
+        let c: Option<char> = matcher.match_utf16(Endianness::Native);
         assert_eq!(c, Some(expected));
     }
 
@@ -324,7 +328,7 @@ mod test {
         let codepoints = u32::to_ne_bytes(expected as u32);
         let bytes = codepoints.as_slice();
         let mut matcher = Matcher::with_slice(bytes.into());
-        let c: Option<char> = matcher.match_utf32();
+        let c: Option<char> = matcher.match_utf32(Endianness::Native);
         assert_eq!(c, Some(expected));
     }
 

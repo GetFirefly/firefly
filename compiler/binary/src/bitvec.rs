@@ -119,19 +119,18 @@ impl BitVec {
 
     /// Write a single utf-16 `char` via this writer
     #[inline]
-    pub fn push_utf16(&mut self, c: char) {
+    pub fn push_utf16(&mut self, c: char, endianness: Endianness) {
         let mut buf = [0; 2];
         let codepoints = c.encode_utf16(&mut buf);
-        let len = codepoints.len() * 2;
-        let ptr = codepoints.as_ptr() as *const u8;
-        let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };
-        self.push_bytes(bytes);
+        for cp in codepoints {
+            self.push_number(*cp, endianness);
+        }
     }
 
     /// Write a single utf-32 `char` via this writer
     #[inline]
-    pub fn push_utf32(&mut self, c: char) {
-        self.push_bytes(&(c as u32).to_ne_bytes());
+    pub fn push_utf32(&mut self, c: char, endianness: Endianness) {
+        self.push_number(c as u32, endianness)
     }
 
     /// Write a single numeric value via this writer
@@ -762,7 +761,7 @@ mod test {
     fn bitvec_push_utf16() {
         let mut vec = BitVec::new();
 
-        vec.push_utf16('a');
+        vec.push_utf16('a', Endianness::Native);
         assert_eq!(vec.byte_size(), 2);
         assert_eq!(vec.bit_size(), 16);
         assert_eq!(vec.pos, 2);
@@ -771,7 +770,7 @@ mod test {
 
         vec.clear();
 
-        vec.push_utf16('ø');
+        vec.push_utf16('ø', Endianness::Native);
         assert_eq!(vec.byte_size(), 2);
         assert_eq!(vec.bit_size(), 16);
         assert_eq!(vec.pos, 2);
@@ -779,7 +778,7 @@ mod test {
 
         vec.clear();
 
-        vec.push_utf16('𞸀');
+        vec.push_utf16('〦', Endianness::Native);
         assert_eq!(vec.byte_size(), 4);
         assert_eq!(vec.bit_size(), 32);
         assert_eq!(vec.pos, 4);
@@ -787,7 +786,7 @@ mod test {
 
         vec.clear();
 
-        vec.push_utf16('😀');
+        vec.push_utf16('😀', Endianness::Native);
         assert_eq!(vec.byte_size(), 4);
         assert_eq!(vec.bit_size(), 32);
         assert_eq!(vec.pos, 4);
@@ -798,7 +797,7 @@ mod test {
     fn bitvec_push_utf32() {
         let mut vec = BitVec::new();
 
-        vec.push_utf32('a');
+        vec.push_utf32('a', Endianness::Native);
         assert_eq!(vec.byte_size(), 4);
         assert_eq!(vec.bit_size(), 32);
         assert_eq!(vec.pos, 4);
@@ -807,7 +806,7 @@ mod test {
 
         vec.clear();
 
-        vec.push_utf32('ø');
+        vec.push_utf32('ø', Endianness::Native);
         assert_eq!(vec.byte_size(), 4);
         assert_eq!(vec.bit_size(), 32);
         assert_eq!(vec.pos, 4);
@@ -815,7 +814,7 @@ mod test {
 
         vec.clear();
 
-        vec.push_utf32('〦');
+        vec.push_utf32('〦', Endianness::Native);
         assert_eq!(vec.byte_size(), 4);
         assert_eq!(vec.bit_size(), 32);
         assert_eq!(vec.pos, 4);
@@ -823,7 +822,7 @@ mod test {
 
         vec.clear();
 
-        vec.push_utf32('😀');
+        vec.push_utf32('😀', Endianness::Native);
         assert_eq!(vec.byte_size(), 4);
         assert_eq!(vec.bit_size(), 32);
         assert_eq!(vec.pos, 4);

@@ -1094,20 +1094,6 @@ impl<'a> fmt::Display for Selection<'a> {
     }
 }
 
-/// Displays a raw bitstring using Erlang-style formatting
-fn display_bytes<I: Iterator<Item = u8>>(mut bytes: I, f: &mut fmt::Formatter) -> fmt::Result {
-    f.write_str("<<")?;
-
-    let Some(byte) = bytes.next() else { return Ok(()); };
-    write!(f, "{}", byte)?;
-
-    for byte in bytes {
-        write!(f, ",{}", byte)?;
-    }
-
-    f.write_str(">>")
-}
-
 /// An exact selection is used for verifying that a selection as a precise representation
 ///
 /// For our purposes, this is largely to facilitate testing, but may also be useful in contexts

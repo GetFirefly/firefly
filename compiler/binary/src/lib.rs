@@ -17,7 +17,7 @@ use core::fmt;
 
 mod bitvec;
 mod flags;
-pub(crate) mod helpers;
+pub mod helpers;
 mod iter;
 mod matcher;
 mod select;

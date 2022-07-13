@@ -1,3 +1,7 @@
+use core::fmt;
+
+use crate::traits::{Aligned, Binary};
+
 /// Creates a mask which can be used to extract `n` bits from a byte,
 /// starting from the least-significant bit.
 ///
@@ -97,6 +101,35 @@ pub fn next_index(index: usize, bit_offset: u8, bits_consumed: usize) -> (usize,
         // The trailing bits stayed within the same byte, so we're done!
         (next_index, next_offset)
     }
+}
+
+/// Displays a raw binary using Erlang-style formatting
+pub fn display_binary<B: Binary + Aligned>(bin: B, f: &mut fmt::Formatter) -> fmt::Result {
+    use core::fmt::Write;
+
+    if let Some(s) = bin.as_str() {
+        f.write_str("<<\"")?;
+        for c in s.escape_default() {
+            f.write_char(c)?;
+        }
+        f.write_str("\">>")
+    } else {
+        display_bytes(bin.as_bytes().iter().copied(), f)
+    }
+}
+
+/// Displays a raw bitstring using Erlang-style formatting
+pub fn display_bytes<I: Iterator<Item = u8>>(mut bytes: I, f: &mut fmt::Formatter) -> fmt::Result {
+    f.write_str("<<")?;
+
+    let Some(byte) = bytes.next() else { return Ok(()); };
+    write!(f, "{}", byte)?;
+
+    for byte in bytes {
+        write!(f, ",{}", byte)?;
+    }
+
+    f.write_str(">>")
 }
 
 #[cfg(test)]

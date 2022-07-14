@@ -1,5 +1,6 @@
 //! ```cargo
 //! [dependencies]
+//! cargo_metadata = "0.15"
 //! serde = { version = "1.0", features = ["derive"] }
 //! serde_json = "1.0"
 //! walkdir = "*"
@@ -12,63 +13,18 @@ extern crate core;
 extern crate serde;
 extern crate serde_json;
 extern crate walkdir;
+extern crate cargo_metadata;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
-use std::fmt;
 use std::fs;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use serde::Deserialize;
 use walkdir::{DirEntry, WalkDir};
-
-#[derive(Deserialize)]
-#[serde(tag = "reason")]
-enum Item {
-    #[serde(rename = "compiler-message")]
-    Message { message: Message },
-    #[serde(rename = "compiler-artifact")]
-    Artifact {
-        target: Target,
-        package_id: String,
-        filenames: Vec<String>,
-    },
-    #[serde(rename = "build-script-executed")]
-    BuildScriptExecuted {
-        package_id: String,
-        #[allow(unused)]
-        out_dir: String,
-    },
-    #[serde(rename = "build-finished")]
-    BuildFinished { success: bool },
-    #[serde(other)]
-    #[allow(unused)]
-    Ignore,
-}
-
-#[derive(Deserialize)]
-struct Message {
-    rendered: String,
-}
-impl fmt::Display for &Message {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.rendered.as_str())
-    }
-}
-
-#[derive(Deserialize)]
-struct Target {
-    name: String,
-}
-impl PartialEq<str> for Target {
-    #[inline]
-    fn eq(&self, other: &str) -> bool {
-        self.name == other
-    }
-}
+use cargo_metadata::{Message, MetadataCommand};
 
 #[derive(Deserialize)]
 struct TargetSpec {
@@ -123,6 +79,8 @@ fn main() -> Result<(), ()> {
         "dev" | _ => {
             extra_rustc_flags.push("-C".to_owned());
             extra_rustc_flags.push("opt-level=0".to_owned());
+            extra_rustc_flags.push("-C".to_owned());
+            extra_rustc_flags.push("debuginfo=2".to_owned());
             "debug"
         }
     };
@@ -161,13 +119,19 @@ fn main() -> Result<(), ()> {
 
     println!("Starting build..");
 
+    let metadata = MetadataCommand::new()
+        .exec()
+        .unwrap();
+
+    let workspace_members = metadata.workspace_members.iter().cloned().collect::<HashSet<_>>();
+
     let mut cargo_cmd = Command::new("rustup");
     let cargo_cmd = cargo_cmd
         .arg("run")
         .arg(&toolchain_name)
         .args(&["cargo", "rustc"])
         .args(&["-p", "lumen"])
-        .args(&["--message-format=json", "--color=never", "-vv"])
+        .args(&["--message-format=json-diagnostic-rendered-ansi", "-vv"])
         .args(cargo_args.as_slice())
         .arg("--")
         .arg(link_args_string.as_str())
@@ -185,100 +149,62 @@ fn main() -> Result<(), ()> {
     let mut deps: HashMap<String, Vec<String>> = HashMap::new();
     {
         let child_stdout = child.stdout.take().unwrap();
-        let mut child_stdout_reader = BufReader::new(child_stdout);
+        let child_stdout_reader = BufReader::new(child_stdout);
         let stdout = io::stdout();
         let mut handle = stdout.lock();
 
-        let mut read = 0;
-        let mut buf = Vec::new();
-        loop {
-            use core::slice::memchr;
-            use std::io::ErrorKind;
+        for message in Message::parse_stream(child_stdout_reader) {
+            match message.unwrap() {
+                Message::CompilerMessage(msg) => {
+                    use cargo_metadata::diagnostic::DiagnosticLevel;
 
-            let bytes = match child_stdout_reader.fill_buf() {
-                Ok(b) => b,
-                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
-                Err(e) => panic!("failed to read output from build command: {}", e),
-            };
-            if bytes.is_empty() {
-                // We've reached EOF, but have unflushed data in the buffer, so flush it
-                if read > 0 {
-                    handle.write_all(&buf[..]).unwrap();
-                }
-                break;
-            }
-            // Search for newline to break up our input into individual JSON messages
-            let (has_line, used) = match memchr::memchr(b'\n', bytes) {
-                Some(i) => {
-                    buf.extend_from_slice(&bytes[..=i]);
-                    (true, i + 1)
-                }
-                None => {
-                    buf.extend_from_slice(bytes);
-                    (false, bytes.len())
-                }
-            };
-            child_stdout_reader.consume(used);
-            read += used;
-
-            if buf.ends_with(&[b'\n']) {
-                buf.pop();
-                if buf.ends_with(&[b'\r']) {
-                    buf.pop();
-                }
-            }
-
-            if has_line {
-                match serde_json::from_slice(&buf[..]) {
-                    Ok(item) => match item {
-                        Item::Message { ref message } => {
-                            let message = format!("{}", message);
-                            handle.write_all(message.as_bytes()).unwrap()
+                    match msg.message.level {
+                        DiagnosticLevel::Ice
+                        | DiagnosticLevel::Error
+                        | DiagnosticLevel::FailureNote => {
+                          if let Some(msg) = msg.message.rendered.as_ref() {
+                              handle.write_all(msg.as_bytes()).unwrap();
+                          }
                         }
-                        Item::Artifact {
-                            target, package_id, ..
-                        } if target.name == "build-script-build" => {
-                            let message = format!("Building {}\n", &package_id);
-                            handle.write_all(message.as_bytes()).unwrap();
-                        }
-                        Item::BuildScriptExecuted { package_id, .. } => {
-                            let message = format!("Build script executed for {}\n", &package_id);
-                            handle.write_all(message.as_bytes()).unwrap();
-                        }
-                        Item::Artifact {
-                            target,
-                            package_id,
-                            mut filenames,
-                        } => {
-                            let message = format!("Compiled {}\n", &package_id);
-                            handle.write_all(message.as_bytes()).unwrap();
-                            let files = filenames
-                                .drain_filter(|f| f.ends_with(".a") || f.ends_with(".rlib"))
-                                .collect::<Vec<_>>();
-                            if !files.is_empty() {
-                                deps.insert(target.name, files);
+                        _ if workspace_members.contains(&msg.package_id) => {
+                            // This message is relevant to one of our crates
+                            if let Some(msg) = msg.message.rendered.as_ref() {
+                                handle.write_all(msg.as_bytes()).unwrap();
                             }
                         }
-                        Item::BuildFinished { success } => {
-                            let message = if success {
-                                format!("Build completed successfully!\n")
-                            } else {
-                                format!("Build finished with errors!\n")
-                            };
-                            handle.write_all(message.as_bytes()).unwrap();
+                        _ => continue,
+                    }
+                },
+                Message::CompilerArtifact(artifact) if artifact.target.name == "build-script-build" => {
+                    let message = format!("Building {}\n", &artifact.package_id.repr);
+                    handle.write_all(message.as_bytes()).unwrap();
+                },
+                Message::CompilerArtifact(mut artifact) => {
+                    let message = format!("Compiled {}\n", &artifact.package_id.repr);
+                    handle.write_all(message.as_bytes()).unwrap();
+                    // Track the artifacts for workspace members as we need them later
+                    if workspace_members.contains(&artifact.package_id) {
+                        let files = artifact.filenames
+                            .drain_filter(|f| {
+                                let p = f.as_path();
+                                let ext = p.extension();
+                                ext == Some("a") || ext == Some("rlib")
+                            }).map(|f| f.into_string()).collect::<Vec<_>>();
+                        if !files.is_empty() {
+                            deps.insert(artifact.target.name.clone(), files);
                         }
-                        _ => {}
-                    },
-                    Err(_e) => {
-                        handle.write_all(&buf[..]).unwrap();
-                        handle.write(b"\n").unwrap();
-                        //panic!("JSON parsing error: {}", e);
                     }
                 }
-
-                // Reset buffer
-                read = 0;
-                buf.truncate(0);
+                Message::BuildScriptExecuted(_script) => {
+                    continue;
+                },
+                Message::BuildFinished(result) if result.success => {
+                    handle.write_all(b"Build completed successfully!\n").unwrap();
+                },
+                Message::BuildFinished(_) => {
+                    handle.write_all(b"Build finished with errors!\n").unwrap();
+                },
+                _ => () // Unknown message
             }
         }
     }
@@ -445,15 +371,13 @@ fn main() -> Result<(), ()> {
 }
 
 fn get_llvm_target(target: &str) -> String {
-    let mut rustc_cmd = Command::new("rustc");
+   let mut rustc_cmd = Command::new("rustup");
     let rustc_cmd = rustc_cmd
-        .args(&[
-            "-Z",
-            "unstable-options",
-            "--print",
-            "target-spec-json",
-            "--target",
-        ])
+        .arg("run")
+        .arg("nightly")
+        .args(&["rustc"])
+        .args(&["-Z", "unstable-options"])
+        .args(&["--print", "target-spec-json", "--target"])
         .arg(target);
 
     let output = rustc_cmd

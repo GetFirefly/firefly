@@ -2,7 +2,7 @@
 #![feature(link_cfg)]
 #![feature(nll)]
 #![feature(c_unwind)]
-#![link(kind = "static", modifiers = "-bundle")]
+#![feature(native_link_modifiers_bundle)]
 #![cfg_attr(not(target_env = "msvc"), feature(libc))]
 
 cfg_if::cfg_if! {
@@ -37,19 +37,20 @@ cfg_if::cfg_if! {
 }
 
 #[cfg(target_env = "musl")]
-#[link(name = "unwind", kind = "static", cfg(target_feature = "crt-static"))]
+#[link(name = "unwind", kind = "static", modifiers = "-bundle", cfg(target_feature = "crt-static"))]
 #[link(name = "gcc_s", cfg(not(target_feature = "crt-static")))]
 extern "C" {}
 
 #[cfg(target_os = "redox")]
 #[link(
     name = "gcc_eh",
-    kind = "static-nobundle",
+    kind = "static",
+    modifiers = "-bundle",
     cfg(target_feature = "crt-static")
 )]
 #[link(name = "gcc_s", cfg(not(target_feature = "crt-static")))]
 extern "C" {}
 
 #[cfg(all(target_vendor = "fortanix", target_env = "sgx"))]
-#[link(name = "unwind", kind = "static-nobundle")]
+#[link(name = "unwind", kind = "static", modifiers = "-bundle")]
 extern "C" {}

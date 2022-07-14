@@ -27,7 +27,7 @@ cfg_if! {
         global_asm!(include_str!("asm/lumen_dynamic_apply_macos.s"));
     } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
         global_asm!(include_str!("asm/lumen_dynamic_apply_macos_aarch64.s"));
-    } else if #[cfg(tarch_arch = "x86_64")] {
+    } else if #[cfg(target_arch = "x86_64")] {
         global_asm!(include_str!("asm/lumen_dynamic_apply_linux.s"));
     } else {
         compile_error!("dynamic calls have not been implemented for this platform!");

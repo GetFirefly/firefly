@@ -71,7 +71,7 @@ mod llvm_libunwind {
             cfg.define("__LITTLE_ENDIAN__", Some("1"));
         }
 
-        if env::var_os("LUMEN_LLVM_LTO").is_some() {
+        if env::var("LUMEN_LLVM_LTO").unwrap_or("OFF".to_string()) == "ON" {
             cfg.flag("-flto=thin");
         }
 

@@ -1,5 +1,3 @@
-use core::arch::asm;
-
 use liblumen_rt::term::AtomData;
 
 extern "C-unwind" {
@@ -8,57 +6,28 @@ extern "C-unwind" {
     pub fn init(start: *const AtomData, end: *const AtomData) -> bool;
 }
 
+#[cfg(target_os = "macos")]
+extern "C" {
+    #[link_name = "\x01section$start$__DATA$__atoms"]
+    static ATOMS_START: AtomData;
 
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[link_name = "\x01section$end$__DATA$__atoms"]
+    static ATOMS_END: AtomData;
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+extern "C" {
+    #[link_name = "__start___atoms"]
+    static ATOMS_START: AtomData;
+
+    #[link_name = "__stop___atoms"]
+    static ATOMS_END: AtomData;
+}
+
 pub(super) fn start() -> *const AtomData {
-    let mut ptr: *mut AtomData = core::ptr::null_mut();
-    unsafe {
-        asm!(
-            "adrp {x}, section$start$__DATA$__atoms@GOTPAGE",
-            "ldr {x}, [{x}, section$start$__DATA$__atoms@GOTPAGEOFF]",
-            x = inout(reg) ptr,
-            options(readonly, preserves_flags, nostack)
-        );
-    }
-    ptr
+    unsafe { &ATOMS_START }
 }
 
-#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-pub(super) fn start() -> *const AtomData {
-    let mut ptr: *mut AtomData = core::ptr::null_mut();
-    unsafe {
-        asm!(
-            "movq section$start$__DATA$__atoms@GOTPCREL(%rip), %rax",
-            inout("rax") ptr,
-            options(raw, att_syntax, readonly, preserves_flags, nostack)
-        );
-    }
-    ptr
-}
-
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub(super) fn end() -> *const AtomData {
-    let mut ptr: *mut AtomData = core::ptr::null_mut();
-    unsafe {
-        asm!(
-            "adrp {x}, section$end$__DATA$__atoms@GOTPAGE",
-            "ldr {x}, [{x}, section$end$__DATA$__atoms@GOTPAGEOFF]",
-            x = inout(reg) ptr,
-            options(readonly, preserves_flags, nostack)
-        );
-    }
-    ptr
-}
-
-#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-pub(super) fn end() -> *const AtomData {
-    let mut ptr: *mut AtomData = core::ptr::null_mut();
-    unsafe {
-        asm!(
-            "movq section$end$__DATA$__atoms@GOTPCREL(%rip), %rax",
-            inout("rax") ptr,
-            options(raw, att_syntax, readonly, preserves_flags, nostack)
-        );
-    }
-    ptr
+    unsafe { &ATOMS_END }
 }

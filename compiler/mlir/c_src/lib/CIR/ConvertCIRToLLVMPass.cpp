@@ -716,7 +716,7 @@ protected:
       if (isMachO())
         sectionName = std::string("__DATA,__atoms");
       else
-        sectionName = std::string("__") + globalName;
+        sectionName = std::string("__atoms");
       auto sectionAttr =
           builder.getNamedAttr("section", builder.getStringAttr(sectionName));
 
@@ -2434,7 +2434,7 @@ struct DispatchTableOpLowering
       if (isMachO())
         sectionName = std::string("__DATA,__dispatch");
       else
-        sectionName = std::string("__") + globalName;
+        sectionName = std::string("__dispatch");
       auto sectionAttr =
           rewriter.getNamedAttr("section", rewriter.getStringAttr(sectionName));
       auto entryConst = rewriter.create<LLVM::GlobalOp>(

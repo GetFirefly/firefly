@@ -64,13 +64,12 @@ __lumen_swap_stack:
     # Ensure we never perform initialization twice
     mov  r13, 0x0
     # Store the original base pointer at the top of the stack
+    # And set the current base pointer to %rsp so that the unwinder
+    # knows where to find the caller base pointer
     push rcx
-    # Followed by the return address
-    push rax
-    # Finally we store a pointer to the bottom of the stack in the
-    # parent call frame. The unwinder will expect to restore %rbp
-    # from this address
-    push r9
+    # Store the current frame pointer
+    push rbp
+    mov rbp, rsp
 
     # These CFI directives inform the unwinder of where it can expect
     # to find the CFA relative to %rbp. This matches how we've laid out the stack.
@@ -80,7 +79,7 @@ __lumen_swap_stack:
     # we pushed, containing the parent call frame's stack pointer.
     #
     # The first directive tells the unwinder that it can expect to find the
-    # CFA (call frame address) 16 bytes above %rbp. The second directive then
+    # CFA (call frame address) 8 bytes above %rbp. The second directive then
     # tells the unwinder that it can find the previous %rbp 16 bytes _down_
     # from the current %rbp. The result is that the unwinder will restore %rbp
     # from that stack slot, and will then expect to find the previous CFA 16 bytes
@@ -99,13 +98,15 @@ __lumen_swap_stack:
     # NOTE: This call never truly returns, as the exception handler calls __lumen_builtin_exit
     # with the return value of the 'real' entry function, or with an exception if one
     # is caught. However, swap_stack _does_ return for all other swaps, just not the first.
-    jmp r14
+    call r14
+    jmp __lumen_builtin_exit
 
 .L_resume:
     # We land here only on a context switch, and since the last switch _away_ from
     # this process pushed %rbp on to the stack, and we don't need that value, we
     # adjust the stack pointer accordingly.
     add rsp, 8
+    .cfi_def_cfa rsp, 8
 
 .L_ret:
     # At this point we will return back to where execution left off:
@@ -116,6 +117,4 @@ __lumen_swap_stack:
     pop rax
     jmp rax
 
-.L_lumen_swap_stack_end:
-    .size __lumen_swap_stack, .L_lumen_swap_stack_end-__lumen_swap_stack
     .cfi_endproc

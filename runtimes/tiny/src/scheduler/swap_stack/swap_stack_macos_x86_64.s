@@ -21,12 +21,12 @@ ___lumen_swap_stack:
 
     # We also save rbp and rsp to registers so that we can setup CFA directives if this
     # is the first swap for the target process
-    mov  rcx,        rbp
-    mov  r9,         rsp
+    mov  rcx, rbp
+    mov  r9, rsp
 
     # Save the stack pointer, and callee-saved registers of `prev`
-    mov  [rdi],      rsp
-    mov  [rdi + 8],  r15
+    mov  [rdi], rsp
+    mov  [rdi + 8], r15
     mov  [rdi + 16], r14
     mov  [rdi + 24], r13
     mov  [rdi + 32], r12
@@ -34,13 +34,13 @@ ___lumen_swap_stack:
     mov  [rdi + 48], rbp
 
     # Restore the stack pointer, and callee-saved registers of `new`
-    mov  rsp,        [rsi]
-    mov  r15,        [rsi + 8]
-    mov  r14,        [rsi + 16]
-    mov  r13,        [rsi + 24]
-    mov  r12,        [rsi + 32]
-    mov  rbx,        [rsi + 40]
-    mov  rbp,        [rsi + 48]
+    mov  rsp, [rsi]
+    mov  r15, [rsi + 8]
+    mov  r14, [rsi + 16]
+    mov  r13, [rsi + 24]
+    mov  r12, [rsi + 32]
+    mov  rbx, [rsi + 40]
+    mov  rbp, [rsi + 48]
 
     # The value of all the callee-saved registers has changed, so we
     # need to inform the unwinder of that fact before proceeding
@@ -56,19 +56,18 @@ ___lumen_swap_stack:
     # we need to to perform some one-time initialization to
     # link the stack to the original parent stack (i.e. the scheduler),
     # which is important for the unwinder
-    cmp  rdx,        r13
+    cmp  rdx, r13
     jne  L_resume
 
     # Ensure we never perform initialization twice
-    mov  r13,        0x0
+    mov  r13, 0x0
     # Store the original base pointer at the top of the stack
+    # And set the current base pointer to %rsp so that the unwinder
+    # knows where to find the caller base pointer
     push rcx
-    # Followed by the return address
-    push rax
-    # Finally we store a pointer to the bottom of the stack in the
-    # parent call frame. The unwinder will expect to restore rbp
-    # from this address
-    push r9
+    # Store the current frame pointer
+    push rbp
+    mov rbp, rsp
 
     # These CFI directives inform the unwinder of where it can expect
     # to find the CFA relative to rbp. This matches how we've laid out the stack.
@@ -90,20 +89,22 @@ ___lumen_swap_stack:
     # is __lumen_trap_exceptions, which expects to receive two arguments: the function
     # being wrapped by the exception handler, and the value of the closure environment,
     # _if_ it is a closure being called, otherwise the value of that argument is Term::NONE
-    mov  rdi,        r12
+    mov  rdi, r12
 
     # We have already set up the stack precisely, so we don't use call here, instead
     # we go ahead and jump straight to the beginning of the entry function.
     # NOTE: This call never truly returns, as the exception handler calls __lumen_builtin_exit
     # with the return value of the 'real' entry function, or with an exception if one
     # is caught. However, swap_stack _does_ return for all other swaps, just not the first.
-    jmp  [r15]
+    call r14
+    jmp __lumen_builtin_exit
 
 L_resume:
     # We land here only on a context switch, and since the last switch _away_ from
     # this process pushed rbp on to the stack, and we don't need that value, we
     # adjust the stack pointer accordingly.
-    add rsp,         8
+    add rsp, 8
+    .cfi_def_cfa rsp, 8
 
 L_ret:
     # At this point we will return back to where execution left off:
@@ -111,7 +112,7 @@ L_ret:
     # for all other processes, this returns to the code which was executing when
     # it yielded, the address of which is 8 bytes above the current stack pointer.
     # We pop and jmp rather than ret to avoid branch mispredictions.
-    pop  rax
-    jmp  [rax]
+    pop rax
+    jmp rax
 
     .cfi_endproc

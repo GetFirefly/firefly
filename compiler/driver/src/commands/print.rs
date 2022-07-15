@@ -29,6 +29,11 @@ pub fn handle_command<'a>(
                 println!("{}", crate::LUMEN_RELEASE);
             }
         }
+        ("current-target", _) => {
+            let triple = target::host_triple();
+            let target = Target::search(triple)?;
+            println!("{:#?}", &target)
+        }
         ("targets", _) => {
             for target in Target::all() {
                 println!("{}", target);

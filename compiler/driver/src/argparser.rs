@@ -60,6 +60,7 @@ fn print_command<'a, 'b>() -> App<'a, 'b> {
                         .long("verbose"),
                 ),
         )
+        .subcommand(App::new("current-target").about("Prints details about the current target"))
         .subcommand(App::new("targets").about("The list of supported targets"))
         .subcommand(
             App::new("target-features")

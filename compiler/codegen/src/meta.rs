@@ -71,7 +71,7 @@ impl ProjectInfo {
                 },
                 PanicStrategy::Unwind => Dependency {
                     name: Symbol::intern("panic_unwind"),
-                    source: Some(lumenlib_dir.join(&format!("{}panic_abort.rlib", prefix))),
+                    source: Some(lumenlib_dir.join(&format!("{}panic_unwind.rlib", prefix))),
                 },
             });
         if options.target.options.is_like_wasm {
@@ -85,17 +85,17 @@ impl ProjectInfo {
             });
         } else {
             info.used_deps.push(Dependency {
-                name: Symbol::intern("unwind"),
-                source: Some(lumenlib_dir.join(&format!("{}unwind.rlib", prefix))),
-            });
-            info.used_deps.push(Dependency {
                 name: Symbol::intern("panic"),
                 source: Some(lumenlib_dir.join(&format!("{}panic.rlib", prefix))),
+            });
+            info.used_deps.push(Dependency {
+                name: Symbol::intern("unwind"),
+                source: Some(lumenlib_dir.join(&format!("{}unwind.rlib", prefix))),
             });
             info.used_libraries.push(NativeLibrary {
                 kind: NativeLibraryKind::Static {
                     bundle: None,
-                    whole_archive: None,
+                    whole_archive: Some(true),
                 },
                 name: Some("lumen_rt_tiny".to_string()),
                 verbatim: None,

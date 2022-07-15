@@ -53,7 +53,7 @@ pub struct ErlangPanic {
     _fragment: Option<*mut u8>,
 }
 
-extern "C" {
+extern "C-unwind" {
     // See `ErlangException` in liblumen_alloc
     #[allow(improper_ctypes)]
     #[link_name = "__lumen_cleanup_exception"]

@@ -1,8 +1,6 @@
 #![no_std]
 #![feature(link_cfg)]
-#![feature(nll)]
 #![feature(c_unwind)]
-#![feature(native_link_modifiers_bundle)]
 #![cfg_attr(not(target_env = "msvc"), feature(libc))]
 
 cfg_if::cfg_if! {

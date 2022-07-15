@@ -1248,7 +1248,7 @@ fn add_order_independent_options(
 
     add_link_script(cmd, options, diagnostics, tmpdir, project_type);
 
-    if options.target.options.is_like_fuchsia && project_type == ProjectType::Executable {
+    if options.target.options.os == "fuchsia" && project_type == ProjectType::Executable {
         let prefix = if options
             .debugging_opts
             .sanitizers
@@ -1272,7 +1272,7 @@ fn add_order_independent_options(
         cmd.no_crt_objects();
     }
 
-    if options.target.options.is_like_emscripten {
+    if options.target.options.os == "emscripten" {
         cmd.arg("-s");
         cmd.arg(
             if options.target.options.panic_strategy == PanicStrategy::Abort {

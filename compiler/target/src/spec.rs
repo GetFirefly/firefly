@@ -669,7 +669,7 @@ pub struct TargetOptions {
     /// If dynamic linking is available, whether only cdylibs are supported.
     pub only_cdylib: bool,
     /// Whether executables are available on this target. iOS, for example, only allows static
-    /// libraries. Defaults to false.
+    /// libraries. Defaults to true.
     pub executables: bool,
     /// Relocation model to use in object file. Corresponds to `llc
     /// -relocation-model=$relocation_model`. Defaults to "pic".
@@ -724,17 +724,11 @@ pub struct TargetOptions {
     ///   - uses SEH-based unwinding,
     ///   - supports control flow guard mechanism.
     pub is_like_msvc: bool,
-    /// Whether the target toolchain is like Emscripten's. Only useful for compiling with
-    /// Emscripten toolchain.
-    /// Defaults to false.
-    pub is_like_emscripten: bool,
-    /// Whether the target toolchain is like Fuchsia's.
-    pub is_like_fuchsia: bool,
     /// Whether a target toolchain is like WASM.
     pub is_like_wasm: bool,
-    /// Version of DWARF to use if not using the default.
+    /// Default supported Version of DWARF on this platform.
     /// Useful because some platforms (osx, bsd) only want up to DWARF2
-    pub dwarf_version: Option<u32>,
+    pub default_dwarf_version: u32,
     /// Whether the linker support GNU-like arguments such as -O. Defaults to false.
     pub linker_is_gnu: bool,
     /// The MinGW toolchain has a known issue that prevents it from correctly
@@ -934,7 +928,7 @@ impl Default for TargetOptions {
             features: "".into(),
             dynamic_linking: false,
             only_cdylib: false,
-            executables: false,
+            executables: true,
             relocation_model: RelocModel::Pic,
             code_model: None,
             tls_model: TlsModel::GeneralDynamic,
@@ -951,11 +945,9 @@ impl Default for TargetOptions {
             is_like_osx: false,
             is_like_solaris: false,
             is_like_windows: false,
-            is_like_emscripten: false,
             is_like_msvc: false,
-            is_like_fuchsia: false,
             is_like_wasm: false,
-            dwarf_version: None,
+            default_dwarf_version: 4,
             linker_is_gnu: true,
             allows_weak_linkage: true,
             has_rpath: false,

@@ -256,7 +256,7 @@ impl<'a> GccLinker<'a> {
             });
         } else {
             if !args.is_empty() {
-                let mut os = OsString::from("-Wl,");
+                let mut os = OsString::from("-Wl");
                 for a in args {
                     os.push(",");
                     os.push(a);

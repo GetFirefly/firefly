@@ -62,9 +62,14 @@ intrusive_adapter!(pub LayoutAdapter<K, V> = UnsafeRef<LayoutNode<K, V>>: Layout
 /// relatively short-lived, so it isn't a problem in practice.
 /// * It doesn't provide as rich of an API as HashMap and friends
 pub struct ArenaMap<K: EntityRef, V: Clone> {
-    arena: TypedArena<V>,
     keys: Vec<Option<NonNull<V>>>,
+    arena: TypedArena<V>,
     _marker: core::marker::PhantomData<K>,
+}
+impl<K: EntityRef, V: Clone> Drop for ArenaMap<K, V> {
+    fn drop(&mut self) {
+        self.keys.clear()
+    }
 }
 impl<K: EntityRef, V: Clone> Clone for ArenaMap<K, V> {
     fn clone(&self) -> Self {
@@ -202,8 +207,13 @@ impl<K: EntityRef, V: Clone> IndexMut<K> for ArenaMap<K, V> {
 /// * It has O(1) indexing; given a key, we can directly obtain a reference to a node, and with that,
 /// obtain a cursor over the list starting at that node.
 pub struct OrderedArenaMap<K: EntityRef, V: Clone> {
-    map: ArenaMap<K, LayoutNode<K, V>>,
     list: LinkedList<LayoutAdapter<K, V>>,
+    map: ArenaMap<K, LayoutNode<K, V>>,
+}
+impl<K: EntityRef, V: Clone> Drop for OrderedArenaMap<K, V> {
+    fn drop(&mut self) {
+        self.list.fast_clear();
+    }
 }
 impl<K: EntityRef, V: Clone> Clone for OrderedArenaMap<K, V> {
     fn clone(&self) -> Self {

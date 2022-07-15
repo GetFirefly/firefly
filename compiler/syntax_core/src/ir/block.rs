@@ -21,6 +21,11 @@ pub struct BlockData {
     pub params: ValueList,
     pub insts: LinkedList<InstAdapter>,
 }
+impl Drop for BlockData {
+    fn drop(&mut self) {
+        self.insts.fast_clear();
+    }
+}
 impl Clone for BlockData {
     fn clone(&self) -> Self {
         Self {

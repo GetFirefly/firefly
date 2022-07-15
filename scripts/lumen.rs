@@ -7,6 +7,7 @@
 //! ```
 #![feature(drain_filter)]
 #![feature(slice_internals)]
+#![feature(slice_concat_trait)]
 #![allow(non_snake_case)]
 
 extern crate core;
@@ -49,17 +50,30 @@ fn main() -> Result<(), ()> {
     let rust_sysroot = get_rust_sysroot();
     let toolchain_target_dir = rust_sysroot.join("lib/rustlib").join(&rust_target_triple);
     let llvm_prefix = PathBuf::from(&env::var("LLVM_PREFIX").unwrap());
-
     let enable_lto = env::var("LUMEN_BUILD_LTO").unwrap_or(String::new()) == "true";
+    let verbose = env::var("VERBOSE").is_ok();
+    let cwd = env::var("CARGO_MAKE_WORKING_DIRECTORY").unwrap();
 
     let mut build_link_args = vec!["-Wl".to_owned()];
-    let mut extra_rustc_flags = vec![];
     let mut extra_cargo_flags = vec![];
+    let mut rustflags = env::var("RUSTFLAGS").unwrap_or(String::new())
+        .split(' ')
+        .map(|flag| flag.to_string())
+        .collect::<Vec<_>>();
+
 
     let verbose_flags = env::var("CARGO_MAKE_CARGO_VERBOSE_FLAGS");
     if let Ok(f) = verbose_flags {
         if !f.is_empty() {
             extra_cargo_flags.push(f.to_owned());
+        }
+    }
+
+    let sanitizer = env::var("SANITIZER");
+    if let Ok(sanitizer) = sanitizer {
+        if !sanitizer.is_empty() {
+            rustflags.push("-Z".to_owned());
+            rustflags.push(format!("sanitizer={}", sanitizer));
         }
     }
 
@@ -77,42 +91,39 @@ fn main() -> Result<(), ()> {
             "release"
         }
         "dev" | _ => {
-            extra_rustc_flags.push("-C".to_owned());
-            extra_rustc_flags.push("opt-level=0".to_owned());
-            extra_rustc_flags.push("-C".to_owned());
-            extra_rustc_flags.push("debuginfo=2".to_owned());
+            rustflags.push("-C".to_owned());
+            rustflags.push("opt-level=0".to_owned());
+            rustflags.push("-C".to_owned());
+            rustflags.push("debuginfo=2".to_owned());
             "debug"
         }
     };
 
     if build_type == "static" {
-        extra_rustc_flags.push("-C".to_owned());
-        extra_rustc_flags.push("prefer-dynamic=no".to_owned());
+        rustflags.push("-C".to_owned());
+        rustflags.push("prefer-dynamic=no".to_owned());
     }
 
     if is_darwin {
         build_link_args.push("-headerpad_max_install_names".to_owned());
     }
 
-    let rustflags = {
-        let flags = env::var("RUSTFLAGS").unwrap_or(String::new());
-        if enable_lto {
-            build_link_args.push("-flto=thin".to_owned());
-            extra_rustc_flags.push("-C".to_owned());
-            extra_rustc_flags.push("embed-bitcode=yes".to_owned());
-            extra_rustc_flags.push("-C".to_owned());
-            extra_rustc_flags.push("lto=thin".to_owned());
-            format!("-C embed-bitcode=yes {}", &flags)
-        } else {
-            flags
-        }
-    };
+    if enable_lto {
+        build_link_args.push("-flto=thin".to_owned());
+        rustflags.push("-C".to_owned());
+        rustflags.push("embed-bitcode=yes".to_owned());
+        rustflags.push("-C".to_owned());
+        rustflags.push("lto=thin".to_owned());
+    }
+
+    rustflags.push("-Z".to_owned());
+    rustflags.push("remap-cwd-prefix=.".to_owned());
 
     build_link_args.push("-v".to_string());
     let link_args = build_link_args.join(",");
     let link_args_string = format!("-Clink-args={}", &link_args);
     let cargo_args = extra_cargo_flags.iter().collect::<Vec<_>>();
-    let rustc_args = extra_rustc_flags.iter().collect::<Vec<_>>();
+    let rustflags = rustflags.as_slice().join(" ");
 
     let path_var = env::var("PATH").unwrap();
     let path = format!("{}/bin:{}", llvm_prefix.display(), &path_var);
@@ -131,11 +142,14 @@ fn main() -> Result<(), ()> {
         .arg(&toolchain_name)
         .args(&["cargo", "rustc"])
         .args(&["-p", "lumen"])
+        .arg("--target")
+        .arg(rust_target_triple.as_str())
         .args(&["--message-format=json-diagnostic-rendered-ansi", "-vv"])
         .args(cargo_args.as_slice())
         .arg("--")
+        .arg("--remap-path-prefix")
+        .arg(&format!("{}=.", &cwd))
         .arg(link_args_string.as_str())
-        .args(rustc_args.as_slice())
         .env("PATH", path.as_str())
         .env("RUSTFLAGS", rustflags.as_str());
 
@@ -166,7 +180,7 @@ fn main() -> Result<(), ()> {
                               handle.write_all(msg.as_bytes()).unwrap();
                           }
                         }
-                        _ if workspace_members.contains(&msg.package_id) => {
+                        _ if workspace_members.contains(&msg.package_id) || verbose => {
                             // This message is relevant to one of our crates
                             if let Some(msg) = msg.message.rendered.as_ref() {
                                 handle.write_all(msg.as_bytes()).unwrap();
@@ -204,7 +218,13 @@ fn main() -> Result<(), ()> {
                 Message::BuildFinished(_) => {
                     handle.write_all(b"Build finished with errors!\n").unwrap();
                 },
-                _ => () // Unknown message
+                Message::TextLine(s) => {
+                    // Unknown message content
+                    handle.write_all(s.as_bytes()).unwrap();
+                    handle.write_all(b"\n").unwrap();
+                }
+                // Unhandled message type (this enum is non-exhaustive)
+                _ => continue,
             }
         }
     }
@@ -247,7 +267,7 @@ fn main() -> Result<(), ()> {
 
     println!("Installing Lumen..");
 
-    let src_lumen_exe = target_dir.join(target_subdir).join("lumen");
+    let src_lumen_exe = target_dir.join(&rust_target_triple).join(target_subdir).join("lumen");
     if !src_lumen_exe.exists() {
         panic!(
             "Expected build to place Lumen executable at {}",

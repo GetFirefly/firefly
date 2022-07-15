@@ -8,6 +8,7 @@ const ENV_LLVM_PREFIX: &'static str = "DEP_LUMEN_LLVM_CORE_PREFIX";
 const ENV_LLVM_LINK_STATIC: &'static str = "DEP_LUMEN_LLVM_CORE_LINK_STATIC";
 const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "DEP_LUMEN_LLVM_CORE_LINK_LLVM_DYLIB";
 const ENV_LLVM_LTO: &'static str = "DEP_LUMEN_LLVM_CORE_LTO";
+const ENV_LLVM_USE_SANITIZER: &'static str = "LLVM_USE_SANITIZER";
 
 fn main() {
     let lumen_llvm_include_dir = env::var(ENV_LLVM_CORE_INCLUDE).unwrap();
@@ -22,6 +23,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_LINK_STATIC);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_LINK_LLVM_DYLIB);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_LTO);
+    println!("cargo:rerun-if-env-changed={}", ENV_LLVM_USE_SANITIZER);
 
     // Build and link our MLIR dialects + extensions
     let mut config = cmake::Config::new("c_src");
@@ -48,6 +50,10 @@ fn main() {
 
     if env::var_os("LLVM_NDEBUG").is_some() {
         config.define("NDEBUG", "1");
+    }
+
+    if let Ok(sanitizer) = env::var(ENV_LLVM_USE_SANITIZER) {
+        config.define("LLVM_USE_SANITIZER", sanitizer);
     }
 
     let output_path = config.build();

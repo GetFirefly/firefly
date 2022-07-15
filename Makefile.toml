@@ -87,6 +87,7 @@ LUMEN_INSTALL_DIR = "${LUMEN_BIN_DIR}/${CARGO_MAKE_RUST_TARGET_TRIPLE}"
 LLVM_BUILD_STATIC = { source = "${LUMEN_BUILD_TYPE}", default_value = "OFF", mapping = { "dynamic" = "OFF", "static" = "ON" } }
 LLVM_USE_LIBCXX = { source = "${CARGO_MAKE_RUST_TARGET_VENDOR}", default_value = "OFF", mapping = { "apple" = "ON" } }
 LLVM_LINK_LLVM_DYLIB = { source = "${LUMEN_BUILD_TYPE}", default_value = "ON", mapping = { "dynamic" = "ON", "static" = "OFF" } }
+LLVM_USE_SANITIZER = { source = "${SANITIZER}", default_value = "", mapping = { "address" = "Address", "memory" = "Memory" }, condition = { env_set = ["SANITIZER"] } }
 
 [tasks.init]
 run_task = "print-env"
@@ -126,6 +127,8 @@ echo "    LUMEN_LLVM_LTO: ${LUMEN_LLVM_LTO}"
 echo "    LLVM_BUILD_STATIC: ${LLVM_BUILD_STATIC}"
 echo "    LLVM_USE_LIBCXX: ${LLVM_USE_LIBCXX}"
 echo "    LLVM_LINK_LLVM_DYLIB: ${LLVM_LINK_LLVM_DYLIB}"
+echo "    SANITIZER: ${SANITIZER}"
+echo "    LLVM_USE_SANITIZER: ${LLVM_USE_SANITIZER}"
 echo "*************************************"
 '''
 ]

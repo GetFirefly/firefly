@@ -9,6 +9,7 @@ const ENV_LLVM_PREFIX: &'static str = "LLVM_PREFIX";
 const ENV_LLVM_BUILD_STATIC: &'static str = "LLVM_BUILD_STATIC";
 const ENV_LLVM_LINK_LLVM_DYLIB: &'static str = "LLVM_LINK_LLVM_DYLIB";
 const ENV_LUMEN_LLVM_LTO: &'static str = "LUMEN_LLVM_LTO";
+const ENV_LLVM_USE_SANITIZER: &'static str = "LLVM_USE_SANITIZER";
 
 fn main() {
     let cwd = env::current_dir().unwrap();
@@ -19,6 +20,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_BUILD_STATIC);
     println!("cargo:rerun-if-env-changed={}", ENV_LLVM_LINK_LLVM_DYLIB);
     println!("cargo:rerun-if-env-changed={}", ENV_LUMEN_LLVM_LTO);
+    println!("cargo:rerun-if-env-changed={}", ENV_LLVM_USE_SANITIZER);
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=c_src");
     println!("cargo:prefix={}", llvm_prefix.display());
@@ -109,6 +111,11 @@ fn main() {
         cfg.flag("-flto=thin");
     } else {
         println!("cargo:lto=false");
+    }
+
+    if let Ok(mut sanitizer) = env::var(ENV_LLVM_USE_SANITIZER) {
+        sanitizer.make_ascii_lowercase();
+        cfg.flag(&format!("-fsanitize={}", sanitizer));
     }
 
     if env::var_os("LLVM_NDEBUG").is_some() {

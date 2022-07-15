@@ -97,7 +97,7 @@ ___lumen_swap_stack:
     # with the return value of the 'real' entry function, or with an exception if one
     # is caught. However, swap_stack _does_ return for all other swaps, just not the first.
     call r14
-    jmp __lumen_builtin_exit
+    jmp ___lumen_builtin_exit
 
 L_resume:
     # We land here only on a context switch, and since the last switch _away_ from

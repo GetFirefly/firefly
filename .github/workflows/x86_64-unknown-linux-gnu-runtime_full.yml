@@ -3,7 +3,7 @@ name: x86_64-unknown-linux-gnu Runtime Full
 on: push
 
 env:
-  TOOLCHAIN: nightly-2021-01-29
+  TOOLCHAIN: nightly-2022-07-12
 
 jobs:
   runtime:

@@ -403,12 +403,12 @@ fn get_llvm_target(target: &str) -> String {
     let output = rustc_cmd
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .output()
         .unwrap();
 
     if !output.status.success() {
-        panic!("unable to determine llvm target triple!");
+        panic!("unable to determine llvm target triple!: {}", String::from_utf8(output.stderr).unwrap());
     }
 
     let spec: TargetSpec = serde_json::from_slice(output.stdout.as_slice()).unwrap();

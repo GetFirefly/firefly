@@ -37,7 +37,7 @@ fn main() -> Result<(), ()> {
     let cargo_profile = env::var("LUMEN_BUILD_PROFILE").unwrap();
     let toolchain_name = env::var("CARGO_MAKE_TOOLCHAIN").unwrap();
     let rust_target_triple = env::var("CARGO_MAKE_RUST_TARGET_TRIPLE").unwrap();
-    let target_triple = get_llvm_target(&rust_target_triple);
+    let target_triple = get_llvm_target(&toolchain_name, &rust_target_triple);
     let target_vendor = env::var("CARGO_MAKE_RUST_TARGET_VENDOR").unwrap();
     let target_os = env::var("CARGO_MAKE_RUST_TARGET_OS").unwrap();
     let build_type = env::var("LUMEN_BUILD_TYPE").unwrap();
@@ -390,11 +390,11 @@ fn main() -> Result<(), ()> {
     return Ok(());
 }
 
-fn get_llvm_target(target: &str) -> String {
+fn get_llvm_target(toolchain_name: &str, target: &str) -> String {
    let mut rustc_cmd = Command::new("rustup");
     let rustc_cmd = rustc_cmd
         .arg("run")
-        .arg("nightly")
+        .arg(toolchain_name)
         .args(&["rustc"])
         .args(&["-Z", "unstable-options"])
         .args(&["--print", "target-spec-json", "--target"])

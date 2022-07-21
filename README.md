@@ -42,9 +42,10 @@ dependencies for the WebAssembly targets that we make use of.
     # to use the latest nightly
     rustup default nightly
     
-    # or, in case of issues, install the 2021-01-29 nightly to match our CI
+    # or, in case of issues, install the 2022-07-12 nightly to match our CI
     rustup default nightly-2021-07-12
-    
+    export CARGO_MAKE_TOOLCHAIN=nightly-2022-07-12
+
 In order to run various build tasks in the project, you'll need the [cargo-make](https://github.com/sagiegurari/cargo-make) plugin for Cargo. You can install it with:
 
     cargo install cargo-make

@@ -156,7 +156,6 @@ fn main() -> Result<(), ()> {
     let cmd = format!("{:?}", &cargo_cmd);
     let mut child = cargo_cmd
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
         .spawn()
         .unwrap();
 

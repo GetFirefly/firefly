@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::fmt;
 
 use liblumen_diagnostics::SourceSpan;
+use liblumen_intern::Symbol;
 
-use crate::lexer::{DelayedSubstitution, LexicalToken, Symbol, Token};
+use crate::lexer::{DelayedSubstitution, LexicalToken, Token};
 use crate::lexer::{IdentToken, SymbolToken};
 
 use super::directives::Define;

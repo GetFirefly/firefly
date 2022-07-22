@@ -13,6 +13,7 @@ build = "build.rs"
 liblumen_binary = { path = "../binary" }
 liblumen_compiler_macros = { path = "../macros" }
 liblumen_diagnostics = { path = "../diagnostics" }
+liblumen_diagnostics_macros = { path = "../diagnostics_macros" }
 liblumen_intern = { path = "../intern" }
 liblumen_number = { path = "../number" }
 liblumen_pass = { path = "../pass" }

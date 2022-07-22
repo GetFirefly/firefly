@@ -1,0 +1,19 @@
+[package]
+name = "liblumen_diagnostics_macros"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+edition = "2021"
+publish = false
+
+[lib]
+proc-macro = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+
+[dependencies.syn]
+version = "1.0"
+features = ["full", "printing", "extra-traits", "parsing"]

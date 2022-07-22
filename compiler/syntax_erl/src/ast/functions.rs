@@ -2,20 +2,25 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use liblumen_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Spanned};
-use liblumen_syntax_core::{self as syntax_core};
+use liblumen_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Span, Spanned};
+use liblumen_intern::Symbol;
+use liblumen_number::Integer;
+use liblumen_syntax_core as syntax_core;
 
-use super::{Arity, Expr, Ident, Name, TypeSpec};
+use super::{Arity, Clause, Expr, Ident, Literal, Name, TypeSpec, Var};
 
 /// A top-level function definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct Function {
+    #[span]
     pub span: SourceSpan,
     pub name: Ident,
     pub arity: u8,
     pub spec: Option<TypeSpec>,
     pub is_nif: bool,
-    pub clauses: Vec<FunctionClause>,
+    pub clauses: Vec<(Option<Name>, Clause)>,
+    pub var_counter: usize,
+    pub fun_counter: usize,
 }
 impl PartialEq for Function {
     fn eq(&self, other: &Self) -> bool {
@@ -31,22 +36,38 @@ impl Function {
         syntax_core::FunctionName::new_local(self.name.name, self.arity)
     }
 
+    pub fn next_var(&mut self, span: Option<SourceSpan>) -> Ident {
+        let id = self.var_counter;
+        self.var_counter += 1;
+        let var = format!("${}", id);
+        let mut ident = Ident::from_str(&var);
+        match span {
+            None => ident,
+            Some(span) => {
+                ident.span = span;
+                ident
+            }
+        }
+    }
+
     pub fn new(
         reporter: &Reporter,
         span: SourceSpan,
-        clauses: Vec<FunctionClause>,
+        clauses: Vec<(Option<Name>, Clause)>,
     ) -> Result<Self, ()> {
         debug_assert!(clauses.len() > 0);
 
-        let head = &clauses[0];
+        let head_pair = &clauses[0];
+        let head_name = head_pair.0.as_ref();
+        let head = &head_pair.1;
         let head_span = head.span.clone();
-        let name = head.name.unwrap().atom();
-        let arity = head.params.len().try_into().unwrap();
+        let name = head_name.unwrap().atom();
+        let arity = head.patterns.len().try_into().unwrap();
 
         // Check clauses
         let mut last_clause = head_span.clone();
-        for clause in clauses.iter().skip(1) {
-            if clause.name.is_none() {
+        for (clause_name, clause) in clauses.iter().skip(1) {
+            if clause_name.is_none() {
                 reporter.diagnostic(
                     Diagnostic::error()
                         .with_message("expected named function clause")
@@ -62,8 +83,8 @@ impl Function {
                 return Err(());
             }
 
-            let clause_name = clause.name.clone().unwrap();
-            let clause_arity: u8 = clause.params.len().try_into().unwrap();
+            let clause_name = clause_name.clone().unwrap();
+            let clause_arity: u8 = clause.patterns.len().try_into().unwrap();
 
             if clause_name != Name::Atom(name) {
                 reporter.diagnostic(
@@ -106,46 +127,15 @@ impl Function {
             clauses,
             spec: None,
             is_nif: false,
+            var_counter: 0,
+            fun_counter: 0,
         })
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct FunctionClause {
-    pub span: SourceSpan,
-    pub name: Option<Name>,
-    pub params: Vec<Expr>,
-    pub guard: Option<Vec<Guard>>,
-    pub body: Vec<Expr>,
-}
-impl PartialEq for FunctionClause {
-    fn eq(&self, other: &FunctionClause) -> bool {
-        self.name == other.name
-            && self.params == other.params
-            && self.guard == other.guard
-            && self.body == other.body
-    }
-}
-impl FunctionClause {
-    pub fn new(
-        span: SourceSpan,
-        name: Option<Name>,
-        params: Vec<Expr>,
-        guard: Option<Vec<Guard>>,
-        body: Vec<Expr>,
-    ) -> Self {
-        FunctionClause {
-            span,
-            name,
-            params,
-            guard,
-            body,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct Guard {
+    #[span]
     pub span: SourceSpan,
     pub conditions: Vec<Expr>,
 }
@@ -170,8 +160,9 @@ impl PartialEq for Guard {
 /// AnonFib = fun Fib(X) when X < 2 -> 1; Fib(X) -> Fib(X-1) + Fib(X-2).
 /// AnonFib(5)
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct RecursiveFun {
+    #[span]
     pub span: SourceSpan,
     // Name is only set when an anonymous function is assigned a name by a compiler pass
     // Immediately after parsing, it is always None
@@ -179,7 +170,7 @@ pub struct RecursiveFun {
     // The self_name is the name bound to the function within its body, which allows the function to call itself
     pub self_name: Ident,
     pub arity: u8,
-    pub clauses: Vec<FunctionClause>,
+    pub clauses: Vec<(Name, Clause)>,
 }
 impl PartialEq for RecursiveFun {
     fn eq(&self, other: &Self) -> bool {
@@ -190,14 +181,15 @@ impl PartialEq for RecursiveFun {
 }
 
 /// An anonymous function that cannot refer to itself within its body
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct AnonymousFun {
+    #[span]
     pub span: SourceSpan,
     // Name is only set when an anonymous function is assigned a name by a compiler pass
     // Immediately after parsing, it is always None
     pub name: Option<Ident>,
     pub arity: u8,
-    pub clauses: Vec<FunctionClause>,
+    pub clauses: Vec<Clause>,
 }
 impl PartialEq for AnonymousFun {
     fn eq(&self, other: &Self) -> bool {
@@ -205,34 +197,28 @@ impl PartialEq for AnonymousFun {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Spanned)]
 pub enum Fun {
     Recursive(RecursiveFun),
     Anonymous(AnonymousFun),
 }
 impl Fun {
-    pub fn span(&self) -> SourceSpan {
-        match self {
-            Self::Recursive(RecursiveFun { ref span, .. }) => span.clone(),
-            Self::Anonymous(AnonymousFun { ref span, .. }) => span.clone(),
-        }
-    }
-
     pub fn new(
         reporter: &Reporter,
         span: SourceSpan,
-        clauses: Vec<FunctionClause>,
+        mut clauses: Vec<(Option<Name>, Clause)>,
     ) -> Result<Self, ()> {
         debug_assert!(clauses.len() > 0);
-        let head = &clauses[0];
-        let name = head.name.clone();
+        let head_clause = &clauses[0];
+        let name = head_clause.0.clone();
+        let head = &head_clause.1;
         let head_span = head.span.clone();
-        let arity = head.params.len().try_into().unwrap();
+        let arity = head.patterns.len().try_into().unwrap();
 
         // Check clauses
         let mut last_clause = head_span.clone();
-        for clause in clauses.iter().skip(1) {
-            if name.is_some() && clause.name.is_none() {
+        for (clause_name, clause) in clauses.iter().skip(1) {
+            if name.is_some() && clause_name.is_none() {
                 reporter.diagnostic(
                     Diagnostic::error()
                         .with_message("expected named function clause")
@@ -249,7 +235,7 @@ impl Fun {
                 return Err(());
             }
 
-            if name.is_none() && clause.name.is_some() {
+            if name.is_none() && clause_name.is_some() {
                 reporter.diagnostic(
                     Diagnostic::error()
                         .with_message("mismatched function clause")
@@ -265,7 +251,7 @@ impl Fun {
                 return Err(());
             }
 
-            if clause.name != name {
+            if *clause_name != name {
                 reporter.diagnostic(
                     Diagnostic::error()
                         .with_message("unterminated function clause")
@@ -281,7 +267,7 @@ impl Fun {
                 continue;
             }
 
-            let clause_arity: u8 = clause.params.len().try_into().unwrap();
+            let clause_arity: u8 = clause.patterns.len().try_into().unwrap();
             if clause_arity != arity {
                 reporter.diagnostic(
                     Diagnostic::error()
@@ -306,14 +292,14 @@ impl Fun {
                 name: None,
                 span,
                 arity,
-                clauses,
+                clauses: clauses.drain(..).map(|(_, c)| c).collect(),
             })),
             Some(Name::Var(ident)) => Ok(Self::Recursive(RecursiveFun {
                 name: None,
                 self_name: ident,
                 span,
                 arity,
-                clauses,
+                clauses: clauses.drain(..).map(|(n, c)| (n.unwrap(), c)).collect(),
             })),
             Some(Name::Atom(_)) => panic!("funs are not permitted to have non-identifier names"),
         }
@@ -323,8 +309,9 @@ impl Fun {
 /// Represents a function name which contains parts which are not yet concrete,
 /// i.e. they are expressions which need to be evaluated to know precisely which
 /// module or function is referenced
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct UnresolvedFunctionName {
+    #[span]
     pub span: SourceSpan,
     pub module: Option<Name>,
     pub function: Name,
@@ -355,22 +342,95 @@ impl PartialOrd for UnresolvedFunctionName {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash, Spanned)]
 pub enum FunctionName {
-    Resolved(Spanned<syntax_core::FunctionName>),
-    PartiallyResolved(Spanned<syntax_core::FunctionName>),
+    Resolved(Span<syntax_core::FunctionName>),
+    PartiallyResolved(Span<syntax_core::FunctionName>),
     Unresolved(UnresolvedFunctionName),
 }
+impl From<syntax_core::FunctionName> for FunctionName {
+    fn from(name: syntax_core::FunctionName) -> Self {
+        if name.is_local() {
+            Self::PartiallyResolved(Span::new(SourceSpan::UNKNOWN, name))
+        } else {
+            Self::Resolved(Span::new(SourceSpan::UNKNOWN, name))
+        }
+    }
+}
 impl FunctionName {
-    pub fn span(&self) -> SourceSpan {
+    pub fn module(&self) -> Option<Symbol> {
         match self {
-            FunctionName::Resolved(ref spanned) => spanned.span(),
-            FunctionName::PartiallyResolved(ref spanned) => spanned.span(),
-            FunctionName::Unresolved(UnresolvedFunctionName { span, .. }) => *span,
+            Self::Resolved(mfa) => mfa.module,
+            Self::PartiallyResolved(_) => None,
+            Self::Unresolved(name) => match name.module {
+                Some(Name::Atom(f)) => Some(f.name),
+                _ => None,
+            },
         }
     }
 
-    pub fn partial_resolution(&self) -> Option<Spanned<syntax_core::FunctionName>> {
+    pub fn function(&self) -> Option<Symbol> {
+        match self {
+            Self::Resolved(mfa) => Some(mfa.function),
+            Self::PartiallyResolved(mfa) => Some(mfa.function),
+            Self::Unresolved(name) => match name.function {
+                Name::Atom(f) => Some(f.name),
+                _ => None,
+            },
+        }
+    }
+
+    pub fn mfa(&self) -> (Option<Expr>, Expr, Expr) {
+        match self {
+            Self::Resolved(name) | Self::PartiallyResolved(name) => {
+                let span = name.span();
+                let module = name
+                    .module
+                    .map(|m| Expr::Literal(Literal::Atom(Ident::new(m, span))));
+                let function = Expr::Literal(Literal::Atom(Ident::new(name.function, span)));
+                let arity = Expr::Literal(Literal::Integer(span, (name.arity as i64).into()));
+                (module, function, arity)
+            }
+            Self::Unresolved(UnresolvedFunctionName {
+                span,
+                module,
+                function,
+                arity,
+            }) => {
+                let module = module.map(|m| match m {
+                    Name::Var(id) => Expr::Var(Var(id)),
+                    Name::Atom(id) => Expr::Literal(Literal::Atom(id)),
+                });
+                let function = match function {
+                    Name::Var(id) => Expr::Var(Var(*id)),
+                    Name::Atom(id) => Expr::Literal(Literal::Atom(*id)),
+                };
+                let arity = match arity {
+                    Arity::Int(i) => {
+                        Expr::Literal(Literal::Integer(*span, Integer::Small(*i as i64)))
+                    }
+                    Arity::Var(id) => Expr::Var(Var(*id)),
+                };
+                (module, function, arity)
+            }
+        }
+    }
+
+    pub fn new(span: SourceSpan, module: Symbol, function: Symbol, arity: u8) -> Self {
+        Self::Resolved(Span::new(
+            span,
+            syntax_core::FunctionName::new(module, function, arity),
+        ))
+    }
+
+    pub fn new_local(span: SourceSpan, function: Symbol, arity: u8) -> Self {
+        Self::PartiallyResolved(Span::new(
+            span,
+            syntax_core::FunctionName::new_local(function, arity),
+        ))
+    }
+
+    pub fn partial_resolution(&self) -> Option<Span<syntax_core::FunctionName>> {
         match self {
             Self::PartiallyResolved(partial) => Some(*partial),
             Self::Unresolved(UnresolvedFunctionName {
@@ -389,14 +449,10 @@ impl FunctionName {
 
     pub fn detect(span: SourceSpan, module: Option<Name>, function: Name, arity: Arity) -> Self {
         match (module, function, arity) {
-            (Some(Name::Atom(m)), Name::Atom(f), Arity::Int(a)) => Self::Resolved(Spanned::new(
-                span,
-                syntax_core::FunctionName::new(m.name, f.name, a),
-            )),
-            (None, Name::Atom(f), Arity::Int(a)) => Self::PartiallyResolved(Spanned::new(
-                span,
-                syntax_core::FunctionName::new_local(f.name, a),
-            )),
+            (Some(Name::Atom(m)), Name::Atom(f), Arity::Int(a)) => {
+                Self::new(span, m.name, f.name, a)
+            }
+            (None, Name::Atom(f), Arity::Int(a)) => Self::new_local(span, f.name, a),
             (m, f, a) => Self::Unresolved(UnresolvedFunctionName {
                 span,
                 module: m,
@@ -405,37 +461,19 @@ impl FunctionName {
             }),
         }
     }
-
-    pub fn from_clause(clause: &FunctionClause) -> FunctionName {
-        match clause {
-            &FunctionClause {
-                name: Some(ref name),
-                span,
-                ref params,
-                ..
-            } => FunctionName::PartiallyResolved(Spanned::new(
-                span,
-                syntax_core::FunctionName::new_local(
-                    name.atom().name,
-                    params.len().try_into().unwrap(),
-                ),
-            )),
-            _ => panic!("cannot create a FunctionName from an anonymous FunctionClause!"),
-        }
-    }
 }
 impl fmt::Display for FunctionName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            FunctionName::Resolved(ref spanned) => write!(f, "{}", spanned),
-            FunctionName::PartiallyResolved(ref spanned) => write!(f, "{}", spanned),
-            FunctionName::Unresolved(UnresolvedFunctionName {
+            Self::Resolved(ref spanned) => write!(f, "{}", spanned),
+            Self::PartiallyResolved(ref spanned) => write!(f, "{}", spanned),
+            Self::Unresolved(UnresolvedFunctionName {
                 module: Some(ref module),
                 ref function,
                 arity,
                 ..
             }) => write!(f, "{:?}:{:?}/{:?}", module, function, arity),
-            FunctionName::Unresolved(UnresolvedFunctionName {
+            Self::Unresolved(UnresolvedFunctionName {
                 ref function,
                 arity,
                 ..

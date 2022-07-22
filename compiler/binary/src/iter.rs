@@ -10,6 +10,14 @@ use crate::{Bitstring, Selection};
 pub struct ByteIter<'a> {
     selection: Selection<'a>,
 }
+impl<'a> Clone for ByteIter<'a> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            selection: self.selection,
+        }
+    }
+}
 impl<'a> ByteIter<'a> {
     pub fn new(selection: Selection<'a>) -> Self {
         Self { selection }

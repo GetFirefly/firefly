@@ -1,57 +1,70 @@
-#![allow(dead_code, unused_variables)]
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::hash::Hash;
 
-use crate::ast::{BinaryOp, Expr, Literal, UnaryOp};
-use crate::lexer::symbols;
+use crate::ast::{self, BinaryElement, BinaryOp, Expr, Literal, UnaryOp};
 
-use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, ToDiagnostic};
-use liblumen_intern::{Ident, Symbol};
-use liblumen_number::{Number, ToPrimitive};
+use liblumen_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
+use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, Spanned, ToDiagnostic};
+use liblumen_intern::{symbols, Ident};
+use liblumen_number::{f16, Integer, Number, ToPrimitive};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Spanned)]
 pub enum EvalError {
     #[error("invalid const expression")]
-    InvalidConstExpression { span: SourceSpan },
+    InvalidConstExpression {
+        #[span]
+        span: SourceSpan,
+    },
 
-    #[error("invalid float: {source}")]
+    #[error("invalid float: {ty}")]
     FloatError {
-        source: liblumen_number::FloatError,
+        ty: liblumen_number::FloatError,
+        #[span]
         span: SourceSpan,
     },
 
     #[error("integer division requires both operands to be integers")]
-    InvalidDivOperand { span: SourceSpan },
+    InvalidDivOperand {
+        #[span]
+        span: SourceSpan,
+    },
 
     #[error("expression evaluated to division by zero")]
-    DivisionByZero { span: SourceSpan },
+    DivisionByZero {
+        #[span]
+        span: SourceSpan,
+    },
 
     #[error("bitwise operators requires all operands to be integers")]
-    InvalidBitwiseOperand { span: SourceSpan },
+    InvalidBitwiseOperand {
+        #[span]
+        span: SourceSpan,
+    },
 
     #[error("attempted too large bitshift")]
-    TooLargeShift { span: SourceSpan },
+    TooLargeShift {
+        #[span]
+        span: SourceSpan,
+    },
 
     #[error("no record with name")]
-    NoRecord { span: SourceSpan },
+    NoRecord {
+        #[span]
+        span: SourceSpan,
+    },
 
     #[error("field doesn't exist in record")]
-    NoRecordField { span: SourceSpan },
-}
-impl EvalError {
-    pub fn span(&self) -> SourceSpan {
-        match self {
-            Self::InvalidConstExpression { span }
-            | Self::FloatError { span, .. }
-            | Self::InvalidDivOperand { span }
-            | Self::DivisionByZero { span }
-            | Self::InvalidBitwiseOperand { span }
-            | Self::TooLargeShift { span }
-            | Self::NoRecord { span }
-            | Self::NoRecordField { span } => *span,
-        }
-    }
+    NoRecordField {
+        #[span]
+        span: SourceSpan,
+    },
+
+    #[error("map does not contain key `{key}`")]
+    InvalidMapKey {
+        #[span]
+        span: SourceSpan,
+        key: Literal,
+    },
 }
 impl ToDiagnostic for EvalError {
     fn to_diagnostic(&self) -> Diagnostic {
@@ -82,91 +95,9 @@ impl ToDiagnostic for EvalError {
             EvalError::NoRecordField { span } => Diagnostic::error()
                 .with_message(msg)
                 .with_labels(vec![Label::primary(span.source_id(), *span)]),
-        }
-    }
-}
-
-#[derive(Clone, Hash)]
-pub enum Term {
-    Cons(Box<Term>, Box<Term>),
-    Nil,
-    Map(BTreeMap<Term, Term>),
-    Tuple(Vec<Term>),
-    Atom(Symbol),
-    Number(Number),
-}
-
-impl PartialEq for Term {
-    fn eq(&self, other: &Term) -> bool {
-        self.equals(other, false)
-    }
-}
-impl Eq for Term {}
-
-impl Ord for Term {
-    // number < atom < reference < fun < port < pid < tuple < map < nil < list < bit string
-    fn cmp(&self, other: &Term) -> Ordering {
-        match (self, other) {
-            (Term::Number(l), Term::Number(r)) => l.cmp(r),
-            (Term::Number(_), _) => Ordering::Less,
-
-            (Term::Atom(_), Term::Number(_)) => Ordering::Greater,
-            (Term::Atom(l), Term::Atom(r)) => l.cmp(r),
-            (Term::Atom(_), _) => Ordering::Less,
-
-            (Term::Tuple(_), Term::Number(_) | Term::Atom(_)) => Ordering::Greater,
-            (Term::Tuple(l), Term::Tuple(r)) => l.cmp(r),
-            (Term::Tuple(_), _) => Ordering::Less,
-
-            (Term::Map(_), Term::Number(_) | Term::Atom(_) | Term::Tuple(_)) => Ordering::Greater,
-            (Term::Map(l), Term::Map(r)) => l.cmp(r),
-            (Term::Map(_), _) => Ordering::Less,
-
-            (Term::Nil, Term::Number(_) | Term::Atom(_) | Term::Tuple(_) | Term::Map(_)) => {
-                Ordering::Greater
-            }
-            (Term::Nil, Term::Nil) => Ordering::Equal,
-            (Term::Nil, _) => Ordering::Less,
-
-            (
-                Term::Cons(_, _),
-                Term::Number(_) | Term::Atom(_) | Term::Tuple(_) | Term::Map(_) | Term::Nil,
-            ) => Ordering::Greater,
-            (Term::Cons(lh, lt), Term::Cons(rh, rt)) => (lh, lt).cmp(&(rh, rt)),
-        }
-    }
-}
-impl PartialOrd for Term {
-    fn partial_cmp(&self, other: &Term) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl From<Number> for Term {
-    fn from(num: Number) -> Term {
-        Term::Number(num)
-    }
-}
-impl From<bool> for Term {
-    fn from(cond: bool) -> Term {
-        if cond {
-            Term::Atom(symbols::True)
-        } else {
-            Term::Atom(symbols::False)
-        }
-    }
-}
-
-impl Term {
-    pub fn equals(&self, rhs: &Term, exact: bool) -> bool {
-        match (self, rhs) {
-            (Term::Atom(l), Term::Atom(r)) => l == r,
-            (Term::Number(l), Term::Number(r)) => l.equals(r, exact),
-            (Term::Tuple(l), Term::Tuple(r)) => l == r,
-            (Term::Map(l), Term::Map(r)) => l == r,
-            (Term::Nil, Term::Nil) => true,
-            (Term::Cons(lh, lt), Term::Cons(rh, rt)) => lh == rh && lt == rt,
-            _ => false,
+            EvalError::InvalidMapKey { span, .. } => Diagnostic::error()
+                .with_message(msg)
+                .with_labels(vec![Label::primary(span.source_id(), *span)]),
         }
     }
 }
@@ -176,140 +107,499 @@ pub enum ResolveRecordIndexError {
     NoField,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Bindings(BTreeMap<Ident, Expr>);
+impl Bindings {
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn get(&self, name: &Ident) -> Option<&Expr> {
+        self.0.get(name)
+    }
+
+    pub fn add(&mut self, name: Ident, value: Expr) -> bool {
+        self.0.insert(name, value).is_some()
+    }
+
+    pub fn remove(&mut self, name: &Ident) {
+        self.0.remove(name);
+    }
+
+    pub fn merge(&self, other: &Self) -> Result<Self, ()> {
+        use std::collections::btree_map::Entry;
+
+        let mut merged = self.0.clone();
+        for (key, value) in other.0.iter() {
+            match merged.entry(*key) {
+                Entry::Vacant(entry) => {
+                    entry.insert(value.clone());
+                }
+                Entry::Occupied(entry) => {
+                    if entry.get() != value {
+                        return Err(());
+                    }
+                }
+            }
+        }
+
+        Ok(Self(merged))
+    }
+}
+
 pub fn eval_expr(
     expr: &Expr,
     resolve_record_index: Option<&dyn Fn(Ident, Ident) -> Result<usize, ResolveRecordIndexError>>,
-) -> Result<Term, EvalError> {
+) -> Result<Literal, EvalError> {
     let span = expr.span();
-    let invalid_expr = EvalError::InvalidConstExpression { span };
 
     let res = match expr {
-        Expr::Literal(lit) => match lit {
-            Literal::Integer(_span, int) => Term::Number(int.clone().into()),
-            Literal::Float(_span, float) => Term::Number((*float).into()),
-            Literal::Atom(atom) => Term::Atom(atom.name),
-
-            lit => return Err(EvalError::InvalidConstExpression { span: lit.span() }),
-        },
-
-        Expr::Nil(_) => Term::Nil,
+        Expr::Literal(lit) => lit.clone(),
         Expr::Cons(cons) => {
             let head = eval_expr(&cons.head, resolve_record_index)?;
             let tail = eval_expr(&cons.tail, resolve_record_index)?;
-            Term::Cons(Box::new(head), Box::new(tail))
+            Literal::Cons(cons.span, Box::new(head), Box::new(tail))
         }
-
-        Expr::Tuple(tup) => Term::Tuple(
+        Expr::Tuple(tup) => Literal::Tuple(
+            tup.span,
             tup.elements
                 .iter()
                 .map(|e| eval_expr(e, resolve_record_index))
                 .collect::<Result<Vec<_>, _>>()?,
         ),
-        Expr::Map(_) => unimplemented!(),
+        Expr::Map(ast::Map { span, fields }) => {
+            let mut stored: BTreeMap<Literal, Literal> = BTreeMap::new();
+            for field in fields.iter() {
+                match field {
+                    ast::MapField::Assoc {
+                        ref key, ref value, ..
+                    } => {
+                        let key = eval_expr(key, resolve_record_index)?;
+                        let value = eval_expr(value, resolve_record_index)?;
+                        stored.insert(key, value);
+                    }
+                    ast::MapField::Exact {
+                        span,
+                        ref key,
+                        ref value,
+                    } => {
+                        let key = eval_expr(key, resolve_record_index)?;
+                        let value = eval_expr(value, resolve_record_index)?;
+                        if let Err(err) = stored.try_insert(key, value) {
+                            return Err(EvalError::InvalidMapKey {
+                                span: *span,
+                                key: err.entry.key().clone(),
+                            });
+                        }
+                    }
+                }
+            }
+            Literal::Map(*span, stored)
+        }
         Expr::Binary(_) => unimplemented!(),
         Expr::Record(_) => unimplemented!(),
         Expr::RecordIndex(rec_idx) if resolve_record_index.is_some() => {
+            let span = rec_idx.span;
             match resolve_record_index.unwrap()(rec_idx.name, rec_idx.field) {
-                Ok(index) => Term::Number(index.into()),
-                Err(ResolveRecordIndexError::NoRecord) => {
-                    Err(EvalError::NoRecord { span: rec_idx.span })?
-                }
-                Err(ResolveRecordIndexError::NoField) => {
-                    Err(EvalError::NoRecordField { span: rec_idx.span })?
-                }
+                Ok(index) => Literal::Integer(span, index.into()),
+                Err(ResolveRecordIndexError::NoRecord) => Err(EvalError::NoRecord { span })?,
+                Err(ResolveRecordIndexError::NoField) => Err(EvalError::NoRecordField { span })?,
             }
         }
 
         Expr::BinaryExpr(bin_expr) => {
             use BinaryOp as B;
 
+            let span = bin_expr.span;
             let lhs = eval_expr(&bin_expr.lhs, resolve_record_index)?;
             let rhs = eval_expr(&bin_expr.rhs, resolve_record_index)?;
 
             match (bin_expr.op, lhs, rhs) {
-                (B::Add, Term::Number(l), Term::Number(r)) => (&l + &r)
-                    .map_err(|source| EvalError::FloatError { span, source })?
-                    .into(),
-                (B::Sub, Term::Number(l), Term::Number(r)) => (&l - &r)
-                    .map_err(|source| EvalError::FloatError { span, source })?
-                    .into(),
-                (B::Multiply, Term::Number(l), Term::Number(r)) => (&l * &r)
-                    .map_err(|source| EvalError::FloatError { span, source })?
-                    .into(),
-                (B::Divide, Term::Number(l), Term::Number(r)) => {
-                    if r.is_zero() {
-                        Err(EvalError::DivisionByZero { span })?
-                    }
-                    (&l / &r)
-                        .map_err(|source| EvalError::FloatError { span, source })?
+                (B::Add, lhs, rhs) => {
+                    let lhs: Number = lhs.try_into().unwrap();
+                    let rhs: Number = rhs.try_into().unwrap();
+                    (lhs + rhs)
+                        .map_err(|ty| EvalError::FloatError { span, ty })?
                         .into()
                 }
-
-                (B::Div, Term::Number(Number::Integer(l)), Term::Number(Number::Integer(r))) => {
-                    if r.is_zero() {
-                        Err(EvalError::DivisionByZero { span })?
-                    }
-                    Number::Integer((l / &r).unwrap()).into()
+                (B::Sub, lhs, rhs) => {
+                    let lhs: Number = lhs.try_into().unwrap();
+                    let rhs: Number = rhs.try_into().unwrap();
+                    (lhs - rhs)
+                        .map_err(|ty| EvalError::FloatError { span, ty })?
+                        .into()
                 }
+                (B::Multiply, lhs, rhs) => {
+                    let lhs: Number = lhs.try_into().unwrap();
+                    let rhs: Number = rhs.try_into().unwrap();
+                    (lhs * rhs)
+                        .map_err(|ty| EvalError::FloatError { span, ty })?
+                        .into()
+                }
+                (B::Divide, lhs, rhs) => {
+                    let rhs: Number = rhs.try_into().unwrap();
+                    let lhs: Number = lhs.try_into().unwrap();
+                    (lhs / rhs)
+                        .map_err(|_| EvalError::DivisionByZero { span })?
+                        .into()
+                }
+                (B::Div, Literal::Integer(_, l), Literal::Integer(_, r)) => Literal::Integer(
+                    span,
+                    (l / r).map_err(|_| EvalError::DivisionByZero { span })?,
+                ),
                 (B::Div, _, _) => Err(EvalError::InvalidDivOperand { span })?,
 
-                (B::Bor, Term::Number(Number::Integer(l)), Term::Number(Number::Integer(r))) => {
-                    Number::Integer(l | &r).into()
+                (B::Bor, Literal::Integer(_, l), Literal::Integer(_, r)) => {
+                    Literal::Integer(span, l | r).into()
                 }
-                (B::Band, Term::Number(Number::Integer(l)), Term::Number(Number::Integer(r))) => {
-                    Number::Integer(l & &r).into()
+                (B::Band, Literal::Integer(_, l), Literal::Integer(_, r)) => {
+                    Literal::Integer(span, l & r).into()
                 }
-                (B::Bxor, Term::Number(Number::Integer(l)), Term::Number(Number::Integer(r))) => {
-                    Number::Integer(l ^ &r).into()
+                (B::Bxor, Literal::Integer(_, l), Literal::Integer(_, r)) => {
+                    Literal::Integer(span, l ^ r).into()
                 }
-                (B::Bsl, Term::Number(Number::Integer(l)), Term::Number(Number::Integer(r))) => {
+                (B::Bsl, Literal::Integer(_, l), Literal::Integer(_, r)) => {
                     let shift = r.to_u32().ok_or(EvalError::TooLargeShift { span })?;
-                    Number::Integer(l << shift).into()
+                    Literal::Integer(span, l << shift).into()
                 }
-                (B::Bsr, Term::Number(Number::Integer(l)), Term::Number(Number::Integer(r))) => {
+                (B::Bsr, Literal::Integer(_, l), Literal::Integer(_, r)) => {
                     let shift = r.to_u32().ok_or(EvalError::TooLargeShift { span })?;
-                    Number::Integer(l >> shift).into()
+                    Literal::Integer(span, l >> shift).into()
                 }
                 (B::Bor | B::Band | B::Bxor | B::Bsl | B::Bsr, _, _) => {
-                    Err(EvalError::InvalidBitwiseOperand { span })?
+                    return Err(EvalError::InvalidBitwiseOperand { span });
                 }
 
                 (B::Lt, l, r) => (l < r).into(),
                 (B::Lte, l, r) => (l <= r).into(),
                 (B::Gt, l, r) => (l > r).into(),
                 (B::Gte, l, r) => (l >= r).into(),
+                (B::Equal, l, r) => (l.cmp(&r) == Ordering::Equal).into(),
+                (B::NotEqual, l, r) => (l.cmp(&r) != Ordering::Equal).into(),
+                (B::StrictEqual, l, r) => l.eq(&r).into(),
+                (B::StrictNotEqual, l, r) => (!l.eq(&r)).into(),
 
-                (B::Equal, l, r) => l.equals(&r, false).into(),
-                (B::NotEqual, l, r) => (!l.equals(&r, false)).into(),
-                (B::StrictEqual, l, r) => l.equals(&r, true).into(),
-                (B::StrictNotEqual, l, r) => (!l.equals(&r, true)).into(),
+                // [] op []
+                // [] op []
+                (B::Append, Literal::Nil(_), nil @ Literal::Nil(_))
+                | (B::Remove, Literal::Nil(_), nil @ Literal::Nil(_)) => nil,
+                // [] op [_ | _]
+                // [] op "foo"
+                (
+                    B::Append,
+                    Literal::Nil(_),
+                    cons @ (Literal::Cons(_, _, _) | Literal::String(_)),
+                ) => cons,
+                (B::Remove, nil @ Literal::Nil(_), Literal::Cons(_, _, _) | Literal::String(_)) => {
+                    nil
+                }
+                // [_ | _] op []
+                (B::Append, cons @ Literal::Cons(_, _, _), Literal::Nil(_)) => cons,
+                (B::Remove, cons @ Literal::Cons(_, _, _), Literal::Nil(_)) => cons,
+                // [_ | _] ++ [_ | _]
+                // [_ | _] ++ "foo"
+                (B::Append, l @ Literal::Cons(_, _, _), r) => {
+                    let rspan = r.span();
+                    if let Ok(mut xs) = l.as_proper_list() {
+                        if let Ok(mut tail) = r.as_proper_list() {
+                            xs.append(&mut tail);
 
-                (B::Append, _, _) => unimplemented!(),
-                (B::Remove, _, _) => unimplemented!(),
+                            xs.drain(..).rfold(Literal::Nil(rspan), |lit, tail| {
+                                Literal::Cons(lit.span(), Box::new(lit), Box::new(tail))
+                            })
+                        } else {
+                            xs.drain(..).rfold(r, |lit, tail| {
+                                Literal::Cons(lit.span(), Box::new(lit), Box::new(tail))
+                            })
+                        }
+                    } else {
+                        return Err(EvalError::InvalidConstExpression { span });
+                    }
+                }
+                // [_ | _] -- [_ | _]
+                // [_ | _] -- "foo"
+                (B::Remove, l @ Literal::Cons(_, _, _), r) => {
+                    // Both sides must be proper lists
+                    let mut ls = l
+                        .as_proper_list()
+                        .map_err(|_| EvalError::InvalidConstExpression { span })?;
+                    let mut rs = r
+                        .as_proper_list()
+                        .map_err(|_| EvalError::InvalidConstExpression { span })?;
 
-                _ => Err(EvalError::InvalidConstExpression { span })?,
+                    // For each element in the right-hand list, remove the first occurrance in the left-hand list
+                    for element in rs.drain(..) {
+                        if let Some(idx) = ls.iter().position(|l| l.eq(&element)) {
+                            ls.remove(idx);
+                        }
+                    }
+
+                    // Construct the result list from the remaining elements of the left-hand list
+                    ls.drain(..).rfold(Literal::Nil(span), |lit, tail| {
+                        Literal::Cons(lit.span(), Box::new(lit), Box::new(tail))
+                    })
+                }
+                // "foo" op []
+                // "foo" op [_ | _]
+                // "foo" op "bar"
+                (op @ (B::Append | B::Remove), l @ Literal::String(_), r) => {
+                    let mut ls = l.as_proper_list().unwrap();
+                    let l = ls.drain(..).rfold(Literal::Nil(span), |lit, tail| {
+                        Literal::Cons(lit.span(), Box::new(lit), Box::new(tail))
+                    });
+                    let expr = Expr::BinaryExpr(ast::BinaryExpr {
+                        span,
+                        op,
+                        lhs: Box::new(Expr::Literal(l)),
+                        rhs: Box::new(Expr::Literal(r)),
+                    });
+                    eval_expr(&expr, resolve_record_index)?
+                }
+                (B::Append | B::Remove, _, _) => {
+                    return Err(EvalError::InvalidConstExpression { span })
+                }
+
+                _ => return Err(EvalError::InvalidConstExpression { span }),
             }
         }
 
         Expr::UnaryExpr(un_expr) => {
+            use UnaryOp as U;
+
             let operand = eval_expr(&un_expr.operand, resolve_record_index)?;
 
             match (un_expr.op, operand) {
-                (UnaryOp::Plus, Term::Number(o)) => o.plus().into(),
-                (UnaryOp::Minus, Term::Number(o)) => (-o).into(),
+                (U::Plus, lit) => {
+                    let n: Number = lit
+                        .try_into()
+                        .map_err(|_| EvalError::InvalidConstExpression { span })?;
+                    n.abs().into()
+                }
+                (U::Minus, lit) => {
+                    let n: Number = lit
+                        .try_into()
+                        .map_err(|_| EvalError::InvalidConstExpression { span })?;
+                    (-n).into()
+                }
+                (U::Bnot, Literal::Integer(span, i)) => Literal::Integer(span, !i),
+                (U::Bnot, _) => Err(EvalError::InvalidBitwiseOperand { span })?,
 
-                (UnaryOp::Bnot, Term::Number(Number::Integer(i))) => Number::Integer(!&i).into(),
-                (UnaryOp::Bnot, _) => Err(EvalError::InvalidBitwiseOperand { span })?,
+                (U::Not, Literal::Atom(sym)) if sym == symbols::True => false.into(),
+                (U::Not, Literal::Atom(sym)) if sym == symbols::False => true.into(),
 
-                (UnaryOp::Not, Term::Atom(sym)) if sym == symbols::True => false.into(),
-                (UnaryOp::Not, Term::Atom(sym)) if sym == symbols::False => true.into(),
-
-                //(UnaryOp::Not, Term::Atom)
                 _ => Err(EvalError::InvalidConstExpression { span })?,
             }
         }
 
         _ => Err(EvalError::InvalidConstExpression { span })?,
     };
+
     Ok(res)
+}
+
+pub fn expr_grp<F>(fields: &[BinaryElement], bindings: &mut Bindings, eval: F) -> Result<BitVec, ()>
+where
+    F: Fn(Expr, &mut Bindings) -> Result<Expr, ()>,
+{
+    let mut bin = BitVec::new();
+    for field in fields {
+        eval_field(field, &mut bin, bindings, &eval)?;
+    }
+    Ok(bin)
+}
+
+fn eval_field<F>(
+    field: &BinaryElement,
+    bin: &mut BitVec,
+    bindings: &mut Bindings,
+    eval: F,
+) -> Result<(), ()>
+where
+    F: Fn(Expr, &mut Bindings) -> Result<Expr, ()>,
+{
+    let value = eval(field.bit_expr.clone(), bindings)?;
+    let size = match field.bit_size.clone() {
+        None => None,
+        Some(bit_size) => match eval(bit_size, bindings)? {
+            Expr::Literal(Literal::Integer(_, i)) => Some(i.to_usize().ok_or(())?),
+            _ => return Err(()),
+        },
+    };
+    let spec = field.specifier.unwrap_or_default();
+    match spec {
+        BinaryEntrySpecifier::Integer {
+            signed,
+            endianness,
+            unit,
+        } => {
+            let size = size.unwrap_or(8);
+            match value {
+                Expr::Literal(Literal::String(s)) => {
+                    if spec == BinaryEntrySpecifier::DEFAULT {
+                        bin.push_str(s.as_str().get());
+                    } else {
+                        for c in s.as_str().get().chars() {
+                            bin.push_ap_number(c as u32, size * unit, endianness);
+                        }
+                    }
+                }
+                value => {
+                    let integer = match value {
+                        Expr::Literal(Literal::Char(_, c)) => Integer::Small((c as u32) as i64),
+                        Expr::Literal(Literal::Integer(_, i)) => i,
+                        Expr::Literal(Literal::Float(_, f)) => f.to_integer(),
+                        _ => return Err(()),
+                    };
+                    match integer {
+                        Integer::Small(i) if signed => {
+                            bin.push_ap_number(i, size * unit, endianness)
+                        }
+                        Integer::Small(i) => bin.push_ap_number(i as u64, size * unit, endianness),
+                        Integer::Big(ref i) => {
+                            bin.push_ap_bigint(i, size * unit, signed, endianness)
+                        }
+                    }
+                }
+            }
+        }
+        BinaryEntrySpecifier::Float { endianness, .. } => {
+            let size = match size.unwrap_or(64) {
+                i @ (16 | 32 | 64) => i,
+                _ => return Err(()),
+            };
+            match value {
+                Expr::Literal(Literal::Char(_, c)) => match size {
+                    16 => {
+                        let f = f16::from_f32((c as u32) as f32);
+                        if f.is_normal() {
+                            bin.push_number(f, endianness);
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    32 => {
+                        let f = (c as u32) as f32;
+                        if f.is_normal() {
+                            bin.push_number(f, endianness);
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    64 => bin.push_number((c as u64) as f64, endianness),
+                    _ => return Err(()),
+                },
+                Expr::Literal(Literal::Integer(_, Integer::Small(i))) => match size {
+                    16 => {
+                        let i: i32 = i.try_into().map_err(|_| ())?;
+                        let f = f16::from_f32(i as f32);
+                        if f.is_normal() {
+                            bin.push_number(f, endianness);
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    32 => {
+                        let i: i32 = i.try_into().map_err(|_| ())?;
+                        let f = i as f32;
+                        if f.is_normal() {
+                            bin.push_number(f, endianness);
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    64 => {
+                        let f = i as f64;
+                        if f.is_normal() {
+                            bin.push_number(f, endianness);
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    _ => return Err(()),
+                },
+                Expr::Literal(Literal::Float(_, f)) => match size {
+                    16 => {
+                        let f: f16 = f.into();
+                        if f.is_normal() {
+                            bin.push_number(f, endianness);
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    32 => {
+                        let f: f32 = f.into();
+                        if f.is_normal() {
+                            bin.push_number(f, endianness);
+                        } else {
+                            return Err(());
+                        }
+                    }
+                    64 => bin.push_number(f.raw(), endianness),
+                    _ => return Err(()),
+                },
+                _ => return Err(()),
+            }
+        }
+        BinaryEntrySpecifier::Binary { unit } => {
+            if let Some(size) = size {
+                // Use N * Unit bits of the value
+                let bitsize = size * unit;
+                match value {
+                    Expr::Literal(Literal::Binary(_, b)) => {
+                        let bytes = unsafe { b.as_bytes_unchecked() };
+                        bin.push_bits(bytes, bitsize);
+                    }
+                    _ => return Err(()),
+                }
+            } else {
+                // Use the entire value by default
+                match value {
+                    Expr::Literal(Literal::Binary(_, b)) => {
+                        bin.concat(&b);
+                    }
+                    _ => return Err(()),
+                }
+            }
+        }
+        BinaryEntrySpecifier::Utf8 => {
+            assert!(size.is_none());
+            let codepoint = match value {
+                Expr::Literal(Literal::Char(_, c)) => c,
+                Expr::Literal(Literal::Integer(_, Integer::Small(i))) => {
+                    let i: u32 = i.try_into().map_err(|_| ())?;
+                    char::from_u32(i).ok_or(())?
+                }
+                _ => return Err(()),
+            };
+            bin.push_utf8(codepoint);
+        }
+        BinaryEntrySpecifier::Utf16 { endianness } => {
+            assert!(size.is_none());
+            match value {
+                Expr::Literal(Literal::Char(_, c)) => bin.push_utf16(c, endianness),
+                Expr::Literal(Literal::Integer(_, Integer::Small(i))) => {
+                    let i: u16 = i.try_into().map_err(|_| ())?;
+                    for r in std::char::decode_utf16(core::iter::once(i)) {
+                        let c = r.map_err(|_| ())?;
+                        bin.push_utf16(c, endianness);
+                    }
+                }
+                _ => return Err(()),
+            }
+        }
+        BinaryEntrySpecifier::Utf32 { endianness } => {
+            assert!(size.is_none());
+            let codepoint = match value {
+                Expr::Literal(Literal::Char(_, c)) => c,
+                Expr::Literal(Literal::Integer(_, Integer::Small(i))) => {
+                    let i: u32 = i.try_into().map_err(|_| ())?;
+                    char::from_u32(i).ok_or(())?
+                }
+                _ => return Err(()),
+            };
+            bin.push_utf32(codepoint, endianness);
+        }
+    }
+
+    Ok(())
 }

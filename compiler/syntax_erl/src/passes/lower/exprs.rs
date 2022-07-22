@@ -43,7 +43,6 @@ impl<'m> LowerFunctionToCore<'m> {
         match expr {
             ast::Expr::Var(var) => self.lower_var(builder, var),
             ast::Expr::Literal(lit) => self.lower_literal(builder, lit),
-            ast::Expr::Nil(nil) => Ok(builder.ins().nil(nil.span())),
             ast::Expr::Cons(cons) => self.lower_cons(builder, cons),
             ast::Expr::Tuple(tuple) => self.lower_tuple(builder, tuple),
             ast::Expr::Map(map) => self.lower_map(builder, map),
@@ -90,6 +89,7 @@ impl<'m> LowerFunctionToCore<'m> {
         lit: ast::Literal,
     ) -> anyhow::Result<Value> {
         match lit {
+            ast::Literal::Nil(span) => Ok(builder.ins().nil(span)),
             ast::Literal::Atom(ident) => Ok(builder.ins().atom(ident.name, ident.span)),
             ast::Literal::String(ident) => {
                 let span = ident.span;
@@ -105,6 +105,25 @@ impl<'m> LowerFunctionToCore<'m> {
             ast::Literal::Integer(span, Integer::Small(i)) => Ok(builder.ins().int(i, span)),
             ast::Literal::Integer(span, Integer::Big(i)) => Ok(builder.ins().bigint(i, span)),
             ast::Literal::Float(span, f) => Ok(builder.ins().float(f.inner(), span)),
+            ast::Literal::Cons(span, h, t) => {
+                let tail = self.lower_literal(builder, *t)?;
+                let head = self.lower_literal(builder, *h)?;
+                Ok(builder.ins().cons(head, tail, span))
+            }
+            ast::Literal::Tuple(span, mut elements) => {
+                let tup = builder.ins().tuple_imm(elements.len(), span);
+                for (i, element) in elements.drain(..).enumerate() {
+                    let span = element.span();
+                    let value = self.lower_literal(builder, element)?;
+                    let index = builder.ins().int((i + 1).try_into().unwrap(), span);
+                    builder.ins().set_element(tup, index, value, span);
+                }
+                Ok(tup)
+            }
+            ast::Literal::Map(_span, _map) => {
+                todo!("lower map literals")
+            }
+            ast::Literal::Binary(_, _) => todo!("lower binary literals"),
         }
     }
 
@@ -222,7 +241,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 // Empty string constant
                 return Ok(builder
                     .ins()
-                    .binary_from_ident(Ident::new(symbols::Invalid, span)));
+                    .binary_from_ident(Ident::new(symbols::Empty, span)));
             }
             1 => {
                 // If we have a string literal, we can emit a constant binary without the more complex

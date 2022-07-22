@@ -1,9 +1,10 @@
+use std::cmp;
 use std::convert::{AsMut, AsRef};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut, Range};
 
-use codespan::{ByteIndex, ByteOffset, Span};
+use codespan::{ByteIndex, ByteOffset};
 
 use super::{CodeMap, SourceId, SourceIndex};
 
@@ -139,11 +140,32 @@ impl SourceSpan {
     pub fn end_index(&self) -> ByteIndex {
         self.end
     }
+
+    /// Creates a new span that covers both this span and `other`, forming a new contiguous span
+    ///
+    /// Returns `None` if either span is invalid or from a different source file.
+    ///
+    /// The order of the spans is not important.
+    pub fn merge(self, other: SourceSpan) -> Option<SourceSpan> {
+        if self.is_unknown() || other.is_unknown() {
+            return None;
+        }
+        let source_id = self.source_id();
+        if source_id != other.source_id() {
+            return None;
+        }
+        let start = cmp::min(self.start_index(), other.start_index());
+        let end = cmp::max(self.end_index(), other.end_index());
+        Some(SourceSpan::new(
+            SourceIndex::new(source_id, start),
+            SourceIndex::new(source_id, end),
+        ))
+    }
 }
-impl Into<Span> for SourceSpan {
+impl Into<codespan::Span> for SourceSpan {
     #[inline]
-    fn into(self) -> Span {
-        Span::new(self.start, self.end)
+    fn into(self) -> codespan::Span {
+        codespan::Span::new(self.start, self.end)
     }
 }
 impl Into<ByteIndex> for SourceSpan {
@@ -165,42 +187,53 @@ impl From<SourceSpan> for Range<SourceIndex> {
     }
 }
 
-pub struct Spanned<T: ?Sized> {
-    pub span: SourceSpan,
+/// This trait is implemented by any type which carries source span information
+pub trait Spanned {
+    fn span(&self) -> SourceSpan;
+}
+impl Spanned for SourceSpan {
+    #[inline(always)]
+    fn span(&self) -> SourceSpan {
+        *self
+    }
+}
+impl<T: Spanned> Spanned for Box<T> {
+    fn span(&self) -> SourceSpan {
+        (&**self).span()
+    }
+}
+
+/// `Span<T>` is a wrapper struct for types which do not themselves implement the Spanned trait,
+/// but to which we'd like to attach a source span. A `Span<T>` can be treated more or less like
+/// a transparent container for a `T`, and it implements `Spanned` for the contained type.
+pub struct Span<T: ?Sized> {
+    span: SourceSpan,
     pub item: T,
 }
-impl<T> Spanned<T> {
+impl<T: ?Sized> Spanned for Span<T> {
+    #[inline]
+    fn span(&self) -> SourceSpan {
+        self.span
+    }
+}
+impl<T> Span<T> {
     pub const fn new(span: SourceSpan, item: T) -> Self {
         Self { span, item }
     }
 }
-impl<T: ?Sized> Spanned<T> {
-    /// Return the SourceSpan of this item
-    pub const fn span(&self) -> SourceSpan {
-        self.span
-    }
-}
-impl<T> From<T> for Spanned<T> {
-    fn from(item: T) -> Self {
-        Self {
-            span: SourceSpan::default(),
-            item,
-        }
-    }
-}
-impl<T: ?Sized> AsRef<T> for Spanned<T> {
+impl<T: ?Sized> AsRef<T> for Span<T> {
     #[inline(always)]
     fn as_ref(&self) -> &T {
         &self.item
     }
 }
-impl<T: ?Sized> AsMut<T> for Spanned<T> {
+impl<T: ?Sized> AsMut<T> for Span<T> {
     #[inline(always)]
     fn as_mut(&mut self) -> &mut T {
         &mut self.item
     }
 }
-impl<T: ?Sized> Deref for Spanned<T> {
+impl<T: ?Sized> Deref for Span<T> {
     type Target = T;
 
     #[inline(always)]
@@ -208,21 +241,13 @@ impl<T: ?Sized> Deref for Spanned<T> {
         &self.item
     }
 }
-impl<T: ?Sized> DerefMut for Spanned<T> {
+impl<T: ?Sized> DerefMut for Span<T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.item
     }
 }
-impl<T: Default> Default for Spanned<T> {
-    fn default() -> Self {
-        Self {
-            span: SourceSpan::default(),
-            item: T::default(),
-        }
-    }
-}
-impl<T: Clone> Clone for Spanned<T> {
+impl<T: Clone> Clone for Span<T> {
     fn clone(&self) -> Self {
         Self {
             span: self.span,
@@ -230,44 +255,44 @@ impl<T: Clone> Clone for Spanned<T> {
         }
     }
 }
-impl<T: Copy> Copy for Spanned<T> {}
-unsafe impl<T: Send> Send for Spanned<T> {}
-unsafe impl<T: Sync> Sync for Spanned<T> {}
-impl<T, U> PartialEq<Spanned<U>> for Spanned<T>
+impl<T: Copy> Copy for Span<T> {}
+unsafe impl<T: Send> Send for Span<T> {}
+unsafe impl<T: Sync> Sync for Span<T> {}
+impl<T, U> PartialEq<Span<U>> for Span<T>
 where
     T: PartialEq<U>,
     U: PartialEq<T>,
 {
-    fn eq(&self, other: &Spanned<U>) -> bool {
+    fn eq(&self, other: &Span<U>) -> bool {
         self.item.eq(&other.item)
     }
 }
-impl<T: Eq> Eq for Spanned<T> {}
-impl<T, U> PartialOrd<Spanned<U>> for Spanned<T>
+impl<T: Eq> Eq for Span<T> {}
+impl<T, U> PartialOrd<Span<U>> for Span<T>
 where
     T: PartialOrd<U>,
     U: PartialOrd<T>,
 {
-    fn partial_cmp(&self, other: &Spanned<U>) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Span<U>) -> Option<std::cmp::Ordering> {
         self.item.partial_cmp(&other.item)
     }
 }
-impl<T: Ord> Ord for Spanned<T> {
+impl<T: Ord> Ord for Span<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.item.cmp(&other.item)
     }
 }
-impl<T: Hash> Hash for Spanned<T> {
+impl<T: Hash> Hash for Span<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.item.hash(state)
     }
 }
-impl<T: fmt::Debug> fmt::Debug for Spanned<T> {
+impl<T: fmt::Debug> fmt::Debug for Span<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Spanned({:?}, {:?})", &self.span, &self.item)
     }
 }
-impl<T: fmt::Display> fmt::Display for Spanned<T> {
+impl<T: fmt::Display> fmt::Display for Span<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", &self.item)
     }

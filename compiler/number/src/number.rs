@@ -1,77 +1,71 @@
 use core::cmp::Ordering;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::{Float, FloatError, Integer};
+use crate::{DivisionError, Float, FloatError, Integer};
 
 #[derive(Debug, Clone, Hash)]
 pub enum Number {
     Integer(Integer),
     Float(Float),
 }
-
 impl Number {
     pub fn is_zero(&self) -> bool {
         match self {
-            Number::Integer(int) => int.is_zero(),
-            Number::Float(float) => float.is_zero(),
+            Self::Integer(int) => int.is_zero(),
+            Self::Float(float) => float.is_zero(),
         }
     }
-    pub fn plus(self) -> Self {
-        match self {
-            Number::Integer(int) => int.plus().into(),
-            Number::Float(float) => float.plus().into(),
-        }
-    }
-    pub fn equals(&self, rhs: &Number, exact: bool) -> bool {
-        match (self, rhs) {
-            (Number::Integer(l), Number::Integer(r)) => l == r,
-            (Number::Float(l), Number::Float(r)) => l == r,
 
-            (Number::Integer(_l), Number::Float(_r)) if exact => false,
-            (Number::Integer(l), Number::Float(r)) => {
+    pub fn abs(self) -> Self {
+        match self {
+            Self::Integer(int) => int.abs().into(),
+            Self::Float(float) => float.abs().into(),
+        }
+    }
+
+    pub fn equals(&self, rhs: &Self, exact: bool) -> bool {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => l == r,
+            (Self::Float(l), Self::Float(r)) => l == r,
+
+            (Self::Integer(_l), Self::Float(_r)) if exact => false,
+            (Self::Integer(l), Self::Float(r)) => {
                 if r.is_precise() {
                     l.to_float() == r.inner()
                 } else {
                     l == &r.to_integer()
                 }
             }
-            (Number::Float(_), Number::Integer(_)) => rhs.equals(self, exact),
+            (Self::Float(_), Self::Integer(_)) => rhs.equals(self, exact),
         }
     }
 
     pub fn to_efloat(&self) -> Result<Float, FloatError> {
         match self {
-            Number::Integer(integer) => integer.to_efloat(),
-            Number::Float(float) => Ok(*float),
+            Self::Integer(integer) => integer.to_efloat(),
+            Self::Float(float) => Ok(*float),
         }
     }
 }
-
+impl Eq for Number {}
 impl PartialEq for Number {
-    fn eq(&self, rhs: &Number) -> bool {
+    fn eq(&self, rhs: &Self) -> bool {
         self.equals(rhs, false)
     }
 }
-impl Eq for Number {}
-
-impl PartialOrd for Number {
-    fn partial_cmp(&self, other: &Number) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
 impl Ord for Number {
-    fn cmp(&self, other: &Number) -> Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            (Number::Integer(l), Number::Integer(r)) => l.cmp(r),
-            (Number::Float(l), Number::Float(r)) => l.partial_cmp(r).unwrap(),
-            (Number::Integer(l), Number::Float(r)) => {
+            (Self::Integer(l), Self::Integer(r)) => l.cmp(r),
+            (Self::Float(l), Self::Float(r)) => l.partial_cmp(r).unwrap(),
+            (Self::Integer(l), Self::Float(r)) => {
                 if r.is_precise() {
                     l.to_float().partial_cmp(&r.inner()).unwrap()
                 } else {
                     l.cmp(&r.to_integer())
                 }
             }
-            (Number::Float(l), Number::Integer(r)) => {
+            (Self::Float(l), Self::Integer(r)) => {
                 if l.is_precise() {
                     l.inner().partial_cmp(&r.to_float()).unwrap()
                 } else {
@@ -81,81 +75,110 @@ impl Ord for Number {
         }
     }
 }
+impl PartialOrd for Number {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 impl From<Integer> for Number {
-    fn from(int: Integer) -> Number {
-        Number::Integer(int)
+    fn from(int: Integer) -> Self {
+        Self::Integer(int)
     }
 }
 impl From<usize> for Number {
-    fn from(int: usize) -> Number {
-        Number::Integer(int.into())
+    fn from(int: usize) -> Self {
+        Self::Integer(int.into())
     }
 }
 impl From<Float> for Number {
-    fn from(float: Float) -> Number {
-        Number::Float(float)
+    fn from(float: Float) -> Self {
+        Self::Float(float)
     }
 }
 
 impl Neg for Number {
     type Output = Number;
-    fn neg(self) -> Number {
+    fn neg(self) -> Self {
         match self {
-            Number::Integer(int) => Number::Integer(-int),
-            Number::Float(float) => Number::Float(-float),
+            Self::Integer(int) => Self::Integer(-int),
+            Self::Float(float) => Self::Float(-float),
         }
     }
 }
-
-impl Add<&Number> for &Number {
+impl Add<Number> for Number {
     type Output = Result<Number, FloatError>;
-    fn add(self, rhs: &Number) -> Self::Output {
-        let res: Number = match (self, rhs) {
-            (Number::Integer(l), Number::Integer(r)) => (l.clone() + r).into(),
-            (Number::Integer(l), Number::Float(r)) => (l + *r)?.into(),
-            (Number::Float(l), Number::Integer(r)) => (*l + r)?.into(),
-            (Number::Float(l), Number::Float(r)) => (*l + *r)?.into(),
-        };
-        Ok(res)
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Ok(Self::Integer(l + r)),
+            (Self::Integer(l), Self::Float(r)) => Ok(Self::Float((l + r)?)),
+            (Self::Float(l), Self::Integer(r)) => Ok(Self::Float((l + r)?)),
+            (Self::Float(l), Self::Float(r)) => Ok(Self::Float((l + r)?)),
+        }
     }
 }
-
-impl Sub<&Number> for &Number {
+impl Add<&Number> for Number {
     type Output = Result<Number, FloatError>;
-    fn sub(self, rhs: &Number) -> Self::Output {
-        let res: Number = match (self, rhs) {
-            (Number::Integer(l), Number::Integer(r)) => (l.clone() - r).into(),
-            (Number::Integer(l), Number::Float(r)) => (l - *r)?.into(),
-            (Number::Float(l), Number::Integer(r)) => (*l - r)?.into(),
-            (Number::Float(l), Number::Float(r)) => (*l - *r)?.into(),
-        };
-        Ok(res)
+
+    fn add(self, rhs: &Self) -> Self::Output {
+        self.add(rhs.clone())
     }
 }
-
-impl Mul<&Number> for &Number {
+impl Sub<Number> for Number {
     type Output = Result<Number, FloatError>;
-    fn mul(self, rhs: &Number) -> Self::Output {
-        let res: Number = match (self, rhs) {
-            (Number::Integer(l), Number::Integer(r)) => (l.clone() * r).into(),
-            (Number::Integer(l), Number::Float(r)) => (l * *r)?.into(),
-            (Number::Float(l), Number::Integer(r)) => (*l * r)?.into(),
-            (Number::Float(l), Number::Float(r)) => (*l * *r)?.into(),
-        };
-        Ok(res)
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Ok(Self::Integer(l - r)),
+            (Self::Integer(l), Self::Float(r)) => Ok(Self::Float((l - r)?)),
+            (Self::Float(l), Self::Integer(r)) => Ok(Self::Float((l - r)?)),
+            (Self::Float(l), Self::Float(r)) => Ok(Self::Float((l - r)?)),
+        }
     }
 }
-
-impl Div<&Number> for &Number {
+impl Sub<&Number> for Number {
     type Output = Result<Number, FloatError>;
-    fn div(self, rhs: &Number) -> Self::Output {
-        let res: Number = match (self, rhs) {
-            (Number::Integer(l), Number::Integer(r)) => (l.to_efloat()? + r)?.into(),
-            (Number::Integer(l), Number::Float(r)) => (l / *r)?.into(),
-            (Number::Float(l), Number::Integer(r)) => (*l / r)?.into(),
-            (Number::Float(l), Number::Float(r)) => (*l / *r)?.into(),
-        };
-        Ok(res)
+
+    fn sub(self, rhs: &Self) -> Self::Output {
+        self.sub(rhs.clone())
+    }
+}
+impl Mul<Number> for Number {
+    type Output = Result<Number, FloatError>;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Ok(Self::Integer(l * r)),
+            (Self::Integer(l), Self::Float(r)) => Ok(Self::Float((l * r)?)),
+            (Self::Float(l), Self::Integer(r)) => Ok(Self::Float((l * r)?)),
+            (Self::Float(l), Self::Float(r)) => Ok(Self::Float((l * r)?)),
+        }
+    }
+}
+impl Mul<&Number> for Number {
+    type Output = Result<Number, FloatError>;
+
+    fn mul(self, rhs: &Self) -> Self::Output {
+        self.mul(rhs.clone())
+    }
+}
+impl Div<Number> for Number {
+    type Output = Result<Number, DivisionError>;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Integer(l), Self::Integer(r)) => Ok(Self::Integer((l / r)?)),
+            (Self::Integer(l), Self::Float(r)) => Ok(Self::Float((l / r)?)),
+            (Self::Float(l), Self::Integer(r)) => Ok(Self::Float((l / r)?)),
+            (Self::Float(l), Self::Float(r)) => Ok(Self::Float((l / r)?)),
+        }
+    }
+}
+impl Div<&Number> for Number {
+    type Output = Result<Number, DivisionError>;
+
+    fn div(self, rhs: &Self) -> Self::Output {
+        self.div(rhs.clone())
     }
 }

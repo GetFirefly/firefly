@@ -913,9 +913,19 @@ dependencies = [
  "codespan-reporting",
  "dashmap",
  "itertools",
+ "liblumen_diagnostics_macros",
  "pretty_assertions",
  "thiserror",
  "unicode-width",
+]
+
+[[package]]
+name = "liblumen_diagnostics_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -925,6 +935,7 @@ dependencies = [
  "Inflector",
  "lazy_static",
  "liblumen_diagnostics",
+ "liblumen_diagnostics_macros",
  "rustc-hash",
  "toml",
 ]
@@ -1058,6 +1069,7 @@ dependencies = [
  "liblumen_binary",
  "liblumen_compiler_macros",
  "liblumen_diagnostics",
+ "liblumen_diagnostics_macros",
  "liblumen_intern",
  "liblumen_number",
  "liblumen_util",
@@ -1079,6 +1091,7 @@ dependencies = [
  "liblumen_binary",
  "liblumen_compiler_macros",
  "liblumen_diagnostics",
+ "liblumen_diagnostics_macros",
  "liblumen_intern",
  "liblumen_number",
  "liblumen_parser",

@@ -1,39 +1,8 @@
-pub use liblumen_binary::{BinaryEntrySpecifier, Endianness};
-use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, ToDiagnostic};
+use liblumen_binary::{BinaryEntrySpecifier, Endianness};
+use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, Spanned, ToDiagnostic};
+use liblumen_intern::{symbols, Symbol};
 
 use crate::ast::BitType;
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum TypeName {
-    Integer,
-    Float,
-    Bytes,
-    Bits,
-    Utf8,
-    Utf16,
-    Utf32,
-}
-impl std::fmt::Display for TypeName {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            TypeName::Integer => write!(f, "integer"),
-            TypeName::Float => write!(f, "float"),
-            TypeName::Bytes => write!(f, "binary"),
-            TypeName::Bits => write!(f, "bitstring"),
-            TypeName::Utf8 => write!(f, "utf8"),
-            TypeName::Utf16 => write!(f, "utf16"),
-            TypeName::Utf32 => write!(f, "utf32"),
-        }
-    }
-}
-
-pub fn default_specifier() -> BinaryEntrySpecifier {
-    BinaryEntrySpecifier::Integer {
-        signed: false,
-        endianness: Endianness::Big,
-        unit: 1,
-    }
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SpecifierError {
@@ -42,9 +11,9 @@ pub enum SpecifierError {
     #[error("conflicting specifiers in binary entry")]
     BinaryConflictingSpecifier { new: SourceSpan, old: SourceSpan },
     #[error("invalid specifier for {typ} in binary entry")]
-    BinaryInvalidSpecifier { span: SourceSpan, typ: TypeName },
+    BinaryInvalidSpecifier { span: SourceSpan, typ: Symbol },
     #[error("size is not allowed for {typ}")]
-    BinarySizeNotAllowed { span: SourceSpan, typ: TypeName },
+    BinarySizeNotAllowed { span: SourceSpan, typ: Symbol },
 }
 
 impl ToDiagnostic for SpecifierError {
@@ -74,6 +43,30 @@ impl ToDiagnostic for SpecifierError {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum TypeName {
+    Integer,
+    Float,
+    Bytes,
+    Bits,
+    Utf8,
+    Utf16,
+    Utf32,
+}
+impl Into<Symbol> for TypeName {
+    fn into(self) -> Symbol {
+        match self {
+            Self::Integer => symbols::Integer,
+            Self::Float => symbols::Float,
+            Self::Bytes => symbols::Bytes,
+            Self::Bits => symbols::Bits,
+            Self::Utf8 => symbols::Utf8,
+            Self::Utf16 => symbols::Utf16,
+            Self::Utf32 => symbols::Utf32,
+        }
+    }
+}
+
 macro_rules! try_specifier {
     ($field:expr, $entry:expr, $spec:expr) => {{
         let spec = $spec;
@@ -93,7 +86,10 @@ macro_rules! try_specifier {
 macro_rules! test_none {
     ($field:expr, $typ:expr) => {{
         if let Some((_, span)) = $field {
-            return Err(SpecifierError::BinaryInvalidSpecifier { span, typ: $typ });
+            return Err(SpecifierError::BinaryInvalidSpecifier {
+                span,
+                typ: ($typ).into(),
+            });
         }
     }};
 }
@@ -172,7 +168,7 @@ pub fn specifier_from_parsed(
 
     let size_not_allowed_err = || {
         Err(SpecifierError::BinarySizeNotAllowed {
-            typ,
+            typ: typ.into(),
             span: raw_typ.unwrap().1,
         })
     };
@@ -204,7 +200,7 @@ pub fn specifier_from_parsed(
             test_none!(endianness, typ);
             let unit = unit.map(|(t, _)| t).unwrap_or(8);
 
-            BinaryEntrySpecifier::Bytes { unit }
+            BinaryEntrySpecifier::Binary { unit }
         }
         TypeName::Bits => {
             // Default is unit:1
@@ -212,7 +208,7 @@ pub fn specifier_from_parsed(
             test_none!(endianness, typ);
             let unit = unit.map(|(t, _)| t).unwrap_or(1);
 
-            BinaryEntrySpecifier::Bits { unit }
+            BinaryEntrySpecifier::Binary { unit }
         }
         TypeName::Utf8 => {
             test_none!(signed, typ);
@@ -250,25 +246,4 @@ pub fn specifier_from_parsed(
     };
 
     Ok(spec)
-}
-
-pub fn specifier_to_typename(specifier: &BinaryEntrySpecifier) -> TypeName {
-    match specifier {
-        BinaryEntrySpecifier::Integer { .. } => TypeName::Integer,
-        BinaryEntrySpecifier::Float { .. } => TypeName::Float,
-        BinaryEntrySpecifier::Bytes { .. } => TypeName::Bytes,
-        BinaryEntrySpecifier::Bits { .. } => TypeName::Bits,
-        BinaryEntrySpecifier::Utf8 => TypeName::Utf8,
-        BinaryEntrySpecifier::Utf16 { .. } => TypeName::Utf16,
-        BinaryEntrySpecifier::Utf32 { .. } => TypeName::Utf32,
-    }
-}
-
-pub fn specifier_can_have_size(specifier: &BinaryEntrySpecifier) -> bool {
-    match specifier {
-        BinaryEntrySpecifier::Utf8 => false,
-        BinaryEntrySpecifier::Utf16 { .. } => false,
-        BinaryEntrySpecifier::Utf32 { .. } => false,
-        _ => true,
-    }
 }

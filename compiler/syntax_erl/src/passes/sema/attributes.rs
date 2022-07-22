@@ -1,4 +1,4 @@
-use liblumen_syntax_core::{self as syntax_core};
+use liblumen_syntax_core as syntax_core;
 
 use crate::ast::*;
 
@@ -13,7 +13,7 @@ impl SemanticAnalysis {
                     return;
                 }
                 let module_vsn_span = module.vsn.as_ref().map(|v| v.span()).unwrap();
-                self.show_error(
+                self.reporter.show_error(
                     "attribute is already defined",
                     &[
                         (span, "redefinition occurs here"),
@@ -27,7 +27,7 @@ impl SemanticAnalysis {
                     return;
                 }
                 let module_author_span = module.author.as_ref().map(|v| v.span()).unwrap();
-                self.show_error(
+                self.reporter.show_error(
                     "attribute is already defined",
                     &[
                         (span, "redefinition occurs here"),
@@ -37,11 +37,11 @@ impl SemanticAnalysis {
             }
             Attribute::OnLoad(span, fname) => {
                 if module.on_load.is_none() {
-                    module.on_load = Some(Spanned::new(span, fname.to_local()));
+                    module.on_load = Some(Span::new(span, fname.to_local()));
                     return;
                 }
                 let module_onload_span = module.on_load.as_ref().map(|v| v.span()).unwrap();
-                self.show_error(
+                self.reporter.show_error(
                     "on_load can only be defined once",
                     &[
                         (span, "redefinition occurs here"),
@@ -61,13 +61,11 @@ impl SemanticAnalysis {
                                     liblumen_syntax_core::Signature::generate(&import)
                                 }
                             };
-                            module
-                                .imports
-                                .insert(*local_import, Spanned::new(span, sig));
+                            module.imports.insert(*local_import, Span::new(span, sig));
                         }
                         Some(ref spanned) => {
                             let prev_span = spanned.span();
-                            self.show_warning(
+                            self.reporter.show_warning(
                                 "unused import",
                                 &[
                                     (span, "this import is a duplicate of a previous import"),
@@ -80,13 +78,13 @@ impl SemanticAnalysis {
             }
             Attribute::Export(span, mut exports) => {
                 for export in exports.drain(..) {
-                    let local_export = Spanned::new(export.span(), export.to_local());
+                    let local_export = Span::new(export.span(), export.to_local());
                     match module.exports.get(&local_export) {
                         None => {
                             module.exports.insert(local_export);
                         }
                         Some(ref spanned) => {
-                            self.show_error(
+                            self.reporter.show_error(
                                 "already exported",
                                 &[
                                     (span, "duplicate export occurs here"),
@@ -99,13 +97,13 @@ impl SemanticAnalysis {
             }
             Attribute::Nifs(span, mut nifs) => {
                 for nif in nifs.drain(..) {
-                    let local_export = Spanned::new(nif.span(), nif.to_local());
+                    let local_export = Span::new(nif.span(), nif.to_local());
                     match module.nifs.get(&local_export) {
                         None => {
                             module.nifs.insert(local_export);
                         }
                         Some(ref spanned) => {
-                            self.show_error(
+                            self.reporter.show_error(
                                 "duplicate -nif declaration",
                                 &[
                                     (span, "duplicate declaration occurs here"),
@@ -120,7 +118,7 @@ impl SemanticAnalysis {
                 for (name, description) in removed.drain(..) {
                     let local_name = name.to_local();
                     if let Some((prev_span, _)) = module.removed.get(&local_name) {
-                        self.show_error(
+                        self.reporter.show_error(
                             "already marked as removed",
                             &[
                                 (span, "duplicate entry occurs here"),
@@ -141,7 +139,7 @@ impl SemanticAnalysis {
                         module.types.insert(type_name, ty);
                     }
                     Some(TypeDef { span, .. }) => {
-                        self.show_error(
+                        self.reporter.show_error(
                             "type is already defined",
                             &[
                                 (ty.span, "redefinition occurs here"),
@@ -153,14 +151,14 @@ impl SemanticAnalysis {
             }
             Attribute::ExportType(span, mut exports) => {
                 for export in exports.drain(..) {
-                    let local_export = Spanned::new(export.span(), export.to_local());
+                    let local_export = Span::new(export.span(), export.to_local());
                     match module.exported_types.get(&local_export) {
                         None => {
                             module.exported_types.insert(local_export);
                         }
                         Some(ref spanned) => {
                             let prev_span = spanned.span();
-                            self.show_warning(
+                            self.reporter.show_warning(
                                 "type already exported",
                                 &[
                                     (span, "duplicate export occurs here"),
@@ -176,7 +174,7 @@ impl SemanticAnalysis {
                     module.behaviours.insert(b_module);
                 }
                 Some(prev) => {
-                    self.show_warning(
+                    self.reporter.show_warning(
                         "duplicate behavior declaration",
                         &[
                             (span, "duplicate declaration occurs here"),
@@ -197,7 +195,7 @@ impl SemanticAnalysis {
                     {
                         if params.len() != arity {
                             let message = format!("expected arity of {}", arity);
-                            self.show_error(
+                            self.reporter.show_error(
                                 "mismatched arity",
                                 &[
                                     (*span, message.as_str()),
@@ -223,7 +221,7 @@ impl SemanticAnalysis {
                         return;
                     }
                     Some(ref prev_cb) => {
-                        self.show_error(
+                        self.reporter.show_error(
                             "cannot redefined callback",
                             &[
                                 (callback.span, "redefinition occurs here"),
@@ -245,7 +243,7 @@ impl SemanticAnalysis {
                     {
                         if params.len() != arity {
                             let message = format!("expected arity of {}", arity);
-                            self.show_error(
+                            self.reporter.show_error(
                                 "mismatched arity",
                                 &[
                                     (*span, message.as_str()),
@@ -270,7 +268,7 @@ impl SemanticAnalysis {
                         module.specs.insert(spec_name, typespec);
                     }
                     Some(TypeSpec { span, .. }) => {
-                        self.show_error(
+                        self.reporter.show_error(
                             "spec already defined",
                             &[
                                 (typespec.span, "redefinition occurs here"),
@@ -297,12 +295,12 @@ impl SemanticAnalysis {
                                 module.deprecation = Some(deprecation);
                             }
                             Some(ref prev_dep) => {
-                                self.show_warning("redundant deprecation", &[(span, "this module is already deprecated by a previous declaration"), (prev_dep.span(), "deprecation first declared here")]);
+                                self.reporter.show_warning("redundant deprecation", &[(span, "this module is already deprecated by a previous declaration"), (prev_dep.span(), "deprecation first declared here")]);
                             }
                         },
                         Deprecation::Function { span, .. } => {
                             if let Some(ref mod_dep) = module.deprecation.as_ref() {
-                                self.show_warning("redundant deprecation", &[(span, "module is deprecated, so deprecating functions is redundant"), (mod_dep.span(), "module deprecation occurs here")]);
+                                self.reporter.show_warning("redundant deprecation", &[(span, "module is deprecated, so deprecating functions is redundant"), (mod_dep.span(), "module deprecation occurs here")]);
                                 return;
                             }
 
@@ -311,7 +309,7 @@ impl SemanticAnalysis {
                                     module.deprecations.insert(deprecation);
                                 }
                                 Some(ref prev_dep) => {
-                                    self.show_warning("redundant deprecation", &[(span, "this function is already deprecated by a previous declaration"), (prev_dep.span(), "deprecation first declared here")]);
+                                    self.reporter.show_warning("redundant deprecation", &[(span, "this function is already deprecated by a previous declaration"), (prev_dep.span(), "deprecation first declared here")]);
                                 }
                             }
                         }
@@ -321,7 +319,7 @@ impl SemanticAnalysis {
             Attribute::Custom(attr) => {
                 match attr.name.name.as_str().get() {
                     "module" => {
-                        self.show_error(
+                        self.reporter.show_error(
                             "multiple module declarations",
                             &[
                                 (attr.span, "invalid declaration occurs here"),
@@ -344,7 +342,7 @@ impl SemanticAnalysis {
                         module.attributes.insert(attr.name.clone(), attr);
                     }
                     Some(ref prev_attr) => {
-                        self.show_warning(
+                        self.reporter.show_warning(
                             "redefined attribute",
                             &[
                                 (attr.span, "redefinition occurs here"),

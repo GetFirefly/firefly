@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use liblumen_diagnostics::{ByteOffset, SourceIndex, SourceSpan};
 
+use liblumen_intern::Symbol;
 use liblumen_number::{Float, FloatError, Integer};
 use liblumen_parser::{Scanner, Source};
 
@@ -10,7 +11,7 @@ use crate::util::escape_stm::{EscapeStm, EscapeStmAction};
 
 use super::errors::LexicalError;
 use super::token::*;
-use super::{Lexed, Symbol};
+use super::Lexed;
 
 macro_rules! pop {
     ($lex:ident) => {{

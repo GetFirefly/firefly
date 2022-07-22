@@ -41,7 +41,7 @@ impl Pass for AstToCore {
         // Declare all functions in the module, and store their refs so we can access them later
         let mut functions = Vec::with_capacity(module.functions.len());
         for (name, fun) in module.functions.iter() {
-            let name = Spanned::new(fun.span, *name);
+            let name = Span::new(fun.span, *name);
             let base_visibility = if module.exports.contains(&name) {
                 Visibility::PUBLIC
             } else {
@@ -142,12 +142,12 @@ impl<'m> Pass for LowerFunctionToCore<'m> {
         let clause_entries = {
             let mut blocks = Vec::with_capacity(ast.clauses.len());
             if reuse_entry {
-                blocks.push((builder.entry, ast.clauses[0].span));
-                for clause in ast.clauses.iter().skip(1) {
+                blocks.push((builder.entry, ast.clauses[0].1.span));
+                for (_, clause) in ast.clauses.iter().skip(1) {
                     blocks.push((builder.create_block(), clause.span));
                 }
             } else {
-                for clause in ast.clauses.iter() {
+                for (_, clause) in ast.clauses.iter() {
                     blocks.push((builder.create_block(), clause.span));
                 }
                 // If we aren't reusing the entry block to avoid scoping conflicts,
@@ -160,7 +160,7 @@ impl<'m> Pass for LowerFunctionToCore<'m> {
             blocks
         };
 
-        for (i, clause) in ast.clauses.drain(0..).enumerate() {
+        for (i, (_, clause)) in ast.clauses.drain(0..).enumerate() {
             let (clause_entry, _) = clause_entries[i];
             let next_clause = clause_entries.get(i + 1).copied();
             self.lower_clause(&mut builder, clause, clause_entry, next_clause)?;
@@ -175,7 +175,7 @@ impl<'m> LowerFunctionToCore<'m> {
     fn lower_clause<'a>(
         &mut self,
         builder: &'a mut IrBuilder,
-        mut clause: ast::FunctionClause,
+        mut clause: ast::Clause,
         clause_entry: Block,
         next_clause: Option<(Block, SourceSpan)>,
     ) -> anyhow::Result<()> {
@@ -191,10 +191,10 @@ impl<'m> LowerFunctionToCore<'m> {
         // and consequently, whether or not this is a wildcard clause.
         let mut has_implicit_match = false;
         let mut has_explicit_match = false;
-        let has_guard = clause.guard.is_some();
-        let mut clause_param_symbol_set = HashSet::with_capacity(clause.params.len());
+        let has_guard = !clause.guards.is_empty();
+        let mut clause_param_symbol_set = HashSet::with_capacity(clause.patterns.len());
         {
-            for param in clause.params.iter() {
+            for param in clause.patterns.iter() {
                 if let Some(v) = param.as_var() {
                     if v.is_wildcard() {
                         continue;
@@ -266,13 +266,13 @@ impl<'m> LowerFunctionToCore<'m> {
         // If the last pattern succeeds, and there is a guard sequence, and this is the final clause, create a block which raises a function_clause error to use as the failure path, and start lowering the guards
         clause_param_symbol_set.clear();
         for (param, value) in clause
-            .params
+            .patterns
             .drain(0..)
             .zip(function_params.iter().copied())
         {
             if let Some(var) = param.as_var() {
                 let sym = var.sym();
-                if sym == symbols::WildcardMatch {
+                if sym == symbols::Underscore {
                     // There is nothing to bind here, this argument is ignored
                     continue;
                 }
@@ -331,10 +331,10 @@ impl<'m> LowerFunctionToCore<'m> {
         //   # If we reach the end of the sequence with no passing guards, the
         //   # entire sequence is considered failed
         //   return false
-        if let Some(mut guard_sequence) = clause.guard.take() {
+        if has_guard {
             let guard_sequence_failed = pattern_fail.unwrap();
             let guard_sequence_passed = builder.create_block();
-            let guard_blocks = guard_sequence
+            let guard_blocks = clause.guards
                 .iter()
                 .skip(1) // Skip the first block as we use the entry for it
                 .map(|guard| {
@@ -343,7 +343,7 @@ impl<'m> LowerFunctionToCore<'m> {
                     guard_block
                 })
                 .collect::<Vec<_>>();
-            for (i, guard) in guard_sequence.drain(0..).enumerate() {
+            for (i, guard) in clause.guards.drain(0..).enumerate() {
                 let guard_failed = guard_blocks
                     .get(i + 1)
                     .copied()

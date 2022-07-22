@@ -4,11 +4,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use liblumen_diagnostics::*;
+use liblumen_intern::{symbols, Symbol};
 use liblumen_parser::Source;
 
+use crate::ast::Literal;
 use crate::evaluator;
 use crate::lexer::Lexer;
-use crate::lexer::{symbols, DelayedSubstitution, IdentToken, Lexed, LexicalToken, Symbol, Token};
+use crate::lexer::{DelayedSubstitution, IdentToken, Lexed, LexicalToken, Token};
 use crate::parser::Parser;
 
 use super::macros::Stringify;
@@ -322,11 +324,11 @@ where
         match directive {
             Directive::Module(ref d) => {
                 self.macros.insert(
-                    MacroIdent::Const(symbols::ModuleCapital),
+                    MacroIdent::Const(symbols::MODULE),
                     MacroDef::String(d.name.symbol()),
                 );
                 self.macros.insert(
-                    MacroIdent::Const(symbols::ModuleStringCapital),
+                    MacroIdent::Const(symbols::MODULE_STRING),
                     MacroDef::String(d.name.symbol()),
                 );
             }
@@ -454,8 +456,8 @@ where
             Expr::parse_tokens(self.reporter.clone(), pp)
         };
         match evaluator::eval_expr(&result?, None) {
-            Ok(evaluator::Term::Atom(atom)) if atom == symbols::True => Ok(true),
-            Ok(evaluator::Term::Atom(atom)) if atom == symbols::False => Ok(false),
+            Ok(Literal::Atom(atom)) if atom == symbols::True => Ok(true),
+            Ok(Literal::Atom(atom)) if atom == symbols::False => Ok(false),
             Err(err) => {
                 self.reporter.error(err);
                 return Err(());

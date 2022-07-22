@@ -13,6 +13,7 @@ unicode-width = "0.1"
 codespan = "0.11"
 codespan-reporting = "0.11"
 dashmap = "4.0"
+liblumen_diagnostics_macros = { path = "../diagnostics_macros" }
 
 [dev-dependencies]
 pretty_assertions = "1.0"

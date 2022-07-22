@@ -1,6 +1,6 @@
 use liblumen_diagnostics::*;
 use liblumen_pass::Pass;
-use liblumen_syntax_core::{self as syntax_core};
+use liblumen_syntax_core as syntax_core;
 
 use crate::ast::*;
 
@@ -21,7 +21,7 @@ impl Pass for AddAutoImports {
             let span = module.name.span;
             for sig in liblumen_syntax_core::bifs::all()
                 .iter()
-                .map(|sig| Spanned::new(span, sig.clone()))
+                .map(|sig| Span::new(span, sig.clone()))
             {
                 let local_name = sig.mfa().to_local();
                 if !compile.no_auto_imports.contains(&local_name) {
@@ -32,7 +32,7 @@ impl Pass for AddAutoImports {
             let span = module.name.span;
             for sig in liblumen_syntax_core::bifs::all()
                 .iter()
-                .map(|sig| Spanned::new(span, sig.clone()))
+                .map(|sig| Span::new(span, sig.clone()))
             {
                 let local_name = sig.mfa().to_local();
                 module.imports.insert(local_name, sig);
@@ -55,33 +55,40 @@ impl Pass for DefinePseudoLocals {
     type Output<'a> = &'a mut Module;
 
     fn run<'a>(&mut self, module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        let mod_info_0 = fun!(module_info () -> apply!(remote!(erlang, get_module_info), atom_from_ident!(module.name)));
-        let mod_info_1 = fun!(module_info (Key) -> apply!(remote!(erlang, get_module_info), atom_from_ident!(module.name), var!(Key)));
+        let span = module.span;
+        let mod_info_0 = fun!(module_info () -> apply!(span, erlang, get_module_info, (atom_from_ident!(module.name))));
+        let mod_info_1 = fun!(module_info (Key) -> apply!(span, erlang, get_module_info, (atom_from_ident!(module.name), var!(Key))));
 
         if !module.records.is_empty() {
             let mut clauses = Vec::with_capacity(module.records.len() * 2);
             for record in module.records.values() {
                 let size = (record.fields.len() + 1).into();
-                clauses.push(FunctionClause {
-                    span: SourceSpan::UNKNOWN,
-                    name: Some(Name::Atom(ident!(record_info))),
-                    params: vec![atom!(size), atom_from_sym!(record.name.name)],
-                    guard: None,
-                    body: vec![int!(size)],
-                });
+                clauses.push((
+                    Some(Name::Atom(ident!(record_info))),
+                    Clause {
+                        span: SourceSpan::UNKNOWN,
+                        patterns: vec![atom!(size), atom_from_ident!(record.name)],
+                        guards: vec![],
+                        body: vec![int!(size)],
+                        compiler_generated: true,
+                    },
+                ));
             }
             for record in module.records.values() {
                 let field_names = record
                     .fields
                     .iter()
-                    .fold(nil!(), |acc, f| cons!(atom_from_sym!(f.name.name), acc));
-                clauses.push(FunctionClause {
-                    span: SourceSpan::UNKNOWN,
-                    name: Some(Name::Atom(ident!(record_info))),
-                    params: vec![atom!(fields), atom_from_sym!(record.name.name)],
-                    guard: None,
-                    body: vec![field_names],
-                });
+                    .fold(nil!(), |acc, f| cons!(atom_from_ident!(f.name), acc));
+                clauses.push((
+                    Some(Name::Atom(ident!(record_info))),
+                    Clause {
+                        span: SourceSpan::UNKNOWN,
+                        patterns: vec![atom!(fields), atom_from_ident!(record.name)],
+                        guards: vec![],
+                        body: vec![field_names],
+                        compiler_generated: true,
+                    },
+                ));
             }
 
             let record_info_2 = Function {
@@ -91,6 +98,8 @@ impl Pass for DefinePseudoLocals {
                 clauses,
                 spec: None,
                 is_nif: false,
+                var_counter: 0,
+                fun_counter: 0,
             };
             define_function(module, record_info_2);
         }
@@ -105,7 +114,7 @@ impl Pass for DefinePseudoLocals {
                 } else {
                     cons!(
                         tuple!(
-                            atom_from_sym!(cbname.function),
+                            atom!(cb.span, cbname.function),
                             int!((cbname.arity as i64).into())
                         ),
                         acc
@@ -116,7 +125,7 @@ impl Pass for DefinePseudoLocals {
                 if cb.optional {
                     cons!(
                         tuple!(
-                            atom_from_sym!(cbname.function),
+                            atom!(cb.span, cbname.function),
                             int!((cbname.arity as i64).into())
                         ),
                         acc

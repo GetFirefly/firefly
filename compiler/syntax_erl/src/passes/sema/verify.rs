@@ -20,11 +20,9 @@ impl Pass for VerifyOnLoadFunctions {
         if let Some(on_load_name) = module.on_load.as_ref() {
             if !module.functions.contains_key(on_load_name.as_ref()) {
                 let span = on_load_name.span();
-                self.reporter.diagnostic(
-                    Diagnostic::error()
-                        .with_message("invalid on_load function")
-                        .with_labels(vec![Label::primary(span.source_id(), span)
-                            .with_message("this function is not defined in this module")]),
+                self.reporter.show_error(
+                    "invalid on_load function",
+                    &[(span, "this function is not defined in this module")],
                 );
             }
         }
@@ -51,25 +49,23 @@ impl Pass for VerifyNifs {
             match module.functions.get(nif.as_ref()) {
                 None => {
                     let span = nif.span();
-                    self.reporter.diagnostic(
-                        Diagnostic::error()
-                            .with_message("invalid -nif declaration")
-                            .with_labels(vec![Label::primary(span.source_id(), span)
-                                .with_message(
-                                    "the referenced function is not defined in this module",
-                                )]),
+                    self.reporter.show_error(
+                        "invalid -nif declaration",
+                        &[(
+                            span,
+                            "the referenced function is not defined in this module",
+                        )],
                     );
                 }
                 Some(fun) => {
                     if !fun.is_nif {
                         let span = fun.span;
-                        self.reporter.diagnostic(
-                            Diagnostic::error()
-                                .with_message("misplaced -nif declaration")
-                                .with_labels(vec![Label::primary(span.source_id(), span)
-                                  .with_message(
-                                      "expected -nif declaration to precede the function it references"
-                                  )]),
+                        self.reporter.show_error(
+                            "misplaced -nif declaration",
+                            &[(
+                                span,
+                                "expected -nif declaration to precede the function it references",
+                            )],
                         );
                     }
                 }
@@ -97,13 +93,12 @@ impl Pass for VerifyTypeSpecs {
         for (spec_name, spec) in module.specs.iter() {
             let local_spec_name = spec_name.to_local();
             if !module.functions.contains_key(&local_spec_name) {
-                self.reporter.diagnostic(
-                    Diagnostic::warning()
-                        .with_message("type spec for undefined function")
-                        .with_labels(vec![Label::primary(spec.span.source_id(), spec.span)
-                            .with_message(
-                                "this type spec has no corresponding function definition",
-                            )]),
+                self.reporter.show_warning(
+                    "type spec for undefined function",
+                    &[(
+                        spec.span,
+                        "this type spec has no corresponding function definition",
+                    )],
                 );
             }
         }

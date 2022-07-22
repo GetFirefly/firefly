@@ -11,7 +11,7 @@ impl SemanticAnalysis {
         let name = record.name.name;
 
         if let Some(prev) = module.records.get(&name) {
-            self.show_error(
+            self.reporter.show_error(
                 "record already defined",
                 &[
                     (record.span, "duplicate definition occurs here"),
@@ -30,7 +30,7 @@ impl SemanticAnalysis {
             }
             if let Some(prev_idx) = field_idx_map.get(&field.name) {
                 let prev = fields.get(*prev_idx).unwrap();
-                self.show_error(
+                self.reporter.show_error(
                     "duplicate field in record",
                     &[
                         (field.name.span, "duplicate field occurs here"),

@@ -213,7 +213,7 @@ where
     P: Parser,
 {
     use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::{AstToCore, DesugarSyntax};
+    use liblumen_syntax_erl::passes::AstToCore;
 
     // Get Erlang AST
     let ast = db.input_syntax_erl(input)?;
@@ -225,7 +225,7 @@ where
     } else {
         Reporter::new()
     };
-    let mut passes = DesugarSyntax.chain(AstToCore::new(reporter));
+    let mut passes = AstToCore::new(reporter);
     let module = unwrap_or_bail!(db, passes.run(ast));
 
     db.maybe_emit_file(input, &module)?;

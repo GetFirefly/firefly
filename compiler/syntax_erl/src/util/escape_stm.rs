@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables)]
 use std::fmt::Debug;
 
 use liblumen_diagnostics::{Diagnostic, Label, SourceIndex, SourceSpan, ToDiagnostic};
@@ -106,10 +105,6 @@ impl<D: Copy + Debug> EscapeStm<D> {
         self.buf.clear();
         self.curr_start = None;
         self.state = EscapeStmState::Norm;
-    }
-
-    pub fn is_norm(&self) -> bool {
-        self.state == EscapeStmState::Norm
     }
 
     pub fn transition(

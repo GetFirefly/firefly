@@ -1,6 +1,7 @@
 use half::f16;
 use paste::paste;
 
+use crate::helpers::DisplayErlang;
 use crate::{BinaryFlags, ByteIter, Encoding, Selection};
 
 /// This trait provides common behavior for all types which represent
@@ -100,6 +101,15 @@ pub trait Bitstring {
     /// is the safe version of this API. Otherwise, make sure you take appropriate steps
     /// to fix up the first and last bytes depending on alignment/bit_size.
     unsafe fn as_bytes_unchecked(&self) -> &[u8];
+
+    /// Produces an object which can be used to display a Bitstring using Erlang-style formatting
+    fn display(&self) -> DisplayErlang<'_> {
+        if self.is_binary() && self.is_aligned() {
+            DisplayErlang::Binary(unsafe { self.as_bytes_unchecked() })
+        } else {
+            DisplayErlang::Iter(self.bytes())
+        }
+    }
 }
 
 impl<B> Bitstring for &B

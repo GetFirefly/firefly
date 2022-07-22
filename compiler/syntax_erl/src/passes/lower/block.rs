@@ -64,9 +64,6 @@ impl<'m> LowerFunctionToCore<'m> {
                         &expr
                     );
                 }
-                ast::Expr::Nil(nil) if is_last => {
-                    block_result = builder.ins().nil(nil.span());
-                }
                 ast::Expr::Cons(cons) if is_last => {
                     block_result = self.lower_cons(builder, cons)?;
                 }
@@ -79,10 +76,6 @@ impl<'m> LowerFunctionToCore<'m> {
                 ast::Expr::MapUpdate(map_update) if is_last => {
                     block_result = self.lower_map_update(builder, map_update)?;
                 }
-                ast::Expr::MapProjection(proj) => panic!(
-                    "unexpected expression type found during lowering of block: {:?}",
-                    &proj
-                ),
                 ast::Expr::Binary(bin) if is_last => {
                     block_result = self.lower_binary(builder, bin)?;
                 }
@@ -101,7 +94,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 ast::Expr::BinaryComprehension(bc) if is_last => {
                     block_result = self.lower_bc(builder, bc)?;
                 }
-                ast::Expr::Generator(_) | ast::Expr::BinaryGenerator(_) => panic!(
+                ast::Expr::Generator(_) => panic!(
                     "unexpected expression type found during lowering of block: {:?}",
                     &expr
                 ),
@@ -170,7 +163,6 @@ impl<'m> LowerFunctionToCore<'m> {
                     );
                 }
                 ast::Expr::Literal(_)
-                | ast::Expr::Nil(_)
                 | ast::Expr::Cons(_)
                 | ast::Expr::Tuple(_)
                 | ast::Expr::Map(_)
@@ -186,6 +178,7 @@ impl<'m> LowerFunctionToCore<'m> {
                         &["This warning occurred because the expression is not the last expression in its block, and is not bound to a variable, so its value cannot be used. Consider removing this expression."]
                     );
                 }
+                _ => unimplemented!(),
             }
         }
 

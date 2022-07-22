@@ -1,17 +1,12 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use anyhow::anyhow;
 
-use liblumen_diagnostics::{SourceSpan, Spanned};
+use liblumen_diagnostics::{SourceSpan, Span};
 use liblumen_intern::{symbols, Ident};
 use liblumen_pass::Pass;
-use liblumen_syntax_core::{self as syntax_core};
+use liblumen_syntax_core as syntax_core;
 
 use crate::ast::*;
 use crate::visit::{self, VisitMut};
-
-use super::FunctionContext;
 
 /// This pass performs expansion of records and record operations into raw
 /// tuple operations.
@@ -20,35 +15,64 @@ use super::FunctionContext;
 /// in the AST, anywhere. If there are, its an invariant violation and should
 /// cause an ICE.
 pub struct ExpandRecords<'m> {
-    context: Rc<RefCell<FunctionContext>>,
     module: &'m Module,
-    in_pattern: bool,
-    in_guard: bool,
-    expand_record_info: bool,
+}
+impl<'m> ExpandRecords<'m> {
+    pub fn new(module: &'m Module) -> Self {
+        Self { module }
+    }
 }
 impl<'m> Pass for ExpandRecords<'m> {
     type Input<'a> = &'a mut Function;
     type Output<'a> = &'a mut Function;
 
     fn run<'a>(&mut self, f: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        self.visit_mut_function(f)?;
+        let mut visitor = ExpandRecordsVisitor::new(self.module, f);
+        visitor.visit_mut_function(f)?;
+        f.var_counter = visitor.var_counter;
         Ok(f)
     }
 }
-impl<'m> ExpandRecords<'m> {
-    pub fn new(module: &'m Module, context: Rc<RefCell<FunctionContext>>) -> Self {
+
+struct ExpandRecordsVisitor<'m> {
+    module: &'m Module,
+    name: Ident,
+    var_counter: usize,
+    arity: u8,
+    in_pattern: bool,
+    in_guard: bool,
+    expand_record_info: bool,
+}
+impl<'m> ExpandRecordsVisitor<'m> {
+    fn new(module: &'m Module, f: &Function) -> Self {
         let record_info = syntax_core::FunctionName::new_local(symbols::RecordInfo, 2);
         let expand_record_info = module.functions.get(&record_info).is_none();
         Self {
-            context,
             module,
             in_pattern: false,
             in_guard: false,
             expand_record_info,
+            var_counter: f.var_counter,
+            name: f.name,
+            arity: f.arity,
+        }
+    }
+
+    fn next_var(&mut self, span: Option<SourceSpan>) -> Ident {
+        let id = self.var_counter;
+        self.var_counter += 1;
+        let var = format!("${}", id);
+        let mut ident = Ident::from_str(&var);
+        match span {
+            None => ident,
+            Some(span) => {
+                ident.span = span;
+                ident
+            }
         }
     }
 }
-impl<'m> VisitMut for ExpandRecords<'m> {
+impl<'m> VisitMut for ExpandRecordsVisitor<'m> {
     fn visit_mut_pattern(&mut self, pattern: &mut Expr) -> anyhow::Result<()> {
         self.in_pattern = true;
         visit::visit_mut_pattern(self, pattern)?;
@@ -56,11 +80,11 @@ impl<'m> VisitMut for ExpandRecords<'m> {
         Ok(())
     }
 
-    fn visit_mut_function_clause(&mut self, clause: &mut FunctionClause) -> anyhow::Result<()> {
+    fn visit_mut_clause(&mut self, clause: &mut Clause) -> anyhow::Result<()> {
         // TODO: Once the clause has been visited, convert any is_record calls
         // to pattern matches if possible, as these can be better optimized away
         // later to avoid redundant checks
-        visit::visit_mut_function_clause(self, clause)
+        visit::visit_mut_clause(self, clause)
     }
 
     fn visit_mut_guard(&mut self, guard: &mut Guard) -> anyhow::Result<()> {
@@ -141,7 +165,7 @@ impl<'m> VisitMut for ExpandRecords<'m> {
         }
     }
 }
-impl<'m> ExpandRecords<'m> {
+impl<'m> ExpandRecordsVisitor<'m> {
     fn try_expand_record_info(&self, record_name: &Expr, prop: &Expr) -> anyhow::Result<Expr> {
         let record_name = record_name.as_atom().ok_or_else(|| {
             anyhow!(
@@ -165,19 +189,17 @@ impl<'m> ExpandRecords<'m> {
                     (1 + definition.fields.len()).into(),
                 ))),
                 "fields" => {
-                    let field_name_list =
-                        definition
-                            .fields
-                            .iter()
-                            .rev()
-                            .fold(Expr::Nil(Nil(span)), |tail, f| {
-                                let field_name = Expr::Literal(Literal::Atom(f.name));
-                                Expr::Cons(Cons {
-                                    span,
-                                    head: Box::new(field_name),
-                                    tail: Box::new(tail),
-                                })
-                            });
+                    let field_name_list = definition.fields.iter().rev().fold(
+                        Expr::Literal(Literal::Nil(span)),
+                        |tail, f| {
+                            let field_name = Expr::Literal(Literal::Atom(f.name));
+                            Expr::Cons(Cons {
+                                span,
+                                head: Box::new(field_name),
+                                tail: Box::new(tail),
+                            })
+                        },
+                    );
                     Ok(field_name_list)
                 }
                 _ => Err(anyhow!(
@@ -220,7 +242,7 @@ impl<'m> ExpandRecords<'m> {
             } else if self.in_pattern {
                 // This is a pattern, so elided fields need a wildcard pattern
                 elements.push(Expr::Var(
-                    Ident::with_empty_span(symbols::WildcardMatch).into(),
+                    Ident::with_empty_span(symbols::Underscore).into(),
                 ));
             } else {
                 // This is a constructor, so use the default initializer, or the atom 'undefined' if one isn't present
@@ -296,7 +318,7 @@ impl<'m> ExpandRecords<'m> {
             }],
         })?;
         // The callee for pattern match failure
-        let erlang_error = Expr::FunctionName(FunctionName::Resolved(Spanned::new(
+        let erlang_error = Expr::FunctionName(FunctionName::Resolved(Span::new(
             span,
             syntax_core::FunctionName::new(symbols::Erlang, symbols::Error, 1),
         )));
@@ -304,7 +326,7 @@ impl<'m> ExpandRecords<'m> {
         let reason = Expr::Tuple(Tuple {
             span,
             elements: vec![
-                Expr::Literal(Literal::Atom(Ident::with_empty_span(symbols::BadRecord))),
+                Expr::Literal(Literal::Atom(Ident::with_empty_span(symbols::Badrecord))),
                 Expr::Var(catch_all_var.into()),
             ],
         });
@@ -321,19 +343,21 @@ impl<'m> ExpandRecords<'m> {
             clauses: vec![
                 Clause {
                     span,
-                    pattern: tuple_pattern,
-                    guard: None,
+                    patterns: vec![tuple_pattern],
+                    guards: vec![],
                     body: vec![Expr::Var(field_var.into())],
+                    compiler_generated: true,
                 },
                 Clause {
                     span,
-                    pattern: Expr::Var(catch_all_var.into()),
-                    guard: None,
+                    patterns: vec![Expr::Var(catch_all_var.into())],
+                    guards: vec![],
                     body: vec![Expr::Apply(Apply {
                         span,
                         callee: Box::new(erlang_error),
                         args: vec![reason],
                     })],
+                    compiler_generated: true,
                 },
             ],
         }))
@@ -378,9 +402,9 @@ impl<'m> ExpandRecords<'m> {
                             )
                         })?;
 
-                    let callee = Expr::FunctionName(FunctionName::Resolved(Spanned::new(
+                    let callee = Expr::FunctionName(FunctionName::Resolved(Span::new(
                         span,
-                        syntax_core::FunctionName::new(symbols::Erlang, symbols::SetElement, 3),
+                        syntax_core::FunctionName::new(symbols::Erlang, symbols::Setelement, 3),
                     )));
                     let index = Expr::Literal(Literal::Integer(span, (position + 1).into()));
                     let value = update.value.as_ref().unwrap().clone();
@@ -398,7 +422,7 @@ impl<'m> ExpandRecords<'m> {
             fields: vec![],
         })?;
         // The callee for pattern match failure
-        let erlang_error = Expr::FunctionName(FunctionName::Resolved(Spanned::new(
+        let erlang_error = Expr::FunctionName(FunctionName::Resolved(Span::new(
             span,
             syntax_core::FunctionName::new(symbols::Erlang, symbols::Error, 1),
         )));
@@ -406,7 +430,7 @@ impl<'m> ExpandRecords<'m> {
         let reason = Expr::Tuple(Tuple {
             span,
             elements: vec![
-                Expr::Literal(Literal::Atom(Ident::with_empty_span(symbols::BadRecord))),
+                Expr::Literal(Literal::Atom(Ident::with_empty_span(symbols::Badrecord))),
                 Expr::Var(catch_all_var.into()),
             ],
         });
@@ -417,26 +441,23 @@ impl<'m> ExpandRecords<'m> {
             clauses: vec![
                 Clause {
                     span,
-                    pattern: tuple_pattern,
-                    guard: None,
+                    patterns: vec![tuple_pattern],
+                    guards: vec![],
                     body: vec![expanded_updates],
+                    compiler_generated: true,
                 },
                 Clause {
                     span,
-                    pattern: Expr::Var(catch_all_var.into()),
-                    guard: None,
+                    patterns: vec![Expr::Var(catch_all_var.into())],
+                    guards: vec![],
                     body: vec![Expr::Apply(Apply {
                         span,
                         callee: Box::new(erlang_error),
                         args: vec![reason],
                     })],
+                    compiler_generated: true,
                 },
             ],
         }))
-    }
-
-    fn next_var(&mut self, span: Option<SourceSpan>) -> Ident {
-        let mut context = self.context.borrow_mut();
-        context.next_var(span)
     }
 }

@@ -232,82 +232,205 @@ pub const NifError: Symbol = Symbol::new(75);
 pub const TryClause: Symbol = Symbol::new(76);
 
 #[allow(non_upper_case_globals)]
-pub const IsBoolean: Symbol = Symbol::new(77);
+pub const IsAtom: Symbol = Symbol::new(77);
 
 #[allow(non_upper_case_globals)]
-pub const IsFunction: Symbol = Symbol::new(78);
+pub const IsBinary: Symbol = Symbol::new(78);
 
 #[allow(non_upper_case_globals)]
-pub const IsInteger: Symbol = Symbol::new(79);
+pub const IsBitstring: Symbol = Symbol::new(79);
 
 #[allow(non_upper_case_globals)]
-pub const IsMap: Symbol = Symbol::new(80);
+pub const IsBoolean: Symbol = Symbol::new(80);
 
 #[allow(non_upper_case_globals)]
-pub const Apply: Symbol = Symbol::new(81);
+pub const IsFloat: Symbol = Symbol::new(81);
 
 #[allow(non_upper_case_globals)]
-pub const MakeFun: Symbol = Symbol::new(82);
+pub const IsFunction: Symbol = Symbol::new(82);
 
 #[allow(non_upper_case_globals)]
-pub const MatchFail: Symbol = Symbol::new(83);
+pub const IsInteger: Symbol = Symbol::new(83);
 
 #[allow(non_upper_case_globals)]
-pub const Raise: Symbol = Symbol::new(84);
+pub const IsList: Symbol = Symbol::new(84);
 
 #[allow(non_upper_case_globals)]
-pub const Setelement: Symbol = Symbol::new(85);
+pub const IsMap: Symbol = Symbol::new(85);
 
 #[allow(non_upper_case_globals)]
-pub const Throw: Symbol = Symbol::new(86);
+pub const IsNumber: Symbol = Symbol::new(86);
 
 #[allow(non_upper_case_globals)]
-pub const CompilerGenerated: Symbol = Symbol::new(87);
+pub const IsPid: Symbol = Symbol::new(87);
 
 #[allow(non_upper_case_globals)]
-pub const Id: Symbol = Symbol::new(88);
+pub const IsPort: Symbol = Symbol::new(88);
 
 #[allow(non_upper_case_globals)]
-pub const EXIT: Symbol = Symbol::new(89);
+pub const IsRecord: Symbol = Symbol::new(89);
 
 #[allow(non_upper_case_globals)]
-pub const MODULE: Symbol = Symbol::new(90);
+pub const IsReference: Symbol = Symbol::new(90);
 
 #[allow(non_upper_case_globals)]
-pub const MODULE_STRING: Symbol = Symbol::new(91);
+pub const IsTuple: Symbol = Symbol::new(91);
 
 #[allow(non_upper_case_globals)]
-pub const All: Symbol = Symbol::new(92);
+pub const Abs: Symbol = Symbol::new(92);
 
 #[allow(non_upper_case_globals)]
-pub const Attributes: Symbol = Symbol::new(93);
+pub const Apply: Symbol = Symbol::new(93);
 
 #[allow(non_upper_case_globals)]
-pub const BehaviourInfo: Symbol = Symbol::new(94);
+pub const BinaryPart: Symbol = Symbol::new(94);
 
 #[allow(non_upper_case_globals)]
-pub const Erlang: Symbol = Symbol::new(95);
+pub const BitSize: Symbol = Symbol::new(95);
 
 #[allow(non_upper_case_globals)]
-pub const Exit: Symbol = Symbol::new(96);
+pub const BuildStacktrace: Symbol = Symbol::new(96);
 
 #[allow(non_upper_case_globals)]
-pub const Exports: Symbol = Symbol::new(97);
+pub const ByteSize: Symbol = Symbol::new(97);
 
 #[allow(non_upper_case_globals)]
-pub const ModuleInfo: Symbol = Symbol::new(98);
+pub const Ceil: Symbol = Symbol::new(98);
 
 #[allow(non_upper_case_globals)]
-pub const Native: Symbol = Symbol::new(99);
+pub const Element: Symbol = Symbol::new(99);
 
 #[allow(non_upper_case_globals)]
-pub const RecordInfo: Symbol = Symbol::new(100);
+pub const Float: Symbol = Symbol::new(100);
 
 #[allow(non_upper_case_globals)]
-pub const Send: Symbol = Symbol::new(101);
+pub const Floor: Symbol = Symbol::new(101);
 
 #[allow(non_upper_case_globals)]
-pub const Undefined: Symbol = Symbol::new(102);
+pub const Hd: Symbol = Symbol::new(102);
+
+#[allow(non_upper_case_globals)]
+pub const IsMapKey: Symbol = Symbol::new(103);
+
+#[allow(non_upper_case_globals)]
+pub const Length: Symbol = Symbol::new(104);
+
+#[allow(non_upper_case_globals)]
+pub const MakeFun: Symbol = Symbol::new(105);
+
+#[allow(non_upper_case_globals)]
+pub const MapGet: Symbol = Symbol::new(106);
+
+#[allow(non_upper_case_globals)]
+pub const MapSize: Symbol = Symbol::new(107);
+
+#[allow(non_upper_case_globals)]
+pub const MatchFail: Symbol = Symbol::new(108);
+
+#[allow(non_upper_case_globals)]
+pub const Node: Symbol = Symbol::new(109);
+
+#[allow(non_upper_case_globals)]
+pub const Raise: Symbol = Symbol::new(110);
+
+#[allow(non_upper_case_globals)]
+pub const Round: Symbol = Symbol::new(111);
+
+#[allow(non_upper_case_globals)]
+pub const SELF: Symbol = Symbol::new(112);
+
+#[allow(non_upper_case_globals)]
+pub const Setelement: Symbol = Symbol::new(113);
+
+#[allow(non_upper_case_globals)]
+pub const Size: Symbol = Symbol::new(114);
+
+#[allow(non_upper_case_globals)]
+pub const Throw: Symbol = Symbol::new(115);
+
+#[allow(non_upper_case_globals)]
+pub const Tl: Symbol = Symbol::new(116);
+
+#[allow(non_upper_case_globals)]
+pub const Trunc: Symbol = Symbol::new(117);
+
+#[allow(non_upper_case_globals)]
+pub const TupleSize: Symbol = Symbol::new(118);
+
+#[allow(non_upper_case_globals)]
+pub const CompilerGenerated: Symbol = Symbol::new(119);
+
+#[allow(non_upper_case_globals)]
+pub const Id: Symbol = Symbol::new(120);
+
+#[allow(non_upper_case_globals)]
+pub const EXIT: Symbol = Symbol::new(121);
+
+#[allow(non_upper_case_globals)]
+pub const MODULE: Symbol = Symbol::new(122);
+
+#[allow(non_upper_case_globals)]
+pub const MODULE_STRING: Symbol = Symbol::new(123);
+
+#[allow(non_upper_case_globals)]
+pub const All: Symbol = Symbol::new(124);
+
+#[allow(non_upper_case_globals)]
+pub const Attributes: Symbol = Symbol::new(125);
+
+#[allow(non_upper_case_globals)]
+pub const BehaviourInfo: Symbol = Symbol::new(126);
+
+#[allow(non_upper_case_globals)]
+pub const Bits: Symbol = Symbol::new(127);
+
+#[allow(non_upper_case_globals)]
+pub const Bitstring: Symbol = Symbol::new(128);
+
+#[allow(non_upper_case_globals)]
+pub const Bytes: Symbol = Symbol::new(129);
+
+#[allow(non_upper_case_globals)]
+pub const Erlang: Symbol = Symbol::new(130);
+
+#[allow(non_upper_case_globals)]
+pub const Exit: Symbol = Symbol::new(131);
+
+#[allow(non_upper_case_globals)]
+pub const Exports: Symbol = Symbol::new(132);
+
+#[allow(non_upper_case_globals)]
+pub const Integer: Symbol = Symbol::new(133);
+
+#[allow(non_upper_case_globals)]
+pub const ModuleInfo: Symbol = Symbol::new(134);
+
+#[allow(non_upper_case_globals)]
+pub const Native: Symbol = Symbol::new(135);
+
+#[allow(non_upper_case_globals)]
+pub const New: Symbol = Symbol::new(136);
+
+#[allow(non_upper_case_globals)]
+pub const RecordInfo: Symbol = Symbol::new(137);
+
+#[allow(non_upper_case_globals)]
+pub const Send: Symbol = Symbol::new(138);
+
+#[allow(non_upper_case_globals)]
+pub const Undefined: Symbol = Symbol::new(139);
+
+#[allow(non_upper_case_globals)]
+pub const Used: Symbol = Symbol::new(140);
+
+#[allow(non_upper_case_globals)]
+pub const Utf16: Symbol = Symbol::new(141);
+
+#[allow(non_upper_case_globals)]
+pub const Utf32: Symbol = Symbol::new(142);
+
+#[allow(non_upper_case_globals)]
+pub const Utf8: Symbol = Symbol::new(143);
 
 
 pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
@@ -388,16 +511,48 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (IfClause, "if_clause"),
   (NifError, "nif_error"),
   (TryClause, "try_clause"),
+  (IsAtom, "is_atom"),
+  (IsBinary, "is_binary"),
+  (IsBitstring, "is_bitstring"),
   (IsBoolean, "is_boolean"),
+  (IsFloat, "is_float"),
   (IsFunction, "is_function"),
   (IsInteger, "is_integer"),
+  (IsList, "is_list"),
   (IsMap, "is_map"),
+  (IsNumber, "is_number"),
+  (IsPid, "is_pid"),
+  (IsPort, "is_port"),
+  (IsRecord, "is_record"),
+  (IsReference, "is_reference"),
+  (IsTuple, "is_tuple"),
+  (Abs, "abs"),
   (Apply, "apply"),
+  (BinaryPart, "binary_part"),
+  (BitSize, "bit_size"),
+  (BuildStacktrace, "build_stacktrace"),
+  (ByteSize, "byte_size"),
+  (Ceil, "ceil"),
+  (Element, "element"),
+  (Float, "float"),
+  (Floor, "floor"),
+  (Hd, "hd"),
+  (IsMapKey, "is_map_key"),
+  (Length, "length"),
   (MakeFun, "make_fun"),
+  (MapGet, "map_get"),
+  (MapSize, "map_size"),
   (MatchFail, "match_fail"),
+  (Node, "node"),
   (Raise, "raise"),
+  (Round, "round"),
+  (SELF, "self"),
   (Setelement, "setelement"),
+  (Size, "size"),
   (Throw, "throw"),
+  (Tl, "tl"),
+  (Trunc, "trunc"),
+  (TupleSize, "tuple_size"),
   (CompilerGenerated, "compiler_generated"),
   (Id, "id"),
   (EXIT, "EXIT"),
@@ -406,14 +561,23 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (All, "all"),
   (Attributes, "attributes"),
   (BehaviourInfo, "behaviour_info"),
+  (Bits, "bits"),
+  (Bitstring, "bitstring"),
+  (Bytes, "bytes"),
   (Erlang, "erlang"),
   (Exit, "exit"),
   (Exports, "exports"),
+  (Integer, "integer"),
   (ModuleInfo, "module_info"),
   (Native, "native"),
+  (New, "new"),
   (RecordInfo, "record_info"),
   (Send, "send"),
   (Undefined, "undefined"),
+  (Used, "used"),
+  (Utf16, "utf16"),
+  (Utf32, "utf32"),
+  (Utf8, "utf8"),
 ];
 
 pub fn is_keyword(sym: Symbol) -> bool {

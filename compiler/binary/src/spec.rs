@@ -6,14 +6,14 @@ pub enum BinaryEntrySpecifier {
     Integer {
         signed: bool,
         endianness: Endianness,
-        unit: i64,
+        unit: usize,
     },
     Float {
         endianness: Endianness,
-        unit: i64,
+        unit: usize,
     },
     Binary {
-        unit: i64,
+        unit: usize,
     },
     Utf8,
     Utf16 {
@@ -37,7 +37,7 @@ impl BinaryEntrySpecifier {
         }
     }
 
-    pub fn unit(&self) -> i64 {
+    pub fn unit(&self) -> usize {
         match self {
             Self::Integer { unit, .. } | Self::Float { unit, .. } | Self::Binary { unit, .. } => {
                 *unit

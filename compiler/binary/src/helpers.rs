@@ -103,7 +103,25 @@ pub fn next_index(index: usize, bit_offset: u8, bits_consumed: usize) -> (usize,
     }
 }
 
-/// Displays a raw binary using Erlang-style formatting
+/// This struct is used to provide a common renderer for Erlang bitstrings
+pub enum DisplayErlang<'a> {
+    Binary(&'a [u8]),
+    Iter(crate::ByteIter<'a>),
+}
+
+impl<'a> fmt::Display for DisplayErlang<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Binary(bytes) => match core::str::from_utf8(bytes) {
+                Ok(s) => display_binary(s, f),
+                Err(_) => display_bytes(bytes.iter().copied(), f),
+            },
+            Self::Iter(iter) => display_bytes(iter.clone(), f),
+        }
+    }
+}
+
+/// Displays an aligned Binary using Erlang-style formatting
 pub fn display_binary<B: Binary + Aligned>(bin: B, f: &mut fmt::Formatter) -> fmt::Result {
     use core::fmt::Write;
 
@@ -118,7 +136,7 @@ pub fn display_binary<B: Binary + Aligned>(bin: B, f: &mut fmt::Formatter) -> fm
     }
 }
 
-/// Displays a raw bitstring using Erlang-style formatting
+/// Displays a sequence of raw bytes using Erlang-style formatting
 pub fn display_bytes<I: Iterator<Item = u8>>(mut bytes: I, f: &mut fmt::Formatter) -> fmt::Result {
     f.write_str("<<")?;
 

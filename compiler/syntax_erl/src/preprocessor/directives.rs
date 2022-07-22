@@ -3,11 +3,12 @@ use std::fmt;
 use std::path::{Component, PathBuf};
 
 use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, ToDiagnostic};
+use liblumen_intern::{symbols, Symbol};
 use liblumen_parser::substitute_path_variables;
 use liblumen_parser::PathVariableSubstituteError;
 
-use crate::lexer::{symbols, Lexed, LexicalToken, Symbol, Token};
 use crate::lexer::{AtomToken, IntegerToken, StringToken, SymbolToken};
+use crate::lexer::{Lexed, LexicalToken, Token};
 
 use super::token_reader::{ReadFrom, TokenReader};
 use super::types::{MacroName, MacroVariables};

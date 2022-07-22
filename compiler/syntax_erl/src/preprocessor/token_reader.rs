@@ -6,10 +6,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use liblumen_diagnostics::{CodeMap, SourceSpan};
+use liblumen_intern::Symbol;
 use liblumen_parser::{FileMapSource, Scanner, Source};
 
 use crate::lexer::{AtomToken, SymbolToken, TokenConvertError};
-use crate::lexer::{Lexed, Lexer, LexicalToken, Symbol, Token};
+use crate::lexer::{Lexed, Lexer, LexicalToken, Token};
 
 use super::macros::NoArgsMacroCall;
 use super::token_stream::TokenStream;

@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use cranelift_entity::entity_impl;
 use intrusive_collections::{intrusive_adapter, LinkedListLink, UnsafeRef};
 use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::Spanned;
+use liblumen_diagnostics::{Span, Spanned};
 
 use super::*;
 
@@ -12,15 +12,16 @@ use super::*;
 pub struct Inst(u32);
 entity_impl!(Inst, "inst");
 
-#[derive(Clone)]
+#[derive(Clone, Spanned)]
 pub struct InstNode {
     pub link: LinkedListLink,
     pub key: Inst,
     pub block: Block,
-    pub data: Spanned<InstData>,
+    #[span]
+    pub data: Span<InstData>,
 }
 impl InstNode {
-    pub fn new(key: Inst, block: Block, data: Spanned<InstData>) -> Self {
+    pub fn new(key: Inst, block: Block, data: Span<InstData>) -> Self {
         Self {
             link: LinkedListLink::default(),
             key,
@@ -30,7 +31,7 @@ impl InstNode {
     }
 }
 impl Deref for InstNode {
-    type Target = Spanned<InstData>;
+    type Target = Span<InstData>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {

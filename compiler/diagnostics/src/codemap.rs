@@ -114,8 +114,8 @@ impl CodeMap {
     }
 
     /// Get the filename associated with the given Spanned item
-    pub fn name_for_spanned<T>(&self, spanned: Spanned<T>) -> Result<FileName, Error> {
-        self.name(spanned.span.source_id)
+    pub fn name_for_spanned(&self, spanned: &dyn Spanned) -> Result<FileName, Error> {
+        self.name(spanned.span().source_id)
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = Arc<SourceFile>> + 'a {
@@ -126,7 +126,7 @@ impl CodeMap {
         &self,
         file_id: SourceId,
         line_index: impl Into<LineIndex>,
-    ) -> Result<Span, Error> {
+    ) -> Result<codespan::Span, Error> {
         let f = self.get(file_id)?;
         f.line_span(line_index.into())
     }
@@ -153,8 +153,9 @@ impl CodeMap {
     }
 
     /// Get the Location associated with the given Spanned item
-    pub fn location_for_spanned<T>(&self, spanned: &Spanned<T>) -> Result<Location, Error> {
-        self.location(spanned.span.source_id, spanned.span)
+    pub fn location_for_spanned(&self, spanned: &dyn Spanned) -> Result<Location, Error> {
+        let span = spanned.span();
+        self.location(span.source_id, span)
     }
 
     pub fn source_span(&self, file_id: SourceId) -> Result<SourceSpan, Error> {
@@ -164,7 +165,7 @@ impl CodeMap {
     pub fn source_slice<'a>(
         &'a self,
         file_id: SourceId,
-        span: impl Into<Span>,
+        span: impl Into<codespan::Span>,
     ) -> Result<&'a str, Error> {
         let f = self.get(file_id)?;
         let slice = f.source_slice(span.into())?;
@@ -172,11 +173,9 @@ impl CodeMap {
     }
 
     /// Get the source string associated with the given Spanned item
-    pub fn source_slice_for_spanned<'a, T>(
-        &'a self,
-        spanned: &Spanned<T>,
-    ) -> Result<&'a str, Error> {
-        self.source_slice(spanned.span.source_id, spanned.span)
+    pub fn source_slice_for_spanned<'a>(&'a self, spanned: &dyn Spanned) -> Result<&'a str, Error> {
+        let span = spanned.span();
+        self.source_slice(span.source_id, span)
     }
 
     #[inline(always)]

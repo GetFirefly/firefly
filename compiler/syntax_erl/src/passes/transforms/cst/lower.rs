@@ -1,0 +1,2791 @@
+use super::*;
+
+const COLLAPSE_MAX_SIZE_SEGMENT: usize = 1024;
+
+/// Phase 1: Lower AST to CST
+///
+/// This phase flattens expressions into an internal core form
+/// without doing matching. This form is more amenable to further
+/// transformations and lowering.
+pub struct LowerAst {
+    reporter: Reporter,
+    context: Rc<UnsafeCell<FunctionContext>>,
+}
+impl LowerAst {
+    pub(super) fn new(reporter: Reporter, context: Rc<UnsafeCell<FunctionContext>>) -> Self {
+        Self { reporter, context }
+    }
+
+    #[inline(always)]
+    fn context(&self) -> &FunctionContext {
+        unsafe { &*self.context.get() }
+    }
+
+    #[inline(always)]
+    fn context_mut(&self) -> &mut FunctionContext {
+        unsafe { &mut *self.context.get() }
+    }
+}
+impl Pass for LowerAst {
+    type Input<'a> = ast::Function;
+    type Output<'a> = cst::IFun;
+
+    fn run<'a>(&mut self, mut fun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+        // Generate new variables for the function head
+        let name = self.context().name.name;
+        let span = self.context().span;
+        let arity = self.context().arity as usize;
+        let params = (0..arity)
+            .map(|_| self.context_mut().next_var(Some(span)))
+            .collect();
+
+        // Canonicalize all of the clauses
+        let mut clauses = Vec::with_capacity(fun.clauses.len());
+        for (_, clause) in fun.clauses.drain(..) {
+            clauses.push(self.clause(clause)?);
+        }
+
+        // Create fallback clause to handle pattern failure
+        let fail = {
+            let params = (0..arity)
+                .map(|_| Expr::Var(self.context_mut().next_var(Some(span))))
+                .collect::<Vec<_>>();
+
+            let reason = {
+                let mut elements = vec![catom!(span, symbols::FunctionClause)];
+                elements.extend(params.iter().cloned());
+                Expr::Tuple(Tuple::new(span, elements))
+            };
+            fail_clause(span, params, reason)
+        };
+
+        Ok(IFun {
+            span,
+            annotations: Annotations::default(),
+            id: None,
+            name,
+            vars: params,
+            clauses,
+            fail,
+        })
+    }
+}
+impl LowerAst {
+    fn clauses(&mut self, mut clauses: Vec<ast::Clause>) -> anyhow::Result<Vec<IClause>> {
+        let mut out = Vec::with_capacity(clauses.len());
+        for clause in clauses.drain(..) {
+            out.push(self.clause(clause)?);
+        }
+        Ok(out)
+    }
+
+    fn clause(&mut self, clause: ast::Clause) -> anyhow::Result<IClause> {
+        let span = clause.span;
+        match self.pattern_list(clause.patterns.clone()) {
+            Ok(patterns) => {
+                let guards = self.guard(clause.guards);
+                let body = self.exprs(clause.body)?;
+                Ok(IClause {
+                    span,
+                    annotations: Annotations::default(),
+                    patterns,
+                    guards,
+                    body,
+                })
+            }
+            Err(PatternError::NoMatch) => {
+                // The function head pattern can't possibly match
+                // To ensure we can proceed with compilation, we rewrite the pattern
+                // to a pattern that binds the same variables, but ensuring the clause is never
+                // executed by having the guard return false
+                self.reporter.show_warning(
+                    "this clause can never match",
+                    &[(span, "the pattern in this clause can never succeed")],
+                );
+                let patterns = clause.patterns.iter().cloned().map(sanitize).collect();
+                assert_ne!(&clause.patterns, &patterns);
+                self.clause(ast::Clause {
+                    span,
+                    patterns,
+                    guards: vec![ast::Guard {
+                        span,
+                        conditions: vec![atom!(span, symbols::False)],
+                    }],
+                    body: clause.body,
+                    compiler_generated: false,
+                })
+            }
+        }
+    }
+
+    fn pattern_list(&mut self, _params: Vec<ast::Expr>) -> Result<Vec<Expr>, PatternError> {
+        todo!()
+    }
+
+    fn pattern(&mut self, _pattern: ast::Expr) -> anyhow::Result<Expr> {
+        todo!()
+    }
+
+    /// guard([Expr], State) -> {[Cexpr],State}.
+    ///  Build an explicit and/or tree of guard alternatives, then traverse
+    ///  top-level and/or tree and "protect" inner tests.
+    fn guard(&mut self, mut guards: Vec<ast::Guard>) -> Vec<Expr> {
+        let last = guards.pop().unwrap();
+        let guard = guards.drain(..).rfold(
+            self.guard_tests(last.span, last.conditions),
+            |acc, guard| {
+                let span = guard.span;
+                let span = span.merge(acc.span()).unwrap_or(span);
+                let gt = self.guard_tests(span, guard.conditions);
+                ast::Expr::BinaryExpr(ast::BinaryExpr {
+                    span,
+                    op: BinaryOp::Or,
+                    lhs: Box::new(gt),
+                    rhs: Box::new(acc),
+                })
+            },
+        );
+        self.context_mut().in_guard = true;
+        let gexpr = self.gexpr_top(guard);
+        self.context_mut().in_guard = false;
+        gexpr
+    }
+
+    fn guard_tests(&mut self, span: SourceSpan, mut guards: Vec<ast::Expr>) -> ast::Expr {
+        let last = guards.pop().unwrap();
+        let body = guards.drain(..).rfold(last, |acc, guard| {
+            let span = guard.span();
+            let span = span.merge(acc.span()).unwrap_or(span);
+            ast::Expr::BinaryExpr(ast::BinaryExpr {
+                span,
+                op: BinaryOp::And,
+                lhs: Box::new(guard),
+                rhs: Box::new(acc),
+            })
+        });
+        ast::Expr::Protect(ast::Protect {
+            span,
+            body: Box::new(body),
+        })
+    }
+
+    /// gexpr_top(Expr, State) -> {Cexpr,State}.
+    ///  Generate an internal core expression of a guard test.  Explicitly
+    ///  handle outer boolean expressions and "protect" inner tests in a
+    ///  reasonably smart way.
+    fn gexpr_top(&mut self, expr: ast::Expr) -> Vec<Expr> {
+        let (expr, pre, bools) = self.gexpr(expr, vec![]);
+        let (expr, mut pre) = self.force_booleans(bools, expr, pre);
+        pre.push(expr);
+        pre
+    }
+
+    fn gexpr(&mut self, expr: ast::Expr, bools: Vec<Expr>) -> (Expr, Vec<Expr>, Vec<Expr>) {
+        match expr {
+            ast::Expr::Protect(ast::Protect { span, body }) => {
+                let (expr, pre, bools2) = self.gexpr(*body, vec![]);
+                if pre.is_empty() {
+                    let (expr, pre) = self.force_booleans(bools2, expr, vec![]);
+                    (expr, pre, bools)
+                } else {
+                    let (expr, mut pre) = self.force_booleans(bools2, expr, pre);
+                    pre.push(expr);
+                    (
+                        Expr::Internal(IExpr::Protect(IProtect {
+                            span,
+                            annotations: Annotations::default(),
+                            body: pre,
+                        })),
+                        vec![],
+                        bools,
+                    )
+                }
+            }
+            ast::Expr::BinaryExpr(ast::BinaryExpr { span, op, lhs, rhs })
+                if op == BinaryOp::AndAlso =>
+            {
+                let var = self.context_mut().next_var(Some(span));
+                let atom_false = atom!(span, false);
+                let expr = make_bool_switch(span, *lhs, ast::Var(var.name), *rhs, atom_false);
+                self.gexpr(expr, bools)
+            }
+            ast::Expr::BinaryExpr(ast::BinaryExpr { span, op, lhs, rhs })
+                if op == BinaryOp::OrElse =>
+            {
+                let var = self.context_mut().next_var(Some(span));
+                let atom_true = atom!(true);
+                let expr = make_bool_switch(span, *lhs, ast::Var(var.name), atom_true, *rhs);
+                self.gexpr(expr, bools)
+            }
+            ast::Expr::BinaryExpr(ast::BinaryExpr { span, op, lhs, rhs }) => {
+                if op.is_boolean(2) {
+                    self.gexpr_bool(span, op, *lhs, *rhs, bools)
+                } else {
+                    self.gexpr_test(
+                        ast::Expr::BinaryExpr(ast::BinaryExpr { span, op, lhs, rhs }),
+                        bools,
+                    )
+                }
+            }
+            ast::Expr::UnaryExpr(ast::UnaryExpr { op, operand, .. }) if op == UnaryOp::Not => {
+                self.gexpr_not(*operand, bools)
+            }
+            ast::Expr::Apply(ast::Apply {
+                span,
+                callee,
+                mut args,
+            }) => {
+                let arity = args.len().try_into().unwrap();
+                match *callee {
+                    ast::Expr::FunctionName(name) => {
+                        let op = match (name.module(), name.function()) {
+                            (None, Some(symbols::Not)) if arity == 1 => {
+                                let operand = args.pop().unwrap();
+                                return self.gexpr_not(operand, bools);
+                            }
+                            (None, Some(function)) if arity == 2 => {
+                                BinaryOp::from_symbol(function).ok()
+                            }
+                            (Some(symbols::Erlang), Some(symbols::Not)) if arity == 1 => {
+                                let operand = args.pop().unwrap();
+                                return self.gexpr_not(operand, bools);
+                            }
+                            (Some(symbols::Erlang), Some(function)) if arity == 2 => {
+                                BinaryOp::from_symbol(function).ok()
+                            }
+                            _ => None,
+                        };
+                        if let Some(op) = op {
+                            if op.is_boolean(arity) {
+                                let rhs = args.pop().unwrap();
+                                let lhs = args.pop().unwrap();
+                                return self.gexpr_bool(span, op, lhs, rhs, bools);
+                            }
+                        }
+                        self.gexpr_test(
+                            ast::Expr::Apply(ast::Apply {
+                                span,
+                                callee: Box::new(ast::Expr::FunctionName(name)),
+                                args,
+                            }),
+                            bools,
+                        )
+                    }
+                    ast::Expr::Remote(remote) if arity == 2 => {
+                        if let Ok(name) = remote.try_eval(arity) {
+                            if name.module == Some(symbols::Erlang) {
+                                if let Ok(op) = BinaryOp::from_symbol(name.function) {
+                                    if op.is_boolean(arity) {
+                                        let rhs = args.pop().unwrap();
+                                        let lhs = args.pop().unwrap();
+                                        return self.gexpr_bool(span, op, lhs, rhs, bools);
+                                    }
+                                }
+                            }
+                            self.gexpr_test(
+                                ast::Expr::Apply(ast::Apply {
+                                    span,
+                                    callee: Box::new(name.into()),
+                                    args,
+                                }),
+                                bools,
+                            )
+                        } else {
+                            self.gexpr_test(
+                                ast::Expr::Apply(ast::Apply {
+                                    span,
+                                    callee: Box::new(ast::Expr::Remote(remote)),
+                                    args,
+                                }),
+                                bools,
+                            )
+                        }
+                    }
+                    ast::Expr::Remote(remote) if arity == 1 => {
+                        if let Ok(name) = remote.try_eval(arity) {
+                            if name.module == Some(symbols::Erlang) && name.function == symbols::Not
+                            {
+                                let operand = args.pop().unwrap();
+                                return self.gexpr_not(operand, bools);
+                            }
+                            self.gexpr_test(
+                                ast::Expr::Apply(ast::Apply {
+                                    span,
+                                    callee: Box::new(name.into()),
+                                    args,
+                                }),
+                                bools,
+                            )
+                        } else {
+                            self.gexpr_test(
+                                ast::Expr::Apply(ast::Apply {
+                                    span,
+                                    callee: Box::new(ast::Expr::Remote(remote)),
+                                    args,
+                                }),
+                                bools,
+                            )
+                        }
+                    }
+                    callee => self.gexpr_test(
+                        ast::Expr::Apply(ast::Apply {
+                            span,
+                            callee: Box::new(callee),
+                            args,
+                        }),
+                        bools,
+                    ),
+                }
+            }
+            expr => self.gexpr_test(expr, bools),
+        }
+    }
+
+    // gexpr_bool(L, R, Bools, State) -> {Cexpr,[PreExp],Bools,State}.
+    //  Generate a guard for boolean operators
+    fn gexpr_bool(
+        &mut self,
+        span: SourceSpan,
+        op: BinaryOp,
+        lhs: ast::Expr,
+        rhs: ast::Expr,
+        bools: Vec<Expr>,
+    ) -> (Expr, Vec<Expr>, Vec<Expr>) {
+        let (lexpr, mut lpre, bools) = self.gexpr(lhs, bools);
+        let (lexpr, mut lpre2) = self.force_safe(lexpr);
+        let (rexpr, mut rpre, bools) = self.gexpr(rhs, bools);
+        let (rexpr, mut rpre2) = self.force_safe(rexpr);
+        let call = Expr::Call(Call::new(
+            span,
+            symbols::Erlang,
+            op.to_symbol(),
+            vec![lexpr, rexpr],
+        ));
+        lpre.append(&mut lpre2);
+        lpre.append(&mut rpre);
+        lpre.append(&mut rpre2);
+        (call, lpre, bools)
+    }
+
+    // gexpr_not(Expr, Bools, State) -> {Cexpr,[PreExp],Bools,State}.
+    //  Generate an erlang:'not'/1 guard test.
+    fn gexpr_not(&mut self, expr: ast::Expr, bools: Vec<Expr>) -> (Expr, Vec<Expr>, Vec<Expr>) {
+        let (expr, mut pre, bools) = self.gexpr(expr, bools);
+        let expr = match expr {
+            Expr::Call(mut call)
+                if call.is_static(symbols::Erlang, symbols::EqualStrict, 1)
+                    && call.args[1].as_boolean() == Some(true) =>
+            {
+                if call.annotations.contains(symbols::CompilerGenerated) {
+                    // We here have the expression:
+                    //
+                    //    not(Expr =:= true)
+                    //
+                    // The annotations tested in the code above guarantees
+                    // that the original expression in the Erlang source
+                    // code was:
+                    //
+                    //    not Expr
+                    //
+                    // That expression can be transformed as follows:
+                    //
+                    //    not Expr  ==>  Expr =:= false
+                    //
+                    // which will produce the same result, but may eliminate
+                    // redundant is_boolean/1 tests (see unforce/3).
+                    //
+                    // Note that this transformation would not be safe if the
+                    // original expression had been:
+                    //
+                    //    not(Expr =:= true)
+                    //
+                    let b = call.args.pop().unwrap();
+                    call.args.push(catom!(b.span(), symbols::False));
+                    let (expr, mut pre2) = self.force_safe(Expr::Call(call));
+                    pre.append(&mut pre2);
+                    return (expr, pre, bools);
+                } else {
+                    Expr::Call(call)
+                }
+            }
+            expr => expr,
+        };
+        let span = expr.span();
+        let (expr, mut pre2) = self.force_safe(expr);
+        let call = Expr::Call(Call::new(span, symbols::Erlang, symbols::Not, vec![expr]));
+        pre.append(&mut pre2);
+        (call, pre, bools)
+    }
+
+    // gexpr_test(Expr, Bools, State) -> {Cexpr,[PreExp],Bools,State}.
+    //  Generate a guard test.  At this stage we must be sure that we have
+    //  a proper boolean value here so wrap things with an true test if we
+    //  don't know, i.e. if it is not a comparison or a type test.
+    fn gexpr_test(
+        &mut self,
+        expr: ast::Expr,
+        mut bools: Vec<Expr>,
+    ) -> (Expr, Vec<Expr>, Vec<Expr>) {
+        match expr {
+            ast::Expr::Literal(ast::Literal::Atom(a)) if a.name.is_boolean() => {
+                (catom!(a.span, a.name), vec![], bools)
+            }
+            expr => {
+                let (expr, mut pre) = self.expr(expr).unwrap();
+                // Generate "top-level" test and argument calls
+                match expr {
+                    Expr::Call(call) if call.is_static(symbols::Erlang, symbols::IsFunction, 2) => {
+                        // is_function/2 is not a safe type test. We must force it to be protected.
+                        let span = call.span;
+                        let v = self.context_mut().next_var(Some(span));
+                        pre.push(Expr::Internal(IExpr::Set(ISet::new(
+                            span,
+                            v.name,
+                            Expr::Call(call),
+                        ))));
+                        (icall_eq_true!(span, Expr::Var(v)), pre, bools)
+                    }
+                    Expr::Call(call)
+                        if call.module.is_atom_value(symbols::Erlang)
+                            && call.function.is_atom() =>
+                    {
+                        let function = call.function.as_atom().unwrap();
+                        let arity = call.args.len().try_into().unwrap();
+                        if is_new_type_test(function, arity)
+                            || is_cmp_op(function, arity)
+                            || is_bool_op(function, arity)
+                        {
+                            (Expr::Call(call), pre, bools)
+                        } else {
+                            let span = call.span;
+                            let v = self.context_mut().next_var(Some(span));
+                            bools.insert(0, Expr::Var(v.clone()));
+                            pre.push(Expr::Internal(IExpr::Set(ISet::new(
+                                span,
+                                v.name,
+                                Expr::Call(call),
+                            ))));
+                            (icall_eq_true!(span, Expr::Var(v)), pre, bools)
+                        }
+                    }
+                    expr => {
+                        let span = expr.span();
+                        if expr.is_simple() {
+                            bools.insert(0, expr.clone());
+                            (icall_eq_true!(span, expr), pre, bools)
+                        } else {
+                            let v = self.context_mut().next_var(Some(span));
+                            bools.insert(0, Expr::Var(v.clone()));
+                            pre.push(Expr::Internal(IExpr::Set(ISet {
+                                span,
+                                annotations: Annotations::default_compiler_generated(),
+                                var: v.name,
+                                arg: Box::new(expr),
+                            })));
+                            (icall_eq_true!(span, Expr::Var(v)), pre, bools)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // force_booleans([Var], E, Eps, St) -> Expr.
+    //  Variables used in the top-level of a guard must be booleans.
+    //
+    //  Add necessary is_boolean/1 guard tests to ensure that the guard
+    //  will fail if any of the variables is not a boolean.
+    fn force_booleans(
+        &mut self,
+        mut vars: Vec<Expr>,
+        expr: Expr,
+        pre: Vec<Expr>,
+    ) -> (Expr, Vec<Expr>) {
+        for var in vars.iter_mut() {
+            var.annotations_mut().clear();
+        }
+
+        // Prune the list of variables that will need is_boolean/1
+        // tests. Basically, if the guard consists of simple expressions
+        // joined by 'and's no is_boolean/1 tests are needed.
+        let vars = unforce(&expr, pre.clone(), vars);
+
+        // Add is_boolean/1 tests for the remaining variables
+        self.force_booleans_1(vars, expr, pre)
+    }
+
+    fn force_booleans_1(
+        &mut self,
+        mut vars: Vec<Expr>,
+        expr: Expr,
+        pre: Vec<Expr>,
+    ) -> (Expr, Vec<Expr>) {
+        vars.drain(..).fold((expr, pre), |(expr, mut pre), var| {
+            let span = expr.span();
+            let (expr, mut pre2) = self.force_safe(expr);
+            let mut call = Call::new(span, symbols::Erlang, symbols::IsBoolean, vec![var]);
+            call.annotations.set(symbols::CompilerGenerated);
+            let call = Expr::Call(call);
+            let v = self.context_mut().next_var(Some(span));
+            let set = Expr::Internal(IExpr::Set(ISet {
+                span,
+                annotations: Annotations::default(),
+                var: v.name,
+                arg: Box::new(call),
+            }));
+            pre.append(&mut pre2);
+            pre.push(set);
+            let mut call = Call::new(
+                span,
+                symbols::Erlang,
+                symbols::And,
+                vec![expr, Expr::Var(v)],
+            );
+            call.annotations.set(symbols::CompilerGenerated);
+            let expr = Expr::Call(call);
+            (expr, pre)
+        })
+    }
+
+    fn exprs(&mut self, mut exprs: Vec<ast::Expr>) -> anyhow::Result<Vec<Expr>> {
+        let mut output = Vec::with_capacity(exprs.len());
+
+        for expr in exprs.drain(..) {
+            let (expr, mut pre) = self.expr(expr)?;
+            output.append(&mut pre);
+            output.push(expr);
+        }
+
+        Ok(output)
+    }
+
+    fn expr(&mut self, expr: ast::Expr) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        match expr {
+            ast::Expr::Var(ast::Var(id)) => Ok((
+                Expr::Var(Var {
+                    span: id.span,
+                    annotations: Annotations::default(),
+                    name: id,
+                    arity: None,
+                }),
+                vec![],
+            )),
+            ast::Expr::Literal(lit) => Ok((Expr::Literal(lit.into()), vec![])),
+            ast::Expr::Cons(ast::Cons { span, head, tail }) => {
+                let (mut es, pre) = self.safe_list(vec![*head, *tail])?;
+                let tail = es.pop().unwrap();
+                let head = es.pop().unwrap();
+                Ok((ccons!(span, head, tail), pre))
+            }
+            ast::Expr::ListComprehension(ast::ListComprehension {
+                span,
+                body,
+                qualifiers,
+            }) => {
+                let qualifiers = self.preprocess_quals(qualifiers)?;
+                self.lc_tq(span, *body, qualifiers, cnil!(span))
+            }
+            ast::Expr::BinaryComprehension(ast::BinaryComprehension {
+                span,
+                body,
+                qualifiers,
+            }) => {
+                let qualifiers = self.preprocess_quals(qualifiers)?;
+                self.bc_tq(span, *body, qualifiers)
+            }
+            ast::Expr::Tuple(ast::Tuple { span, elements }) => {
+                let (elements, pre) = self.safe_list(elements)?;
+                Ok((Expr::Tuple(Tuple::new(span, elements)), pre))
+            }
+            ast::Expr::Map(ast::Map { span, fields }) => {
+                self.map_build_pairs(span, Expr::Literal(Literal::map(span, vec![])), fields)
+            }
+            ast::Expr::MapUpdate(ast::MapUpdate { span, map, updates }) => {
+                self.expr_map(span, *map, updates)
+            }
+            ast::Expr::Binary(ast::Binary { span, elements }) => {
+                match self.expr_bin(span, elements) {
+                    Ok(ok) => Ok(ok),
+                    Err(pre) => {
+                        self.reporter.show_warning(
+                            "invalid binary expression",
+                            &[(span, "this binary expression has an invalid element")],
+                        );
+                        let badarg = catom!(span, symbols::Badarg);
+                        Ok((
+                            Expr::Call(Call::new(
+                                span,
+                                symbols::Erlang,
+                                symbols::Error,
+                                vec![badarg],
+                            )),
+                            pre,
+                        ))
+                    }
+                }
+            }
+            ast::Expr::Begin(ast::Begin { mut body, .. }) => {
+                // Inline the block directly.
+                let expr = body.pop().unwrap();
+                let mut exprs = self.exprs(body)?;
+                let (expr, mut pre) = self.expr(expr)?;
+                exprs.append(&mut pre);
+                Ok((expr, exprs))
+            }
+            ast::Expr::If(ast::If { span, clauses }) => {
+                let clauses = self.clauses(clauses)?;
+                let fail = fail_clause(span, vec![], catom!(span, symbols::IfClause));
+                let case = Expr::Internal(IExpr::Case(ICase {
+                    span,
+                    annotations: Annotations::default(),
+                    args: vec![],
+                    clauses,
+                    fail,
+                }));
+                Ok((case, vec![]))
+            }
+            ast::Expr::Case(ast::Case {
+                span,
+                expr,
+                clauses,
+            }) => {
+                let (expr, pre) = self.novars(*expr)?;
+                let clauses = self.clauses(clauses)?;
+                let fpat = self.context_mut().next_var(Some(span));
+                let reason = ctuple!(
+                    span,
+                    catom!(span, symbols::CaseClause),
+                    Expr::Var(fpat.clone())
+                );
+                let fail = fail_clause(span, vec![Expr::Var(fpat)], reason);
+                let case = Expr::Internal(IExpr::Case(ICase {
+                    span,
+                    annotations: Annotations::default(),
+                    args: vec![expr],
+                    clauses,
+                    fail,
+                }));
+                Ok((case, pre))
+            }
+            ast::Expr::Receive(ast::Receive {
+                span,
+                clauses: Some(clauses),
+                after: None,
+            }) => {
+                let clauses = self.clauses(clauses)?;
+                let recv = Expr::Internal(IExpr::Receive1(IReceive1 {
+                    span,
+                    annotations: Annotations::default(),
+                    clauses,
+                }));
+                Ok((recv, vec![]))
+            }
+            ast::Expr::Receive(ast::Receive {
+                span,
+                clauses,
+                after: Some(ast::After { timeout, body, .. }),
+            }) => {
+                let (timeout, pre) = self.novars(*timeout)?;
+                let action = self.exprs(body)?;
+                let clauses = self.clauses(clauses.unwrap_or_default())?;
+                let recv = Expr::Internal(IExpr::Receive2(IReceive2 {
+                    span,
+                    annotations: Annotations::default(),
+                    clauses,
+                    timeout: Box::new(timeout),
+                    action,
+                }));
+                Ok((recv, pre))
+            }
+            // try .. catch .. end
+            ast::Expr::Try(ast::Try {
+                span,
+                exprs,
+                clauses: None,
+                catch_clauses: Some(ccs),
+                after: None,
+            }) => {
+                let exprs = self.exprs(exprs)?;
+                let v = self.context_mut().next_var(Some(span));
+                let (evars, handler) = self.try_exception(ccs)?;
+                let texpr = Expr::Internal(IExpr::Try(ITry {
+                    span,
+                    annotations: Annotations::default(),
+                    args: exprs,
+                    vars: vec![v.name],
+                    body: vec![Expr::Var(v)],
+                    evars,
+                    handler: Box::new(handler),
+                }));
+                Ok((texpr, vec![]))
+            }
+            // try .. of .. catch .. end
+            ast::Expr::Try(ast::Try {
+                span,
+                exprs,
+                clauses: Some(cs),
+                catch_clauses: Some(ccs),
+                after: None,
+            }) => {
+                let exprs = self.exprs(exprs)?;
+                let v = self.context_mut().next_var(Some(span));
+                let clauses = self.clauses(cs)?;
+                let fpat = self.context_mut().next_var(Some(span));
+                let fail = fail_clause(
+                    span,
+                    vec![Expr::Var(fpat.clone())],
+                    ctuple!(span, catom!(span, symbols::TryClause), Expr::Var(fpat)),
+                );
+                let (evars, handler) = self.try_exception(ccs)?;
+                let vname = v.name;
+                let case = Expr::Internal(IExpr::Case(ICase {
+                    span,
+                    annotations: Annotations::default(),
+                    args: vec![Expr::Var(v)],
+                    clauses,
+                    fail,
+                }));
+                let texpr = Expr::Internal(IExpr::Try(ITry {
+                    span,
+                    annotations: Annotations::default(),
+                    args: exprs,
+                    vars: vec![vname],
+                    body: vec![case],
+                    evars,
+                    handler: Box::new(handler),
+                }));
+                Ok((texpr, vec![]))
+            }
+            // try .. after .. end
+            ast::Expr::Try(ast::Try {
+                span,
+                exprs,
+                clauses: None,
+                catch_clauses: None,
+                after: Some(after),
+            }) => self.try_after(span, exprs, after),
+            // try .. [of ...] [catch ... ] after .. end
+            ast::Expr::Try(ast::Try {
+                span,
+                exprs,
+                clauses,
+                catch_clauses,
+                after: Some(after),
+            }) => {
+                let outer = ast::Expr::Try(ast::Try {
+                    span,
+                    exprs: vec![ast::Expr::Try(ast::Try {
+                        span,
+                        exprs,
+                        clauses,
+                        catch_clauses,
+                        after: None,
+                    })],
+                    clauses: None,
+                    catch_clauses: None,
+                    after: Some(after),
+                });
+                self.expr(outer)
+            }
+            ast::Expr::Catch(ast::Catch { span, expr }) => {
+                let (expr, mut pre) = self.expr(*expr)?;
+                pre.push(expr);
+
+                let cexpr = Expr::Internal(IExpr::Catch(ICatch {
+                    span,
+                    annotations: Annotations::default(),
+                    body: pre,
+                }));
+                Ok((cexpr, vec![]))
+            }
+            ast::Expr::FunctionName(name) => {
+                match name {
+                    ast::FunctionName::Resolved(name) => {
+                        let span = name.span();
+                        let module = catom!(span, name.module.unwrap());
+                        let function = catom!(span, name.function);
+                        let arity = cint!(span, name.arity);
+                        let call = Expr::Call(Call::new(
+                            span,
+                            symbols::Erlang,
+                            symbols::MakeFun,
+                            vec![module, function, arity],
+                        ));
+                        Ok((call, vec![]))
+                    }
+                    ast::FunctionName::PartiallyResolved(name) => {
+                        // Generate a new name for eta conversion of local funs (`fun local/123`)
+                        let fname = self.context_mut().new_fun_name(None);
+                        let span = name.span();
+                        let id = Literal::tuple(
+                            span,
+                            vec![
+                                Literal::integer(span, 0),
+                                Literal::integer(span, 0),
+                                Literal::atom(span, fname),
+                            ],
+                        );
+                        Ok((
+                            Expr::Var(Var {
+                                span,
+                                annotations: Annotations::from(
+                                    vec![(symbols::Id, id.into())].drain(..),
+                                ),
+                                name: Ident::new(name.function, span),
+                                arity: Some(Arity::Int(name.arity)),
+                            }),
+                            vec![],
+                        ))
+                    }
+                    ast::FunctionName::Unresolved(ast::UnresolvedFunctionName {
+                        span,
+                        module: None,
+                        function,
+                        arity,
+                    }) => {
+                        // Generate a new name for eta conversion of local funs (`fun local/123`)
+                        let fname = self.context_mut().new_fun_name(None);
+                        let id = Literal::tuple(
+                            span,
+                            vec![
+                                Literal::integer(span, 0),
+                                Literal::integer(span, 0),
+                                Literal::atom(span, fname),
+                            ],
+                        );
+                        Ok((
+                            Expr::Var(Var {
+                                span,
+                                annotations: Annotations::from(
+                                    vec![(symbols::Id, id.into())].drain(..),
+                                ),
+                                name: function.ident(),
+                                arity: Some(arity),
+                            }),
+                            vec![],
+                        ))
+                    }
+                    ast::FunctionName::Unresolved(ast::UnresolvedFunctionName {
+                        span,
+                        module: Some(module),
+                        function,
+                        arity,
+                    }) => {
+                        let module = module.into();
+                        let function = function.into();
+                        let arity = arity.into();
+                        let (mfa, pre) = self.safe_list(vec![module, function, arity])?;
+                        let call =
+                            Expr::Call(Call::new(span, symbols::Erlang, symbols::MakeFun, mfa));
+                        Ok((call, pre))
+                    }
+                }
+            }
+            ast::Expr::Fun(ast::Fun::Recursive(mut fun)) => self.fun_tq(
+                fun.span,
+                Some(fun.self_name),
+                fun.clauses.drain(..).map(|(_, c)| c).collect(),
+            ),
+            ast::Expr::Fun(ast::Fun::Anonymous(fun)) => self.fun_tq(fun.span, None, fun.clauses),
+            ast::Expr::Apply(ast::Apply {
+                span,
+                callee,
+                mut args,
+            }) => match *callee {
+                ast::Expr::Remote(ast::Remote {
+                    module, function, ..
+                }) => {
+                    let mut safes = vec![*module, *function];
+                    safes.append(&mut args);
+                    let (mut args, pre) = self.safe_list(safes)?;
+                    let mut mf = args.split_off(2);
+                    let function = mf.pop().unwrap();
+                    let module = mf.pop().unwrap();
+                    let is_erlang_error = {
+                        matches!(
+                            &module,
+                            Expr::Literal(Literal {
+                                value: Lit::Atom(symbols::Erlang),
+                                ..
+                            })
+                        ) && matches!(
+                            &function,
+                            Expr::Literal(Literal {
+                                value: Lit::Atom(symbols::Error),
+                                ..
+                            })
+                        ) && args.len() == 1
+                    };
+                    if is_erlang_error {
+                        let arg = args.pop().unwrap();
+                        if let Expr::Tuple(tuple) = arg {
+                            if matches!(
+                                &tuple.elements[0],
+                                Expr::Literal(Literal {
+                                    value: Lit::Atom(symbols::Badrecord),
+                                    ..
+                                })
+                            ) {
+                                let fail = Expr::PrimOp(PrimOp::new(
+                                    span,
+                                    symbols::MatchFail,
+                                    vec![Expr::Tuple(tuple)],
+                                ));
+                                return Ok((fail, pre));
+                            }
+                        } else {
+                            args.push(arg);
+                        }
+                    }
+                    let call = Expr::Call(Call {
+                        span,
+                        annotations: Annotations::default(),
+                        module: Box::new(module),
+                        function: Box::new(function),
+                        args,
+                    });
+                    Ok((call, pre))
+                }
+                ast::Expr::FunctionName(name) => {
+                    let nspan = name.span();
+                    let (m, f, _) = name.mfa();
+                    let remote = ast::Expr::Remote(ast::Remote {
+                        span: nspan,
+                        module: Box::new(m.unwrap()),
+                        function: Box::new(f),
+                    });
+                    let apply = ast::Expr::Apply(ast::Apply {
+                        span,
+                        callee: Box::new(remote),
+                        args,
+                    });
+                    self.expr(apply)
+                }
+                ast::Expr::Literal(ast::Literal::Atom(f)) => {
+                    let (args, pre) = self.safe_list(args)?;
+                    let op = Expr::Var(Var {
+                        span: f.span,
+                        annotations: Annotations::default(),
+                        name: f,
+                        arity: Some(Arity::Int(args.len().try_into().unwrap())),
+                    });
+                    let apply = Expr::Apply(Apply {
+                        span,
+                        annotations: Annotations::default(),
+                        callee: Box::new(op),
+                        args,
+                    });
+                    Ok((apply, pre))
+                }
+                callee => {
+                    let (fun, mut pre) = self.safe(callee)?;
+                    let (args, mut pre2) = self.safe_list(args)?;
+                    pre.append(&mut pre2);
+                    let apply = Expr::Apply(Apply {
+                        span,
+                        annotations: Annotations::default(),
+                        callee: Box::new(fun),
+                        args,
+                    });
+                    Ok((apply, pre))
+                }
+            },
+            ast::Expr::Match(ast::Match {
+                span,
+                pattern: pattern0,
+                expr: expr0,
+            }) => {
+                // First fold matches together to create aliases
+                let (pattern1, expr1) = fold_match(*expr0, *pattern0);
+                let prev_wanted = self.set_wanted(&pattern1);
+                let (expr2, mut pre) = self.novars(expr1.clone())?;
+                self.context_mut().set_wanted(prev_wanted);
+                let pattern2 = self.pattern(pattern1.clone());
+                let fpat = self.context_mut().next_var(Some(span));
+                let fail = fail_clause(
+                    span,
+                    vec![Expr::Var(fpat.clone())],
+                    ctuple!(span, catom!(span, symbols::Badmatch), Expr::Var(fpat)),
+                );
+                match pattern2 {
+                    Err(_) => {
+                        // The pattern will not match. We must take care here to
+                        // bind all variables that the pattern would have bound
+                        // so that subsequent expressions do not refer to unbound
+                        // variables.
+                        //
+                        // As an example, this code:
+                        //
+                        //   [X] = {Y} = E,
+                        //   X + Y.
+                        //
+                        // will be rewritten to:
+                        //
+                        //   error({badmatch,E}),
+                        //   case E of
+                        //      {[X],{Y}} ->
+                        //        X + Y;
+                        //      Other ->
+                        //        error({badmatch,Other})
+                        //   end.
+                        //
+                        self.reporter
+                            .show_warning("bad pattern", &[(span, "this pattern cannot match")]);
+                        let (expr, mut pre) = self.safe(expr1)?;
+                        let sanpat = sanitize(pattern1);
+                        let sanpat = self.pattern(sanpat)?;
+                        let badmatch = ctuple!(span, catom!(span, symbols::Badmatch), expr.clone());
+                        let fail2 =
+                            Expr::PrimOp(PrimOp::new(span, symbols::MatchFail, vec![badmatch]));
+                        pre.push(fail2);
+                        let mexpr = Expr::Internal(IExpr::Match(IMatch {
+                            span,
+                            annotations: Annotations::default(),
+                            pattern: Box::new(sanpat),
+                            arg: Box::new(expr),
+                            guard: vec![],
+                            fail,
+                        }));
+                        Ok((mexpr, pre))
+                    }
+                    Ok(pattern2) => {
+                        // We must rewrite top-level aliases to lets to avoid unbound
+                        // variables in code such as:
+                        //
+                        //     <<42:Sz>> = Sz = B
+                        //
+                        // If we would keep the top-level aliases the example would
+                        // be translated like this:
+                        //
+                        //     case B of
+                        //         <Sz = #{#<42>(Sz,1,'integer',['unsigned'|['big']])}#>
+                        //            when 'true' ->
+                        //            .
+                        //            .
+                        //            .
+                        //
+                        // Here the variable Sz would be unbound in the binary pattern.
+                        //
+                        // Instead we bind Sz in a let to ensure it is bound when
+                        // used in the binary pattern:
+                        //
+                        //     let <Sz> = B
+                        //     in case Sz of
+                        //         <#{#<42>(Sz,1,'integer',['unsigned'|['big']])}#>
+                        //            when 'true' ->
+                        //            .
+                        //            .
+                        //            .
+                        //
+                        let (pattern3, expr3, mut pre2) = letify_aliases(pattern2, expr2);
+                        pre.append(&mut pre2);
+                        let mexpr = Expr::Internal(IExpr::Match(IMatch {
+                            span,
+                            annotations: Annotations::default(),
+                            pattern: Box::new(pattern3),
+                            arg: Box::new(expr3),
+                            guard: vec![],
+                            fail,
+                        }));
+                        Ok((mexpr, pre))
+                    }
+                }
+            }
+            ast::Expr::BinaryExpr(ast::BinaryExpr {
+                op: BinaryOp::Append,
+                lhs,
+                rhs,
+                span,
+            }) if lhs.is_lc() => {
+                // Optimise '++' here because of the list comprehension algorithm.
+                //
+                // To avoid achieving quadratic complexity if there is a chain of
+                // list comprehensions without generators combined with '++', force
+                // evaluation of More now. Evaluating More here could also reduce the
+                // number variables in the environment for letrec.
+                let (rhs, mut rpre) = self.safe(*rhs)?;
+                let lc = (*lhs).to_lc();
+                let expr = *lc.body;
+                let qualifiers = self.preprocess_quals(lc.qualifiers)?;
+                let (y, mut ypre) = self.lc_tq(span, expr, qualifiers, rhs)?;
+                rpre.append(&mut ypre);
+                Ok((y, rpre))
+            }
+            ast::Expr::BinaryExpr(ast::BinaryExpr {
+                op: BinaryOp::AndAlso,
+                lhs,
+                rhs,
+                span,
+            }) => {
+                let v = self.context_mut().next_var(Some(span));
+                let atom_false =
+                    ast::Expr::Literal(ast::Literal::Atom(Ident::new(symbols::False, span)));
+                let expr = make_bool_switch(span, *lhs, ast::Var(v.name), *rhs, atom_false);
+                self.expr(expr)
+            }
+            ast::Expr::BinaryExpr(ast::BinaryExpr {
+                op: BinaryOp::OrElse,
+                lhs,
+                rhs,
+                span,
+            }) => {
+                let v = self.context_mut().next_var(Some(span));
+                let atom_true =
+                    ast::Expr::Literal(ast::Literal::Atom(Ident::new(symbols::True, span)));
+                let expr = make_bool_switch(span, *lhs, ast::Var(v.name), atom_true, *rhs);
+                self.expr(expr)
+            }
+            ast::Expr::BinaryExpr(ast::BinaryExpr { op, lhs, rhs, span }) => {
+                let (args, pre) = self.safe_list(vec![*lhs, *rhs])?;
+                let call = Expr::Call(Call::new(span, symbols::Erlang, op.to_symbol(), args));
+                Ok((call, pre))
+            }
+            ast::Expr::UnaryExpr(ast::UnaryExpr { op, operand, span }) => {
+                let (operand, pre) = self.safe(*operand)?;
+                let call = Expr::Call(Call::new(
+                    span,
+                    symbols::Erlang,
+                    op.to_symbol(),
+                    vec![operand],
+                ));
+                Ok((call, pre))
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn fun_tq(
+        &mut self,
+        _span: SourceSpan,
+        _name: Option<Ident>,
+        _clauses: Vec<ast::Clause>,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        todo!()
+    }
+
+    /// This is the implementation of the TQ translation scheme as described in _The Implementation of Functional Programming Languages_,
+    /// Simon Peyton Jones, et al. pp 127-138
+    fn lc_tq(
+        &mut self,
+        _span: SourceSpan,
+        _body: ast::Expr,
+        _qualifiers: Vec<IQualifier>,
+        _last: Expr,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        todo!()
+    }
+
+    // bc_tq(Line, Exp, [Qualifier], More, State) -> {LetRec,[PreExp],State}.
+    //  This TQ from Gustafsson ERLANG'05.
+    //  More could be transformed before calling bc_tq.
+    fn bc_tq(
+        &mut self,
+        _span: SourceSpan,
+        _body: ast::Expr,
+        _qualifiers: Vec<IQualifier>,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        todo!()
+    }
+
+    // preprocess_quals(Line, [Qualifier], State) -> {[Qualifier'],State}.
+    //  Preprocess a list of Erlang qualifiers into its intermediate representation,
+    //  represented as a list of IGen and IFilter records. We recognise guard
+    //  tests and try to fold them together and join to a preceding generators, this
+    //  should give us better and more compact code.
+    fn preprocess_quals(
+        &mut self,
+        mut qualifiers: Vec<ast::Expr>,
+    ) -> anyhow::Result<Vec<IQualifier>> {
+        let mut acc = Vec::with_capacity(qualifiers.len());
+        let mut iter = qualifiers.drain(..).peekable();
+        while let Some(qualifier) = iter.next() {
+            if qualifier.is_generator() {
+                let mut guards = vec![];
+                loop {
+                    match iter.peek().map(is_guard_test) {
+                        None | Some(false) => break,
+                        Some(true) => guards.push(iter.next().unwrap()),
+                    }
+                }
+                match qualifier {
+                    ast::Expr::Generator(gen) => {
+                        acc.push(IQualifier::Generator(self.generator(gen, guards)?))
+                    }
+                    _ => unreachable!(),
+                }
+            } else if is_guard_test(&qualifier) {
+                let qspan = qualifier.span();
+                // When a filter is a guard test, its argument in the IFilter record
+                // is a list as returned by lc_guard_tests/2
+                let mut guards = vec![];
+                loop {
+                    match iter.peek().map(is_guard_test) {
+                        None | Some(false) => break,
+                        Some(true) => guards.push(iter.next().unwrap()),
+                    }
+                }
+                guards.insert(0, qualifier);
+                let cg = self.lc_guard_tests(qspan, guards);
+                acc.push(IQualifier::Filter(IFilter::new_guard(qspan, cg)))
+            } else {
+                let qspan = qualifier.span();
+                // Otherwise, it is a pair {Pre, Arg} as in a generator input
+                let (expr, pre) = self.novars(qualifier)?;
+                acc.push(IQualifier::Filter(IFilter::new_match(qspan, pre, expr)))
+            }
+        }
+        Ok(acc)
+    }
+
+    /// generator(Line, Generator, Guard, State) -> {Generator',State}.
+    ///  Transform a given generator into its #igen{} representation.
+    fn generator(&mut self, gen: ast::Generator, guards: Vec<ast::Expr>) -> anyhow::Result<IGen> {
+        // Generators are abstracted as sextuplets:
+        //  - acc_pat is the accumulator pattern, e.g. [Pat|Tail] for Pat <- Expr.
+        //  - acc_guard is the list of guards immediately following the current
+        //    generator in the qualifier list input.
+        //  - skip_pat is the skip pattern, e.g. <<X,_:X,Tail/bitstring>> for
+        //    <<X,1:X>> <= Expr.
+        //  - tail is the variable used in AccPat and SkipPat bound to the rest of the
+        //    generator input.
+        //  - tail_pat is the tail pattern, respectively [] and <<_/bitstring>> for list
+        //    and bit string generators.
+        //  - arg is a pair {Pre,Arg} where Pre is the list of expressions to be
+        //    inserted before the comprehension function and Arg is the expression
+        //    that it should be passed.
+        //
+        match gen.ty {
+            ast::GeneratorType::Default => {
+                self.list_generator(gen.span, *gen.pattern, *gen.expr, guards)
+            }
+            ast::GeneratorType::Bitstring => {
+                self.bit_generator(gen.span, *gen.pattern, *gen.expr, guards)
+            }
+        }
+    }
+
+    fn list_generator(
+        &mut self,
+        _span: SourceSpan,
+        _pattern: ast::Expr,
+        _expr: ast::Expr,
+        _guards: Vec<ast::Expr>,
+    ) -> anyhow::Result<IGen> {
+        todo!()
+    }
+
+    fn bit_generator(
+        &mut self,
+        _span: SourceSpan,
+        _pattern: ast::Expr,
+        _expr: ast::Expr,
+        _guards: Vec<ast::Expr>,
+    ) -> anyhow::Result<IGen> {
+        todo!()
+    }
+
+    fn lc_guard_tests(&mut self, span: SourceSpan, guards: Vec<ast::Expr>) -> Vec<Expr> {
+        let guards = self.guard_tests(span, guards);
+        self.context_mut().in_guard = true;
+        let guards = self.gexpr_top(guards);
+        self.context_mut().in_guard = false;
+        guards
+    }
+
+    fn expr_map(
+        &mut self,
+        span: SourceSpan,
+        map: ast::Expr,
+        fields: Vec<ast::MapField>,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        let (map, mut pre) = self.safe_map(map)?;
+        let badmap = self.badmap_term(&map);
+        let fail = fail_body(span, badmap);
+        let is_empty = fields.is_empty();
+        let (map2, mut pre2) = self.map_build_pairs(span, map.clone(), fields)?;
+        pre.append(&mut pre2);
+        let map3 = if is_empty { map.clone() } else { map2.clone() };
+        let is_map = Expr::Call(Call::new(span, symbols::Erlang, symbols::IsMap, vec![map]));
+        let case = Expr::If(If {
+            span,
+            annotations: Annotations::default_compiler_generated(),
+            guard: Box::new(is_map),
+            then_body: Box::new(map3),
+            else_body: Box::new(fail),
+        });
+        Ok((case, pre))
+    }
+
+    // expr_bin([ArgExpr], St) -> {[Arg],[PreExpr],St}.
+    //  Flatten the arguments of a bin. Do this straight left to right!
+    //  Note that ibinary needs to have its annotation wrapped in a #a{}
+    //  record whereas c_literal should not have a wrapped annotation
+    fn expr_bin(
+        &mut self,
+        span: SourceSpan,
+        mut elements: Vec<ast::BinaryElement>,
+    ) -> Result<(Expr, Vec<Expr>), Vec<Expr>> {
+        self.bin_elements(span, elements.as_mut_slice(), 1)
+            .map_err(|_| vec![])?;
+        match self.constant_bin(elements.as_slice()) {
+            Ok(bin) => Ok((Expr::Literal(Literal::binary(span, bin)), vec![])),
+            Err(_) => {
+                let (elements, pre) = self.expr_bin_1(elements)?;
+                if elements.is_empty() {
+                    Ok((Expr::Literal(Literal::binary(span, BitVec::new())), vec![]))
+                } else {
+                    Ok((
+                        Expr::Binary(Binary {
+                            span,
+                            annotations: Annotations::default(),
+                            segments: elements,
+                        }),
+                        pre,
+                    ))
+                }
+            }
+        }
+    }
+
+    fn bin_elements(
+        &mut self,
+        span: SourceSpan,
+        elements: &mut [ast::BinaryElement],
+        _segment_id: usize,
+    ) -> Result<(), ()> {
+        let mut failed = false;
+        for element in elements.iter_mut() {
+            match make_bit_type(
+                element.span,
+                element.bit_size.as_ref(),
+                element.specifier.clone(),
+            ) {
+                Ok((size, spec)) => {
+                    element.bit_size = size;
+                    element.specifier.replace(spec);
+                }
+                Err(reason) => {
+                    failed = true;
+                    self.reporter.show_error(
+                        "invalid binary element",
+                        &[(element.span, reason), (span, "in this binary expression")],
+                    );
+                }
+            }
+        }
+        if failed {
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn expr_bin_1(
+        &mut self,
+        mut elements: Vec<ast::BinaryElement>,
+    ) -> Result<(Vec<Bitstring>, Vec<Expr>), Vec<Expr>> {
+        let mut segments = Vec::with_capacity(elements.len());
+        let mut pre = vec![];
+        let mut is_bad = false;
+        for element in elements.drain(..) {
+            match self.bitstr(element) {
+                Ok((mut segments2, mut pre2)) if !is_bad => {
+                    segments.append(&mut segments2);
+                    pre.append(&mut pre2);
+                }
+                Ok((_segments2, mut pre2)) => {
+                    pre.append(&mut pre2);
+                }
+                Err(mut pre2) => {
+                    is_bad = true;
+                    pre.append(&mut pre2);
+                }
+            }
+        }
+
+        if is_bad {
+            Err(pre)
+        } else {
+            Ok((segments, pre))
+        }
+    }
+
+    fn constant_bin(&mut self, elements: &[ast::BinaryElement]) -> Result<BitVec, ()> {
+        verify_suitable_fields(elements)?;
+        let mut bindings = evaluator::Bindings::default();
+        evaluator::expr_grp(elements, &mut bindings, |expr, _bindings| match expr {
+            ast::Expr::Literal(ast::Literal::Atom(_))
+            | ast::Expr::Literal(ast::Literal::String(_))
+            | ast::Expr::Literal(ast::Literal::Char(_, _))
+            | ast::Expr::Literal(ast::Literal::Integer(_, _))
+            | ast::Expr::Literal(ast::Literal::Float(_, _)) => Ok(expr),
+            _ => Err(()),
+        })
+    }
+
+    fn bitstrs(
+        &mut self,
+        mut elements: Vec<ast::BinaryElement>,
+    ) -> Result<(Vec<Bitstring>, Vec<Expr>), Vec<Expr>> {
+        let mut segments = Vec::with_capacity(elements.len());
+        let mut pre = vec![];
+        for element in elements.drain(..) {
+            let (mut seg, mut pre2) = self.bitstr(element)?;
+            segments.append(&mut seg);
+            pre.append(&mut pre2);
+        }
+        Ok((segments, pre))
+    }
+
+    fn bitstr(
+        &mut self,
+        element: ast::BinaryElement,
+    ) -> Result<(Vec<Bitstring>, Vec<Expr>), Vec<Expr>> {
+        use liblumen_binary::BinaryEntrySpecifier as S;
+
+        let span = element.span;
+        let size_opt = element.bit_size;
+        let spec = element.specifier;
+        match element.bit_expr {
+            ast::Expr::Literal(ast::Literal::String(s)) => {
+                if matches!(size_opt, Some(ast::Expr::Literal(ast::Literal::Integer(_, ref i))) if i == &8)
+                {
+                    // NOTE(pauls): I have no idea why erlc special cases this, but
+                    // it ignores the spec entirely and hashes the string as an integer
+                    // value
+                    //
+                    // <<"foobar":8>>
+                    self.bitstrs(bin_expand_string(s, 0i64.into(), 0, vec![]))
+                } else if s.name == symbols::Empty {
+                    // Empty string. We must make sure that the type is correct.
+                    let (mut bs, mut pre) = self.bitstr(ast::BinaryElement {
+                        span,
+                        bit_expr: ast::Expr::Literal(ast::Literal::Integer(span, 0.into())),
+                        bit_size: size_opt.clone(),
+                        specifier: spec,
+                    })?;
+                    let bs = bs.pop().unwrap();
+                    // At this point, the type is either a correct literal or an expression
+                    match bs.size.as_deref() {
+                        None => {
+                            // One of the utf* types. The size is not used.
+                            debug_assert!(!spec.unwrap_or_default().has_size());
+                            Ok((vec![], vec![]))
+                        }
+                        Some(Expr::Literal(Literal {
+                            value: Lit::Integer(i),
+                            ..
+                        })) if i >= &0 => Ok((vec![], vec![])),
+                        Some(Expr::Var(_)) => {
+                            // Must add a test to verify that the size expression is an integer >= 0
+                            let size = size_opt.unwrap();
+                            let test0 = ast::Expr::Apply(ast::Apply::remote(
+                                span,
+                                symbols::Erlang,
+                                symbols::IsInteger,
+                                vec![size.clone()],
+                            ));
+                            let test1 = ast::Expr::Apply(ast::Apply::remote(
+                                span,
+                                symbols::Erlang,
+                                symbols::Gte,
+                                vec![
+                                    size.clone(),
+                                    ast::Expr::Literal(ast::Literal::Integer(span, 0.into())),
+                                ],
+                            ));
+                            let test2 = ast::Expr::BinaryExpr(ast::BinaryExpr::new(
+                                span,
+                                BinaryOp::AndAlso,
+                                test0,
+                                test1,
+                            ));
+                            let fail = ast::Expr::Apply(ast::Apply::remote(
+                                span,
+                                symbols::Erlang,
+                                symbols::Error,
+                                vec![ast::Expr::Literal(ast::Literal::Atom(Ident::new(
+                                    symbols::Badarg,
+                                    span,
+                                )))],
+                            ));
+                            let test = ast::Expr::BinaryExpr(ast::BinaryExpr::new(
+                                span,
+                                BinaryOp::OrElse,
+                                test2,
+                                fail,
+                            ));
+                            let mexpr = ast::Expr::Match(ast::Match {
+                                span,
+                                pattern: Box::new(ast::Expr::Var(ast::Var(Ident::new(
+                                    symbols::Underscore,
+                                    span,
+                                )))),
+                                expr: Box::new(test),
+                            });
+                            let (_, mut pre2) = self.expr(mexpr).unwrap();
+                            pre.append(&mut pre2);
+                            Ok((vec![], pre))
+                        }
+                        Some(other) => panic!("invalid bitstring expression: {:?}", &other),
+                    }
+                } else {
+                    let (mut bs, pre) = self.bitstr(ast::BinaryElement {
+                        span,
+                        bit_expr: ast::Expr::Literal(ast::Literal::Integer(span, 0.into())),
+                        bit_size: size_opt,
+                        specifier: spec,
+                    })?;
+                    let bitstr = bs.pop().unwrap();
+                    let segments = s
+                        .as_str()
+                        .get()
+                        .chars()
+                        .map(|c| {
+                            let mut b = bitstr.clone();
+                            *b.value.as_mut() = cint!(span, c as i64);
+                            b
+                        })
+                        .collect();
+                    Ok((segments, pre))
+                }
+            }
+            expr => {
+                let spec = spec.unwrap_or_default();
+                let (expr, mut pre) = self.safe(expr).map_err(|_| vec![])?;
+                let (size, mut pre2) = match self.safe(size_opt.unwrap()) {
+                    Ok(ok) => ok,
+                    Err(_) => return Err(pre),
+                };
+                pre.append(&mut pre2);
+
+                match (spec, &expr) {
+                    (_, Expr::Var(_))
+                    | (
+                        S::Integer { .. },
+                        Expr::Literal(Literal {
+                            value: Lit::Integer(_),
+                            ..
+                        }),
+                    )
+                    | (
+                        S::Utf8 { .. },
+                        Expr::Literal(Literal {
+                            value: Lit::Integer(_),
+                            ..
+                        }),
+                    )
+                    | (
+                        S::Utf16 { .. },
+                        Expr::Literal(Literal {
+                            value: Lit::Integer(_),
+                            ..
+                        }),
+                    )
+                    | (
+                        S::Utf32 { .. },
+                        Expr::Literal(Literal {
+                            value: Lit::Integer(_),
+                            ..
+                        }),
+                    ) => (),
+                    (S::Float { .. }, Expr::Literal(Literal { value: lit, .. }))
+                        if lit.is_number() =>
+                    {
+                        ()
+                    }
+                    (
+                        S::Binary { .. },
+                        Expr::Literal(Literal {
+                            value: Lit::Binary(_),
+                            ..
+                        }),
+                    ) => (),
+                    (_, _) => {
+                        // Note that the pre expressions may bind variables that
+                        // are used later or have side effects.
+                        return Err(pre);
+                    }
+                }
+                let size = match size {
+                    v @ Expr::Var(_) => Some(Box::new(v)),
+                    Expr::Literal(lit) => {
+                        if lit.as_integer().map(|i| i >= &0).unwrap_or_default() {
+                            Some(Box::new(Expr::Literal(lit)))
+                        } else if let Some(atom) = lit.as_atom() {
+                            match atom {
+                                symbols::Undefined => None,
+                                symbols::All => Some(Box::new(Expr::Literal(lit))),
+                                _ => return Err(pre),
+                            }
+                        } else {
+                            return Err(pre);
+                        }
+                    }
+                    _ => return Err(pre),
+                };
+                // We will add a 'segment' annotation to segments that could
+                // fail. There is no need to add it to literal segments of fixed
+                // sized. The annotation will be used by the runtime system to
+                // provide extended error information if construction of the
+                // binary fails.
+                // let anno = Annotations::from(vec![(symbols::Segment, lit_tuple!(span, lit_int!(span, line), lit_int!(span, column)))])
+                let bs = Bitstring {
+                    span,
+                    annotations: Annotations::default(),
+                    value: Box::new(expr),
+                    size,
+                    spec,
+                };
+                Ok((vec![bs], pre))
+            }
+        }
+    }
+
+    fn map_build_pairs(
+        &mut self,
+        span: SourceSpan,
+        map: Expr,
+        fields: Vec<ast::MapField>,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        let (pairs, pre) = self.map_build_pairs1(fields)?;
+        let map = Expr::Map(Map {
+            span,
+            annotations: Annotations::default(),
+            arg: Some(Box::new(map)),
+            pairs,
+            is_pattern: false,
+        });
+        Ok((map, pre))
+    }
+
+    fn map_build_pairs1(
+        &mut self,
+        mut fields: Vec<ast::MapField>,
+    ) -> anyhow::Result<(Vec<MapPair>, Vec<Expr>)> {
+        let mut used: HashSet<Literal> = HashSet::new();
+        let mut pairs = Vec::with_capacity(fields.len());
+        let mut pre = Vec::new();
+        for field in fields.drain(..) {
+            let (op, key0, value0) = match field {
+                ast::MapField::Assoc { key, value, .. } => (MapOp::Assoc, key, value),
+                ast::MapField::Exact { key, value, .. } => (MapOp::Exact, key, value),
+            };
+            let (key, mut pre0) = self.safe(key0)?;
+            let (value, mut pre1) = self.safe(value0)?;
+            pre.append(&mut pre0);
+            pre.append(&mut pre1);
+            if let Expr::Literal(ref lit) = &key {
+                if let Some(prev) = used.get(lit) {
+                    self.reporter.show_warning(
+                        "duplicate map key",
+                        &[
+                            (lit.span, "this map key is repeated"),
+                            (prev.span, "it is was first used here"),
+                        ],
+                    );
+                } else {
+                    used.insert(lit.clone());
+                }
+            }
+            pairs.push(MapPair {
+                op,
+                key: Box::new(key),
+                value: Box::new(value),
+            });
+        }
+
+        Ok((pairs, pre))
+    }
+
+    fn badmap_term(&self, map: &Expr) -> Expr {
+        let span = map.span();
+        let badmap = catom!(span, symbols::Badmap);
+        if self.context().in_guard {
+            badmap
+        } else {
+            ctuple!(span, badmap, map.clone())
+        }
+    }
+
+    fn safe_map(&mut self, map: ast::Expr) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        match self.safe(map)? {
+            ok @ (Expr::Var(_), _) => Ok(ok),
+            ok @ (
+                Expr::Literal(Literal {
+                    value: Lit::Map(_), ..
+                }),
+                _,
+            ) => Ok(ok),
+            (notmap, mut pre) => {
+                // Not a map. There will be a syntax error if we try to pretty-print
+                // the Core Erlang code and then try to parse it. To avoid the syntax
+                // error, force the term into a variable.
+                let span = notmap.span();
+                let v = self.context_mut().next_var(Some(span));
+                pre.push(Expr::Internal(IExpr::Set(ISet {
+                    span,
+                    annotations: Annotations::default(),
+                    var: v.name,
+                    arg: Box::new(notmap),
+                })));
+                Ok((Expr::Var(v), pre))
+            }
+        }
+    }
+
+    fn novars(&mut self, expr: ast::Expr) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        let (expr, mut pre) = self.expr(expr)?;
+        let (sexpr, mut pre2) = self.force_novars(expr);
+        pre.append(&mut pre2);
+        Ok((sexpr, pre))
+    }
+
+    fn force_novars(&mut self, expr: Expr) -> (Expr, Vec<Expr>) {
+        match expr {
+            app @ Expr::Apply(_) => (app, vec![]),
+            call @ Expr::Call(_) => (call, vec![]),
+            fun @ Expr::Internal(IExpr::Fun(_)) => (fun, vec![]),
+            fun @ Expr::Fun(_) => (fun, vec![]),
+            bin @ Expr::Binary(_) => (bin, vec![]),
+            map @ Expr::Map(_) => (map, vec![]),
+            other => self.force_safe(other),
+        }
+    }
+
+    /// safe_list(Expr, State) -> {Safe,[PreExpr],State}.
+    ///  Generate an internal safe expression for a list of
+    ///  expressions.
+    fn safe_list(&mut self, mut exprs: Vec<ast::Expr>) -> anyhow::Result<(Vec<Expr>, Vec<Expr>)> {
+        use std::collections::VecDeque;
+
+        let mut out = VecDeque::<Expr>::with_capacity(exprs.len());
+        let mut pre = VecDeque::<Vec<Expr>>::new();
+        for expr in exprs.drain(..).rev() {
+            let (cexpr, pre2) = self.safe(expr)?;
+            match pre.pop_front() {
+                Some(mut prev) if prev.len() == 1 => {
+                    match prev.pop().unwrap() {
+                        Expr::Internal(IExpr::Exprs(IExprs { mut bodies, .. })) => {
+                            // A cons within a cons
+                            out.push_front(cexpr);
+                            // [Pre2 | Bodies] ++ Pre
+                            let mut bodies = bodies.drain(..).collect::<VecDeque<_>>();
+                            bodies.push_front(pre2);
+                            bodies.append(&mut pre);
+                            pre = bodies;
+                        }
+                        prev_expr => {
+                            prev.push(prev_expr);
+                            pre.push_front(pre2);
+                        }
+                    }
+                }
+                Some(prev) => {
+                    pre.push_front(prev);
+                    pre.push_front(pre2);
+                }
+                None => {
+                    pre.push_front(pre2);
+                }
+            }
+        }
+
+        let out = out.drain(..).collect::<Vec<_>>();
+        let mut pre = pre
+            .drain(..)
+            .filter(|exprs| !exprs.is_empty())
+            .collect::<Vec<_>>();
+        match pre.len() {
+            0 => Ok((out, vec![])),
+            1 => Ok((out, pre.pop().unwrap())),
+            _ => Ok((out, vec![Expr::Internal(IExpr::Exprs(IExprs::new(pre)))])),
+        }
+    }
+
+    // safe(Expr, State) -> {Safe,[PreExpr],State}.
+    //  Generate an internal safe expression.  These are simples without
+    //  binaries which can fail.  At this level we do not need to do a
+    //  deep check.  Must do special things with matches here.
+    fn safe(&mut self, expr: ast::Expr) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        let (expr, mut pre) = self.expr(expr)?;
+        let (expr, mut pre2) = self.force_safe(expr);
+        pre.append(&mut pre2);
+        Ok((expr, pre))
+    }
+
+    fn force_safe(&mut self, expr: Expr) -> (Expr, Vec<Expr>) {
+        match expr {
+            Expr::Internal(IExpr::Match(imatch)) => {
+                let (le, mut pre) = self.force_safe(*imatch.arg);
+
+                // Make sure we don't duplicate the expression E
+                match le {
+                    le @ Expr::Var(_) => {
+                        // Le is a variable
+                        // Thus: P = Le, Le.
+                        pre.push(Expr::Internal(IExpr::Match(IMatch {
+                            span: imatch.span,
+                            annotations: imatch.annotations,
+                            pattern: imatch.pattern,
+                            guard: imatch.guard,
+                            arg: Box::new(le.clone()),
+                            fail: imatch.fail,
+                        })));
+                        (le, pre)
+                    }
+                    le => {
+                        // Le is not a variable.
+                        // Thus: NewVar = P = Le, NewVar.
+                        let v = self.context_mut().next_var(Some(le.span()));
+                        let pattern = imatch.pattern;
+                        let pattern = Expr::Alias(Alias {
+                            span: pattern.span(),
+                            annotations: Annotations::default(),
+                            var: v.name,
+                            pattern,
+                        });
+                        pre.push(Expr::Internal(IExpr::Match(IMatch {
+                            span: imatch.span,
+                            annotations: imatch.annotations,
+                            pattern: Box::new(pattern),
+                            guard: imatch.guard,
+                            arg: Box::new(le),
+                            fail: imatch.fail,
+                        })));
+                        (Expr::Var(v), pre)
+                    }
+                }
+            }
+            expr if is_safe(&expr) => (expr, vec![]),
+            expr => {
+                let span = expr.span();
+                let v = self.context_mut().next_var(Some(span));
+                let var = Expr::Var(v.clone());
+                (
+                    var,
+                    vec![Expr::Internal(IExpr::Set(ISet::new(span, v.name, expr)))],
+                )
+            }
+        }
+    }
+
+    // try_exception([ExcpClause]) -> {[ExcpVar],Handler}
+    fn try_exception(&mut self, clauses: Vec<ast::Clause>) -> anyhow::Result<([Ident; 3], Expr)> {
+        // Note that the tag is not needed for rethrow - it is already in the exception info
+        let (tag, value, info) = {
+            let context = self.context_mut();
+            let tag = context.next_var(None);
+            let value = context.next_var(None);
+            let info = context.next_var(None);
+            (tag, value, info)
+        };
+        let clauses = self.clauses(clauses)?;
+        let clauses = try_build_stacktrace(clauses, tag.name);
+        let span = clauses.get(0).map(|c| c.span).unwrap_or_default();
+        let evars = ctuple!(
+            span,
+            Expr::Var(tag.clone()),
+            Expr::Var(value.clone()),
+            Expr::Var(info.clone())
+        );
+        let fail = Box::new(IClause {
+            span,
+            annotations: Annotations::default_compiler_generated(),
+            patterns: vec![evars.clone()],
+            guards: vec![],
+            body: vec![Expr::PrimOp(PrimOp::new(
+                span,
+                symbols::Raise,
+                vec![Expr::Var(info.clone()), Expr::Var(value.clone())],
+            ))],
+        });
+        let handler = Expr::Internal(IExpr::Case(ICase {
+            span,
+            annotations: Annotations::default(),
+            args: vec![evars],
+            clauses,
+            fail,
+        }));
+        Ok(([tag.name, value.name, info.name], handler))
+    }
+
+    fn try_after(
+        &mut self,
+        span: SourceSpan,
+        exprs: Vec<ast::Expr>,
+        mut after: Vec<ast::Expr>,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        ta_sanitize_as(&mut after);
+        let exprs = self.exprs(exprs)?;
+        let after = self.exprs(after)?;
+        let v = self.context_mut().next_var(Some(span));
+        if is_iexprs_small(&after, 20) {
+            Ok(self.try_after_small(span, exprs, after, v))
+        } else {
+            Ok(self.try_after_large(span, exprs, after, v))
+        }
+    }
+
+    fn try_after_large(
+        &mut self,
+        span: SourceSpan,
+        exprs: Vec<Expr>,
+        after: Vec<Expr>,
+        var: Var,
+    ) -> (Expr, Vec<Expr>) {
+        // Large 'after' block; break it out into a wrapper function to reduce code size
+        let name = self.context_mut().new_fun_name(Some("after"));
+        let fail = fail_clause(
+            span,
+            vec![],
+            Expr::Literal(lit_tuple!(span, lit_atom!(span, symbols::FunctionClause))),
+        );
+        let fun = Expr::Internal(IExpr::Fun(IFun {
+            span,
+            annotations: Annotations::default(),
+            id: None,
+            name,
+            vars: vec![],
+            clauses: vec![IClause::new(span, vec![], vec![], after)],
+            fail,
+        }));
+        let apply = Expr::Apply(Apply {
+            span,
+            annotations: Annotations::default_compiler_generated(),
+            callee: Box::new(Expr::Var(Var {
+                span,
+                annotations: Annotations::default(),
+                name: Ident::new(name, span),
+                arity: Some(Arity::Int(0)),
+            })),
+            args: vec![],
+        });
+        let (evars, handler) = self.after_block(span, vec![apply.clone()]);
+        let texpr = Expr::Internal(IExpr::Try(ITry {
+            span,
+            annotations: Annotations::default(),
+            args: exprs,
+            vars: vec![var.name],
+            body: vec![apply, Expr::Var(var)],
+            evars,
+            handler: Box::new(handler),
+        }));
+        let letr = Expr::LetRec(LetRec {
+            span,
+            annotations: Annotations::default(),
+            defs: vec![(
+                Var::new_with_arity(span, Ident::new(name, span), Arity::Int(0)),
+                fun,
+            )],
+            body: Box::new(texpr),
+        });
+        (letr, vec![])
+    }
+
+    fn try_after_small(
+        &mut self,
+        span: SourceSpan,
+        exprs: Vec<Expr>,
+        mut after: Vec<Expr>,
+        var: Var,
+    ) -> (Expr, Vec<Expr>) {
+        // Small 'after' block; inline it
+        let (evars, handler) = self.after_block(span, after.clone());
+        let v = var.name;
+        after.push(Expr::Var(var));
+        let texpr = Expr::Internal(IExpr::Try(ITry {
+            span,
+            annotations: Annotations::default(),
+            args: exprs,
+            vars: vec![v],
+            body: after,
+            evars,
+            handler: Box::new(handler),
+        }));
+        (texpr, vec![])
+    }
+
+    fn after_block(&mut self, span: SourceSpan, mut after: Vec<Expr>) -> ([Ident; 3], Expr) {
+        let (tag, value, info) = {
+            let context = self.context_mut();
+            let tag = context.next_var(Some(span));
+            let value = context.next_var(Some(span));
+            let info = context.next_var(Some(span));
+            (tag, value, info)
+        };
+        let evs = ctuple!(
+            span,
+            Expr::Var(tag.clone()),
+            Expr::Var(value.clone()),
+            Expr::Var(info.clone())
+        );
+        after.push(Expr::PrimOp(PrimOp::new(
+            span,
+            symbols::Raise,
+            vec![Expr::Var(info.clone()), Expr::Var(value.clone())],
+        )));
+        let handler = Expr::Internal(IExpr::Case(ICase {
+            span,
+            annotations: Annotations::default(),
+            args: vec![evs.clone()],
+            clauses: vec![],
+            fail: Box::new(IClause {
+                span,
+                annotations: Annotations::default_compiler_generated(),
+                patterns: vec![evs],
+                guards: vec![],
+                body: after,
+            }),
+        }));
+        ([tag.name, value.name, info.name], handler)
+    }
+
+    fn set_wanted(&mut self, expr: &ast::Expr) -> bool {
+        match expr {
+            ast::Expr::Var(ast::Var(id)) => {
+                if id.name == symbols::Empty {
+                    self.context_mut().set_wanted(false)
+                } else {
+                    if id.name.as_str().get().starts_with('_') {
+                        self.context_mut().set_wanted(false)
+                    } else {
+                        self.context().wanted
+                    }
+                }
+            }
+            _ => self.context().wanted,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum PatternError {
+    NoMatch,
+}
+
+fn fail_body(span: SourceSpan, arg: Expr) -> Expr {
+    Expr::PrimOp(PrimOp::new(span, symbols::MatchFail, vec![arg]))
+}
+
+fn fail_clause(span: SourceSpan, patterns: Vec<Expr>, arg: Expr) -> Box<IClause> {
+    Box::new(IClause {
+        span,
+        annotations: Annotations::default_compiler_generated(),
+        patterns,
+        guards: vec![],
+        body: vec![fail_body(span, arg)],
+    })
+}
+
+/// sanitize(Pat) -> SanitizedPattern
+///  Rewrite Pat so that it will be accepted by pattern/2 and will
+///  bind the same variables as the original pattern.
+///
+///  Here is an example of a pattern that would cause a pattern/2
+///  to generate a 'nomatch' exception:
+///
+///      #{k:=X,k:=Y} = [Z]
+///
+///  The sanitized pattern will look like:
+///
+///      {{X,Y},[Z]}
+fn sanitize(expr: ast::Expr) -> ast::Expr {
+    match expr {
+        ast::Expr::Match(ast::Match {
+            span,
+            pattern,
+            expr,
+        }) => {
+            let pattern = sanitize(*pattern);
+            let expr = sanitize(*expr);
+            ast::Expr::Tuple(ast::Tuple {
+                span,
+                elements: vec![pattern, expr],
+            })
+        }
+        ast::Expr::Cons(ast::Cons { span, head, tail }) => {
+            let head = Box::new(sanitize(*head));
+            let tail = Box::new(sanitize(*tail));
+            ast::Expr::Cons(ast::Cons { span, head, tail })
+        }
+        ast::Expr::Tuple(ast::Tuple { span, mut elements }) => {
+            let elements = elements.drain(..).map(sanitize).collect();
+            ast::Expr::Tuple(ast::Tuple { span, elements })
+        }
+        ast::Expr::Binary(ast::Binary {
+            span,
+            elements: mut bin_elements,
+        }) => {
+            let mut elements = vec![];
+            for element in bin_elements.drain(..) {
+                match element.bit_expr {
+                    var @ ast::Expr::Var(_) => elements.push(var),
+                    _ => (),
+                }
+            }
+            ast::Expr::Tuple(ast::Tuple { span, elements })
+        }
+        ast::Expr::Map(ast::Map { span, mut fields }) => {
+            let elements = fields
+                .drain(..)
+                .map(|field| match field {
+                    ast::MapField::Exact { value, .. } => sanitize(value),
+                    _ => unreachable!(),
+                })
+                .collect();
+            ast::Expr::Tuple(ast::Tuple { span, elements })
+        }
+        ast::Expr::BinaryExpr(ast::BinaryExpr { span, lhs, rhs, .. }) => {
+            let lhs = sanitize(*lhs);
+            let rhs = sanitize(*rhs);
+            ast::Expr::Tuple(ast::Tuple {
+                span,
+                elements: vec![lhs, rhs],
+            })
+        }
+        expr => expr,
+    }
+}
+
+/// unforce(Expr, PreExprList, BoolExprList) -> BoolExprList'.
+///  Filter BoolExprList. BoolExprList is a list of simple expressions
+///  (variables or literals) of which we are not sure whether they are booleans.
+///
+///  The basic idea for filtering is the following transformation:
+///
+///      (E =:= Bool) and is_boolean(E)   ==>  E =:= Bool
+///
+///  where E is an arbitrary expression and Bool is 'true' or 'false'.
+///
+///  The transformation is still valid if there are other expressions joined
+///  by 'and' operations:
+///
+///      E1 and (E2 =:= true) and E3 and is_boolean(E)   ==>  E1 and (E2 =:= true) and E3
+///
+///  but expressions such as:
+///
+///     not (E =:= true) and is_boolean(E)
+///
+///  or expression using 'or' or 'xor' cannot be transformed in this
+///  way (such expressions are the reason for adding the is_boolean/1
+///  test in the first place).
+///
+fn unforce(expr: &Expr, mut pre: Vec<Expr>, bools: Vec<Expr>) -> Vec<Expr> {
+    if bools.is_empty() {
+        bools
+    } else {
+        pre.push(expr.clone());
+        let mut tree = BTreeMap::new();
+        let expr = unforce_tree(pre, &mut tree);
+        unforce2(&expr, bools)
+    }
+}
+
+fn unforce2(expr: &Expr, mut bools: Vec<Expr>) -> Vec<Expr> {
+    match expr {
+        Expr::Call(call) if call.is_static(symbols::Erlang, symbols::And, 2) => {
+            let bools = unforce2(call.args.get(0).unwrap(), bools);
+            unforce2(call.args.get(1).unwrap(), bools)
+        }
+        Expr::Call(call) if call.is_static(symbols::Erlang, symbols::EqualStrict, 2) => {
+            if call.args[1].is_boolean() {
+                let e = call.args.get(0).unwrap();
+                match bools.iter().position(|b| b == e) {
+                    None => bools,
+                    Some(idx) => {
+                        bools.remove(idx);
+                        bools
+                    }
+                }
+            } else {
+                bools
+            }
+        }
+        _ => bools,
+    }
+}
+
+fn unforce_tree(mut exprs: Vec<Expr>, tree: &mut BTreeMap<Symbol, Expr>) -> Expr {
+    let mut it = exprs.drain(..);
+    while let Some(expr) = it.next() {
+        match expr {
+            Expr::Internal(IExpr::Exprs(IExprs { mut bodies, .. })) => {
+                let mut base = Vec::with_capacity(bodies.iter().fold(0, |acc, es| es.len() + acc));
+                base.extend(bodies.drain(..).flat_map(|es| es));
+                base.extend(it);
+                return unforce_tree(base, tree);
+            }
+            Expr::Internal(IExpr::Set(ISet { var, arg, .. })) => {
+                let arg = unforce_tree_subst(*arg, tree);
+                tree.insert(var.name, arg);
+                continue;
+            }
+            call @ Expr::Call(_) => {
+                return unforce_tree_subst(call, tree);
+            }
+            Expr::Var(var) => {
+                return tree.remove(&var.name()).unwrap();
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    unreachable!()
+}
+
+fn unforce_tree_subst(expr: Expr, tree: &mut BTreeMap<Symbol, Expr>) -> Expr {
+    match expr {
+        Expr::Call(mut call) => {
+            if call.is_static(symbols::Erlang, symbols::EqualStrict, 2) {
+                if call.args[1].is_boolean() {
+                    // We have erlang:'=:='(Expr, Bool). We must not expand this call any more
+                    // or we will not recognize is_boolean(Expr) later.
+                    return Expr::Call(call);
+                }
+            }
+
+            for arg in call.args.iter_mut() {
+                if let Expr::Var(v) = arg {
+                    if let Some(value) = tree.get(&v.name()) {
+                        *arg = value.clone();
+                    }
+                }
+            }
+
+            Expr::Call(call)
+        }
+        expr => expr,
+    }
+}
+
+fn letify_aliases(pattern: Expr, expr: Expr) -> (Expr, Expr, Vec<Expr>) {
+    match pattern {
+        Expr::Alias(Alias {
+            span, var, pattern, ..
+        }) => {
+            let (pattern, expr2, mut pre) = letify_aliases(*pattern, Expr::Var(Var::new(var)));
+            pre.insert(0, Expr::Internal(IExpr::Set(ISet::new(span, var, expr))));
+            (pattern, expr2, pre)
+        }
+        pattern => (pattern, expr, vec![]),
+    }
+}
+
+// Fold nested matches into one match with aliased patterns
+fn fold_match(expr: ast::Expr, pattern: ast::Expr) -> (ast::Expr, ast::Expr) {
+    match expr {
+        ast::Expr::Match(ast::Match {
+            span,
+            expr: box expr0,
+            pattern: box pattern0,
+        }) => {
+            let (pattern1, expr1) = fold_match(expr0, pattern);
+            let pattern2 = ast::Expr::Match(ast::Match {
+                span,
+                pattern: Box::new(pattern0),
+                expr: Box::new(pattern1),
+            });
+            (pattern2, expr1)
+        }
+        expr => (pattern, expr),
+    }
+}
+
+fn make_bool_switch(
+    span: SourceSpan,
+    expr: ast::Expr,
+    var: ast::Var,
+    truep: ast::Expr,
+    falsep: ast::Expr,
+) -> ast::Expr {
+    let badarg = ast::Expr::Literal(ast::Literal::Atom(Ident::new(symbols::Badarg, span)));
+    let atom_true = ast::Expr::Literal(ast::Literal::Atom(Ident::new(symbols::True, span)));
+    let atom_false = ast::Expr::Literal(ast::Literal::Atom(Ident::new(symbols::False, span)));
+    let error = ast::Expr::Tuple(ast::Tuple {
+        span,
+        elements: vec![badarg, ast::Expr::Var(var)],
+    });
+    ast::Expr::Case(ast::Case {
+        span,
+        expr: Box::new(expr),
+        clauses: vec![
+            ast::Clause {
+                span,
+                patterns: vec![atom_true],
+                guards: vec![],
+                body: vec![truep],
+                compiler_generated: true,
+            },
+            ast::Clause {
+                span,
+                patterns: vec![atom_false],
+                guards: vec![],
+                body: vec![falsep],
+                compiler_generated: true,
+            },
+            ast::Clause {
+                span,
+                patterns: vec![ast::Expr::Var(var)],
+                guards: vec![],
+                body: vec![apply!(span, erlang, error, (error))],
+                compiler_generated: true,
+            },
+        ],
+    })
+}
+
+// 'after' blocks don't have a result, so we match the last expression with '_'
+// to suppress false "unmatched return" warnings in tools that look at core
+// Erlang, such as `dialyzer`.
+fn ta_sanitize_as(exprs: &mut Vec<ast::Expr>) {
+    let last = exprs.pop().unwrap();
+    let span = last.span();
+    exprs.push(ast::Expr::Match(ast::Match {
+        span,
+        pattern: Box::new(ast::Expr::Var(ast::Var(Ident::new(
+            symbols::Underscore,
+            span,
+        )))),
+        expr: Box::new(last),
+    }));
+}
+
+fn try_build_stacktrace(mut clauses: Vec<IClause>, raw_stack: Ident) -> Vec<IClause> {
+    let mut output = Vec::with_capacity(clauses.len());
+    for mut clause in clauses.drain(..) {
+        let Expr::Tuple(ref mut tup) = clause.patterns.get_mut(0).unwrap() else { panic!("expected tuple pattern") };
+        let stk = tup.elements.pop().unwrap();
+        match stk {
+            Expr::Var(Var { name, .. }) if name == symbols::Underscore => {
+                // Stacktrace variable is not used, nothing to do.
+                tup.elements.push(stk);
+                output.push(clause);
+            }
+            Expr::Var(Var { span, name, .. }) => {
+                // Add code to build the stacktrace
+                let raw_stack = Expr::Var(Var::new(raw_stack));
+                tup.elements.push(raw_stack.clone());
+                let call =
+                    Expr::PrimOp(PrimOp::new(span, symbols::BuildStacktrace, vec![raw_stack]));
+                let set = Expr::Internal(IExpr::Set(ISet {
+                    span,
+                    annotations: Annotations::default(),
+                    var: name,
+                    arg: Box::new(call),
+                }));
+                clause.body.insert(0, set);
+                output.push(clause);
+            }
+            _ => panic!("expected stacktrace variable"),
+        }
+    }
+
+    output
+}
+
+// is_iexprs_small([Exprs], Threshold) -> boolean().
+//  Determines whether a list of expressions is "smaller" than the given
+//  threshold. This is largely analogous to cerl_trees:size/1 but operates on
+//  our internal #iexprs{} and bails out as soon as the threshold is exceeded.
+fn is_iexprs_small(exprs: &[Expr], threshold: usize) -> bool {
+    0 < is_iexprs_small_1(exprs, threshold)
+}
+
+fn is_iexprs_small_1(exprs: &[Expr], mut threshold: usize) -> usize {
+    for expr in exprs {
+        if threshold == 0 {
+            return 0;
+        }
+        threshold = is_iexprs_small_2(expr, threshold - 1);
+    }
+
+    threshold
+}
+
+fn is_iexprs_small_2(expr: &Expr, threshold: usize) -> usize {
+    match expr {
+        Expr::Internal(IExpr::Try(ITry {
+            ref body, handler, ..
+        })) => {
+            let threshold = is_iexprs_small_1(body.as_slice(), threshold);
+            is_iexprs_small_2(handler.as_ref(), threshold)
+        }
+        Expr::Internal(IExpr::Match(IMatch { ref guard, .. })) => {
+            is_iexprs_small_1(guard.as_slice(), threshold)
+        }
+        Expr::Internal(IExpr::Case(ICase { ref clauses, .. })) => {
+            is_iexprs_small_iclauses(clauses.as_slice(), threshold)
+        }
+        Expr::Internal(IExpr::Fun(IFun { ref clauses, .. })) => {
+            is_iexprs_small_iclauses(clauses.as_slice(), threshold)
+        }
+        Expr::Internal(IExpr::Receive1(IReceive1 { ref clauses, .. })) => {
+            is_iexprs_small_iclauses(clauses.as_slice(), threshold)
+        }
+        Expr::Internal(IExpr::Receive2(IReceive2 { ref clauses, .. })) => {
+            is_iexprs_small_iclauses(clauses.as_slice(), threshold)
+        }
+        Expr::Internal(IExpr::Catch(ICatch { ref body, .. })) => {
+            is_iexprs_small_1(body.as_slice(), threshold)
+        }
+        Expr::Internal(IExpr::Protect(IProtect { ref body, .. })) => {
+            is_iexprs_small_1(body.as_slice(), threshold)
+        }
+        Expr::Internal(IExpr::Set(ISet { ref arg, .. })) => {
+            is_iexprs_small_2(arg.as_ref(), threshold)
+        }
+        Expr::LetRec(LetRec { ref body, .. }) => is_iexprs_small_2(body.as_ref(), threshold),
+        _ => threshold,
+    }
+}
+
+fn is_iexprs_small_iclauses(clauses: &[IClause], threshold: usize) -> usize {
+    let mut threshold = threshold;
+    for clause in clauses {
+        match is_iexprs_small_1(clause.guards.as_slice(), threshold) {
+            0 => return 0,
+            n => threshold = n,
+        }
+        match is_iexprs_small_1(clause.body.as_slice(), threshold) {
+            0 => return 0,
+            n => threshold = n,
+        }
+    }
+    threshold
+}
+
+#[derive(PartialEq)]
+enum BitSize {
+    Undefined,
+    All,
+    Sized(ast::Expr),
+}
+
+fn make_bit_type(
+    span: SourceSpan,
+    size: Option<&ast::Expr>,
+    spec: Option<BinaryEntrySpecifier>,
+) -> Result<(Option<ast::Expr>, BinaryEntrySpecifier), &'static str> {
+    match set_bit_type(span, size, spec)? {
+        (BitSize::All, spec) => Ok((
+            Some(ast::Expr::Literal(ast::Literal::Atom(Ident::new(
+                symbols::All,
+                span,
+            )))),
+            spec,
+        )),
+        (BitSize::Undefined, spec) => Ok((None, spec)),
+        (BitSize::Sized(size), spec) => Ok((Some(size), spec)),
+    }
+}
+
+fn set_bit_type(
+    span: SourceSpan,
+    size: Option<&ast::Expr>,
+    spec: Option<BinaryEntrySpecifier>,
+) -> Result<(BitSize, BinaryEntrySpecifier), &'static str> {
+    let spec = spec.unwrap_or_default();
+    let size = match size {
+        None => BitSize::Undefined,
+        Some(ast::Expr::Literal(ast::Literal::Atom(a))) if a.name == symbols::All => BitSize::All,
+        Some(expr) => BitSize::Sized(expr.clone()),
+    };
+    match spec {
+        BinaryEntrySpecifier::Binary { .. } => match size {
+            BitSize::Undefined => Ok((BitSize::All, spec)),
+            size => Ok((size, spec)),
+        },
+        BinaryEntrySpecifier::Utf8
+        | BinaryEntrySpecifier::Utf16 { .. }
+        | BinaryEntrySpecifier::Utf32 { .. } => match size {
+            BitSize::Undefined => Ok((size, spec)),
+            _ => Err("utf binary specifiers are incompatible with an explicit size"),
+        },
+        BinaryEntrySpecifier::Integer { .. } => match size {
+            BitSize::Undefined => Ok((
+                BitSize::Sized(ast::Expr::Literal(ast::Literal::Integer(span, 8.into()))),
+                spec,
+            )),
+            BitSize::All => Err("invalid size"),
+            size @ BitSize::Sized(_) => Ok((size, spec)),
+        },
+        BinaryEntrySpecifier::Float { .. } => match size {
+            BitSize::Undefined => Ok((
+                BitSize::Sized(ast::Expr::Literal(ast::Literal::Integer(span, 64.into()))),
+                spec,
+            )),
+            BitSize::All => Err("invalid size"),
+            size @ BitSize::Sized(_) => Ok((size, spec)),
+        },
+    }
+}
+
+fn bin_expand_string(
+    s: Ident,
+    mut value: Integer,
+    mut size: usize,
+    mut last: Vec<ast::BinaryElement>,
+) -> Vec<ast::BinaryElement> {
+    let span = s.span;
+    let mut expanded = vec![];
+    for c in s.as_str().get().chars().map(|c| c as i64) {
+        if size >= COLLAPSE_MAX_SIZE_SEGMENT {
+            expanded.push(make_combined(span, value.clone(), size));
+            value = 0.into();
+            size = 0;
+        }
+        value = value << 8;
+        value = value | c;
+        size += 8;
+    }
+
+    expanded.push(make_combined(span, value, size));
+    expanded.append(&mut last);
+    expanded
+}
+
+fn make_combined(span: SourceSpan, value: Integer, size: usize) -> ast::BinaryElement {
+    ast::BinaryElement {
+        span,
+        bit_expr: ast::Expr::Literal(ast::Literal::Integer(span, value)),
+        bit_size: Some(ast::Expr::Literal(ast::Literal::Integer(span, size.into()))),
+        specifier: Some(BinaryEntrySpecifier::default()),
+    }
+}
+
+fn verify_suitable_fields(elements: &[ast::BinaryElement]) -> Result<(), ()> {
+    const MAX_UNIT: Integer = Integer::Small(256);
+
+    for element in elements {
+        let unit = element
+            .specifier
+            .as_ref()
+            .map(|spec| spec.unit())
+            .unwrap_or(1usize);
+        match (element.bit_size.as_ref(), &element.bit_expr) {
+            // utf8/16/32
+            (None, ast::Expr::Literal(ast::Literal::String(_)))
+            | (None, ast::Expr::Literal(ast::Literal::Char(_, _)))
+            | (None, ast::Expr::Literal(ast::Literal::Integer(_, _))) => continue,
+            (Some(ast::Expr::Literal(ast::Literal::Integer(_, i))), _) if i * unit >= MAX_UNIT => {
+                // Always accept fields up to this size
+                continue;
+            }
+            (
+                Some(ast::Expr::Literal(ast::Literal::Integer(_, i))),
+                ast::Expr::Literal(ast::Literal::Integer(_, value)),
+            ) => {
+                // Estimate the number of bits needed to hold the integer literal.
+                // Check whether the field size is reasonable in proportion to the number
+                // of bits needed.
+                let size = i * unit;
+                let bits_needed = value.bits();
+                let bits_limit = Integer::from(2 * bits_needed);
+                if bits_limit >= size {
+                    continue;
+                }
+                // More than about half of the field size will be filled out with zeros - not acceptable
+                return Err(());
+            }
+            _ => return Err(()),
+        }
+    }
+
+    Ok(())
+}
+
+fn is_new_type_test(function: Symbol, arity: u8) -> bool {
+    match function {
+        symbols::IsAtom
+        | symbols::IsBinary
+        | symbols::IsBitstring
+        | symbols::IsBoolean
+        | symbols::IsFloat
+        | symbols::IsInteger
+        | symbols::IsList
+        | symbols::IsMap
+        | symbols::IsNumber
+        | symbols::IsPid
+        | symbols::IsPort
+        | symbols::IsReference
+        | symbols::IsTuple => arity == 1,
+        symbols::IsFunction => arity == 1 || arity == 2,
+        symbols::IsRecord => arity == 2 || arity == 3,
+        _ => false,
+    }
+}
+
+fn is_bool_op(function: Symbol, arity: u8) -> bool {
+    match function {
+        symbols::Not => arity == 1,
+        symbols::And | symbols::Or | symbols::Xor => arity == 2,
+        _ => false,
+    }
+}
+
+fn is_cmp_op(function: Symbol, arity: u8) -> bool {
+    match function {
+        symbols::Equal
+        | symbols::NotEqual
+        | symbols::Lte
+        | symbols::Lt
+        | symbols::Gte
+        | symbols::Gt
+        | symbols::EqualStrict
+        | symbols::NotEqualStrict => arity == 2,
+        _ => false,
+    }
+}
+
+fn is_safe(expr: &Expr) -> bool {
+    match expr {
+        Expr::Cons(_) | Expr::Tuple(_) | Expr::Literal(_) => true,
+        // Fun
+        Expr::Var(v) if v.arity.is_some() => false,
+        // Ordinary variable
+        Expr::Var(_) => true,
+        _ => false,
+    }
+}
+
+// is_guard_test(Expression) -> true | false.
+//  Test if a general expression is a guard test.
+//
+//  Note that a local function overrides a BIF with the same name.
+//  For example, if there is a local function named is_list/1,
+//  any unqualified call to is_list/1 will be to the local function.
+//  The guard function must be explicitly called as erlang:is_list/1.
+#[inline]
+fn is_guard_test(expr: &ast::Expr) -> bool {
+    is_gexpr(expr)
+}
+
+fn is_type_test(fun: Symbol, arity: usize) -> bool {
+    match fun {
+        symbols::IsAtom
+        | symbols::IsBinary
+        | symbols::IsBitstring
+        | symbols::IsBoolean
+        | symbols::IsFloat
+        | symbols::IsFunction
+        | symbols::IsInteger
+        | symbols::IsList
+        | symbols::IsMap
+        | symbols::IsNumber
+        | symbols::IsPid
+        | symbols::IsPort
+        | symbols::IsReference
+        | symbols::IsTuple
+            if arity == 1 =>
+        {
+            true
+        }
+        symbols::IsFunction | symbols::IsRecord if arity == 2 => true,
+        symbols::IsRecord if arity == 3 => true,
+        _ => false,
+    }
+}
+
+fn is_guard_bif(fun: Symbol, arity: usize) -> bool {
+    match fun {
+        symbols::Node | symbols::SELF if arity == 0 => true,
+        symbols::Abs
+        | symbols::BitSize
+        | symbols::ByteSize
+        | symbols::Ceil
+        | symbols::Float
+        | symbols::Floor
+        | symbols::Hd
+        | symbols::Length
+        | symbols::MapSize
+        | symbols::Node
+        | symbols::Round
+        | symbols::Size
+        | symbols::Tl
+        | symbols::Trunc
+        | symbols::TupleSize
+            if arity == 1 =>
+        {
+            true
+        }
+        symbols::BinaryPart | symbols::Element | symbols::IsMapKey | symbols::MapGet
+            if arity == 2 =>
+        {
+            true
+        }
+        symbols::BinaryPart if arity == 3 => true,
+        _ => is_type_test(fun, arity),
+    }
+}
+
+fn is_gexpr(expr: &ast::Expr) -> bool {
+    match expr {
+        ast::Expr::Var(_) => true,
+        ast::Expr::Literal(_) => true,
+        ast::Expr::Cons(cons) => is_gexpr(&cons.head) && is_gexpr(&cons.tail),
+        ast::Expr::Tuple(tup) => is_gexpr_list(tup.elements.as_slice()),
+        ast::Expr::Map(map) => is_map_fields(map.fields.as_slice()),
+        ast::Expr::MapUpdate(mu) => {
+            is_gexpr(mu.map.as_ref()) && is_map_fields(mu.updates.as_slice())
+        }
+        ast::Expr::Binary(bin) => bin.elements.iter().all(|e| {
+            is_gexpr(&e.bit_expr) && e.bit_size.as_ref().map(|sz| is_gexpr(sz)).unwrap_or(true)
+        }),
+        ast::Expr::Apply(ast::Apply { callee, args, .. }) => match callee.as_ref() {
+            ast::Expr::FunctionName(name) => match (name.module(), name.function()) {
+                (Some(symbols::Erlang), Some(f)) => {
+                    let arity = args.len();
+                    is_gexpr_op(f, arity) && is_gexpr_list(args.as_slice())
+                }
+                _ => false,
+            },
+            _ => false,
+        },
+        ast::Expr::BinaryExpr(ast::BinaryExpr { op, lhs, rhs, .. }) if op.is_guard_op() => {
+            is_gexpr(lhs.as_ref()) && is_gexpr(rhs.as_ref())
+        }
+        ast::Expr::UnaryExpr(ast::UnaryExpr { op, operand, .. }) if op.is_guard_op() => {
+            is_gexpr(operand.as_ref())
+        }
+        ast::Expr::FunctionName(_)
+        | ast::Expr::DelayedSubstitution(_, _)
+        | ast::Expr::Record(_)
+        | ast::Expr::RecordAccess(_)
+        | ast::Expr::RecordIndex(_)
+        | ast::Expr::RecordUpdate(_)
+        | ast::Expr::Generator(_) => unreachable!(),
+        _ => false,
+    }
+}
+
+fn is_gexpr_op(op: Symbol, arity: usize) -> bool {
+    match arity {
+        1 => match UnaryOp::from_symbol(op).map(|o| o.is_guard_op()) {
+            Ok(result) => result,
+            Err(_) => is_guard_bif(op, arity),
+        },
+        2 => match BinaryOp::from_symbol(op).map(|o| o.is_guard_op()) {
+            Ok(result) => result,
+            Err(_) => is_guard_bif(op, arity),
+        },
+        _ => is_guard_bif(op, arity),
+    }
+}
+
+#[inline]
+fn is_gexpr_list(elements: &[ast::Expr]) -> bool {
+    elements.iter().all(is_gexpr)
+}
+
+fn is_map_fields(fields: &[ast::MapField]) -> bool {
+    for field in fields {
+        if !is_gexpr(field.key_ref()) {
+            return false;
+        }
+        if !is_gexpr(field.value_ref()) {
+            return false;
+        }
+    }
+    true
+}

@@ -3,9 +3,10 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 
 use liblumen_diagnostics::SourceSpan;
+use liblumen_intern::Symbol;
 
 use crate::lexer::{AtomToken, IdentToken, SymbolToken};
-use crate::lexer::{LexicalToken, Symbol, Token};
+use crate::lexer::{LexicalToken, Token};
 
 use super::token_reader::{ReadFrom, TokenReader};
 use super::{PreprocessorError, Result};

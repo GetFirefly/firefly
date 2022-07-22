@@ -88,18 +88,50 @@ nif_error = {}
 try_clause = {}
 
 [guards]
+is_atom = {}
+is_binary = {}
+is_bitstring = {}
 is_boolean = {}
+is_float = {}
 is_function = {}
 is_integer = {}
+is_list = {}
 is_map = {}
+is_number = {}
+is_pid = {}
+is_port = {}
+is_record = {}
+is_reference = {}
+is_tuple = {}
 
 [bifs]
+abs = {}
 apply = {}
+binary_part = {}
+bit_size = {}
+build_stacktrace = {}
+byte_size = {}
+ceil = {}
+element = {}
+float = {}
+floor = {}
+hd = {}
+is_map_key = {}
+length = {}
+map_size = {}
+map_get = {}
 match_fail = {}
 make_fun = {}
+node = {}
 raise = {}
+round = {}
+SELF = { value = "self" }
 setelement = {}
+size = {}
 throw = {}
+tl = {}
+trunc = {}
+tuple_size = {}
 
 [annotations]
 compiler_generated = {}
@@ -109,14 +141,23 @@ id = {}
 all = {}
 attributes = {}
 behaviour_info = {}
+bits = {}
+bitstring = {}
+bytes = {}
 erlang = {}
 exports = {}
 EXIT = {}
 exit = {}
+integer = {}
 MODULE = {}
 MODULE_STRING = {}
 module_info = {}
 native = {}
+new = {}
 record_info = {}
 send = {}
 undefined = {}
+used = {}
+utf8 = {}
+utf16 = {}
+utf32 = {}

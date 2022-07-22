@@ -161,8 +161,8 @@ mod test {
     use crate::ast::*;
 
     use liblumen_diagnostics::*;
+    use liblumen_intern::{Ident, Symbol};
 
-    use crate::lexer::{Ident, Symbol};
     use crate::preprocessor::PreprocessorError;
 
     fn fail_with(reporter: Reporter, codemap: &CodeMap, message: &'static str) -> ! {
@@ -205,7 +205,7 @@ mod test {
     macro_rules! module {
         ($codemap:expr, $name:expr, $body:expr) => {{
             let mut errs = Reporter::new();
-            let module = Module::new(&mut errs, SourceSpan::UNKNOWN, $name, $body);
+            let module = Module::new_with_forms(&mut errs, SourceSpan::UNKNOWN, $name, $body);
             if errs.is_failed() {
                 fail_with(errs, $codemap, "failed to create expected module!");
             }
@@ -237,20 +237,26 @@ foo([H|T], Acc) -> foo(T, [H|Acc]).
         );
 
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(foo).map(Name::Atom),
-            params: vec![nil!(), var!(Acc)],
-            guard: None,
-            body: vec![var!(Acc)],
-        });
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(foo).map(Name::Atom),
-            params: vec![cons!(var!(H), var!(T)), var!(Acc)],
-            guard: None,
-            body: vec![apply!(atom!(foo), var!(T), cons!(var!(H), var!(Acc)))],
-        });
+        clauses.push((
+            ident_opt!(foo).map(Name::Atom),
+            Clause {
+                span: SourceSpan::UNKNOWN,
+                patterns: vec![nil!(), var!(Acc)],
+                guards: vec![],
+                body: vec![var!(Acc)],
+                compiler_generated: false,
+            },
+        ));
+        clauses.push((
+            ident_opt!(foo).map(Name::Atom),
+            Clause {
+                span: SourceSpan::UNKNOWN,
+                patterns: vec![cons!(var!(H), var!(T)), var!(Acc)],
+                guards: vec![],
+                body: vec![apply!(foo, var!(T), (cons!(var!(H), var!(Acc))))],
+                compiler_generated: false,
+            },
+        ));
         let mut body = Vec::new();
         body.push(TopLevel::Function(NamedFunction {
             span: SourceSpan::UNKNOWN,
@@ -287,60 +293,72 @@ unless(Value) ->
         );
 
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(unless).map(Name::Atom),
-            params: vec![atom!(false)],
-            guard: None,
-            body: vec![atom!(true)],
-        });
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(unless).map(Name::Atom),
-            params: vec![atom!(true)],
-            guard: None,
-            body: vec![atom!(false)],
-        });
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(unless).map(Name::Atom),
-            params: vec![var!(Value)],
-            guard: None,
-            body: vec![Expr::If(If {
+        clauses.push((
+            ident_opt!(unless).map(Name::Atom),
+            Clause {
                 span: SourceSpan::UNKNOWN,
-                clauses: vec![
-                    IfClause {
-                        span: SourceSpan::UNKNOWN,
-                        guards: vec![Guard {
-                            span: SourceSpan::UNKNOWN,
-                            conditions: vec![Expr::BinaryExpr(BinaryExpr {
+                patterns: vec![atom!(false)],
+                guards: vec![],
+                body: vec![atom!(true)],
+                compiler_generated: false,
+            },
+        ));
+        clauses.push((
+            ident_opt!(unless).map(Name::Atom),
+            Clause {
+                span: SourceSpan::UNKNOWN,
+                patterns: vec![atom!(true)],
+                guards: vec![],
+                body: vec![atom!(false)],
+                compiler_generated: false,
+            },
+        ));
+        clauses.push((
+            ident_opt!(unless).map(Name::Atom),
+            Clause {
+                span: SourceSpan::UNKNOWN,
+                patterns: vec![var!(Value)],
+                guards: vec![],
+                compiler_generated: false,
+                body: vec![Expr::If(If {
+                    span: SourceSpan::UNKNOWN,
+                    clauses: vec![
+                        Clause::for_if(
+                            SourceSpan::UNKNOWN,
+                            vec![Guard {
                                 span: SourceSpan::UNKNOWN,
-                                lhs: Box::new(var!(Value)),
-                                op: BinaryOp::Equal,
-                                rhs: Box::new(int!(0.into())),
-                            })],
-                        }],
-                        body: vec![atom!(true)],
-                    },
-                    IfClause {
-                        span: SourceSpan::UNKNOWN,
-                        guards: vec![Guard {
-                            span: SourceSpan::UNKNOWN,
-                            conditions: vec![var!(Value)],
-                        }],
-                        body: vec![atom!(false)],
-                    },
-                    IfClause {
-                        span: SourceSpan::UNKNOWN,
-                        guards: vec![Guard {
-                            span: SourceSpan::UNKNOWN,
-                            conditions: vec![atom!(else)],
-                        }],
-                        body: vec![atom!(true)],
-                    },
-                ],
-            })],
-        });
+                                conditions: vec![Expr::BinaryExpr(BinaryExpr {
+                                    span: SourceSpan::UNKNOWN,
+                                    lhs: Box::new(var!(Value)),
+                                    op: BinaryOp::Equal,
+                                    rhs: Box::new(int!(0.into())),
+                                })],
+                            }],
+                            vec![atom!(true)],
+                            false,
+                        ),
+                        Clause::for_if(
+                            SourceSpan::UNKNOWN,
+                            vec![Guard {
+                                span: SourceSpan::UNKNOWN,
+                                conditions: vec![var!(Value)],
+                            }],
+                            vec![atom!(false)],
+                            false,
+                        ),
+                        Clause::for_if(
+                            SourceSpan::UNKNOWN,
+                            vec![Guard {
+                                span: SourceSpan::UNKNOWN,
+                                conditions: vec![atom!(else)],
+                            }],
+                            vec![atom!(true)],
+                            false,
+                        ),
+                    ],
+                })],
+            },
+        ));
         let mut body = Vec::new();
         body.push(TopLevel::Function(NamedFunction {
             span: SourceSpan::UNKNOWN,
@@ -374,45 +392,52 @@ typeof(Value) ->
         );
 
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(typeof).map(Name::Atom),
-            params: vec![var!(Value)],
-            guard: None,
-            body: vec![Expr::Case(Case {
+        clauses.push((
+            ident_opt!(typeof).map(Name::Atom),
+            Clause {
                 span: SourceSpan::UNKNOWN,
-                expr: Box::new(var!(Value)),
-                clauses: vec![
-                    Clause {
-                        span: SourceSpan::UNKNOWN,
-                        pattern: nil!(),
-                        guard: None,
-                        body: vec![atom!(nil)],
-                    },
-                    Clause {
-                        span: SourceSpan::UNKNOWN,
-                        pattern: cons!(var!(_), var!(_)),
-                        guard: None,
-                        body: vec![atom!(list)],
-                    },
-                    Clause {
-                        span: SourceSpan::UNKNOWN,
-                        pattern: var!(N),
-                        guard: Some(vec![Guard {
+                patterns: vec![var!(Value)],
+                guards: vec![],
+                body: vec![Expr::Case(Case {
+                    span: SourceSpan::UNKNOWN,
+                    expr: Box::new(var!(Value)),
+                    clauses: vec![
+                        Clause {
                             span: SourceSpan::UNKNOWN,
-                            conditions: vec![apply!(atom!(is_number), var!(N))],
-                        }]),
-                        body: vec![var!(N)],
-                    },
-                    Clause {
-                        span: SourceSpan::UNKNOWN,
-                        pattern: var!(_),
-                        guard: None,
-                        body: vec![atom!(other)],
-                    },
-                ],
-            })],
-        });
+                            patterns: vec![nil!()],
+                            guards: vec![],
+                            body: vec![atom!(nil)],
+                            compiler_generated: false,
+                        },
+                        Clause {
+                            span: SourceSpan::UNKNOWN,
+                            patterns: vec![cons!(var!(_), var!(_))],
+                            guards: vec![],
+                            body: vec![atom!(list)],
+                            compiler_generated: false,
+                        },
+                        Clause {
+                            span: SourceSpan::UNKNOWN,
+                            patterns: vec![var!(N)],
+                            guards: vec![Guard {
+                                span: SourceSpan::UNKNOWN,
+                                conditions: vec![apply!(atom!(is_number), (var!(N)))],
+                            }],
+                            body: vec![var!(N)],
+                            compiler_generated: false,
+                        },
+                        Clause {
+                            span: SourceSpan::UNKNOWN,
+                            patterns: vec![var!(_)],
+                            guards: vec![],
+                            body: vec![atom!(other)],
+                            compiler_generated: false,
+                        },
+                    ],
+                })],
+                compiler_generated: false,
+            },
+        ));
         let mut body = Vec::new();
         body.push(TopLevel::Function(NamedFunction {
             span: SourceSpan::UNKNOWN,
@@ -449,49 +474,65 @@ loop(State, Timeout) ->
         );
 
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(loop).map(Name::Atom),
-            params: vec![var!(State), var!(Timeout)],
-            guard: None,
-            body: vec![Expr::Receive(Receive {
+        clauses.push((
+            ident_opt!(loop).map(Name::Atom),
+            Clause {
                 span: SourceSpan::UNKNOWN,
-                clauses: Some(vec![
-                    Clause {
-                        span: SourceSpan::UNKNOWN,
-                        pattern: tuple!(var!(From), tuple!(var!(Ref), var!(Msg))),
-                        guard: None,
-                        body: vec![
-                            Expr::BinaryExpr(BinaryExpr {
-                                span: SourceSpan::UNKNOWN,
-                                lhs: Box::new(var!(From)),
-                                op: BinaryOp::Send,
-                                rhs: Box::new(tuple!(var!(Ref), atom!(ok))),
-                            }),
-                            apply!(atom!(handle_info), var!(Msg), var!(State)),
-                        ],
-                    },
-                    Clause {
-                        span: SourceSpan::UNKNOWN,
-                        pattern: var!(_),
-                        guard: None,
-                        body: vec![apply!(
-                            atom!(exit),
-                            apply!(
-                                remote!(io_lib, format),
-                                Expr::Literal(Literal::String(ident!("unexpected message: ~p~n"))),
-                                cons!(var!(Msg), nil!())
-                            )
-                        )],
-                    },
-                ]),
-                after: Some(After {
+                patterns: vec![var!(State), var!(Timeout)],
+                guards: vec![],
+                compiler_generated: false,
+                body: vec![Expr::Receive(Receive {
                     span: SourceSpan::UNKNOWN,
-                    timeout: Box::new(var!(Timeout)),
-                    body: vec![atom!(timeout)],
-                }),
-            })],
-        });
+                    clauses: Some(vec![
+                        Clause {
+                            span: SourceSpan::UNKNOWN,
+                            patterns: vec![tuple!(var!(From), tuple!(var!(Ref), var!(Msg)))],
+                            guards: vec![],
+                            body: vec![
+                                Expr::BinaryExpr(BinaryExpr {
+                                    span: SourceSpan::UNKNOWN,
+                                    lhs: Box::new(var!(From)),
+                                    op: BinaryOp::Send,
+                                    rhs: Box::new(tuple!(var!(Ref), atom!(ok))),
+                                }),
+                                apply!(
+                                    SourceSpan::UNKNOWN,
+                                    atom!(handle_info),
+                                    (var!(Msg), var!(State))
+                                ),
+                            ],
+                            compiler_generated: false,
+                        },
+                        Clause {
+                            span: SourceSpan::UNKNOWN,
+                            patterns: vec![var!(_)],
+                            guards: vec![],
+                            body: vec![apply!(
+                                SourceSpan::UNKNOWN,
+                                atom!(exit),
+                                (apply!(
+                                    SourceSpan::UNKNOWN,
+                                    io_lib,
+                                    format,
+                                    (
+                                        Expr::Literal(Literal::String(ident!(
+                                            "unexpected message: ~p~n"
+                                        ))),
+                                        cons!(var!(Msg), nil!())
+                                    )
+                                ))
+                            )],
+                            compiler_generated: false,
+                        },
+                    ]),
+                    after: Some(After {
+                        span: SourceSpan::UNKNOWN,
+                        timeout: Box::new(var!(Timeout)),
+                        body: vec![atom!(timeout)],
+                    }),
+                })],
+            },
+        ));
         let mut body = Vec::new();
         body.push(TopLevel::Function(NamedFunction {
             span: SourceSpan::UNKNOWN,
@@ -538,13 +579,16 @@ system_version() ->
 
         let mut body = Vec::new();
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(env).map(Name::Atom),
-            params: vec![],
-            guard: None,
-            body: vec![atom!(test)],
-        });
+        clauses.push((
+            ident_opt!(env).map(Name::Atom),
+            Clause {
+                span: SourceSpan::UNKNOWN,
+                patterns: vec![],
+                guards: vec![],
+                body: vec![atom!(test)],
+                compiler_generated: false,
+            },
+        ));
         let env_fun = NamedFunction {
             span: SourceSpan::UNKNOWN,
             name: Name::Atom(ident!(env)),
@@ -555,13 +599,16 @@ system_version() ->
         body.push(TopLevel::Function(env_fun));
 
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(system_version).map(Name::Atom),
-            params: vec![],
-            guard: None,
-            body: vec![int!(21.into())],
-        });
+        clauses.push((
+            ident_opt!(system_version).map(Name::Atom),
+            Clause {
+                span: SourceSpan::UNKNOWN,
+                patterns: vec![],
+                guards: vec![],
+                body: vec![int!(21.into())],
+                compiler_generated: false,
+            },
+        ));
         let system_version_fun = NamedFunction {
             span: SourceSpan::UNKNOWN,
             name: Name::Atom(ident!(system_version)),
@@ -639,44 +686,57 @@ example(File) ->
         );
 
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
-            span: SourceSpan::UNKNOWN,
-            name: ident_opt!(example).map(Name::Atom),
-            params: vec![var!(File)],
-            guard: None,
-            body: vec![Expr::Try(Try {
+        clauses.push((
+            ident_opt!(example).map(Name::Atom),
+            Clause {
                 span: SourceSpan::UNKNOWN,
-                exprs: vec![apply!(atom!(read), var!(File))],
-                clauses: Some(vec![Clause {
+                patterns: vec![var!(File)],
+                guards: vec![],
+                compiler_generated: false,
+                body: vec![Expr::Try(Try {
                     span: SourceSpan::UNKNOWN,
-                    pattern: tuple!(atom!(ok), var!(Contents)),
-                    guard: None,
-                    body: vec![tuple!(atom!(ok), var!(Contents))],
-                }]),
-                catch_clauses: Some(vec![
-                    TryClause {
+                    exprs: vec![apply!(atom!(read), (var!(File)))],
+                    clauses: Some(vec![Clause {
                         span: SourceSpan::UNKNOWN,
-                        kind: Name::Atom(ident!(error)),
-                        error: tuple!(var!(Mod), var!(Code)),
-                        trace: ident!(_),
-                        guard: None,
-                        body: vec![tuple!(
-                            atom!(error),
-                            apply!(remote!(var!(Mod), atom!(format_error)), var!(Code))
-                        )],
-                    },
-                    TryClause {
-                        span: SourceSpan::UNKNOWN,
-                        kind: Name::Atom(ident!(throw)),
-                        error: var!(Reason),
-                        trace: ident!(_),
-                        guard: None,
-                        body: vec![tuple!(atom!(error), var!(Reason))],
-                    },
-                ]),
-                after: Some(vec![apply!(atom!(close), var!(File))]),
-            })],
-        });
+                        patterns: vec![tuple!(atom!(ok), var!(Contents))],
+                        guards: vec![],
+                        body: vec![tuple!(atom!(ok), var!(Contents))],
+                        compiler_generated: false,
+                    }]),
+                    catch_clauses: Some(vec![
+                        TryClause {
+                            span: SourceSpan::UNKNOWN,
+                            kind: Name::Atom(ident!(error)),
+                            error: tuple!(var!(Mod), var!(Code)),
+                            trace: ident!(_),
+                            guard: None,
+                            body: vec![tuple!(
+                                atom!(error),
+                                apply!(
+                                    SourceSpan::UNKNOWN,
+                                    var!(Mod),
+                                    atom!(format_error),
+                                    (var!(Code))
+                                )
+                            )],
+                        },
+                        TryClause {
+                            span: SourceSpan::UNKNOWN,
+                            kind: Name::Atom(ident!(throw)),
+                            error: var!(Reason),
+                            trace: ident!(_),
+                            guard: None,
+                            body: vec![tuple!(atom!(error), var!(Reason))],
+                        },
+                    ]),
+                    after: Some(vec![apply!(
+                        SourceSpan::UNKNOWN,
+                        atom!(close),
+                        (var!(File))
+                    )]),
+                })],
+            },
+        ));
         let mut body = Vec::new();
         body.push(TopLevel::Function(NamedFunction {
             span: SourceSpan::UNKNOWN,

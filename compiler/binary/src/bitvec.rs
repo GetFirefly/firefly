@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use core::fmt;
+use core::hash::{Hash, Hasher};
 use core::mem;
 
 use num_bigint::BigInt;
@@ -557,6 +558,67 @@ impl BitVec {
         }
     }
 }
+impl Eq for BitVec {}
+impl<T: Bitstring> PartialEq<T> for BitVec {
+    fn eq(&self, other: &T) -> bool {
+        // An optimization: we can say for sure that if the sizes don't match,
+        // the slices don't either.
+        if self.bit_size() != other.bit_size() {
+            return false;
+        }
+
+        // If both slices are aligned binaries, we can compare their data directly
+        if self.is_binary() && other.is_aligned() && other.is_binary() {
+            let x = unsafe { self.as_bytes_unchecked() };
+            let y = unsafe { other.as_bytes_unchecked() };
+            return x == y;
+        }
+
+        // Otherwise we must fall back to a byte-by-byte comparison
+        self.bytes().eq(other.bytes())
+    }
+}
+impl Ord for BitVec {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        if self.is_binary() && other.is_binary() {
+            unsafe {
+                let x = self.as_bytes_unchecked();
+                let y = other.as_bytes_unchecked();
+                x.cmp(y)
+            }
+        } else {
+            self.bytes().cmp(other.bytes())
+        }
+    }
+}
+impl<T: Bitstring> PartialOrd<T> for BitVec {
+    // We order bitstrings lexicographically
+    fn partial_cmp(&self, other: &T) -> Option<core::cmp::Ordering> {
+        // Aligned binaries can be compared using the optimal built-in slice comparisons in the standard lib
+        if self.is_binary() && other.is_aligned() && other.is_binary() {
+            unsafe {
+                let x = self.as_bytes_unchecked();
+                let y = other.as_bytes_unchecked();
+                Some(x.cmp(y))
+            }
+        } else {
+            // Otherwise we must comapre byte-by-byte
+            Some(self.bytes().cmp(other.bytes()))
+        }
+    }
+}
+impl Hash for BitVec {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if self.is_binary() {
+            Hash::hash_slice(unsafe { self.as_bytes_unchecked() }, state);
+        } else {
+            for byte in self.bytes() {
+                byte.hash(state);
+            }
+        }
+    }
+}
+
 impl fmt::Write for BitVec {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {

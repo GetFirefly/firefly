@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use cranelift_entity::{entity_impl, PrimaryMap};
 
-use liblumen_diagnostics::SourceSpan;
+use liblumen_diagnostics::{SourceSpan, Spanned};
 use liblumen_intern::Symbol;
 
 use super::*;
@@ -115,9 +115,10 @@ impl std::str::FromStr for FunctionName {
 }
 
 /// Represents the structure of a function
-#[derive(Clone)]
+#[derive(Clone, Spanned)]
 pub struct Function {
     pub id: FuncRef,
+    #[span]
     pub span: SourceSpan,
     pub signature: Signature,
     pub dfg: DataFlowGraph,

@@ -6,8 +6,8 @@ use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, S
 use core::str::FromStr;
 
 pub use num_bigint::ToBigInt;
-use num_bigint::{BigInt, ParseBigIntError, Sign};
-pub use num_traits::{FromPrimitive, ToPrimitive, Zero};
+use num_bigint::{BigInt, ParseBigIntError};
+pub use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 
 #[derive(Debug, Clone, Hash)]
 pub enum Integer {
@@ -18,8 +18,8 @@ pub enum Integer {
 impl ToBigInt for Integer {
     fn to_bigint(&self) -> Option<BigInt> {
         match self {
-            Integer::Small(int) => Some(BigInt::from(*int)),
-            Integer::Big(num) => Some(num.clone()),
+            Self::Small(int) => Some(BigInt::from(*int)),
+            Self::Big(num) => Some(num.clone()),
         }
     }
 }
@@ -27,23 +27,22 @@ impl ToBigInt for Integer {
 impl Integer {
     pub fn is_zero(&self) -> bool {
         match self {
-            Integer::Small(num) => *num == 0,
-            Integer::Big(num) => num.is_zero(),
+            Self::Small(num) => *num == 0,
+            Self::Big(num) => num.is_zero(),
         }
     }
 
-    pub fn plus(&self) -> Integer {
+    pub fn abs(&self) -> Self {
         match self {
-            Integer::Small(num) if num < &0 => Integer::Small(-num),
-            Integer::Big(num) if num.sign() == Sign::Minus => Integer::Big(-num.clone()),
-            _ => self.clone(),
+            Self::Small(num) => Self::Small((*num).abs()),
+            Self::Big(num) => Self::Big(num.abs()),
         }
     }
 
     pub fn to_float(&self) -> f64 {
         match self {
-            Integer::Small(int) => *int as f64,
-            Integer::Big(int) => crate::bigint_to_double(int),
+            Self::Small(int) => *int as f64,
+            Self::Big(int) => crate::bigint_to_double(int),
         }
     }
 
@@ -53,38 +52,45 @@ impl Integer {
 
     pub fn shrink(self) -> Self {
         match self {
-            Integer::Small(int) => Integer::Small(int),
-            Integer::Big(int) => {
-                if let Some(small) = int.to_i64() {
-                    Integer::Small(small)
+            small @ Self::Small(_) => small,
+            Self::Big(i) => {
+                if let Some(i) = i.to_i64() {
+                    Self::Small(i)
                 } else {
-                    Integer::Big(int)
+                    Self::Big(i)
                 }
             }
         }
     }
 
-    pub fn from_string_radix(string: &str, radix: u32) -> Option<Integer> {
+    pub fn from_string_radix(string: &str, radix: u32) -> Option<Self> {
         if let Ok(i) = i64::from_str_radix(string, radix) {
-            return Some(Integer::Small(i));
+            return Some(Self::Small(i));
         }
         let bi = BigInt::parse_bytes(string.as_bytes(), radix)?;
-        Some(Integer::Big(bi))
-    }
-
-    pub fn to_u64(&self) -> Option<u64> {
-        ToPrimitive::to_u64(self)
-    }
-
-    pub fn to_usize(&self) -> Option<usize> {
-        ToPrimitive::to_usize(self)
+        Some(Self::Big(bi))
     }
 
     pub fn to_arity(&self) -> u8 {
         match self {
-            Integer::Small(i) => (*i).try_into().unwrap(),
-            Integer::Big(_) => {
+            Self::Small(i) => (*i).try_into().unwrap(),
+            Self::Big(_) => {
                 panic!("invalid arity, expected value within u8 range, but got big integer")
+            }
+        }
+    }
+
+    /// Determines the fewest bits necessary to express this integer value, not including the sign
+    pub fn bits(&self) -> u64 {
+        match self {
+            Self::Big(i) => i.bits(),
+            Self::Small(i) => {
+                let i = *i;
+                if i >= 0 {
+                    (64 - i.leading_zeros()) as u64
+                } else {
+                    (64 - i.leading_ones()) as u64
+                }
             }
         }
     }
@@ -93,8 +99,8 @@ impl Integer {
 impl fmt::Display for Integer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Integer::Small(int) => int.fmt(f),
-            Integer::Big(int) => int.fmt(f),
+            Self::Small(int) => int.fmt(f),
+            Self::Big(int) => int.fmt(f),
         }
     }
 }
@@ -103,76 +109,49 @@ impl FromStr for Integer {
     type Err = ParseBigIntError;
     fn from_str(s: &str) -> Result<Self, ParseBigIntError> {
         match s.parse::<i64>() {
-            Ok(int) => Ok(Integer::Small(int)),
+            Ok(int) => Ok(Self::Small(int)),
             Err(_) => match s.parse::<BigInt>() {
-                Ok(int) => Ok(Integer::Big(int)),
+                Ok(int) => Ok(Self::Big(int)),
                 Err(err) => Err(err),
             },
         }
     }
 }
 
+impl Eq for Integer {}
 impl PartialEq for Integer {
     fn eq(&self, rhs: &Integer) -> bool {
         match (self, rhs) {
-            (Integer::Small(lhs), Integer::Small(rhs)) => lhs.eq(rhs),
-            (Integer::Small(lhs), Integer::Big(rhs)) => {
+            (Self::Small(lhs), Self::Small(rhs)) => lhs.eq(rhs),
+            (Self::Small(lhs), Self::Big(rhs)) => {
                 if let Some(ref i) = rhs.to_i64() {
                     return lhs.eq(i);
                 }
                 false
             }
-            (Integer::Big(lhs), Integer::Small(rhs)) => {
+            (Self::Big(lhs), Self::Small(rhs)) => {
                 if let Some(ref i) = lhs.to_i64() {
                     return i.eq(rhs);
                 }
                 false
             }
-            (Integer::Big(lhs), Integer::Big(rhs)) => lhs.eq(rhs),
+            (Self::Big(lhs), Self::Big(rhs)) => lhs.eq(rhs),
         }
     }
 }
-impl Eq for Integer {}
-
-impl PartialOrd for Integer {
-    fn partial_cmp(&self, rhs: &Integer) -> Option<Ordering> {
-        match (self, rhs) {
-            (Integer::Small(lhs), Integer::Small(rhs)) => lhs.partial_cmp(rhs),
-            (Integer::Small(lhs), Integer::Big(rhs)) => {
-                if let Some(ref i) = rhs.to_i64() {
-                    return lhs.partial_cmp(i);
-                }
-                Some(if rhs.sign() == Sign::Minus {
-                    Ordering::Greater
-                } else {
-                    Ordering::Less
-                })
-            }
-            (Integer::Big(lhs), Integer::Small(rhs)) => {
-                if let Some(ref i) = lhs.to_i64() {
-                    return i.partial_cmp(rhs);
-                }
-                Some(if lhs.sign() == Sign::Minus {
-                    Ordering::Less
-                } else {
-                    Ordering::Greater
-                })
-            }
-            (Integer::Big(lhs), Integer::Big(rhs)) => lhs.partial_cmp(rhs),
-        }
-    }
-}
-impl Ord for Integer {
-    fn cmp(&self, rhs: &Integer) -> Ordering {
-        self.partial_cmp(rhs).unwrap()
-    }
-}
-
 impl PartialEq<f64> for Integer {
     fn eq(&self, rhs: &f64) -> bool {
         match self {
-            Integer::Small(lhs) => (*lhs as f64).eq(rhs),
-            Integer::Big(lhs) => crate::bigint_to_double(lhs).eq(rhs),
+            Self::Small(lhs) => (*lhs as f64).eq(rhs),
+            Self::Big(lhs) => crate::bigint_to_double(lhs).eq(rhs),
+        }
+    }
+}
+impl PartialEq<Float> for Integer {
+    fn eq(&self, rhs: &Float) -> bool {
+        match self {
+            Self::Small(lhs) => (*lhs as f64) == rhs.inner(),
+            Self::Big(lhs) => crate::bigint_to_double(lhs) == rhs.inner(),
         }
     }
 }
@@ -181,30 +160,13 @@ impl PartialEq<Integer> for f64 {
         rhs.eq(self)
     }
 }
-impl PartialOrd<f64> for Integer {
-    fn partial_cmp(&self, rhs: &f64) -> Option<Ordering> {
-        match self {
-            Integer::Small(lhs) => (*lhs as f64).partial_cmp(rhs),
-            Integer::Big(lhs) => crate::bigint_to_double(lhs).partial_cmp(rhs),
-        }
-    }
-}
-impl PartialOrd<Integer> for f64 {
-    fn partial_cmp(&self, rhs: &Integer) -> Option<Ordering> {
-        rhs.partial_cmp(self).map(|v| v.reverse())
-    }
-}
-
 impl PartialEq<char> for Integer {
     fn eq(&self, rhs: &char) -> bool {
         match self {
-            Integer::Small(lhs) => lhs.eq(&(*rhs as i64)),
-            Integer::Big(lhs) => {
-                let rhs = *rhs as i64;
-                if let Some(ref i) = lhs.to_i64() {
-                    return i.eq(&rhs);
-                }
-                false
+            Self::Small(lhs) => lhs.eq(&(*rhs as i64)),
+            Self::Big(lhs) => {
+                let rhs = BigInt::from(*rhs as i64);
+                lhs.eq(&rhs)
             }
         }
     }
@@ -214,38 +176,13 @@ impl PartialEq<Integer> for char {
         rhs.eq(self)
     }
 }
-impl PartialOrd<char> for Integer {
-    fn partial_cmp(&self, rhs: &char) -> Option<Ordering> {
-        match self {
-            Integer::Small(lhs) => lhs.partial_cmp(&(*rhs as i64)),
-            Integer::Big(lhs) => {
-                if let Some(ref i) = lhs.to_i64() {
-                    return i.partial_cmp(&(*rhs as i64));
-                }
-                Some(if lhs.sign() == Sign::Minus {
-                    Ordering::Less
-                } else {
-                    Ordering::Greater
-                })
-            }
-        }
-    }
-}
-impl PartialOrd<Integer> for char {
-    fn partial_cmp(&self, rhs: &Integer) -> Option<Ordering> {
-        rhs.partial_cmp(self).map(|v| v.reverse())
-    }
-}
-
 impl PartialEq<i64> for Integer {
     fn eq(&self, rhs: &i64) -> bool {
         match self {
-            Integer::Small(lhs) => lhs.eq(rhs),
-            Integer::Big(lhs) => {
-                if let Some(ref i) = lhs.to_i64() {
-                    return i.eq(rhs);
-                }
-                false
+            Self::Small(lhs) => lhs.eq(rhs),
+            Self::Big(lhs) => {
+                let rhs = BigInt::from(*rhs);
+                lhs.eq(&rhs)
             }
         }
     }
@@ -255,19 +192,74 @@ impl PartialEq<Integer> for i64 {
         rhs.eq(self)
     }
 }
+
+impl Ord for Integer {
+    fn cmp(&self, rhs: &Self) -> Ordering {
+        match (self, rhs) {
+            (Self::Small(lhs), Self::Small(rhs)) => lhs.cmp(rhs),
+            (Self::Small(lhs), Self::Big(rhs)) => {
+                let lhs = BigInt::from(*lhs);
+                lhs.cmp(rhs)
+            }
+            (Self::Big(lhs), Self::Small(rhs)) => {
+                let rhs = BigInt::from(*rhs);
+                lhs.cmp(&rhs)
+            }
+            (Self::Big(lhs), Self::Big(rhs)) => lhs.cmp(rhs),
+        }
+    }
+}
+impl PartialOrd for Integer {
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        Some(self.cmp(rhs))
+    }
+}
+impl PartialOrd<f64> for Integer {
+    fn partial_cmp(&self, rhs: &f64) -> Option<Ordering> {
+        match self {
+            Self::Small(lhs) => (*lhs as f64).partial_cmp(rhs),
+            Self::Big(lhs) => crate::bigint_to_double(lhs).partial_cmp(rhs),
+        }
+    }
+}
+impl PartialOrd<Float> for Integer {
+    fn partial_cmp(&self, rhs: &Float) -> Option<Ordering> {
+        let rhs = rhs.inner();
+        match self {
+            Self::Small(lhs) => (*lhs as f64).partial_cmp(&rhs),
+            Self::Big(lhs) => crate::bigint_to_double(lhs).partial_cmp(&rhs),
+        }
+    }
+}
+impl PartialOrd<Integer> for f64 {
+    fn partial_cmp(&self, rhs: &Integer) -> Option<Ordering> {
+        rhs.partial_cmp(self).map(|v| v.reverse())
+    }
+}
+
+impl PartialOrd<char> for Integer {
+    fn partial_cmp(&self, rhs: &char) -> Option<Ordering> {
+        match self {
+            Self::Small(lhs) => lhs.partial_cmp(&(*rhs as i64)),
+            Self::Big(lhs) => {
+                let rhs = BigInt::from(*rhs as i64);
+                lhs.partial_cmp(&rhs)
+            }
+        }
+    }
+}
+impl PartialOrd<Integer> for char {
+    fn partial_cmp(&self, rhs: &Integer) -> Option<Ordering> {
+        rhs.partial_cmp(self).map(|v| v.reverse())
+    }
+}
 impl PartialOrd<i64> for Integer {
     fn partial_cmp(&self, rhs: &i64) -> Option<Ordering> {
         match self {
-            Integer::Small(lhs) => lhs.partial_cmp(rhs),
-            Integer::Big(lhs) => {
-                if let Some(ref i) = lhs.to_i64() {
-                    return i.partial_cmp(rhs);
-                }
-                Some(if lhs.sign() == Sign::Minus {
-                    Ordering::Less
-                } else {
-                    Ordering::Greater
-                })
+            Self::Small(lhs) => lhs.partial_cmp(rhs),
+            Self::Big(lhs) => {
+                let rhs = BigInt::from(*rhs);
+                lhs.partial_cmp(&rhs)
             }
         }
     }
@@ -280,225 +272,528 @@ impl PartialOrd<Integer> for i64 {
 
 impl Shr<u32> for Integer {
     type Output = Integer;
-    fn shr(self, num: u32) -> Integer {
-        let big = self.to_bigint().unwrap() >> (num as usize);
-        Integer::Big(big).shrink()
+    fn shr(self, num: u32) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Small(i.checked_shr(num).unwrap_or(0)),
+            Self::Big(i) => Self::Big(i >> num).shrink(),
+        }
     }
 }
 impl Shl<u32> for Integer {
     type Output = Integer;
-    fn shl(self, num: u32) -> Integer {
-        let big = self.to_bigint().unwrap() << (num as usize);
-        Integer::Big(big).shrink()
+    fn shl(self, num: u32) -> Self::Output {
+        match self {
+            Self::Small(i) => match i.checked_shl(num) {
+                None => {
+                    let i = BigInt::from(i);
+                    Self::Big(i << num)
+                }
+                Some(i) => Self::Small(i),
+            },
+            Self::Big(i) => Self::Big(i << num),
+        }
     }
 }
-
+impl Mul<usize> for &Integer {
+    type Output = Integer;
+    fn mul(self, rhs: usize) -> Self::Output {
+        match rhs.try_into() {
+            Ok(rhs) => match self {
+                Integer::Small(i) => match i.checked_mul(rhs) {
+                    None => {
+                        let i = BigInt::from(*i);
+                        Integer::Big(i * rhs)
+                    }
+                    Some(i) => Integer::Small(i),
+                },
+                Integer::Big(i) => Integer::Big(i * rhs),
+            },
+            Err(_) => {
+                let lhs = self.to_bigint().unwrap();
+                Integer::Big(lhs * BigInt::from(rhs))
+            }
+        }
+    }
+}
 impl Mul<i64> for Integer {
     type Output = Integer;
-    fn mul(self, rhs: i64) -> Integer {
+    fn mul(self, rhs: i64) -> Self::Output {
         match self {
-            Integer::Small(lhs) => {
-                let mut int: BigInt = lhs.into();
-                int = int * rhs;
-                Integer::Big(int).shrink()
+            Self::Small(i) => match i.checked_mul(rhs) {
+                None => {
+                    let i = BigInt::from(i);
+                    Self::Big(i * rhs)
+                }
+                Some(i) => Self::Small(i),
+            },
+            Self::Big(i) => Self::Big(i * rhs),
+        }
+    }
+}
+impl Mul<&BigInt> for Integer {
+    type Output = Integer;
+    fn mul(self, rhs: &BigInt) -> Self::Output {
+        match self {
+            Self::Small(i) => {
+                let lhs = BigInt::from(i);
+                Self::Big(lhs * rhs)
             }
-            Integer::Big(lhs) => Integer::Big(lhs * rhs),
+            Self::Big(i) => Self::Big(i * rhs),
         }
     }
 }
 impl Mul<&Integer> for Integer {
     type Output = Integer;
-    fn mul(self, rhs: &Integer) -> Integer {
-        let mut lhs = self.to_bigint().unwrap();
+    fn mul(self, rhs: &Self) -> Self::Output {
         match rhs {
-            Integer::Small(rhs) => lhs = lhs * rhs,
-            Integer::Big(rhs) => lhs *= rhs,
+            Self::Small(rhs) => self.mul(*rhs),
+            Self::Big(rhs) => self.mul(rhs),
         }
-        Integer::Big(lhs).shrink()
     }
 }
-impl Div<&Integer> for Integer {
+impl Mul<Integer> for Integer {
+    type Output = Integer;
+    fn mul(self, rhs: Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.mul(rhs),
+            Self::Big(rhs) => self.mul(&rhs),
+        }
+    }
+}
+impl Div<i64> for Integer {
     type Output = Result<Integer, DivisionError>;
-    fn div(self, rhs: &Integer) -> Self::Output {
+
+    fn div(self, rhs: i64) -> Self::Output {
+        match self {
+            Self::Small(i) => match i.checked_div(rhs) {
+                None if rhs == 0 => Err(DivisionError),
+                None => {
+                    let i = BigInt::from(i);
+                    Ok(Self::Big(i / rhs))
+                }
+                Some(i) => Ok(Self::Small(i)),
+            },
+            Self::Big(_) if rhs == 0 => Err(DivisionError),
+            Self::Big(i) => Ok(Self::Big(i / rhs)),
+        }
+    }
+}
+impl Div<&BigInt> for Integer {
+    type Output = Result<Integer, DivisionError>;
+
+    fn div(self, rhs: &BigInt) -> Self::Output {
         if rhs.is_zero() {
             return Err(DivisionError);
         }
 
-        let mut lhs = self.to_bigint().unwrap();
-        match rhs {
-            Integer::Small(rhs) => lhs = lhs / rhs,
-            Integer::Big(rhs) => lhs /= rhs,
+        match self {
+            Self::Small(i) => {
+                let lhs = BigInt::from(i);
+                Ok(Self::Big(lhs / rhs))
+            }
+            Self::Big(i) => Ok(Self::Big(i / rhs)),
         }
-        Ok(Integer::Big(lhs).shrink())
+    }
+}
+impl Div<&Integer> for Integer {
+    type Output = Result<Integer, DivisionError>;
+
+    fn div(self, rhs: &Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.div(*rhs),
+            Self::Big(rhs) => self.div(rhs),
+        }
+    }
+}
+impl Div<Integer> for Integer {
+    type Output = Result<Integer, DivisionError>;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.div(rhs),
+            Self::Big(rhs) => self.div(&rhs),
+        }
+    }
+}
+impl Add<i64> for Integer {
+    type Output = Integer;
+
+    fn add(self, rhs: i64) -> Self::Output {
+        match self {
+            Self::Small(i) => match i.checked_add(rhs) {
+                None => {
+                    let i = BigInt::from(i);
+                    Self::Big(i + rhs)
+                }
+                Some(i) => Self::Small(i),
+            },
+            Self::Big(i) => Self::Big(i + rhs),
+        }
+    }
+}
+impl Add<&BigInt> for Integer {
+    type Output = Integer;
+
+    fn add(self, rhs: &BigInt) -> Self::Output {
+        match self {
+            Self::Small(i) => {
+                let i = BigInt::from(i);
+                Self::Big(i + rhs)
+            }
+            Self::Big(i) => Self::Big(i + rhs),
+        }
     }
 }
 impl Add<&Integer> for Integer {
     type Output = Integer;
-    fn add(self, rhs: &Integer) -> Integer {
-        let mut lhs = self.to_bigint().unwrap();
+
+    fn add(self, rhs: &Self) -> Self::Output {
         match rhs {
-            Integer::Small(rhs) => lhs = lhs + rhs,
-            Integer::Big(rhs) => lhs += rhs,
+            Self::Small(rhs) => self.add(*rhs),
+            Self::Big(rhs) => self.add(rhs),
         }
-        Integer::Big(lhs).shrink()
+    }
+}
+impl Add<Integer> for Integer {
+    type Output = Integer;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.add(rhs),
+            Self::Big(rhs) => self.add(&rhs),
+        }
+    }
+}
+impl Sub<i64> for Integer {
+    type Output = Integer;
+
+    fn sub(self, rhs: i64) -> Self::Output {
+        match self {
+            Self::Small(i) => match i.checked_sub(rhs) {
+                None => {
+                    let i = BigInt::from(i);
+                    Self::Big(i - rhs)
+                }
+                Some(i) => Self::Small(i),
+            },
+            Self::Big(i) => Self::Big(i - rhs).shrink(),
+        }
+    }
+}
+impl Sub<&BigInt> for Integer {
+    type Output = Integer;
+
+    fn sub(self, rhs: &BigInt) -> Self::Output {
+        match self {
+            Self::Small(i) => {
+                let i = BigInt::from(i);
+                Self::Big(i - rhs).shrink()
+            }
+            Self::Big(i) => Self::Big(i - rhs).shrink(),
+        }
     }
 }
 impl Sub<&Integer> for Integer {
     type Output = Integer;
-    fn sub(self, rhs: &Integer) -> Integer {
-        let mut lhs = self.to_bigint().unwrap();
+
+    fn sub(self, rhs: &Self) -> Self::Output {
         match rhs {
-            Integer::Small(rhs) => lhs = lhs - rhs,
-            Integer::Big(rhs) => lhs -= rhs,
+            Self::Small(rhs) => self.sub(*rhs),
+            Self::Big(rhs) => self.sub(rhs),
         }
-        Integer::Big(lhs).shrink()
+    }
+}
+impl Sub<Integer> for Integer {
+    type Output = Integer;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.sub(rhs),
+            Self::Big(rhs) => self.sub(&rhs),
+        }
+    }
+}
+impl Rem<i64> for Integer {
+    type Output = Result<Integer, DivisionError>;
+
+    fn rem(self, rhs: i64) -> Self::Output {
+        match self {
+            Self::Small(i) => match i.checked_rem(rhs) {
+                None if rhs == 0 => Err(DivisionError),
+                None => {
+                    let i = BigInt::from(i);
+                    Ok(Self::Big(i.rem(rhs)))
+                }
+                Some(i) => Ok(Self::Small(i)),
+            },
+            Self::Big(_) if rhs == 0 => Err(DivisionError),
+            Self::Big(i) => Ok(Self::Big(i.rem(rhs)).shrink()),
+        }
+    }
+}
+impl Rem<&BigInt> for Integer {
+    type Output = Result<Integer, DivisionError>;
+
+    fn rem(self, rhs: &BigInt) -> Self::Output {
+        if rhs.is_zero() {
+            return Err(DivisionError);
+        }
+        match self {
+            Self::Small(i) => {
+                let i = BigInt::from(i);
+                Ok(Self::Big(i.rem(rhs)).shrink())
+            }
+            Self::Big(i) => Ok(Self::Big(i.rem(rhs)).shrink()),
+        }
     }
 }
 impl Rem<&Integer> for Integer {
-    type Output = Integer;
-    fn rem(self, rhs: &Integer) -> Integer {
-        let mut lhs = self.to_bigint().unwrap();
+    type Output = Result<Integer, DivisionError>;
+
+    fn rem(self, rhs: &Self) -> Self::Output {
         match rhs {
-            Integer::Small(rhs) => lhs = lhs % rhs,
-            Integer::Big(rhs) => lhs %= rhs,
+            Self::Small(rhs) => self.rem(*rhs),
+            Self::Big(rhs) => self.rem(rhs),
         }
-        Integer::Big(lhs).shrink()
     }
 }
+impl Rem<Integer> for Integer {
+    type Output = Result<Integer, DivisionError>;
 
+    fn rem(self, rhs: Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.rem(rhs),
+            Self::Big(rhs) => self.rem(&rhs),
+        }
+    }
+}
+impl BitAnd<i64> for Integer {
+    type Output = Integer;
+
+    fn bitand(self, rhs: i64) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Small(i & rhs),
+            Self::Big(i) => Self::Big(i & BigInt::from(rhs)),
+        }
+    }
+}
+impl BitAnd<&BigInt> for Integer {
+    type Output = Integer;
+
+    fn bitand(self, rhs: &BigInt) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Big(BigInt::from(i) & rhs).shrink(),
+            Self::Big(i) => Self::Big(i & rhs).shrink(),
+        }
+    }
+}
 impl BitAnd<&Integer> for Integer {
     type Output = Integer;
-    fn bitand(self, rhs: &Integer) -> Integer {
-        let l = self.to_bigint().unwrap();
+
+    fn bitand(self, rhs: &Self) -> Self::Output {
         match rhs {
-            Integer::Small(r) => l & BigInt::from(*r),
-            Integer::Big(r) => l & r,
+            Self::Small(rhs) => self.bitand(*rhs),
+            Self::Big(rhs) => self.bitand(rhs),
         }
-        .into()
+    }
+}
+impl BitAnd<Integer> for Integer {
+    type Output = Integer;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.bitand(rhs),
+            Self::Big(rhs) => self.bitand(&rhs),
+        }
+    }
+}
+impl BitOr<i64> for Integer {
+    type Output = Integer;
+
+    fn bitor(self, rhs: i64) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Small(i | rhs),
+            Self::Big(i) => Self::Big(i | BigInt::from(rhs)),
+        }
+    }
+}
+impl BitOr<&BigInt> for Integer {
+    type Output = Integer;
+
+    fn bitor(self, rhs: &BigInt) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Big(BigInt::from(i) | rhs),
+            Self::Big(i) => Self::Big(i | rhs),
+        }
     }
 }
 impl BitOr<&Integer> for Integer {
     type Output = Integer;
-    fn bitor(self, rhs: &Integer) -> Integer {
-        let l = self.to_bigint().unwrap();
+
+    fn bitor(self, rhs: &Self) -> Self::Output {
         match rhs {
-            Integer::Small(r) => l | BigInt::from(*r),
-            Integer::Big(r) => l | r,
+            Self::Small(rhs) => self.bitor(*rhs),
+            Self::Big(rhs) => self.bitor(rhs),
         }
-        .into()
+    }
+}
+impl BitOr<Integer> for Integer {
+    type Output = Integer;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.bitor(rhs),
+            Self::Big(rhs) => self.bitor(&rhs),
+        }
+    }
+}
+impl BitXor<i64> for Integer {
+    type Output = Integer;
+
+    fn bitxor(self, rhs: i64) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Small(i ^ rhs),
+            Self::Big(i) => Self::Big(i ^ BigInt::from(rhs)),
+        }
+    }
+}
+impl BitXor<&BigInt> for Integer {
+    type Output = Integer;
+
+    fn bitxor(self, rhs: &BigInt) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Big(BigInt::from(i) ^ rhs),
+            Self::Big(i) => Self::Big(i ^ rhs),
+        }
     }
 }
 impl BitXor<&Integer> for Integer {
     type Output = Integer;
-    fn bitxor(self, rhs: &Integer) -> Integer {
-        let l = self.to_bigint().unwrap();
+
+    fn bitxor(self, rhs: &Self) -> Self::Output {
         match rhs {
-            Integer::Small(r) => l ^ BigInt::from(*r),
-            Integer::Big(r) => l ^ r,
+            Self::Small(rhs) => self.bitxor(*rhs),
+            Self::Big(rhs) => self.bitxor(rhs),
         }
-        .into()
     }
 }
+impl BitXor<Integer> for Integer {
+    type Output = Integer;
 
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        match rhs {
+            Self::Small(rhs) => self.bitxor(rhs),
+            Self::Big(rhs) => self.bitxor(&rhs),
+        }
+    }
+}
 impl Neg for Integer {
     type Output = Integer;
-    fn neg(self) -> Integer {
-        match self {
-            Integer::Small(int) => Integer::Small(-int),
-            Integer::Big(int) => Integer::Big(-int),
-        }
-    }
-}
-impl Not for &Integer {
-    type Output = Integer;
-    fn not(self) -> Integer {
-        match self {
-            Integer::Small(int) => Integer::Small(!int),
-            Integer::Big(int) => Integer::Big(!int),
-        }
-    }
-}
 
+    fn neg(self) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Small(-i),
+            Self::Big(i) => Self::Big(-i),
+        }
+    }
+}
+impl Not for Integer {
+    type Output = Integer;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Self::Small(i) => Self::Small(!i),
+            Self::Big(i) => Self::Big(!i),
+        }
+    }
+}
 impl ToPrimitive for Integer {
     fn to_i64(&self) -> Option<i64> {
         match self {
-            Integer::Small(int) => int.to_i64(),
-            Integer::Big(int) => int.to_i64(),
+            Self::Small(i) => Some(*i),
+            Self::Big(i) => i.to_i64(),
         }
     }
+
     fn to_u64(&self) -> Option<u64> {
         match self {
-            Integer::Small(int) => int.to_u64(),
-            Integer::Big(int) => int.to_u64(),
+            Self::Small(i) => i.to_u64(),
+            Self::Big(i) => i.to_u64(),
         }
     }
 }
-
 impl FromPrimitive for Integer {
-    fn from_i64(n: i64) -> Option<Integer> {
-        Some(Integer::Small(n))
+    fn from_i64(n: i64) -> Option<Self> {
+        Some(Self::Small(n))
     }
-    fn from_u64(n: u64) -> Option<Integer> {
+
+    fn from_u64(n: u64) -> Option<Self> {
         if let Ok(int) = n.try_into() {
-            Some(Integer::Small(int))
+            Some(Self::Small(int))
         } else {
-            Some(Integer::Big(n.into()))
+            Some(Self::Big(n.into()))
         }
     }
 }
 impl From<u8> for Integer {
-    fn from(i: u8) -> Integer {
-        Integer::Small(i.into())
+    fn from(i: u8) -> Self {
+        Self::Small(i.into())
     }
 }
 impl From<u16> for Integer {
-    fn from(i: u16) -> Integer {
-        Integer::Small(i.into())
+    fn from(i: u16) -> Self {
+        Self::Small(i.into())
     }
 }
 impl From<u32> for Integer {
-    fn from(i: u32) -> Integer {
-        Integer::from_u32(i).unwrap()
+    fn from(i: u32) -> Self {
+        Self::Small(i.into())
     }
 }
 impl From<i8> for Integer {
-    fn from(i: i8) -> Integer {
-        Integer::Small(i.into())
+    fn from(i: i8) -> Self {
+        Self::Small(i.into())
     }
 }
 impl From<i16> for Integer {
-    fn from(i: i16) -> Integer {
-        Integer::Small(i.into())
+    fn from(i: i16) -> Self {
+        Self::Small(i.into())
     }
 }
 impl From<i64> for Integer {
-    fn from(i: i64) -> Integer {
-        Integer::from_i64(i).unwrap()
+    fn from(i: i64) -> Self {
+        Self::Small(i)
     }
 }
 impl From<u64> for Integer {
-    fn from(i: u64) -> Integer {
-        Integer::from_u64(i).unwrap()
+    fn from(i: u64) -> Self {
+        match i.try_into() {
+            Ok(i) => Self::Small(i),
+            Err(_) => Self::Big(BigInt::from(i)),
+        }
     }
 }
 impl From<i32> for Integer {
-    fn from(i: i32) -> Integer {
-        Integer::from_i32(i).unwrap()
+    fn from(i: i32) -> Self {
+        Self::Small(i.into())
     }
 }
 impl From<usize> for Integer {
-    fn from(i: usize) -> Integer {
-        Integer::from_usize(i).unwrap()
+    fn from(i: usize) -> Self {
+        match i.try_into() {
+            Ok(i) => Self::Small(i),
+            Err(_) => Self::Big(BigInt::from(i)),
+        }
     }
 }
 impl From<char> for Integer {
-    fn from(i: char) -> Integer {
-        Integer::from_u64(i as u64).unwrap()
+    fn from(i: char) -> Self {
+        Self::Small(i as u32 as i64)
     }
 }
 impl From<BigInt> for Integer {
-    fn from(i: BigInt) -> Integer {
-        Integer::Big(i)
+    fn from(i: BigInt) -> Self {
+        Self::Big(i)
     }
 }
 impl TryInto<u8> for Integer {
@@ -507,6 +802,24 @@ impl TryInto<u8> for Integer {
         match self {
             Integer::Small(i) => i.try_into().map_err(|_| ()),
             Integer::Big(_) => Err(()),
+        }
+    }
+}
+impl TryInto<i64> for Integer {
+    type Error = ();
+    fn try_into(self) -> Result<i64, Self::Error> {
+        match self {
+            Self::Small(i) => Ok(i),
+            Self::Big(i) => i.to_i64().ok_or(()),
+        }
+    }
+}
+impl TryInto<usize> for Integer {
+    type Error = ();
+    fn try_into(self) -> Result<usize, Self::Error> {
+        match self {
+            Self::Small(i) => i.try_into().map_err(|_| ()),
+            Self::Big(i) => i.to_usize().ok_or(()),
         }
     }
 }

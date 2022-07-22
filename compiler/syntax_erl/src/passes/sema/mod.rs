@@ -7,6 +7,7 @@ mod verify;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use liblumen_diagnostics::*;
+use liblumen_intern::Ident;
 use liblumen_pass::Pass;
 
 use crate::ast::{self, *};
@@ -90,56 +91,5 @@ impl Pass for SemanticAnalysis {
         passes.run(&mut module)?;
 
         Ok(module)
-    }
-}
-impl SemanticAnalysis {
-    fn show_error(&mut self, message: &str, labels: &[(SourceSpan, &str)]) {
-        if labels.is_empty() {
-            self.reporter
-                .diagnostic(Diagnostic::error().with_message(message));
-        } else {
-            let labels = labels
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(i, (span, message))| {
-                    if i > 0 {
-                        Label::secondary(span.source_id(), span).with_message(message)
-                    } else {
-                        Label::primary(span.source_id(), span).with_message(message)
-                    }
-                })
-                .collect();
-            self.reporter.diagnostic(
-                Diagnostic::error()
-                    .with_message(message)
-                    .with_labels(labels),
-            );
-        }
-    }
-
-    fn show_warning(&mut self, message: &str, labels: &[(SourceSpan, &str)]) {
-        if labels.is_empty() {
-            self.reporter
-                .diagnostic(Diagnostic::warning().with_message(message));
-        } else {
-            let labels = labels
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(i, (span, message))| {
-                    if i > 0 {
-                        Label::secondary(span.source_id(), span).with_message(message)
-                    } else {
-                        Label::primary(span.source_id(), span).with_message(message)
-                    }
-                })
-                .collect();
-            self.reporter.diagnostic(
-                Diagnostic::error()
-                    .with_message(message)
-                    .with_labels(labels),
-            );
-        }
     }
 }

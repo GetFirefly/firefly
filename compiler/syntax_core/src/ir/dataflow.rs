@@ -7,7 +7,7 @@ use std::rc::Rc;
 use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap};
 use intrusive_collections::UnsafeRef;
 
-use liblumen_diagnostics::{SourceSpan, Spanned};
+use liblumen_diagnostics::{SourceSpan, Span};
 use liblumen_intern::Symbol;
 
 use super::*;
@@ -152,7 +152,7 @@ impl DataFlowGraph {
 
     pub fn push_inst(&mut self, block: Block, data: InstData, span: SourceSpan) -> Inst {
         let inst = self.insts.alloc_key();
-        let node = InstNode::new(inst, block, Spanned::new(span, data));
+        let node = InstNode::new(inst, block, Span::new(span, data));
         self.insts.append(inst, node);
         self.results.resize(inst.index() + 1);
         let item = unsafe { UnsafeRef::from_raw(&self.insts[inst]) };
@@ -497,14 +497,14 @@ impl DataFlowGraph {
     }
 }
 impl Index<Inst> for DataFlowGraph {
-    type Output = Spanned<InstData>;
+    type Output = Span<InstData>;
 
-    fn index(&self, inst: Inst) -> &Spanned<InstData> {
+    fn index(&self, inst: Inst) -> &Span<InstData> {
         &self.insts[inst]
     }
 }
 impl IndexMut<Inst> for DataFlowGraph {
-    fn index_mut(&mut self, inst: Inst) -> &mut Spanned<InstData> {
+    fn index_mut(&mut self, inst: Inst) -> &mut Span<InstData> {
         &mut self.insts[inst]
     }
 }

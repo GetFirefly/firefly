@@ -82,11 +82,11 @@ impl SourceFile {
         LineIndex::from(self.line_starts.len() as RawIndex)
     }
 
-    pub fn line_span(&self, line_index: LineIndex) -> Result<Span, Error> {
+    pub fn line_span(&self, line_index: LineIndex) -> Result<codespan::Span, Error> {
         let line_start = self.line_start(line_index)?;
         let next_line_start = self.line_start(line_index + LineOffset::from(1))?;
 
-        Ok(Span::new(line_start, next_line_start))
+        Ok(codespan::Span::new(line_start, next_line_start))
     }
 
     pub fn line_index(&self, byte_index: ByteIndex) -> LineIndex {

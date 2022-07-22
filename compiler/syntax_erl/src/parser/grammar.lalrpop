@@ -1,10 +1,11 @@
 use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::*;
+use liblumen_intern::{Symbol, Ident};
 use liblumen_number::{Integer, ToPrimitive, Float};
 use liblumen_syntax_core::{self as syntax_core};
 
 use crate::ast::*;
-use crate::lexer::{Token, DelayedSubstitution, Symbol, Ident};
+use crate::lexer::{Token, DelayedSubstitution};
 use crate::parser::binary::specifier_from_parsed;
 
 grammar<'a>(reporter: &Reporter);
@@ -85,15 +86,15 @@ FunctionDefinition: Function = {
             },
 };
 
-FunctionHead: FunctionClause = {
-    <l:@L> <a:atom> "(" <params:CommaOpt<Pattern>> ")" <g:Guards?> "->" <body:Comma<Expr>> <r:@R> => {
-        FunctionClause::new(span!(l, r), Some(Name::Atom(a)), params, g, body)
+FunctionHead: (Option<Name>, Clause) = {
+    <l:@L> <a:atom> "(" <patterns:CommaOpt<Pattern>> ")" <guards:Guards?> "->" <body:Comma<Expr>> <r:@R> => {
+        (Some(Name::Atom(a)), Clause::new(span!(l, r), patterns, guards.unwrap_or_default(), body, false))
     }
 };
 
-FunctionClause: FunctionClause = {
-    <l:@L> <a:Ident?> "(" <params:CommaOpt<Pattern>> ")" <g:Guards?> "->" <body:Comma<Expr>> <r:@R> => {
-        FunctionClause::new(span!(l, r), a.map(Name::Var), params, g, body)
+FunctionClause: (Option<Name>, Clause) = {
+    <l:@L> <a:Ident?> "(" <patterns:CommaOpt<Pattern>> ")" <guards:Guards?> "->" <body:Comma<Expr>> <r:@R> => {
+        (a.map(Name::Var), Clause::new(span!(l, r), patterns, guards.unwrap_or_default(), body, false))
     }
 };
 
@@ -104,9 +105,9 @@ Guard: Guard = <l:@L> <conditions:Comma<Expr>> <r:@R>
     => Guard { span: span!(l, r), conditions };
 
 
-FunctionName: Spanned<syntax_core::FunctionName> = {
+FunctionName: Span<syntax_core::FunctionName> = {
     <l:@L> <function:atom> "/" <arity:arity> <r:@R> => {
-        Spanned::new(span!(l, r), syntax_core::FunctionName::new_local(function.name, arity))
+        Span::new(span!(l, r), syntax_core::FunctionName::new_local(function.name, arity))
     }
 };
 
@@ -149,10 +150,10 @@ RemovedAttribute: Attribute = {
         => Attribute::Removed(span!(l, r), rs),
 };
 
-Removed: (Spanned<syntax_core::FunctionName>, Ident) = {
+Removed: (Span<syntax_core::FunctionName>, Ident) = {
     <l:@L> "{" <function:atom> "," <arity:arity> "," <descr:StringLiteral> "}" <r:@R> => {
         let span = span!(l, r);
-        let f = Spanned::new(span, syntax_core::FunctionName::new_local(function.name, arity));
+        let f = Span::new(span, syntax_core::FunctionName::new_local(function.name, arity));
 
         (f, descr)
     },
@@ -239,7 +240,7 @@ Deprecation: Deprecation = {
         => Deprecation::Function { span: span!(l, r), function, flag },
     <l:@L> "{" <function:atom> "," <arity:arity> "," <flag:DeprecatedFlag> "}" <r:@R> => {
         let span = span!(l, r);
-        let f = Spanned::new(span, syntax_core::FunctionName::new_local(function.name, arity));
+        let f = Span::new(span, syntax_core::FunctionName::new_local(function.name, arity));
         Deprecation::Function { span, function: f, flag }
     }
 };
@@ -489,14 +490,14 @@ PatternMax: Expr = {
 
 ListPattern: Expr = {
     <l:@L> "[" "]" <r:@R>
-        => Expr::Nil(Nil(span!(l, r))),
+        => Expr::Literal(Literal::Nil(span!(l, r))),
     <l:@L> "[" <head:Pattern> <tail:TailPattern> <r:@R>
         => Expr::Cons(Cons { span: span!(l, r), head: Box::new(head), tail: Box::new(tail) })
 };
 
 TailPattern: Expr = {
     <l:@L> "]" <r:@R>
-        => Expr::Nil(Nil(span!(l, r))),
+        => Expr::Literal(Literal::Nil(span!(l, r))),
     "|" <Pattern> "]",
     <l:@L> "," <head:Pattern> <tail:TailPattern> <r:@R>
         => Expr::Cons(Cons { span: span!(l, r), head: Box::new(head), tail: Box::new(tail) })
@@ -505,10 +506,6 @@ TailPattern: Expr = {
 MapPattern: Expr = {
     <l:@L> "#" <fields:MapTuplePattern> <r:@R>
         => Expr::Map(Map { span: span!(l, r), fields }),
-    <l:@L> <lhs:PatternMax> "#" <fields:MapTuplePattern> <r:@R>
-        => Expr::MapProjection(MapProjection { span: span!(l, r), map: Box::new(lhs), fields }),
-    <l:@L> <lhs:MapPattern> "#" <fields:MapTuplePattern> <r:@R>
-        => Expr::MapProjection(MapProjection { span: span!(l, r), map: Box::new(lhs), fields }),
 };
 
 MapTuplePattern: Vec<MapField> = {
@@ -650,9 +647,9 @@ If: Expr = {
     <l:@L> "if" <clauses:Semi<IfClause>> "end" <r:@R>
         => Expr::If(If { span: span!(l, r), clauses })
 };
-IfClause: IfClause = {
+IfClause: Clause = {
     <l:@L> <guards:BaseGuards> "->" <body:Comma<Expr>> <r:@R>
-        => IfClause { span: span!(l, r), guards, body }
+        => Clause::new(span!(l, r), vec![Expr::Var(Var(Ident::from_str("_")))], guards, body, false)
 };
 
 Case: Expr = {
@@ -679,7 +676,7 @@ Try: Expr = {
         => Expr::Try(Try { span: span!(l, catch.2), exprs, clauses: None, catch_clauses: catch.0, after: catch.1 })
 };
 
-TryCatch: (Option<Vec<TryClause>>, Option<Vec<Expr>>, SourceIndex) = {
+TryCatch: (Option<Vec<Clause>>, Option<Vec<Expr>>, SourceIndex) = {
     "catch" <clauses:Semi<TryClause>> "end" <r:@R>
         => (Some(clauses), None, r),
     "catch" <clauses:Semi<TryClause>> "after" <body:Comma<Expr>> "end" <r:@R>
@@ -688,23 +685,23 @@ TryCatch: (Option<Vec<TryClause>>, Option<Vec<Expr>>, SourceIndex) = {
         => (None, Some(body), r)
 };
 
-TryClause: TryClause = {
-    <l:@L> <error:Pattern> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
-        => TryClause { span: span!(l, r), kind: Name::Atom(Ident::from_str("throw")), error, guard, trace: Ident::from_str("_"), body },
-    <l:@L> <kind:atom_or_var> ":" <error:Pattern> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
-        => TryClause { span: span!(l, r), kind, error, guard, trace: Ident::from_str("_"), body },
-    <l:@L> <kind:atom_or_var> ":" <error:Pattern> ":" <trace:Ident> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
-        => TryClause { span: span!(l, r), kind, error, guard, trace, body },
+TryClause: Clause = {
+    <l:@L> <error:Pattern> <guards:Guards?> "->" <body:Comma<Expr>> <r:@R>
+        => Clause::for_catch(span!(l, r), Expr::Literal(Literal::Atom(Ident::from_str("throw"))), error, None, guards.unwrap_or_default(), body),
+    <l:@L> <kind:atom_or_var> ":" <error:Pattern> <guards:Guards?> "->" <body:Comma<Expr>> <r:@R>
+        => Clause::for_catch(span!(l, r), kind.into(), error, None, guards.unwrap_or_default(), body),
+    <l:@L> <kind:atom_or_var> ":" <error:Pattern> ":" <trace:Ident> <guards:Guards?> "->" <body:Comma<Expr>> <r:@R>
+        => Clause::for_catch(span!(l, r), kind.into(), error, Some(Expr::Var(Var(trace))), guards.unwrap_or_default(), body),
 };
 
 Clause: Clause = {
-    <l:@L> <pattern:Pattern> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
-        => Clause { span: span!(l, r), pattern, guard, body }
+    <l:@L> <pattern:Pattern> <guards:Guards?> "->" <body:Comma<Expr>> <r:@R>
+        => Clause::new(span!(l, r), vec![pattern], guards.unwrap_or_default(), body, false)
 };
 
 Apply: Expr = {
     <l:@L> <lhs:Expr800> "(" <args:CommaOpt<Expr>> ")" <r:@R>
-        => Expr::Apply(Apply { span: span!(l, r), callee: Box::new(lhs), args })
+        => Expr::try_resolve_apply(span!(l, r), lhs, args)
 };
 
 ListComprehension: Expr = {
@@ -719,9 +716,9 @@ BinaryComprehension: Expr = {
 
 ComprehensionExpr: Expr = {
     <l:@L> <lhs:Binary> "<=" <rhs:Expr> <r:@R>
-        => Expr::BinaryGenerator(BinaryGenerator { span: span!(l, r), pattern: Box::new(lhs), expr: Box::new(rhs) }),
+        => Expr::Generator(Generator { span: span!(l, r), ty: GeneratorType::Bitstring, pattern: Box::new(lhs), expr: Box::new(rhs) }),
     <l:@L> <lhs:Expr> "<-" <rhs:Expr> <r:@R>
-        => Expr::Generator(Generator { span: span!(l, r), pattern: Box::new(lhs), expr: Box::new(rhs) }),
+        => Expr::Generator(Generator { span: span!(l, r), ty: GeneratorType::Default, pattern: Box::new(lhs), expr: Box::new(rhs) }),
     Expr,
 };
 
@@ -760,7 +757,7 @@ BitTypeList: Vec<BitType> = {
 
 BitType: BitType = {
     <l:@L> <ty:atom> ":" <i:int> <r:@R>
-        => BitType::Sized(span!(l, r), ty, i.to_i64().unwrap()),
+        => BitType::Sized(span!(l, r), ty, i.to_usize().unwrap()),
     <l:@L> <ty:atom> <r:@R>
         => BitType::Name(span!(l, r), ty)
 };
@@ -772,14 +769,14 @@ Tuple: Expr = {
 
 List: Expr = {
     <l:@L> "[" "]" <r:@R>
-        => Expr::Nil(Nil(span!(l, r))),
+        => Expr::Literal(Literal::Nil(span!(l, r))),
     <l:@L> "[" <head:Expr> <tail:Tail> <r:@R>
         => Expr::Cons(Cons { span: span!(l, r), head: Box::new(head), tail: Box::new(tail) })
 };
 
 Tail: Expr = {
     <l:@L> "]" <r:@R>
-        => Expr::Nil(Nil(span!(l, r))),
+        => Expr::Literal(Literal::Nil(span!(l, r))),
     "|" <Expr> "]",
     <l:@L> "," <head:Expr> <tail:Tail> <r:@R>
         => Expr::Cons(Cons { span: span!(l, r), head: Box::new(head), tail: Box::new(tail) })
@@ -856,14 +853,14 @@ ConstantTuple: Expr = {
 
 ConstantList: Expr = {
     <l:@L> "[" "]" <r:@R>
-        => Expr::Nil(Nil(span!(l, r))),
+        => Expr::Literal(Literal::Nil(span!(l, r))),
     <l:@L> "[" <head:Constant> <tail:ConstantTail> <r:@R>
         => Expr::Cons(Cons { span: span!(l, r), head: Box::new(head), tail: Box::new(tail) })
 };
 
 ConstantTail: Expr = {
     <l:@L> "]" <r:@R>
-        => Expr::Nil(Nil(span!(l, r))),
+        => Expr::Literal(Literal::Nil(span!(l, r))),
     "|" <Constant> "]",
     <l:@L> "," <head:Constant> <tail:ConstantTail> <r:@R>
         => Expr::Cons(Cons { span: span!(l, r), head: Box::new(head), tail: Box::new(tail) })

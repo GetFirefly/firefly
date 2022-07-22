@@ -1,5 +1,5 @@
 use anyhow::bail;
-use liblumen_number::{Integer, Number};
+use liblumen_number::Integer;
 use liblumen_syntax_core::*;
 
 use crate::ast;
@@ -24,18 +24,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 let span = var.span();
                 // If this is a wildcard, simply return the input
                 if var.is_wildcard() {
-                    if allow_unbound {
-                        return Ok(input);
-                    } else {
-                        self.show_error(
-                            "illegal pattern",
-                            &[
-                                (span, "in this pattern"),
-                                (span, "only bound variables are permitted in this context"),
-                            ],
-                        );
-                        bail!("invalid expression in pattern context")
-                    }
+                    return Ok(input);
                 }
                 // This is either a new binding or an alias pattern, check the current scope to confirm
                 let sym = var.sym();
@@ -44,18 +33,9 @@ impl<'m> LowerFunctionToCore<'m> {
                     // conditional branch to the pattern failure block
                     let cond = builder.ins().eq_exact(input, value, span);
                     builder.ins().br_unless(cond, pattern_fail, &[input], span);
-                } else if allow_unbound {
+                } else {
                     // This is a new binding, so define the variable in the current scope
                     builder.define_var(sym, input);
-                } else {
-                    self.show_error(
-                        "illegal pattern",
-                        &[
-                            (span, "in this pattern"),
-                            (span, "only bound variables are permitted in this context"),
-                        ],
-                    );
-                    bail!("invalid expression in pattern context")
                 }
                 // Return the input value as the output of this pattern
                 Ok(input)
@@ -65,6 +45,11 @@ impl<'m> LowerFunctionToCore<'m> {
                 // A literal pattern simply requires us to lower the literal as an immediate/constant and then
                 // compare to the input value for equality.
                 let cond = match lit {
+                    ast::Literal::Nil(_) => {
+                        builder
+                            .ins()
+                            .eq_exact_imm(input, Immediate::Nil, pattern_span)
+                    }
                     ast::Literal::Atom(l) => {
                         builder
                             .ins()
@@ -105,17 +90,29 @@ impl<'m> LowerFunctionToCore<'m> {
                     ast::Literal::Float(_, f) => {
                         builder.ins().eq_exact_imm(input, f.into(), pattern_span)
                     }
+                    ast::Literal::Cons(_, _h, _t) => {
+                        // Allocate constant list, compare for equality
+                        todo!()
+                    }
+                    ast::Literal::Tuple(_, _elements) => {
+                        // Check if input is a tuple of arity N, bail early if not
+                        // Allocate constant tuple, compare for equality
+                        todo!()
+                    }
+                    ast::Literal::Map(_, _map) => {
+                        // Check if input is a map, bail early if not
+                        // For each key/value pair, check if the input map contains the pair
+                        todo!()
+                    }
+                    ast::Literal::Binary(_, _bin) => {
+                        // Allocate constant binary, compare for equality
+                        todo!()
+                    }
                 };
                 builder
                     .ins()
                     .br_unless(cond, pattern_fail, &[input], pattern_span);
                 // Since this was effectively a guard on the input, use the input value as the output of this pattern
-                Ok(input)
-            }
-            ast::Expr::Nil(nil) => {
-                let span = nil.span();
-                let cond = builder.ins().eq_exact_imm(input, Immediate::Nil, span);
-                builder.ins().br_unless(cond, pattern_fail, &[input], span);
                 Ok(input)
             }
             ast::Expr::Cons(cons) => {
@@ -270,7 +267,7 @@ impl<'m> LowerFunctionToCore<'m> {
                         Ok(initial.unwrap_or(rhs))
                     }
                     // [] ++ Expr = Input
-                    ast::Expr::Nil(_) => {
+                    ast::Expr::Literal(ast::Literal::Nil(_)) => {
                         // This pattern is equivalent to a pattern consisting of only the right-hand operand
                         return self.lower_pattern(
                             builder,
@@ -311,7 +308,6 @@ impl<'m> LowerFunctionToCore<'m> {
                                     let hd = builder.ins().head(list, span);
                                     match *head {
                                         head @ ast::Expr::Literal(_)
-                                        | head @ ast::Expr::Nil(_)
                                         | head @ ast::Expr::Cons(_)
                                         | head @ ast::Expr::Tuple(_)
                                         | head @ ast::Expr::Map(_)
@@ -338,7 +334,7 @@ impl<'m> LowerFunctionToCore<'m> {
                                     current = *tail;
                                     rest = builder.ins().tail(list, span);
                                 }
-                                ast::Expr::Nil(_) => {
+                                ast::Expr::Literal(ast::Literal::Nil(_)) => {
                                     break;
                                 }
                                 other => {
@@ -371,39 +367,36 @@ impl<'m> LowerFunctionToCore<'m> {
             ast::Expr::BinaryExpr(ref binop) => {
                 let span = binop.span;
                 // Since only arithmetic/bitwise ops are valid here, the output term must be numeric
-                let cond = match evaluator::eval_expr(&pattern, None) {
-                    Ok(evaluator::Term::Number(n)) => match n {
-                        Number::Integer(Integer::Small(i)) => {
-                            builder
-                                .ins()
-                                .neq_exact_imm(input, Immediate::Integer(i), span)
-                        }
-                        Number::Integer(big @ Integer::Big(_)) => {
+                let cond =
+                    match evaluator::eval_expr(&pattern, None) {
+                        Ok(ast::Literal::Integer(_, Integer::Small(i))) => builder
+                            .ins()
+                            .neq_exact_imm(input, Immediate::Integer(i), span),
+                        Ok(ast::Literal::Integer(_, big @ Integer::Big(_))) => {
                             let const_big = builder.make_constant(ConstantItem::Integer(big));
                             builder.ins().neq_exact_const(input, const_big, span)
                         }
-                        Number::Float(f) => {
+                        Ok(ast::Literal::Float(_, f)) => {
                             builder
                                 .ins()
                                 .neq_exact_imm(input, Immediate::Float(f.inner()), span)
                         }
-                    },
-                    Ok(_) => panic!(
+                        Ok(_) => panic!(
                         "unexpected non-numeric output when evaluating constant numeric expression"
                     ),
-                    Err(e) => {
-                        let eval_span = e.span();
-                        let eval_message = e.to_string();
-                        self.show_error(
-                            "invalid constant expression in pattern context",
-                            &[
-                                (span, "in this expression"),
-                                (eval_span, eval_message.as_str()),
-                            ],
-                        );
-                        bail!("invalid expression in pattern context: {}", e)
-                    }
-                };
+                        Err(e) => {
+                            let eval_span = e.span();
+                            let eval_message = e.to_string();
+                            self.show_error(
+                                "invalid constant expression in pattern context",
+                                &[
+                                    (span, "in this expression"),
+                                    (eval_span, eval_message.as_str()),
+                                ],
+                            );
+                            bail!("invalid expression in pattern context: {}", e)
+                        }
+                    };
                 builder.ins().br_if(cond, pattern_fail, &[input], span);
                 Ok(input)
             }
@@ -412,39 +405,36 @@ impl<'m> LowerFunctionToCore<'m> {
                 op,
                 ref operand,
             }) if op.is_valid_in_patterns() => {
-                let cond = match evaluator::eval_expr(operand, None) {
-                    Ok(evaluator::Term::Number(n)) => match n {
-                        Number::Integer(Integer::Small(i)) => {
-                            builder
-                                .ins()
-                                .neq_exact_imm(input, Immediate::Integer(i), span)
-                        }
-                        Number::Integer(big @ Integer::Big(_)) => {
+                let cond =
+                    match evaluator::eval_expr(operand, None) {
+                        Ok(ast::Literal::Integer(_, Integer::Small(i))) => builder
+                            .ins()
+                            .neq_exact_imm(input, Immediate::Integer(i), span),
+                        Ok(ast::Literal::Integer(_, big @ Integer::Big(_))) => {
                             let const_big = builder.make_constant(ConstantItem::Integer(big));
                             builder.ins().neq_exact_const(input, const_big, span)
                         }
-                        Number::Float(f) => {
+                        Ok(ast::Literal::Float(_, f)) => {
                             builder
                                 .ins()
                                 .neq_exact_imm(input, Immediate::Float(f.inner()), span)
                         }
-                    },
-                    Ok(_) => panic!(
+                        Ok(_) => panic!(
                         "unexpected non-numeric output when evaluating constant numeric expression"
                     ),
-                    Err(e) => {
-                        let eval_span = e.span();
-                        let eval_message = e.to_string();
-                        self.show_error(
-                            "invalid constant expression in pattern context",
-                            &[
-                                (span, "in this expression"),
-                                (eval_span, eval_message.as_str()),
-                            ],
-                        );
-                        bail!("invalid expression in pattern context: {}", e)
-                    }
-                };
+                        Err(e) => {
+                            let eval_span = e.span();
+                            let eval_message = e.to_string();
+                            self.show_error(
+                                "invalid constant expression in pattern context",
+                                &[
+                                    (span, "in this expression"),
+                                    (eval_span, eval_message.as_str()),
+                                ],
+                            );
+                            bail!("invalid expression in pattern context: {}", e)
+                        }
+                    };
                 builder.ins().br_if(cond, pattern_fail, &[input], span);
                 Ok(input)
             }

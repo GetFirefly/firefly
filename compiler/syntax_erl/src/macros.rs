@@ -12,6 +12,17 @@ macro_rules! kwlist {
         elements.fold(nil!(), |acc, (key, val)| {
             cons!(tuple!(key, val), acc)
         })
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! kwlist_with_span {
+    ($span:expr, $($element:expr),*) => {
+        let mut elements = vec![$($element),*];
+        elements.reverse();
+        elements.fold(nil!(), |acc, (key, val)| {
+            cons!($span, tuple_with_span!($span, key, val), acc)
+        })
     }
 }
 
@@ -27,6 +38,18 @@ macro_rules! list {
             let elements = [$($element),*];
             elements.iter().rev().fold(nil!(), |acc, el| {
                 cons!(*el, acc)
+            })
+        }
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! list_with_span {
+    ($span:expr, $($element:expr),*) => {
+        {
+            let elements = [$($element),*];
+            elements.iter().rev().fold(nil!($span), |acc, el| {
+                cons!($span, *el, acc)
             })
         }
     }
@@ -49,31 +72,62 @@ macro_rules! cons {
             tail: Box::new($tail),
         })
     };
+
+    ($span:expr, $head:expr, $tail:expr) => {
+        crate::ast::Expr::Cons(crate::ast::Cons {
+            span: $span,
+            head: Box::new($head),
+            tail: Box::new($tail),
+        })
+    };
 }
 
+#[allow(unused_macros)]
 macro_rules! nil {
     () => {
-        crate::ast::Expr::Nil(crate::ast::Nil(liblumen_diagnostics::SourceSpan::default()))
+        crate::ast::Expr::Literal(crate::ast::Literal::Nil(
+            liblumen_diagnostics::SourceSpan::default(),
+        ))
+    };
+
+    ($span:expr) => {
+        crate::ast::Expr::Literal(crate::ast::Literal::Nil($span))
     };
 }
 
 /// Produces a tuple expression with the given elements
+#[allow(unused_macros)]
 macro_rules! tuple {
     ($($element:expr),*) => {
         crate::ast::Expr::Tuple(crate::ast::Tuple{
             span: liblumen_diagnostics::SourceSpan::default(),
             elements: vec![$($element),*],
         })
-    }
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! tuple_with_span {
+    ($span:expr, $($element:expr),*) => {
+        crate::ast::Expr::Tuple(crate::ast::Tuple{
+            span: $span,
+            elements: vec![$($element),*],
+        })
+    };
 }
 
 /// Produces an integer literal expression
+#[allow(unused_macros)]
 macro_rules! int {
     ($i:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Integer(
             liblumen_diagnostics::SourceSpan::default(),
             $i,
         ))
+    };
+
+    ($span:expr, $i:expr) => {
+        crate::ast::Expr::Literal(crate::ast::Literal::Integer($span, $i))
     };
 }
 
@@ -86,29 +140,37 @@ macro_rules! atom {
             ))),
         ))
     };
+
     ($sym:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Atom(
-            liblumen_intern::Ident::with_empty_span(liblumen_intern::Symbol::intern($sym)),
+            liblumen_intern::Ident::with_empty_span($sym),
         ))
+    };
+
+    ($span:expr, $sym:ident) => {
+        crate::ast::Expr::Literal(crate::ast::Literal::Atom(liblumen_intern::Ident::new(
+            liblumen_intern::Symbol::intern(stringify!($sym)),
+            $span,
+        )))
+    };
+
+    ($span:expr, $sym:expr) => {
+        crate::ast::Expr::Literal(crate::ast::Literal::Atom(liblumen_intern::Ident::new(
+            $sym, $span,
+        )))
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! atom_from_ident {
     ($id:expr) => {
         crate::ast::Expr::Literal(crate::ast::Literal::Atom($id))
     };
 }
 
-macro_rules! atom_from_sym {
-    ($sym:expr) => {
-        crate::ast::Expr::Literal(crate::ast::Literal::Atom(
-            liblumen_intern::Ident::with_empty_span($sym),
-        ))
-    };
-}
-
 /// Produces an Ident from an expression, meant to be used to simplify generating
 /// identifiers in the AST from strings or symbols
+#[allow(unused_macros)]
 macro_rules! ident {
     ($sym:ident) => {
         liblumen_intern::Ident::with_empty_span(liblumen_intern::Symbol::intern(stringify!($sym)))
@@ -143,6 +205,7 @@ macro_rules! ident_opt {
 }
 
 /// Produces a variable expression
+#[allow(unused_macros)]
 macro_rules! var {
     ($name:ident) => {
         crate::ast::Expr::Var(crate::ast::Var(ident!(stringify!($name))))
@@ -152,58 +215,77 @@ macro_rules! var {
     };
 }
 
-/// Produces a remote expression, e.g. `erlang:get_module_info`
-///
-/// Expects the module/function to be identifier symbols
-macro_rules! remote {
-    ($module:ident, $function:ident) => {
-        crate::ast::Expr::Remote(crate::ast::Remote {
-            span: liblumen_diagnostics::SourceSpan::default(),
-            module: Box::new(atom!($module)),
-            function: Box::new(atom!($function)),
-        })
-    };
-    ($module:expr, $function:expr) => {
-        crate::ast::Expr::Remote(crate::ast::Remote {
-            span: liblumen_diagnostics::SourceSpan::default(),
-            module: Box::new($module),
-            function: Box::new($function),
-        })
+/// Produces a Symbol with the name of the given identifier
+#[allow(unused_macros)]
+macro_rules! symbol {
+    ($sym:ident) => {
+        liblumen_intern::Symbol::intern(stringify!($sym))
     };
 }
 
 /// Produces a function application expression
+#[allow(unused_macros)]
 macro_rules! apply {
-    ($callee:expr, $($args:expr),*) => {
-        crate::ast::Expr::Apply(crate::ast::Apply {
-            span: liblumen_diagnostics::SourceSpan::default(),
-            callee: Box::new($callee),
-            args: vec![$($args),*]
-        })
-    }
+    ($span:expr, $module:ident, $function:ident, ($($args:expr),*)) => {
+        {
+            let span = $span;
+            let args = vec![$($args),*];
+            crate::ast::Expr::Apply(crate::ast::Apply::remote(span, symbol!($module), symbol!($function), args))
+        }
+    };
+
+    ($span:expr, $module:ident, $function:expr, ($($args:expr),*)) => {
+        {
+            let span = $span;
+            let args = vec![$($args),*];
+            crate::ast::Expr::Apply(crate::ast::Apply::remote(span, symbol!($module), $function, args))
+        }
+    };
+
+    ($span:expr, $module:expr, $function:expr, ($($args:expr),*)) => {
+        {
+            let span = $span;
+            let args = vec![$($args),*];
+            crate::ast::Expr::Apply(crate::ast::Apply::remote(span, $module, $function, args))
+        }
+    };
+
+    ($span:expr, $callee:expr, ($($args:expr),*)) => {
+        {
+            let span = $span;
+            let args = vec![$($args),*];
+            crate::ast::Expr::Apply(crate::ast::Apply::new(span, $callee, args))
+        }
+    };
 }
 
 /// Produces a function definition
+#[allow(unused_macros)]
 macro_rules! fun {
     ($name:ident ($($params:ident),*) -> $body:expr) => {
         {
-            let params = vec![$(var!($params)),*];
-            let arity = params.len().try_into().unwrap();
+            let patterns = vec![$(var!($params)),*];
+            let arity = patterns.len().try_into().unwrap();
             crate::ast::Function {
                 span: liblumen_diagnostics::SourceSpan::default(),
                 name: ident!($name),
                 arity,
                 clauses: vec![
-                    crate::ast::FunctionClause{
-                        span: liblumen_diagnostics::SourceSpan::default(),
-                        name: Some(crate::ast::Name::Atom(ident!($name))),
-                        params,
-                        guard: None,
-                        body: vec![$body],
-                    }
+                    (
+                        Some(crate::ast::Name::Atom(ident!($name))),
+                        crate::ast::Clause{
+                            span: liblumen_diagnostics::SourceSpan::default(),
+                            patterns,
+                            guards: vec![],
+                            body: vec![$body],
+                            compiler_generated: false,
+                        }
+                    )
                 ],
                 spec: None,
                 is_nif: false,
+                var_counter: 0,
+                fun_counter: 0,
             }
         }
     };
@@ -211,15 +293,17 @@ macro_rules! fun {
         {
             let mut clauses = Vec::new();
             $(
-                clauses.push(crate::ast::FunctionClause {
+                clauses.push((
+                    Some(crate::ast::Name::Atom(ident!($name))),
+                    crate::ast::Clause {
                     span: liblumen_diagnostics::SourceSpan::default(),
-                    name: Some(crate::ast::Name::Atom(ident!($name))),
-                    params: vec![$($params),*],
-                    guard: None,
+                    patterns: vec![$($params),*],
+                    guards: vec![],
                     body: vec![$body],
-                });
+                    compiler_generated: false,
+                }));
             )*
-            let arity = clauses.first().as_ref().unwrap().params.len().try_into().unwrap();
+            let arity = clauses.first().as_ref().map(|(_, c)| c.patterns.len()).unwrap().try_into().unwrap();
             crate::ast::Function {
                 span: liblumen_diagnostics::SourceSpan::default(),
                 name: ident!($name),
@@ -227,6 +311,8 @@ macro_rules! fun {
                 clauses,
                 spec: None,
                 is_nif: false,
+                var_counter: 0,
+                fun_counter: 0,
             }
         }
     }

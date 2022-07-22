@@ -17,7 +17,7 @@ use rustc_hash::FxHashMap;
 use crate::arena::DroplessArena;
 use crate::symbols;
 
-use liblumen_diagnostics::SourceSpan;
+use liblumen_diagnostics::{SourceSpan, Spanned};
 
 lazy_static! {
     /// A globally accessible symbol table
@@ -38,12 +38,20 @@ impl SymbolTable {
 }
 unsafe impl Sync for SymbolTable {}
 
-#[derive(Copy, Clone, Eq)]
+#[derive(Copy, Clone, Eq, Spanned)]
 pub struct Ident {
     pub name: Symbol,
+    #[span]
     pub span: SourceSpan,
 }
-
+impl Default for Ident {
+    fn default() -> Self {
+        Self {
+            name: symbols::Empty,
+            span: SourceSpan::UNKNOWN,
+        }
+    }
+}
 impl Ident {
     #[inline]
     pub const fn new(name: Symbol, span: SourceSpan) -> Ident {
@@ -98,18 +106,26 @@ impl Ident {
     }
 }
 
-impl PartialOrd for Ident {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.name.partial_cmp(&other.name)
+impl Ord for Ident {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_str().cmp(&other.as_str())
     }
 }
-
+impl PartialOrd for Ident {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 impl PartialEq for Ident {
     fn eq(&self, rhs: &Self) -> bool {
         self.name == rhs.name
     }
 }
-
+impl PartialEq<Symbol> for Ident {
+    fn eq(&self, rhs: &Symbol) -> bool {
+        self.name.eq(rhs)
+    }
+}
 impl Hash for Ident {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);

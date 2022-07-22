@@ -3,9 +3,10 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 
 use liblumen_diagnostics::{SourceIndex, SourceSpan};
+use liblumen_intern::Symbol;
 use liblumen_number::{Float, Integer, ToPrimitive};
 
-use super::{LexicalError, Symbol, TokenConvertError, TokenConvertResult};
+use super::{LexicalError, TokenConvertError, TokenConvertResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexicalToken(pub SourceIndex, pub Token, pub SourceIndex);

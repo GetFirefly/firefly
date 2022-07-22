@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 liblumen_diagnostics = { path = "../diagnostics" }
+liblumen_diagnostics_macros = { path = "../diagnostics_macros" }
 
 rustc-hash = "1.1"
 lazy_static = "1.4"

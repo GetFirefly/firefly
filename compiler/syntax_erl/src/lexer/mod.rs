@@ -1,8 +1,5 @@
 //! A fairly basic lexer for Erlang
 
-pub use liblumen_intern::symbol::{symbols, SYMBOL_TABLE};
-pub use liblumen_intern::symbol::{Ident, InternedString, LocalInternedString, Symbol};
-
 mod errors;
 mod lexer;
 mod token;

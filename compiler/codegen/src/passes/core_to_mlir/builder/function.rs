@@ -1510,23 +1510,15 @@ impl<'m> ModuleBuilder<'m> {
                         )
                         .base()
                 }
-                BinaryEntrySpecifier::Bytes { unit } | BinaryEntrySpecifier::Bits { unit } => {
-                    match args.get(2) {
-                        None => builder.build_binary_push_bits_all(loc, bin, value).base(),
-                        Some(arg) => {
-                            let size = self.values[arg];
-                            builder
-                                .build_binary_push_bits(
-                                    loc,
-                                    bin,
-                                    value,
-                                    size,
-                                    unit.try_into().unwrap(),
-                                )
-                                .base()
-                        }
+                BinaryEntrySpecifier::Binary { unit } => match args.get(2) {
+                    None => builder.build_binary_push_bits_all(loc, bin, value).base(),
+                    Some(arg) => {
+                        let size = self.values[arg];
+                        builder
+                            .build_binary_push_bits(loc, bin, value, size, unit.try_into().unwrap())
+                            .base()
                     }
-                }
+                },
                 BinaryEntrySpecifier::Utf8 => {
                     builder.build_binary_push_utf8(loc, bin, value).base()
                 }

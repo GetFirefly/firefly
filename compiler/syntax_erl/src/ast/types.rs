@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use lazy_static::lazy_static;
 
-use liblumen_diagnostics::SourceSpan;
+use liblumen_diagnostics::{SourceSpan, Spanned};
 use liblumen_number::Integer;
 
 use super::{BinaryOp, UnaryOp};
@@ -58,65 +58,74 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub enum Type {
     Name(Name),
     Annotated {
+        #[span]
         span: SourceSpan,
         name: Name,
         ty: Box<Type>,
     },
     Union {
+        #[span]
         span: SourceSpan,
         types: Vec<Type>,
     },
     Range {
+        #[span]
         span: SourceSpan,
         start: Box<Type>,
         end: Box<Type>,
     },
     BinaryOp {
+        #[span]
         span: SourceSpan,
         lhs: Box<Type>,
         op: BinaryOp,
         rhs: Box<Type>,
     },
     UnaryOp {
+        #[span]
         span: SourceSpan,
         op: UnaryOp,
         rhs: Box<Type>,
     },
     Generic {
+        #[span]
         span: SourceSpan,
         fun: Ident,
         params: Vec<Type>,
     },
     Remote {
+        #[span]
         span: SourceSpan,
         module: Ident,
         fun: Ident,
         args: Vec<Type>,
     },
     Nil(SourceSpan),
-    List(SourceSpan, Box<Type>),
-    NonEmptyList(SourceSpan, Box<Type>),
-    Map(SourceSpan, Vec<Type>),
-    Tuple(SourceSpan, Vec<Type>),
-    Record(SourceSpan, Ident, Vec<Type>),
-    Binary(SourceSpan, Box<Type>, Box<Type>),
-    Integer(SourceSpan, Integer),
-    Char(SourceSpan, char),
+    List(#[span] SourceSpan, Box<Type>),
+    NonEmptyList(#[span] SourceSpan, Box<Type>),
+    Map(#[span] SourceSpan, Vec<Type>),
+    Tuple(#[span] SourceSpan, Vec<Type>),
+    Record(#[span] SourceSpan, Ident, Vec<Type>),
+    Binary(#[span] SourceSpan, Box<Type>, Box<Type>),
+    Integer(#[span] SourceSpan, Integer),
+    Char(#[span] SourceSpan, char),
     AnyFun {
+        #[span]
         span: SourceSpan,
         ret: Option<Box<Type>>,
     },
     Fun {
+        #[span]
         span: SourceSpan,
         params: Vec<Type>,
         ret: Box<Type>,
     },
-    KeyValuePair(SourceSpan, Box<Type>, Box<Type>),
-    Field(SourceSpan, Ident, Box<Type>),
+    KeyValuePair(#[span] SourceSpan, Box<Type>, Box<Type>),
+    Field(#[span] SourceSpan, Ident, Box<Type>),
 }
 impl Type {
     pub fn union(span: SourceSpan, lhs: Type, rhs: Type) -> Self {

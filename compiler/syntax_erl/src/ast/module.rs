@@ -3,14 +3,14 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::anyhow;
 
-use liblumen_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Spanned};
-use liblumen_syntax_core::{self as syntax_core};
+use liblumen_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Span, Spanned};
+use liblumen_syntax_core as syntax_core;
 use liblumen_util::emit::Emit;
 
 use super::*;
 
 /// Represents expressions valid at the top level of a module body
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Spanned)]
 pub enum TopLevel {
     Module(Ident),
     Attribute(Attribute),
@@ -58,20 +58,21 @@ impl TopLevel {
 /// done during parsing, as the module is constructed last). This means that once
 /// constructed, one can use `FunctionName` equality in sets/maps, which
 /// allows us to easily check definitions, usages, and more.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Spanned)]
 pub struct Module {
+    #[span]
     pub span: SourceSpan,
     pub name: Ident,
     pub vsn: Option<Expr>,
     pub author: Option<Expr>,
     pub compile: Option<CompileOptions>,
-    pub on_load: Option<Spanned<syntax_core::FunctionName>>,
-    pub nifs: HashSet<Spanned<syntax_core::FunctionName>>,
-    pub imports: HashMap<syntax_core::FunctionName, Spanned<syntax_core::Signature>>,
-    pub exports: HashSet<Spanned<syntax_core::FunctionName>>,
+    pub on_load: Option<Span<syntax_core::FunctionName>>,
+    pub nifs: HashSet<Span<syntax_core::FunctionName>>,
+    pub imports: HashMap<syntax_core::FunctionName, Span<syntax_core::Signature>>,
+    pub exports: HashSet<Span<syntax_core::FunctionName>>,
     pub removed: HashMap<syntax_core::FunctionName, (SourceSpan, Ident)>,
     pub types: HashMap<syntax_core::FunctionName, TypeDef>,
-    pub exported_types: HashSet<Spanned<syntax_core::FunctionName>>,
+    pub exported_types: HashSet<Span<syntax_core::FunctionName>>,
     pub specs: HashMap<syntax_core::FunctionName, TypeSpec>,
     pub behaviours: HashSet<Ident>,
     pub callbacks: HashMap<syntax_core::FunctionName, Callback>,
@@ -162,10 +163,11 @@ impl Module {
         name: Ident,
         body: Vec<TopLevel>,
     ) -> Self {
-        use crate::passes::SemanticAnalysis;
+        use crate::passes::{CanonicalizeSyntax, SemanticAnalysis};
         use liblumen_pass::Pass;
 
-        let mut passes = SemanticAnalysis::new(reporter.clone(), span, name);
+        let mut passes = SemanticAnalysis::new(reporter.clone(), span, name)
+            .chain(CanonicalizeSyntax::new(reporter.clone()));
         match passes.run(body) {
             Ok(module) => module,
             Err(reason) => {
@@ -260,7 +262,7 @@ pub struct CompileOptions {
     // Warns when a function is unused
     pub warn_unused_function: bool,
     // Disables the unused function warning for the specified functions
-    pub no_warn_unused_functions: HashSet<Spanned<syntax_core::FunctionName>>,
+    pub no_warn_unused_functions: HashSet<Span<syntax_core::FunctionName>>,
     // Warns about unused imports
     pub warn_unused_import: bool,
     // Warns about unused variables
@@ -280,7 +282,7 @@ pub struct CompileOptions {
     pub warn_obsolete_guard: bool,
     pub inline: bool,
     // Inlines the given functions
-    pub inline_functions: HashSet<Spanned<syntax_core::FunctionName>>,
+    pub inline_functions: HashSet<Span<syntax_core::FunctionName>>,
 }
 impl Default for CompileOptions {
     fn default() -> Self {
@@ -368,7 +370,7 @@ impl CompileOptions {
                             ("lists", "mapfoldr", 3),
                         ];
                         for (m, f, a) in funs.iter() {
-                            self.inline_functions.insert(Spanned::new(
+                            self.inline_functions.insert(Span::new(
                                 option_name.span,
                                 syntax_core::FunctionName::new(
                                     Symbol::intern(m),
@@ -566,7 +568,7 @@ impl CompileOptions {
         for fun in funs {
             match fun {
                 Expr::FunctionName(FunctionName::PartiallyResolved(name)) => {
-                    let name = Spanned::new(name.span(), name.resolve(module.name));
+                    let name = Span::new(name.span(), name.resolve(module.name));
                     self.inline_functions.insert(name);
                     continue;
                 }
@@ -576,7 +578,7 @@ impl CompileOptions {
                             Expr::Literal(Literal::Atom(name)),
                             Expr::Literal(Literal::Integer(_, arity)),
                         ) => {
-                            let name = Spanned::new(
+                            let name = Span::new(
                                 tup.span,
                                 syntax_core::FunctionName::new(
                                     module.name,
@@ -612,7 +614,7 @@ fn to_list_simple(mut expr: &Expr) -> Vec<Expr> {
                 list.push((*cons.head).clone());
                 expr = &cons.tail;
             }
-            Expr::Nil(_) => {
+            Expr::Literal(Literal::Nil(_)) => {
                 return list;
             }
             _ => {
@@ -645,7 +647,7 @@ fn to_list(head: &Expr, tail: &Expr) -> Vec<Expr> {
             let mut t = to_list(head2, tail2);
             list.append(&mut t);
         }
-        &Expr::Nil(_) => (),
+        &Expr::Literal(Literal::Nil(_)) => (),
         expr => list.push(expr.clone()),
     }
 

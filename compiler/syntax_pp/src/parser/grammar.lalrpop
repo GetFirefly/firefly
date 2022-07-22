@@ -154,10 +154,10 @@ TypeArg100: Type = {
 
 pub Item: Item = {
     <l:@L> "{" <entries: CommaOpt<Item>> "}" <r:@R> => {
-        Item::Tuple(Spanned::new(span!(l, r), Tuple(entries)))
+        Item::Tuple(Span::new(span!(l, r), Tuple(entries)))
     },
     <l:@L> "[" <head: CommaOpt<Item>> <tail: ("|" <Item>)?> "]" <r:@R> => {
-        Item::List(Spanned::new(span!(l, r), List { head, tail }))
+        Item::List(Span::new(span!(l, r), List { head, tail }))
     },
 
     <l:@L> <v: atom> <r:@R> => {

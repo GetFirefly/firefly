@@ -348,7 +348,7 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::MaybeImproperList));
                     1
                 }
-                Opcode::Tuple | Opcode::SetElement => {
+                Opcode::Tuple | Opcode::SetElement | Opcode::SetElementMut => {
                     self.append_result(inst, Type::Term(TermType::Tuple(None)));
                     1
                 }
@@ -356,7 +356,11 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::Any));
                     1
                 }
-                Opcode::Map | Opcode::MapPut | Opcode::MapUpdate => {
+                Opcode::Map
+                | Opcode::MapPut
+                | Opcode::MapPutMut
+                | Opcode::MapUpdate
+                | Opcode::MapUpdateMut => {
                     self.append_result(inst, Type::Term(TermType::Map));
                     1
                 }

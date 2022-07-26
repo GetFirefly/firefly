@@ -107,9 +107,46 @@ impl Annotations {
         }
     }
 }
-impl<I: Iterator<Item = (Symbol, Annotation)>> From<I> for Annotations {
-    fn from(iter: I) -> Self {
-        Self(iter.collect())
+impl From<Symbol> for Annotations {
+    fn from(sym: Symbol) -> Self {
+        let mut annos = Self::default();
+        annos.set(sym);
+        annos
+    }
+}
+impl<const N: usize> From<[Symbol; N]> for Annotations {
+    #[inline]
+    fn from(syms: [Symbol; N]) -> Self {
+        Self::from(syms.as_slice())
+    }
+}
+impl<const N: usize> From<[(Symbol, Annotation); N]> for Annotations {
+    #[inline]
+    fn from(syms: [(Symbol, Annotation); N]) -> Self {
+        Self::from(syms.as_slice())
+    }
+}
+impl From<&[Symbol]> for Annotations {
+    fn from(syms: &[Symbol]) -> Self {
+        let mut annos = Self::default();
+        for sym in syms {
+            annos.set(*sym);
+        }
+        annos
+    }
+}
+impl From<&[(Symbol, Annotation)]> for Annotations {
+    fn from(syms: &[(Symbol, Annotation)]) -> Self {
+        let mut annos = Self::default();
+        for (sym, anno) in syms {
+            annos.put(*sym, anno.clone());
+        }
+        annos
+    }
+}
+impl From<Vec<(Symbol, Annotation)>> for Annotations {
+    fn from(mut annos: Vec<(Symbol, Annotation)>) -> Self {
+        Self(annos.drain(..).collect())
     }
 }
 
@@ -146,7 +183,6 @@ pub struct Module {
     pub author: Option<Literal>,
     pub compile: Option<ast::CompileOptions>,
     pub on_load: Option<Span<syntax_core::FunctionName>>,
-    pub nifs: HashSet<Span<syntax_core::FunctionName>>,
     pub imports: HashMap<syntax_core::FunctionName, Span<syntax_core::Signature>>,
     pub exports: HashSet<Span<syntax_core::FunctionName>>,
     pub behaviours: HashSet<Ident>,
@@ -160,10 +196,13 @@ annotated!(Module);
 /// The final CST never contains these expression types.
 #[derive(Debug, Clone, Spanned, PartialEq)]
 pub enum IExpr {
+    Binary(IBinary),
     Case(ICase),
     Catch(ICatch),
     Exprs(IExprs),
     Fun(IFun),
+    If(IIf),
+    LetRec(ILetRec),
     Match(IMatch),
     Protect(IProtect),
     Receive1(IReceive1),
@@ -175,10 +214,13 @@ pub enum IExpr {
 impl Annotated for IExpr {
     fn annotations(&self) -> &Annotations {
         match self {
+            Self::Binary(expr) => expr.annotations(),
             Self::Case(expr) => expr.annotations(),
             Self::Catch(expr) => expr.annotations(),
             Self::Exprs(expr) => expr.annotations(),
             Self::Fun(expr) => expr.annotations(),
+            Self::If(expr) => expr.annotations(),
+            Self::LetRec(expr) => expr.annotations(),
             Self::Match(expr) => expr.annotations(),
             Self::Protect(expr) => expr.annotations(),
             Self::Receive1(expr) => expr.annotations(),
@@ -191,10 +233,13 @@ impl Annotated for IExpr {
 
     fn annotations_mut(&mut self) -> &mut Annotations {
         match self {
+            Self::Binary(expr) => expr.annotations_mut(),
             Self::Case(expr) => expr.annotations_mut(),
             Self::Catch(expr) => expr.annotations_mut(),
             Self::Exprs(expr) => expr.annotations_mut(),
             Self::Fun(expr) => expr.annotations_mut(),
+            Self::If(expr) => expr.annotations_mut(),
+            Self::LetRec(expr) => expr.annotations_mut(),
             Self::Match(expr) => expr.annotations_mut(),
             Self::Protect(expr) => expr.annotations_mut(),
             Self::Receive1(expr) => expr.annotations_mut(),
@@ -205,18 +250,42 @@ impl Annotated for IExpr {
         }
     }
 }
-
 #[derive(Debug, Clone, Spanned)]
-pub struct ICatch {
+pub struct IBinary {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
-    pub body: Vec<Expr>,
+    pub segments: Vec<IBitstring>,
 }
-annotated!(ICatch);
-impl PartialEq for ICatch {
+annotated!(IBinary);
+impl IBinary {
+    pub fn new(span: SourceSpan, segments: Vec<IBitstring>) -> Self {
+        Self {
+            span,
+            annotations: Annotations::default(),
+            segments,
+        }
+    }
+}
+impl PartialEq for IBinary {
     fn eq(&self, other: &Self) -> bool {
-        self.body == other.body
+        self.segments == other.segments
+    }
+}
+
+#[derive(Debug, Clone, Spanned)]
+pub struct IBitstring {
+    #[span]
+    pub span: SourceSpan,
+    pub annotations: Annotations,
+    pub value: Box<Expr>,
+    pub size: Vec<Expr>,
+    pub spec: BinaryEntrySpecifier,
+}
+annotated!(IBitstring);
+impl PartialEq for IBitstring {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value && self.size == other.size && self.spec == other.spec
     }
 }
 
@@ -233,6 +302,20 @@ annotated!(ICase);
 impl PartialEq for ICase {
     fn eq(&self, other: &Self) -> bool {
         self.args == other.args && self.clauses == other.clauses && self.fail == other.fail
+    }
+}
+
+#[derive(Debug, Clone, Spanned)]
+pub struct ICatch {
+    #[span]
+    pub span: SourceSpan,
+    pub annotations: Annotations,
+    pub body: Vec<Expr>,
+}
+annotated!(ICatch);
+impl PartialEq for ICatch {
+    fn eq(&self, other: &Self) -> bool {
+        self.body == other.body
     }
 }
 
@@ -292,7 +375,7 @@ pub struct IFun {
     pub span: SourceSpan,
     pub annotations: Annotations,
     pub id: Option<Ident>,
-    pub name: Symbol,
+    pub name: Option<Ident>,
     pub vars: Vec<Var>,
     pub clauses: Vec<IClause>,
     pub fail: Box<IClause>,
@@ -309,12 +392,45 @@ impl PartialEq for IFun {
 }
 
 #[derive(Debug, Clone, Spanned)]
+pub struct IIf {
+    #[span]
+    pub span: SourceSpan,
+    pub annotations: Annotations,
+    pub guards: Vec<Expr>,
+    pub then_body: Vec<Expr>,
+    pub else_body: Vec<Expr>,
+}
+annotated!(IIf);
+impl PartialEq for IIf {
+    fn eq(&self, other: &Self) -> bool {
+        self.guards == other.guards
+            && self.then_body == other.then_body
+            && self.else_body == other.else_body
+    }
+}
+
+#[derive(Debug, Clone, Spanned)]
+pub struct ILetRec {
+    #[span]
+    pub span: SourceSpan,
+    pub annotations: Annotations,
+    pub defs: Vec<(Var, Expr)>,
+    pub body: Vec<Expr>,
+}
+annotated!(ILetRec);
+impl PartialEq for ILetRec {
+    fn eq(&self, other: &Self) -> bool {
+        self.defs == other.defs && self.body == other.body
+    }
+}
+
+#[derive(Debug, Clone, Spanned)]
 pub struct IMatch {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
     pub pattern: Box<Expr>,
-    pub guard: Vec<Expr>,
+    pub guards: Vec<Expr>,
     pub arg: Box<Expr>,
     pub fail: Box<IClause>,
 }
@@ -322,7 +438,7 @@ annotated!(IMatch);
 impl PartialEq for IMatch {
     fn eq(&self, other: &Self) -> bool {
         self.pattern == other.pattern
-            && self.guard == other.guard
+            && self.guards == other.guards
             && self.arg == other.arg
             && self.fail == other.fail
     }
@@ -379,12 +495,12 @@ pub struct ISet {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
-    pub var: Ident,
+    pub var: Var,
     pub arg: Box<Expr>,
 }
 annotated!(ISet);
 impl ISet {
-    pub fn new(span: SourceSpan, var: Ident, arg: Expr) -> Self {
+    pub fn new(span: SourceSpan, var: Var, arg: Expr) -> Self {
         Self {
             span,
             annotations: Annotations::default(),
@@ -400,28 +516,14 @@ impl PartialEq for ISet {
 }
 
 #[derive(Debug, Clone, Spanned)]
-pub struct ISimple {
-    #[span]
-    pub span: SourceSpan,
-    pub annotations: Annotations,
-    pub expr: Box<Expr>,
-}
-annotated!(ISimple);
-impl PartialEq for ISimple {
-    fn eq(&self, other: &Self) -> bool {
-        self.expr == other.expr
-    }
-}
-
-#[derive(Debug, Clone, Spanned)]
 pub struct ITry {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
     pub args: Vec<Expr>,
-    pub vars: Vec<Ident>,
+    pub vars: Vec<Var>,
     pub body: Vec<Expr>,
-    pub evars: [Ident; 3],
+    pub evars: Vec<Var>,
     pub handler: Box<Expr>,
 }
 annotated!(ITry);
@@ -448,18 +550,18 @@ pub struct IGen {
     pub span: SourceSpan,
     pub annotations: Annotations,
     // acc_pat is the accumulator pattern, e.g. [Pat|Tail] for Pat <- Expr.
-    pub acc_pattern: Box<Expr>,
+    pub acc_pattern: Option<Box<Expr>>,
     // acc_guard is the list of guards immediately following the current
     // generator in the qualifier list input.
-    pub acc_guard: Vec<Expr>,
+    pub acc_guards: Vec<Expr>,
     // skip_pat is the skip pattern, e.g. <<X,_:X,Tail/bitstring>> for <<X,1:X>> <= Expr.
-    pub skip_pat: Box<Expr>,
+    pub skip_pattern: Option<Box<Expr>>,
     // tail is the variable used in AccPat and SkipPat bound to the rest of the
     // generator input.
-    pub tail: Var,
+    pub tail: Option<Var>,
     // tail_pat is the tail pattern, respectively [] and <<_/bitstring>> for list
     // and bit string generators.
-    pub tail_pat: Box<Expr>,
+    pub tail_pattern: Box<Expr>,
     // pre is the list of expressions to be inserted before the comprehension function
     pub pre: Vec<Expr>,
     // arg is the expression that the comprehension function should be passed
@@ -471,9 +573,9 @@ annotated!(IGen);
 #[derive(Debug, Clone, Spanned)]
 pub struct IFilter {
     #[span]
-    span: SourceSpan,
-    annotations: Annotations,
-    filter: FilterType,
+    pub span: SourceSpan,
+    pub annotations: Annotations,
+    pub filter: FilterType,
 }
 annotated!(IFilter);
 impl IFilter {
@@ -515,7 +617,6 @@ pub enum Expr {
     Alias(Alias),
     Apply(Apply),
     Binary(Binary),
-    Bitstring(Bitstring),
     Call(Call),
     Case(Case),
     Catch(Catch),
@@ -541,7 +642,6 @@ impl Annotated for Expr {
             Self::Alias(expr) => expr.annotations(),
             Self::Apply(expr) => expr.annotations(),
             Self::Binary(expr) => expr.annotations(),
-            Self::Bitstring(expr) => expr.annotations(),
             Self::Call(expr) => expr.annotations(),
             Self::Case(expr) => expr.annotations(),
             Self::Catch(expr) => expr.annotations(),
@@ -568,7 +668,6 @@ impl Annotated for Expr {
             Self::Alias(expr) => expr.annotations_mut(),
             Self::Apply(expr) => expr.annotations_mut(),
             Self::Binary(expr) => expr.annotations_mut(),
-            Self::Bitstring(expr) => expr.annotations_mut(),
             Self::Call(expr) => expr.annotations_mut(),
             Self::Case(expr) => expr.annotations_mut(),
             Self::Catch(expr) => expr.annotations_mut(),
@@ -606,6 +705,20 @@ impl Expr {
             Self::Map(Map { pairs, .. }) => pairs
                 .iter()
                 .all(|pair| pair.key.is_simple() && pair.value.is_simple()),
+            _ => false,
+        }
+    }
+
+    pub fn is_data(&self) -> bool {
+        match self {
+            Self::Literal(_) | Self::Cons(_) | Self::Tuple(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_var(&self) -> bool {
+        match self {
+            Self::Var(_) => true,
             _ => false,
         }
     }
@@ -666,6 +779,169 @@ impl Expr {
             _ => None,
         }
     }
+
+    pub fn coerce_to_float(self) -> Self {
+        match self {
+            Self::Literal(Literal {
+                span,
+                annotations,
+                value: Lit::Integer(i),
+            }) => match i.to_efloat() {
+                Ok(float) => Self::Literal(Literal {
+                    span,
+                    annotations,
+                    value: Lit::Float(float),
+                }),
+                Err(_) => Self::Literal(Literal {
+                    span,
+                    annotations,
+                    value: Lit::Integer(i),
+                }),
+            },
+            other => other,
+        }
+    }
+
+    pub fn is_var_used(&self, var: &Var) -> bool {
+        match self {
+            Self::Alias(Alias {
+                var: var2, pattern, ..
+            }) => var2.name() == var.name(),
+            Self::Values(Values { values, .. }) => values.iter().any(|v| v.is_var_used(var)),
+            Self::Var(v) => v.name() == var.name(),
+            Self::Literal(_) => false,
+            Self::Cons(Cons { head, tail, .. }) => head.is_var_used(var) || tail.is_var_used(var),
+            Self::Tuple(Tuple { elements, .. }) => elements.iter().any(|v| v.is_var_used(var)),
+            Self::Map(Map { arg, pairs, .. }) => {
+                arg.is_var_used(var)
+                    || pairs
+                        .iter()
+                        .any(|p| p.key.is_var_used(var) || p.value.is_var_used(var))
+            }
+            Self::Binary(Binary { segments, .. }) => segments.iter().any(|s| {
+                s.value.is_var_used(var)
+                    || s.size
+                        .as_ref()
+                        .map(|sz| sz.is_var_used(var))
+                        .unwrap_or_default()
+            }),
+            Self::Fun(Fun { vars, body, .. }) => {
+                // Variables in fun shadow previous variables
+                if vars.contains(var) {
+                    false
+                } else {
+                    body.is_var_used(var)
+                }
+            }
+            Self::If(If {
+                guard,
+                then_body,
+                else_body,
+                ..
+            }) => {
+                guard.is_var_used(var) || then_body.is_var_used(var) || else_body.is_var_used(var)
+            }
+            Self::Let(Let {
+                vars, arg, body, ..
+            }) => {
+                if arg.is_var_used(var) {
+                    true
+                } else {
+                    // Variables in let shadow previous variables
+                    if vars.contains(var) {
+                        false
+                    } else {
+                        body.is_var_used(var)
+                    }
+                }
+            }
+            Self::LetRec(LetRec { defs, body, .. }) => {
+                defs.iter().any(|(_, v)| v.is_var_used(var)) || body.is_var_used(var)
+            }
+            Self::Seq(Seq { arg, body, .. }) => arg.is_var_used(var) || body.is_var_used(var),
+            Self::Case(Case { arg, clauses, .. }) => {
+                if arg.is_var_used(var) {
+                    true
+                } else {
+                    clauses.iter().any(|clause| {
+                        clause
+                            .patterns
+                            .iter()
+                            .any(|p| p.is_var_used_in_pattern(var))
+                            || clause
+                                .guard
+                                .as_ref()
+                                .map(|g| g.is_var_used(var))
+                                .unwrap_or_default()
+                            || clause.body.is_var_used(var)
+                    })
+                }
+            }
+            Self::Apply(Apply { callee, args, .. }) => {
+                callee.is_var_used(var) || args.iter().any(|a| a.is_var_used(var))
+            }
+            Self::Call(Call {
+                module,
+                function,
+                args,
+                ..
+            }) => {
+                module.is_var_used(var)
+                    || function.is_var_used(var)
+                    || args.iter().any(|a| a.is_var_used(var))
+            }
+            Self::PrimOp(PrimOp { args, .. }) => args.iter().any(|v| v.is_var_used(var)),
+            Self::Catch(Catch { body, .. }) => body.is_var_used(var),
+            Self::Try(Try {
+                arg,
+                vars,
+                body,
+                evars,
+                handler,
+                ..
+            }) => {
+                if arg.is_var_used(var) {
+                    true
+                } else {
+                    // Variables shadow previous ones
+                    let is_shadowed = vars.contains(var) || evars.contains(var);
+                    if is_shadowed {
+                        false
+                    } else {
+                        handler.is_var_used(var)
+                    }
+                }
+            }
+            Self::Internal(_) => panic!("unexpected iexpr when performing variable usage analysis"),
+            other => unimplemented!("variable analysis for {:?}", other),
+        }
+    }
+
+    fn is_var_used_in_pattern(&self, var: &Var) -> bool {
+        match self {
+            Self::Var(v) => v.name() == var.name(),
+            Self::Cons(Cons { head, tail, .. }) => {
+                head.is_var_used_in_pattern(var) || tail.is_var_used_in_pattern(var)
+            }
+            Self::Tuple(Tuple { elements, .. }) => {
+                elements.iter().any(|e| e.is_var_used_in_pattern(var))
+            }
+            Self::Binary(Binary { segments, .. }) => segments.iter().any(|s| {
+                s.size
+                    .as_ref()
+                    .map(|sz| sz.is_var_used_in_pattern(var))
+                    .unwrap_or_default()
+            }),
+            Self::Map(Map { pairs, .. }) => pairs
+                .iter()
+                .any(|p| p.key.is_var_used(var) || p.value.is_var_used_in_pattern(var)),
+            Self::Literal(_) => false,
+            Self::Internal(_) => {
+                panic!("unexpected iexpr when performing pattern variable usage analysis")
+            }
+            other => unimplemented!("pattern variable analysis for {:?}", other),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Spanned)]
@@ -673,12 +949,12 @@ pub struct Alias {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
-    pub var: Ident,
+    pub var: Var,
     pub pattern: Box<Expr>,
 }
 annotated!(Alias);
 impl Alias {
-    pub fn new(span: SourceSpan, var: Ident, pattern: Expr) -> Self {
+    pub fn new(span: SourceSpan, var: Var, pattern: Expr) -> Self {
         Self {
             span,
             annotations: Annotations::default(),
@@ -726,6 +1002,15 @@ pub struct Binary {
     pub segments: Vec<Bitstring>,
 }
 annotated!(Binary);
+impl Binary {
+    pub fn new(span: SourceSpan, segments: Vec<Bitstring>) -> Self {
+        Self {
+            span,
+            annotations: Annotations::default(),
+            segments,
+        }
+    }
+}
 impl PartialEq for Binary {
     fn eq(&self, other: &Self) -> bool {
         self.segments == other.segments
@@ -790,12 +1075,11 @@ pub struct Case {
     pub annotations: Annotations,
     pub arg: Box<Expr>,
     pub clauses: Vec<Clause>,
-    pub fail: Option<Box<Clause>>,
 }
 annotated!(Case);
 impl PartialEq for Case {
     fn eq(&self, other: &Self) -> bool {
-        self.arg == other.arg && self.clauses == other.clauses && self.fail == other.fail
+        self.arg == other.arg && self.clauses == other.clauses
     }
 }
 
@@ -871,12 +1155,13 @@ pub struct Fun {
     pub span: SourceSpan,
     pub annotations: Annotations,
     pub name: Symbol,
+    pub vars: Vec<Var>,
     pub body: Box<Expr>,
 }
 annotated!(Fun);
 impl PartialEq for Fun {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.body == other.body
+        self.name == other.name && self.vars == other.vars && self.body == other.body
     }
 }
 
@@ -914,17 +1199,17 @@ pub struct Let {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
-    pub var: Ident,
+    pub vars: Vec<Var>,
     pub arg: Box<Expr>,
     pub body: Box<Expr>,
 }
 annotated!(Let);
 impl Let {
-    pub fn new(span: SourceSpan, var: Ident, arg: Expr, body: Expr) -> Self {
+    pub fn new(span: SourceSpan, vars: Vec<Var>, arg: Expr, body: Expr) -> Self {
         Self {
             span,
             annotations: Annotations::default(),
-            var,
+            vars,
             arg: Box::new(arg),
             body: Box::new(body),
         }
@@ -932,7 +1217,7 @@ impl Let {
 }
 impl PartialEq for Let {
     fn eq(&self, other: &Self) -> bool {
-        self.var == other.var && self.arg == other.arg && self.body == other.body
+        self.vars == other.vars && self.arg == other.arg && self.body == other.body
     }
 }
 
@@ -1196,7 +1481,7 @@ pub struct Map {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
-    pub arg: Option<Box<Expr>>,
+    pub arg: Box<Expr>,
     pub pairs: Vec<MapPair>,
     pub is_pattern: bool,
 }
@@ -1204,6 +1489,50 @@ annotated!(Map);
 impl PartialEq for Map {
     fn eq(&self, other: &Self) -> bool {
         self.arg == other.arg && self.pairs == other.pairs && self.is_pattern == other.is_pattern
+    }
+}
+impl Map {
+    pub fn new(span: SourceSpan, pairs: Vec<MapPair>) -> Self {
+        Self {
+            span,
+            annotations: Annotations::default(),
+            arg: Box::new(Expr::Literal(Literal {
+                span,
+                annotations: Annotations::default(),
+                value: Lit::Map(Default::default()),
+            })),
+            pairs,
+            is_pattern: false,
+        }
+    }
+
+    pub fn new_pattern(span: SourceSpan, pairs: Vec<MapPair>) -> Self {
+        Self {
+            span,
+            annotations: Annotations::default(),
+            arg: Box::new(Expr::Literal(Literal {
+                span,
+                annotations: Annotations::default(),
+                value: Lit::Map(Default::default()),
+            })),
+            pairs,
+            is_pattern: true,
+        }
+    }
+
+    pub fn update(span: SourceSpan, map: Expr, pairs: Vec<MapPair>) -> Self {
+        Self {
+            span,
+            annotations: Annotations::default(),
+            arg: Box::new(map),
+            pairs,
+            is_pattern: false,
+        }
+    }
+
+    pub fn pattern(mut self) -> Self {
+        self.is_pattern = true;
+        self
     }
 }
 
@@ -1294,9 +1623,9 @@ pub struct Try {
     pub span: SourceSpan,
     pub annotations: Annotations,
     pub arg: Box<Expr>,
-    pub vars: Vec<Ident>,
+    pub vars: Vec<Var>,
     pub body: Box<Expr>,
-    pub evars: [Ident; 3],
+    pub evars: Vec<Var>,
     pub handler: Box<Expr>,
 }
 annotated!(Try);
@@ -1358,9 +1687,8 @@ impl PartialEq for Values {
 
 #[derive(Debug, Clone, Spanned)]
 pub struct Var {
-    #[span]
-    pub span: SourceSpan,
     pub annotations: Annotations,
+    #[span]
     pub name: Ident,
     /// Used to represent function variables
     pub arity: Option<Arity>,
@@ -1369,16 +1697,14 @@ annotated!(Var);
 impl Var {
     pub fn new(name: Ident) -> Self {
         Self {
-            span: name.span,
             annotations: Annotations::default(),
             name,
             arity: None,
         }
     }
 
-    pub fn new_with_arity(span: SourceSpan, name: Ident, arity: Arity) -> Self {
+    pub fn new_with_arity(name: Ident, arity: Arity) -> Self {
         Self {
-            span,
             annotations: Annotations::default(),
             name,
             arity: Some(arity),

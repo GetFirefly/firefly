@@ -264,11 +264,14 @@ pub enum Opcode {
     Tuple,
     GetElement,
     SetElement,
+    SetElementMut,
     // Map Operations
     Map,
     MapGet,
     MapPut,
+    MapPutMut,
     MapUpdate,
+    MapUpdateMut,
     // Binary Operations
     BitsMatch,
     BitsInitWritable,
@@ -365,7 +368,7 @@ impl Opcode {
             // Getting a tuple element takes the tuple and the index of the element
             Self::GetElement => 2,
             // Setting a tuple element takes three arguments, the tuple, the index, and the element
-            Self::SetElement => 3,
+            Self::SetElement | Self::SetElementMut => 3,
             // Cons constructors/concat/subtract take two arguments, the head and tail elements/lists
             Self::Cons | Self::ListConcat | Self::ListSubtract => 2,
             // Creating a map has no arguments
@@ -373,7 +376,7 @@ impl Opcode {
             // Fetching from a map takes 2 arguments, map/key
             Self::MapGet => 2,
             // Inserting/updating a map takes 3 arguments, map/key/value
-            Self::MapPut | Self::MapUpdate => 3,
+            Self::MapPut | Self::MapPutMut | Self::MapUpdate | Self::MapUpdateMut => 3,
             // Creating a fun only requires the callee, the environment is variable-sized
             Self::MakeFun => 1,
             // Capturing a fun requires the module, function, and arity
@@ -471,10 +474,13 @@ impl fmt::Display for Opcode {
             Self::Map => f.write_str("map"),
             Self::MapGet => f.write_str("map.get"),
             Self::MapPut => f.write_str("map.put"),
+            Self::MapPutMut => f.write_str("map.put.mut"),
             Self::MapUpdate => f.write_str("map.update"),
+            Self::MapUpdateMut => f.write_str("map.update.mut"),
             Self::IsTaggedTuple => f.write_str("tuple.is_tagged"),
             Self::GetElement => f.write_str("tuple.get"),
             Self::SetElement => f.write_str("tuple.set"),
+            Self::SetElementMut => f.write_str("tuple.set.mut"),
             Self::MakeFun => f.write_str("fun.make"),
             Self::CaptureFun => f.write_str("fun.capture"),
             Self::MatchFail => f.write_str("match_fail"),
@@ -678,7 +684,7 @@ pub struct BitsMatch {
 
 #[derive(Debug, Clone)]
 pub struct BitsPush {
-    pub spec: Option<BinaryEntrySpecifier>,
+    pub spec: BinaryEntrySpecifier,
     pub args: ValueList,
 }
 

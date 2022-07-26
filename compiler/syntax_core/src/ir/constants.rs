@@ -3,6 +3,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
 
+use liblumen_binary::{BitVec, Bitstring};
 use liblumen_intern::{symbols, Symbol};
 use liblumen_number::{Float, Integer, Number};
 
@@ -315,6 +316,7 @@ pub enum ConstantItem {
     Bool(bool),
     Atom(Symbol),
     Bytes(ConstantData),
+    Bitstring(BitVec),
     String(String),
     InternedStr(Symbol),
     Tuple(Vec<Constant>),
@@ -333,20 +335,30 @@ impl PartialEq for ConstantItem {
             (Self::Bool(_), _) => false,
             (Self::Atom(x), Self::Atom(y)) => x.eq(y),
             (Self::Atom(_), _) => false,
+            (Self::Bitstring(x), other) => match other {
+                Self::Bitstring(y) => x.eq(y),
+                Self::Bytes(y) => x.eq(y.as_slice()),
+                Self::String(y) => x.eq(y.as_bytes()),
+                Self::InternedStr(y) => x.eq(y.as_str().get().as_bytes()),
+                _ => false,
+            },
             (Self::Bytes(x), other) => match other {
                 Self::Bytes(y) => x.eq(y),
+                Self::Bitstring(y) => y.eq(x.as_slice()),
                 Self::String(y) => x.as_slice().eq(y.as_bytes()),
                 Self::InternedStr(y) => x.as_slice().eq(y.as_str().get().as_bytes()),
                 _ => false,
             },
             (Self::String(x), other) => match other {
                 Self::Bytes(y) => x.as_bytes().eq(y.as_slice()),
+                Self::Bitstring(y) => y.eq(x.as_bytes()),
                 Self::String(y) => x.eq(y),
                 Self::InternedStr(y) => x.as_str().eq(y.as_str().get()),
                 _ => false,
             },
             (Self::InternedStr(x), other) => match other {
                 Self::Bytes(y) => x.as_str().get().as_bytes().eq(y.as_slice()),
+                Self::Bitstring(y) => y.eq(x.as_str().get().as_bytes()),
                 Self::String(y) => x.as_str().get().eq(y.as_str()),
                 Self::InternedStr(y) => x.eq(y),
                 _ => false,
@@ -373,6 +385,7 @@ impl Hash for ConstantItem {
             Self::Bool(b) => b.hash(state),
             Self::Atom(a) => a.hash(state),
             Self::Bytes(b) => b.as_slice().hash(state),
+            Self::Bitstring(b) => b.hash(state),
             Self::String(b) => b.as_bytes().hash(state),
             Self::InternedStr(b) => b.as_str().get().as_bytes().hash(state),
             Self::Tuple(e) => e.hash(state),
@@ -388,7 +401,7 @@ impl ConstantItem {
             Self::Float(_) => Type::Term(TermType::Float),
             Self::Bool(_) => Type::Term(TermType::Bool),
             Self::Atom(_) => Type::Term(TermType::Atom),
-            Self::Bytes(_) | Self::String(_) | Self::InternedStr(_) => {
+            Self::Bitstring(_) | Self::Bytes(_) | Self::String(_) | Self::InternedStr(_) => {
                 Type::Term(TermType::Bitstring)
             }
             Self::Tuple(_) => Type::Term(TermType::Tuple(None)),
@@ -405,6 +418,7 @@ impl ConstantItem {
                 bytes.len()
             }
             Self::Bytes(b) => b.len(),
+            Self::Bitstring(b) => b.byte_size(),
             Self::String(b) => b.as_bytes().len(),
             Self::InternedStr(b) => b.as_str().get().as_bytes().len(),
             Self::Tuple(ref elements) => elements
@@ -445,6 +459,7 @@ impl ConstantItem {
                     write!(f, "0x0")
                 }
             }
+            Self::Bitstring(b) => write!(f, "{}", b.display()),
             Self::String(s) => {
                 write!(f, "\"")?;
                 for c in s.escape_debug() {

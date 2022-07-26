@@ -4,7 +4,7 @@ use liblumen_diagnostics::*;
 use liblumen_pass::Pass;
 use liblumen_syntax_core as syntax_core;
 
-use crate::visit::{self, VisitMut};
+use crate::visit::ast::{self as visit, VisitMut};
 
 /// This pass expands partially-resolved function names to their fully-qualified
 /// names, when those names refer to imported functions. It does not expand calls

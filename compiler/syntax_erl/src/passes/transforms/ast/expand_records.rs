@@ -6,7 +6,7 @@ use liblumen_pass::Pass;
 use liblumen_syntax_core as syntax_core;
 
 use crate::ast::*;
-use crate::visit::{self, VisitMut};
+use crate::visit::ast::{self as visit, VisitMut};
 
 /// This pass performs expansion of records and record operations into raw
 /// tuple operations.

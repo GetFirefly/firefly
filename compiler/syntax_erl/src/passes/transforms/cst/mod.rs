@@ -149,72 +149,15 @@ struct FunctionContext {
     arity: u8,
     wanted: bool,
     in_guard: bool,
+    is_nif: bool,
 }
 
 mod annotate;
-mod lower;
 mod rewrites;
 mod simplify;
+mod translate;
 
-use self::annotate::AnnotateVarUsage;
-use self::lower::LowerAst;
-use self::rewrites::RewriteExports;
-use self::simplify::SimplifyCst;
-
-/// This pass transforms an AST function into its CST form for further analysis and eventual lowering to Core IR
-///
-/// This pass performs numerous small transformations to normalize the structure of the AST
-pub struct AstToCst {
-    reporter: Reporter,
-}
-impl AstToCst {
-    pub fn new(reporter: Reporter) -> Self {
-        Self { reporter }
-    }
-}
-impl Pass for AstToCst {
-    type Input<'a> = ast::Module;
-    type Output<'a> = cst::Module;
-
-    fn run<'a>(&mut self, mut ast: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        let mut module = Module {
-            span: ast.span,
-            annotations: Annotations::default(),
-            name: ast.name,
-            vsn: None,    // TODO
-            author: None, // TODO
-            compile: ast.compile,
-            on_load: ast.on_load,
-            nifs: ast.nifs,
-            imports: ast.imports,
-            exports: ast.exports,
-            behaviours: ast.behaviours,
-            attributes: ast
-                .attributes
-                .drain()
-                .filter_map(|(k, v)| translate_attr(k, v.value))
-                .collect(),
-            functions: BTreeMap::new(),
-        };
-
-        while let Some((name, function)) = ast.functions.pop_first() {
-            let context = Rc::new(UnsafeCell::new(FunctionContext::new(&function)));
-            let mut pipeline = LowerAst::new(self.reporter.clone(), Rc::clone(&context))
-                .chain(AnnotateVarUsage::new(Rc::clone(&context)))
-                .chain(RewriteExports::new(Rc::clone(&context)))
-                .chain(SimplifyCst::new(Rc::clone(&context)));
-            let function = pipeline.run(function)?;
-            module.functions.insert(name, function);
-        }
-
-        Ok(module)
-    }
-}
-
-fn translate_attr(_name: Ident, _value: ast::Expr) -> Option<(Ident, Expr)> {
-    // TODO:
-    None
-}
+pub use self::translate::AstToCst;
 
 impl FunctionContext {
     fn new(f: &ast::Function) -> Self {
@@ -226,6 +169,7 @@ impl FunctionContext {
             arity: f.arity,
             wanted: true,
             in_guard: false,
+            is_nif: false,
         }
     }
 
@@ -245,11 +189,14 @@ impl FunctionContext {
             ident.span = span;
         }
         Var {
-            span: ident.span,
             annotations: Annotations::default_compiler_generated(),
             name: ident,
             arity: None,
         }
+    }
+
+    fn next_n_vars(&mut self, n: usize, span: Option<SourceSpan>) -> Vec<Var> {
+        (0..n).map(|_| self.next_var(span)).collect()
     }
 
     fn new_fun_name(&mut self, ty: Option<&str>) -> Symbol {

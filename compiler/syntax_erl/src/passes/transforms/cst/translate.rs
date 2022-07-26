@@ -1,18 +1,78 @@
+use anyhow::bail;
+
+use super::annotate::AnnotateVarUsage;
+use super::rewrites::RewriteExports;
+use super::simplify::SimplifyCst;
 use super::*;
 
 const COLLAPSE_MAX_SIZE_SEGMENT: usize = 1024;
+
+/// This pass transforms an AST function into its CST form for further analysis and eventual lowering to Core IR
+///
+/// This pass performs numerous small transformations to normalize the structure of the AST
+pub struct AstToCst {
+    reporter: Reporter,
+}
+impl AstToCst {
+    pub fn new(reporter: Reporter) -> Self {
+        Self { reporter }
+    }
+}
+impl Pass for AstToCst {
+    type Input<'a> = ast::Module;
+    type Output<'a> = cst::Module;
+
+    fn run<'a>(&mut self, mut ast: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+        let mut module = Module {
+            span: ast.span,
+            annotations: Annotations::default(),
+            name: ast.name,
+            vsn: None,    // TODO
+            author: None, // TODO
+            compile: ast.compile,
+            on_load: ast.on_load,
+            imports: ast.imports,
+            exports: ast.exports,
+            behaviours: ast.behaviours,
+            attributes: ast
+                .attributes
+                .drain()
+                .filter_map(|(k, v)| translate_attr(k, v.value))
+                .collect(),
+            functions: BTreeMap::new(),
+        };
+
+        let nifs = ast.nifs;
+
+        while let Some((name, function)) = ast.functions.pop_first() {
+            let mut context = Rc::new(UnsafeCell::new(FunctionContext::new(&function)));
+
+            let local_name = Span::new(SourceSpan::UNKNOWN, name);
+            let is_nif = nifs.contains(&local_name);
+
+            let mut pipeline = TranslateAst::new(self.reporter.clone(), Rc::clone(&context))
+                .chain(AnnotateVarUsage::new(Rc::clone(&context)))
+                .chain(RewriteExports::new(Rc::clone(&context)))
+                .chain(SimplifyCst::new(Rc::clone(&context)));
+            let function = pipeline.run(function)?;
+            module.functions.insert(name, function);
+        }
+
+        Ok(module)
+    }
+}
 
 /// Phase 1: Lower AST to CST
 ///
 /// This phase flattens expressions into an internal core form
 /// without doing matching. This form is more amenable to further
 /// transformations and lowering.
-pub struct LowerAst {
+struct TranslateAst {
     reporter: Reporter,
     context: Rc<UnsafeCell<FunctionContext>>,
 }
-impl LowerAst {
-    pub(super) fn new(reporter: Reporter, context: Rc<UnsafeCell<FunctionContext>>) -> Self {
+impl TranslateAst {
+    fn new(reporter: Reporter, context: Rc<UnsafeCell<FunctionContext>>) -> Self {
         Self { reporter, context }
     }
 
@@ -26,18 +86,25 @@ impl LowerAst {
         unsafe { &mut *self.context.get() }
     }
 }
-impl Pass for LowerAst {
+impl Pass for TranslateAst {
     type Input<'a> = ast::Function;
     type Output<'a> = cst::IFun;
 
     fn run<'a>(&mut self, mut fun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         // Generate new variables for the function head
-        let name = self.context().name.name;
-        let span = self.context().span;
-        let arity = self.context().arity as usize;
-        let params = (0..arity)
-            .map(|_| self.context_mut().next_var(Some(span)))
-            .collect();
+        let (name, span, arity, is_nif, params) = {
+            let context = self.context_mut();
+            let name = context.name;
+            let arity = context.arity as usize;
+            let span = context.span;
+            let params = (0..arity).map(|_| context.next_var(Some(span))).collect();
+            (name, span, arity, context.is_nif, params)
+        };
+
+        let mut annotations = Annotations::default();
+        if is_nif {
+            annotations.set(symbols::Nif);
+        }
 
         // Canonicalize all of the clauses
         let mut clauses = Vec::with_capacity(fun.clauses.len());
@@ -61,16 +128,16 @@ impl Pass for LowerAst {
 
         Ok(IFun {
             span,
-            annotations: Annotations::default(),
-            id: None,
-            name,
+            annotations,
+            id: Some(name),
+            name: Some(name),
             vars: params,
             clauses,
             fail,
         })
     }
 }
-impl LowerAst {
+impl TranslateAst {
     fn clauses(&mut self, mut clauses: Vec<ast::Clause>) -> anyhow::Result<Vec<IClause>> {
         let mut out = Vec::with_capacity(clauses.len());
         for clause in clauses.drain(..) {
@@ -93,7 +160,7 @@ impl LowerAst {
                     body,
                 })
             }
-            Err(PatternError::NoMatch) => {
+            Err(_) => {
                 // The function head pattern can't possibly match
                 // To ensure we can proceed with compilation, we rewrite the pattern
                 // to a pattern that binds the same variables, but ensuring the clause is never
@@ -118,12 +185,378 @@ impl LowerAst {
         }
     }
 
-    fn pattern_list(&mut self, _params: Vec<ast::Expr>) -> Result<Vec<Expr>, PatternError> {
-        todo!()
+    fn pattern_list(&mut self, mut patterns: Vec<ast::Expr>) -> anyhow::Result<Vec<Expr>> {
+        let mut output = Vec::with_capacity(patterns.len());
+
+        for pat in patterns.drain(..) {
+            output.push(self.pattern(pat)?);
+        }
+
+        Ok(output)
     }
 
-    fn pattern(&mut self, _pattern: ast::Expr) -> anyhow::Result<Expr> {
-        todo!()
+    fn pattern(&mut self, pattern: ast::Expr) -> anyhow::Result<Expr> {
+        match pattern {
+            ast::Expr::Var(ast::Var(id)) => Ok(Expr::Var(Var::new(id))),
+            ast::Expr::Literal(literal) => Ok(Expr::Literal(Literal::from(literal))),
+            ast::Expr::Cons(cons) => {
+                let head = self.pattern(*cons.head)?;
+                let tail = self.pattern(*cons.tail)?;
+                Ok(Expr::Cons(Cons::new(cons.span, head, tail)))
+            }
+            ast::Expr::Tuple(mut tuple) => {
+                let mut elements = Vec::with_capacity(tuple.elements.len());
+                for element in tuple.elements.drain(..) {
+                    elements.push(self.pattern(element)?);
+                }
+                Ok(Expr::Tuple(Tuple::new(tuple.span, elements)))
+            }
+            ast::Expr::Map(map) => {
+                let pairs = self.pattern_map_pairs(map.fields)?;
+                Ok(Expr::Map(Map::new_pattern(map.span, pairs)))
+            }
+            ast::Expr::Binary(bin) => {
+                let span = bin.span();
+                let segments = self.pattern_bin(bin)?;
+                Ok(Expr::Internal(IExpr::Binary(IBinary::new(span, segments))))
+            }
+            ast::Expr::Match(ast::Match {
+                box pattern,
+                box expr,
+                ..
+            }) => {
+                let p1 = self.pattern(pattern)?;
+                let p2 = self.pattern(expr)?;
+                self.pattern_alias(p1, p2)
+            }
+            ast::Expr::BinaryExpr(ast::BinaryExpr { span, op, lhs, rhs }) => {
+                if let BinaryOp::Append = op {
+                    match *lhs {
+                        ast::Expr::Literal(ast::Literal::Nil(_)) => self.pattern(*rhs),
+                        ast::Expr::Literal(s @ ast::Literal::String(_)) => {
+                            let mut elements = s.as_proper_list().unwrap();
+                            let cons = elements.drain(..).rfold(rhs, |tail, lit| {
+                                let span = lit.span();
+                                Box::new(ast::Expr::Cons(ast::Cons {
+                                    span,
+                                    head: Box::new(ast::Expr::Literal(lit)),
+                                    tail,
+                                }))
+                            });
+                            self.pattern(*cons)
+                        }
+                        ast::Expr::Cons(ast::Cons { span, head, tail }) => {
+                            let tail = Box::new(ast::Expr::BinaryExpr(ast::BinaryExpr {
+                                span,
+                                op: BinaryOp::Append,
+                                lhs: tail,
+                                rhs,
+                            }));
+                            self.pattern(ast::Expr::Cons(ast::Cons { span, head, tail }))
+                        }
+                        lhs => {
+                            let expr = ast::Expr::BinaryExpr(ast::BinaryExpr {
+                                span,
+                                op,
+                                lhs: Box::new(lhs),
+                                rhs,
+                            });
+                            let lit = evaluator::eval_expr(&expr, None)?;
+                            self.pattern(ast::Expr::Literal(lit))
+                        }
+                    }
+                } else {
+                    let expr = ast::Expr::BinaryExpr(ast::BinaryExpr { span, op, lhs, rhs });
+                    let lit = evaluator::eval_expr(&expr, None)?;
+                    self.pattern(ast::Expr::Literal(lit))
+                }
+            }
+            expr @ ast::Expr::UnaryExpr(_) => {
+                let lit = evaluator::eval_expr(&expr, None)?;
+                self.pattern(ast::Expr::Literal(lit))
+            }
+            other => unimplemented!("{:?}", &other),
+        }
+    }
+
+    fn pattern_map_pairs(
+        &mut self,
+        mut fields: Vec<ast::MapField>,
+    ) -> anyhow::Result<Vec<MapPair>> {
+        let mut pairs = Vec::with_capacity(fields.len());
+        for field in fields.drain(..) {
+            if let ast::MapField::Exact { span, key, value } = field {
+                let key = match evaluator::eval_expr(&key, None) {
+                    Ok(lit) => Expr::Literal(Literal::from(lit)),
+                    Err(_) => {
+                        let mut exprs = self.exprs(vec![key])?;
+                        assert_eq!(exprs.len(), 1);
+                        exprs.pop().unwrap()
+                    }
+                };
+                let value = self.pattern(value)?;
+                pairs.push(MapPair {
+                    op: MapOp::Exact,
+                    key: Box::new(key),
+                    value: Box::new(value),
+                });
+            } else {
+                self.reporter.show_error(
+                    "invalid map pattern",
+                    &[(field.span(), "only := is permitted in map patterns")],
+                );
+                bail!("invalid map pattern");
+            }
+        }
+        self.pattern_alias_map_pairs(pairs)
+    }
+
+    fn pattern_alias_map_pairs(&mut self, mut pairs: Vec<MapPair>) -> anyhow::Result<Vec<MapPair>> {
+        use std::collections::btree_map::Entry;
+
+        let mut d0: BTreeMap<MapSortKey, Vec<MapPair>> = BTreeMap::new();
+        for pair in pairs.drain(..) {
+            let k = map_sort_key(&pair.key, &d0);
+            match d0.entry(k) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().push(pair);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(vec![pair]);
+                }
+            }
+        }
+
+        let mut aliased_pairs = Vec::with_capacity(d0.len());
+        for mut aliased in d0.into_values() {
+            let MapPair { op, key, value: v0 } = aliased.pop().unwrap();
+            let value = aliased.drain(..).try_fold(v0, |pat, p| {
+                self.pattern_alias(*p.value, *pat).map(Box::new)
+            })?;
+            aliased_pairs.push(MapPair { op, key, value });
+        }
+
+        Ok(aliased_pairs)
+    }
+
+    /// Normalize aliases. Trap bad aliases by returning Err
+    fn pattern_alias(&mut self, p1: Expr, p2: Expr) -> anyhow::Result<Expr> {
+        match (p1, p2) {
+            (Expr::Var(v1), Expr::Var(v2)) if v1 == v2 => Ok(Expr::Var(v1)),
+            (Expr::Var(v1), Expr::Alias(mut alias)) => {
+                if v1 == alias.var {
+                    Ok(Expr::Alias(alias))
+                } else {
+                    alias.pattern = Box::new(self.pattern_alias(Expr::Var(v1), *alias.pattern)?);
+                    Ok(Expr::Alias(alias))
+                }
+            }
+            (Expr::Var(v), p2) => Ok(Expr::Alias(Alias::new(v.span(), v, p2))),
+            (Expr::Alias(alias), Expr::Var(v)) if alias.var == v => Ok(Expr::Alias(alias)),
+            (Expr::Alias(a1), Expr::Alias(a2)) => {
+                let v1 = a1.var;
+                let v2 = a2.var;
+                let pat = self.pattern_alias(*a1.pattern, *a2.pattern)?;
+                if v1 == v2 {
+                    Ok(Expr::Alias(Alias::new(v1.span(), v1, pat)))
+                } else {
+                    let p2 = self.pattern_alias(Expr::Var(v2), pat)?;
+                    self.pattern_alias(Expr::Var(v1), p2)
+                }
+            }
+            (Expr::Alias(alias), p2) => Ok(Expr::Alias(Alias::new(
+                alias.span(),
+                alias.var,
+                self.pattern_alias(*alias.pattern, p2)?,
+            ))),
+            (
+                Expr::Map(Map {
+                    span,
+                    annotations,
+                    arg,
+                    pairs: mut pairs1,
+                    ..
+                }),
+                Expr::Map(Map {
+                    pairs: mut pairs2, ..
+                }),
+            ) => {
+                pairs1.append(&mut pairs2);
+                Ok(Expr::Map(Map {
+                    span,
+                    annotations,
+                    arg,
+                    pairs: self.pattern_alias_map_pairs(pairs1)?,
+                    is_pattern: true,
+                }))
+            }
+            (p1, Expr::Var(var)) => Ok(Expr::Alias(Alias::new(var.span(), var, p1))),
+            (p1, Expr::Alias(mut alias)) => {
+                alias.pattern = Box::new(self.pattern_alias(p1, *alias.pattern)?);
+                Ok(Expr::Alias(alias))
+            }
+            (p1, p2) => {
+                // Aliases between binaries are not allowed, so the only legal patterns that remain are data patterns.
+                if !p1.is_data() {
+                    self.reporter.show_error(
+                        "invalid alias pattern",
+                        &[(p1.span(), "this is not a legal pattern")],
+                    );
+                    bail!("invalid alias pattern")
+                }
+                if !p2.is_data() {
+                    self.reporter.show_error(
+                        "invalid alias pattern",
+                        &[(p1.span(), "this is not a legal pattern")],
+                    );
+                    bail!("invalid alias pattern")
+                }
+                match (p1, p2) {
+                    (Expr::Literal(l1), Expr::Literal(l2)) => {
+                        if l1.value != l2.value {
+                            self.reporter.show_error(
+                                "invalid alias pattern",
+                                &[
+                                    (l1.span(), "this pattern cannot alias"),
+                                    (l2.span(), "because this literal has a different value"),
+                                ],
+                            );
+                            bail!("invalid alias pattern")
+                        }
+                        Ok(Expr::Literal(l1))
+                    }
+                    (
+                        Expr::Cons(Cons {
+                            span,
+                            head: h1,
+                            tail: t1,
+                            ..
+                        }),
+                        Expr::Cons(Cons {
+                            head: h2, tail: t2, ..
+                        }),
+                    ) => {
+                        let head = self.pattern_alias(*h1, *h2)?;
+                        let tail = self.pattern_alias(*t1, *t2)?;
+                        Ok(Expr::Cons(Cons::new(span, head, tail)))
+                    }
+                    (
+                        Expr::Tuple(Tuple {
+                            span,
+                            elements: mut es1,
+                            ..
+                        }),
+                        Expr::Tuple(Tuple {
+                            span: span2,
+                            elements: mut es2,
+                            ..
+                        }),
+                    ) => {
+                        if es1.len() != es2.len() {
+                            self.reporter.show_error("invalid alias pattern", &[(span, "this tuple pattern cannot alias"), (span2, "because this tuple pattern has a different number of elements")]);
+                            bail!("invalid alias pattern")
+                        }
+                        let mut aliased = Vec::with_capacity(es1.len());
+                        for (a1, a2) in es1.drain(..).zip(es2.drain(..)) {
+                            aliased.push(self.pattern_alias(a1, a2)?);
+                        }
+                        Ok(Expr::Tuple(Tuple::new(span, aliased)))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+
+    fn pattern_bin(&mut self, bin: ast::Binary) -> anyhow::Result<Vec<IBitstring>> {
+        let ps = self.pattern_bin_expand_strings(bin.span, bin.elements);
+        self.pattern_segments(ps)
+    }
+
+    fn pattern_bin_expand_strings(
+        &mut self,
+        span: SourceSpan,
+        mut elements: Vec<ast::BinaryElement>,
+    ) -> Vec<ast::BinaryElement> {
+        let mut expanded = Vec::with_capacity(elements.len());
+        for element in elements.drain(..) {
+            match element {
+                ast::BinaryElement {
+                    span,
+                    specifier: None,
+                    bit_size: None,
+                    bit_expr: ast::Expr::Literal(ast::Literal::String(s)),
+                } if s != symbols::Empty => {
+                    let mut s = bin_expand_string(s, Integer::Small(0), 0);
+                    expanded.extend(s.drain(..));
+                }
+                ast::BinaryElement {
+                    span,
+                    specifier,
+                    bit_size,
+                    bit_expr: ast::Expr::Literal(ast::Literal::String(s)),
+                } => {
+                    for c in s.as_str().get().chars() {
+                        let bit_expr = ast::Expr::Literal(ast::Literal::Char(span, c));
+                        let bit_size = bit_size.clone();
+                        let specifier = specifier.clone();
+                        expanded.push(ast::BinaryElement {
+                            span,
+                            bit_expr,
+                            bit_size,
+                            specifier,
+                        });
+                    }
+                }
+                element => expanded.push(element),
+            }
+        }
+        expanded
+    }
+
+    fn pattern_segments(
+        &mut self,
+        mut elements: Vec<ast::BinaryElement>,
+    ) -> anyhow::Result<Vec<IBitstring>> {
+        let mut segments = Vec::with_capacity(elements.len());
+        for element in elements.drain(..) {
+            segments.push(self.pattern_segment(element)?);
+        }
+        Ok(segments)
+    }
+
+    fn pattern_segment(&mut self, element: ast::BinaryElement) -> anyhow::Result<IBitstring> {
+        let span = element.span;
+        match make_bit_type(span, element.bit_size.as_ref(), element.specifier) {
+            Ok((size, spec)) => {
+                let value = self.pattern(element.bit_expr)?;
+                let value = match spec {
+                    BinaryEntrySpecifier::Float { .. } => value.coerce_to_float(),
+                    _ => value,
+                };
+                let size = match size {
+                    None => vec![],
+                    Some(size) => match evaluator::eval_expr(&size, None) {
+                        Ok(lit) => vec![Expr::Literal(Literal::from(lit))],
+                        Err(_) => self.exprs(vec![size])?,
+                    },
+                };
+                Ok(IBitstring {
+                    span,
+                    annotations: Annotations::default(),
+                    value: Box::new(value),
+                    size,
+                    spec,
+                })
+            }
+            Err(reason) => {
+                self.reporter.show_error(
+                    "invalid binary element",
+                    &[(element.span, reason), (span, "in this binary expression")],
+                );
+                bail!("invalid binary pattern")
+            }
+        }
     }
 
     /// guard([Expr], State) -> {[Cexpr],State}.
@@ -440,7 +873,7 @@ impl LowerAst {
                         let v = self.context_mut().next_var(Some(span));
                         pre.push(Expr::Internal(IExpr::Set(ISet::new(
                             span,
-                            v.name,
+                            v.clone(),
                             Expr::Call(call),
                         ))));
                         (icall_eq_true!(span, Expr::Var(v)), pre, bools)
@@ -462,7 +895,7 @@ impl LowerAst {
                             bools.insert(0, Expr::Var(v.clone()));
                             pre.push(Expr::Internal(IExpr::Set(ISet::new(
                                 span,
-                                v.name,
+                                v.clone(),
                                 Expr::Call(call),
                             ))));
                             (icall_eq_true!(span, Expr::Var(v)), pre, bools)
@@ -479,7 +912,7 @@ impl LowerAst {
                             pre.push(Expr::Internal(IExpr::Set(ISet {
                                 span,
                                 annotations: Annotations::default_compiler_generated(),
-                                var: v.name,
+                                var: v.clone(),
                                 arg: Box::new(expr),
                             })));
                             (icall_eq_true!(span, Expr::Var(v)), pre, bools)
@@ -530,7 +963,7 @@ impl LowerAst {
             let set = Expr::Internal(IExpr::Set(ISet {
                 span,
                 annotations: Annotations::default(),
-                var: v.name,
+                var: v.clone(),
                 arg: Box::new(call),
             }));
             pre.append(&mut pre2);
@@ -563,7 +996,6 @@ impl LowerAst {
         match expr {
             ast::Expr::Var(ast::Var(id)) => Ok((
                 Expr::Var(Var {
-                    span: id.span,
                     annotations: Annotations::default(),
                     name: id,
                     arity: None,
@@ -712,7 +1144,7 @@ impl LowerAst {
                     span,
                     annotations: Annotations::default(),
                     args: exprs,
-                    vars: vec![v.name],
+                    vars: vec![v.clone()],
                     body: vec![Expr::Var(v)],
                     evars,
                     handler: Box::new(handler),
@@ -737,11 +1169,10 @@ impl LowerAst {
                     ctuple!(span, catom!(span, symbols::TryClause), Expr::Var(fpat)),
                 );
                 let (evars, handler) = self.try_exception(ccs)?;
-                let vname = v.name;
                 let case = Expr::Internal(IExpr::Case(ICase {
                     span,
                     annotations: Annotations::default(),
-                    args: vec![Expr::Var(v)],
+                    args: vec![Expr::Var(v.clone())],
                     clauses,
                     fail,
                 }));
@@ -749,7 +1180,7 @@ impl LowerAst {
                     span,
                     annotations: Annotations::default(),
                     args: exprs,
-                    vars: vec![vname],
+                    vars: vec![v],
                     body: vec![case],
                     evars,
                     handler: Box::new(handler),
@@ -827,10 +1258,7 @@ impl LowerAst {
                         );
                         Ok((
                             Expr::Var(Var {
-                                span,
-                                annotations: Annotations::from(
-                                    vec![(symbols::Id, id.into())].drain(..),
-                                ),
+                                annotations: Annotations::from([(symbols::Id, id.into())]),
                                 name: Ident::new(name.function, span),
                                 arity: Some(Arity::Int(name.arity)),
                             }),
@@ -855,10 +1283,7 @@ impl LowerAst {
                         );
                         Ok((
                             Expr::Var(Var {
-                                span,
-                                annotations: Annotations::from(
-                                    vec![(symbols::Id, id.into())].drain(..),
-                                ),
+                                annotations: Annotations::from([(symbols::Id, id.into())]),
                                 name: function.ident(),
                                 arity: Some(arity),
                             }),
@@ -964,7 +1389,6 @@ impl LowerAst {
                 ast::Expr::Literal(ast::Literal::Atom(f)) => {
                     let (args, pre) = self.safe_list(args)?;
                     let op = Expr::Var(Var {
-                        span: f.span,
                         annotations: Annotations::default(),
                         name: f,
                         arity: Some(Arity::Int(args.len().try_into().unwrap())),
@@ -1043,7 +1467,7 @@ impl LowerAst {
                             annotations: Annotations::default(),
                             pattern: Box::new(sanpat),
                             arg: Box::new(expr),
-                            guard: vec![],
+                            guards: vec![],
                             fail,
                         }));
                         Ok((mexpr, pre))
@@ -1084,7 +1508,7 @@ impl LowerAst {
                             annotations: Annotations::default(),
                             pattern: Box::new(pattern3),
                             arg: Box::new(expr3),
-                            guard: vec![],
+                            guards: vec![],
                             fail,
                         }));
                         Ok((mexpr, pre))
@@ -1156,23 +1580,147 @@ impl LowerAst {
 
     fn fun_tq(
         &mut self,
-        _span: SourceSpan,
-        _name: Option<Ident>,
-        _clauses: Vec<ast::Clause>,
+        span: SourceSpan,
+        name: Option<Ident>,
+        clauses: Vec<ast::Clause>,
     ) -> anyhow::Result<(Expr, Vec<Expr>)> {
-        todo!()
+        let arity = clauses[0].patterns.len();
+        let clauses = self.clauses(clauses)?;
+        let vars = (0..arity)
+            .map(|_| self.context_mut().next_var(Some(span)))
+            .collect::<Vec<_>>();
+        let ps = (0..arity)
+            .map(|_| Expr::Var(self.context_mut().next_var(Some(span))))
+            .collect::<Vec<_>>();
+        let fail = fail_clause(
+            span,
+            ps,
+            Expr::Literal(lit_tuple!(span, lit_atom!(span, symbols::FunctionClause))),
+        );
+        Ok((
+            Expr::Internal(IExpr::Fun(IFun {
+                span,
+                annotations: Annotations::default(),
+                id: Some(Ident::new(self.context_mut().new_fun_name(None), span)),
+                name,
+                vars,
+                clauses,
+                fail,
+            })),
+            vec![],
+        ))
     }
 
     /// This is the implementation of the TQ translation scheme as described in _The Implementation of Functional Programming Languages_,
     /// Simon Peyton Jones, et al. pp 127-138
     fn lc_tq(
         &mut self,
-        _span: SourceSpan,
-        _body: ast::Expr,
-        _qualifiers: Vec<IQualifier>,
-        _last: Expr,
+        span: SourceSpan,
+        body: ast::Expr,
+        mut qualifiers: Vec<IQualifier>,
+        last: Expr,
     ) -> anyhow::Result<(Expr, Vec<Expr>)> {
-        todo!()
+        let mut qs = qualifiers.drain(..);
+        match qs.next() {
+            None => {
+                let (h1, mut hps) = self.safe(body)?;
+                let (t1, mut tps) = self.force_safe(last);
+                hps.append(&mut tps);
+                let annotations = Annotations::default_compiler_generated();
+                let expr = Expr::Cons(Cons {
+                    span,
+                    annotations,
+                    head: Box::new(h1),
+                    tail: Box::new(t1),
+                });
+                Ok((expr, hps))
+            }
+            Some(IQualifier::Filter(filter)) => {
+                self.filter_tq(span, body, filter, last, qs.collect(), true)
+            }
+            Some(IQualifier::Generator(gen)) => {
+                let name = self.context_mut().new_fun_name(Some("lc"));
+                let f = Var::new_with_arity(Ident::new(name, span), Arity::Int(1));
+                let tail = gen.tail.unwrap();
+                let nc = Expr::Apply(Apply::new(
+                    span,
+                    Expr::Var(f.clone()),
+                    vec![Expr::Var(tail.clone())],
+                ));
+                let fcvar = self.context_mut().next_var(Some(span));
+                let var = self.context_mut().next_var(Some(span));
+                let fail = bad_generator(span, vec![Expr::Var(fcvar.clone())], fcvar.clone());
+                let tail_clause = IClause {
+                    span,
+                    annotations: Annotations::default(),
+                    patterns: vec![*gen.tail_pattern],
+                    guards: vec![],
+                    body: vec![last],
+                };
+                let clauses = match (gen.acc_pattern, gen.skip_pattern) {
+                    (None, None) => vec![tail_clause],
+                    (None, Some(skip_pat)) => {
+                        let skip_clause = IClause {
+                            span,
+                            annotations: Annotations::from([
+                                symbols::SkipClause,
+                                symbols::CompilerGenerated,
+                            ]),
+                            patterns: vec![*skip_pat],
+                            guards: vec![],
+                            body: vec![nc],
+                        };
+                        vec![skip_clause, tail_clause]
+                    }
+                    (Some(acc_pat), Some(skip_pat)) => {
+                        let skip_clause = IClause {
+                            span,
+                            annotations: Annotations::from([
+                                symbols::SkipClause,
+                                symbols::CompilerGenerated,
+                            ]),
+                            patterns: vec![*skip_pat],
+                            guards: vec![],
+                            body: vec![nc.clone()],
+                        };
+                        let (lc, mut lps) = self.lc_tq(span, body, qs.collect(), nc)?;
+                        lps.push(lc);
+                        let acc_clause = IClause {
+                            span,
+                            annotations: Annotations::default(),
+                            patterns: vec![*acc_pat],
+                            guards: gen.acc_guards,
+                            body: lps,
+                        };
+                        vec![acc_clause, skip_clause, tail_clause]
+                    }
+                    _ => unreachable!(),
+                };
+                let fun = Expr::Internal(IExpr::Fun(IFun {
+                    span,
+                    annotations: Annotations::default(),
+                    id: None,
+                    name: None,
+                    vars: vec![var],
+                    clauses,
+                    fail,
+                }));
+                let mut body = gen.pre;
+                body.push(Expr::Apply(Apply {
+                    span,
+                    annotations: Annotations::default(),
+                    callee: Box::new(Expr::Var(f.clone())),
+                    args: vec![*gen.arg],
+                }));
+                let expr = Expr::Internal(IExpr::LetRec(ILetRec {
+                    span,
+                    annotations: Annotations::from([symbols::ListComprehension]),
+                    defs: vec![(f, fun)],
+                    body,
+                }));
+                Ok((expr, vec![]))
+            }
+        }
     }
 
     // bc_tq(Line, Exp, [Qualifier], More, State) -> {LetRec,[PreExp],State}.
@@ -1180,11 +1728,288 @@ impl LowerAst {
     //  More could be transformed before calling bc_tq.
     fn bc_tq(
         &mut self,
-        _span: SourceSpan,
-        _body: ast::Expr,
-        _qualifiers: Vec<IQualifier>,
+        span: SourceSpan,
+        body: ast::Expr,
+        mut qualifiers: Vec<IQualifier>,
     ) -> anyhow::Result<(Expr, Vec<Expr>)> {
-        todo!()
+        let binvar = self.context_mut().next_var(Some(span));
+        let mut pre = vec![];
+        if let Some(IQualifier::Generator(ref mut gen)) = qualifiers.first_mut() {
+            pre.append(&mut gen.pre);
+        }
+        let (expr, mut bcpre) = self.bc_tq1(span, body, qualifiers, Expr::Var(binvar.clone()))?;
+        let initial_size = Expr::Literal(lit_int!(span, Integer::Small(256)));
+        let init = Expr::PrimOp(PrimOp::new(
+            span,
+            symbols::BitsInitWritable,
+            vec![initial_size],
+        ));
+        pre.push(Expr::Internal(IExpr::Set(ISet::new(span, binvar, init))));
+        pre.append(&mut bcpre);
+        Ok((expr, pre))
+    }
+
+    fn bc_tq1(
+        &mut self,
+        span: SourceSpan,
+        body: ast::Expr,
+        mut qualifiers: Vec<IQualifier>,
+        last: Expr,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        let mut qs = qualifiers.drain(..);
+        match qs.next() {
+            Some(IQualifier::Generator(gen)) => {
+                let name = self.context_mut().new_fun_name(Some("lbc"));
+                let vars = self.context_mut().next_n_vars(2, Some(span));
+                let acc_var = vars[1].clone();
+                let v1 = self.context_mut().next_var(Some(span));
+                let v2 = self.context_mut().next_var(Some(span));
+                let fcvars = vec![Expr::Var(v1.clone()), Expr::Var(v2)];
+                let ignore = self.context_mut().next_var(Some(span));
+                let f = Var::new_with_arity(Ident::new(name, span), Arity::Int(2));
+                let fail = bad_generator(span, fcvars, v1);
+                let tail_clause = IClause {
+                    span,
+                    annotations: Annotations::default(),
+                    patterns: vec![*gen.tail_pattern, Expr::Var(ignore.clone())],
+                    guards: vec![],
+                    body: vec![Expr::Var(acc_var.clone())],
+                };
+                let clauses = match (gen.acc_pattern, gen.skip_pattern) {
+                    (None, None) => vec![tail_clause],
+                    (None, Some(skip_pat)) => {
+                        let skip_clause = IClause {
+                            span,
+                            annotations: Annotations::from([
+                                symbols::CompilerGenerated,
+                                symbols::SkipClause,
+                            ]),
+                            patterns: vec![*skip_pat, Expr::Var(ignore)],
+                            guards: vec![],
+                            body: vec![Expr::Apply(Apply::new(
+                                span,
+                                Expr::Var(f.clone()),
+                                vec![Expr::Var(gen.tail.unwrap())],
+                            ))],
+                        };
+                        vec![skip_clause, tail_clause]
+                    }
+                    (Some(acc_pat), Some(skip_pat)) => {
+                        let nc = Expr::Apply(Apply::new(
+                            span,
+                            Expr::Var(f.clone()),
+                            vec![Expr::Var(gen.tail.unwrap())],
+                        ));
+                        let skip_clause = IClause {
+                            span,
+                            annotations: Annotations::from([
+                                symbols::CompilerGenerated,
+                                symbols::SkipClause,
+                            ]),
+                            patterns: vec![*skip_pat, Expr::Var(ignore.clone())],
+                            guards: vec![],
+                            body: vec![nc.clone()],
+                        };
+                        let (bc, mut body) =
+                            self.bc_tq1(span, body, qs.collect(), Expr::Var(acc_var.clone()))?;
+                        body.push(Expr::Internal(IExpr::Set(ISet::new(span, acc_var, bc))));
+                        body.push(nc);
+                        let acc_clause = IClause {
+                            span,
+                            annotations: Annotations::default(),
+                            patterns: vec![*acc_pat, Expr::Var(ignore)],
+                            guards: gen.acc_guards,
+                            body,
+                        };
+                        vec![acc_clause, skip_clause, tail_clause]
+                    }
+                    _ => unreachable!(),
+                };
+                let fun = Expr::Internal(IExpr::Fun(IFun {
+                    span,
+                    annotations: Annotations::default(),
+                    id: None,
+                    name: None,
+                    vars,
+                    clauses,
+                    fail,
+                }));
+                // Inlining would disable the size calculation optimization for bs_init_writable
+                let mut body = gen.pre;
+                body.push(Expr::Apply(Apply::new(
+                    span,
+                    Expr::Var(f.clone()),
+                    vec![*gen.arg, last],
+                )));
+                let expr = Expr::Internal(IExpr::LetRec(ILetRec {
+                    span,
+                    annotations: Annotations::from([symbols::ListComprehension, symbols::NoInline]),
+                    defs: vec![(f, fun)],
+                    body,
+                }));
+                Ok((expr, vec![]))
+            }
+            Some(IQualifier::Filter(filter)) => {
+                self.filter_tq(span, body, filter, last, qs.collect(), false)
+            }
+            None => {
+                match body {
+                    ast::Expr::Binary(bin) => {
+                        self.bc_tq_build(bin.span(), vec![], last, bin.elements)
+                    }
+                    body => {
+                        let span = body.span();
+                        let specifier = Some(BinaryEntrySpecifier::Binary { unit: 1 });
+                        let (expr, pre) = self.safe(body)?;
+                        match expr {
+                            Expr::Var(v) => {
+                                let var = ast::Expr::Var(ast::Var(Ident::new(v.name(), v.span())));
+                                let els = vec![ast::BinaryElement {
+                                    span,
+                                    bit_expr: var,
+                                    bit_size: None,
+                                    specifier,
+                                }];
+                                self.bc_tq_build(span, pre, last, els)
+                            }
+                            Expr::Literal(Literal {
+                                span: lspan,
+                                value: Lit::Binary(bitvec),
+                                ..
+                            }) => {
+                                let els = vec![ast::BinaryElement {
+                                    span,
+                                    bit_expr: ast::Expr::Literal(ast::Literal::Binary(
+                                        lspan, bitvec,
+                                    )),
+                                    bit_size: None,
+                                    specifier,
+                                }];
+                                self.bc_tq_build(span, pre, last, els)
+                            }
+                            expr => {
+                                // Any other safe (cons, tuple, literal) is not a bitstring.
+                                // Force the evaluation to fail and generate a warning
+                                let els = vec![ast::BinaryElement {
+                                    span,
+                                    bit_expr: ast::Expr::Literal(ast::Literal::Atom(Ident::new(
+                                        symbols::BadValue,
+                                        span,
+                                    ))),
+                                    bit_size: None,
+                                    specifier,
+                                }];
+                                self.bc_tq_build(span, pre, last, els)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn bc_tq_build(
+        &mut self,
+        span: SourceSpan,
+        mut pre: Vec<Expr>,
+        last: Expr,
+        mut elements: Vec<ast::BinaryElement>,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        match last {
+            Expr::Var(Var { name, .. }) => {
+                let specifier = Some(BinaryEntrySpecifier::Binary { unit: 1 });
+                let element = ast::BinaryElement {
+                    span: name.span,
+                    bit_expr: ast::Expr::Var(ast::Var(name)),
+                    bit_size: None,
+                    specifier,
+                };
+                elements.insert(0, element);
+                let (mut expr, mut pre1) =
+                    self.expr(ast::Expr::Binary(ast::Binary { span, elements }))?;
+                pre.append(&mut pre1);
+                {
+                    let annos = expr.annotations_mut();
+                    annos.set(symbols::CompilerGenerated);
+                    annos.set(symbols::SingleUse);
+                }
+                Ok((expr, pre))
+            }
+            other => panic!(
+                "unexpected accumulator expression, expected var, got: {:?}",
+                &other
+            ),
+        }
+    }
+
+    // filter_tq(Line, Expr, Filter, Mc, State, [Qualifier], TqFun) ->
+    //     {Case,[PreExpr],State}.
+    //  Transform an intermediate comprehension filter to its intermediate case
+    //  representation.
+    fn filter_tq(
+        &mut self,
+        span: SourceSpan,
+        expr: ast::Expr,
+        filter: IFilter,
+        last: Expr,
+        qualifiers: Vec<IQualifier>,
+        is_lc: bool,
+    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        let (lc, mut lps) = if is_lc {
+            self.lc_tq(span, expr, qualifiers, last.clone())?
+        } else {
+            self.bc_tq1(span, expr, qualifiers, last.clone())?
+        };
+        lps.push(lc);
+        let span = filter.span;
+        match filter.filter {
+            FilterType::Match(pre, arg) => {
+                // The filter is an expression, it is compiled to a case of degree 1 with 3 clauses,
+                // one accumulating, one skipping, and the final one throwing {case_clause, Value} where Value
+                // is the result of the filter and is not a boolean
+                let fail_pat = Expr::Var(self.context_mut().next_var(Some(span)));
+                let fail = fail_clause(
+                    span,
+                    vec![fail_pat.clone()],
+                    ctuple!(span, catom!(span, symbols::BadFilter), fail_pat),
+                );
+                let expr = Expr::Internal(IExpr::Case(ICase {
+                    span,
+                    annotations: Annotations::from(symbols::ListComprehension),
+                    args: vec![*arg],
+                    clauses: vec![
+                        IClause {
+                            span,
+                            annotations: Annotations::default(),
+                            patterns: vec![catom!(span, symbols::True)],
+                            guards: vec![],
+                            body: lps,
+                        },
+                        IClause {
+                            span,
+                            annotations: Annotations::default_compiler_generated(),
+                            patterns: vec![catom!(span, symbols::False)],
+                            guards: vec![],
+                            body: vec![last],
+                        },
+                    ],
+                    fail,
+                }));
+                Ok((expr, pre))
+            }
+            FilterType::Guard(guards) => {
+                // The filter is a guard, compiled to an if, where if the guard succeeds,
+                // then the comprehension continues, otherwise the current element is skipped
+                let expr = Expr::Internal(IExpr::If(IIf {
+                    span,
+                    annotations: Annotations::from(symbols::ListComprehension),
+                    guards,
+                    then_body: lps,
+                    else_body: vec![last],
+                }));
+                Ok((expr, vec![]))
+            }
+        }
     }
 
     // preprocess_quals(Line, [Qualifier], State) -> {[Qualifier'],State}.
@@ -1266,22 +2091,122 @@ impl LowerAst {
 
     fn list_generator(
         &mut self,
-        _span: SourceSpan,
-        _pattern: ast::Expr,
-        _expr: ast::Expr,
-        _guards: Vec<ast::Expr>,
+        span: SourceSpan,
+        pattern: ast::Expr,
+        expr: ast::Expr,
+        guards: Vec<ast::Expr>,
     ) -> anyhow::Result<IGen> {
-        todo!()
+        let head = self.pattern(pattern).ok();
+        let tail = self.context_mut().next_var(Some(span));
+        let skip = Expr::Var(self.context_mut().next_var(Some(span)));
+        let acc_guards = self.lc_guard_tests(span, guards);
+        let (acc_pattern, skip_pattern) = match head {
+            Some(head @ Expr::Var(_)) => {
+                // If the generator pattern is a variable, the pattern
+                // from the accumulator clause can be reused in the skip one.
+                // lc_tq and gc_tq1 takes care of dismissing the latter in that case.
+                let cons = Box::new(Expr::Cons(Cons::new(span, head, Expr::Var(tail.clone()))));
+                (Some(cons.clone()), Some(cons))
+            }
+            Some(head) => {
+                let acc = Box::new(Expr::Cons(Cons::new(span, head, Expr::Var(tail.clone()))));
+                let skip = Box::new(Expr::Cons(Cons::new(
+                    span,
+                    skip.clone(),
+                    Expr::Var(tail.clone()),
+                )));
+                (Some(acc), Some(skip))
+            }
+            None => {
+                // If it never matches, there is no need for an accumulator clause.
+                (
+                    None,
+                    Some(Box::new(Expr::Cons(Cons::new(
+                        span,
+                        skip.clone(),
+                        Expr::Var(tail.clone()),
+                    )))),
+                )
+            }
+        };
+        let (arg, pre) = self.safe(expr)?;
+        Ok(IGen {
+            span,
+            annotations: Annotations::default(),
+            acc_pattern,
+            acc_guards,
+            skip_pattern,
+            tail: Some(tail),
+            tail_pattern: Box::new(Expr::Literal(Literal::nil(span))),
+            pre,
+            arg: Box::new(arg),
+        })
     }
 
     fn bit_generator(
         &mut self,
-        _span: SourceSpan,
-        _pattern: ast::Expr,
-        _expr: ast::Expr,
-        _guards: Vec<ast::Expr>,
+        span: SourceSpan,
+        pattern: ast::Expr,
+        expr: ast::Expr,
+        guards: Vec<ast::Expr>,
     ) -> anyhow::Result<IGen> {
-        todo!()
+        match self.pattern(pattern)? {
+            Expr::Internal(IExpr::Binary(IBinary {
+                span,
+                annotations,
+                segments,
+            })) => {
+                // The function append_tail_segment/2 keeps variable patterns as-is, making
+                // it possible to have the same skip clause removal as with list generators.
+                let (acc_segments, tail, tail_segment) = self.append_tail_segment(span, segments);
+                let acc_pattern = Box::new(Expr::Internal(IExpr::Binary(IBinary {
+                    span,
+                    annotations: annotations.clone(),
+                    segments: acc_segments.clone(),
+                })));
+                let acc_guards = self.lc_guard_tests(span, guards);
+                let skip_segments = self.skip_segments(acc_segments);
+                let skip_pattern = Box::new(Expr::Internal(IExpr::Binary(IBinary {
+                    span,
+                    annotations,
+                    segments: skip_segments,
+                })));
+                let (arg, pre) = self.safe(expr)?;
+                Ok(IGen {
+                    span,
+                    annotations: Annotations::default(),
+                    acc_pattern: Some(acc_pattern),
+                    acc_guards,
+                    skip_pattern: Some(skip_pattern),
+                    tail: Some(tail),
+                    tail_pattern: Box::new(Expr::Internal(IExpr::Binary(IBinary {
+                        span,
+                        annotations: Annotations::default(),
+                        segments: vec![tail_segment],
+                    }))),
+                    pre,
+                    arg: Box::new(arg),
+                })
+            }
+            _ => {
+                // nomatch
+                let (arg, pre) = self.safe(expr)?;
+                Ok(IGen {
+                    span,
+                    annotations: Annotations::default(),
+                    acc_pattern: None,
+                    acc_guards: vec![],
+                    skip_pattern: None,
+                    tail: None,
+                    tail_pattern: Box::new(Expr::Var(Var::new(Ident::new(
+                        symbols::Underscore,
+                        span,
+                    )))),
+                    pre,
+                    arg: Box::new(arg),
+                })
+            }
+        }
     }
 
     fn lc_guard_tests(&mut self, span: SourceSpan, guards: Vec<ast::Expr>) -> Vec<Expr> {
@@ -1290,6 +2215,42 @@ impl LowerAst {
         let guards = self.gexpr_top(guards);
         self.context_mut().in_guard = false;
         guards
+    }
+
+    fn append_tail_segment(
+        &mut self,
+        span: SourceSpan,
+        mut segments: Vec<IBitstring>,
+    ) -> (Vec<IBitstring>, Var, IBitstring) {
+        let var = self.context_mut().next_var(None);
+        let tail = IBitstring {
+            span,
+            annotations: Annotations::default(),
+            value: Box::new(Expr::Var(var.clone())),
+            size: vec![],
+            spec: BinaryEntrySpecifier::Binary { unit: 1 },
+        };
+        segments.push(tail.clone());
+        (segments, var, tail)
+    }
+
+    // skip_segments(Segments, St0, Acc) -> {SkipSegments,St}.
+    //  Generate the segments for a binary pattern that can be used
+    //  in the skip clause that will continue the iteration when
+    //  the accumulator pattern didn't match.
+    fn skip_segments(&mut self, mut segments: Vec<IBitstring>) -> Vec<IBitstring> {
+        let mut out = Vec::new();
+        for mut segment in segments.drain(..) {
+            if segment.value.is_var() {
+                // We must keep the names of existing variables to ensure that patterns such as `<<Size, X:Size>>` will work.
+                out.push(segment);
+            } else {
+                // Replace literal or expression with a variable (whose value will be ignored)
+                let var = self.context_mut().next_var(None);
+                *segment.value.as_mut() = Expr::Var(var);
+            }
+        }
+        out
     }
 
     fn expr_map(
@@ -1335,11 +2296,11 @@ impl LowerAst {
                     Ok((Expr::Literal(Literal::binary(span, BitVec::new())), vec![]))
                 } else {
                     Ok((
-                        Expr::Binary(Binary {
+                        Expr::Internal(IExpr::Binary(IBinary {
                             span,
                             annotations: Annotations::default(),
                             segments: elements,
-                        }),
+                        })),
                         pre,
                     ))
                 }
@@ -1383,7 +2344,7 @@ impl LowerAst {
     fn expr_bin_1(
         &mut self,
         mut elements: Vec<ast::BinaryElement>,
-    ) -> Result<(Vec<Bitstring>, Vec<Expr>), Vec<Expr>> {
+    ) -> Result<(Vec<IBitstring>, Vec<Expr>), Vec<Expr>> {
         let mut segments = Vec::with_capacity(elements.len());
         let mut pre = vec![];
         let mut is_bad = false;
@@ -1426,7 +2387,7 @@ impl LowerAst {
     fn bitstrs(
         &mut self,
         mut elements: Vec<ast::BinaryElement>,
-    ) -> Result<(Vec<Bitstring>, Vec<Expr>), Vec<Expr>> {
+    ) -> Result<(Vec<IBitstring>, Vec<Expr>), Vec<Expr>> {
         let mut segments = Vec::with_capacity(elements.len());
         let mut pre = vec![];
         for element in elements.drain(..) {
@@ -1440,7 +2401,7 @@ impl LowerAst {
     fn bitstr(
         &mut self,
         element: ast::BinaryElement,
-    ) -> Result<(Vec<Bitstring>, Vec<Expr>), Vec<Expr>> {
+    ) -> Result<(Vec<IBitstring>, Vec<Expr>), Vec<Expr>> {
         use liblumen_binary::BinaryEntrySpecifier as S;
 
         let span = element.span;
@@ -1455,7 +2416,7 @@ impl LowerAst {
                     // value
                     //
                     // <<"foobar":8>>
-                    self.bitstrs(bin_expand_string(s, 0i64.into(), 0, vec![]))
+                    self.bitstrs(bin_expand_string(s, 0i64.into(), 0))
                 } else if s.name == symbols::Empty {
                     // Empty string. We must make sure that the type is correct.
                     let (mut bs, mut pre) = self.bitstr(ast::BinaryElement {
@@ -1466,7 +2427,8 @@ impl LowerAst {
                     })?;
                     let bs = bs.pop().unwrap();
                     // At this point, the type is either a correct literal or an expression
-                    match bs.size.as_deref() {
+                    assert!(bs.size.len() < 2);
+                    match bs.size.first() {
                         None => {
                             // One of the utf* types. The size is not used.
                             debug_assert!(!spec.unwrap_or_default().has_size());
@@ -1608,14 +2570,14 @@ impl LowerAst {
                     }
                 }
                 let size = match size {
-                    v @ Expr::Var(_) => Some(Box::new(v)),
+                    v @ Expr::Var(_) => vec![v],
                     Expr::Literal(lit) => {
                         if lit.as_integer().map(|i| i >= &0).unwrap_or_default() {
-                            Some(Box::new(Expr::Literal(lit)))
+                            vec![Expr::Literal(lit)]
                         } else if let Some(atom) = lit.as_atom() {
                             match atom {
-                                symbols::Undefined => None,
-                                symbols::All => Some(Box::new(Expr::Literal(lit))),
+                                symbols::Undefined => vec![],
+                                symbols::All => vec![Expr::Literal(lit)],
                                 _ => return Err(pre),
                             }
                         } else {
@@ -1630,7 +2592,7 @@ impl LowerAst {
                 // provide extended error information if construction of the
                 // binary fails.
                 // let anno = Annotations::from(vec![(symbols::Segment, lit_tuple!(span, lit_int!(span, line), lit_int!(span, column)))])
-                let bs = Bitstring {
+                let bs = IBitstring {
                     span,
                     annotations: Annotations::default(),
                     value: Box::new(expr),
@@ -1652,7 +2614,7 @@ impl LowerAst {
         let map = Expr::Map(Map {
             span,
             annotations: Annotations::default(),
-            arg: Some(Box::new(map)),
+            arg: Box::new(map),
             pairs,
             is_pattern: false,
         });
@@ -1726,7 +2688,7 @@ impl LowerAst {
                 pre.push(Expr::Internal(IExpr::Set(ISet {
                     span,
                     annotations: Annotations::default(),
-                    var: v.name,
+                    var: v.clone(),
                     arg: Box::new(notmap),
                 })));
                 Ok((Expr::Var(v), pre))
@@ -1747,7 +2709,7 @@ impl LowerAst {
             call @ Expr::Call(_) => (call, vec![]),
             fun @ Expr::Internal(IExpr::Fun(_)) => (fun, vec![]),
             fun @ Expr::Fun(_) => (fun, vec![]),
-            bin @ Expr::Binary(_) => (bin, vec![]),
+            bin @ Expr::Internal(IExpr::Binary(_)) => (bin, vec![]),
             map @ Expr::Map(_) => (map, vec![]),
             other => self.force_safe(other),
         }
@@ -1828,7 +2790,7 @@ impl LowerAst {
                             span: imatch.span,
                             annotations: imatch.annotations,
                             pattern: imatch.pattern,
-                            guard: imatch.guard,
+                            guards: imatch.guards,
                             arg: Box::new(le.clone()),
                             fail: imatch.fail,
                         })));
@@ -1842,14 +2804,14 @@ impl LowerAst {
                         let pattern = Expr::Alias(Alias {
                             span: pattern.span(),
                             annotations: Annotations::default(),
-                            var: v.name,
+                            var: v.clone(),
                             pattern,
                         });
                         pre.push(Expr::Internal(IExpr::Match(IMatch {
                             span: imatch.span,
                             annotations: imatch.annotations,
                             pattern: Box::new(pattern),
-                            guard: imatch.guard,
+                            guards: imatch.guards,
                             arg: Box::new(le),
                             fail: imatch.fail,
                         })));
@@ -1864,14 +2826,14 @@ impl LowerAst {
                 let var = Expr::Var(v.clone());
                 (
                     var,
-                    vec![Expr::Internal(IExpr::Set(ISet::new(span, v.name, expr)))],
+                    vec![Expr::Internal(IExpr::Set(ISet::new(span, v, expr)))],
                 )
             }
         }
     }
 
     // try_exception([ExcpClause]) -> {[ExcpVar],Handler}
-    fn try_exception(&mut self, clauses: Vec<ast::Clause>) -> anyhow::Result<([Ident; 3], Expr)> {
+    fn try_exception(&mut self, clauses: Vec<ast::Clause>) -> anyhow::Result<(Vec<Var>, Expr)> {
         // Note that the tag is not needed for rethrow - it is already in the exception info
         let (tag, value, info) = {
             let context = self.context_mut();
@@ -1907,7 +2869,7 @@ impl LowerAst {
             clauses,
             fail,
         }));
-        Ok(([tag.name, value.name, info.name], handler))
+        Ok((vec![tag, value, info], handler))
     }
 
     fn try_after(
@@ -1945,7 +2907,7 @@ impl LowerAst {
             span,
             annotations: Annotations::default(),
             id: None,
-            name,
+            name: Some(Ident::new(name, span)),
             vars: vec![],
             clauses: vec![IClause::new(span, vec![], vec![], after)],
             fail,
@@ -1954,7 +2916,6 @@ impl LowerAst {
             span,
             annotations: Annotations::default_compiler_generated(),
             callee: Box::new(Expr::Var(Var {
-                span,
                 annotations: Annotations::default(),
                 name: Ident::new(name, span),
                 arity: Some(Arity::Int(0)),
@@ -1966,7 +2927,7 @@ impl LowerAst {
             span,
             annotations: Annotations::default(),
             args: exprs,
-            vars: vec![var.name],
+            vars: vec![var.clone()],
             body: vec![apply, Expr::Var(var)],
             evars,
             handler: Box::new(handler),
@@ -1975,7 +2936,7 @@ impl LowerAst {
             span,
             annotations: Annotations::default(),
             defs: vec![(
-                Var::new_with_arity(span, Ident::new(name, span), Arity::Int(0)),
+                Var::new_with_arity(Ident::new(name, span), Arity::Int(0)),
                 fun,
             )],
             body: Box::new(texpr),
@@ -1992,13 +2953,12 @@ impl LowerAst {
     ) -> (Expr, Vec<Expr>) {
         // Small 'after' block; inline it
         let (evars, handler) = self.after_block(span, after.clone());
-        let v = var.name;
-        after.push(Expr::Var(var));
+        after.push(Expr::Var(var.clone()));
         let texpr = Expr::Internal(IExpr::Try(ITry {
             span,
             annotations: Annotations::default(),
             args: exprs,
-            vars: vec![v],
+            vars: vec![var],
             body: after,
             evars,
             handler: Box::new(handler),
@@ -2006,7 +2966,7 @@ impl LowerAst {
         (texpr, vec![])
     }
 
-    fn after_block(&mut self, span: SourceSpan, mut after: Vec<Expr>) -> ([Ident; 3], Expr) {
+    fn after_block(&mut self, span: SourceSpan, mut after: Vec<Expr>) -> (Vec<Var>, Expr) {
         let (tag, value, info) = {
             let context = self.context_mut();
             let tag = context.next_var(Some(span));
@@ -2038,7 +2998,7 @@ impl LowerAst {
                 body: after,
             }),
         }));
-        ([tag.name, value.name, info.name], handler)
+        (vec![tag, value, info], handler)
     }
 
     fn set_wanted(&mut self, expr: &ast::Expr) -> bool {
@@ -2059,11 +3019,6 @@ impl LowerAst {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum PatternError {
-    NoMatch,
-}
-
 fn fail_body(span: SourceSpan, arg: Expr) -> Expr {
     Expr::PrimOp(PrimOp::new(span, symbols::MatchFail, vec![arg]))
 }
@@ -2075,6 +3030,28 @@ fn fail_clause(span: SourceSpan, patterns: Vec<Expr>, arg: Expr) -> Box<IClause>
         patterns,
         guards: vec![],
         body: vec![fail_body(span, arg)],
+    })
+}
+
+fn bad_generator(span: SourceSpan, patterns: Vec<Expr>, generator: Var) -> Box<IClause> {
+    let tuple = ctuple!(
+        span,
+        Expr::Literal(lit_atom!(span, symbols::BadGenerator)),
+        Expr::Var(generator)
+    );
+    let call = Expr::Call(Call {
+        span,
+        annotations: Annotations::default(),
+        module: Box::new(catom!(span, symbols::Erlang)),
+        function: Box::new(catom!(span, symbols::Error)),
+        args: vec![tuple],
+    });
+    Box::new(IClause {
+        span,
+        annotations: Annotations::default_compiler_generated(),
+        patterns,
+        guards: vec![],
+        body: vec![call],
     })
 }
 
@@ -2218,7 +3195,7 @@ fn unforce_tree(mut exprs: Vec<Expr>, tree: &mut BTreeMap<Symbol, Expr>) -> Expr
             }
             Expr::Internal(IExpr::Set(ISet { var, arg, .. })) => {
                 let arg = unforce_tree_subst(*arg, tree);
-                tree.insert(var.name, arg);
+                tree.insert(var.name(), arg);
                 continue;
             }
             call @ Expr::Call(_) => {
@@ -2264,7 +3241,7 @@ fn letify_aliases(pattern: Expr, expr: Expr) -> (Expr, Expr, Vec<Expr>) {
         Expr::Alias(Alias {
             span, var, pattern, ..
         }) => {
-            let (pattern, expr2, mut pre) = letify_aliases(*pattern, Expr::Var(Var::new(var)));
+            let (pattern, expr2, mut pre) = letify_aliases(*pattern, Expr::Var(var.clone()));
             pre.insert(0, Expr::Internal(IExpr::Set(ISet::new(span, var, expr))));
             (pattern, expr2, pre)
         }
@@ -2362,8 +3339,9 @@ fn try_build_stacktrace(mut clauses: Vec<IClause>, raw_stack: Ident) -> Vec<ICla
                 tup.elements.push(stk);
                 output.push(clause);
             }
-            Expr::Var(Var { span, name, .. }) => {
+            Expr::Var(var) => {
                 // Add code to build the stacktrace
+                let span = var.span();
                 let raw_stack = Expr::Var(Var::new(raw_stack));
                 tup.elements.push(raw_stack.clone());
                 let call =
@@ -2371,7 +3349,7 @@ fn try_build_stacktrace(mut clauses: Vec<IClause>, raw_stack: Ident) -> Vec<ICla
                 let set = Expr::Internal(IExpr::Set(ISet {
                     span,
                     annotations: Annotations::default(),
-                    var: name,
+                    var,
                     arg: Box::new(call),
                 }));
                 clause.body.insert(0, set);
@@ -2411,11 +3389,19 @@ fn is_iexprs_small_2(expr: &Expr, threshold: usize) -> usize {
             let threshold = is_iexprs_small_1(body.as_slice(), threshold);
             is_iexprs_small_2(handler.as_ref(), threshold)
         }
-        Expr::Internal(IExpr::Match(IMatch { ref guard, .. })) => {
-            is_iexprs_small_1(guard.as_slice(), threshold)
+        Expr::Internal(IExpr::Match(IMatch { ref guards, .. })) => {
+            is_iexprs_small_1(guards.as_slice(), threshold)
         }
         Expr::Internal(IExpr::Case(ICase { ref clauses, .. })) => {
             is_iexprs_small_iclauses(clauses.as_slice(), threshold)
+        }
+        Expr::Internal(IExpr::If(IIf {
+            ref then_body,
+            ref else_body,
+            ..
+        })) => {
+            let threshold = is_iexprs_small_1(then_body.as_slice(), threshold);
+            is_iexprs_small_1(else_body.as_slice(), threshold)
         }
         Expr::Internal(IExpr::Fun(IFun { ref clauses, .. })) => {
             is_iexprs_small_iclauses(clauses.as_slice(), threshold)
@@ -2434,6 +3420,9 @@ fn is_iexprs_small_2(expr: &Expr, threshold: usize) -> usize {
         }
         Expr::Internal(IExpr::Set(ISet { ref arg, .. })) => {
             is_iexprs_small_2(arg.as_ref(), threshold)
+        }
+        Expr::Internal(IExpr::LetRec(ILetRec { ref body, .. })) => {
+            is_iexprs_small_1(body.as_slice(), threshold)
         }
         Expr::LetRec(LetRec { ref body, .. }) => is_iexprs_small_2(body.as_ref(), threshold),
         _ => threshold,
@@ -2521,12 +3510,7 @@ fn set_bit_type(
     }
 }
 
-fn bin_expand_string(
-    s: Ident,
-    mut value: Integer,
-    mut size: usize,
-    mut last: Vec<ast::BinaryElement>,
-) -> Vec<ast::BinaryElement> {
+fn bin_expand_string(s: Ident, mut value: Integer, mut size: usize) -> Vec<ast::BinaryElement> {
     let span = s.span;
     let mut expanded = vec![];
     for c in s.as_str().get().chars().map(|c| c as i64) {
@@ -2541,7 +3525,6 @@ fn bin_expand_string(
     }
 
     expanded.push(make_combined(span, value, size));
-    expanded.append(&mut last);
     expanded
 }
 
@@ -2788,4 +3771,43 @@ fn is_map_fields(fields: &[ast::MapField]) -> bool {
         }
     }
     true
+}
+
+#[derive(PartialEq, Eq)]
+enum MapSortKey {
+    Lit(Lit),
+    Var(Symbol),
+    Size(usize),
+}
+impl PartialOrd for MapSortKey {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for MapSortKey {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        use core::cmp::Ordering;
+        match (self, other) {
+            (Self::Lit(x), Self::Lit(y)) => x.cmp(y),
+            (Self::Lit(_), _) => Ordering::Less,
+            (Self::Var(x), Self::Var(y)) => x.cmp(y),
+            (Self::Var(_), Self::Lit(_)) => Ordering::Greater,
+            (Self::Var(_), Self::Size(_)) => Ordering::Less,
+            (Self::Size(x), Self::Size(y)) => x.cmp(y),
+            (Self::Size(_), _) => Ordering::Greater,
+        }
+    }
+}
+
+fn map_sort_key(key: &Expr, keymap: &BTreeMap<MapSortKey, Vec<MapPair>>) -> MapSortKey {
+    match key {
+        Expr::Literal(Literal { value, .. }) => MapSortKey::Lit(value.clone()),
+        Expr::Var(var) => MapSortKey::Var(var.name()),
+        other => MapSortKey::Size(keymap.len()),
+    }
+}
+
+fn translate_attr(_name: Ident, _value: ast::Expr) -> Option<(Ident, Expr)> {
+    // TODO:
+    None
 }

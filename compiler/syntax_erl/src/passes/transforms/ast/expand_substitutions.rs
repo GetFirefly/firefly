@@ -4,7 +4,7 @@ use liblumen_pass::Pass;
 
 use crate::ast::*;
 use crate::lexer::DelayedSubstitution;
-use crate::visit::{self, VisitMut};
+use crate::visit::ast::{self as visit, VisitMut};
 
 /// This pass expands all delayed macro substitutions to their corresponding terms.
 ///

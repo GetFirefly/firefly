@@ -559,7 +559,7 @@ impl BitVec {
     }
 }
 impl Eq for BitVec {}
-impl<T: Bitstring> PartialEq<T> for BitVec {
+impl<T: ?Sized + Bitstring> PartialEq<T> for BitVec {
     fn eq(&self, other: &T) -> bool {
         // An optimization: we can say for sure that if the sizes don't match,
         // the slices don't either.
@@ -591,7 +591,7 @@ impl Ord for BitVec {
         }
     }
 }
-impl<T: Bitstring> PartialOrd<T> for BitVec {
+impl<T: ?Sized + Bitstring> PartialOrd<T> for BitVec {
     // We order bitstrings lexicographically
     fn partial_cmp(&self, other: &T) -> Option<core::cmp::Ordering> {
         // Aligned binaries can be compared using the optimal built-in slice comparisons in the standard lib

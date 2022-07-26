@@ -9,7 +9,7 @@ use liblumen_syntax_core as syntax_core;
 
 use crate::ast::*;
 use crate::evaluator;
-use crate::visit::{self, VisitMut};
+use crate::visit::ast::{self, VisitMut};
 
 use super::{FunctionContext, NoMatchError};
 

@@ -1,4 +1,4 @@
-use liblumen_binary::BinaryEntrySpecifier;
+use liblumen_binary::{BinaryEntrySpecifier, BitVec};
 use liblumen_diagnostics::SourceSpan;
 use liblumen_intern::{Ident, Symbol};
 use liblumen_number::{BigInt, Integer};
@@ -280,6 +280,20 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         let constant = {
             self.data_flow_graph_mut()
                 .make_constant(ConstantItem::Bytes(bytes.to_vec().into()))
+        };
+        let (inst, dfg) = self.UnaryConst(
+            Opcode::ConstBinary,
+            Type::Term(TermType::Binary),
+            constant,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn bitstring(mut self, bitvec: BitVec, span: SourceSpan) -> Value {
+        let constant = {
+            self.data_flow_graph_mut()
+                .make_constant(ConstantItem::Bitstring(bitvec))
         };
         let (inst, dfg) = self.UnaryConst(
             Opcode::ConstBinary,
@@ -652,8 +666,18 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
+    fn map_put_mut(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.MapUpdate(Opcode::MapPutMut, map, key, value, span);
+        dfg.first_result(inst)
+    }
+
     fn map_update(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
         let (inst, dfg) = self.MapUpdate(Opcode::MapUpdate, map, key, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn map_update_mut(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.MapUpdate(Opcode::MapUpdateMut, map, key, value, span);
         dfg.first_result(inst)
     }
 
@@ -680,7 +704,12 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     fn set_element(self, tuple: Value, index: Value, value: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.SetElement(tuple, index, value, span);
+        let (inst, dfg) = self.SetElement(Opcode::SetElement, tuple, index, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn set_element_mut(self, tuple: Value, index: Value, value: Value, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.SetElement(Opcode::SetElementMut, tuple, index, value, span);
         dfg.first_result(inst)
     }
 
@@ -822,7 +851,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
 
     fn bs_push(
         mut self,
-        spec: Option<BinaryEntrySpecifier>,
+        spec: BinaryEntrySpecifier,
         bin: Value,
         value: Value,
         size: Option<Value>,
@@ -1190,7 +1219,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     #[allow(non_snake_case)]
     fn BitsPush(
         self,
-        spec: Option<BinaryEntrySpecifier>,
+        spec: BinaryEntrySpecifier,
         args: ValueList,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
@@ -1201,13 +1230,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     #[allow(non_snake_case)]
     fn SetElement(
         self,
+        op: Opcode,
         tuple: Value,
         index: Value,
         value: Value,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::SetElement(SetElement {
-            op: Opcode::SetElement,
+            op,
             args: [tuple, index, value],
         });
         self.build(data, Type::Term(TermType::Tuple(None)), span)

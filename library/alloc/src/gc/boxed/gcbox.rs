@@ -729,6 +729,7 @@ impl Metadata {
     }
 
     /// Creates metadata representing forwarding a pointer to a new location in memory
+    #[allow(dead_code)]
     fn forward(forwarded: *const ()) -> Self {
         Self {
             ty: ForwardingMarker::TYPE_ID,
@@ -737,6 +738,7 @@ impl Metadata {
     }
 
     /// Returns true if this metadata indicates the containing GcBox has been forwarded
+    #[allow(dead_code)]
     #[inline(always)]
     fn is_forwarded(&self) -> bool {
         self.ty == ForwardingMarker::TYPE_ID
@@ -774,6 +776,7 @@ impl Metadata {
 
 #[derive(Copy, Clone)]
 pub union PtrMetadata {
+    #[allow(dead_code)]
     forwarded: *const (),
     size: usize,
     dynamic: DynMetadata<dyn Any>,

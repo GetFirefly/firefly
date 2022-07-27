@@ -55,6 +55,7 @@ impl SchedulerData {
         }
     }
 
+    #[allow(dead_code)]
     fn pid(&self) -> Pid {
         Pid::Local {
             id: self.process.pid(),
@@ -75,6 +76,7 @@ unsafe impl Sync for SchedulerData {}
 pub struct Scheduler {
     pub id: ThreadId,
     // References are always 64-bits even on 32-bit platforms
+    #[allow(dead_code)]
     next_reference_id: AtomicU64,
     // In this runtime, we aren't doing work-stealing, so the run queue
     // is never accessed by any other thread
@@ -170,6 +172,7 @@ impl Scheduler {
     }
 
     /// Returns true if the root process (scheduler) is running
+    #[allow(dead_code)]
     fn is_root(&self) -> bool {
         unsafe { (&*self.prev.get()).is_none() }
     }

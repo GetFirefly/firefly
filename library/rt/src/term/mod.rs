@@ -105,7 +105,7 @@ impl Term {
                     Self::Cons(ptr)
                 } else {
                     let old = unsafe { ptr.as_ref() };
-                    let mut cons = Cons::new_in(heap)?;
+                    let cons = Cons::new_in(heap)?;
                     unsafe {
                         cons.as_uninit_mut().write(*old);
                     }

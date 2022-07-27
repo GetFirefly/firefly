@@ -54,6 +54,7 @@ pub(super) fn new(obj_table: &[(LinkOutputKind, &[&'static str])]) -> CrtObjects
         .collect()
 }
 
+#[allow(dead_code)]
 pub(super) fn all(obj: &'static str) -> CrtObjects {
     new(&[
         (LinkOutputKind::DynamicNoPicExe, &[obj]),
@@ -99,6 +100,7 @@ pub(super) fn post_musl_fallback() -> CrtObjects {
     ])
 }
 
+#[allow(dead_code)]
 pub(super) fn pre_mingw_fallback() -> CrtObjects {
     new(&[
         (LinkOutputKind::DynamicNoPicExe, &["crt2.o", "rsbegin.o"]),
@@ -110,14 +112,17 @@ pub(super) fn pre_mingw_fallback() -> CrtObjects {
     ])
 }
 
+#[allow(dead_code)]
 pub(super) fn post_mingw_fallback() -> CrtObjects {
     all("rsend.o")
 }
 
+#[allow(dead_code)]
 pub(super) fn pre_mingw() -> CrtObjects {
     all("rsbegin.o")
 }
 
+#[allow(dead_code)]
 pub(super) fn post_mingw() -> CrtObjects {
     all("rsend.o")
 }

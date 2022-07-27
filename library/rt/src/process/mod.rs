@@ -26,6 +26,7 @@ pub enum ProcessStatus {
 pub struct Process {
     parent: Option<ProcessId>,
     pid: ProcessId,
+    #[allow(dead_code)]
     mfa: ModuleFunctionArity,
     /// The process status is only ever manipulated/accessed by the owning scheduler
     status: UnsafeCell<ProcessStatus>,

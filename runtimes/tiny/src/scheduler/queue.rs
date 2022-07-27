@@ -31,6 +31,7 @@ impl RunQueue {
     }
 
     /// Schedules the given process immediately
+    #[allow(dead_code)]
     pub fn schedule_now(&mut self, process: Arc<SchedulerData>) {
         self.scheduled.push_front(process);
     }

@@ -35,6 +35,7 @@ impl<'a> IrBuilder<'a> {
         self.position.expand().unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn current_scope(&self) -> Rc<RefCell<Scope>> {
         self.func.dfg.scope(self.current_block())
     }
@@ -78,6 +79,7 @@ impl<'a> IrBuilder<'a> {
         self.func.dfg.define_var(current_block, name, value);
     }
 
+    #[allow(dead_code)]
     pub fn is_var_defined(&mut self, name: Symbol) -> bool {
         self.get_var(name).is_some()
     }
@@ -92,6 +94,7 @@ impl<'a> IrBuilder<'a> {
         found
     }
 
+    #[allow(dead_code)]
     pub fn define_func(&mut self, name: Symbol, value: FuncRef) {
         let current_block = self.current_block();
         debug!(
@@ -119,10 +122,12 @@ impl<'a> IrBuilder<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn value_type(&self, value: Value) -> Type {
         self.func.dfg.value_type(value)
     }
 
+    #[allow(dead_code)]
     pub fn first_result(&self, inst: Inst) -> Value {
         self.func.dfg.first_result(inst)
     }
@@ -154,6 +159,7 @@ impl<'a> IrBuilder<'a> {
         FuncInstBuilder::new(self, block)
     }
 
+    #[allow(dead_code)]
     pub(super) fn ensure_inserted_block(&mut self) {
         let block = self.position.unwrap();
         assert!(

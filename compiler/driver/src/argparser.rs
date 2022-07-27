@@ -131,6 +131,7 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("output")
                 .help("Write output to the given filename")
                 .short("o")
+                .long("output")
                 .value_name("FILENAME"),
         )
         .arg(

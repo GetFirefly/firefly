@@ -79,6 +79,7 @@ pub unsafe extern "C-unwind" fn process_yield() -> bool {
     scheduler::with_current(|scheduler| scheduler.process_yield())
 }
 
+#[allow(improper_ctypes_definitions)]
 #[export_name = "__lumen_builtin_exit"]
 pub unsafe extern "C-unwind" fn process_exit(result: ErlangResult) {
     scheduler::with_current(|scheduler| {

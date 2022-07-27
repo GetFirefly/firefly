@@ -5,6 +5,8 @@ use crate::env;
 use crate::scheduler;
 
 extern "C-unwind" {
+    #[allow(improper_ctypes)]
+    #[allow(improper_ctypes_definitions)]
     #[link_name = "init:boot/1"]
     fn boot(argv: OpaqueTerm) -> ErlangResult;
 }
@@ -16,6 +18,7 @@ extern "C-unwind" {
 /// a different module, `Module:boot/1`.
 ///
 /// NOTE: When this function is invoked, it is on the stack of the new process, not the scheduler.
+#[allow(improper_ctypes_definitions)]
 pub(crate) extern "C-unwind" fn start() -> ErlangResult {
     scheduler::with_current_process(|process| {
         let argv = env::argv();

@@ -10,9 +10,7 @@ mod hello_world {
         command
             .arg("compile")
             .arg("--output")
-            .arg("tests/_build/hello_world")
-            // Turn off optimizations as work-around for debug info bug in EIR
-            .arg("-O0");
+            .arg("tests/_build/hello_world");
 
         let compile_output = command
             .arg("tests/hello_world/init.erl")

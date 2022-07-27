@@ -38,9 +38,7 @@ fn compile() {
     command
         .arg("compile")
         .arg("--output")
-        .arg("tests/_build/global_dynamic")
-        // Turn off optimizations as work-around for debug info bug in EIR
-        .arg("-O0");
+        .arg("tests/_build/global_dynamic");
 
     let compile_output = command
         .arg("tests/global_dynamic/init.erl")

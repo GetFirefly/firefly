@@ -77,9 +77,7 @@ mod cli {
         command
             .arg("compile")
             .arg("--output")
-            .arg("tests/_build/cli")
-            // Turn off optimizations as work-around for debug info bug in EIR
-            .arg("-O0");
+            .arg("tests/_build/cli");
 
         let compile_output = command
             .arg("tests/cli/init.erl")

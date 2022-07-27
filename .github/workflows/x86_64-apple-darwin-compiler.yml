@@ -64,13 +64,13 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: make
-          args: test -- --package lumen
+          args: test --package lumen
       - name: Run liblumen_otp integration tests
         uses: actions-rs/cargo@v1
         with:
           command: make
           args: |
-            test -- --package liblumen_otp lib:: -- --skip lumen::otp
+            test --package liblumen_otp lib:: -- --skip lumen::otp
       - name: Run spawn-chain tests
         uses: actions-rs/cargo@v1
         with:

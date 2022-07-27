@@ -17,6 +17,7 @@ lazy_static = "1.4"
 liblumen_alloc = { path = "../alloc" }
 liblumen_arena = { path = "../arena" }
 liblumen_system = { path = "../system" }
+liblumen_binary = { path = "../../compiler/binary" }
 seq-macro = "0.3"
 static_assertions = "1.1"
 

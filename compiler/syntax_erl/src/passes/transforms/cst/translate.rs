@@ -563,6 +563,10 @@ impl TranslateAst {
     ///  Build an explicit and/or tree of guard alternatives, then traverse
     ///  top-level and/or tree and "protect" inner tests.
     fn guard(&mut self, mut guards: Vec<ast::Guard>) -> Vec<Expr> {
+        if guards.is_empty() {
+            return vec![];
+        }
+
         let last = guards.pop().unwrap();
         let guard = guards.drain(..).rfold(
             self.guard_tests(last.span, last.conditions),
@@ -1323,7 +1327,8 @@ impl TranslateAst {
                     let mut safes = vec![*module, *function];
                     safes.append(&mut args);
                     let (mut args, pre) = self.safe_list(safes)?;
-                    let mut mf = args.split_off(2);
+                    let mut argv = args.split_off(2);
+                    let mut mf = args;
                     let function = mf.pop().unwrap();
                     let module = mf.pop().unwrap();
                     let is_erlang_error = {
@@ -1339,10 +1344,10 @@ impl TranslateAst {
                                 value: Lit::Atom(symbols::Error),
                                 ..
                             })
-                        ) && args.len() == 1
+                        ) && argv.len() == 1
                     };
                     if is_erlang_error {
-                        let arg = args.pop().unwrap();
+                        let arg = argv.pop().unwrap();
                         if let Expr::Tuple(tuple) = arg {
                             if matches!(
                                 &tuple.elements[0],
@@ -1359,7 +1364,7 @@ impl TranslateAst {
                                 return Ok((fail, pre));
                             }
                         } else {
-                            args.push(arg);
+                            argv.push(arg);
                         }
                     }
                     let call = Expr::Call(Call {
@@ -1367,7 +1372,7 @@ impl TranslateAst {
                         annotations: Annotations::default(),
                         module: Box::new(module),
                         function: Box::new(function),
-                        args,
+                        args: argv,
                     });
                     Ok((call, pre))
                 }
@@ -2719,41 +2724,40 @@ impl TranslateAst {
     ///  Generate an internal safe expression for a list of
     ///  expressions.
     fn safe_list(&mut self, mut exprs: Vec<ast::Expr>) -> anyhow::Result<(Vec<Expr>, Vec<Expr>)> {
-        use std::collections::VecDeque;
-
-        let mut out = VecDeque::<Expr>::with_capacity(exprs.len());
-        let mut pre = VecDeque::<Vec<Expr>>::new();
-        for expr in exprs.drain(..).rev() {
+        let mut out = Vec::<Expr>::with_capacity(exprs.len());
+        let mut pre = Vec::<Vec<Expr>>::new();
+        for expr in exprs.drain(..) {
             let (cexpr, pre2) = self.safe(expr)?;
-            match pre.pop_front() {
+            match pre.pop() {
                 Some(mut prev) if prev.len() == 1 => {
                     match prev.pop().unwrap() {
                         Expr::Internal(IExpr::Exprs(IExprs { mut bodies, .. })) => {
                             // A cons within a cons
-                            out.push_front(cexpr);
+                            out.push(cexpr);
                             // [Pre2 | Bodies] ++ Pre
-                            let mut bodies = bodies.drain(..).collect::<VecDeque<_>>();
-                            bodies.push_front(pre2);
-                            bodies.append(&mut pre);
-                            pre = bodies;
+                            pre.extend(bodies.drain(..));
+                            pre.push(pre2);
                         }
                         prev_expr => {
+                            out.push(cexpr);
                             prev.push(prev_expr);
-                            pre.push_front(pre2);
+                            pre.push(prev);
+                            pre.push(pre2);
                         }
                     }
                 }
                 Some(prev) => {
-                    pre.push_front(prev);
-                    pre.push_front(pre2);
+                    out.push(cexpr);
+                    pre.push(prev);
+                    pre.push(pre2);
                 }
                 None => {
-                    pre.push_front(pre2);
+                    out.push(cexpr);
+                    pre.push(pre2);
                 }
             }
         }
 
-        let out = out.drain(..).collect::<Vec<_>>();
         let mut pre = pre
             .drain(..)
             .filter(|exprs| !exprs.is_empty())

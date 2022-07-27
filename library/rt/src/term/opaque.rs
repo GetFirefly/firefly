@@ -78,10 +78,11 @@ use core::mem::{self, ManuallyDrop, MaybeUninit};
 use core::num::NonZeroU32;
 use core::ptr::{self, NonNull, Pointee};
 
-use super::{Atom, BinaryData, BinaryFlags, Cons, Float, Term, Tuple};
+use super::{Atom, BinaryData, Cons, Float, Term, Tuple};
 
 use liblumen_alloc::gc::{self, GcBox};
 use liblumen_alloc::rc::{self, Rc, Weak};
+use liblumen_binary::BinaryFlags;
 
 // Canonical NaN
 const NAN: u64 = unsafe { mem::transmute::<f64, u64>(f64::NAN) };
@@ -442,7 +443,7 @@ impl OpaqueTerm {
     /// For closures, it is the number of elements in the closure environment.
     /// FOr binaries/bitstrings, it is the size in bytes.
     pub fn size(self) -> usize {
-        use super::Bitstring;
+        use liblumen_binary::Bitstring;
         match self.into() {
             Term::Tuple(tup) => unsafe { tup.as_ref().len() },
             Term::Closure(fun) => fun.env_size(),

@@ -1,10 +1,6 @@
-use alloc::borrow::Cow;
-use alloc::string::String;
-use alloc::vec::Vec;
+use core::any::TypeId;
 use core::fmt;
 use core::hash::{Hash, Hasher};
-use core::ptr;
-use core::str;
 
 use liblumen_binary::{Bitstring, Selection};
 
@@ -31,8 +27,17 @@ pub struct BitSlice {
 impl BitSlice {
     pub const TYPE_ID: TypeId = TypeId::of::<BitSlice>();
 
+    /// Create a new BitSlice.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `data` is a slice of bytes owned by `owner`. As such, we can
+    /// guarantee that changing the lifetime to 'static is safe, since the data will not be dropped
+    /// until the owning term has no more references. The garbage collector will take care of rewriting
+    /// the pointer should the data be moved by a GC cycle.
     #[inline]
-    pub fn new(owner: OpaqueTerm, data: &[u8], bit_offset: u8, num_bits: usize) -> Self {
+    pub unsafe fn new(owner: OpaqueTerm, data: &[u8], bit_offset: u8, num_bits: usize) -> Self {
+        let data = core::mem::transmute::<_, &'static [u8]>(data);
         let selection =
             Selection::new(data, 0, bit_offset, None, num_bits).expect("invalid selection");
 
@@ -87,7 +92,6 @@ impl Drop for BitSlice {
 }
 impl fmt::Debug for BitSlice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let byte_size = ptr::metadata(self.data);
         f.debug_struct("BitSlice")
             .field("owner", &self.owner)
             .field("selection", &self.selection)
@@ -104,7 +108,7 @@ impl<T: Bitstring> PartialEq<T> for BitSlice {
 impl Ord for BitSlice {
     #[inline]
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.selection.cmp(other)
+        self.selection.cmp(&other.selection)
     }
 }
 impl<T: Bitstring> PartialOrd<T> for BitSlice {

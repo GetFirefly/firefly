@@ -90,7 +90,8 @@ impl AnnotateVarUsage {
         todo!()
     }
 
-    fn uexpr(&mut self, _expr: IExpr, _known: Known) -> anyhow::Result<IExpr> {
+    fn uexpr(&mut self, expr: IExpr, _known: Known) -> anyhow::Result<IExpr> {
+        dbg!(&expr);
         todo!()
     }
 }

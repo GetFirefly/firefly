@@ -1,15 +1,16 @@
 use std::alloc::Layout;
 use std::borrow::Borrow;
 use std::env::ArgsOs;
-use std::sync::OnceLock;
 use std::mem;
 use std::path::Path;
 use std::ptr;
+use std::sync::OnceLock;
 
 use anyhow::anyhow;
 
 use liblumen_arena::DroplessArena;
-use liblumen_rt::term::{BinaryData, BinaryFlags, Encoding};
+use liblumen_binary::{BinaryFlags, Encoding};
+use liblumen_rt::term::BinaryData;
 
 static ARGV: OnceLock<EnvTable> = OnceLock::new();
 

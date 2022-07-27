@@ -7,6 +7,7 @@ use liblumen_diagnostics::{SourceSpan, Span, Spanned};
 use liblumen_intern::{symbols, Ident, Symbol};
 use liblumen_number::{Float, Integer};
 use liblumen_syntax_core as syntax_core;
+use liblumen_util::emit::Emit;
 
 use crate::ast::{self, Arity};
 
@@ -81,6 +82,12 @@ impl Annotations {
     #[inline]
     pub fn get(&self, key: Symbol) -> Option<&Annotation> {
         self.0.get(&key)
+    }
+
+    /// Retrieves an annotation by key, mutably
+    #[inline]
+    pub fn get_mut(&mut self, key: Symbol) -> Option<&mut Annotation> {
+        self.0.get_mut(&key)
     }
 
     /// Removes an annotation with the given key
@@ -173,7 +180,7 @@ macro_rules! annotated {
     };
 }
 
-#[derive(Debug, Clone, Spanned)]
+#[derive(Debug, Clone, Spanned, PartialEq, Eq)]
 pub struct Module {
     #[span]
     pub span: SourceSpan,
@@ -190,11 +197,22 @@ pub struct Module {
     pub functions: BTreeMap<syntax_core::FunctionName, Fun>,
 }
 annotated!(Module);
+impl Emit for Module {
+    fn file_type(&self) -> Option<&'static str> {
+        Some("cst")
+    }
+
+    fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
+        use std::io::Write;
+        write!(f, "{:#?}", self)?;
+        Ok(())
+    }
+}
 
 /// These are expression types that are used internally during translation from AST to CST
 ///
 /// The final CST never contains these expression types.
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[derive(Debug, Clone, Spanned, PartialEq, Eq)]
 pub enum IExpr {
     Binary(IBinary),
     Case(ICase),
@@ -267,6 +285,7 @@ impl IBinary {
         }
     }
 }
+impl Eq for IBinary {}
 impl PartialEq for IBinary {
     fn eq(&self, other: &Self) -> bool {
         self.segments == other.segments
@@ -283,6 +302,7 @@ pub struct IBitstring {
     pub spec: BinaryEntrySpecifier,
 }
 annotated!(IBitstring);
+impl Eq for IBitstring {}
 impl PartialEq for IBitstring {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value && self.size == other.size && self.spec == other.spec
@@ -299,6 +319,7 @@ pub struct ICase {
     pub fail: Box<IClause>,
 }
 annotated!(ICase);
+impl Eq for ICase {}
 impl PartialEq for ICase {
     fn eq(&self, other: &Self) -> bool {
         self.args == other.args && self.clauses == other.clauses && self.fail == other.fail
@@ -313,6 +334,7 @@ pub struct ICatch {
     pub body: Vec<Expr>,
 }
 annotated!(ICatch);
+impl Eq for ICatch {}
 impl PartialEq for ICatch {
     fn eq(&self, other: &Self) -> bool {
         self.body == other.body
@@ -340,6 +362,7 @@ impl IClause {
         }
     }
 }
+impl Eq for IClause {}
 impl PartialEq for IClause {
     fn eq(&self, other: &Self) -> bool {
         self.patterns == other.patterns && self.guards == other.guards && self.body == other.body
@@ -363,6 +386,7 @@ impl IExprs {
         }
     }
 }
+impl Eq for IExprs {}
 impl PartialEq for IExprs {
     fn eq(&self, other: &Self) -> bool {
         self.bodies == other.bodies
@@ -381,6 +405,7 @@ pub struct IFun {
     pub fail: Box<IClause>,
 }
 annotated!(IFun);
+impl Eq for IFun {}
 impl PartialEq for IFun {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
@@ -401,6 +426,7 @@ pub struct IIf {
     pub else_body: Vec<Expr>,
 }
 annotated!(IIf);
+impl Eq for IIf {}
 impl PartialEq for IIf {
     fn eq(&self, other: &Self) -> bool {
         self.guards == other.guards
@@ -418,6 +444,7 @@ pub struct ILetRec {
     pub body: Vec<Expr>,
 }
 annotated!(ILetRec);
+impl Eq for ILetRec {}
 impl PartialEq for ILetRec {
     fn eq(&self, other: &Self) -> bool {
         self.defs == other.defs && self.body == other.body
@@ -435,6 +462,7 @@ pub struct IMatch {
     pub fail: Box<IClause>,
 }
 annotated!(IMatch);
+impl Eq for IMatch {}
 impl PartialEq for IMatch {
     fn eq(&self, other: &Self) -> bool {
         self.pattern == other.pattern
@@ -452,6 +480,7 @@ pub struct IProtect {
     pub body: Vec<Expr>,
 }
 annotated!(IProtect);
+impl Eq for IProtect {}
 impl PartialEq for IProtect {
     fn eq(&self, other: &Self) -> bool {
         self.body == other.body
@@ -466,6 +495,7 @@ pub struct IReceive1 {
     pub clauses: Vec<IClause>,
 }
 annotated!(IReceive1);
+impl Eq for IReceive1 {}
 impl PartialEq for IReceive1 {
     fn eq(&self, other: &Self) -> bool {
         self.clauses == other.clauses
@@ -482,6 +512,7 @@ pub struct IReceive2 {
     pub action: Vec<Expr>,
 }
 annotated!(IReceive2);
+impl Eq for IReceive2 {}
 impl PartialEq for IReceive2 {
     fn eq(&self, other: &Self) -> bool {
         self.clauses == other.clauses
@@ -509,6 +540,7 @@ impl ISet {
         }
     }
 }
+impl Eq for ISet {}
 impl PartialEq for ISet {
     fn eq(&self, other: &Self) -> bool {
         self.var == other.var && self.arg == other.arg
@@ -527,6 +559,7 @@ pub struct ITry {
     pub handler: Box<Expr>,
 }
 annotated!(ITry);
+impl Eq for ITry {}
 impl PartialEq for ITry {
     fn eq(&self, other: &Self) -> bool {
         self.args == other.args
@@ -612,7 +645,7 @@ pub enum FilterType {
 }
 
 /// A CST expression
-#[derive(Debug, Clone, Spanned, PartialEq)]
+#[derive(Debug, Clone, Spanned, PartialEq, Eq)]
 pub enum Expr {
     Alias(Alias),
     Apply(Apply),
@@ -963,6 +996,7 @@ impl Alias {
         }
     }
 }
+impl Eq for Alias {}
 impl PartialEq for Alias {
     fn eq(&self, other: &Self) -> bool {
         self.var == other.var && self.pattern == other.pattern
@@ -988,6 +1022,7 @@ impl Apply {
         }
     }
 }
+impl Eq for Apply {}
 impl PartialEq for Apply {
     fn eq(&self, other: &Self) -> bool {
         self.callee == other.callee && self.args == other.args
@@ -1011,6 +1046,7 @@ impl Binary {
         }
     }
 }
+impl Eq for Binary {}
 impl PartialEq for Binary {
     fn eq(&self, other: &Self) -> bool {
         self.segments == other.segments
@@ -1027,6 +1063,7 @@ pub struct Bitstring {
     pub spec: BinaryEntrySpecifier,
 }
 annotated!(Bitstring);
+impl Eq for Bitstring {}
 impl PartialEq for Bitstring {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value && self.size == other.size && self.spec == other.spec
@@ -1062,6 +1099,7 @@ impl Call {
         self.module.is_atom_value(module) && self.function.is_atom_value(function)
     }
 }
+impl Eq for Call {}
 impl PartialEq for Call {
     fn eq(&self, other: &Self) -> bool {
         self.module == other.module && self.function == other.function && self.args == other.args
@@ -1077,6 +1115,7 @@ pub struct Case {
     pub clauses: Vec<Clause>,
 }
 annotated!(Case);
+impl Eq for Case {}
 impl PartialEq for Case {
     fn eq(&self, other: &Self) -> bool {
         self.arg == other.arg && self.clauses == other.clauses
@@ -1091,6 +1130,7 @@ pub struct Catch {
     pub body: Box<Expr>,
 }
 annotated!(Catch);
+impl Eq for Catch {}
 impl PartialEq for Catch {
     fn eq(&self, other: &Self) -> bool {
         self.body == other.body
@@ -1118,6 +1158,7 @@ impl Clause {
         }
     }
 }
+impl Eq for Clause {}
 impl PartialEq for Clause {
     fn eq(&self, other: &Self) -> bool {
         self.patterns == other.patterns && self.guard == other.guard && self.body == other.body
@@ -1143,6 +1184,7 @@ impl Cons {
         }
     }
 }
+impl Eq for Cons {}
 impl PartialEq for Cons {
     fn eq(&self, other: &Self) -> bool {
         self.head == other.head && self.tail == other.tail
@@ -1159,6 +1201,7 @@ pub struct Fun {
     pub body: Box<Expr>,
 }
 annotated!(Fun);
+impl Eq for Fun {}
 impl PartialEq for Fun {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.vars == other.vars && self.body == other.body
@@ -1186,6 +1229,7 @@ impl If {
     }
 }
 annotated!(If);
+impl Eq for If {}
 impl PartialEq for If {
     fn eq(&self, other: &Self) -> bool {
         self.guard == other.guard
@@ -1215,6 +1259,7 @@ impl Let {
         }
     }
 }
+impl Eq for Let {}
 impl PartialEq for Let {
     fn eq(&self, other: &Self) -> bool {
         self.vars == other.vars && self.arg == other.arg && self.body == other.body
@@ -1230,6 +1275,7 @@ pub struct LetRec {
     pub body: Box<Expr>,
 }
 annotated!(LetRec);
+impl Eq for LetRec {}
 impl PartialEq for LetRec {
     fn eq(&self, other: &Self) -> bool {
         self.defs == other.defs && self.body == other.body
@@ -1486,6 +1532,7 @@ pub struct Map {
     pub is_pattern: bool,
 }
 annotated!(Map);
+impl Eq for Map {}
 impl PartialEq for Map {
     fn eq(&self, other: &Self) -> bool {
         self.arg == other.arg && self.pairs == other.pairs && self.is_pattern == other.is_pattern
@@ -1536,7 +1583,7 @@ impl Map {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapPair {
     pub op: MapOp,
     pub key: Box<Expr>,
@@ -1568,6 +1615,7 @@ impl PrimOp {
         }
     }
 }
+impl Eq for PrimOp {}
 impl PartialEq for PrimOp {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.args == other.args
@@ -1584,6 +1632,7 @@ pub struct Receive {
     pub action: Box<Expr>,
 }
 annotated!(Receive);
+impl Eq for Receive {}
 impl PartialEq for Receive {
     fn eq(&self, other: &Self) -> bool {
         self.clauses == other.clauses
@@ -1611,6 +1660,7 @@ impl Seq {
         }
     }
 }
+impl Eq for Seq {}
 impl PartialEq for Seq {
     fn eq(&self, other: &Self) -> bool {
         self.arg == other.arg && self.body == other.body
@@ -1629,6 +1679,7 @@ pub struct Try {
     pub handler: Box<Expr>,
 }
 annotated!(Try);
+impl Eq for Try {}
 impl PartialEq for Try {
     fn eq(&self, other: &Self) -> bool {
         self.arg == other.arg
@@ -1656,6 +1707,7 @@ impl Tuple {
         }
     }
 }
+impl Eq for Tuple {}
 impl PartialEq for Tuple {
     fn eq(&self, other: &Self) -> bool {
         self.elements == other.elements
@@ -1679,6 +1731,7 @@ impl Values {
         }
     }
 }
+impl Eq for Values {}
 impl PartialEq for Values {
     fn eq(&self, other: &Self) -> bool {
         self.values == other.values
@@ -1715,6 +1768,7 @@ impl Var {
         self.name.name
     }
 }
+impl Eq for Var {}
 impl PartialEq for Var {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.arity == other.arity

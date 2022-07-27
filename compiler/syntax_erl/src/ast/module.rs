@@ -233,11 +233,8 @@ impl PartialEq for Module {
 /// and configuration; it is passed through all phases of
 /// compilation and is a superset of options in CompilerSettings
 /// where applicable
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOptions {
-    // Same as erlc, prints informational warnings about
-    // binary matching optimizations
-    pub compile_info: HashMap<Symbol, Expr>,
     // Used to override the filename used in errors/warnings
     pub file: Option<String>,
     pub verbose: bool,
@@ -287,7 +284,6 @@ pub struct CompileOptions {
 impl Default for CompileOptions {
     fn default() -> Self {
         CompileOptions {
-            compile_info: HashMap::new(),
             file: None,
             verbose: true,
             report_errors: true,

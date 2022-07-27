@@ -40,6 +40,7 @@ impl FromStr for OutputTypeSpec {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub enum OutputType {
     AST,
+    CST,
     CoreIR,
     /// Used to indicate a generic/unknown dialect
     MLIR,
@@ -54,6 +55,7 @@ impl FromStr for OutputType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ast" => Ok(Self::AST),
+            "cst" => Ok(Self::CST),
             "core" => Ok(Self::CoreIR),
             "mlir" => Ok(Self::MLIR),
             "llvm-ir" | "ll" => Ok(Self::LLVMAssembly),
@@ -80,6 +82,7 @@ impl OutputType {
     pub fn as_str(&self) -> &'static str {
         match self {
             &Self::AST => "ast",
+            &Self::CST => "cst",
             &Self::CoreIR => "core",
             &Self::MLIR => "mlir",
             &Self::LLVMAssembly => "llvm-ir",
@@ -93,6 +96,7 @@ impl OutputType {
     pub fn variants() -> &'static [OutputType] {
         &[
             Self::AST,
+            Self::CST,
             Self::CoreIR,
             Self::MLIR,
             Self::LLVMAssembly,
@@ -112,6 +116,7 @@ impl OutputType {
          Supported output types:\n  \
            all       = Emit everything\n  \
            ast       = Abstract Syntax Tree\n  \
+           cst       = Core Syntax Tree\n  \
            core      = Core IR\n  \
            mlir      = MLIR \n  \
            llvm-ir   = LLVM IR\n  \
@@ -126,6 +131,7 @@ impl OutputType {
     pub fn extension(&self) -> &'static str {
         match *self {
             Self::AST => "ast",
+            Self::CST => "cst",
             Self::CoreIR => "cir",
             Self::MLIR => "mlir",
             Self::LLVMAssembly => "ll",
@@ -286,35 +292,33 @@ impl OutputTypes {
 
     pub fn should_generate_core(&self) -> bool {
         self.0.keys().any(|k| match *k {
-            OutputType::AST => false,
+            OutputType::AST | OutputType::CST => false,
             _ => true,
         })
     }
 
     pub fn should_generate_mlir(&self) -> bool {
         self.0.keys().any(|k| match *k {
-            OutputType::AST => false,
-            OutputType::CoreIR => false,
+            OutputType::AST | OutputType::CST | OutputType::CoreIR => false,
             _ => true,
         })
     }
 
     pub fn should_generate_llvm(&self) -> bool {
         self.0.keys().any(|k| match *k {
-            OutputType::AST => false,
-            OutputType::CoreIR => false,
-            OutputType::MLIR => false,
+            OutputType::AST | OutputType::CST | OutputType::CoreIR | OutputType::MLIR => false,
             _ => true,
         })
     }
 
     pub fn should_codegen(&self) -> bool {
         self.0.keys().any(|k| match *k {
-            OutputType::AST => false,
-            OutputType::CoreIR => false,
-            OutputType::MLIR => false,
-            OutputType::LLVMAssembly => false,
-            OutputType::LLVMBitcode => false,
+            OutputType::AST
+            | OutputType::CST
+            | OutputType::CoreIR
+            | OutputType::MLIR
+            | OutputType::LLVMAssembly
+            | OutputType::LLVMBitcode => false,
             _ => true,
         })
     }

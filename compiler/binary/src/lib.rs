@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(allocator_api)]
 #![feature(test)]
 #![feature(trusted_len)]
 #![feature(exact_size_is_empty)]

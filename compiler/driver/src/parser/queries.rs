@@ -8,7 +8,7 @@ use liblumen_diagnostics::Reporter;
 use liblumen_llvm as llvm;
 use liblumen_mlir as mlir;
 use liblumen_session::{Input, InputType};
-use liblumen_syntax_core::{self as syntax_core};
+use liblumen_syntax_core as syntax_core;
 use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
 use liblumen_util::diagnostics::FileName;
 
@@ -163,10 +163,10 @@ where
     input_info.get_type()
 }
 
-pub(crate) fn input_syntax_erl<P>(
+pub(crate) fn input_ast<P>(
     db: &P,
     input: InternedInput,
-) -> Result<syntax_erl::Module, ErrorReported>
+) -> Result<syntax_erl::ast::Module, ErrorReported>
 where
     P: Parser,
 {
@@ -185,10 +185,10 @@ where
             let parser = parse::Parser::new(config, codemap);
             match db.lookup_intern_input(input) {
                 Input::File(ref path) => {
-                    parser.parse_file::<syntax_erl::Module, &Path>(reporter, path)
+                    parser.parse_file::<syntax_erl::ast::Module, &Path>(reporter, path)
                 }
                 Input::Str { ref input, .. } => {
-                    parser.parse_string::<syntax_erl::Module, _>(reporter, input)
+                    parser.parse_string::<syntax_erl::ast::Module, _>(reporter, input)
                 }
             }
         }
@@ -205,18 +205,18 @@ where
     }
 }
 
-pub(crate) fn input_syntax_core<P>(
+pub(crate) fn input_cst<P>(
     db: &P,
     input: InternedInput,
-) -> Result<syntax_core::Module, ErrorReported>
+) -> Result<syntax_erl::cst::Module, ErrorReported>
 where
     P: Parser,
 {
     use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::AstToCore;
+    use liblumen_syntax_erl::passes::AstToCst;
 
     // Get Erlang AST
-    let ast = db.input_syntax_erl(input)?;
+    let ast = db.input_ast(input)?;
 
     // Run lowering passes
     let options = db.options();
@@ -225,8 +225,37 @@ where
     } else {
         Reporter::new()
     };
-    let mut passes = AstToCore::new(reporter);
+    let mut passes = AstToCst::new(reporter.clone());
     let module = unwrap_or_bail!(db, passes.run(ast));
+
+    db.maybe_emit_file(input, &module)?;
+
+    Ok(module)
+}
+
+pub(crate) fn input_syntax_core<P>(
+    db: &P,
+    input: InternedInput,
+) -> Result<syntax_core::Module, ErrorReported>
+where
+    P: Parser,
+{
+    use liblumen_pass::Pass;
+    use liblumen_syntax_erl::passes::CstToCore;
+
+    // Get Erlang CST
+    let cst = db.input_cst(input)?;
+
+    // Run lowering passes
+    let options = db.options();
+    let reporter = if options.warnings_as_errors {
+        Reporter::strict()
+    } else {
+        Reporter::new()
+    };
+
+    let mut passes = CstToCore::new(reporter);
+    let module = unwrap_or_bail!(db, passes.run(cst));
 
     db.maybe_emit_file(input, &module)?;
 

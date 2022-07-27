@@ -20,7 +20,7 @@ mod preprocessor;
 mod util;
 pub mod visit;
 
-pub use self::ast::*;
+pub use self::ast::{Arity, Name};
 pub use self::lexer::*;
 pub use self::parser::*;
 pub use self::preprocessor::*;

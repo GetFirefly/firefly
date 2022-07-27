@@ -17,5 +17,6 @@ libc = "0.2"
 
 liblumen_arena = { path = "../../library/arena" }
 liblumen_alloc = { path = "../../library/alloc" }
+liblumen_binary = { path = "../../compiler/binary" }
 liblumen_crt = { path = "../crt" }
 liblumen_rt = { path = "../../library/rt" }

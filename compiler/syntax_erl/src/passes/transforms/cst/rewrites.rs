@@ -27,7 +27,7 @@ impl Pass for RewriteExports {
     type Input<'a> = cst::IFun;
     type Output<'a> = cst::Fun;
 
-    fn run<'a>(&mut self, _ifun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+    fn run<'a>(&mut self, ifun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         todo!()
     }
 }

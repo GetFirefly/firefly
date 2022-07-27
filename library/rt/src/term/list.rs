@@ -8,8 +8,9 @@ use core::ptr::NonNull;
 use liblumen_alloc::gc::GcBox;
 use liblumen_alloc::heap::Heap;
 use liblumen_alloc::rc::Rc;
+use liblumen_binary::{BinaryFlags, BitVec, Bitstring, Encoding};
 
-use super::{BinaryData, BinaryFlags, BinaryWriter, Encoding, OpaqueTerm, Term, TupleIndex};
+use super::{BinaryData, OpaqueTerm, Term, TupleIndex};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum CharlistToBinaryError {
@@ -155,18 +156,19 @@ impl Cons {
         encoding: Encoding,
         heap: H,
     ) -> Result<Term, CharlistToBinaryError> {
-        let mut gcbox = GcBox::<BinaryData>::with_capacity_in(len, heap)
+        let mut buf = BitVec::with_capacity(len);
+        if encoding == Encoding::Utf8 {
+            self.write_unicode_charlist_to_buffer(&mut buf)?;
+        } else {
+            self.write_raw_charlist_to_buffer(&mut buf)?;
+        }
+        let mut gcbox = GcBox::<BinaryData>::with_capacity_in(buf.byte_size(), heap)
             .map_err(|_| CharlistToBinaryError::AllocError)?;
         {
             unsafe {
                 gcbox.set_flags(BinaryFlags::new(len, encoding));
             }
-            let mut writer = gcbox.write();
-            if encoding == Encoding::Utf8 {
-                self.write_unicode_charlist_to_buffer(&mut writer)?;
-            } else {
-                self.write_raw_charlist_to_buffer(&mut writer)?;
-            }
+            gcbox.copy_from_slice(unsafe { buf.as_bytes_unchecked() });
         }
         Ok(gcbox.into())
     }
@@ -177,18 +179,20 @@ impl Cons {
         len: usize,
         encoding: Encoding,
     ) -> Result<Term, CharlistToBinaryError> {
-        let mut rc = Rc::<BinaryData>::with_capacity(len);
+        let mut buf = BitVec::with_capacity(len);
+        if encoding == Encoding::Utf8 {
+            self.write_unicode_charlist_to_buffer(&mut buf)?;
+        } else {
+            self.write_raw_charlist_to_buffer(&mut buf)?;
+        }
+        let mut rc = Rc::<BinaryData>::with_capacity(buf.byte_size());
         {
             let value = unsafe { Rc::get_mut_unchecked(&mut rc) };
             unsafe {
                 value.set_flags(BinaryFlags::new(len, encoding));
             }
-            let mut writer = value.write();
-            if encoding == Encoding::Utf8 {
-                self.write_unicode_charlist_to_buffer(&mut writer)?;
-            } else {
-                self.write_raw_charlist_to_buffer(&mut writer)?;
-            }
+
+            value.copy_from_slice(unsafe { buf.as_bytes_unchecked() });
         }
         Ok(Rc::into_weak(rc).into())
     }
@@ -213,13 +217,13 @@ impl Cons {
 
     /// Same as `write_unicode_charlist_to_buffer`, but for ASCII charlists, which is slightly more efficient
     /// since we can skip the unicode conversion overhead.
-    fn write_raw_charlist_to_buffer(
+    fn write_raw_charlist_to_buffer<A: Allocator>(
         &self,
-        writer: &mut BinaryWriter<'_>,
+        buf: &mut BitVec<A>,
     ) -> Result<(), CharlistToBinaryError> {
         for element in self.iter() {
             let Ok(Term::Int(byte)) = element else { return Err(CharlistToBinaryError::InvalidList); };
-            writer.push_byte(byte.try_into().unwrap());
+            buf.push_byte(byte.try_into().unwrap());
         }
         Ok(())
     }

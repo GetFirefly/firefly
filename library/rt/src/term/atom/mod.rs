@@ -9,6 +9,8 @@ use core::mem;
 use core::ptr::{self, NonNull};
 use core::str::{self, FromStr, Utf8Error};
 
+use liblumen_binary::Encoding;
+
 use super::OpaqueTerm;
 
 /// The maximum length of an atom (255)
@@ -220,7 +222,7 @@ impl TryInto<Encoding> for Atom {
 
     #[inline]
     fn try_into(self) -> Result<Encoding, Self::Error> {
-        atom.as_str().parse()
+        self.as_str().parse()
     }
 }
 impl FromStr for Atom {

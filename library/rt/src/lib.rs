@@ -27,8 +27,6 @@
 // Specialization
 #![feature(min_specialization)]
 // Used for FFI
-#![feature(core_ffi_c)]
-#![feature(core_c_str)]
 #![feature(extern_types)]
 #![feature(c_unwind)]
 #![cfg_attr(test, feature(test))]

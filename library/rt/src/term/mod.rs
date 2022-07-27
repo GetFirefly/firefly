@@ -29,13 +29,16 @@ pub use self::reference::{Reference, ReferenceId};
 pub use self::tuple::Tuple;
 
 use alloc::alloc::AllocError;
+use alloc::format;
 use core::convert::AsRef;
 use core::fmt;
 use core::ptr::NonNull;
 
+use anyhow::anyhow;
 use liblumen_alloc::gc::GcBox;
 use liblumen_alloc::heap::Heap;
 use liblumen_alloc::rc::{Rc, Weak};
+use liblumen_binary::{Binary, Bitstring, Encoding};
 
 /// `Term` is two things:
 ///
@@ -487,7 +490,7 @@ impl TryInto<Encoding> for Term {
     type Error = anyhow::Error;
 
     fn try_into(self) -> Result<Encoding, Self::Error> {
-        match term {
+        match self {
             Self::Atom(a) => a.as_str().parse(),
             other => Err(anyhow!(
                 "invalid encoding name: expected atom; got {}",

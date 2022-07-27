@@ -1,3 +1,4 @@
+use alloc::alloc::{Allocator, Global};
 use alloc::vec::Vec;
 use core::fmt;
 use core::hash::{Hash, Hasher};
@@ -22,8 +23,8 @@ use super::*;
 /// write!(&mut w, "Hello, {}!", name)?;
 /// ```
 #[derive(Debug, Clone)]
-pub struct BitVec {
-    data: Vec<u8>,
+pub struct BitVec<A: Allocator = Global> {
+    data: Vec<u8, A>,
     pos: usize,
     bit_offset: u8,
 }
@@ -40,6 +41,29 @@ impl BitVec {
     /// Create a new BitVec with the given initial capacity
     pub fn with_capacity(cap: usize) -> Self {
         let mut data = Vec::with_capacity(cap);
+        unsafe {
+            data.set_len(data.capacity());
+        }
+        Self {
+            data,
+            pos: 0,
+            bit_offset: 0,
+        }
+    }
+}
+impl<A: Allocator> BitVec<A> {
+    /// Create a new, empty BitVec using the given allocator
+    pub fn new_in(alloc: A) -> Self {
+        Self {
+            data: Vec::new_in(alloc),
+            pos: 0,
+            bit_offset: 0,
+        }
+    }
+
+    /// Create a new BitVec with the given initial capacity and allocator
+    pub fn with_capacity_in(cap: usize, alloc: A) -> Self {
+        let mut data = Vec::with_capacity_in(cap, alloc);
         unsafe {
             data.set_len(data.capacity());
         }
@@ -84,7 +108,7 @@ impl BitVec {
     }
 }
 
-impl Bitstring for BitVec {
+impl<A: Allocator> Bitstring for BitVec<A> {
     fn byte_size(&self) -> usize {
         self.pos + ((self.bit_offset > 0) as usize)
     }
@@ -104,7 +128,7 @@ impl Bitstring for BitVec {
     }
 }
 
-impl BitVec {
+impl<A: Allocator> BitVec<A> {
     /// Write a `str` via this writer
     #[inline]
     pub fn push_str(&mut self, s: &str) {
@@ -558,8 +582,8 @@ impl BitVec {
         }
     }
 }
-impl Eq for BitVec {}
-impl<T: ?Sized + Bitstring> PartialEq<T> for BitVec {
+impl<A: Allocator> Eq for BitVec<A> {}
+impl<A: Allocator, T: ?Sized + Bitstring> PartialEq<T> for BitVec<A> {
     fn eq(&self, other: &T) -> bool {
         // An optimization: we can say for sure that if the sizes don't match,
         // the slices don't either.
@@ -578,7 +602,7 @@ impl<T: ?Sized + Bitstring> PartialEq<T> for BitVec {
         self.bytes().eq(other.bytes())
     }
 }
-impl Ord for BitVec {
+impl<A: Allocator> Ord for BitVec<A> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         if self.is_binary() && other.is_binary() {
             unsafe {
@@ -591,7 +615,7 @@ impl Ord for BitVec {
         }
     }
 }
-impl<T: ?Sized + Bitstring> PartialOrd<T> for BitVec {
+impl<A: Allocator, T: ?Sized + Bitstring> PartialOrd<T> for BitVec<A> {
     // We order bitstrings lexicographically
     fn partial_cmp(&self, other: &T) -> Option<core::cmp::Ordering> {
         // Aligned binaries can be compared using the optimal built-in slice comparisons in the standard lib
@@ -607,7 +631,7 @@ impl<T: ?Sized + Bitstring> PartialOrd<T> for BitVec {
         }
     }
 }
-impl Hash for BitVec {
+impl<A: Allocator> Hash for BitVec<A> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         if self.is_binary() {
             Hash::hash_slice(unsafe { self.as_bytes_unchecked() }, state);
@@ -619,7 +643,7 @@ impl Hash for BitVec {
     }
 }
 
-impl fmt::Write for BitVec {
+impl<A: Allocator> fmt::Write for BitVec<A> {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.push_str(s);
@@ -633,7 +657,7 @@ impl fmt::Write for BitVec {
     }
 }
 #[cfg(feature = "std")]
-impl std::io::Write for BitVec {
+impl<A: Allocator> std::io::Write for BitVec<A> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.push_bytes(buf);

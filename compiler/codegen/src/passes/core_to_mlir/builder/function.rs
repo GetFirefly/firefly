@@ -1,5 +1,5 @@
-use liblumen_binary::BinaryEntrySpecifier;
-use liblumen_diagnostics::SourceSpan;
+use liblumen_binary::{BinaryEntrySpecifier, Bitstring, Encoding};
+use liblumen_diagnostics::{SourceSpan, Spanned};
 use liblumen_llvm::Linkage;
 use liblumen_mlir::cir::ICmpPredicate;
 use liblumen_mlir::llvm::LinkageAttr;
@@ -169,9 +169,9 @@ impl<'m> ModuleBuilder<'m> {
     }
 
     fn const_to_constant(&self, loc: Location, constant: &ConstantItem) -> ValueBase {
-        let builder = CirBuilder::new(&self.builder);
         match constant {
             ConstantItem::Integer(Integer::Small(i)) => {
+                let builder = CirBuilder::new(&self.builder);
                 let op = builder.build_constant(
                     loc,
                     builder.get_cir_isize_type(),
@@ -181,6 +181,7 @@ impl<'m> ModuleBuilder<'m> {
             }
             ConstantItem::Integer(Integer::Big(_)) => todo!("bigint constants"),
             ConstantItem::Float(f) => {
+                let builder = CirBuilder::new(&self.builder);
                 let op = builder.build_constant(
                     loc,
                     builder.get_cir_float_type(),
@@ -189,6 +190,7 @@ impl<'m> ModuleBuilder<'m> {
                 op.get_result(0).base()
             }
             ConstantItem::Bool(b) => {
+                let builder = CirBuilder::new(&self.builder);
                 let op = builder.build_constant(
                     loc,
                     builder.get_cir_bool_type(),
@@ -197,35 +199,68 @@ impl<'m> ModuleBuilder<'m> {
                 op.get_result(0).base()
             }
             ConstantItem::Atom(a) => {
+                let builder = CirBuilder::new(&self.builder);
                 let ty = builder.get_cir_atom_type();
                 let op = builder.build_constant(loc, ty, builder.get_atom_attr(*a, ty));
                 op.get_result(0).base()
             }
             ConstantItem::Bytes(const_data) => {
-                let ty = builder.get_cir_box_type(builder.get_cir_bits_type());
-                let attr = StringAttr::get_with_type(const_data.as_slice(), ty.base());
-                let op = builder.build_constant(loc, ty, attr);
-                op.set_attribute_by_name("utf8", builder.get_bool_attr(false));
-                op.get_result(0).base()
+                self.bitstring_to_constant(loc, const_data.as_slice())
             }
-            ConstantItem::String(string) => {
-                let ty = builder.get_cir_box_type(builder.get_cir_bits_type());
-                let attr = StringAttr::get_with_type(string.as_str(), ty.base());
-                let op = builder.build_constant(loc, ty, attr);
-                op.set_attribute_by_name("utf8", builder.get_bool_attr(true));
-                op.get_result(0).base()
-            }
+            ConstantItem::Bitstring(ref bitvec) => self.bitstring_to_constant(loc, bitvec),
+            ConstantItem::String(string) => self.bitstring_to_constant(loc, string.as_str()),
             ConstantItem::InternedStr(ident) => {
-                let ty = builder.get_cir_box_type(builder.get_cir_bits_type());
-                let attr = StringAttr::get_with_type(ident.as_str().get(), ty.base());
-                let op = builder.build_constant(loc, ty, attr);
-                op.set_attribute_by_name("utf8", builder.get_bool_attr(true));
-                op.get_result(0).base()
+                self.bitstring_to_constant(loc, ident.as_str().get())
             }
             ConstantItem::Tuple(_elements) => todo!("tuple constants"),
             ConstantItem::List(_elements) => todo!("list constants"),
             ConstantItem::Map(_elements) => todo!("map constants"),
         }
+    }
+
+    fn bitstring_to_constant<B: ?Sized + Bitstring>(
+        &self,
+        loc: Location,
+        bitstring: &B,
+    ) -> ValueBase {
+        assert!(
+            bitstring.is_aligned(),
+            "bitstring constants must be aligned for codegen"
+        );
+
+        let builder = CirBuilder::new(&self.builder);
+        let ty = builder.get_cir_box_type(builder.get_cir_bits_type());
+        let bytes = unsafe { bitstring.as_bytes_unchecked() };
+        let attr = StringAttr::get_with_type(bytes, ty.base());
+        let op = builder.build_constant(loc, ty, attr);
+        op.set_attribute_by_name(
+            "byte_size",
+            builder.get_isize_attr(bitstring.byte_size() as u64),
+        );
+        op.set_attribute_by_name(
+            "bit_size",
+            builder.get_isize_attr(bitstring.bit_size() as u64),
+        );
+        let encoding = if bitstring.is_binary() {
+            Encoding::detect(bytes)
+        } else {
+            Encoding::Raw
+        };
+        match encoding {
+            Encoding::Raw => {
+                op.set_attribute_by_name("utf8", builder.get_bool_attr(false));
+                op.set_attribute_by_name("latin1", builder.get_bool_attr(false));
+            }
+            Encoding::Latin1 => {
+                op.set_attribute_by_name("utf8", builder.get_bool_attr(false));
+                op.set_attribute_by_name("latin1", builder.get_bool_attr(true));
+            }
+            Encoding::Utf8 => {
+                op.set_attribute_by_name("utf8", builder.get_bool_attr(true));
+                op.set_attribute_by_name("latin1", builder.get_bool_attr(true));
+            }
+        }
+        op.get_result(0).base()
     }
 
     /// Lowers a single syntax_core instruction to the corresponding CIR dialect operation
@@ -1457,78 +1492,65 @@ impl<'m> ModuleBuilder<'m> {
         let bin = self.values[&args[0]];
         let value = self.values[&args[1]];
         let mlir_op = match op.spec {
-            None => match args.get(2) {
-                None => builder.build_binary_push_any(loc, bin, value).base(),
+            BinaryEntrySpecifier::Integer {
+                signed,
+                endianness,
+                unit,
+            } => {
+                let size = match args.get(2) {
+                    None => {
+                        // Default size is 8
+                        self.immediate_to_constant(loc, Immediate::Integer(8))
+                    }
+                    Some(arg) => self.values[arg],
+                };
+                builder
+                    .build_binary_push_integer(
+                        loc,
+                        bin,
+                        value,
+                        size,
+                        signed,
+                        endianness,
+                        unit.try_into().unwrap(),
+                    )
+                    .base()
+            }
+            BinaryEntrySpecifier::Float { endianness, unit } => {
+                let size = match args.get(2) {
+                    None => {
+                        // Default size is 64
+                        self.immediate_to_constant(loc, Immediate::Integer(64))
+                    }
+                    Some(arg) => self.values[arg],
+                };
+                builder
+                    .build_binary_push_float(
+                        loc,
+                        bin,
+                        value,
+                        size,
+                        endianness,
+                        unit.try_into().unwrap(),
+                    )
+                    .base()
+            }
+            BinaryEntrySpecifier::Binary { unit } => match args.get(2) {
+                None => builder.build_binary_push_bits_all(loc, bin, value).base(),
                 Some(arg) => {
                     let size = self.values[arg];
                     builder
-                        .build_binary_push_any_sized(loc, bin, value, size)
+                        .build_binary_push_bits(loc, bin, value, size, unit.try_into().unwrap())
                         .base()
                 }
             },
-            Some(spec) => match spec {
-                BinaryEntrySpecifier::Integer {
-                    signed,
-                    endianness,
-                    unit,
-                } => {
-                    let size = match args.get(2) {
-                        None => {
-                            // Default size is 8
-                            self.immediate_to_constant(loc, Immediate::Integer(8))
-                        }
-                        Some(arg) => self.values[arg],
-                    };
-                    builder
-                        .build_binary_push_integer(
-                            loc,
-                            bin,
-                            value,
-                            size,
-                            signed,
-                            endianness,
-                            unit.try_into().unwrap(),
-                        )
-                        .base()
-                }
-                BinaryEntrySpecifier::Float { endianness, unit } => {
-                    let size = match args.get(2) {
-                        None => {
-                            // Default size is 64
-                            self.immediate_to_constant(loc, Immediate::Integer(64))
-                        }
-                        Some(arg) => self.values[arg],
-                    };
-                    builder
-                        .build_binary_push_float(
-                            loc,
-                            bin,
-                            value,
-                            size,
-                            endianness,
-                            unit.try_into().unwrap(),
-                        )
-                        .base()
-                }
-                BinaryEntrySpecifier::Binary { unit } => match args.get(2) {
-                    None => builder.build_binary_push_bits_all(loc, bin, value).base(),
-                    Some(arg) => {
-                        let size = self.values[arg];
-                        builder
-                            .build_binary_push_bits(loc, bin, value, size, unit.try_into().unwrap())
-                            .base()
-                    }
-                },
-                BinaryEntrySpecifier::Utf8 => {
-                    builder.build_binary_push_utf8(loc, bin, value).base()
-                }
-                BinaryEntrySpecifier::Utf16 { endianness } => builder
-                    .build_binary_push_utf16(loc, bin, value, endianness)
-                    .base(),
-                BinaryEntrySpecifier::Utf32 { endianness } => builder
-                    .build_binary_push_utf32(loc, bin, value, endianness)
-                    .base(),
-            },
+            BinaryEntrySpecifier::Utf8 => builder.build_binary_push_utf8(loc, bin, value).base(),
+            BinaryEntrySpecifier::Utf16 { endianness } => builder
+                .build_binary_push_utf16(loc, bin, value, endianness)
+                .base(),
+            BinaryEntrySpecifier::Utf32 { endianness } => builder
+                .build_binary_push_utf32(loc, bin, value, endianness)
+                .base(),
         };
 
         let results = dfg.inst_results(inst);

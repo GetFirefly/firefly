@@ -192,7 +192,7 @@ impl<'m> LowerFunctionToCore<'m> {
             cst::Expr::Receive(_) => {
                 panic!("expected receive expressions to have been lowered to primops")
             }
-            cst::Expr::Alias(_) | cst::Expr::Internal(_) => unimplemented!(),
+            cst::Expr::Alias(_) => unimplemented!(),
         }?;
         Ok(vec![value])
     }

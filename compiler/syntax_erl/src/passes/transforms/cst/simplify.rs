@@ -69,7 +69,8 @@ impl Pass for SimplifyCst {
     type Input<'a> = cst::Fun;
     type Output<'a> = cst::Fun;
 
-    fn run<'a>(&mut self, _fun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+    fn run<'a>(&mut self, fun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+        println!("{}", &fun);
         todo!()
     }
 }

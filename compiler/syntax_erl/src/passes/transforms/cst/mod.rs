@@ -58,8 +58,10 @@
 ///! let/set arguments are expressions
 ///! fun is not a safe
 use std::cell::UnsafeCell;
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
+
+use rpds::{RedBlackTreeSet, Vector};
 
 use liblumen_binary::{BinaryEntrySpecifier, BitVec};
 use liblumen_diagnostics::*;
@@ -97,45 +99,45 @@ macro_rules! lit_nil {
     };
 }
 
-macro_rules! catom {
+macro_rules! iatom {
     ($span:expr, $sym:expr) => {
-        Expr::Literal(lit_atom!($span, $sym))
+        IExpr::Literal(lit_atom!($span, $sym))
     };
 }
 
-macro_rules! cint {
+macro_rules! iint {
     ($span:expr, $i:expr) => {
-        Expr::Literal(lit_int!($span, $i))
+        IExpr::Literal(lit_int!($span, $i))
     };
 }
 
-macro_rules! ctuple {
+macro_rules! ituple {
     ($span:expr, $($element:expr),*) => {
-        Expr::Tuple(Tuple::new($span, vec![$($element),*]))
+        IExpr::Tuple(ITuple::new($span, vec![$($element),*]))
     };
 }
 
-macro_rules! ccons {
+macro_rules! icons {
     ($span:expr, $head:expr, $tail:expr) => {
-        Expr::Cons(Cons::new($span, $head, $tail))
+        IExpr::Cons(ICons::new($span, $head, $tail))
     };
 }
 
-macro_rules! cnil {
+macro_rules! inil {
     ($span:expr) => {
-        Expr::Literal(lit_nil!($span))
+        IExpr::Literal(lit_nil!($span))
     };
 }
 
 macro_rules! icall_eq_true {
     ($span:expr, $v:expr) => {{
         let span = $span;
-        Expr::Call(Call {
+        IExpr::Call(ICall {
             span,
             annotations: Annotations::default_compiler_generated(),
-            module: Box::new(catom!(span, symbols::Erlang)),
-            function: Box::new(catom!(span, symbols::EqualStrict)),
-            args: vec![$v, catom!(span, symbols::True)],
+            module: Box::new(iatom!(span, symbols::Erlang)),
+            function: Box::new(iatom!(span, symbols::EqualStrict)),
+            args: vec![$v, iatom!(span, symbols::True)],
         })
     }};
 }
@@ -180,7 +182,7 @@ impl FunctionContext {
         prev
     }
 
-    fn next_var(&mut self, span: Option<SourceSpan>) -> Var {
+    fn next_var_name(&mut self, span: Option<SourceSpan>) -> Ident {
         let id = self.var_counter;
         self.var_counter += 1;
         let var = format!("${}", id);
@@ -188,9 +190,14 @@ impl FunctionContext {
         if let Some(span) = span {
             ident.span = span;
         }
+        ident
+    }
+
+    fn next_var(&mut self, span: Option<SourceSpan>) -> Var {
+        let name = self.next_var_name(span);
         Var {
             annotations: Annotations::default_compiler_generated(),
-            name: ident,
+            name,
             arity: None,
         }
     }
@@ -292,14 +299,25 @@ impl FunctionContext {
 ///
 #[derive(Clone, Default)]
 struct Known {
-    base: Vec<BTreeSet<Ident>>,
-    ks: BTreeSet<Ident>,
-    prev_ks: Vec<BTreeSet<Ident>>,
+    base: Vector<RedBlackTreeSet<Ident>>,
+    ks: RedBlackTreeSet<Ident>,
+    prev_ks: Vector<RedBlackTreeSet<Ident>>,
 }
 impl Known {
     /// Get the currently known variables
-    fn get(&self) -> &BTreeSet<Ident> {
+    fn get(&self) -> &RedBlackTreeSet<Ident> {
         &self.ks
+    }
+
+    /// Returns true if the given ident is known in the current scope
+    #[inline]
+    fn contains(&self, id: &Ident) -> bool {
+        self.ks.contains(id)
+    }
+
+    /// Returns true if the known set is empty
+    fn is_empty(&self) -> bool {
+        self.ks.is_empty()
     }
 
     fn upat_is_new_var(&self, expr: &Expr) -> bool {
@@ -310,46 +328,68 @@ impl Known {
     }
 
     fn start_group(&mut self) {
-        self.prev_ks.push(BTreeSet::new());
-        self.base.push(self.ks.clone());
+        self.prev_ks.push_back_mut(RedBlackTreeSet::new());
+        self.base.push_back_mut(self.ks.clone());
     }
 
     fn end_body(&mut self) {
-        self.prev_ks.pop();
-        self.prev_ks.push(self.ks.clone());
+        self.prev_ks.drop_last_mut();
+        self.prev_ks.push_back_mut(self.ks.clone());
     }
 
     /// known_end_group(#known{}) -> #known{}.
     ///  Consolidate the known variables after having processed the
     ///  last body in a group of bodies that see the same bindings.
     fn end_group(&mut self) {
-        self.base.pop();
-        self.prev_ks.pop();
+        self.base.drop_last_mut();
+        self.prev_ks.drop_last_mut();
     }
 
     /// known_union(#known{}, KnownVarsSet) -> #known{}.
     ///  Update the known variables to be the union of the previous
     ///  known variables and the set KnownVarsSet.
-    fn union(&mut self, vars: &BTreeSet<Ident>) {
-        let ks = self.ks.union(vars).cloned().collect();
-        self.ks = ks;
+    fn union(&self, vars: &RedBlackTreeSet<Ident>) -> Self {
+        let ks = vars
+            .iter()
+            .copied()
+            .fold(self.ks.clone(), |ks, var| ks.insert(var));
+        Self {
+            base: self.base.clone(),
+            ks,
+            prev_ks: self.prev_ks.clone(),
+        }
     }
 
     /// known_bind(#known{}, BoundVarsSet) -> #known{}.
     ///  Add variables that are known to be bound in the current
     ///  body.
-    fn bind(&mut self, vars: &BTreeSet<Ident>) {
-        if let Some(prev) = self.prev_ks.pop() {
-            self.prev_ks.push(prev.difference(vars).cloned().collect());
+    fn bind(&self, vars: &RedBlackTreeSet<Ident>) -> Self {
+        let last = self.prev_ks.last().map(|set| set.clone());
+        let prev_ks = self.prev_ks.drop_last();
+        match last {
+            None => self.clone(),
+            Some(mut last) => {
+                let mut prev_ks = prev_ks.unwrap();
+                // set difference of prev_ks and vars
+                for v in vars.iter() {
+                    last.remove_mut(v);
+                }
+                prev_ks.push_back_mut(last);
+                Self {
+                    base: self.base.clone(),
+                    ks: self.ks.clone(),
+                    prev_ks,
+                }
+            }
         }
     }
 
     /// known_in_fun(#known{}) -> #known{}.
     ///  Update the known variables to only the set of variables that
     ///  should be known when entering the fun.
-    fn known_in_fun(&mut self) {
+    fn known_in_fun(&self) -> Self {
         if self.base.is_empty() || self.prev_ks.is_empty() {
-            return;
+            return self.clone();
         }
 
         // Within a group of bodies that see the same bindings, calculate
@@ -363,12 +403,77 @@ impl Known {
         //     BaseKs = ['A'], Ks0 = ['A','X'], PrevKs = ['A','X']
         //
         // Thus, only `A` is known when entering the fun.
-        let base_ks = self.base.pop().unwrap();
-        let prev_ks = self.prev_ks.pop().unwrap();
-        let diff = self.ks.difference(&prev_ks).cloned().collect();
-        let ks = &base_ks & &diff;
-        self.base = vec![];
-        self.prev_ks = vec![];
-        self.ks = ks;
+        let mut ks = self.ks.clone();
+        let prev_ks = self.prev_ks.last().map(|l| l.clone()).unwrap_or_default();
+        let base = self.base.last().map(|l| l.clone()).unwrap_or_default();
+        for id in prev_ks.iter() {
+            ks.remove_mut(id);
+        }
+        for id in base.iter() {
+            ks.insert_mut(*id);
+        }
+        Self {
+            base: Vector::new(),
+            prev_ks: Vector::new(),
+            ks,
+        }
     }
+}
+
+pub(self) fn used_in_any<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
+    iter: I,
+) -> RedBlackTreeSet<Ident> {
+    iter.fold(RedBlackTreeSet::new(), |used, annotated| {
+        union(annotated.used_vars(), used)
+    })
+}
+
+pub(self) fn new_in_any<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
+    iter: I,
+) -> RedBlackTreeSet<Ident> {
+    iter.fold(RedBlackTreeSet::new(), |new, annotated| {
+        union(annotated.new_vars(), new)
+    })
+}
+
+pub(self) fn new_in_all<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
+    iter: I,
+) -> RedBlackTreeSet<Ident> {
+    iter.fold(None, |new, annotated| match new {
+        None => Some(annotated.new_vars().clone()),
+        Some(ns) => Some(intersection(annotated.new_vars(), ns)),
+    })
+    .unwrap_or_default()
+}
+
+pub(self) fn union(x: RedBlackTreeSet<Ident>, y: RedBlackTreeSet<Ident>) -> RedBlackTreeSet<Ident> {
+    let mut result = x;
+    for id in y.iter().copied() {
+        result.insert_mut(id);
+    }
+    result
+}
+
+pub(self) fn subtract(
+    x: RedBlackTreeSet<Ident>,
+    y: RedBlackTreeSet<Ident>,
+) -> RedBlackTreeSet<Ident> {
+    let mut result = x;
+    for id in y.iter() {
+        result.remove_mut(id);
+    }
+    result
+}
+
+pub(self) fn intersection(
+    x: RedBlackTreeSet<Ident>,
+    y: RedBlackTreeSet<Ident>,
+) -> RedBlackTreeSet<Ident> {
+    let mut result = RedBlackTreeSet::new();
+    for id in x.iter().copied() {
+        if y.contains(&id) {
+            result.insert_mut(id);
+        }
+    }
+    result
 }

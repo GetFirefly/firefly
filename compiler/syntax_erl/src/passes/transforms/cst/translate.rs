@@ -48,7 +48,6 @@ impl Pass for AstToCst {
             let mut context = Rc::new(UnsafeCell::new(FunctionContext::new(&function)));
 
             let local_name = Span::new(SourceSpan::UNKNOWN, name);
-            let is_nif = nifs.contains(&local_name);
 
             let mut pipeline = TranslateAst::new(self.reporter.clone(), Rc::clone(&context))
                 .chain(AnnotateVarUsage::new(Rc::clone(&context)))
@@ -115,13 +114,13 @@ impl Pass for TranslateAst {
         // Create fallback clause to handle pattern failure
         let fail = {
             let params = (0..arity)
-                .map(|_| Expr::Var(self.context_mut().next_var(Some(span))))
+                .map(|_| IExpr::Var(self.context_mut().next_var(Some(span))))
                 .collect::<Vec<_>>();
 
             let reason = {
-                let mut elements = vec![catom!(span, symbols::FunctionClause)];
+                let mut elements = vec![iatom!(span, symbols::FunctionClause)];
                 elements.extend(params.iter().cloned());
-                Expr::Tuple(Tuple::new(span, elements))
+                IExpr::Tuple(ITuple::new(span, elements))
             };
             fail_clause(span, params, reason)
         };
@@ -185,7 +184,7 @@ impl TranslateAst {
         }
     }
 
-    fn pattern_list(&mut self, mut patterns: Vec<ast::Expr>) -> anyhow::Result<Vec<Expr>> {
+    fn pattern_list(&mut self, mut patterns: Vec<ast::Expr>) -> anyhow::Result<Vec<IExpr>> {
         let mut output = Vec::with_capacity(patterns.len());
 
         for pat in patterns.drain(..) {
@@ -195,30 +194,30 @@ impl TranslateAst {
         Ok(output)
     }
 
-    fn pattern(&mut self, pattern: ast::Expr) -> anyhow::Result<Expr> {
+    fn pattern(&mut self, pattern: ast::Expr) -> anyhow::Result<IExpr> {
         match pattern {
-            ast::Expr::Var(ast::Var(id)) => Ok(Expr::Var(Var::new(id))),
-            ast::Expr::Literal(literal) => Ok(Expr::Literal(Literal::from(literal))),
+            ast::Expr::Var(ast::Var(id)) => Ok(IExpr::Var(Var::new(id))),
+            ast::Expr::Literal(literal) => Ok(IExpr::Literal(Literal::from(literal))),
             ast::Expr::Cons(cons) => {
                 let head = self.pattern(*cons.head)?;
                 let tail = self.pattern(*cons.tail)?;
-                Ok(Expr::Cons(Cons::new(cons.span, head, tail)))
+                Ok(IExpr::Cons(ICons::new(cons.span, head, tail)))
             }
             ast::Expr::Tuple(mut tuple) => {
                 let mut elements = Vec::with_capacity(tuple.elements.len());
                 for element in tuple.elements.drain(..) {
                     elements.push(self.pattern(element)?);
                 }
-                Ok(Expr::Tuple(Tuple::new(tuple.span, elements)))
+                Ok(IExpr::Tuple(ITuple::new(tuple.span, elements)))
             }
             ast::Expr::Map(map) => {
                 let pairs = self.pattern_map_pairs(map.fields)?;
-                Ok(Expr::Map(Map::new_pattern(map.span, pairs)))
+                Ok(IExpr::Map(IMap::new_pattern(map.span, pairs)))
             }
             ast::Expr::Binary(bin) => {
                 let span = bin.span();
                 let segments = self.pattern_bin(bin)?;
-                Ok(Expr::Internal(IExpr::Binary(IBinary::new(span, segments))))
+                Ok(IExpr::Binary(IBinary::new(span, segments)))
             }
             ast::Expr::Match(ast::Match {
                 box pattern,
@@ -282,22 +281,18 @@ impl TranslateAst {
     fn pattern_map_pairs(
         &mut self,
         mut fields: Vec<ast::MapField>,
-    ) -> anyhow::Result<Vec<MapPair>> {
+    ) -> anyhow::Result<Vec<IMapPair>> {
         let mut pairs = Vec::with_capacity(fields.len());
         for field in fields.drain(..) {
-            if let ast::MapField::Exact { span, key, value } = field {
+            if let ast::MapField::Exact { key, value, .. } = field {
                 let key = match evaluator::eval_expr(&key, None) {
-                    Ok(lit) => Expr::Literal(Literal::from(lit)),
-                    Err(_) => {
-                        let mut exprs = self.exprs(vec![key])?;
-                        assert_eq!(exprs.len(), 1);
-                        exprs.pop().unwrap()
-                    }
+                    Ok(lit) => vec![IExpr::Literal(Literal::from(lit))],
+                    Err(_) => self.exprs(vec![key])?,
                 };
                 let value = self.pattern(value)?;
-                pairs.push(MapPair {
+                pairs.push(IMapPair {
                     op: MapOp::Exact,
-                    key: Box::new(key),
+                    key,
                     value: Box::new(value),
                 });
             } else {
@@ -311,12 +306,15 @@ impl TranslateAst {
         self.pattern_alias_map_pairs(pairs)
     }
 
-    fn pattern_alias_map_pairs(&mut self, mut pairs: Vec<MapPair>) -> anyhow::Result<Vec<MapPair>> {
+    fn pattern_alias_map_pairs(
+        &mut self,
+        mut pairs: Vec<IMapPair>,
+    ) -> anyhow::Result<Vec<IMapPair>> {
         use std::collections::btree_map::Entry;
 
-        let mut d0: BTreeMap<MapSortKey, Vec<MapPair>> = BTreeMap::new();
+        let mut d0: BTreeMap<MapSortKey, Vec<IMapPair>> = BTreeMap::new();
         for pair in pairs.drain(..) {
-            let k = map_sort_key(&pair.key, &d0);
+            let k = map_sort_key(pair.key.as_slice(), &d0);
             match d0.entry(k) {
                 Entry::Occupied(mut entry) => {
                     entry.get_mut().push(pair);
@@ -329,60 +327,60 @@ impl TranslateAst {
 
         let mut aliased_pairs = Vec::with_capacity(d0.len());
         for mut aliased in d0.into_values() {
-            let MapPair { op, key, value: v0 } = aliased.pop().unwrap();
+            let IMapPair { op, key, value: v0 } = aliased.pop().unwrap();
             let value = aliased.drain(..).try_fold(v0, |pat, p| {
                 self.pattern_alias(*p.value, *pat).map(Box::new)
             })?;
-            aliased_pairs.push(MapPair { op, key, value });
+            aliased_pairs.push(IMapPair { op, key, value });
         }
 
         Ok(aliased_pairs)
     }
 
     /// Normalize aliases. Trap bad aliases by returning Err
-    fn pattern_alias(&mut self, p1: Expr, p2: Expr) -> anyhow::Result<Expr> {
+    fn pattern_alias(&mut self, p1: IExpr, p2: IExpr) -> anyhow::Result<IExpr> {
         match (p1, p2) {
-            (Expr::Var(v1), Expr::Var(v2)) if v1 == v2 => Ok(Expr::Var(v1)),
-            (Expr::Var(v1), Expr::Alias(mut alias)) => {
+            (IExpr::Var(v1), IExpr::Var(v2)) if v1 == v2 => Ok(IExpr::Var(v1)),
+            (IExpr::Var(v1), IExpr::Alias(mut alias)) => {
                 if v1 == alias.var {
-                    Ok(Expr::Alias(alias))
+                    Ok(IExpr::Alias(alias))
                 } else {
-                    alias.pattern = Box::new(self.pattern_alias(Expr::Var(v1), *alias.pattern)?);
-                    Ok(Expr::Alias(alias))
+                    alias.pattern = Box::new(self.pattern_alias(IExpr::Var(v1), *alias.pattern)?);
+                    Ok(IExpr::Alias(alias))
                 }
             }
-            (Expr::Var(v), p2) => Ok(Expr::Alias(Alias::new(v.span(), v, p2))),
-            (Expr::Alias(alias), Expr::Var(v)) if alias.var == v => Ok(Expr::Alias(alias)),
-            (Expr::Alias(a1), Expr::Alias(a2)) => {
+            (IExpr::Var(v), p2) => Ok(IExpr::Alias(IAlias::new(v.span(), v, p2))),
+            (IExpr::Alias(alias), IExpr::Var(v)) if alias.var == v => Ok(IExpr::Alias(alias)),
+            (IExpr::Alias(a1), IExpr::Alias(a2)) => {
                 let v1 = a1.var;
                 let v2 = a2.var;
                 let pat = self.pattern_alias(*a1.pattern, *a2.pattern)?;
                 if v1 == v2 {
-                    Ok(Expr::Alias(Alias::new(v1.span(), v1, pat)))
+                    Ok(IExpr::Alias(IAlias::new(v1.span(), v1, pat)))
                 } else {
-                    let p2 = self.pattern_alias(Expr::Var(v2), pat)?;
-                    self.pattern_alias(Expr::Var(v1), p2)
+                    let p2 = self.pattern_alias(IExpr::Var(v2), pat)?;
+                    self.pattern_alias(IExpr::Var(v1), p2)
                 }
             }
-            (Expr::Alias(alias), p2) => Ok(Expr::Alias(Alias::new(
+            (IExpr::Alias(alias), p2) => Ok(IExpr::Alias(IAlias::new(
                 alias.span(),
                 alias.var,
                 self.pattern_alias(*alias.pattern, p2)?,
             ))),
             (
-                Expr::Map(Map {
+                IExpr::Map(IMap {
                     span,
                     annotations,
                     arg,
                     pairs: mut pairs1,
                     ..
                 }),
-                Expr::Map(Map {
+                IExpr::Map(IMap {
                     pairs: mut pairs2, ..
                 }),
             ) => {
                 pairs1.append(&mut pairs2);
-                Ok(Expr::Map(Map {
+                Ok(IExpr::Map(IMap {
                     span,
                     annotations,
                     arg,
@@ -390,10 +388,10 @@ impl TranslateAst {
                     is_pattern: true,
                 }))
             }
-            (p1, Expr::Var(var)) => Ok(Expr::Alias(Alias::new(var.span(), var, p1))),
-            (p1, Expr::Alias(mut alias)) => {
+            (p1, IExpr::Var(var)) => Ok(IExpr::Alias(IAlias::new(var.span(), var, p1))),
+            (p1, IExpr::Alias(mut alias)) => {
                 alias.pattern = Box::new(self.pattern_alias(p1, *alias.pattern)?);
-                Ok(Expr::Alias(alias))
+                Ok(IExpr::Alias(alias))
             }
             (p1, p2) => {
                 // Aliases between binaries are not allowed, so the only legal patterns that remain are data patterns.
@@ -412,7 +410,7 @@ impl TranslateAst {
                     bail!("invalid alias pattern")
                 }
                 match (p1, p2) {
-                    (Expr::Literal(l1), Expr::Literal(l2)) => {
+                    (IExpr::Literal(l1), IExpr::Literal(l2)) => {
                         if l1.value != l2.value {
                             self.reporter.show_error(
                                 "invalid alias pattern",
@@ -423,30 +421,30 @@ impl TranslateAst {
                             );
                             bail!("invalid alias pattern")
                         }
-                        Ok(Expr::Literal(l1))
+                        Ok(IExpr::Literal(l1))
                     }
                     (
-                        Expr::Cons(Cons {
+                        IExpr::Cons(ICons {
                             span,
                             head: h1,
                             tail: t1,
                             ..
                         }),
-                        Expr::Cons(Cons {
+                        IExpr::Cons(ICons {
                             head: h2, tail: t2, ..
                         }),
                     ) => {
                         let head = self.pattern_alias(*h1, *h2)?;
                         let tail = self.pattern_alias(*t1, *t2)?;
-                        Ok(Expr::Cons(Cons::new(span, head, tail)))
+                        Ok(IExpr::Cons(ICons::new(span, head, tail)))
                     }
                     (
-                        Expr::Tuple(Tuple {
+                        IExpr::Tuple(ITuple {
                             span,
                             elements: mut es1,
                             ..
                         }),
-                        Expr::Tuple(Tuple {
+                        IExpr::Tuple(ITuple {
                             span: span2,
                             elements: mut es2,
                             ..
@@ -460,7 +458,7 @@ impl TranslateAst {
                         for (a1, a2) in es1.drain(..).zip(es2.drain(..)) {
                             aliased.push(self.pattern_alias(a1, a2)?);
                         }
-                        Ok(Expr::Tuple(Tuple::new(span, aliased)))
+                        Ok(IExpr::Tuple(ITuple::new(span, aliased)))
                     }
                     _ => unreachable!(),
                 }
@@ -469,23 +467,22 @@ impl TranslateAst {
     }
 
     fn pattern_bin(&mut self, bin: ast::Binary) -> anyhow::Result<Vec<IBitstring>> {
-        let ps = self.pattern_bin_expand_strings(bin.span, bin.elements);
+        let ps = self.pattern_bin_expand_strings(bin.elements);
         self.pattern_segments(ps)
     }
 
     fn pattern_bin_expand_strings(
         &mut self,
-        span: SourceSpan,
         mut elements: Vec<ast::BinaryElement>,
     ) -> Vec<ast::BinaryElement> {
         let mut expanded = Vec::with_capacity(elements.len());
         for element in elements.drain(..) {
             match element {
                 ast::BinaryElement {
-                    span,
                     specifier: None,
                     bit_size: None,
                     bit_expr: ast::Expr::Literal(ast::Literal::String(s)),
+                    ..
                 } if s != symbols::Empty => {
                     let mut s = bin_expand_string(s, Integer::Small(0), 0);
                     expanded.extend(s.drain(..));
@@ -537,7 +534,7 @@ impl TranslateAst {
                 let size = match size {
                     None => vec![],
                     Some(size) => match evaluator::eval_expr(&size, None) {
-                        Ok(lit) => vec![Expr::Literal(Literal::from(lit))],
+                        Ok(lit) => vec![IExpr::Literal(Literal::from(lit))],
                         Err(_) => self.exprs(vec![size])?,
                     },
                 };
@@ -562,7 +559,7 @@ impl TranslateAst {
     /// guard([Expr], State) -> {[Cexpr],State}.
     ///  Build an explicit and/or tree of guard alternatives, then traverse
     ///  top-level and/or tree and "protect" inner tests.
-    fn guard(&mut self, mut guards: Vec<ast::Guard>) -> Vec<Expr> {
+    fn guard(&mut self, mut guards: Vec<ast::Guard>) -> Vec<IExpr> {
         if guards.is_empty() {
             return vec![];
         }
@@ -610,14 +607,14 @@ impl TranslateAst {
     ///  Generate an internal core expression of a guard test.  Explicitly
     ///  handle outer boolean expressions and "protect" inner tests in a
     ///  reasonably smart way.
-    fn gexpr_top(&mut self, expr: ast::Expr) -> Vec<Expr> {
+    fn gexpr_top(&mut self, expr: ast::Expr) -> Vec<IExpr> {
         let (expr, pre, bools) = self.gexpr(expr, vec![]);
         let (expr, mut pre) = self.force_booleans(bools, expr, pre);
         pre.push(expr);
         pre
     }
 
-    fn gexpr(&mut self, expr: ast::Expr, bools: Vec<Expr>) -> (Expr, Vec<Expr>, Vec<Expr>) {
+    fn gexpr(&mut self, expr: ast::Expr, bools: Vec<IExpr>) -> (IExpr, Vec<IExpr>, Vec<IExpr>) {
         match expr {
             ast::Expr::Protect(ast::Protect { span, body }) => {
                 let (expr, pre, bools2) = self.gexpr(*body, vec![]);
@@ -628,11 +625,11 @@ impl TranslateAst {
                     let (expr, mut pre) = self.force_booleans(bools2, expr, pre);
                     pre.push(expr);
                     (
-                        Expr::Internal(IExpr::Protect(IProtect {
+                        IExpr::Protect(IProtect {
                             span,
                             annotations: Annotations::default(),
                             body: pre,
-                        })),
+                        }),
                         vec![],
                         bools,
                     )
@@ -786,13 +783,13 @@ impl TranslateAst {
         op: BinaryOp,
         lhs: ast::Expr,
         rhs: ast::Expr,
-        bools: Vec<Expr>,
-    ) -> (Expr, Vec<Expr>, Vec<Expr>) {
+        bools: Vec<IExpr>,
+    ) -> (IExpr, Vec<IExpr>, Vec<IExpr>) {
         let (lexpr, mut lpre, bools) = self.gexpr(lhs, bools);
-        let (lexpr, mut lpre2) = self.force_safe(lexpr);
+        let (lexpr, mut lpre2) = force_safe(self.context_mut(), lexpr);
         let (rexpr, mut rpre, bools) = self.gexpr(rhs, bools);
-        let (rexpr, mut rpre2) = self.force_safe(rexpr);
-        let call = Expr::Call(Call::new(
+        let (rexpr, mut rpre2) = force_safe(self.context_mut(), rexpr);
+        let call = IExpr::Call(ICall::new(
             span,
             symbols::Erlang,
             op.to_symbol(),
@@ -806,10 +803,10 @@ impl TranslateAst {
 
     // gexpr_not(Expr, Bools, State) -> {Cexpr,[PreExp],Bools,State}.
     //  Generate an erlang:'not'/1 guard test.
-    fn gexpr_not(&mut self, expr: ast::Expr, bools: Vec<Expr>) -> (Expr, Vec<Expr>, Vec<Expr>) {
+    fn gexpr_not(&mut self, expr: ast::Expr, bools: Vec<IExpr>) -> (IExpr, Vec<IExpr>, Vec<IExpr>) {
         let (expr, mut pre, bools) = self.gexpr(expr, bools);
         let expr = match expr {
-            Expr::Call(mut call)
+            IExpr::Call(mut call)
                 if call.is_static(symbols::Erlang, symbols::EqualStrict, 1)
                     && call.args[1].as_boolean() == Some(true) =>
             {
@@ -837,19 +834,19 @@ impl TranslateAst {
                     //    not(Expr =:= true)
                     //
                     let b = call.args.pop().unwrap();
-                    call.args.push(catom!(b.span(), symbols::False));
-                    let (expr, mut pre2) = self.force_safe(Expr::Call(call));
+                    call.args.push(iatom!(b.span(), symbols::False));
+                    let (expr, mut pre2) = force_safe(self.context_mut(), IExpr::Call(call));
                     pre.append(&mut pre2);
                     return (expr, pre, bools);
                 } else {
-                    Expr::Call(call)
+                    IExpr::Call(call)
                 }
             }
             expr => expr,
         };
         let span = expr.span();
-        let (expr, mut pre2) = self.force_safe(expr);
-        let call = Expr::Call(Call::new(span, symbols::Erlang, symbols::Not, vec![expr]));
+        let (expr, mut pre2) = force_safe(self.context_mut(), expr);
+        let call = IExpr::Call(ICall::new(span, symbols::Erlang, symbols::Not, vec![expr]));
         pre.append(&mut pre2);
         (call, pre, bools)
     }
@@ -861,28 +858,26 @@ impl TranslateAst {
     fn gexpr_test(
         &mut self,
         expr: ast::Expr,
-        mut bools: Vec<Expr>,
-    ) -> (Expr, Vec<Expr>, Vec<Expr>) {
+        mut bools: Vec<IExpr>,
+    ) -> (IExpr, Vec<IExpr>, Vec<IExpr>) {
         match expr {
             ast::Expr::Literal(ast::Literal::Atom(a)) if a.name.is_boolean() => {
-                (catom!(a.span, a.name), vec![], bools)
+                (iatom!(a.span, a.name), vec![], bools)
             }
             expr => {
                 let (expr, mut pre) = self.expr(expr).unwrap();
                 // Generate "top-level" test and argument calls
                 match expr {
-                    Expr::Call(call) if call.is_static(symbols::Erlang, symbols::IsFunction, 2) => {
+                    IExpr::Call(call)
+                        if call.is_static(symbols::Erlang, symbols::IsFunction, 2) =>
+                    {
                         // is_function/2 is not a safe type test. We must force it to be protected.
                         let span = call.span;
                         let v = self.context_mut().next_var(Some(span));
-                        pre.push(Expr::Internal(IExpr::Set(ISet::new(
-                            span,
-                            v.clone(),
-                            Expr::Call(call),
-                        ))));
-                        (icall_eq_true!(span, Expr::Var(v)), pre, bools)
+                        pre.push(IExpr::Set(ISet::new(span, v.clone(), IExpr::Call(call))));
+                        (icall_eq_true!(span, IExpr::Var(v)), pre, bools)
                     }
-                    Expr::Call(call)
+                    IExpr::Call(call)
                         if call.module.is_atom_value(symbols::Erlang)
                             && call.function.is_atom() =>
                     {
@@ -892,17 +887,13 @@ impl TranslateAst {
                             || is_cmp_op(function, arity)
                             || is_bool_op(function, arity)
                         {
-                            (Expr::Call(call), pre, bools)
+                            (IExpr::Call(call), pre, bools)
                         } else {
                             let span = call.span;
                             let v = self.context_mut().next_var(Some(span));
-                            bools.insert(0, Expr::Var(v.clone()));
-                            pre.push(Expr::Internal(IExpr::Set(ISet::new(
-                                span,
-                                v.clone(),
-                                Expr::Call(call),
-                            ))));
-                            (icall_eq_true!(span, Expr::Var(v)), pre, bools)
+                            bools.insert(0, IExpr::Var(v.clone()));
+                            pre.push(IExpr::Set(ISet::new(span, v.clone(), IExpr::Call(call))));
+                            (icall_eq_true!(span, IExpr::Var(v)), pre, bools)
                         }
                     }
                     expr => {
@@ -912,14 +903,14 @@ impl TranslateAst {
                             (icall_eq_true!(span, expr), pre, bools)
                         } else {
                             let v = self.context_mut().next_var(Some(span));
-                            bools.insert(0, Expr::Var(v.clone()));
-                            pre.push(Expr::Internal(IExpr::Set(ISet {
+                            bools.insert(0, IExpr::Var(v.clone()));
+                            pre.push(IExpr::Set(ISet {
                                 span,
                                 annotations: Annotations::default_compiler_generated(),
                                 var: v.clone(),
                                 arg: Box::new(expr),
-                            })));
-                            (icall_eq_true!(span, Expr::Var(v)), pre, bools)
+                            }));
+                            (icall_eq_true!(span, IExpr::Var(v)), pre, bools)
                         }
                     }
                 }
@@ -934,10 +925,10 @@ impl TranslateAst {
     //  will fail if any of the variables is not a boolean.
     fn force_booleans(
         &mut self,
-        mut vars: Vec<Expr>,
-        expr: Expr,
-        pre: Vec<Expr>,
-    ) -> (Expr, Vec<Expr>) {
+        mut vars: Vec<IExpr>,
+        expr: IExpr,
+        pre: Vec<IExpr>,
+    ) -> (IExpr, Vec<IExpr>) {
         for var in vars.iter_mut() {
             var.annotations_mut().clear();
         }
@@ -953,38 +944,38 @@ impl TranslateAst {
 
     fn force_booleans_1(
         &mut self,
-        mut vars: Vec<Expr>,
-        expr: Expr,
-        pre: Vec<Expr>,
-    ) -> (Expr, Vec<Expr>) {
+        mut vars: Vec<IExpr>,
+        expr: IExpr,
+        pre: Vec<IExpr>,
+    ) -> (IExpr, Vec<IExpr>) {
         vars.drain(..).fold((expr, pre), |(expr, mut pre), var| {
             let span = expr.span();
-            let (expr, mut pre2) = self.force_safe(expr);
-            let mut call = Call::new(span, symbols::Erlang, symbols::IsBoolean, vec![var]);
+            let (expr, mut pre2) = force_safe(self.context_mut(), expr);
+            let mut call = ICall::new(span, symbols::Erlang, symbols::IsBoolean, vec![var]);
             call.annotations.set(symbols::CompilerGenerated);
-            let call = Expr::Call(call);
+            let call = IExpr::Call(call);
             let v = self.context_mut().next_var(Some(span));
-            let set = Expr::Internal(IExpr::Set(ISet {
+            let set = IExpr::Set(ISet {
                 span,
                 annotations: Annotations::default(),
                 var: v.clone(),
                 arg: Box::new(call),
-            }));
+            });
             pre.append(&mut pre2);
             pre.push(set);
-            let mut call = Call::new(
+            let mut call = ICall::new(
                 span,
                 symbols::Erlang,
                 symbols::And,
-                vec![expr, Expr::Var(v)],
+                vec![expr, IExpr::Var(v)],
             );
             call.annotations.set(symbols::CompilerGenerated);
-            let expr = Expr::Call(call);
+            let expr = IExpr::Call(call);
             (expr, pre)
         })
     }
 
-    fn exprs(&mut self, mut exprs: Vec<ast::Expr>) -> anyhow::Result<Vec<Expr>> {
+    fn exprs(&mut self, mut exprs: Vec<ast::Expr>) -> anyhow::Result<Vec<IExpr>> {
         let mut output = Vec::with_capacity(exprs.len());
 
         for expr in exprs.drain(..) {
@@ -996,22 +987,22 @@ impl TranslateAst {
         Ok(output)
     }
 
-    fn expr(&mut self, expr: ast::Expr) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    fn expr(&mut self, expr: ast::Expr) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         match expr {
             ast::Expr::Var(ast::Var(id)) => Ok((
-                Expr::Var(Var {
+                IExpr::Var(Var {
                     annotations: Annotations::default(),
                     name: id,
                     arity: None,
                 }),
                 vec![],
             )),
-            ast::Expr::Literal(lit) => Ok((Expr::Literal(lit.into()), vec![])),
+            ast::Expr::Literal(lit) => Ok((IExpr::Literal(lit.into()), vec![])),
             ast::Expr::Cons(ast::Cons { span, head, tail }) => {
                 let (mut es, pre) = self.safe_list(vec![*head, *tail])?;
                 let tail = es.pop().unwrap();
                 let head = es.pop().unwrap();
-                Ok((ccons!(span, head, tail), pre))
+                Ok((icons!(span, head, tail), pre))
             }
             ast::Expr::ListComprehension(ast::ListComprehension {
                 span,
@@ -1019,7 +1010,7 @@ impl TranslateAst {
                 qualifiers,
             }) => {
                 let qualifiers = self.preprocess_quals(qualifiers)?;
-                self.lc_tq(span, *body, qualifiers, cnil!(span))
+                self.lc_tq(span, *body, qualifiers, inil!(span))
             }
             ast::Expr::BinaryComprehension(ast::BinaryComprehension {
                 span,
@@ -1031,10 +1022,10 @@ impl TranslateAst {
             }
             ast::Expr::Tuple(ast::Tuple { span, elements }) => {
                 let (elements, pre) = self.safe_list(elements)?;
-                Ok((Expr::Tuple(Tuple::new(span, elements)), pre))
+                Ok((IExpr::Tuple(ITuple::new(span, elements)), pre))
             }
             ast::Expr::Map(ast::Map { span, fields }) => {
-                self.map_build_pairs(span, Expr::Literal(Literal::map(span, vec![])), fields)
+                self.map_build_pairs(span, IExpr::Literal(Literal::map(span, vec![])), fields)
             }
             ast::Expr::MapUpdate(ast::MapUpdate { span, map, updates }) => {
                 self.expr_map(span, *map, updates)
@@ -1047,9 +1038,9 @@ impl TranslateAst {
                             "invalid binary expression",
                             &[(span, "this binary expression has an invalid element")],
                         );
-                        let badarg = catom!(span, symbols::Badarg);
+                        let badarg = iatom!(span, symbols::Badarg);
                         Ok((
-                            Expr::Call(Call::new(
+                            IExpr::Call(ICall::new(
                                 span,
                                 symbols::Erlang,
                                 symbols::Error,
@@ -1070,14 +1061,14 @@ impl TranslateAst {
             }
             ast::Expr::If(ast::If { span, clauses }) => {
                 let clauses = self.clauses(clauses)?;
-                let fail = fail_clause(span, vec![], catom!(span, symbols::IfClause));
-                let case = Expr::Internal(IExpr::Case(ICase {
+                let fail = fail_clause(span, vec![], iatom!(span, symbols::IfClause));
+                let case = IExpr::Case(ICase {
                     span,
                     annotations: Annotations::default(),
                     args: vec![],
                     clauses,
                     fail,
-                }));
+                });
                 Ok((case, vec![]))
             }
             ast::Expr::Case(ast::Case {
@@ -1088,19 +1079,19 @@ impl TranslateAst {
                 let (expr, pre) = self.novars(*expr)?;
                 let clauses = self.clauses(clauses)?;
                 let fpat = self.context_mut().next_var(Some(span));
-                let reason = ctuple!(
+                let reason = ituple!(
                     span,
-                    catom!(span, symbols::CaseClause),
-                    Expr::Var(fpat.clone())
+                    iatom!(span, symbols::CaseClause),
+                    IExpr::Var(fpat.clone())
                 );
-                let fail = fail_clause(span, vec![Expr::Var(fpat)], reason);
-                let case = Expr::Internal(IExpr::Case(ICase {
+                let fail = fail_clause(span, vec![IExpr::Var(fpat)], reason);
+                let case = IExpr::Case(ICase {
                     span,
                     annotations: Annotations::default(),
                     args: vec![expr],
                     clauses,
                     fail,
-                }));
+                });
                 Ok((case, pre))
             }
             ast::Expr::Receive(ast::Receive {
@@ -1109,11 +1100,11 @@ impl TranslateAst {
                 after: None,
             }) => {
                 let clauses = self.clauses(clauses)?;
-                let recv = Expr::Internal(IExpr::Receive1(IReceive1 {
+                let recv = IExpr::Receive1(IReceive1 {
                     span,
                     annotations: Annotations::default(),
                     clauses,
-                }));
+                });
                 Ok((recv, vec![]))
             }
             ast::Expr::Receive(ast::Receive {
@@ -1124,13 +1115,13 @@ impl TranslateAst {
                 let (timeout, pre) = self.novars(*timeout)?;
                 let action = self.exprs(body)?;
                 let clauses = self.clauses(clauses.unwrap_or_default())?;
-                let recv = Expr::Internal(IExpr::Receive2(IReceive2 {
+                let recv = IExpr::Receive2(IReceive2 {
                     span,
                     annotations: Annotations::default(),
                     clauses,
                     timeout: Box::new(timeout),
                     action,
-                }));
+                });
                 Ok((recv, pre))
             }
             // try .. catch .. end
@@ -1144,15 +1135,15 @@ impl TranslateAst {
                 let exprs = self.exprs(exprs)?;
                 let v = self.context_mut().next_var(Some(span));
                 let (evars, handler) = self.try_exception(ccs)?;
-                let texpr = Expr::Internal(IExpr::Try(ITry {
+                let texpr = IExpr::Try(ITry {
                     span,
                     annotations: Annotations::default(),
                     args: exprs,
                     vars: vec![v.clone()],
-                    body: vec![Expr::Var(v)],
+                    body: vec![IExpr::Var(v)],
                     evars,
                     handler: Box::new(handler),
-                }));
+                });
                 Ok((texpr, vec![]))
             }
             // try .. of .. catch .. end
@@ -1169,18 +1160,18 @@ impl TranslateAst {
                 let fpat = self.context_mut().next_var(Some(span));
                 let fail = fail_clause(
                     span,
-                    vec![Expr::Var(fpat.clone())],
-                    ctuple!(span, catom!(span, symbols::TryClause), Expr::Var(fpat)),
+                    vec![IExpr::Var(fpat.clone())],
+                    ituple!(span, iatom!(span, symbols::TryClause), IExpr::Var(fpat)),
                 );
                 let (evars, handler) = self.try_exception(ccs)?;
-                let case = Expr::Internal(IExpr::Case(ICase {
+                let case = IExpr::Case(ICase {
                     span,
                     annotations: Annotations::default(),
-                    args: vec![Expr::Var(v.clone())],
+                    args: vec![IExpr::Var(v.clone())],
                     clauses,
                     fail,
-                }));
-                let texpr = Expr::Internal(IExpr::Try(ITry {
+                });
+                let texpr = IExpr::Try(ITry {
                     span,
                     annotations: Annotations::default(),
                     args: exprs,
@@ -1188,7 +1179,7 @@ impl TranslateAst {
                     body: vec![case],
                     evars,
                     handler: Box::new(handler),
-                }));
+                });
                 Ok((texpr, vec![]))
             }
             // try .. after .. end
@@ -1226,21 +1217,21 @@ impl TranslateAst {
                 let (expr, mut pre) = self.expr(*expr)?;
                 pre.push(expr);
 
-                let cexpr = Expr::Internal(IExpr::Catch(ICatch {
+                let cexpr = IExpr::Catch(ICatch {
                     span,
                     annotations: Annotations::default(),
                     body: pre,
-                }));
+                });
                 Ok((cexpr, vec![]))
             }
             ast::Expr::FunctionName(name) => {
                 match name {
                     ast::FunctionName::Resolved(name) => {
                         let span = name.span();
-                        let module = catom!(span, name.module.unwrap());
-                        let function = catom!(span, name.function);
-                        let arity = cint!(span, name.arity);
-                        let call = Expr::Call(Call::new(
+                        let module = iatom!(span, name.module.unwrap());
+                        let function = iatom!(span, name.function);
+                        let arity = iint!(span, name.arity);
+                        let call = IExpr::Call(ICall::new(
                             span,
                             symbols::Erlang,
                             symbols::MakeFun,
@@ -1261,7 +1252,7 @@ impl TranslateAst {
                             ],
                         );
                         Ok((
-                            Expr::Var(Var {
+                            IExpr::Var(Var {
                                 annotations: Annotations::from([(symbols::Id, id.into())]),
                                 name: Ident::new(name.function, span),
                                 arity: Some(Arity::Int(name.arity)),
@@ -1286,7 +1277,7 @@ impl TranslateAst {
                             ],
                         );
                         Ok((
-                            Expr::Var(Var {
+                            IExpr::Var(Var {
                                 annotations: Annotations::from([(symbols::Id, id.into())]),
                                 name: function.ident(),
                                 arity: Some(arity),
@@ -1305,7 +1296,7 @@ impl TranslateAst {
                         let arity = arity.into();
                         let (mfa, pre) = self.safe_list(vec![module, function, arity])?;
                         let call =
-                            Expr::Call(Call::new(span, symbols::Erlang, symbols::MakeFun, mfa));
+                            IExpr::Call(ICall::new(span, symbols::Erlang, symbols::MakeFun, mfa));
                         Ok((call, pre))
                     }
                 }
@@ -1334,13 +1325,13 @@ impl TranslateAst {
                     let is_erlang_error = {
                         matches!(
                             &module,
-                            Expr::Literal(Literal {
+                            IExpr::Literal(Literal {
                                 value: Lit::Atom(symbols::Erlang),
                                 ..
                             })
                         ) && matches!(
                             &function,
-                            Expr::Literal(Literal {
+                            IExpr::Literal(Literal {
                                 value: Lit::Atom(symbols::Error),
                                 ..
                             })
@@ -1348,18 +1339,18 @@ impl TranslateAst {
                     };
                     if is_erlang_error {
                         let arg = argv.pop().unwrap();
-                        if let Expr::Tuple(tuple) = arg {
+                        if let IExpr::Tuple(tuple) = arg {
                             if matches!(
                                 &tuple.elements[0],
-                                Expr::Literal(Literal {
+                                IExpr::Literal(Literal {
                                     value: Lit::Atom(symbols::Badrecord),
                                     ..
                                 })
                             ) {
-                                let fail = Expr::PrimOp(PrimOp::new(
+                                let fail = IExpr::PrimOp(IPrimOp::new(
                                     span,
                                     symbols::MatchFail,
-                                    vec![Expr::Tuple(tuple)],
+                                    vec![IExpr::Tuple(tuple)],
                                 ));
                                 return Ok((fail, pre));
                             }
@@ -1367,7 +1358,7 @@ impl TranslateAst {
                             argv.push(arg);
                         }
                     }
-                    let call = Expr::Call(Call {
+                    let call = IExpr::Call(ICall {
                         span,
                         annotations: Annotations::default(),
                         module: Box::new(module),
@@ -1393,15 +1384,15 @@ impl TranslateAst {
                 }
                 ast::Expr::Literal(ast::Literal::Atom(f)) => {
                     let (args, pre) = self.safe_list(args)?;
-                    let op = Expr::Var(Var {
+                    let op = IExpr::Var(Var {
                         annotations: Annotations::default(),
                         name: f,
                         arity: Some(Arity::Int(args.len().try_into().unwrap())),
                     });
-                    let apply = Expr::Apply(Apply {
+                    let apply = IExpr::Apply(IApply {
                         span,
                         annotations: Annotations::default(),
-                        callee: Box::new(op),
+                        callee: vec![op],
                         args,
                     });
                     Ok((apply, pre))
@@ -1410,10 +1401,10 @@ impl TranslateAst {
                     let (fun, mut pre) = self.safe(callee)?;
                     let (args, mut pre2) = self.safe_list(args)?;
                     pre.append(&mut pre2);
-                    let apply = Expr::Apply(Apply {
+                    let apply = IExpr::Apply(IApply {
                         span,
                         annotations: Annotations::default(),
-                        callee: Box::new(fun),
+                        callee: vec![fun],
                         args,
                     });
                     Ok((apply, pre))
@@ -1433,8 +1424,8 @@ impl TranslateAst {
                 let fpat = self.context_mut().next_var(Some(span));
                 let fail = fail_clause(
                     span,
-                    vec![Expr::Var(fpat.clone())],
-                    ctuple!(span, catom!(span, symbols::Badmatch), Expr::Var(fpat)),
+                    vec![IExpr::Var(fpat.clone())],
+                    ituple!(span, iatom!(span, symbols::Badmatch), IExpr::Var(fpat)),
                 );
                 match pattern2 {
                     Err(_) => {
@@ -1463,18 +1454,18 @@ impl TranslateAst {
                         let (expr, mut pre) = self.safe(expr1)?;
                         let sanpat = sanitize(pattern1);
                         let sanpat = self.pattern(sanpat)?;
-                        let badmatch = ctuple!(span, catom!(span, symbols::Badmatch), expr.clone());
+                        let badmatch = ituple!(span, iatom!(span, symbols::Badmatch), expr.clone());
                         let fail2 =
-                            Expr::PrimOp(PrimOp::new(span, symbols::MatchFail, vec![badmatch]));
+                            IExpr::PrimOp(IPrimOp::new(span, symbols::MatchFail, vec![badmatch]));
                         pre.push(fail2);
-                        let mexpr = Expr::Internal(IExpr::Match(IMatch {
+                        let mexpr = IExpr::Match(IMatch {
                             span,
                             annotations: Annotations::default(),
                             pattern: Box::new(sanpat),
                             arg: Box::new(expr),
                             guards: vec![],
                             fail,
-                        }));
+                        });
                         Ok((mexpr, pre))
                     }
                     Ok(pattern2) => {
@@ -1508,14 +1499,14 @@ impl TranslateAst {
                         //
                         let (pattern3, expr3, mut pre2) = letify_aliases(pattern2, expr2);
                         pre.append(&mut pre2);
-                        let mexpr = Expr::Internal(IExpr::Match(IMatch {
+                        let mexpr = IExpr::Match(IMatch {
                             span,
                             annotations: Annotations::default(),
                             pattern: Box::new(pattern3),
                             arg: Box::new(expr3),
                             guards: vec![],
                             fail,
-                        }));
+                        });
                         Ok((mexpr, pre))
                     }
                 }
@@ -1566,12 +1557,12 @@ impl TranslateAst {
             }
             ast::Expr::BinaryExpr(ast::BinaryExpr { op, lhs, rhs, span }) => {
                 let (args, pre) = self.safe_list(vec![*lhs, *rhs])?;
-                let call = Expr::Call(Call::new(span, symbols::Erlang, op.to_symbol(), args));
+                let call = IExpr::Call(ICall::new(span, symbols::Erlang, op.to_symbol(), args));
                 Ok((call, pre))
             }
             ast::Expr::UnaryExpr(ast::UnaryExpr { op, operand, span }) => {
                 let (operand, pre) = self.safe(*operand)?;
-                let call = Expr::Call(Call::new(
+                let call = IExpr::Call(ICall::new(
                     span,
                     symbols::Erlang,
                     op.to_symbol(),
@@ -1588,22 +1579,22 @@ impl TranslateAst {
         span: SourceSpan,
         name: Option<Ident>,
         clauses: Vec<ast::Clause>,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let arity = clauses[0].patterns.len();
         let clauses = self.clauses(clauses)?;
         let vars = (0..arity)
             .map(|_| self.context_mut().next_var(Some(span)))
             .collect::<Vec<_>>();
         let ps = (0..arity)
-            .map(|_| Expr::Var(self.context_mut().next_var(Some(span))))
+            .map(|_| IExpr::Var(self.context_mut().next_var(Some(span))))
             .collect::<Vec<_>>();
         let fail = fail_clause(
             span,
             ps,
-            Expr::Literal(lit_tuple!(span, lit_atom!(span, symbols::FunctionClause))),
+            IExpr::Literal(lit_tuple!(span, lit_atom!(span, symbols::FunctionClause))),
         );
         Ok((
-            Expr::Internal(IExpr::Fun(IFun {
+            IExpr::Fun(IFun {
                 span,
                 annotations: Annotations::default(),
                 id: Some(Ident::new(self.context_mut().new_fun_name(None), span)),
@@ -1611,7 +1602,7 @@ impl TranslateAst {
                 vars,
                 clauses,
                 fail,
-            })),
+            }),
             vec![],
         ))
     }
@@ -1623,16 +1614,16 @@ impl TranslateAst {
         span: SourceSpan,
         body: ast::Expr,
         mut qualifiers: Vec<IQualifier>,
-        last: Expr,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        last: IExpr,
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let mut qs = qualifiers.drain(..);
         match qs.next() {
             None => {
                 let (h1, mut hps) = self.safe(body)?;
-                let (t1, mut tps) = self.force_safe(last);
+                let (t1, mut tps) = force_safe(self.context_mut(), last);
                 hps.append(&mut tps);
                 let annotations = Annotations::default_compiler_generated();
-                let expr = Expr::Cons(Cons {
+                let expr = IExpr::Cons(ICons {
                     span,
                     annotations,
                     head: Box::new(h1),
@@ -1647,14 +1638,14 @@ impl TranslateAst {
                 let name = self.context_mut().new_fun_name(Some("lc"));
                 let f = Var::new_with_arity(Ident::new(name, span), Arity::Int(1));
                 let tail = gen.tail.unwrap();
-                let nc = Expr::Apply(Apply::new(
+                let nc = IExpr::Apply(IApply::new(
                     span,
-                    Expr::Var(f.clone()),
-                    vec![Expr::Var(tail.clone())],
+                    IExpr::Var(f.clone()),
+                    vec![IExpr::Var(tail.clone())],
                 ));
                 let fcvar = self.context_mut().next_var(Some(span));
                 let var = self.context_mut().next_var(Some(span));
-                let fail = bad_generator(span, vec![Expr::Var(fcvar.clone())], fcvar.clone());
+                let fail = bad_generator(span, vec![IExpr::Var(fcvar.clone())], fcvar.clone());
                 let tail_clause = IClause {
                     span,
                     annotations: Annotations::default(),
@@ -1701,28 +1692,28 @@ impl TranslateAst {
                     }
                     _ => unreachable!(),
                 };
-                let fun = Expr::Internal(IExpr::Fun(IFun {
+                let fun = IExpr::Fun(IFun {
                     span,
                     annotations: Annotations::default(),
-                    id: None,
-                    name: None,
+                    id: Some(Ident::new(name, span)),
+                    name: Some(Ident::new(name, span)),
                     vars: vec![var],
                     clauses,
                     fail,
-                }));
+                });
                 let mut body = gen.pre;
-                body.push(Expr::Apply(Apply {
+                body.push(IExpr::Apply(IApply {
                     span,
                     annotations: Annotations::default(),
-                    callee: Box::new(Expr::Var(f.clone())),
+                    callee: vec![IExpr::Var(f.clone())],
                     args: vec![*gen.arg],
                 }));
-                let expr = Expr::Internal(IExpr::LetRec(ILetRec {
+                let expr = IExpr::LetRec(ILetRec {
                     span,
                     annotations: Annotations::from([symbols::ListComprehension]),
                     defs: vec![(f, fun)],
                     body,
-                }));
+                });
                 Ok((expr, vec![]))
             }
         }
@@ -1736,20 +1727,20 @@ impl TranslateAst {
         span: SourceSpan,
         body: ast::Expr,
         mut qualifiers: Vec<IQualifier>,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let binvar = self.context_mut().next_var(Some(span));
         let mut pre = vec![];
         if let Some(IQualifier::Generator(ref mut gen)) = qualifiers.first_mut() {
             pre.append(&mut gen.pre);
         }
-        let (expr, mut bcpre) = self.bc_tq1(span, body, qualifiers, Expr::Var(binvar.clone()))?;
-        let initial_size = Expr::Literal(lit_int!(span, Integer::Small(256)));
-        let init = Expr::PrimOp(PrimOp::new(
+        let (expr, mut bcpre) = self.bc_tq1(span, body, qualifiers, IExpr::Var(binvar.clone()))?;
+        let initial_size = IExpr::Literal(lit_int!(span, Integer::Small(256)));
+        let init = IExpr::PrimOp(IPrimOp::new(
             span,
             symbols::BitsInitWritable,
             vec![initial_size],
         ));
-        pre.push(Expr::Internal(IExpr::Set(ISet::new(span, binvar, init))));
+        pre.push(IExpr::Set(ISet::new(span, binvar, init)));
         pre.append(&mut bcpre);
         Ok((expr, pre))
     }
@@ -1759,8 +1750,8 @@ impl TranslateAst {
         span: SourceSpan,
         body: ast::Expr,
         mut qualifiers: Vec<IQualifier>,
-        last: Expr,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+        last: IExpr,
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let mut qs = qualifiers.drain(..);
         match qs.next() {
             Some(IQualifier::Generator(gen)) => {
@@ -1769,16 +1760,16 @@ impl TranslateAst {
                 let acc_var = vars[1].clone();
                 let v1 = self.context_mut().next_var(Some(span));
                 let v2 = self.context_mut().next_var(Some(span));
-                let fcvars = vec![Expr::Var(v1.clone()), Expr::Var(v2)];
+                let fcvars = vec![IExpr::Var(v1.clone()), IExpr::Var(v2)];
                 let ignore = self.context_mut().next_var(Some(span));
                 let f = Var::new_with_arity(Ident::new(name, span), Arity::Int(2));
                 let fail = bad_generator(span, fcvars, v1);
                 let tail_clause = IClause {
                     span,
                     annotations: Annotations::default(),
-                    patterns: vec![*gen.tail_pattern, Expr::Var(ignore.clone())],
+                    patterns: vec![*gen.tail_pattern, IExpr::Var(ignore.clone())],
                     guards: vec![],
-                    body: vec![Expr::Var(acc_var.clone())],
+                    body: vec![IExpr::Var(acc_var.clone())],
                 };
                 let clauses = match (gen.acc_pattern, gen.skip_pattern) {
                     (None, None) => vec![tail_clause],
@@ -1789,21 +1780,21 @@ impl TranslateAst {
                                 symbols::CompilerGenerated,
                                 symbols::SkipClause,
                             ]),
-                            patterns: vec![*skip_pat, Expr::Var(ignore)],
+                            patterns: vec![*skip_pat, IExpr::Var(ignore)],
                             guards: vec![],
-                            body: vec![Expr::Apply(Apply::new(
+                            body: vec![IExpr::Apply(IApply::new(
                                 span,
-                                Expr::Var(f.clone()),
-                                vec![Expr::Var(gen.tail.unwrap())],
+                                IExpr::Var(f.clone()),
+                                vec![IExpr::Var(gen.tail.unwrap())],
                             ))],
                         };
                         vec![skip_clause, tail_clause]
                     }
                     (Some(acc_pat), Some(skip_pat)) => {
-                        let nc = Expr::Apply(Apply::new(
+                        let nc = IExpr::Apply(IApply::new(
                             span,
-                            Expr::Var(f.clone()),
-                            vec![Expr::Var(gen.tail.unwrap())],
+                            IExpr::Var(f.clone()),
+                            vec![IExpr::Var(gen.tail.unwrap())],
                         ));
                         let skip_clause = IClause {
                             span,
@@ -1811,18 +1802,18 @@ impl TranslateAst {
                                 symbols::CompilerGenerated,
                                 symbols::SkipClause,
                             ]),
-                            patterns: vec![*skip_pat, Expr::Var(ignore.clone())],
+                            patterns: vec![*skip_pat, IExpr::Var(ignore.clone())],
                             guards: vec![],
                             body: vec![nc.clone()],
                         };
                         let (bc, mut body) =
-                            self.bc_tq1(span, body, qs.collect(), Expr::Var(acc_var.clone()))?;
-                        body.push(Expr::Internal(IExpr::Set(ISet::new(span, acc_var, bc))));
+                            self.bc_tq1(span, body, qs.collect(), IExpr::Var(acc_var.clone()))?;
+                        body.push(IExpr::Set(ISet::new(span, acc_var, bc)));
                         body.push(nc);
                         let acc_clause = IClause {
                             span,
                             annotations: Annotations::default(),
-                            patterns: vec![*acc_pat, Expr::Var(ignore)],
+                            patterns: vec![*acc_pat, IExpr::Var(ignore)],
                             guards: gen.acc_guards,
                             body,
                         };
@@ -1830,28 +1821,28 @@ impl TranslateAst {
                     }
                     _ => unreachable!(),
                 };
-                let fun = Expr::Internal(IExpr::Fun(IFun {
+                let fun = IExpr::Fun(IFun {
                     span,
                     annotations: Annotations::default(),
-                    id: None,
-                    name: None,
+                    id: Some(Ident::new(name, span)),
+                    name: Some(Ident::new(name, span)),
                     vars,
                     clauses,
                     fail,
-                }));
+                });
                 // Inlining would disable the size calculation optimization for bs_init_writable
                 let mut body = gen.pre;
-                body.push(Expr::Apply(Apply::new(
+                body.push(IExpr::Apply(IApply::new(
                     span,
-                    Expr::Var(f.clone()),
+                    IExpr::Var(f.clone()),
                     vec![*gen.arg, last],
                 )));
-                let expr = Expr::Internal(IExpr::LetRec(ILetRec {
+                let expr = IExpr::LetRec(ILetRec {
                     span,
                     annotations: Annotations::from([symbols::ListComprehension, symbols::NoInline]),
                     defs: vec![(f, fun)],
                     body,
-                }));
+                });
                 Ok((expr, vec![]))
             }
             Some(IQualifier::Filter(filter)) => {
@@ -1867,7 +1858,7 @@ impl TranslateAst {
                         let specifier = Some(BinaryEntrySpecifier::Binary { unit: 1 });
                         let (expr, pre) = self.safe(body)?;
                         match expr {
-                            Expr::Var(v) => {
+                            IExpr::Var(v) => {
                                 let var = ast::Expr::Var(ast::Var(Ident::new(v.name(), v.span())));
                                 let els = vec![ast::BinaryElement {
                                     span,
@@ -1877,7 +1868,7 @@ impl TranslateAst {
                                 }];
                                 self.bc_tq_build(span, pre, last, els)
                             }
-                            Expr::Literal(Literal {
+                            IExpr::Literal(Literal {
                                 span: lspan,
                                 value: Lit::Binary(bitvec),
                                 ..
@@ -1892,7 +1883,7 @@ impl TranslateAst {
                                 }];
                                 self.bc_tq_build(span, pre, last, els)
                             }
-                            expr => {
+                            _expr => {
                                 // Any other safe (cons, tuple, literal) is not a bitstring.
                                 // Force the evaluation to fail and generate a warning
                                 let els = vec![ast::BinaryElement {
@@ -1916,12 +1907,12 @@ impl TranslateAst {
     fn bc_tq_build(
         &mut self,
         span: SourceSpan,
-        mut pre: Vec<Expr>,
-        last: Expr,
+        mut pre: Vec<IExpr>,
+        last: IExpr,
         mut elements: Vec<ast::BinaryElement>,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         match last {
-            Expr::Var(Var { name, .. }) => {
+            IExpr::Var(Var { name, .. }) => {
                 let specifier = Some(BinaryEntrySpecifier::Binary { unit: 1 });
                 let element = ast::BinaryElement {
                     span: name.span,
@@ -1956,10 +1947,10 @@ impl TranslateAst {
         span: SourceSpan,
         expr: ast::Expr,
         filter: IFilter,
-        last: Expr,
+        last: IExpr,
         qualifiers: Vec<IQualifier>,
         is_lc: bool,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let (lc, mut lps) = if is_lc {
             self.lc_tq(span, expr, qualifiers, last.clone())?
         } else {
@@ -1972,13 +1963,13 @@ impl TranslateAst {
                 // The filter is an expression, it is compiled to a case of degree 1 with 3 clauses,
                 // one accumulating, one skipping, and the final one throwing {case_clause, Value} where Value
                 // is the result of the filter and is not a boolean
-                let fail_pat = Expr::Var(self.context_mut().next_var(Some(span)));
+                let fail_pat = IExpr::Var(self.context_mut().next_var(Some(span)));
                 let fail = fail_clause(
                     span,
                     vec![fail_pat.clone()],
-                    ctuple!(span, catom!(span, symbols::BadFilter), fail_pat),
+                    ituple!(span, iatom!(span, symbols::BadFilter), fail_pat),
                 );
-                let expr = Expr::Internal(IExpr::Case(ICase {
+                let expr = IExpr::Case(ICase {
                     span,
                     annotations: Annotations::from(symbols::ListComprehension),
                     args: vec![*arg],
@@ -1986,32 +1977,32 @@ impl TranslateAst {
                         IClause {
                             span,
                             annotations: Annotations::default(),
-                            patterns: vec![catom!(span, symbols::True)],
+                            patterns: vec![iatom!(span, symbols::True)],
                             guards: vec![],
                             body: lps,
                         },
                         IClause {
                             span,
                             annotations: Annotations::default_compiler_generated(),
-                            patterns: vec![catom!(span, symbols::False)],
+                            patterns: vec![iatom!(span, symbols::False)],
                             guards: vec![],
                             body: vec![last],
                         },
                     ],
                     fail,
-                }));
+                });
                 Ok((expr, pre))
             }
             FilterType::Guard(guards) => {
                 // The filter is a guard, compiled to an if, where if the guard succeeds,
                 // then the comprehension continues, otherwise the current element is skipped
-                let expr = Expr::Internal(IExpr::If(IIf {
+                let expr = IExpr::If(IIf {
                     span,
                     annotations: Annotations::from(symbols::ListComprehension),
                     guards,
                     then_body: lps,
                     else_body: vec![last],
-                }));
+                });
                 Ok((expr, vec![]))
             }
         }
@@ -2103,22 +2094,30 @@ impl TranslateAst {
     ) -> anyhow::Result<IGen> {
         let head = self.pattern(pattern).ok();
         let tail = self.context_mut().next_var(Some(span));
-        let skip = Expr::Var(self.context_mut().next_var(Some(span)));
+        let skip = IExpr::Var(self.context_mut().next_var(Some(span)));
         let acc_guards = self.lc_guard_tests(span, guards);
         let (acc_pattern, skip_pattern) = match head {
-            Some(head @ Expr::Var(_)) => {
+            Some(head @ IExpr::Var(_)) => {
                 // If the generator pattern is a variable, the pattern
                 // from the accumulator clause can be reused in the skip one.
                 // lc_tq and gc_tq1 takes care of dismissing the latter in that case.
-                let cons = Box::new(Expr::Cons(Cons::new(span, head, Expr::Var(tail.clone()))));
+                let cons = Box::new(IExpr::Cons(ICons::new(
+                    span,
+                    head,
+                    IExpr::Var(tail.clone()),
+                )));
                 (Some(cons.clone()), Some(cons))
             }
             Some(head) => {
-                let acc = Box::new(Expr::Cons(Cons::new(span, head, Expr::Var(tail.clone()))));
-                let skip = Box::new(Expr::Cons(Cons::new(
+                let acc = Box::new(IExpr::Cons(ICons::new(
+                    span,
+                    head,
+                    IExpr::Var(tail.clone()),
+                )));
+                let skip = Box::new(IExpr::Cons(ICons::new(
                     span,
                     skip.clone(),
-                    Expr::Var(tail.clone()),
+                    IExpr::Var(tail.clone()),
                 )));
                 (Some(acc), Some(skip))
             }
@@ -2126,10 +2125,10 @@ impl TranslateAst {
                 // If it never matches, there is no need for an accumulator clause.
                 (
                     None,
-                    Some(Box::new(Expr::Cons(Cons::new(
+                    Some(Box::new(IExpr::Cons(ICons::new(
                         span,
                         skip.clone(),
-                        Expr::Var(tail.clone()),
+                        IExpr::Var(tail.clone()),
                     )))),
                 )
             }
@@ -2142,7 +2141,7 @@ impl TranslateAst {
             acc_guards,
             skip_pattern,
             tail: Some(tail),
-            tail_pattern: Box::new(Expr::Literal(Literal::nil(span))),
+            tail_pattern: Box::new(IExpr::Literal(Literal::nil(span))),
             pre,
             arg: Box::new(arg),
         })
@@ -2156,26 +2155,26 @@ impl TranslateAst {
         guards: Vec<ast::Expr>,
     ) -> anyhow::Result<IGen> {
         match self.pattern(pattern)? {
-            Expr::Internal(IExpr::Binary(IBinary {
+            IExpr::Binary(IBinary {
                 span,
                 annotations,
                 segments,
-            })) => {
+            }) => {
                 // The function append_tail_segment/2 keeps variable patterns as-is, making
                 // it possible to have the same skip clause removal as with list generators.
                 let (acc_segments, tail, tail_segment) = self.append_tail_segment(span, segments);
-                let acc_pattern = Box::new(Expr::Internal(IExpr::Binary(IBinary {
+                let acc_pattern = Box::new(IExpr::Binary(IBinary {
                     span,
                     annotations: annotations.clone(),
                     segments: acc_segments.clone(),
-                })));
+                }));
                 let acc_guards = self.lc_guard_tests(span, guards);
                 let skip_segments = self.skip_segments(acc_segments);
-                let skip_pattern = Box::new(Expr::Internal(IExpr::Binary(IBinary {
+                let skip_pattern = Box::new(IExpr::Binary(IBinary {
                     span,
                     annotations,
                     segments: skip_segments,
-                })));
+                }));
                 let (arg, pre) = self.safe(expr)?;
                 Ok(IGen {
                     span,
@@ -2184,11 +2183,11 @@ impl TranslateAst {
                     acc_guards,
                     skip_pattern: Some(skip_pattern),
                     tail: Some(tail),
-                    tail_pattern: Box::new(Expr::Internal(IExpr::Binary(IBinary {
+                    tail_pattern: Box::new(IExpr::Binary(IBinary {
                         span,
                         annotations: Annotations::default(),
                         segments: vec![tail_segment],
-                    }))),
+                    })),
                     pre,
                     arg: Box::new(arg),
                 })
@@ -2203,7 +2202,7 @@ impl TranslateAst {
                     acc_guards: vec![],
                     skip_pattern: None,
                     tail: None,
-                    tail_pattern: Box::new(Expr::Var(Var::new(Ident::new(
+                    tail_pattern: Box::new(IExpr::Var(Var::new(Ident::new(
                         symbols::Underscore,
                         span,
                     )))),
@@ -2214,7 +2213,10 @@ impl TranslateAst {
         }
     }
 
-    fn lc_guard_tests(&mut self, span: SourceSpan, guards: Vec<ast::Expr>) -> Vec<Expr> {
+    fn lc_guard_tests(&mut self, span: SourceSpan, guards: Vec<ast::Expr>) -> Vec<IExpr> {
+        if guards.is_empty() {
+            return vec![];
+        }
         let guards = self.guard_tests(span, guards);
         self.context_mut().in_guard = true;
         let guards = self.gexpr_top(guards);
@@ -2231,7 +2233,7 @@ impl TranslateAst {
         let tail = IBitstring {
             span,
             annotations: Annotations::default(),
-            value: Box::new(Expr::Var(var.clone())),
+            value: Box::new(IExpr::Var(var.clone())),
             size: vec![],
             spec: BinaryEntrySpecifier::Binary { unit: 1 },
         };
@@ -2252,7 +2254,7 @@ impl TranslateAst {
             } else {
                 // Replace literal or expression with a variable (whose value will be ignored)
                 let var = self.context_mut().next_var(None);
-                *segment.value.as_mut() = Expr::Var(var);
+                *segment.value.as_mut() = IExpr::Var(var);
             }
         }
         out
@@ -2263,7 +2265,7 @@ impl TranslateAst {
         span: SourceSpan,
         map: ast::Expr,
         fields: Vec<ast::MapField>,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let (map, mut pre) = self.safe_map(map)?;
         let badmap = self.badmap_term(&map);
         let fail = fail_body(span, badmap);
@@ -2271,13 +2273,13 @@ impl TranslateAst {
         let (map2, mut pre2) = self.map_build_pairs(span, map.clone(), fields)?;
         pre.append(&mut pre2);
         let map3 = if is_empty { map.clone() } else { map2.clone() };
-        let is_map = Expr::Call(Call::new(span, symbols::Erlang, symbols::IsMap, vec![map]));
-        let case = Expr::If(If {
+        let is_map = IExpr::Call(ICall::new(span, symbols::Erlang, symbols::IsMap, vec![map]));
+        let case = IExpr::If(IIf {
             span,
             annotations: Annotations::default_compiler_generated(),
-            guard: Box::new(is_map),
-            then_body: Box::new(map3),
-            else_body: Box::new(fail),
+            guards: vec![is_map],
+            then_body: vec![map3],
+            else_body: vec![fail],
         });
         Ok((case, pre))
     }
@@ -2290,22 +2292,22 @@ impl TranslateAst {
         &mut self,
         span: SourceSpan,
         mut elements: Vec<ast::BinaryElement>,
-    ) -> Result<(Expr, Vec<Expr>), Vec<Expr>> {
+    ) -> Result<(IExpr, Vec<IExpr>), Vec<IExpr>> {
         self.bin_elements(span, elements.as_mut_slice(), 1)
             .map_err(|_| vec![])?;
         match self.constant_bin(elements.as_slice()) {
-            Ok(bin) => Ok((Expr::Literal(Literal::binary(span, bin)), vec![])),
+            Ok(bin) => Ok((IExpr::Literal(Literal::binary(span, bin)), vec![])),
             Err(_) => {
                 let (elements, pre) = self.expr_bin_1(elements)?;
                 if elements.is_empty() {
-                    Ok((Expr::Literal(Literal::binary(span, BitVec::new())), vec![]))
+                    Ok((IExpr::Literal(Literal::binary(span, BitVec::new())), vec![]))
                 } else {
                     Ok((
-                        Expr::Internal(IExpr::Binary(IBinary {
+                        IExpr::Binary(IBinary {
                             span,
                             annotations: Annotations::default(),
                             segments: elements,
-                        })),
+                        }),
                         pre,
                     ))
                 }
@@ -2349,7 +2351,7 @@ impl TranslateAst {
     fn expr_bin_1(
         &mut self,
         mut elements: Vec<ast::BinaryElement>,
-    ) -> Result<(Vec<IBitstring>, Vec<Expr>), Vec<Expr>> {
+    ) -> Result<(Vec<IBitstring>, Vec<IExpr>), Vec<IExpr>> {
         let mut segments = Vec::with_capacity(elements.len());
         let mut pre = vec![];
         let mut is_bad = false;
@@ -2392,7 +2394,7 @@ impl TranslateAst {
     fn bitstrs(
         &mut self,
         mut elements: Vec<ast::BinaryElement>,
-    ) -> Result<(Vec<IBitstring>, Vec<Expr>), Vec<Expr>> {
+    ) -> Result<(Vec<IBitstring>, Vec<IExpr>), Vec<IExpr>> {
         let mut segments = Vec::with_capacity(elements.len());
         let mut pre = vec![];
         for element in elements.drain(..) {
@@ -2406,7 +2408,7 @@ impl TranslateAst {
     fn bitstr(
         &mut self,
         element: ast::BinaryElement,
-    ) -> Result<(Vec<IBitstring>, Vec<Expr>), Vec<Expr>> {
+    ) -> Result<(Vec<IBitstring>, Vec<IExpr>), Vec<IExpr>> {
         use liblumen_binary::BinaryEntrySpecifier as S;
 
         let span = element.span;
@@ -2439,11 +2441,11 @@ impl TranslateAst {
                             debug_assert!(!spec.unwrap_or_default().has_size());
                             Ok((vec![], vec![]))
                         }
-                        Some(Expr::Literal(Literal {
+                        Some(IExpr::Literal(Literal {
                             value: Lit::Integer(i),
                             ..
                         })) if i >= &0 => Ok((vec![], vec![])),
-                        Some(Expr::Var(_)) => {
+                        Some(IExpr::Var(_)) => {
                             // Must add a test to verify that the size expression is an integer >= 0
                             let size = size_opt.unwrap();
                             let test0 = ast::Expr::Apply(ast::Apply::remote(
@@ -2510,7 +2512,7 @@ impl TranslateAst {
                         .chars()
                         .map(|c| {
                             let mut b = bitstr.clone();
-                            *b.value.as_mut() = cint!(span, c as i64);
+                            *b.value.as_mut() = iint!(span, c as i64);
                             b
                         })
                         .collect();
@@ -2527,43 +2529,43 @@ impl TranslateAst {
                 pre.append(&mut pre2);
 
                 match (spec, &expr) {
-                    (_, Expr::Var(_))
+                    (_, IExpr::Var(_))
                     | (
                         S::Integer { .. },
-                        Expr::Literal(Literal {
+                        IExpr::Literal(Literal {
                             value: Lit::Integer(_),
                             ..
                         }),
                     )
                     | (
                         S::Utf8 { .. },
-                        Expr::Literal(Literal {
+                        IExpr::Literal(Literal {
                             value: Lit::Integer(_),
                             ..
                         }),
                     )
                     | (
                         S::Utf16 { .. },
-                        Expr::Literal(Literal {
+                        IExpr::Literal(Literal {
                             value: Lit::Integer(_),
                             ..
                         }),
                     )
                     | (
                         S::Utf32 { .. },
-                        Expr::Literal(Literal {
+                        IExpr::Literal(Literal {
                             value: Lit::Integer(_),
                             ..
                         }),
                     ) => (),
-                    (S::Float { .. }, Expr::Literal(Literal { value: lit, .. }))
+                    (S::Float { .. }, IExpr::Literal(Literal { value: lit, .. }))
                         if lit.is_number() =>
                     {
                         ()
                     }
                     (
                         S::Binary { .. },
-                        Expr::Literal(Literal {
+                        IExpr::Literal(Literal {
                             value: Lit::Binary(_),
                             ..
                         }),
@@ -2575,14 +2577,14 @@ impl TranslateAst {
                     }
                 }
                 let size = match size {
-                    v @ Expr::Var(_) => vec![v],
-                    Expr::Literal(lit) => {
+                    v @ IExpr::Var(_) => vec![v],
+                    IExpr::Literal(lit) => {
                         if lit.as_integer().map(|i| i >= &0).unwrap_or_default() {
-                            vec![Expr::Literal(lit)]
+                            vec![IExpr::Literal(lit)]
                         } else if let Some(atom) = lit.as_atom() {
                             match atom {
                                 symbols::Undefined => vec![],
-                                symbols::All => vec![Expr::Literal(lit)],
+                                symbols::All => vec![IExpr::Literal(lit)],
                                 _ => return Err(pre),
                             }
                         } else {
@@ -2612,11 +2614,11 @@ impl TranslateAst {
     fn map_build_pairs(
         &mut self,
         span: SourceSpan,
-        map: Expr,
+        map: IExpr,
         fields: Vec<ast::MapField>,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let (pairs, pre) = self.map_build_pairs1(fields)?;
-        let map = Expr::Map(Map {
+        let map = IExpr::Map(IMap {
             span,
             annotations: Annotations::default(),
             arg: Box::new(map),
@@ -2629,7 +2631,7 @@ impl TranslateAst {
     fn map_build_pairs1(
         &mut self,
         mut fields: Vec<ast::MapField>,
-    ) -> anyhow::Result<(Vec<MapPair>, Vec<Expr>)> {
+    ) -> anyhow::Result<(Vec<IMapPair>, Vec<IExpr>)> {
         let mut used: HashSet<Literal> = HashSet::new();
         let mut pairs = Vec::with_capacity(fields.len());
         let mut pre = Vec::new();
@@ -2642,7 +2644,7 @@ impl TranslateAst {
             let (value, mut pre1) = self.safe(value0)?;
             pre.append(&mut pre0);
             pre.append(&mut pre1);
-            if let Expr::Literal(ref lit) = &key {
+            if let IExpr::Literal(ref lit) = &key {
                 if let Some(prev) = used.get(lit) {
                     self.reporter.show_warning(
                         "duplicate map key",
@@ -2655,9 +2657,9 @@ impl TranslateAst {
                     used.insert(lit.clone());
                 }
             }
-            pairs.push(MapPair {
+            pairs.push(IMapPair {
                 op,
-                key: Box::new(key),
+                key: vec![key],
                 value: Box::new(value),
             });
         }
@@ -2665,21 +2667,21 @@ impl TranslateAst {
         Ok((pairs, pre))
     }
 
-    fn badmap_term(&self, map: &Expr) -> Expr {
+    fn badmap_term(&self, map: &IExpr) -> IExpr {
         let span = map.span();
-        let badmap = catom!(span, symbols::Badmap);
+        let badmap = iatom!(span, symbols::Badmap);
         if self.context().in_guard {
             badmap
         } else {
-            ctuple!(span, badmap, map.clone())
+            ituple!(span, badmap, map.clone())
         }
     }
 
-    fn safe_map(&mut self, map: ast::Expr) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    fn safe_map(&mut self, map: ast::Expr) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         match self.safe(map)? {
-            ok @ (Expr::Var(_), _) => Ok(ok),
+            ok @ (IExpr::Var(_), _) => Ok(ok),
             ok @ (
-                Expr::Literal(Literal {
+                IExpr::Literal(Literal {
                     value: Lit::Map(_), ..
                 }),
                 _,
@@ -2690,48 +2692,47 @@ impl TranslateAst {
                 // error, force the term into a variable.
                 let span = notmap.span();
                 let v = self.context_mut().next_var(Some(span));
-                pre.push(Expr::Internal(IExpr::Set(ISet {
+                pre.push(IExpr::Set(ISet {
                     span,
                     annotations: Annotations::default(),
                     var: v.clone(),
                     arg: Box::new(notmap),
-                })));
-                Ok((Expr::Var(v), pre))
+                }));
+                Ok((IExpr::Var(v), pre))
             }
         }
     }
 
-    fn novars(&mut self, expr: ast::Expr) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    fn novars(&mut self, expr: ast::Expr) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let (expr, mut pre) = self.expr(expr)?;
         let (sexpr, mut pre2) = self.force_novars(expr);
         pre.append(&mut pre2);
         Ok((sexpr, pre))
     }
 
-    fn force_novars(&mut self, expr: Expr) -> (Expr, Vec<Expr>) {
+    fn force_novars(&mut self, expr: IExpr) -> (IExpr, Vec<IExpr>) {
         match expr {
-            app @ Expr::Apply(_) => (app, vec![]),
-            call @ Expr::Call(_) => (call, vec![]),
-            fun @ Expr::Internal(IExpr::Fun(_)) => (fun, vec![]),
-            fun @ Expr::Fun(_) => (fun, vec![]),
-            bin @ Expr::Internal(IExpr::Binary(_)) => (bin, vec![]),
-            map @ Expr::Map(_) => (map, vec![]),
-            other => self.force_safe(other),
+            app @ IExpr::Apply(_) => (app, vec![]),
+            call @ IExpr::Call(_) => (call, vec![]),
+            fun @ IExpr::Fun(_) => (fun, vec![]),
+            bin @ IExpr::Binary(_) => (bin, vec![]),
+            map @ IExpr::Map(_) => (map, vec![]),
+            other => force_safe(self.context_mut(), other),
         }
     }
 
     /// safe_list(Expr, State) -> {Safe,[PreExpr],State}.
     ///  Generate an internal safe expression for a list of
     ///  expressions.
-    fn safe_list(&mut self, mut exprs: Vec<ast::Expr>) -> anyhow::Result<(Vec<Expr>, Vec<Expr>)> {
-        let mut out = Vec::<Expr>::with_capacity(exprs.len());
-        let mut pre = Vec::<Vec<Expr>>::new();
+    fn safe_list(&mut self, mut exprs: Vec<ast::Expr>) -> anyhow::Result<(Vec<IExpr>, Vec<IExpr>)> {
+        let mut out = Vec::<IExpr>::with_capacity(exprs.len());
+        let mut pre = Vec::<Vec<IExpr>>::new();
         for expr in exprs.drain(..) {
             let (cexpr, pre2) = self.safe(expr)?;
             match pre.pop() {
                 Some(mut prev) if prev.len() == 1 => {
                     match prev.pop().unwrap() {
-                        Expr::Internal(IExpr::Exprs(IExprs { mut bodies, .. })) => {
+                        IExpr::Exprs(IExprs { mut bodies, .. }) => {
                             // A cons within a cons
                             out.push(cexpr);
                             // [Pre2 | Bodies] ++ Pre
@@ -2765,7 +2766,7 @@ impl TranslateAst {
         match pre.len() {
             0 => Ok((out, vec![])),
             1 => Ok((out, pre.pop().unwrap())),
-            _ => Ok((out, vec![Expr::Internal(IExpr::Exprs(IExprs::new(pre)))])),
+            _ => Ok((out, vec![IExpr::Exprs(IExprs::new(pre))])),
         }
     }
 
@@ -2773,71 +2774,15 @@ impl TranslateAst {
     //  Generate an internal safe expression.  These are simples without
     //  binaries which can fail.  At this level we do not need to do a
     //  deep check.  Must do special things with matches here.
-    fn safe(&mut self, expr: ast::Expr) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    fn safe(&mut self, expr: ast::Expr) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         let (expr, mut pre) = self.expr(expr)?;
-        let (expr, mut pre2) = self.force_safe(expr);
+        let (expr, mut pre2) = force_safe(self.context_mut(), expr);
         pre.append(&mut pre2);
         Ok((expr, pre))
     }
 
-    fn force_safe(&mut self, expr: Expr) -> (Expr, Vec<Expr>) {
-        match expr {
-            Expr::Internal(IExpr::Match(imatch)) => {
-                let (le, mut pre) = self.force_safe(*imatch.arg);
-
-                // Make sure we don't duplicate the expression E
-                match le {
-                    le @ Expr::Var(_) => {
-                        // Le is a variable
-                        // Thus: P = Le, Le.
-                        pre.push(Expr::Internal(IExpr::Match(IMatch {
-                            span: imatch.span,
-                            annotations: imatch.annotations,
-                            pattern: imatch.pattern,
-                            guards: imatch.guards,
-                            arg: Box::new(le.clone()),
-                            fail: imatch.fail,
-                        })));
-                        (le, pre)
-                    }
-                    le => {
-                        // Le is not a variable.
-                        // Thus: NewVar = P = Le, NewVar.
-                        let v = self.context_mut().next_var(Some(le.span()));
-                        let pattern = imatch.pattern;
-                        let pattern = Expr::Alias(Alias {
-                            span: pattern.span(),
-                            annotations: Annotations::default(),
-                            var: v.clone(),
-                            pattern,
-                        });
-                        pre.push(Expr::Internal(IExpr::Match(IMatch {
-                            span: imatch.span,
-                            annotations: imatch.annotations,
-                            pattern: Box::new(pattern),
-                            guards: imatch.guards,
-                            arg: Box::new(le),
-                            fail: imatch.fail,
-                        })));
-                        (Expr::Var(v), pre)
-                    }
-                }
-            }
-            expr if is_safe(&expr) => (expr, vec![]),
-            expr => {
-                let span = expr.span();
-                let v = self.context_mut().next_var(Some(span));
-                let var = Expr::Var(v.clone());
-                (
-                    var,
-                    vec![Expr::Internal(IExpr::Set(ISet::new(span, v, expr)))],
-                )
-            }
-        }
-    }
-
     // try_exception([ExcpClause]) -> {[ExcpVar],Handler}
-    fn try_exception(&mut self, clauses: Vec<ast::Clause>) -> anyhow::Result<(Vec<Var>, Expr)> {
+    fn try_exception(&mut self, clauses: Vec<ast::Clause>) -> anyhow::Result<(Vec<Var>, IExpr)> {
         // Note that the tag is not needed for rethrow - it is already in the exception info
         let (tag, value, info) = {
             let context = self.context_mut();
@@ -2849,30 +2794,30 @@ impl TranslateAst {
         let clauses = self.clauses(clauses)?;
         let clauses = try_build_stacktrace(clauses, tag.name);
         let span = clauses.get(0).map(|c| c.span).unwrap_or_default();
-        let evars = ctuple!(
+        let evars = ituple!(
             span,
-            Expr::Var(tag.clone()),
-            Expr::Var(value.clone()),
-            Expr::Var(info.clone())
+            IExpr::Var(tag.clone()),
+            IExpr::Var(value.clone()),
+            IExpr::Var(info.clone())
         );
         let fail = Box::new(IClause {
             span,
             annotations: Annotations::default_compiler_generated(),
             patterns: vec![evars.clone()],
             guards: vec![],
-            body: vec![Expr::PrimOp(PrimOp::new(
+            body: vec![IExpr::PrimOp(IPrimOp::new(
                 span,
                 symbols::Raise,
-                vec![Expr::Var(info.clone()), Expr::Var(value.clone())],
+                vec![IExpr::Var(info.clone()), IExpr::Var(value.clone())],
             ))],
         });
-        let handler = Expr::Internal(IExpr::Case(ICase {
+        let handler = IExpr::Case(ICase {
             span,
             annotations: Annotations::default(),
             args: vec![evars],
             clauses,
             fail,
-        }));
+        });
         Ok((vec![tag, value, info], handler))
     }
 
@@ -2881,7 +2826,7 @@ impl TranslateAst {
         span: SourceSpan,
         exprs: Vec<ast::Expr>,
         mut after: Vec<ast::Expr>,
-    ) -> anyhow::Result<(Expr, Vec<Expr>)> {
+    ) -> anyhow::Result<(IExpr, Vec<IExpr>)> {
         ta_sanitize_as(&mut after);
         let exprs = self.exprs(exprs)?;
         let after = self.exprs(after)?;
@@ -2896,54 +2841,54 @@ impl TranslateAst {
     fn try_after_large(
         &mut self,
         span: SourceSpan,
-        exprs: Vec<Expr>,
-        after: Vec<Expr>,
+        exprs: Vec<IExpr>,
+        after: Vec<IExpr>,
         var: Var,
-    ) -> (Expr, Vec<Expr>) {
+    ) -> (IExpr, Vec<IExpr>) {
         // Large 'after' block; break it out into a wrapper function to reduce code size
         let name = self.context_mut().new_fun_name(Some("after"));
         let fail = fail_clause(
             span,
             vec![],
-            Expr::Literal(lit_tuple!(span, lit_atom!(span, symbols::FunctionClause))),
+            IExpr::Literal(lit_tuple!(span, lit_atom!(span, symbols::FunctionClause))),
         );
-        let fun = Expr::Internal(IExpr::Fun(IFun {
+        let fun = IExpr::Fun(IFun {
             span,
             annotations: Annotations::default(),
-            id: None,
+            id: Some(Ident::new(name, span)),
             name: Some(Ident::new(name, span)),
             vars: vec![],
             clauses: vec![IClause::new(span, vec![], vec![], after)],
             fail,
-        }));
-        let apply = Expr::Apply(Apply {
+        });
+        let apply = IExpr::Apply(IApply {
             span,
             annotations: Annotations::default_compiler_generated(),
-            callee: Box::new(Expr::Var(Var {
+            callee: vec![IExpr::Var(Var {
                 annotations: Annotations::default(),
                 name: Ident::new(name, span),
                 arity: Some(Arity::Int(0)),
-            })),
+            })],
             args: vec![],
         });
         let (evars, handler) = self.after_block(span, vec![apply.clone()]);
-        let texpr = Expr::Internal(IExpr::Try(ITry {
+        let texpr = IExpr::Try(ITry {
             span,
             annotations: Annotations::default(),
             args: exprs,
             vars: vec![var.clone()],
-            body: vec![apply, Expr::Var(var)],
+            body: vec![apply, IExpr::Var(var)],
             evars,
             handler: Box::new(handler),
-        }));
-        let letr = Expr::LetRec(LetRec {
+        });
+        let letr = IExpr::LetRec(ILetRec {
             span,
             annotations: Annotations::default(),
             defs: vec![(
                 Var::new_with_arity(Ident::new(name, span), Arity::Int(0)),
                 fun,
             )],
-            body: Box::new(texpr),
+            body: vec![texpr],
         });
         (letr, vec![])
     }
@@ -2951,14 +2896,14 @@ impl TranslateAst {
     fn try_after_small(
         &mut self,
         span: SourceSpan,
-        exprs: Vec<Expr>,
-        mut after: Vec<Expr>,
+        exprs: Vec<IExpr>,
+        mut after: Vec<IExpr>,
         var: Var,
-    ) -> (Expr, Vec<Expr>) {
+    ) -> (IExpr, Vec<IExpr>) {
         // Small 'after' block; inline it
         let (evars, handler) = self.after_block(span, after.clone());
-        after.push(Expr::Var(var.clone()));
-        let texpr = Expr::Internal(IExpr::Try(ITry {
+        after.push(IExpr::Var(var.clone()));
+        let texpr = IExpr::Try(ITry {
             span,
             annotations: Annotations::default(),
             args: exprs,
@@ -2966,11 +2911,11 @@ impl TranslateAst {
             body: after,
             evars,
             handler: Box::new(handler),
-        }));
+        });
         (texpr, vec![])
     }
 
-    fn after_block(&mut self, span: SourceSpan, mut after: Vec<Expr>) -> (Vec<Var>, Expr) {
+    fn after_block(&mut self, span: SourceSpan, mut after: Vec<IExpr>) -> (Vec<Var>, IExpr) {
         let (tag, value, info) = {
             let context = self.context_mut();
             let tag = context.next_var(Some(span));
@@ -2978,18 +2923,18 @@ impl TranslateAst {
             let info = context.next_var(Some(span));
             (tag, value, info)
         };
-        let evs = ctuple!(
+        let evs = ituple!(
             span,
-            Expr::Var(tag.clone()),
-            Expr::Var(value.clone()),
-            Expr::Var(info.clone())
+            IExpr::Var(tag.clone()),
+            IExpr::Var(value.clone()),
+            IExpr::Var(info.clone())
         );
-        after.push(Expr::PrimOp(PrimOp::new(
+        after.push(IExpr::PrimOp(IPrimOp::new(
             span,
             symbols::Raise,
-            vec![Expr::Var(info.clone()), Expr::Var(value.clone())],
+            vec![IExpr::Var(info.clone()), IExpr::Var(value.clone())],
         )));
-        let handler = Expr::Internal(IExpr::Case(ICase {
+        let handler = IExpr::Case(ICase {
             span,
             annotations: Annotations::default(),
             args: vec![evs.clone()],
@@ -3001,7 +2946,7 @@ impl TranslateAst {
                 guards: vec![],
                 body: after,
             }),
-        }));
+        });
         (vec![tag, value, info], handler)
     }
 
@@ -3023,11 +2968,11 @@ impl TranslateAst {
     }
 }
 
-fn fail_body(span: SourceSpan, arg: Expr) -> Expr {
-    Expr::PrimOp(PrimOp::new(span, symbols::MatchFail, vec![arg]))
+fn fail_body(span: SourceSpan, arg: IExpr) -> IExpr {
+    IExpr::PrimOp(IPrimOp::new(span, symbols::MatchFail, vec![arg]))
 }
 
-fn fail_clause(span: SourceSpan, patterns: Vec<Expr>, arg: Expr) -> Box<IClause> {
+fn fail_clause(span: SourceSpan, patterns: Vec<IExpr>, arg: IExpr) -> Box<IClause> {
     Box::new(IClause {
         span,
         annotations: Annotations::default_compiler_generated(),
@@ -3037,17 +2982,17 @@ fn fail_clause(span: SourceSpan, patterns: Vec<Expr>, arg: Expr) -> Box<IClause>
     })
 }
 
-fn bad_generator(span: SourceSpan, patterns: Vec<Expr>, generator: Var) -> Box<IClause> {
-    let tuple = ctuple!(
+fn bad_generator(span: SourceSpan, patterns: Vec<IExpr>, generator: Var) -> Box<IClause> {
+    let tuple = ituple!(
         span,
-        Expr::Literal(lit_atom!(span, symbols::BadGenerator)),
-        Expr::Var(generator)
+        IExpr::Literal(lit_atom!(span, symbols::BadGenerator)),
+        IExpr::Var(generator)
     );
-    let call = Expr::Call(Call {
+    let call = IExpr::Call(ICall {
         span,
         annotations: Annotations::default(),
-        module: Box::new(catom!(span, symbols::Erlang)),
-        function: Box::new(catom!(span, symbols::Error)),
+        module: Box::new(iatom!(span, symbols::Erlang)),
+        function: Box::new(iatom!(span, symbols::Error)),
         args: vec![tuple],
     });
     Box::new(IClause {
@@ -3152,7 +3097,7 @@ fn sanitize(expr: ast::Expr) -> ast::Expr {
 ///  way (such expressions are the reason for adding the is_boolean/1
 ///  test in the first place).
 ///
-fn unforce(expr: &Expr, mut pre: Vec<Expr>, bools: Vec<Expr>) -> Vec<Expr> {
+fn unforce(expr: &IExpr, mut pre: Vec<IExpr>, bools: Vec<IExpr>) -> Vec<IExpr> {
     if bools.is_empty() {
         bools
     } else {
@@ -3163,13 +3108,13 @@ fn unforce(expr: &Expr, mut pre: Vec<Expr>, bools: Vec<Expr>) -> Vec<Expr> {
     }
 }
 
-fn unforce2(expr: &Expr, mut bools: Vec<Expr>) -> Vec<Expr> {
+fn unforce2(expr: &IExpr, mut bools: Vec<IExpr>) -> Vec<IExpr> {
     match expr {
-        Expr::Call(call) if call.is_static(symbols::Erlang, symbols::And, 2) => {
+        IExpr::Call(call) if call.is_static(symbols::Erlang, symbols::And, 2) => {
             let bools = unforce2(call.args.get(0).unwrap(), bools);
             unforce2(call.args.get(1).unwrap(), bools)
         }
-        Expr::Call(call) if call.is_static(symbols::Erlang, symbols::EqualStrict, 2) => {
+        IExpr::Call(call) if call.is_static(symbols::Erlang, symbols::EqualStrict, 2) => {
             if call.args[1].is_boolean() {
                 let e = call.args.get(0).unwrap();
                 match bools.iter().position(|b| b == e) {
@@ -3187,25 +3132,25 @@ fn unforce2(expr: &Expr, mut bools: Vec<Expr>) -> Vec<Expr> {
     }
 }
 
-fn unforce_tree(mut exprs: Vec<Expr>, tree: &mut BTreeMap<Symbol, Expr>) -> Expr {
+fn unforce_tree(mut exprs: Vec<IExpr>, tree: &mut BTreeMap<Symbol, IExpr>) -> IExpr {
     let mut it = exprs.drain(..);
     while let Some(expr) = it.next() {
         match expr {
-            Expr::Internal(IExpr::Exprs(IExprs { mut bodies, .. })) => {
+            IExpr::Exprs(IExprs { mut bodies, .. }) => {
                 let mut base = Vec::with_capacity(bodies.iter().fold(0, |acc, es| es.len() + acc));
                 base.extend(bodies.drain(..).flat_map(|es| es));
                 base.extend(it);
                 return unforce_tree(base, tree);
             }
-            Expr::Internal(IExpr::Set(ISet { var, arg, .. })) => {
+            IExpr::Set(ISet { var, arg, .. }) => {
                 let arg = unforce_tree_subst(*arg, tree);
                 tree.insert(var.name(), arg);
                 continue;
             }
-            call @ Expr::Call(_) => {
+            call @ IExpr::Call(_) => {
                 return unforce_tree_subst(call, tree);
             }
-            Expr::Var(var) => {
+            IExpr::Var(var) => {
                 return tree.remove(&var.name()).unwrap();
             }
             _ => unreachable!(),
@@ -3215,38 +3160,38 @@ fn unforce_tree(mut exprs: Vec<Expr>, tree: &mut BTreeMap<Symbol, Expr>) -> Expr
     unreachable!()
 }
 
-fn unforce_tree_subst(expr: Expr, tree: &mut BTreeMap<Symbol, Expr>) -> Expr {
+fn unforce_tree_subst(expr: IExpr, tree: &mut BTreeMap<Symbol, IExpr>) -> IExpr {
     match expr {
-        Expr::Call(mut call) => {
+        IExpr::Call(mut call) => {
             if call.is_static(symbols::Erlang, symbols::EqualStrict, 2) {
                 if call.args[1].is_boolean() {
                     // We have erlang:'=:='(Expr, Bool). We must not expand this call any more
                     // or we will not recognize is_boolean(Expr) later.
-                    return Expr::Call(call);
+                    return IExpr::Call(call);
                 }
             }
 
             for arg in call.args.iter_mut() {
-                if let Expr::Var(v) = arg {
+                if let IExpr::Var(v) = arg {
                     if let Some(value) = tree.get(&v.name()) {
                         *arg = value.clone();
                     }
                 }
             }
 
-            Expr::Call(call)
+            IExpr::Call(call)
         }
         expr => expr,
     }
 }
 
-fn letify_aliases(pattern: Expr, expr: Expr) -> (Expr, Expr, Vec<Expr>) {
+fn letify_aliases(pattern: IExpr, expr: IExpr) -> (IExpr, IExpr, Vec<IExpr>) {
     match pattern {
-        Expr::Alias(Alias {
+        IExpr::Alias(IAlias {
             span, var, pattern, ..
         }) => {
-            let (pattern, expr2, mut pre) = letify_aliases(*pattern, Expr::Var(var.clone()));
-            pre.insert(0, Expr::Internal(IExpr::Set(ISet::new(span, var, expr))));
+            let (pattern, expr2, mut pre) = letify_aliases(*pattern, IExpr::Var(var.clone()));
+            pre.insert(0, IExpr::Set(ISet::new(span, var, expr)));
             (pattern, expr2, pre)
         }
         pattern => (pattern, expr, vec![]),
@@ -3335,27 +3280,30 @@ fn ta_sanitize_as(exprs: &mut Vec<ast::Expr>) {
 fn try_build_stacktrace(mut clauses: Vec<IClause>, raw_stack: Ident) -> Vec<IClause> {
     let mut output = Vec::with_capacity(clauses.len());
     for mut clause in clauses.drain(..) {
-        let Expr::Tuple(ref mut tup) = clause.patterns.get_mut(0).unwrap() else { panic!("expected tuple pattern") };
+        let IExpr::Tuple(ref mut tup) = clause.patterns.get_mut(0).unwrap() else { panic!("expected tuple pattern") };
         let stk = tup.elements.pop().unwrap();
         match stk {
-            Expr::Var(Var { name, .. }) if name == symbols::Underscore => {
+            IExpr::Var(Var { name, .. }) if name == symbols::Underscore => {
                 // Stacktrace variable is not used, nothing to do.
                 tup.elements.push(stk);
                 output.push(clause);
             }
-            Expr::Var(var) => {
+            IExpr::Var(var) => {
                 // Add code to build the stacktrace
                 let span = var.span();
-                let raw_stack = Expr::Var(Var::new(raw_stack));
+                let raw_stack = IExpr::Var(Var::new(raw_stack));
                 tup.elements.push(raw_stack.clone());
-                let call =
-                    Expr::PrimOp(PrimOp::new(span, symbols::BuildStacktrace, vec![raw_stack]));
-                let set = Expr::Internal(IExpr::Set(ISet {
+                let call = IExpr::PrimOp(IPrimOp::new(
+                    span,
+                    symbols::BuildStacktrace,
+                    vec![raw_stack],
+                ));
+                let set = IExpr::Set(ISet {
                     span,
                     annotations: Annotations::default(),
                     var,
                     arg: Box::new(call),
-                }));
+                });
                 clause.body.insert(0, set);
                 output.push(clause);
             }
@@ -3370,11 +3318,11 @@ fn try_build_stacktrace(mut clauses: Vec<IClause>, raw_stack: Ident) -> Vec<ICla
 //  Determines whether a list of expressions is "smaller" than the given
 //  threshold. This is largely analogous to cerl_trees:size/1 but operates on
 //  our internal #iexprs{} and bails out as soon as the threshold is exceeded.
-fn is_iexprs_small(exprs: &[Expr], threshold: usize) -> bool {
+fn is_iexprs_small(exprs: &[IExpr], threshold: usize) -> bool {
     0 < is_iexprs_small_1(exprs, threshold)
 }
 
-fn is_iexprs_small_1(exprs: &[Expr], mut threshold: usize) -> usize {
+fn is_iexprs_small_1(exprs: &[IExpr], mut threshold: usize) -> usize {
     for expr in exprs {
         if threshold == 0 {
             return 0;
@@ -3385,50 +3333,39 @@ fn is_iexprs_small_1(exprs: &[Expr], mut threshold: usize) -> usize {
     threshold
 }
 
-fn is_iexprs_small_2(expr: &Expr, threshold: usize) -> usize {
+fn is_iexprs_small_2(expr: &IExpr, threshold: usize) -> usize {
     match expr {
-        Expr::Internal(IExpr::Try(ITry {
+        IExpr::Try(ITry {
             ref body, handler, ..
-        })) => {
+        }) => {
             let threshold = is_iexprs_small_1(body.as_slice(), threshold);
             is_iexprs_small_2(handler.as_ref(), threshold)
         }
-        Expr::Internal(IExpr::Match(IMatch { ref guards, .. })) => {
-            is_iexprs_small_1(guards.as_slice(), threshold)
-        }
-        Expr::Internal(IExpr::Case(ICase { ref clauses, .. })) => {
+        IExpr::Match(IMatch { ref guards, .. }) => is_iexprs_small_1(guards.as_slice(), threshold),
+        IExpr::Case(ICase { ref clauses, .. }) => {
             is_iexprs_small_iclauses(clauses.as_slice(), threshold)
         }
-        Expr::Internal(IExpr::If(IIf {
+        IExpr::If(IIf {
             ref then_body,
             ref else_body,
             ..
-        })) => {
+        }) => {
             let threshold = is_iexprs_small_1(then_body.as_slice(), threshold);
             is_iexprs_small_1(else_body.as_slice(), threshold)
         }
-        Expr::Internal(IExpr::Fun(IFun { ref clauses, .. })) => {
+        IExpr::Fun(IFun { ref clauses, .. }) => {
             is_iexprs_small_iclauses(clauses.as_slice(), threshold)
         }
-        Expr::Internal(IExpr::Receive1(IReceive1 { ref clauses, .. })) => {
+        IExpr::Receive1(IReceive1 { ref clauses, .. }) => {
             is_iexprs_small_iclauses(clauses.as_slice(), threshold)
         }
-        Expr::Internal(IExpr::Receive2(IReceive2 { ref clauses, .. })) => {
+        IExpr::Receive2(IReceive2 { ref clauses, .. }) => {
             is_iexprs_small_iclauses(clauses.as_slice(), threshold)
         }
-        Expr::Internal(IExpr::Catch(ICatch { ref body, .. })) => {
-            is_iexprs_small_1(body.as_slice(), threshold)
-        }
-        Expr::Internal(IExpr::Protect(IProtect { ref body, .. })) => {
-            is_iexprs_small_1(body.as_slice(), threshold)
-        }
-        Expr::Internal(IExpr::Set(ISet { ref arg, .. })) => {
-            is_iexprs_small_2(arg.as_ref(), threshold)
-        }
-        Expr::Internal(IExpr::LetRec(ILetRec { ref body, .. })) => {
-            is_iexprs_small_1(body.as_slice(), threshold)
-        }
-        Expr::LetRec(LetRec { ref body, .. }) => is_iexprs_small_2(body.as_ref(), threshold),
+        IExpr::Catch(ICatch { ref body, .. }) => is_iexprs_small_1(body.as_slice(), threshold),
+        IExpr::Protect(IProtect { ref body, .. }) => is_iexprs_small_1(body.as_slice(), threshold),
+        IExpr::Set(ISet { ref arg, .. }) => is_iexprs_small_2(arg.as_ref(), threshold),
+        IExpr::LetRec(ILetRec { ref body, .. }) => is_iexprs_small_1(body.as_slice(), threshold),
         _ => threshold,
     }
 }
@@ -3625,13 +3562,13 @@ fn is_cmp_op(function: Symbol, arity: u8) -> bool {
     }
 }
 
-fn is_safe(expr: &Expr) -> bool {
+fn is_safe(expr: &IExpr) -> bool {
     match expr {
-        Expr::Cons(_) | Expr::Tuple(_) | Expr::Literal(_) => true,
+        IExpr::Cons(_) | IExpr::Tuple(_) | IExpr::Literal(_) => true,
         // Fun
-        Expr::Var(v) if v.arity.is_some() => false,
+        IExpr::Var(v) if v.arity.is_some() => false,
         // Ordinary variable
-        Expr::Var(_) => true,
+        IExpr::Var(_) => true,
         _ => false,
     }
 }
@@ -3803,15 +3740,71 @@ impl Ord for MapSortKey {
     }
 }
 
-fn map_sort_key(key: &Expr, keymap: &BTreeMap<MapSortKey, Vec<MapPair>>) -> MapSortKey {
-    match key {
-        Expr::Literal(Literal { value, .. }) => MapSortKey::Lit(value.clone()),
-        Expr::Var(var) => MapSortKey::Var(var.name()),
-        other => MapSortKey::Size(keymap.len()),
+fn map_sort_key(key: &[IExpr], keymap: &BTreeMap<MapSortKey, Vec<IMapPair>>) -> MapSortKey {
+    if key.len() != 1 {
+        return MapSortKey::Size(keymap.len());
+    }
+    match &key[0] {
+        IExpr::Literal(Literal { value, .. }) => MapSortKey::Lit(value.clone()),
+        IExpr::Var(var) => MapSortKey::Var(var.name()),
+        _other => MapSortKey::Size(keymap.len()),
     }
 }
 
 fn translate_attr(_name: Ident, _value: ast::Expr) -> Option<(Ident, Expr)> {
     // TODO:
     None
+}
+
+pub(super) fn force_safe(context: &mut FunctionContext, expr: IExpr) -> (IExpr, Vec<IExpr>) {
+    match expr {
+        IExpr::Match(imatch) => {
+            let (le, mut pre) = force_safe(context, *imatch.arg);
+
+            // Make sure we don't duplicate the expression E
+            match le {
+                le @ IExpr::Var(_) => {
+                    // Le is a variable
+                    // Thus: P = Le, Le.
+                    pre.push(IExpr::Match(IMatch {
+                        span: imatch.span,
+                        annotations: imatch.annotations,
+                        pattern: imatch.pattern,
+                        guards: imatch.guards,
+                        arg: Box::new(le.clone()),
+                        fail: imatch.fail,
+                    }));
+                    (le, pre)
+                }
+                le => {
+                    // Le is not a variable.
+                    // Thus: NewVar = P = Le, NewVar.
+                    let v = context.next_var(Some(le.span()));
+                    let pattern = imatch.pattern;
+                    let pattern = IExpr::Alias(IAlias {
+                        span: pattern.span(),
+                        annotations: Annotations::default(),
+                        var: v.clone(),
+                        pattern,
+                    });
+                    pre.push(IExpr::Match(IMatch {
+                        span: imatch.span,
+                        annotations: imatch.annotations,
+                        pattern: Box::new(pattern),
+                        guards: imatch.guards,
+                        arg: Box::new(le),
+                        fail: imatch.fail,
+                    }));
+                    (IExpr::Var(v), pre)
+                }
+            }
+        }
+        expr if is_safe(&expr) => (expr, vec![]),
+        expr => {
+            let span = expr.span();
+            let v = context.next_var(Some(span));
+            let var = IExpr::Var(v.clone());
+            (var, vec![IExpr::Set(ISet::new(span, v, expr))])
+        }
+    }
 }

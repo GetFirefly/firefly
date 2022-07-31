@@ -30,6 +30,7 @@ lazy_static = "1.4"
 log = "0.4"
 paste = "1.0"
 thiserror = "1.0"
+rpds = "0.12"
 
 [dev-dependencies]
 pretty_assertions = "1.0"

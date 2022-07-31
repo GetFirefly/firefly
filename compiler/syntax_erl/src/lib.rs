@@ -2,6 +2,7 @@
 #![feature(trait_alias)]
 #![feature(never_type)]
 #![feature(generic_associated_types)]
+#![feature(iterator_try_collect)]
 #![feature(map_first_last)]
 #![feature(map_try_insert)]
 #![feature(drain_filter)]

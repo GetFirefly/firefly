@@ -1036,7 +1036,7 @@ dependencies = [
  "liblumen_system",
  "num-bigint 0.4.2",
  "num-traits",
- "rpds",
+ "rpds 0.11.0",
  "seq-macro",
  "static_assertions",
 ]
@@ -1102,6 +1102,7 @@ dependencies = [
  "log",
  "paste",
  "pretty_assertions",
+ "rpds 0.12.0",
  "thiserror",
 ]
 
@@ -1714,6 +1715,15 @@ name = "rpds"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4ef5140bcb576bfd6d56cd2de709a7d17851ac1f3805e67fe9d99e42a11821f"
+dependencies = [
+ "archery",
+]
+
+[[package]]
+name = "rpds"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66262ea963eff99163e6b741fbc3417a52cc13074728c1047e9911789df9b000"
 dependencies = [
  "archery",
 ]

@@ -174,21 +174,21 @@ where
 
     let codemap = db.codemap().clone();
     let config = db.parse_config();
+    let reporter = if config.warnings_as_errors {
+        Reporter::strict()
+    } else {
+        Reporter::new()
+    };
 
     let result = match db.input_type(input) {
         InputType::Erlang => {
-            let reporter = if config.warnings_as_errors {
-                Reporter::strict()
-            } else {
-                Reporter::new()
-            };
-            let parser = parse::Parser::new(config, codemap);
+            let parser = parse::Parser::new(config, codemap.clone());
             match db.lookup_intern_input(input) {
                 Input::File(ref path) => {
-                    parser.parse_file::<syntax_erl::ast::Module, &Path>(reporter, path)
+                    parser.parse_file::<syntax_erl::ast::Module, &Path>(reporter.clone(), path)
                 }
                 Input::Str { ref input, .. } => {
-                    parser.parse_string::<syntax_erl::ast::Module, _>(reporter, input)
+                    parser.parse_string::<syntax_erl::ast::Module, _>(reporter.clone(), input)
                 }
             }
         }
@@ -201,7 +201,10 @@ where
             db.maybe_emit_file_with_opts(&options, input, &module)?;
             Ok(module)
         }
-        Err(_) => bail!(db, "parsing failed"),
+        Err(_) => {
+            reporter.print(&codemap);
+            bail!(db, "parsing failed")
+        }
     }
 }
 

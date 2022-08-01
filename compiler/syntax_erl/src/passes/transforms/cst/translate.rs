@@ -42,12 +42,10 @@ impl Pass for AstToCst {
             functions: BTreeMap::new(),
         };
 
-        let nifs = ast.nifs;
+        //let nifs = ast.nifs;
 
         while let Some((name, function)) = ast.functions.pop_first() {
-            let mut context = Rc::new(UnsafeCell::new(FunctionContext::new(&function)));
-
-            let local_name = Span::new(SourceSpan::UNKNOWN, name);
+            let context = Rc::new(UnsafeCell::new(FunctionContext::new(&function)));
 
             let mut pipeline = TranslateAst::new(self.reporter.clone(), Rc::clone(&context))
                 .chain(AnnotateVarUsage::new(Rc::clone(&context)))

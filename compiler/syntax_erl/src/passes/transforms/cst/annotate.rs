@@ -18,11 +18,6 @@ impl AnnotateVarUsage {
     }
 
     #[inline(always)]
-    fn context(&self) -> &FunctionContext {
-        unsafe { &*self.context.get() }
-    }
-
-    #[inline(always)]
     fn context_mut(&self) -> &mut FunctionContext {
         unsafe { &mut *self.context.get() }
     }
@@ -95,7 +90,7 @@ impl AnnotateVarUsage {
 
     fn do_uclause(
         &mut self,
-        mut clause: IClause,
+        clause: IClause,
         known: Known,
     ) -> anyhow::Result<(
         IClause,

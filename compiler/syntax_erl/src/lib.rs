@@ -8,6 +8,7 @@
 #![feature(drain_filter)]
 #![feature(let_else)]
 #![feature(box_patterns)]
+#![feature(slice_take)]
 
 #[macro_use]
 mod macros;

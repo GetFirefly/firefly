@@ -73,7 +73,7 @@ use crate::ast;
 use crate::ast::{BinaryOp, UnaryOp};
 use crate::cst::{self, *};
 use crate::evaluator;
-use crate::{Arity, Name};
+use crate::Arity;
 
 macro_rules! lit_atom {
     ($span:expr, $sym:expr) => {
@@ -147,6 +147,7 @@ struct FunctionContext {
     span: SourceSpan,
     var_counter: usize,
     fun_counter: usize,
+    goto_counter: usize,
     name: Ident,
     arity: u8,
     wanted: bool,
@@ -167,6 +168,7 @@ impl FunctionContext {
             span: f.span,
             var_counter: f.var_counter,
             fun_counter: f.fun_counter,
+            goto_counter: 0,
             name: f.name,
             arity: f.arity,
             wanted: true,
@@ -217,6 +219,15 @@ impl FunctionContext {
         };
         self.fun_counter += 1;
         Symbol::intern(&name)
+    }
+
+    fn goto_func(&self) -> Var {
+        let sym = Symbol::intern(&format!("label^{}", self.goto_counter));
+        Var::new_with_arity(Ident::with_empty_span(sym), Arity::Int(0))
+    }
+
+    fn inc_goto_func(&mut self) {
+        self.goto_counter += 1;
     }
 }
 
@@ -318,13 +329,6 @@ impl Known {
     /// Returns true if the known set is empty
     fn is_empty(&self) -> bool {
         self.ks.is_empty()
-    }
-
-    fn upat_is_new_var(&self, expr: &Expr) -> bool {
-        match expr {
-            Expr::Var(v) => self.ks.contains(&v.name),
-            _ => false,
-        }
     }
 
     fn start_group(&mut self) {

@@ -30,9 +30,8 @@ impl Pass for RewriteExports {
     type Output<'a> = cst::Fun;
 
     fn run<'a>(&mut self, ifun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
-        println!("{}", &ifun);
         match self.cexpr(IExpr::Fun(ifun), rbt_set![]) {
-            Ok((box Expr::Fun(mut fun), _, _)) if self.context().is_nif => {
+            Ok((box Expr::Fun(fun), _, _)) if self.context().is_nif => {
                 let span = fun.span;
                 let body = fun.body;
                 let body_span = body.span();
@@ -388,7 +387,7 @@ impl RewriteExports {
                 }));
                 Ok((cexpr, exported, used))
             }
-            IExpr::Receive1(mut recv) => {
+            IExpr::Receive1(recv) => {
                 let span = recv.span;
                 let used = recv.used_vars();
                 let exported = intersection(recv.new_vars(), exports);
@@ -404,7 +403,7 @@ impl RewriteExports {
                 }));
                 Ok((rexpr, exported, used))
             }
-            IExpr::Receive2(mut recv) => {
+            IExpr::Receive2(recv) => {
                 let used = recv.used_vars();
                 let exported = intersection(recv.new_vars(), exports.clone());
                 let (timeout, _, _) = self.cexpr(*recv.timeout, exports.clone())?;
@@ -467,20 +466,20 @@ impl RewriteExports {
                 ))
             }
             IExpr::Fun(fun) if fun.name.is_none() => self
-                .cfun(fun, exports)
+                .cfun(fun)
                 .map(|(f, exp, us)| (Box::new(Expr::Fun(f)), exp, us)),
             IExpr::Fun(mut fun) => {
                 let span = fun.span;
                 let us0 = fun.used_vars();
                 let name = fun.name.clone().unwrap();
                 if !us0.contains(&name) {
-                    self.cfun(fun, exports)
+                    self.cfun(fun)
                         .map(|(f, exp, us)| (Box::new(Expr::Fun(f)), exp, us))
                 } else {
                     let recvar =
                         Var::new_with_arity(name, Arity::Int(fun.fail.patterns.len() as u8));
                     fun.annotations.remove_mut(name.name);
-                    let (fun, _, us1) = self.cfun(fun, exports)?;
+                    let (fun, _, us1) = self.cfun(fun)?;
                     let lexpr = Box::new(Expr::Let(Let {
                         span,
                         annotations: Annotations::default(),
@@ -579,7 +578,6 @@ impl RewriteExports {
                 let v = Var::new(Ident::new(Symbol::intern("Try"), span));
                 let t = Var::new(Ident::new(symbols::Underscore, span));
                 let r = Var::new(Ident::new(symbols::Underscore, span));
-                let vars = vec![t.clone(), r.clone()];
                 let texpr = Try {
                     span,
                     annotations,
@@ -678,7 +676,6 @@ impl RewriteExports {
     fn cfun(
         &mut self,
         ifun: IFun,
-        exports: RedBlackTreeSet<Ident>,
     ) -> anyhow::Result<(Fun, RedBlackTreeSet<Ident>, RedBlackTreeSet<Ident>)> {
         let span = ifun.span;
         let mut annotations = ifun.annotations;

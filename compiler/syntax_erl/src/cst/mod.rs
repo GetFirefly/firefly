@@ -3,7 +3,7 @@ mod printer;
 pub use self::printer::PrettyPrinter;
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -1189,6 +1189,14 @@ impl Expr {
         }
     }
 
+    pub fn is_safe(&self) -> bool {
+        match self {
+            Self::Cons(_) | Self::Tuple(_) | Self::Literal(_) => true,
+            Self::Var(v) => v.arity.is_none(),
+            _ => false,
+        }
+    }
+
     pub fn is_data(&self) -> bool {
         match self {
             Self::Literal(_) | Self::Cons(_) | Self::Tuple(_) => true,
@@ -1284,9 +1292,7 @@ impl Expr {
 
     pub fn is_var_used(&self, var: &Var) -> bool {
         match self {
-            Self::Alias(Alias {
-                var: var2, pattern, ..
-            }) => var2.name() == var.name(),
+            Self::Alias(Alias { var: var2, .. }) => var2.name() == var.name(),
             Self::Values(Values { values, .. }) => values.iter().any(|v| v.is_var_used(var)),
             Self::Var(v) => v.name() == var.name(),
             Self::Literal(_) => false,
@@ -1375,7 +1381,6 @@ impl Expr {
             Self::Try(Try {
                 arg,
                 vars,
-                body,
                 evars,
                 handler,
                 ..

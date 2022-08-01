@@ -7,21 +7,10 @@ use super::*;
 pub struct PrettyPrinter<'b, 'a: 'b> {
     writer: &'b mut fmt::Formatter<'a>,
     indent: usize,
-    item_indent: usize,
-    body_indent: usize,
-    line: usize,
-    clean: bool,
 }
 impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
     pub fn new(writer: &'b mut fmt::Formatter<'a>) -> Self {
-        Self {
-            writer,
-            indent: 0,
-            item_indent: 2,
-            body_indent: 4,
-            line: 0,
-            clean: true,
-        }
+        Self { writer, indent: 0 }
     }
 
     pub fn print_module(&mut self, module: &Module) -> fmt::Result {
@@ -338,7 +327,31 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
                 write!(self.writer, "primop {}", op.name)?;
                 self.print_args(op.args.as_slice())
             }
-            Expr::Receive(_) => todo!(),
+            Expr::Receive(recv) => {
+                self.writer.write_str("receive\n")?;
+                for (i, clause) in recv.clauses.iter().enumerate() {
+                    if i > 0 {
+                        self.writer.write_char('\n')?;
+                    }
+                    self.print_clause(clause)?;
+                }
+                if !recv.clauses.is_empty() {
+                    self.writer.write_char('\n')?;
+                }
+                self.indent()?;
+                self.writer.write_str("after\n")?;
+                self.indent += 2;
+                self.indent()?;
+                self.print_expr(recv.timeout.as_ref())?;
+                self.writer.write_str(" ->\n")?;
+                self.indent += 2;
+                self.indent()?;
+                self.print_expr(recv.action.as_ref())?;
+                self.writer.write_char('\n')?;
+                self.indent -= 4;
+                self.indent()?;
+                self.writer.write_str("end")
+            }
             Expr::Seq(expr) => {
                 self.print_expr(expr.arg.as_ref())?;
                 self.writer.write_str(", ")?;
@@ -575,8 +588,48 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
                 self.indent()?;
                 self.writer.write_str("end")
             }
-            IExpr::Receive1(_) => todo!(),
-            IExpr::Receive2(_) => todo!(),
+            IExpr::Receive1(recv) => {
+                self.writer.write_str("receive\n")?;
+                self.indent += 2;
+                for (i, clause) in recv.clauses.iter().enumerate() {
+                    if i > 0 {
+                        self.writer.write_char('\n')?;
+                    }
+                    self.print_iclause(clause)?;
+                }
+                self.indent -= 2;
+                self.writer.write_char('\n')?;
+                self.indent()?;
+                self.writer.write_str("end\n")?;
+                self.print_annotations(&recv.annotations)
+            }
+            IExpr::Receive2(recv) => {
+                self.writer.write_str("receive\n")?;
+                self.indent += 2;
+                for (i, clause) in recv.clauses.iter().enumerate() {
+                    if i > 0 {
+                        self.writer.write_char('\n')?;
+                    }
+                    self.print_iclause(clause)?;
+                }
+                self.indent -= 2;
+                if !recv.clauses.is_empty() {
+                    self.writer.write_char('\n')?;
+                }
+                self.indent()?;
+                self.writer.write_str("after\n")?;
+                self.indent += 2;
+                self.indent()?;
+                self.print_iexpr(recv.timeout.as_ref())?;
+                self.writer.write_char('\n')?;
+                self.indent += 2;
+                self.indent()?;
+                self.print_iexprs(recv.action.as_slice(), false, false)?;
+                self.indent -= 4;
+                self.indent()?;
+                self.writer.write_str("end\n")?;
+                self.print_annotations(&recv.annotations)
+            }
             IExpr::Set(set) => {
                 write!(self.writer, "set {} = ", set.var.name())?;
                 self.print_iexpr(set.arg.as_ref())
@@ -820,7 +873,7 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
         if self.indent == 0 {
             return Ok(());
         }
-        for i in 0..self.indent {
+        for _ in 0..self.indent {
             self.writer.write_str("  ")?;
         }
         Ok(())

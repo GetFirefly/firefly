@@ -15,7 +15,6 @@ colored = "2.0"
 thiserror = "1.0"
 lazy_static = "1.4"
 libc = "0.2"
-liblumen_core = { path = "../../library/core" }
 liblumen_alloc = { path = "../../liblumen_alloc" }
 log = "0.4"
 lumen_rt_core = { path = "../core" }

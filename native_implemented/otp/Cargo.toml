@@ -12,7 +12,6 @@ crate-type = ["staticlib", "rlib"]
 anyhow = "1.0"
 lazy_static = "1.4"
 liblumen_alloc = { path = "../../liblumen_alloc" }
-liblumen_core = { path = "../../library/core" }
 lumen_rt_core = { path = "../../runtimes/core" }
 native_implemented = { path = "../macro" }
 num-bigint = "0.4"

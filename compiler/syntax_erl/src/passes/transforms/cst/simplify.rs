@@ -155,8 +155,7 @@ impl SimplifyCst {
                 };
 
                 let loop_name = self.context_mut().new_fun_name(Some("recv"));
-                let loop_fun =
-                    Var::new_with_arity(Ident::with_empty_span(loop_name), Arity::Int(0));
+                let loop_fun = Var::new_with_arity(Ident::with_empty_span(loop_name), 0);
                 let apply_loop = Box::new(Expr::Apply(Apply {
                     span: recv_span,
                     annotations: Annotations::default(),
@@ -237,8 +236,7 @@ impl SimplifyCst {
                 };
 
                 let loop_name = self.context_mut().new_fun_name(Some("recv"));
-                let loop_fun =
-                    Var::new_with_arity(Ident::with_empty_span(loop_name), Arity::Int(0));
+                let loop_fun = Var::new_with_arity(Ident::with_empty_span(loop_name), 0);
                 let apply_loop = Box::new(Expr::Apply(Apply {
                     span: recv_span,
                     annotations: Annotations::default(),
@@ -444,7 +442,7 @@ impl SimplifyCst {
                 let after_case = Box::new(Expr::Case(Case {
                     span,
                     annotations: case.annotations.clone(),
-                    arg: Box::new(Expr::Values(Values::new(span, varargs.clone()))),
+                    arg: Box::new(Values::new(span, varargs.clone())),
                     clauses: after_cs,
                 }));
                 let after_fun = Fun {
@@ -537,10 +535,7 @@ impl SimplifyCst {
                 Case {
                     span,
                     annotations,
-                    arg: Box::new(Expr::Values(Values::new(
-                        span,
-                        args.iter().cloned().collect(),
-                    ))),
+                    arg: Box::new(Values::new(span, args.iter().cloned().collect())),
                     clauses: vec![c, fc],
                 }
             }
@@ -567,7 +562,7 @@ impl SimplifyCst {
                 Case {
                     span,
                     annotations,
-                    arg: Box::new(Expr::Values(Values::new(span, args.to_vec()))),
+                    arg: Box::new(Values::new(span, args.to_vec())),
                     clauses: vec![c, fc],
                 }
             }
@@ -822,10 +817,7 @@ impl SimplifyCst {
                 let t = Expr::Literal(Literal::atom(span, symbols::True));
                 let f1 = Expr::Literal(Literal::atom(span, symbols::False));
                 let f2 = Expr::Literal(Literal::atom(span, symbols::False));
-                let tbody = Box::new(Expr::Values(Values::new(
-                    span,
-                    vec![t, Expr::Var(keyvar.clone())],
-                )));
+                let tbody = Box::new(Values::new(span, vec![t, Expr::Var(keyvar.clone())]));
                 let texpr = Box::new(Expr::Try(Try {
                     span,
                     annotations: Annotations::default(),
@@ -833,7 +825,7 @@ impl SimplifyCst {
                     vars: vec![keyvar.clone()],
                     body: tbody,
                     evars,
-                    handler: Box::new(Expr::Values(Values::new(span, vec![f1, f2]))),
+                    handler: Box::new(Values::new(span, vec![f1, f2])),
                 }));
                 Box::new(Expr::Let(Let {
                     span,
@@ -986,7 +978,7 @@ fn split_letify(mut vs: Vec<Expr>, mut args: Vec<Expr>, body: Box<Expr>) -> Expr
         span,
         annotations: Annotations::default(),
         vars: vsacc,
-        arg: Box::new(Expr::Values(Values::new(span, argacc))),
+        arg: Box::new(Values::new(span, argacc)),
         body,
     })
 }

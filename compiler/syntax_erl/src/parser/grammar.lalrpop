@@ -1,7 +1,7 @@
 use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::*;
 use liblumen_intern::{Symbol, Ident};
-use liblumen_number::{Integer, ToPrimitive, Float};
+use liblumen_number::{Integer, Float};
 use liblumen_syntax_core::{self as syntax_core};
 
 use crate::ast::*;

@@ -79,7 +79,7 @@ pub use self::traits::{Aligned, Binary, Bitstring, FromEndianBytes, ToEndianByte
 /// though, we need to swap the order of the bytes first.
 ///
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Endianness {
     /// Most-significant bits "first"
     Big = 0,

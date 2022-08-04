@@ -6,7 +6,7 @@ use std::rc::Rc;
 use cranelift_entity::{entity_impl, PrimaryMap};
 
 use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_intern::Symbol;
+use liblumen_intern::{symbols, Symbol};
 
 use super::*;
 
@@ -16,7 +16,7 @@ use super::*;
 /// names are context-sensitive in order to resolve them fully.
 ///
 /// A function name when stringified is of the form `M:F/A` or `F/A`.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FunctionName {
     pub module: Option<Symbol>,
     pub function: Symbol,
@@ -63,6 +63,145 @@ impl FunctionName {
             arity: self.arity,
         }
     }
+
+    pub fn is_bif(&self) -> bool {
+        if crate::bifs::get(self).is_some() {
+            return true;
+        }
+        // Special-case handling for match_fail of any arity
+        if self.module != Some(symbols::Erlang) {
+            return false;
+        }
+        if self.function == symbols::MatchFail {
+            return true;
+        }
+        false
+    }
+
+    pub fn is_guard_bif(&self) -> bool {
+        crate::bifs::get(self)
+            .map(|sig| sig.visibility.is_guard())
+            .unwrap_or_default()
+    }
+
+    /// Returns the number of values produced by this BIF
+    ///
+    /// NOTE: This function will panic if this function is not a BIF
+    pub fn bif_values(&self) -> usize {
+        crate::bifs::get(self).unwrap().results.len()
+    }
+
+    /// Returns true if this function name is erlang:apply/2
+    pub fn is_apply2(&self) -> bool {
+        match self.module {
+            Some(symbols::Erlang) => (),
+            _ => return false,
+        }
+        self.function == symbols::Apply && self.arity == 2
+    }
+
+    pub fn is_type_test(&self) -> bool {
+        match self.module {
+            Some(symbols::Erlang) => (),
+            _ => return false,
+        }
+        match self.function {
+            symbols::IsAtom
+            | symbols::IsBinary
+            | symbols::IsBitstring
+            | symbols::IsBoolean
+            | symbols::IsFloat
+            | symbols::IsFunction
+            | symbols::IsInteger
+            | symbols::IsList
+            | symbols::IsMap
+            | symbols::IsNumber
+            | symbols::IsPid
+            | symbols::IsPort
+            | symbols::IsReference
+            | symbols::IsTuple
+                if self.arity == 1 =>
+            {
+                true
+            }
+            symbols::IsFunction | symbols::IsRecord if self.arity == 2 => true,
+            symbols::IsRecord => self.arity == 3,
+            _ => false,
+        }
+    }
+
+    pub fn is_arith_op(&self) -> bool {
+        match self.module {
+            Some(symbols::Erlang) => (),
+            _ => return false,
+        }
+        match self.function {
+            symbols::Plus | symbols::Minus => self.arity == 1 || self.arity == 2,
+            symbols::Bnot => self.arity == 1,
+            symbols::Star
+            | symbols::Slash
+            | symbols::Div
+            | symbols::Rem
+            | symbols::Band
+            | symbols::Bor
+            | symbols::Bxor
+            | symbols::Bsl
+            | symbols::Bsr => self.arity == 2,
+            _ => false,
+        }
+    }
+
+    pub fn is_bool_op(&self) -> bool {
+        match self.module {
+            Some(symbols::Erlang) => (),
+            _ => return false,
+        }
+        match self.function {
+            symbols::Not => self.arity == 1,
+            symbols::And | symbols::Or | symbols::Xor => self.arity == 2,
+            _ => false,
+        }
+    }
+
+    pub fn is_list_op(&self) -> bool {
+        match self.module {
+            Some(symbols::Erlang) => (),
+            _ => return false,
+        }
+        match self.function {
+            symbols::PlusPlus | symbols::MinusMinus => self.arity == 2,
+            _ => false,
+        }
+    }
+
+    pub fn is_send_op(&self) -> bool {
+        match self.module {
+            Some(symbols::Erlang) => (),
+            _ => return false,
+        }
+        match self.function {
+            symbols::Bang => self.arity == 2,
+            _ => false,
+        }
+    }
+
+    pub fn is_comparison_op(&self) -> bool {
+        match self.module {
+            Some(symbols::Erlang) => (),
+            _ => return false,
+        }
+        match self.function {
+            symbols::Equal
+            | symbols::NotEqual
+            | symbols::EqualStrict
+            | symbols::NotEqualStrict
+            | symbols::Gte
+            | symbols::Gt
+            | symbols::Lte
+            | symbols::Lt => self.arity == 2,
+            _ => false,
+        }
+    }
 }
 impl From<&Signature> for FunctionName {
     fn from(sig: &Signature) -> Self {
@@ -70,6 +209,15 @@ impl From<&Signature> for FunctionName {
             module: Some(sig.module),
             function: sig.name,
             arity: sig.arity().try_into().unwrap(),
+        }
+    }
+}
+impl fmt::Debug for FunctionName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(module) = self.module {
+            write!(f, "{}:{}/{}", module, self.function, self.arity)
+        } else {
+            write!(f, "{}/{}", self.function, self.arity)
         }
     }
 }

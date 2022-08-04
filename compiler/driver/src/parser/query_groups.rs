@@ -61,6 +61,9 @@ pub trait Parser: CompilerOutput {
     #[salsa::invoke(queries::input_cst)]
     fn input_cst(&self, input: InternedInput) -> Result<syntax_erl::cst::Module, ErrorReported>;
 
+    #[salsa::invoke(queries::input_kernel)]
+    fn input_kernel(&self, input: InternedInput) -> Result<syntax_erl::kst::Module, ErrorReported>;
+
     /// Gets the syntax_core module associated with the given input, if it exists
     ///
     /// If the input is not compatible with producing a syntax_core module, or an

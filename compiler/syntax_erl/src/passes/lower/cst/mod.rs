@@ -43,7 +43,7 @@ impl Pass for CstToCore {
 
         // Declare all functions in the module, and store their refs so we can access them later
         let mut functions = Vec::with_capacity(module.functions.len());
-        for (name, fun) in module.functions.iter() {
+        for (name, cst::Function { ref fun, .. }) in module.functions.iter() {
             let name = Span::new(fun.span, *name);
             let base_visibility = if module.exports.contains(&name) {
                 Visibility::PUBLIC
@@ -79,7 +79,8 @@ impl Pass for CstToCore {
         }
 
         // For every function in the module, run a function-local pass which produces the function body
-        for (i, fun) in module.functions.into_values().enumerate() {
+        for (i, function) in module.functions.into_values().enumerate() {
+            let fun = function.fun;
             let (id, sig) = functions.get(i).unwrap();
             let mut pass = LowerFunctionToCore {
                 reporter: &mut self.reporter,

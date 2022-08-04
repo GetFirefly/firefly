@@ -1,7 +1,7 @@
 use crate::Endianness;
 
 /// Represents a binary segment constructor/match specification, e.g. `<<42:8/signed-little-integer>>`
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BinaryEntrySpecifier {
     Integer {
         signed: bool,

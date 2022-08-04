@@ -285,15 +285,15 @@ fn erlang_type_to_core_type_enum(ident: Ident) -> Expr {
     let span = ident.span();
     let name = ident.to_string();
     match name.as_str() {
-        "any" | "term" => core_enum_variant("Any", span),
+        "any" | "term" | "timeout" => core_enum_variant("Any", span),
         "atom" | "module" | "node" => core_enum_variant("Atom", span),
         "binary" => core_enum_variant("Binary", span),
         "bitstring" => core_enum_variant("Bitstring", span),
         "bool" | "boolean" => core_enum_variant("Bool", span),
         "float" => core_enum_variant("Float", span),
         "number" => core_enum_variant("Number", span),
-        "integer" | "neg_integer" | "non_neg_integer" | "pos_integer" | "timeout" | "arity"
-        | "byte" | "char" => core_enum_variant("Integer", span),
+        "integer" | "neg_integer" | "non_neg_integer" | "pos_integer" | "arity" | "byte"
+        | "char" => core_enum_variant("Integer", span),
         "function" => core_enum_fun_variant(span),
         "nil" => core_enum_variant("Nil", span),
         "tuple" => core_enum_tuple_variant(None, span),

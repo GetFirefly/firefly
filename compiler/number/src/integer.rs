@@ -80,6 +80,20 @@ impl Integer {
         }
     }
 
+    pub fn to_char(&self) -> Option<char> {
+        match self {
+            Self::Small(i) => (*i).try_into().ok().and_then(char::from_u32),
+            _ => None,
+        }
+    }
+
+    pub fn to_usize(&self) -> Option<usize> {
+        match self {
+            Self::Small(i) => (*i).try_into().ok(),
+            _ => None,
+        }
+    }
+
     /// Determines the fewest bits necessary to express this integer value, not including the sign
     pub fn bits(&self) -> u64 {
         match self {

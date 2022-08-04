@@ -51,7 +51,11 @@ impl Pass for AstToCst {
                 .chain(AnnotateVarUsage::new(Rc::clone(&context)))
                 .chain(RewriteExports::new(Rc::clone(&context)))
                 .chain(SimplifyCst::new(Rc::clone(&context)));
-            let function = pipeline.run(function)?;
+            let fun = pipeline.run(function)?;
+            let function = cst::Function {
+                var_counter: unsafe { &*context.get() }.var_counter,
+                fun,
+            };
             module.functions.insert(name, function);
         }
 
@@ -1253,7 +1257,7 @@ impl TranslateAst {
                             IExpr::Var(Var {
                                 annotations: Annotations::from([(symbols::Id, id.into())]),
                                 name: Ident::new(name.function, span),
-                                arity: Some(Arity::Int(name.arity)),
+                                arity: Some(name.arity as usize),
                             }),
                             vec![],
                         ))
@@ -1264,7 +1268,9 @@ impl TranslateAst {
                         function,
                         arity,
                     }) => {
+                        use crate::Arity;
                         // Generate a new name for eta conversion of local funs (`fun local/123`)
+                        let Arity::Int(arity) = arity else { panic!("unexpected dynamic arity") };
                         let fname = self.context_mut().new_fun_name(None);
                         let id = Literal::tuple(
                             span,
@@ -1278,7 +1284,7 @@ impl TranslateAst {
                             IExpr::Var(Var {
                                 annotations: Annotations::from([(symbols::Id, id.into())]),
                                 name: function.ident(),
-                                arity: Some(arity),
+                                arity: Some(arity as usize),
                             }),
                             vec![],
                         ))
@@ -1385,7 +1391,7 @@ impl TranslateAst {
                     let op = IExpr::Var(Var {
                         annotations: Annotations::default(),
                         name: f,
-                        arity: Some(Arity::Int(args.len().try_into().unwrap())),
+                        arity: Some(args.len()),
                     });
                     let apply = IExpr::Apply(IApply {
                         span,
@@ -1634,7 +1640,7 @@ impl TranslateAst {
             }
             Some(IQualifier::Generator(gen)) => {
                 let name = self.context_mut().new_fun_name(Some("lc"));
-                let f = Var::new_with_arity(Ident::new(name, span), Arity::Int(1));
+                let f = Var::new_with_arity(Ident::new(name, span), 1);
                 let tail = gen.tail.unwrap();
                 let nc = IExpr::Apply(IApply::new(
                     span,
@@ -1760,7 +1766,7 @@ impl TranslateAst {
                 let v2 = self.context_mut().next_var(Some(span));
                 let fcvars = vec![IExpr::Var(v1.clone()), IExpr::Var(v2)];
                 let ignore = self.context_mut().next_var(Some(span));
-                let f = Var::new_with_arity(Ident::new(name, span), Arity::Int(2));
+                let f = Var::new_with_arity(Ident::new(name, span), 2);
                 let fail = bad_generator(span, fcvars, v1);
                 let tail_clause = IClause {
                     span,
@@ -2267,6 +2273,7 @@ impl TranslateAst {
         let (map, mut pre) = self.safe_map(map)?;
         let badmap = self.badmap_term(&map);
         let fail = fail_body(span, badmap);
+        // fail.annotate(symbols::EvalFailure, Annotation::Term(Literal::atom(symbols::Badmap)));
         let is_empty = fields.is_empty();
         let (map2, mut pre2) = self.map_build_pairs(span, map.clone(), fields)?;
         pre.append(&mut pre2);
@@ -2865,7 +2872,7 @@ impl TranslateAst {
             callee: vec![IExpr::Var(Var {
                 annotations: Annotations::default(),
                 name: Ident::new(name, span),
-                arity: Some(Arity::Int(0)),
+                arity: Some(0),
             })],
             args: vec![],
         });
@@ -2882,10 +2889,7 @@ impl TranslateAst {
         let letr = IExpr::LetRec(ILetRec {
             span,
             annotations: Annotations::default(),
-            defs: vec![(
-                Var::new_with_arity(Ident::new(name, span), Arity::Int(0)),
-                fun,
-            )],
+            defs: vec![(Var::new_with_arity(Ident::new(name, span), 0), fun)],
             body: vec![texpr],
         });
         (letr, vec![])

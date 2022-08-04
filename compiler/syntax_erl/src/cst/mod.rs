@@ -1,4 +1,4 @@
-mod printer;
+pub mod printer;
 
 pub use self::printer::PrettyPrinter;
 
@@ -16,7 +16,7 @@ use liblumen_number::{Float, Integer};
 use liblumen_syntax_core as syntax_core;
 use liblumen_util::emit::Emit;
 
-use crate::ast::{self, Arity};
+use crate::ast;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Annotation {
@@ -41,10 +41,21 @@ impl From<RedBlackTreeSet<Ident>> for Annotation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct Annotations(RedBlackTreeMap<Symbol, Annotation>);
 unsafe impl Send for Annotations {}
 unsafe impl Sync for Annotations {}
+impl fmt::Debug for Annotations {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use std::fmt::Write;
+
+        f.write_str("@annotations[")?;
+        for (key, anno) in self.0.iter() {
+            self::printer::print_annotation(f, key, anno)?;
+        }
+        f.write_char(']')
+    }
+}
 impl Annotations {
     /// Create a new, empty annotation set
     pub fn new() -> Self {
@@ -121,6 +132,11 @@ impl Annotations {
         self.0.remove_mut(&key);
     }
 
+    /// Replaces all annotations with the given set
+    pub fn replace(&mut self, annotations: Self) {
+        self.0 = annotations.0;
+    }
+
     /// Convenience function for accessing the new vars annotation
     pub fn new_vars(&self) -> Option<RedBlackTreeSet<Ident>> {
         match self.get(symbols::New) {
@@ -189,6 +205,9 @@ pub trait Annotated {
     fn annotate<A: Into<Annotation>>(&mut self, key: Symbol, anno: A) {
         self.annotations_mut().insert_mut(key, anno);
     }
+    fn is_compiler_generated(&self) -> bool {
+        self.annotations().contains(symbols::CompilerGenerated)
+    }
     fn mark_compiler_generated(&mut self) {
         self.annotations_mut().set(symbols::CompilerGenerated);
     }
@@ -205,6 +224,17 @@ pub trait Annotated {
             .new_vars()
             .map(|v| v.clone())
             .unwrap_or_default()
+    }
+}
+impl<T> Annotated for Box<T>
+where
+    T: Annotated,
+{
+    fn annotations(&self) -> &Annotations {
+        (&**self).annotations()
+    }
+    fn annotations_mut(&mut self) -> &mut Annotations {
+        (&mut **self).annotations_mut()
     }
 }
 
@@ -236,7 +266,7 @@ pub struct Module {
     pub exports: HashSet<Span<syntax_core::FunctionName>>,
     pub behaviours: HashSet<Ident>,
     pub attributes: HashMap<Ident, Expr>,
-    pub functions: BTreeMap<syntax_core::FunctionName, Fun>,
+    pub functions: BTreeMap<syntax_core::FunctionName, Function>,
 }
 annotated!(Module);
 impl fmt::Display for Module {
@@ -1248,6 +1278,16 @@ impl Expr {
         }
     }
 
+    pub fn is_integer(&self) -> bool {
+        match self {
+            Self::Literal(Literal {
+                value: Lit::Integer(_),
+                ..
+            }) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_atom_value(&self, symbol: Symbol) -> bool {
         match self {
             Self::Literal(Literal {
@@ -1640,6 +1680,30 @@ impl PartialEq for Cons {
 }
 
 #[derive(Debug, Clone, Spanned)]
+pub struct Function {
+    pub var_counter: usize,
+    #[span]
+    pub fun: Fun,
+}
+impl Eq for Function {}
+impl PartialEq for Function {
+    fn eq(&self, other: &Self) -> bool {
+        self.fun == other.fun
+    }
+}
+impl Annotated for Function {
+    #[inline]
+    fn annotations(&self) -> &Annotations {
+        self.fun.annotations()
+    }
+
+    #[inline]
+    fn annotations_mut(&mut self) -> &mut Annotations {
+        self.fun.annotations_mut()
+    }
+}
+
+#[derive(Debug, Clone, Spanned)]
 pub struct Fun {
     #[span]
     pub span: SourceSpan,
@@ -1809,6 +1873,13 @@ impl Literal {
         }
     }
 
+    pub fn is_integer(&self) -> bool {
+        match self.value {
+            Lit::Integer(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn as_integer(&self) -> Option<&Integer> {
         match &self.value {
             Lit::Integer(ref i) => Some(i),
@@ -1891,7 +1962,7 @@ impl Ord for Literal {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Lit {
     Atom(Symbol),
     Integer(Integer),
@@ -1901,6 +1972,11 @@ pub enum Lit {
     Tuple(Vec<Literal>),
     Map(BTreeMap<Literal, Literal>),
     Binary(BitVec),
+}
+impl fmt::Debug for Lit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self::printer::print_lit(f, self)
+    }
 }
 impl Lit {
     pub fn is_number(&self) -> bool {
@@ -2044,7 +2120,7 @@ pub struct MapPair {
     pub value: Box<Expr>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MapOp {
     Assoc,
     Exact,
@@ -2177,12 +2253,23 @@ pub struct Values {
 }
 annotated!(Values);
 impl Values {
-    pub fn new(span: SourceSpan, values: Vec<Expr>) -> Self {
-        Self {
-            span,
-            annotations: Annotations::default(),
-            values,
+    pub fn new(span: SourceSpan, mut values: Vec<Expr>) -> Expr {
+        if values.is_empty() {
+            return Expr::Values(Self {
+                span,
+                annotations: Annotations::default(),
+                values,
+            });
         }
+        if values.len() == 1 {
+            return values.pop().unwrap();
+        }
+        let annotations = values[0].annotations().clone();
+        Expr::Values(Self {
+            span,
+            annotations,
+            values,
+        })
     }
 }
 impl Eq for Values {}
@@ -2192,15 +2279,30 @@ impl PartialEq for Values {
     }
 }
 
-#[derive(Debug, Clone, Spanned)]
+#[derive(Clone, Spanned)]
 pub struct Var {
     pub annotations: Annotations,
     #[span]
     pub name: Ident,
     /// Used to represent function variables
-    pub arity: Option<Arity>,
+    pub arity: Option<usize>,
 }
 annotated!(Var);
+impl fmt::Debug for Var {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use std::fmt::Write;
+
+        match self.arity {
+            None => write!(f, "Var({}", self.name.name)?,
+            Some(arity) => write!(f, "Var({}/{}", self.name.name, arity)?,
+        }
+        if self.annotations.is_empty() {
+            f.write_char(')')
+        } else {
+            write!(f, " {:?})", &self.annotations)
+        }
+    }
+}
 impl Var {
     pub fn new(name: Ident) -> Self {
         Self {
@@ -2210,7 +2312,7 @@ impl Var {
         }
     }
 
-    pub fn new_with_arity(name: Ident, arity: Arity) -> Self {
+    pub fn new_with_arity(name: Ident, arity: usize) -> Self {
         Self {
             annotations: Annotations::default(),
             name,
@@ -2231,5 +2333,23 @@ impl Eq for Var {}
 impl PartialEq for Var {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.arity == other.arity
+    }
+}
+impl PartialOrd for Var {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Var {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.name.cmp(&other.name) {
+            Ordering::Equal if self.arity.is_none() && other.arity.is_none() => Ordering::Equal,
+            Ordering::Equal if self.arity.is_some() && other.arity.is_some() => {
+                self.arity.unwrap().cmp(&other.arity.unwrap())
+            }
+            other => other,
+        }
     }
 }

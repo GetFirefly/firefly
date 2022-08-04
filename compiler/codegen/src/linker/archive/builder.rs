@@ -166,8 +166,6 @@ impl<'a> LlvmArchiveBuilder<'a> {
                     continue;
                 }
 
-                dbg!(&child_name);
-                dbg!(&child);
                 members.push(NewArchiveMember::from_child(child_name, child));
                 strings.push(child_name.to_string());
             }

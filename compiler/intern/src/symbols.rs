@@ -427,88 +427,100 @@ pub const Exit: Symbol = Symbol::new(140);
 pub const Exports: Symbol = Symbol::new(141);
 
 #[allow(non_upper_case_globals)]
-pub const Infinity: Symbol = Symbol::new(142);
+pub const Function: Symbol = Symbol::new(142);
 
 #[allow(non_upper_case_globals)]
-pub const Inline: Symbol = Symbol::new(143);
+pub const Infinity: Symbol = Symbol::new(143);
 
 #[allow(non_upper_case_globals)]
-pub const Integer: Symbol = Symbol::new(144);
+pub const Inline: Symbol = Symbol::new(144);
 
 #[allow(non_upper_case_globals)]
-pub const LetrecGoto: Symbol = Symbol::new(145);
+pub const Inlined: Symbol = Symbol::new(145);
 
 #[allow(non_upper_case_globals)]
-pub const ListComprehension: Symbol = Symbol::new(146);
+pub const Integer: Symbol = Symbol::new(146);
 
 #[allow(non_upper_case_globals)]
-pub const ModuleInfo: Symbol = Symbol::new(147);
+pub const LetrecGoto: Symbol = Symbol::new(147);
 
 #[allow(non_upper_case_globals)]
-pub const Native: Symbol = Symbol::new(148);
+pub const LetrecName: Symbol = Symbol::new(148);
 
 #[allow(non_upper_case_globals)]
-pub const New: Symbol = Symbol::new(149);
+pub const ListComprehension: Symbol = Symbol::new(149);
 
 #[allow(non_upper_case_globals)]
-pub const Nif: Symbol = Symbol::new(150);
+pub const ModuleInfo: Symbol = Symbol::new(150);
 
 #[allow(non_upper_case_globals)]
-pub const NifStart: Symbol = Symbol::new(151);
+pub const Native: Symbol = Symbol::new(151);
 
 #[allow(non_upper_case_globals)]
-pub const NoInline: Symbol = Symbol::new(152);
+pub const New: Symbol = Symbol::new(152);
 
 #[allow(non_upper_case_globals)]
-pub const Ok: Symbol = Symbol::new(153);
+pub const Nif: Symbol = Symbol::new(153);
 
 #[allow(non_upper_case_globals)]
-pub const Other: Symbol = Symbol::new(154);
+pub const NifStart: Symbol = Symbol::new(154);
 
 #[allow(non_upper_case_globals)]
-pub const ReceiveTimeout: Symbol = Symbol::new(155);
+pub const NoInline: Symbol = Symbol::new(155);
 
 #[allow(non_upper_case_globals)]
-pub const RecordInfo: Symbol = Symbol::new(156);
+pub const Ok: Symbol = Symbol::new(156);
 
 #[allow(non_upper_case_globals)]
-pub const RecvNext: Symbol = Symbol::new(157);
+pub const Other: Symbol = Symbol::new(157);
 
 #[allow(non_upper_case_globals)]
-pub const RecvPeek: Symbol = Symbol::new(158);
+pub const ReceiveTimeout: Symbol = Symbol::new(158);
 
 #[allow(non_upper_case_globals)]
-pub const RecvPop: Symbol = Symbol::new(159);
+pub const RecordInfo: Symbol = Symbol::new(159);
 
 #[allow(non_upper_case_globals)]
-pub const RecvStart: Symbol = Symbol::new(160);
+pub const RecvNext: Symbol = Symbol::new(160);
 
 #[allow(non_upper_case_globals)]
-pub const RecvWait: Symbol = Symbol::new(161);
+pub const RecvPeek: Symbol = Symbol::new(161);
 
 #[allow(non_upper_case_globals)]
-pub const Send: Symbol = Symbol::new(162);
+pub const RecvPop: Symbol = Symbol::new(162);
 
 #[allow(non_upper_case_globals)]
-pub const SingleUse: Symbol = Symbol::new(163);
+pub const RecvStart: Symbol = Symbol::new(163);
 
 #[allow(non_upper_case_globals)]
-pub const SkipClause: Symbol = Symbol::new(164);
+pub const RecvWait: Symbol = Symbol::new(164);
 
 #[allow(non_upper_case_globals)]
-pub const Undefined: Symbol = Symbol::new(165);
+pub const Send: Symbol = Symbol::new(165);
 
 #[allow(non_upper_case_globals)]
-pub const Used: Symbol = Symbol::new(166);
+pub const SingleUse: Symbol = Symbol::new(166);
 
 #[allow(non_upper_case_globals)]
-pub const Utf16: Symbol = Symbol::new(167);
+pub const SkipClause: Symbol = Symbol::new(167);
 
 #[allow(non_upper_case_globals)]
-pub const Utf32: Symbol = Symbol::new(168);
+pub const Undefined: Symbol = Symbol::new(168);
 
 #[allow(non_upper_case_globals)]
-pub const Utf8: Symbol = Symbol::new(169);
+pub const Unused: Symbol = Symbol::new(169);
+
+#[allow(non_upper_case_globals)]
+pub const Used: Symbol = Symbol::new(170);
+
+#[allow(non_upper_case_globals)]
+pub const Utf16: Symbol = Symbol::new(171);
+
+#[allow(non_upper_case_globals)]
+pub const Utf32: Symbol = Symbol::new(172);
+
+#[allow(non_upper_case_globals)]
+pub const Utf8: Symbol = Symbol::new(173);
 
 
 pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
@@ -654,10 +666,13 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (Erlang, "erlang"),
   (Exit, "exit"),
   (Exports, "exports"),
+  (Function, "function"),
   (Infinity, "infinity"),
   (Inline, "inline"),
+  (Inlined, "inlined"),
   (Integer, "integer"),
   (LetrecGoto, "letrec_goto"),
+  (LetrecName, "letrec_name"),
   (ListComprehension, "list_comprehension"),
   (ModuleInfo, "module_info"),
   (Native, "native"),
@@ -678,6 +693,7 @@ pub(crate) const __SYMBOLS: &'static [(Symbol, &'static str)] = &[
   (SingleUse, "single_use"),
   (SkipClause, "skip_clause"),
   (Undefined, "undefined"),
+  (Unused, "unused"),
   (Used, "used"),
   (Utf16, "utf16"),
   (Utf32, "utf32"),

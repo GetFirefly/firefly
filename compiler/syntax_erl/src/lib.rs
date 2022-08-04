@@ -15,6 +15,7 @@ mod macros;
 pub mod ast;
 pub mod cst;
 mod evaluator;
+pub mod kst;
 mod lexer;
 mod parser;
 pub mod passes;

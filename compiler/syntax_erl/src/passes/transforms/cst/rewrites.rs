@@ -253,7 +253,7 @@ impl RewriteExports {
                 var,
                 arg,
             }) => {
-                let (body, exports) = self.cexprs(iter.collect(), exports.clone())?;
+                let (body, exports) = self.cexprs(iter.collect(), exports)?;
                 let (arg, es, us) = self.cexpr(*arg, exports.clone())?;
                 let exports = union(us, exports);
                 let vars = core::iter::once(var.name)
@@ -273,24 +273,29 @@ impl RewriteExports {
             }
             iexpr if is_last => {
                 let (expr, es, us) = self.cexpr(iexpr, exports.clone())?;
+                let mut exp = exports
+                    .iter()
+                    .copied()
+                    .map(|id| Var::new(id))
+                    .collect::<Vec<_>>();
                 let span = expr.span();
                 // The export variables
                 let exports = union(us, exports);
                 if es.is_empty() {
                     let values = core::iter::once(*expr)
-                        .chain(exports.iter().copied().map(|v| Expr::Var(Var::new(v))))
+                        .chain(exp.drain(..).map(Expr::Var))
                         .collect();
-                    Ok((Box::new(Expr::Values(Values::new(span, values))), exports))
+                    Ok((Box::new(Values::new(span, values)), exports))
                 } else {
                     let rname = self.context_mut().next_var(Some(span));
                     let r = Expr::Var(rname.clone());
                     let values = core::iter::once(r.clone())
-                        .chain(exports.iter().copied().map(|v| Expr::Var(Var::new(v))))
+                        .chain(exp.drain(..).map(Expr::Var))
                         .collect();
                     let vars = core::iter::once(rname)
                         .chain(es.iter().copied().map(|v| Var::new(v)))
                         .collect();
-                    let body = Box::new(Expr::Values(Values::new(span, values)));
+                    let body = Box::new(Values::new(span, values));
                     Ok((
                         Box::new(Expr::Let(Let {
                             span,
@@ -382,7 +387,7 @@ impl RewriteExports {
                 let cexpr = Box::new(Expr::Case(Case {
                     span,
                     annotations: case.annotations,
-                    arg: Box::new(Expr::Values(Values::new(span, args))),
+                    arg: Box::new(Values::new(span, args)),
                     clauses,
                 }));
                 Ok((cexpr, exported, used))
@@ -399,7 +404,7 @@ impl RewriteExports {
                     annotations: recv.annotations,
                     clauses,
                     timeout: Box::new(Expr::Literal(Literal::atom(span, symbols::Infinity))),
-                    action: Box::new(Expr::Values(Values::new(span, action))),
+                    action: Box::new(Values::new(span, action)),
                 }));
                 Ok((rexpr, exported, used))
             }
@@ -476,8 +481,7 @@ impl RewriteExports {
                     self.cfun(fun)
                         .map(|(f, exp, us)| (Box::new(Expr::Fun(f)), exp, us))
                 } else {
-                    let recvar =
-                        Var::new_with_arity(name, Arity::Int(fun.fail.patterns.len() as u8));
+                    let recvar = Var::new_with_arity(name, fun.fail.patterns.len());
                     fun.annotations.remove_mut(name.name);
                     let (fun, _, us1) = self.cfun(fun)?;
                     let lexpr = Box::new(Expr::Let(Let {
@@ -694,7 +698,7 @@ impl RewriteExports {
         let body = Box::new(Expr::Case(Case {
             span,
             annotations: annotations.clone(),
-            arg: Box::new(Expr::Values(Values::new(span, values))),
+            arg: Box::new(Values::new(span, values)),
             clauses,
         }));
         let fun = Fun {
@@ -719,7 +723,7 @@ impl RewriteExports {
         let values = core::iter::once(Expr::Var(v.clone()))
             .chain(exports.iter().map(|_| Expr::Literal(Literal::nil(span))))
             .collect();
-        let body = Box::new(Expr::Values(Values::new(span, values)));
+        let body = Box::new(Values::new(span, values));
         let lexpr = Box::new(Expr::Let(Let {
             span,
             annotations: Annotations::default(),

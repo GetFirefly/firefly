@@ -73,7 +73,8 @@ use crate::ast;
 use crate::ast::{BinaryOp, UnaryOp};
 use crate::cst::{self, *};
 use crate::evaluator;
-use crate::Arity;
+
+use super::{intersection, new_in_all, new_in_any, subtract, union, used_in_any};
 
 macro_rules! lit_atom {
     ($span:expr, $sym:expr) => {
@@ -223,7 +224,7 @@ impl FunctionContext {
 
     fn goto_func(&self) -> Var {
         let sym = Symbol::intern(&format!("label^{}", self.goto_counter));
-        Var::new_with_arity(Ident::with_empty_span(sym), Arity::Int(0))
+        Var::new_with_arity(Ident::with_empty_span(sym), 0)
     }
 
     fn inc_goto_func(&mut self) {
@@ -422,62 +423,4 @@ impl Known {
             ks,
         }
     }
-}
-
-pub(self) fn used_in_any<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
-    iter: I,
-) -> RedBlackTreeSet<Ident> {
-    iter.fold(RedBlackTreeSet::new(), |used, annotated| {
-        union(annotated.used_vars(), used)
-    })
-}
-
-pub(self) fn new_in_any<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
-    iter: I,
-) -> RedBlackTreeSet<Ident> {
-    iter.fold(RedBlackTreeSet::new(), |new, annotated| {
-        union(annotated.new_vars(), new)
-    })
-}
-
-pub(self) fn new_in_all<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
-    iter: I,
-) -> RedBlackTreeSet<Ident> {
-    iter.fold(None, |new, annotated| match new {
-        None => Some(annotated.new_vars().clone()),
-        Some(ns) => Some(intersection(annotated.new_vars(), ns)),
-    })
-    .unwrap_or_default()
-}
-
-pub(self) fn union(x: RedBlackTreeSet<Ident>, y: RedBlackTreeSet<Ident>) -> RedBlackTreeSet<Ident> {
-    let mut result = x;
-    for id in y.iter().copied() {
-        result.insert_mut(id);
-    }
-    result
-}
-
-pub(self) fn subtract(
-    x: RedBlackTreeSet<Ident>,
-    y: RedBlackTreeSet<Ident>,
-) -> RedBlackTreeSet<Ident> {
-    let mut result = x;
-    for id in y.iter() {
-        result.remove_mut(id);
-    }
-    result
-}
-
-pub(self) fn intersection(
-    x: RedBlackTreeSet<Ident>,
-    y: RedBlackTreeSet<Ident>,
-) -> RedBlackTreeSet<Ident> {
-    let mut result = RedBlackTreeSet::new();
-    for id in x.iter().copied() {
-        if y.contains(&id) {
-            result.insert_mut(id);
-        }
-    }
-    result
 }

@@ -23,12 +23,17 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
                 write!(self.writer, "    {}/{}", export.function, export.arity)?;
             }
         }
-        write!(self.writer, "  ]\n\n")?;
+        write!(self.writer, "\n  ]\n\n")?;
 
-        for (_, fun) in module.functions.iter() {
-            write!(self.writer, "{}/{} =\n", fun.name, fun.vars.len())?;
+        for (_, function) in module.functions.iter() {
+            write!(
+                self.writer,
+                "{}/{} =\n",
+                function.fun.name,
+                function.fun.vars.len()
+            )?;
             self.indent += 2;
-            self.print_fun(fun)?;
+            self.print_fun(&function.fun)?;
             self.indent -= 2;
         }
 
@@ -238,10 +243,16 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
                 self.indent += 2;
                 self.indent()?;
                 self.writer.write_str("then ")?;
+                self.indent += 2;
                 self.print_expr(expr.then_body.as_ref())?;
+                self.indent -= 2;
+                self.writer.write_char('\n')?;
                 self.indent()?;
                 self.writer.write_str("else ")?;
+                self.indent += 2;
                 self.print_expr(expr.else_body.as_ref())?;
+                self.indent -= 4;
+                self.writer.write_char('\n')?;
                 self.indent()?;
                 self.writer.write_str("end\n")?;
                 self.print_annotations(&expr.annotations)
@@ -254,7 +265,7 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
                     }
                     write!(self.writer, "{}", v.name())?;
                 }
-                self.writer.write_str(" = ")?;
+                self.writer.write_str("> = ")?;
                 self.indent += 2;
                 self.print_expr(expr.arg.as_ref())?;
                 self.indent -= 2;
@@ -266,7 +277,10 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
                 self.indent()?;
                 self.print_expr(expr.body.as_ref())?;
                 self.indent -= 2;
-                Ok(())
+                self.writer.write_char('\n')?;
+                self.indent()?;
+                self.writer.write_str("end\n")?;
+                self.print_annotations(&expr.annotations)
             }
             Expr::LetRec(expr) => {
                 self.writer.write_str("letrec")?;
@@ -294,9 +308,10 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
                 self.writer.write_char('\n')?;
                 self.indent -= 2;
                 self.indent()?;
-                self.writer.write_str("end")
+                self.writer.write_str("end\n")?;
+                self.print_annotations(&expr.annotations)
             }
-            Expr::Literal(Literal { ref value, .. }) => self.print_lit(value),
+            Expr::Literal(ref literal) => print_literal(self.writer, literal),
             Expr::Map(map) => {
                 let print_arg = match map.arg.as_ref() {
                     Expr::Literal(Literal {
@@ -530,7 +545,7 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
                 self.indent()?;
                 self.writer.write_str("end")
             }
-            IExpr::Literal(Literal { ref value, .. }) => self.print_lit(value),
+            IExpr::Literal(ref lit) => print_literal(self.writer, lit),
             IExpr::Match(expr) => {
                 // match <pattern> = <arg>
                 //   when <guard>
@@ -790,45 +805,6 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
         Ok(())
     }
 
-    fn print_lit(&mut self, lit: &Lit) -> fmt::Result {
-        match lit {
-            Lit::Atom(a) => write!(self.writer, "{}", a),
-            Lit::Integer(i) => write!(self.writer, "{}", i),
-            Lit::Float(n) => write!(self.writer, "{}", n),
-            Lit::Nil => self.writer.write_str("[]"),
-            Lit::Cons(h, t) => {
-                self.writer.write_char('[')?;
-                self.print_lit(&h.value)?;
-                self.writer.write_str(" | ")?;
-                self.print_lit(&t.value)?;
-                self.writer.write_char(']')
-            }
-            Lit::Tuple(es) => {
-                self.writer.write_char('{')?;
-                for (i, e) in es.iter().enumerate() {
-                    if i > 0 {
-                        self.writer.write_str(", ")?;
-                    }
-                    self.print_lit(&e.value)?;
-                }
-                self.writer.write_char('}')
-            }
-            Lit::Map(map) => {
-                self.writer.write_str("#{")?;
-                for (i, (k, v)) in map.iter().enumerate() {
-                    if i > 0 {
-                        self.writer.write_str(", ")?;
-                    }
-                    self.print_lit(&k.value)?;
-                    self.writer.write_str(" := ")?;
-                    self.print_lit(&v.value)?;
-                }
-                self.writer.write_char('}')
-            }
-            Lit::Binary(bitvec) => write!(self.writer, "{}", bitvec.display()),
-        }
-    }
-
     fn print_annotations(&mut self, annos: &Annotations) -> fmt::Result {
         if annos.is_empty() {
             return Ok(());
@@ -838,35 +814,13 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
         for (i, (sym, value)) in annos.iter().enumerate() {
             if i > 0 {
                 self.writer.write_str(", ")?;
-                self.print_annotation_data(sym, value)?;
+                print_annotation(self.writer, sym, value)?;
             } else {
-                self.print_annotation_data(sym, value)?;
+                print_annotation(self.writer, sym, value)?;
             }
         }
         self.writer.write_str("]\n")?;
         self.indent()
-    }
-
-    fn print_annotation_data(&mut self, sym: &Symbol, value: &Annotation) -> fmt::Result {
-        match value {
-            Annotation::Unit => write!(self.writer, "{}", sym),
-            Annotation::Term(Literal { ref value, .. }) => {
-                write!(self.writer, "{{{}, ", sym)?;
-                self.print_lit(value)?;
-                self.writer.write_str("}")
-            }
-            Annotation::Vars(vars) => {
-                write!(self.writer, "{{{}, [", sym)?;
-                for (i, id) in vars.iter().enumerate() {
-                    if i > 0 {
-                        write!(self.writer, ",{}", id)?;
-                    } else {
-                        write!(self.writer, "{}", id)?;
-                    }
-                }
-                write!(self.writer, "]}}")
-            }
-        }
     }
 
     fn indent(&mut self) -> fmt::Result {
@@ -877,5 +831,70 @@ impl<'b, 'a: 'b> PrettyPrinter<'b, 'a> {
             self.writer.write_str("  ")?;
         }
         Ok(())
+    }
+}
+
+pub fn print_literal(f: &mut fmt::Formatter, literal: &Literal) -> fmt::Result {
+    print_lit(f, &literal.value)
+}
+
+pub fn print_lit(f: &mut fmt::Formatter, lit: &Lit) -> fmt::Result {
+    match lit {
+        Lit::Atom(a) => write!(f, "{}", a),
+        Lit::Integer(i) => write!(f, "{}", i),
+        Lit::Float(n) => write!(f, "{}", n),
+        Lit::Nil => f.write_str("[]"),
+        Lit::Cons(ref h, ref t) => {
+            f.write_char('[')?;
+            print_literal(f, h)?;
+            f.write_str(" | ")?;
+            print_literal(f, t)?;
+            f.write_char(']')
+        }
+        Lit::Tuple(es) => {
+            f.write_char('{')?;
+            for (i, e) in es.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?;
+                }
+                print_literal(f, e)?;
+            }
+            f.write_char('}')
+        }
+        Lit::Map(map) => {
+            f.write_str("#{")?;
+            for (i, (k, v)) in map.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?;
+                }
+                print_literal(f, k)?;
+                f.write_str(" := ")?;
+                print_literal(f, v)?;
+            }
+            f.write_char('}')
+        }
+        Lit::Binary(bitvec) => write!(f, "{}", bitvec.display()),
+    }
+}
+
+pub fn print_annotation(f: &mut fmt::Formatter, sym: &Symbol, value: &Annotation) -> fmt::Result {
+    match value {
+        Annotation::Unit => write!(f, "{}", sym),
+        Annotation::Term(ref value) => {
+            write!(f, "{{{}, ", sym)?;
+            print_literal(f, value)?;
+            f.write_str("}")
+        }
+        Annotation::Vars(vars) => {
+            write!(f, "{{{}, [", sym)?;
+            for (i, id) in vars.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ",{}", id)?;
+                } else {
+                    write!(f, "{}", id)?;
+                }
+            }
+            write!(f, "]}}")
+        }
     }
 }

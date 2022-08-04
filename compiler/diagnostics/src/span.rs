@@ -8,11 +8,22 @@ use codespan::{ByteIndex, ByteOffset};
 
 use super::{CodeMap, SourceId, SourceIndex};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SourceSpan {
     pub(crate) source_id: SourceId,
     pub(crate) start: ByteIndex,
     pub(crate) end: ByteIndex,
+}
+impl fmt::Debug for SourceSpan {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}..{}@{}",
+            self.start.to_usize(),
+            self.end.to_usize(),
+            self.source_id.get()
+        )
+    }
 }
 impl Default for SourceSpan {
     #[inline(always)]

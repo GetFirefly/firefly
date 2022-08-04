@@ -65,6 +65,8 @@ where
         // query
         if options.output_types.should_generate_core() {
             db.input_syntax_core(input)?;
+        } else if options.output_types.contains_key(&OutputType::Kernel) {
+            db.input_kernel(input)?;
         } else if options.output_types.contains_key(&OutputType::CST) {
             db.input_cst(input)?;
         } else if options.output_types.contains_key(&OutputType::AST) {

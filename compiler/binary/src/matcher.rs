@@ -1,3 +1,6 @@
+use alloc::vec::Vec;
+use num_bigint::{BigInt, Sign};
+
 use super::*;
 
 /// This struct is used to perform pattern matching against a bitstring/binary.
@@ -119,6 +122,37 @@ impl<'a> Matcher<'a> {
         }
     }
 
+    pub fn read_bigint(
+        &mut self,
+        bitsize: usize,
+        signed: bool,
+        endianness: Endianness,
+    ) -> Option<BigInt> {
+        let endianness = if endianness == Endianness::Native {
+            if cfg!(target_endian = "big") {
+                Endianness::Big
+            } else {
+                Endianness::Little
+            }
+        } else {
+            endianness
+        };
+        if let Ok(selection) = self.selection.take(bitsize) {
+            let bytes = selection.bytes().collect::<Vec<_>>();
+            match endianness {
+                Endianness::Big if signed => Some(BigInt::from_signed_bytes_be(bytes.as_slice())),
+                Endianness::Big => Some(BigInt::from_bytes_be(Sign::Plus, bytes.as_slice())),
+                Endianness::Little if signed => {
+                    Some(BigInt::from_signed_bytes_le(bytes.as_slice()))
+                }
+                Endianness::Little => Some(BigInt::from_bytes_le(Sign::Plus, bytes.as_slice())),
+                _ => unreachable!(),
+            }
+        } else {
+            None
+        }
+    }
+
     /// Matches any primitive numeric type from the input, advancing the input if successful
     pub fn match_number<N, const S: usize>(&mut self, endianness: Endianness) -> Option<N>
     where
@@ -127,6 +161,20 @@ impl<'a> Matcher<'a> {
         let matched = self.read_number(endianness)?;
 
         self.selection = self.selection.shrink_front(S * 8);
+
+        Some(matched)
+    }
+
+    /// Matches a big integer from the input, advancing the input if successful
+    pub fn match_bigint(
+        &mut self,
+        bitsize: usize,
+        signed: bool,
+        endianness: Endianness,
+    ) -> Option<BigInt> {
+        let matched = self.read_bigint(bitsize, signed, endianness)?;
+
+        self.selection = self.selection.shrink_front(bitsize);
 
         Some(matched)
     }

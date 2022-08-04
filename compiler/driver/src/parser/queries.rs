@@ -236,6 +236,34 @@ where
     Ok(module)
 }
 
+pub(crate) fn input_kernel<P>(
+    db: &P,
+    input: InternedInput,
+) -> Result<syntax_erl::kst::Module, ErrorReported>
+where
+    P: Parser,
+{
+    use liblumen_pass::Pass;
+    use liblumen_syntax_erl::passes::CstToKernel;
+
+    // Get Core AST
+    let ast = db.input_cst(input)?;
+
+    // Run lowering passes
+    let options = db.options();
+    let reporter = if options.warnings_as_errors {
+        Reporter::strict()
+    } else {
+        Reporter::new()
+    };
+    let mut passes = CstToKernel::new(reporter.clone());
+    let module = unwrap_or_bail!(db, passes.run(ast));
+
+    db.maybe_emit_file(input, &module)?;
+
+    Ok(module)
+}
+
 pub(crate) fn input_syntax_core<P>(
     db: &P,
     input: InternedInput,

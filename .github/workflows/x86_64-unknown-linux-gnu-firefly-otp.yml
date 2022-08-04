@@ -32,7 +32,7 @@ jobs:
           cd otp
           echo "ERL_TOP=$PWD" >> $GITHUB_ENV
           git remote add origin https://github.com/firefly/otp
-          git fetch --no-tags --prune --progress --depth=1 origin +ca83f680aab717fe65634247d16f18a8cbfc6d8d:refs/remotes/origin/firefly
+          git fetch --no-tags --prune --progress --depth=1 origin +f97de7a99692cb08b5e27d17e86d92707ad16eed:refs/remotes/origin/firefly
           git checkout --progress --force -B firefly refs/remotes/origin/firefly
       - name: firefly/otp autoconf
         run: |

@@ -76,4 +76,4 @@ jobs:
         with:
           command: make
           args: |
-            test -- --package liblumen_otp lumen::otp::
+            test --package liblumen_otp lumen::otp::

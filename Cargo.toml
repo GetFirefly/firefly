@@ -4,7 +4,7 @@ members = [
   "compiler/*",
   "liblumen_*",
   "lumen",
-  "native_implemented/*",
+  "native_implemented/otp",
   "runtimes/*",
 ]
 

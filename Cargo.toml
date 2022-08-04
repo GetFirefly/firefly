@@ -1,14 +1,15 @@
 [workspace]
 
-members = [ 
-  "compiler/*", 
-  "firefly", 
+members = [
+  "compiler/*",
+  "firefly",
   "library/*",
+  "native_implemented/*",
   "runtimes/*",
 ]
 
-default-members = [ 
-  "firefly" 
+default-members = [
+  "firefly"
 ]
 
 exclude = [

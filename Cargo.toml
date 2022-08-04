@@ -4,7 +4,7 @@ members = [
   "compiler/*",
   "firefly",
   "library/*",
-  "native_implemented/*",
+  "native_implemented/otp",
   "runtimes/*",
 ]
 

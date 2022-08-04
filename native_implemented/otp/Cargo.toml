@@ -35,7 +35,7 @@ features = ['console']
 
 [dev-dependencies]
 libc = "0.2"
-lumen_rt_full = { path = "../../runtimes/full" }
+lumen_rt_tiny = { path = "../../runtimes/tiny" }
 lumen = { path = "../../lumen" }
 panic-control = "0.1.4"
 process_control = "3.3"

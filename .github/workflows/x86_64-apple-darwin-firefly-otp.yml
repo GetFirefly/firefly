@@ -77,4 +77,4 @@ jobs:
         with:
           command: make
           args: |
-            test -- --package firefly_otp firefly::otp::
+            test --package firefly_otp firefly::otp::

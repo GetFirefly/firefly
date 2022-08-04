@@ -1,15 +1,15 @@
 [workspace]
 
-members = [ 
-  "compiler/*", 
-  "liblumen_*", 
-  "lumen", 
-#  "native_implemented/*", 
+members = [
+  "compiler/*",
+  "liblumen_*",
+  "lumen",
+  "native_implemented/*",
   "runtimes/*",
 ]
 
-default-members = [ 
-  "lumen" 
+default-members = [
+  "lumen"
 ]
 
 exclude = [

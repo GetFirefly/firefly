@@ -169,6 +169,13 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
             write!(w, " {}, {}", args[0], destination)?;
             write_block_args(w, &args[1..])
         }
+        InstData::Switch(Switch { arg, arms, .. }) => {
+            write!(w, " {}", arg)?;
+            for (value, dest) in arms.iter() {
+                write!(w, ", {} => {}", value, dest)?;
+            }
+            Ok(())
+        }
         InstData::PrimOp(PrimOp { args, .. }) => {
             write!(w, " {}", DisplayValues(args.as_slice(pool)))
         }
@@ -249,9 +256,9 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
                 }
             }
         }
-        InstData::SetElement(SetElement { args, .. }) => {
+        InstData::SetElement(SetElement { index, args, .. }) => {
             let argv = args.as_slice();
-            write!(w, " {}[{}], {}", argv[0], argv[1], argv[2])
+            write!(w, " {}[{}], {}", argv[0], index, argv[1])
         }
         InstData::SetElementImm(SetElementImm {
             arg, index, value, ..

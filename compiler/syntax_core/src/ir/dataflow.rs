@@ -8,7 +8,6 @@ use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap};
 use intrusive_collections::UnsafeRef;
 
 use liblumen_diagnostics::{SourceSpan, Span};
-use liblumen_intern::Symbol;
 
 use super::*;
 
@@ -23,7 +22,6 @@ pub struct DataFlowGraph {
     pub inst_annotations: SecondaryMap<Inst, AnnotationList>,
     pub results: SecondaryMap<Inst, ValueList>,
     pub values: PrimaryMap<Value, ValueData>,
-    pub scopes: SecondaryMap<Block, Rc<RefCell<Scope>>>,
     pub annotation_lists: AnnotationListPool,
     pub value_lists: ValueListPool,
 }
@@ -44,7 +42,6 @@ impl DataFlowGraph {
             results: SecondaryMap::new(),
             blocks: OrderedArenaMap::new(),
             values: PrimaryMap::new(),
-            scopes: SecondaryMap::new(),
             annotation_lists: AnnotationListPool::new(),
             value_lists: ValueListPool::new(),
         }
@@ -71,42 +68,6 @@ impl DataFlowGraph {
         let func = signatures.push(Signature::generate(&mfa));
         callees.insert(mfa, func);
         func
-    }
-
-    pub fn scope(&self, block: Block) -> Rc<RefCell<Scope>> {
-        Rc::clone(self.scopes.get(block).unwrap())
-    }
-
-    pub fn get_var(&self, block: Block, name: Symbol) -> Option<Value> {
-        let scope = self.scopes.get(block).unwrap();
-        let cell = scope.as_ref();
-        let scope_ref = cell.borrow();
-        scope_ref.var(name)
-    }
-
-    pub fn define_var(&mut self, block: Block, name: Symbol, value: Value) {
-        let scope = self.scopes.get(block).unwrap();
-        let cell = scope.as_ref();
-        let mut scope_mut = cell.borrow_mut();
-        scope_mut.define_var(name, value);
-    }
-
-    pub fn get_func(&self, block: Block, name: Symbol) -> Option<FuncRef> {
-        let scope = self.scopes.get(block).unwrap();
-        let cell = scope.as_ref();
-        let scope_ref = cell.borrow();
-        scope_ref.function(name)
-    }
-
-    pub fn define_func(&mut self, block: Block, name: Symbol, value: FuncRef) {
-        let scope = self.scopes.get(block).unwrap();
-        let cell = scope.as_ref();
-        let mut scope_mut = cell.borrow_mut();
-        scope_mut.define_function(name, value);
-    }
-
-    pub fn set_scope(&mut self, block: Block, scope: Rc<RefCell<Scope>>) {
-        self.scopes[block] = scope;
     }
 
     pub fn make_constant(&mut self, data: ConstantItem) -> Constant {
@@ -217,26 +178,29 @@ impl DataFlowGraph {
                     self.append_result(inst, ty);
                     2
                 }
-                // Binary matches produce three results, a success flag, the matched value, and the rest of the binary
+                // Initializing a binary match is a fallible operation that produces a match context when successful
+                Opcode::BitsStartMatch => {
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    2
+                }
+                // Binary matches produce three results, an error flag, the matched value, and the rest of the binary
                 Opcode::BitsMatch => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     self.append_result(inst, ty);
-                    self.append_result(inst, Type::Term(TermType::Bitstring));
+                    self.append_result(inst, Type::Term(TermType::Any));
                     3
                 }
-                // Binary construction produces two results, a success flag and the new binary value
-                Opcode::BitsPush => {
+                // Binary construction produces two results, an error flag and the new binary value
+                Opcode::BitsInitWritable | Opcode::BitsPush | Opcode::BitsCloseWritable => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
                     // This value is either the none term or an exception, depending on the is_err flag
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
                 }
-                // When a binary is constructed, a single result is returned, the constructed binary
-                Opcode::BitsCloseWritable => {
+                Opcode::BitsTestTail => {
                     self.append_result(inst, Type::Primitive(PrimitiveType::I1));
-                    // This value is always a bitstring when the is_err flag is not set
-                    self.append_result(inst, Type::Term(TermType::Any));
-                    2
+                    1
                 }
                 // Constants/immediates have known types
                 Opcode::ImmInt
@@ -356,13 +320,19 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::Any));
                     1
                 }
-                Opcode::Map
-                | Opcode::MapPut
-                | Opcode::MapPutMut
-                | Opcode::MapUpdate
-                | Opcode::MapUpdateMut => {
+                Opcode::MapFetch => {
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    2
+                }
+                Opcode::Map | Opcode::MapPut | Opcode::MapPutMut => {
                     self.append_result(inst, Type::Term(TermType::Map));
                     1
+                }
+                Opcode::MapUpdate | Opcode::MapUpdateMut => {
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    2
                 }
                 Opcode::MakeFun | Opcode::CaptureFun => {
                     self.append_result(inst, Type::Term(TermType::Fun(None)));
@@ -381,10 +351,6 @@ impl DataFlowGraph {
                 Opcode::RecvPeek => {
                     // This primop returns the current message which the receive is inspecting
                     self.append_result(inst, Type::Term(TermType::Any));
-                    1
-                }
-                Opcode::BitsInitWritable => {
-                    self.append_result(inst, Type::BinaryBuilder);
                     1
                 }
                 Opcode::ExceptionClass => {
@@ -467,10 +433,8 @@ impl DataFlowGraph {
         self.blocks.contains(block)
     }
 
-    pub fn make_block(&mut self, scope: Rc<RefCell<Scope>>) -> Block {
-        let block = self.blocks.push(BlockData::new());
-        self.scopes[block] = scope;
-        block
+    pub fn make_block(&mut self) -> Block {
+        self.blocks.push(BlockData::new())
     }
 
     pub fn num_block_params(&self, block: Block) -> usize {

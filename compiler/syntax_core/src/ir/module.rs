@@ -142,6 +142,30 @@ impl Module {
         f
     }
 
+    /// Registers a builtin function in the current module with the given signature.
+    ///
+    /// Calling this function twice for the same MFA will return the signature that was
+    /// registered first.
+    pub fn register_builtin(&mut self, signature: Signature) -> FuncRef {
+        let mfa = signature.mfa();
+        assert!(mfa.module.is_some());
+
+        {
+            let callees = self.callees.borrow();
+            if let Some(f) = callees.get(&mfa).copied() {
+                return f;
+            }
+        }
+        // Create the function reference to the fully-qualified name
+        let mut signatures = self.signatures.borrow_mut();
+        let mut callees = self.callees.borrow_mut();
+        let f = signatures.push(signature);
+        // Register the fully-qualified name as a callee
+        callees.insert(mfa, f);
+        // Return the reference
+        f
+    }
+
     /// Declares a function in the current module with the given signature, and creates the empty
     /// definition for it. Use the returned funcref to obtain a reference to that definition using
     /// `get_function` or `get_function_mut`.

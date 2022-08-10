@@ -64,7 +64,7 @@ use liblumen_pass::Pass;
 use liblumen_syntax_core as syntax_core;
 
 use crate::cst;
-use crate::kst::{self, *};
+use crate::kernel::{self, *};
 use crate::{kbreak, kset, kvalues};
 
 use super::{subtract, union};
@@ -85,7 +85,7 @@ struct FunctionContext {
     fun_counter: usize,
     args: Vec<Var>,
     name: syntax_core::FunctionName,
-    funs: Vec<kst::Function>,
+    funs: Vec<kernel::Function>,
     defined: RedBlackTreeSet<Ident>,
     free: RedBlackTreeMap<Name, Vec<Expr>>,
     labels: RedBlackTreeSet<Symbol>,
@@ -160,7 +160,7 @@ impl CstToKernel {
 }
 impl Pass for CstToKernel {
     type Input<'a> = cst::Module;
-    type Output<'a> = kst::Module;
+    type Output<'a> = kernel::Module;
 
     fn run<'a>(&mut self, mut cst: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         let mut module = Module {
@@ -168,6 +168,7 @@ impl Pass for CstToKernel {
             annotations: Annotations::default(),
             name: cst.name,
             exports: cst.exports,
+            imports: cst.imports,
             attributes: cst
                 .attributes
                 .drain()
@@ -204,7 +205,7 @@ impl TranslateCst {
 }
 impl Pass for TranslateCst {
     type Input<'a> = cst::Fun;
-    type Output<'a> = kst::Function;
+    type Output<'a> = kernel::Function;
 
     fn run<'a>(&mut self, fun: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
         match self.expr(cst::Expr::Fun(fun), BiMap::default())? {
@@ -1527,7 +1528,7 @@ fn integer_fits_and_is_expandable(i: &Integer, size: usize) -> bool {
     size as u64 >= i.bits()
 }
 
-fn translate_attr(_key: Ident, _value: cst::Expr) -> Option<(Ident, kst::Expr)> {
+fn translate_attr(_key: Ident, _value: cst::Expr) -> Option<(Ident, kernel::Expr)> {
     // TODO
     None
 }
@@ -2398,7 +2399,7 @@ fn select_match_possible(
 /// partition([Clause]) -> [[Clause]].
 ///  Partition a list of clauses into groups which either contain
 ///  clauses with a variable first argument, or with a "constructor".
-fn partition_clauses(mut clauses: Vec<IClause>) -> Vec<Vec<IClause>> {
+fn partition_clauses(clauses: Vec<IClause>) -> Vec<Vec<IClause>> {
     if clauses.is_empty() {
         return vec![];
     }
@@ -3088,7 +3089,7 @@ impl TranslateCst {
             // nested letrecs.
             Ok(())
         } else {
-            for (name, mut fun) in lr.defs.drain(..) {
+            for (name, fun) in lr.defs.drain(..) {
                 let arity = fun.vars.len();
                 let (body, _) = self.ubody(*fun.body, Brk::Return)?;
                 let arity = arity + free_vars.len();

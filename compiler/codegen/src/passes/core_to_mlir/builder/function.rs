@@ -1584,6 +1584,7 @@ fn translate_ir_type<'a, B: OpBuilder>(
         CoreType::BinaryBuilder => builder
             .get_cir_ptr_type(builder.get_cir_binary_builder_type())
             .base(),
+        CoreType::MatchContext => todo!("implement match context type in mlir"),
     }
 }
 

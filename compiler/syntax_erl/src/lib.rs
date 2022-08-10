@@ -9,13 +9,14 @@
 #![feature(let_else)]
 #![feature(box_patterns)]
 #![feature(slice_take)]
+#![feature(assert_matches)]
 
 #[macro_use]
 mod macros;
 pub mod ast;
 pub mod cst;
 mod evaluator;
-pub mod kst;
+pub mod kernel;
 mod lexer;
 mod parser;
 pub mod passes;

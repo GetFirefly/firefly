@@ -15,7 +15,7 @@ use lazy_static::lazy_static;
 use liblumen_compiler_macros::{bif, guard_bif};
 use liblumen_intern::symbols;
 
-use crate::{CallConv, FunctionName, Signature, TermType, Type, Visibility};
+use crate::{CallConv, FunctionName, PrimitiveType, Signature, TermType, Type, Visibility};
 
 lazy_static! {
     static ref BIF_SIGNATURES: Vec<Signature> = {
@@ -218,20 +218,22 @@ lazy_static! {
             bif!(pub erlang:unlink/1(term) -> boolean),
             bif!(pub erlang:unregister/1(atom) -> boolean),
             bif!(pub erlang:whereis/1(atom) -> term),
-            // pub erlang:raise/2 -> no_return
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::Raise, &[Type::Term(TermType::Atom), Type::Term(TermType::Any)], &[Type::NoReturn]),
+            // pub erlang:raise/2 -> *exception
+            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::Raise, &[Type::Term(TermType::Atom), Type::Term(TermType::Any)], &[Type::Exception]),
+            // pub erlang:raise/3 -> *exception
+            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::Raise, &[Type::Term(TermType::Atom), Type::Term(TermType::Any), Type::ExceptionTrace], &[Type::Exception]),
             // pub erlang:nif_start/0
             Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::NifStart, &[], &[]),
-            // pub erlang:match_fail/1(term) -> no_return
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::MatchFail, &[Type::Term(TermType::Any)], &[Type::NoReturn]),
+            // pub erlang:match_fail/1(term) -> *exception
+            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::MatchFail, &[Type::Term(TermType::Any)], &[Type::Exception]),
             // pub erlang:remove_message/0()
             Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RemoveMessage, &[], &[]),
             // pub erlang:recv_next/0()
             Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RecvNext, &[], &[]),
             // pub erlang:recv_peek_message/0() -> <peek_succeeded, message>
             Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RecvPeekMessage, &[], &[Type::Term(TermType::Bool), Type::Term(TermType::Any)]),
-            // pub erlang:recv_wait_timeout/1(timeout) -> bool
-            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RecvWaitTimeout, &[Type::Term(TermType::Any)], &[Type::Term(TermType::Bool)]),
+            // pub erlang:recv_wait_timeout/1(timeout) -> <is_err, timeout_expired | *exception>
+            Signature::new(Visibility::PUBLIC, CallConv::C, symbols::Erlang, symbols::RecvWaitTimeout, &[Type::Term(TermType::Any)], &[Type::Primitive(PrimitiveType::I1), Type::Term(TermType::Any)]),
         ]
     };
 }

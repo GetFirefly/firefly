@@ -308,6 +308,8 @@ pub enum Type {
     RecvState,
     // This type maps to BinaryBuilder in liblumen_rt
     BinaryBuilder,
+    // This type maps to a match context
+    MatchContext,
 }
 impl Type {
     pub fn tuple(arity: usize) -> Type {
@@ -365,6 +367,7 @@ impl fmt::Display for Type {
             Self::RecvContext => f.write_str("recv_context"),
             Self::RecvState => f.write_str("recv_state"),
             Self::BinaryBuilder => f.write_str("binary_builder"),
+            Self::MatchContext => f.write_str("match_context"),
         }
     }
 }

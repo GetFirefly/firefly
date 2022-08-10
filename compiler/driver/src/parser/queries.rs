@@ -239,7 +239,7 @@ where
 pub(crate) fn input_kernel<P>(
     db: &P,
     input: InternedInput,
-) -> Result<syntax_erl::kst::Module, ErrorReported>
+) -> Result<syntax_erl::kernel::Module, ErrorReported>
 where
     P: Parser,
 {
@@ -272,10 +272,10 @@ where
     P: Parser,
 {
     use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::CstToCore;
+    use liblumen_syntax_erl::passes::KernelToCore;
 
-    // Get Erlang CST
-    let cst = db.input_cst(input)?;
+    // Get Kernel Erlang module
+    let cst = db.input_kernel(input)?;
 
     // Run lowering passes
     let options = db.options();
@@ -285,7 +285,7 @@ where
         Reporter::new()
     };
 
-    let mut passes = CstToCore::new(reporter);
+    let mut passes = KernelToCore::new(reporter);
     let module = unwrap_or_bail!(db, passes.run(cst));
 
     db.maybe_emit_file(input, &module)?;

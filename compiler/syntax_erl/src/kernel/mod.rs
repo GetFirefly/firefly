@@ -407,6 +407,7 @@ pub struct Module {
     pub name: Ident,
     pub functions: Vec<Function>,
     pub exports: HashSet<Span<syntax_core::FunctionName>>,
+    pub imports: HashMap<syntax_core::FunctionName, Span<syntax_core::Signature>>,
     pub attributes: HashMap<Ident, Expr>,
 }
 annotated!(Module);
@@ -438,6 +439,7 @@ pub struct Function {
     pub vars: Vec<Var>,
     pub body: Box<Expr>,
 }
+annotated!(Function);
 
 // We must define _some_ ordering for Expr in order to ensure that when
 // rearranging map keys via sets/maps, that the ordering is consistent
@@ -626,6 +628,13 @@ impl Expr {
         }
     }
 
+    pub fn is_var(&self) -> bool {
+        match self {
+            Self::Var(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_local(&self) -> bool {
         match self {
             Self::Local(_) => true,
@@ -725,6 +734,34 @@ impl Expr {
     pub fn into_var(self) -> Option<Var> {
         match self {
             Self::Var(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn into_cons(self) -> Option<Cons> {
+        match self {
+            Self::Cons(cons) => Some(cons),
+            _ => None,
+        }
+    }
+
+    pub fn into_map(self) -> Option<Map> {
+        match self {
+            Self::Map(map) => Some(map),
+            _ => None,
+        }
+    }
+
+    pub fn into_literal(self) -> Option<Literal> {
+        match self {
+            Self::Literal(lit) => Some(lit),
+            _ => None,
+        }
+    }
+
+    pub fn as_binary(&self) -> Option<&Binary> {
+        match self {
+            Self::Binary(ref b) => Some(b),
             _ => None,
         }
     }
@@ -967,6 +1004,12 @@ impl Ord for Map {
 pub struct MapPair {
     pub key: Box<Expr>,
     pub value: Box<Expr>,
+}
+impl MapPair {
+    #[inline]
+    pub fn is_var_key(&self) -> bool {
+        self.key.is_var()
+    }
 }
 
 #[derive(Debug, Clone, Spanned)]
@@ -1211,6 +1254,43 @@ impl Call {
             ret: vec![],
         }
     }
+
+    pub fn static_callee(&self) -> Option<syntax_core::FunctionName> {
+        match self.callee.as_ref() {
+            Expr::Local(local) => Some(local.item),
+            Expr::Remote(Remote::Static(remote)) => Some(remote.item),
+            _ => None,
+        }
+    }
+
+    pub fn module_symbol(&self) -> Option<Symbol> {
+        match self.callee.as_ref() {
+            Expr::Remote(Remote::Static(remote)) => remote.module,
+            Expr::Remote(Remote::Dynamic(
+                box Expr::Literal(Literal {
+                    value: Lit::Atom(m),
+                    ..
+                }),
+                _,
+            )) => Some(*m),
+            _ => None,
+        }
+    }
+
+    pub fn function_symbol(&self) -> Option<Symbol> {
+        match self.callee.as_ref() {
+            Expr::Local(local) => Some(local.function),
+            Expr::Remote(Remote::Static(remote)) => Some(remote.function),
+            Expr::Remote(Remote::Dynamic(
+                _,
+                box Expr::Literal(Literal {
+                    value: Lit::Atom(f),
+                    ..
+                }),
+            )) => Some(*f),
+            _ => None,
+        }
+    }
 }
 impl Eq for Call {}
 impl PartialEq for Call {
@@ -1249,6 +1329,43 @@ impl Enter {
             annotations: Annotations::default(),
             callee: Box::new(callee),
             args,
+        }
+    }
+
+    pub fn static_callee(&self) -> Option<syntax_core::FunctionName> {
+        match self.callee.as_ref() {
+            Expr::Local(local) => Some(local.item),
+            Expr::Remote(Remote::Static(remote)) => Some(remote.item),
+            _ => None,
+        }
+    }
+
+    pub fn module_symbol(&self) -> Option<Symbol> {
+        match self.callee.as_ref() {
+            Expr::Remote(Remote::Static(remote)) => remote.module,
+            Expr::Remote(Remote::Dynamic(
+                box Expr::Literal(Literal {
+                    value: Lit::Atom(m),
+                    ..
+                }),
+                _,
+            )) => Some(*m),
+            _ => None,
+        }
+    }
+
+    pub fn function_symbol(&self) -> Option<Symbol> {
+        match self.callee.as_ref() {
+            Expr::Local(local) => Some(local.function),
+            Expr::Remote(Remote::Static(remote)) => Some(remote.function),
+            Expr::Remote(Remote::Dynamic(
+                _,
+                box Expr::Literal(Literal {
+                    value: Lit::Atom(f),
+                    ..
+                }),
+            )) => Some(*f),
+            _ => None,
         }
     }
 }

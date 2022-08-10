@@ -202,14 +202,21 @@ impl From<Vec<(Symbol, Annotation)>> for Annotations {
 pub trait Annotated {
     fn annotations(&self) -> &Annotations;
     fn annotations_mut(&mut self) -> &mut Annotations;
+    #[inline]
     fn annotate<A: Into<Annotation>>(&mut self, key: Symbol, anno: A) {
         self.annotations_mut().insert_mut(key, anno);
     }
+    #[inline]
     fn is_compiler_generated(&self) -> bool {
         self.annotations().contains(symbols::CompilerGenerated)
     }
+    #[inline]
     fn mark_compiler_generated(&mut self) {
         self.annotations_mut().set(symbols::CompilerGenerated);
+    }
+    #[inline]
+    fn has_annotation(&self, name: Symbol) -> bool {
+        self.annotations().contains(name)
     }
     #[inline]
     fn used_vars(&self) -> RedBlackTreeSet<Ident> {

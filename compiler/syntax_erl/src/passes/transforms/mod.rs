@@ -1,10 +1,10 @@
 mod ast;
 mod cst;
-mod kst;
+mod kernel;
 
 pub use self::ast::CanonicalizeSyntax;
 pub use self::cst::AstToCst;
-pub use self::kst::CstToKernel;
+pub use self::kernel::CstToKernel;
 
 use crate::cst::Annotated;
 use liblumen_intern::Ident;

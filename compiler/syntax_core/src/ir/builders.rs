@@ -342,22 +342,6 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
-    fn var(self, block: Block, name: Symbol) -> Value {
-        if let Some(value) = self.data_flow_graph().get_var(block, name) {
-            value
-        } else {
-            panic!(
-                "reference to undefined variable '{}' in block {:?}",
-                name, block,
-            );
-        }
-    }
-
-    fn assign(mut self, block: Block, name: Symbol, value: Value) -> Value {
-        self.data_flow_graph_mut().define_var(block, name, value);
-        value
-    }
-
     fn is_null(self, arg: Value, span: SourceSpan) -> Value {
         let (inst, dfg) = self.Unary(
             Opcode::IsNull,
@@ -551,6 +535,10 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self.Br(Opcode::BrUnless, ty, block, vlist, span).0
     }
 
+    fn switch(self, arg: Value, arms: Vec<(u32, Block)>, span: SourceSpan) -> Inst {
+        self.Switch(arg, arms, span).0
+    }
+
     fn ret(self, is_err: Value, returning: Value, span: SourceSpan) -> Inst {
         self.Ret(is_err, returning, span).0
     }
@@ -569,7 +557,7 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.extend(args.iter().copied(), pool);
         }
-        self.Call(callee, vlist, span).0
+        self.Call(callee, vlist, false, span).0
     }
 
     fn call_indirect(mut self, callee: Value, args: &[Value], span: SourceSpan) -> Inst {
@@ -578,7 +566,25 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.extend(args.iter().copied(), pool);
         }
-        self.CallIndirect(callee, vlist, span).0
+        self.CallIndirect(callee, vlist, false, span).0
+    }
+
+    fn enter(mut self, callee: FuncRef, args: &[Value], span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.extend(args.iter().copied(), pool);
+        }
+        self.Call(callee, vlist, true, span).0
+    }
+
+    fn enter_indirect(mut self, callee: Value, args: &[Value], span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.extend(args.iter().copied(), pool);
+        }
+        self.CallIndirect(callee, vlist, true, span).0
     }
 
     fn is_type(self, ty: Type, value: Value, span: SourceSpan) -> Value {
@@ -661,6 +667,17 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
+    fn map_fetch(mut self, map: Value, key: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(map, pool);
+            vlist.push(key, pool);
+        }
+        self.PrimOp(Opcode::MapFetch, Type::Term(TermType::Any), vlist, span)
+            .0
+    }
+
     fn map_put(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
         let (inst, dfg) = self.MapUpdate(Opcode::MapPut, map, key, value, span);
         dfg.first_result(inst)
@@ -671,14 +688,13 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
-    fn map_update(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.MapUpdate(Opcode::MapUpdate, map, key, value, span);
-        dfg.first_result(inst)
+    fn map_update(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Inst {
+        self.MapUpdate(Opcode::MapUpdate, map, key, value, span).0
     }
 
-    fn map_update_mut(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Value {
-        let (inst, dfg) = self.MapUpdate(Opcode::MapUpdateMut, map, key, value, span);
-        dfg.first_result(inst)
+    fn map_update_mut(self, map: Value, key: Value, value: Value, span: SourceSpan) -> Inst {
+        self.MapUpdate(Opcode::MapUpdateMut, map, key, value, span)
+            .0
     }
 
     fn get_element(self, tuple: Value, index: Value, span: SourceSpan) -> Value {
@@ -703,12 +719,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
-    fn set_element(self, tuple: Value, index: Value, value: Value, span: SourceSpan) -> Value {
+    fn set_element(self, tuple: Value, index: usize, value: Value, span: SourceSpan) -> Value {
+        let index = Immediate::Integer(index.try_into().unwrap());
         let (inst, dfg) = self.SetElement(Opcode::SetElement, tuple, index, value, span);
         dfg.first_result(inst)
     }
 
-    fn set_element_mut(self, tuple: Value, index: Value, value: Value, span: SourceSpan) -> Value {
+    fn set_element_mut(self, tuple: Value, index: usize, value: Value, span: SourceSpan) -> Value {
+        let index = Immediate::Integer(index.try_into().unwrap());
         let (inst, dfg) = self.SetElement(Opcode::SetElementMut, tuple, index, value, span);
         dfg.first_result(inst)
     }
@@ -721,7 +739,19 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         span: SourceSpan,
     ) -> Value {
         let index = Immediate::Integer(index.try_into().unwrap());
-        let (inst, dfg) = self.SetElementImm(tuple, index, value, span);
+        let (inst, dfg) = self.SetElementImm(Opcode::SetElement, tuple, index, value, span);
+        dfg.first_result(inst)
+    }
+
+    fn set_element_mut_imm(
+        self,
+        tuple: Value,
+        index: usize,
+        value: Immediate,
+        span: SourceSpan,
+    ) -> Value {
+        let index = Immediate::Integer(index.try_into().unwrap());
+        let (inst, dfg) = self.SetElementImm(Opcode::SetElementMut, tuple, index, value, span);
         dfg.first_result(inst)
     }
 
@@ -800,10 +830,10 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self.PrimOp(Opcode::RecvWait, Type::Invalid, vlist, span).0
     }
 
-    fn bs_init_writable(self, span: SourceSpan) -> Value {
+    fn bs_init_writable(self, span: SourceSpan) -> Inst {
         let vlist = ValueList::default();
-        let (inst, dfg) = self.PrimOp(Opcode::BitsInitWritable, Type::BinaryBuilder, vlist, span);
-        dfg.first_result(inst)
+        self.PrimOp(Opcode::BitsInitWritable, Type::BinaryBuilder, vlist, span)
+            .0
     }
 
     fn bs_init_writable_imm(self, size: usize, span: SourceSpan) -> Inst {
@@ -833,18 +863,41 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         .0
     }
 
+    fn bs_test_tail_imm(self, bin: Value, imm: Immediate, span: SourceSpan) -> Value {
+        let (inst, dfg) = self.BinaryImm(
+            Opcode::BitsTestTail,
+            Type::Primitive(PrimitiveType::I1),
+            bin,
+            imm,
+            span,
+        );
+        dfg.first_result(inst)
+    }
+
+    fn bs_start_match(mut self, bin: Value, span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.push(bin, pool);
+        }
+        self.PrimOp(Opcode::BitsStartMatch, Type::MatchContext, vlist, span)
+            .0
+    }
+
     fn bs_match(
         mut self,
         spec: BinaryEntrySpecifier,
         bin: Value,
-        size: Value,
+        size: Option<Value>,
         span: SourceSpan,
     ) -> Inst {
         let mut vlist = ValueList::default();
         {
             let pool = &mut self.data_flow_graph_mut().value_lists;
             vlist.push(bin, pool);
-            vlist.push(size, pool);
+            if let Some(sz) = size {
+                vlist.push(sz, pool);
+            }
         }
         self.BitsMatch(spec, vlist, span).0
     }
@@ -1037,6 +1090,21 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     #[allow(non_snake_case)]
+    fn Switch(
+        self,
+        arg: Value,
+        arms: Vec<(u32, Block)>,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::Switch(Switch {
+            op: Opcode::Switch,
+            arg,
+            arms,
+        });
+        self.build(data, Type::Invalid, span)
+    }
+
+    #[allow(non_snake_case)]
     fn Ret(
         self,
         is_err: Value,
@@ -1070,9 +1138,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self,
         callee: FuncRef,
         args: ValueList,
+        is_tail: bool,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
-        let data = InstData::Call(Call { callee, args });
+        let data = InstData::Call(Call {
+            callee,
+            args,
+            is_tail,
+        });
         self.build(data, Type::Invalid, span)
     }
 
@@ -1081,9 +1154,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self,
         callee: Value,
         args: ValueList,
+        is_tail: bool,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
-        let data = InstData::CallIndirect(CallIndirect { callee, args });
+        let data = InstData::CallIndirect(CallIndirect {
+            callee,
+            args,
+            is_tail,
+        });
         self.build(data, Type::Invalid, span)
     }
 
@@ -1232,13 +1310,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self,
         op: Opcode,
         tuple: Value,
-        index: Value,
+        index: Immediate,
         value: Value,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::SetElement(SetElement {
             op,
-            args: [tuple, index, value],
+            index,
+            args: [tuple, value],
         });
         self.build(data, Type::Term(TermType::Tuple(None)), span)
     }
@@ -1246,13 +1325,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     #[allow(non_snake_case)]
     fn SetElementImm(
         self,
+        op: Opcode,
         tuple: Value,
         index: Immediate,
         value: Immediate,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::SetElementImm(SetElementImm {
-            op: Opcode::SetElement,
+            op,
             arg: tuple,
             index,
             value,

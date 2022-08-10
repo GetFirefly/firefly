@@ -58,6 +58,7 @@ pub enum InstData {
     Call(Call),
     CallIndirect(CallIndirect),
     Br(Br),
+    Switch(Switch),
     Ret(Ret),
     RetImm(RetImm),
     PrimOp(PrimOp),
@@ -82,14 +83,15 @@ impl InstData {
             Self::Call(_) => Opcode::Call,
             Self::CallIndirect(_) => Opcode::CallIndirect,
             Self::Br(Br { ref op, .. }) => *op,
+            Self::Switch(Switch { ref op, .. }) => *op,
             Self::Ret(_) | Self::RetImm(_) => Opcode::Ret,
             Self::PrimOp(PrimOp { ref op, .. }) | Self::PrimOpImm(PrimOpImm { ref op, .. }) => *op,
             Self::IsType(_) => Opcode::IsType,
             Self::BitsMatch(_) => Opcode::BitsMatch,
             Self::BitsPush(_) => Opcode::BitsPush,
-            Self::SetElement(_) | Self::SetElementImm(_) | Self::SetElementConst(_) => {
-                Opcode::SetElement
-            }
+            Self::SetElement(SetElement { ref op, .. })
+            | Self::SetElementImm(SetElementImm { ref op, .. })
+            | Self::SetElementConst(SetElementConst { ref op, .. }) => *op,
             Self::MapUpdate(MapUpdate { ref op, .. }) => *op,
         }
     }
@@ -105,6 +107,7 @@ impl InstData {
             Self::Call(Call { ref args, .. }) => args.as_slice(pool),
             Self::CallIndirect(CallIndirect { ref args, .. }) => args.as_slice(pool),
             Self::Br(Br { ref args, .. }) => args.as_slice(pool),
+            Self::Switch(Switch { ref arg, .. }) => core::slice::from_ref(arg),
             Self::Ret(Ret { ref args, .. }) => args.as_slice(),
             Self::RetImm(RetImm { ref arg, .. }) => core::slice::from_ref(arg),
             Self::PrimOp(PrimOp { ref args, .. }) => args.as_slice(pool),
@@ -130,6 +133,7 @@ impl InstData {
             Self::Call(Call { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::CallIndirect(CallIndirect { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::Br(Br { ref mut args, .. }) => args.as_mut_slice(pool),
+            Self::Switch(Switch { ref mut arg, .. }) => core::slice::from_mut(arg),
             Self::Ret(Ret { ref mut args, .. }) => args.as_mut_slice(),
             Self::RetImm(RetImm { ref mut arg, .. }) => core::slice::from_mut(arg),
             Self::PrimOp(PrimOp { ref mut args, .. }) => args.as_mut_slice(pool),
@@ -251,6 +255,7 @@ pub enum Opcode {
     BrIf,
     BrUnless,
     Br,
+    Switch,
     Ret,
     IsType,
     IsTaggedTuple,
@@ -268,15 +273,18 @@ pub enum Opcode {
     // Map Operations
     Map,
     MapGet,
+    MapFetch,
     MapPut,
     MapPutMut,
     MapUpdate,
     MapUpdateMut,
     // Binary Operations
+    BitsStartMatch,
     BitsMatch,
     BitsInitWritable,
     BitsPush,
     BitsCloseWritable,
+    BitsTestTail,
     // Closures
     MakeFun,
     CaptureFun,
@@ -367,14 +375,14 @@ impl Opcode {
             Self::Tuple => 1,
             // Getting a tuple element takes the tuple and the index of the element
             Self::GetElement => 2,
-            // Setting a tuple element takes three arguments, the tuple, the index, and the element
-            Self::SetElement | Self::SetElementMut => 3,
+            // Setting a tuple element takes two value arguments, the tuple, and the element, the index is immediate
+            Self::SetElement | Self::SetElementMut => 2,
             // Cons constructors/concat/subtract take two arguments, the head and tail elements/lists
             Self::Cons | Self::ListConcat | Self::ListSubtract => 2,
             // Creating a map has no arguments
             Self::Map => 0,
             // Fetching from a map takes 2 arguments, map/key
-            Self::MapGet => 2,
+            Self::MapGet | Self::MapFetch => 2,
             // Inserting/updating a map takes 3 arguments, map/key/value
             Self::MapPut | Self::MapPutMut | Self::MapUpdate | Self::MapUpdateMut => 3,
             // Creating a fun only requires the callee, the environment is variable-sized
@@ -387,6 +395,8 @@ impl Opcode {
             Self::BrIf | Self::BrUnless => 1,
             // Unconditional branches have no fixed arguments
             Self::Br => 0,
+            // Switches have a single argument, the input value
+            Self::Switch => 1,
             // Returns require at least one argument
             Self::Ret => 1,
             // The following primops expect no arguments
@@ -397,12 +407,13 @@ impl Opcode {
             Self::RecvNext | Self::RecvPeek | Self::RecvPop | Self::RecvWait | Self::RecvDone => 1,
             // These exception primops expect the exception value
             Self::ExceptionClass | Self::ExceptionReason | Self::ExceptionTrace => 1,
-            // These primops expect either an immediate or a value, so the number is not fixed
-            Self::MatchFail | Self::BitsInitWritable | Self::NifStart => 0,
+            // These primops expect either no arguments, an immediate or a value, so the number is not fixed
+            Self::MatchFail | Self::BitsStartMatch | Self::BitsInitWritable | Self::NifStart => 0,
             // Raising errors requires the class, the error value, and the stacktrace
             Self::Raise => 3,
-            // Binary ops
+            // Bitstring ops
             Self::BitsMatch | Self::BitsPush | Self::BitsCloseWritable => 1,
+            Self::BitsTestTail => 2,
         }
     }
 }
@@ -428,6 +439,7 @@ impl fmt::Display for Opcode {
             Self::Br => f.write_str("br"),
             Self::BrIf => f.write_str("br.if"),
             Self::BrUnless => f.write_str("br.unless"),
+            Self::Switch => f.write_str("switch"),
             Self::Call => f.write_str("call"),
             Self::CallIndirect => f.write_str("call.indirect"),
             Self::Ret => f.write_str("ret"),
@@ -473,6 +485,7 @@ impl fmt::Display for Opcode {
             Self::Tuple => f.write_str("tuple"),
             Self::Map => f.write_str("map"),
             Self::MapGet => f.write_str("map.get"),
+            Self::MapFetch => f.write_str("map.fetch"),
             Self::MapPut => f.write_str("map.put"),
             Self::MapPutMut => f.write_str("map.put.mut"),
             Self::MapUpdate => f.write_str("map.update"),
@@ -490,10 +503,12 @@ impl fmt::Display for Opcode {
             Self::RecvPop => f.write_str("recv.pop"),
             Self::RecvWait => f.write_str("recv.wait"),
             Self::RecvDone => f.write_str("recv.done"),
+            Self::BitsStartMatch => f.write_str("bs.match.start"),
             Self::BitsMatch => f.write_str("bs.match"),
             Self::BitsInitWritable => f.write_str("bs.init"),
             Self::BitsPush => f.write_str("bs.push"),
             Self::BitsCloseWritable => f.write_str("bs.finish"),
+            Self::BitsTestTail => f.write_str("bs.test.tail"),
             Self::Raise => f.write_str("raise"),
             Self::NifStart => f.write_str("nif.start"),
             Self::BuildStacktrace => f.write_str("stacktrace.build"),
@@ -624,12 +639,14 @@ pub enum UnaryOpType {
 pub struct Call {
     pub callee: FuncRef,
     pub args: ValueList,
+    pub is_tail: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct CallIndirect {
     pub callee: Value,
     pub args: ValueList,
+    pub is_tail: bool,
 }
 
 /// Branch
@@ -638,6 +655,14 @@ pub struct Br {
     pub op: Opcode,
     pub destination: Block,
     pub args: ValueList,
+}
+
+/// Switch-case
+#[derive(Debug, Clone)]
+pub struct Switch {
+    pub op: Opcode,
+    pub arg: Value,
+    pub arms: Vec<(u32, Block)>,
 }
 
 /// Return
@@ -691,7 +716,8 @@ pub struct BitsPush {
 #[derive(Debug, Clone)]
 pub struct SetElement {
     pub op: Opcode,
-    pub args: [Value; 3],
+    pub index: Immediate,
+    pub args: [Value; 2],
 }
 
 /// SetElement, but with an immediate index and value

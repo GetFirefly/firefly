@@ -84,6 +84,81 @@ impl FunctionName {
             .unwrap_or_default()
     }
 
+    pub fn is_safe(&self) -> bool {
+        if self.module != Some(symbols::Erlang) {
+            return false;
+        }
+        match self.function {
+            symbols::NotEqual
+            | symbols::NotEqualStrict
+            | symbols::Equal
+            | symbols::EqualStrict
+            | symbols::Lt
+            | symbols::Lte
+            | symbols::Gt
+            | symbols::Gte
+                if self.arity == 2 =>
+            {
+                true
+            }
+            symbols::Date
+            | symbols::Get
+            | symbols::GetCookie
+            | symbols::GroupLeader
+            | symbols::IsAlive
+            | symbols::MakeRef
+            | symbols::Node
+            | symbols::Nodes
+            | symbols::Ports
+            | symbols::PreLoaded
+            | symbols::Processes
+            | symbols::Registered
+            | symbols::SELF
+            | symbols::Time
+                if self.arity == 0 =>
+            {
+                true
+            }
+            symbols::Get
+            | symbols::GetKeys
+            | symbols::IsAtom
+            | symbols::IsBoolean
+            | symbols::IsBinary
+            | symbols::IsBitstring
+            | symbols::IsFloat
+            | symbols::IsFunction
+            | symbols::IsInteger
+            | symbols::IsList
+            | symbols::IsMap
+            | symbols::IsNumber
+            | symbols::IsPid
+            | symbols::IsPort
+            | symbols::IsReference
+            | symbols::IsTuple
+            | symbols::TermToBinary
+                if self.arity == 1 =>
+            {
+                true
+            }
+            symbols::Max | symbols::Min if self.arity == 2 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_primop(&self) -> bool {
+        if self.module != Some(symbols::Erlang) {
+            return false;
+        }
+        match self.function {
+            symbols::NifStart
+            | symbols::MatchFail
+            | symbols::Raise
+            | symbols::BuildStacktrace
+            | symbols::BitsInitWritable => true,
+            _ => false,
+        }
+    }
+
     /// Returns the number of values produced by this BIF
     ///
     /// NOTE: This function will panic if this function is not a BIF

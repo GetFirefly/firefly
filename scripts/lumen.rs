@@ -51,7 +51,7 @@ fn main() -> Result<(), ()> {
     let toolchain_target_dir = rust_sysroot.join("lib/rustlib").join(&rust_target_triple);
     let llvm_prefix = PathBuf::from(&env::var("LLVM_PREFIX").unwrap());
     let enable_lto = env::var("LUMEN_BUILD_LTO").unwrap_or(String::new()) == "true";
-    let verbose = env::var("VERBOSE").is_ok();
+    let verbose = env::var("VERBOSE").is_ok() || env::var("CARGO_MAKE_CI") == Ok("true".to_string());
     let cwd = env::var("CARGO_MAKE_WORKING_DIRECTORY").unwrap();
 
     let mut build_link_args = vec!["-Wl".to_owned()];
@@ -154,8 +154,13 @@ fn main() -> Result<(), ()> {
         .env("RUSTFLAGS", rustflags.as_str());
 
     let cmd = format!("{:?}", &cargo_cmd);
+
+    // Print more verbose output when requested/in CI
+    cargo_cmd.stdout(Stdio::piped());
+    if !verbose {
+        cargo_cmd.stderr(Stdio::null());
+    }
     let mut child = cargo_cmd
-        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
 

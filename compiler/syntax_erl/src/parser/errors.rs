@@ -6,7 +6,7 @@ use liblumen_parser::SourceError;
 use crate::lexer::Token;
 use crate::preprocessor::PreprocessorError;
 
-pub type ParseError = lalrpop_util::ParseError<SourceIndex, Token, ()>;
+pub type ParseError = lalrpop_util::ParseError<SourceIndex, Token, ParserError>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParserError {

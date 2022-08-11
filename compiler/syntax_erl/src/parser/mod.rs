@@ -9,10 +9,6 @@ macro_rules! span {
 }
 
 /// Convenience function for building parser errors
-macro_rules! to_lalrpop_err (
-    ($error:expr) => (lalrpop_util::ParseError::User { error: $error })
-);
-
 #[cfg_attr(rustfmt, rustfmt_skip)]
 #[allow(unknown_lints)]
 #[allow(clippy)]
@@ -36,7 +32,7 @@ mod errors;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
-use liblumen_diagnostics::Reporter;
+use liblumen_diagnostics::{Diagnostic, Reporter};
 use liblumen_parser::{Parse as GParse, Parser as GParser};
 use liblumen_parser::{Scanner, Source};
 
@@ -87,7 +83,7 @@ impl GParse for ast::Module {
         ParserError::RootFile { source, path }
     }
 
-    fn parse<S>(parser: &Parser, reporter: Reporter, source: S) -> Result<Self, ()>
+    fn parse<S>(parser: &Parser, reporter: Reporter, source: S) -> Result<Self, Self::Error>
     where
         S: Source,
     {
@@ -100,7 +96,7 @@ impl GParse for ast::Module {
     fn parse_tokens<S: IntoIterator<Item = Preprocessed>>(
         reporter: Reporter,
         tokens: S,
-    ) -> Result<Self, ()> {
+    ) -> Result<Self, Self::Error> {
         let result = Self::Parser::new().parse(&reporter, tokens);
         to_parse_result(reporter, result)
     }
@@ -116,7 +112,7 @@ impl GParse for ast::Expr {
         ParserError::RootFile { source, path }
     }
 
-    fn parse<S>(parser: &Parser, reporter: Reporter, source: S) -> Result<Self, ()>
+    fn parse<S>(parser: &Parser, reporter: Reporter, source: S) -> Result<Self, Self::Error>
     where
         S: Source,
     {
@@ -129,25 +125,25 @@ impl GParse for ast::Expr {
     fn parse_tokens<S: IntoIterator<Item = Preprocessed>>(
         reporter: Reporter,
         tokens: S,
-    ) -> Result<Self, ()> {
+    ) -> Result<Self, ParserError> {
         let result = Self::Parser::new().parse(&reporter, tokens);
         to_parse_result(reporter, result)
     }
 }
 
-fn to_parse_result<T>(reporter: Reporter, result: Result<T, ParseError>) -> Result<T, ()> {
+fn to_parse_result<T>(reporter: Reporter, result: Result<T, ParseError>) -> Result<T, ParserError> {
     match result {
         Ok(ast) => {
             if reporter.is_failed() {
-                return Err(());
+                return Err(ParserError::ShowDiagnostic {
+                    diagnostic: Diagnostic::error()
+                        .with_message("parsing failed, see diagnostics for details"),
+                });
             }
             Ok(ast)
         }
-        Err(lalrpop_util::ParseError::User { .. }) => Err(()),
-        Err(err) => {
-            reporter.error(ParserError::from(err));
-            Err(())
-        }
+        Err(lalrpop_util::ParseError::User { error }) => Err(error.into()),
+        Err(err) => Err(ParserError::from(err).into()),
     }
 }
 

@@ -11,7 +11,7 @@ use crate::ast::Literal;
 use crate::evaluator;
 use crate::lexer::Lexer;
 use crate::lexer::{DelayedSubstitution, IdentToken, Lexed, LexicalToken, Token};
-use crate::parser::Parser;
+use crate::parser::{Parser, ParserError};
 
 use super::macros::Stringify;
 use super::token_reader::{TokenBufferReader, TokenReader, TokenStreamReader};
@@ -100,13 +100,13 @@ where
         self.branches.iter().any(|b| !b.entered)
     }
 
-    fn next_token(&mut self) -> Result<Option<LexicalToken>, ()> {
+    fn next_token(&mut self) -> Result<Option<LexicalToken>, ParserError> {
         loop {
             if let Some(token) = self.expanded_tokens.pop_front() {
                 return Ok(Some(token));
             }
             if self.can_directive_start {
-                match self.try_read_directive()? {
+                match self.try_read_directive().map_err(ParserError::from)? {
                     Some(Directive::Module(d)) => {
                         // We need to expand this directive back to a token stream for the parser
                         self.expanded_tokens = d.expand();
@@ -126,19 +126,14 @@ where
                 if let Some(m) = self
                     .reader
                     .try_read_macro_call(&self.macros)
-                    .map_err(|e| self.reporter.error(e))?
+                    .map_err(ParserError::from)?
                 {
                     self.macro_calls.insert(m.span().start(), m.clone());
-                    self.expanded_tokens =
-                        self.expand_macro(m).map_err(|e| self.reporter.error(e))?;
+                    self.expanded_tokens = self.expand_macro(m).map_err(ParserError::from)?;
                     continue;
                 }
             }
-            if let Some(token) = self
-                .reader
-                .try_read_token()
-                .map_err(|e| self.reporter.error(e))?
-            {
+            if let Some(token) = self.reader.try_read_token().map_err(ParserError::from)? {
                 if self.ignore() {
                     continue;
                 }
@@ -312,13 +307,12 @@ where
         Ok(expanded)
     }
 
-    fn try_read_directive(&mut self) -> Result<Option<Directive>, ()> {
-        let directive: Directive =
-            if let Some(directive) = self.reader.try_read().map_err(|e| self.reporter.error(e))? {
-                directive
-            } else {
-                return Ok(None);
-            };
+    fn try_read_directive(&mut self) -> Result<Option<Directive>, PreprocessorError> {
+        let directive: Directive = if let Some(directive) = self.reader.try_read()? {
+            directive
+        } else {
+            return Ok(None);
+        };
 
         let ignore = self.ignore();
         match directive {
@@ -333,20 +327,12 @@ where
                 );
             }
             Directive::Include(ref d) if !ignore => {
-                let path = d
-                    .include(&self.include_paths)
-                    .map_err(|e| self.reporter.error(e))?;
-                self.reader
-                    .inject_include(path, d.span())
-                    .map_err(|e| self.reporter.error(e))?;
+                let path = d.include(&self.include_paths)?;
+                self.reader.inject_include(path, d.span())?;
             }
             Directive::IncludeLib(ref d) if !ignore => {
-                let path = d
-                    .include_lib(&self.include_paths, &self.code_paths)
-                    .map_err(|e| self.reporter.error(e))?;
-                self.reader
-                    .inject_include(path, d.span())
-                    .map_err(|e| self.reporter.error(e))?;
+                let path = d.include_lib(&self.include_paths, &self.code_paths)?;
+                self.reader.inject_include(path, d.span())?;
             }
             Directive::Define(ref d) if !ignore => {
                 self.macros.insert(d, MacroDef::Static(d.clone()));
@@ -368,16 +354,12 @@ where
             }
             Directive::Else(_) => match self.branches.last_mut() {
                 None => {
-                    self.reporter
-                        .error(PreprocessorError::OrphanedElse { directive });
-                    return Err(());
+                    return Err(PreprocessorError::OrphanedElse { directive });
                 }
                 Some(branch) => {
                     match branch.switch_to_else_branch() {
                         Err(_) => {
-                            self.reporter
-                                .error(PreprocessorError::OrphanedElse { directive });
-                            return Err(());
+                            return Err(PreprocessorError::OrphanedElse { directive });
                         }
                         Ok(_) => (),
                     };
@@ -387,9 +369,7 @@ where
                 // Treat this like -endif followed by -if(Cond)
                 match self.branches.pop() {
                     None => {
-                        self.reporter
-                            .error(PreprocessorError::OrphanedElse { directive });
-                        return Err(());
+                        return Err(PreprocessorError::OrphanedElse { directive });
                     }
                     Some(_) => {
                         let entered = self.eval_conditional(d.span(), d.condition.clone())?;
@@ -399,20 +379,17 @@ where
             }
             Directive::Endif(_) => match self.branches.pop() {
                 None => {
-                    self.reporter
-                        .error(PreprocessorError::OrphanedEnd { directive });
-                    return Err(());
+                    return Err(PreprocessorError::OrphanedEnd { directive });
                 }
                 Some(_) => (),
             },
             Directive::Error(ref d) if !ignore => {
                 let span = d.span();
                 let err = d.message.symbol().as_str().get().to_string();
-                self.reporter.error(PreprocessorError::CompilerError {
+                return Err(PreprocessorError::CompilerError {
                     span: Some(span),
                     reason: err,
                 });
-                return Err(());
             }
             Directive::Warning(ref d) if !ignore => {
                 if self.no_warn {
@@ -420,12 +397,11 @@ where
                 }
 
                 if self.warnings_as_errors {
-                    self.reporter.error(PreprocessorError::WarningDirective {
+                    return Err(PreprocessorError::WarningDirective {
                         span: d.span(),
                         message: d.message.symbol(),
                         as_error: true,
                     });
-                    return Err(());
                 } else {
                     self.reporter.warning(PreprocessorError::WarningDirective {
                         span: d.span(),
@@ -436,7 +412,14 @@ where
             }
             Directive::File(ref f) if !ignore => {
                 // TODO
-                println!("TODO file directive {}", f);
+                let span = f.span();
+                self.reporter.diagnostic(
+                    Diagnostic::warning()
+                        .with_message("-file directive ignored")
+                        .with_labels(vec![Label::primary(span.source_id(), span).with_message(
+                            "support for the -file directive has not been implemented yet",
+                        )]),
+                );
             }
             _ => {}
         }
@@ -447,26 +430,24 @@ where
         &mut self,
         span: SourceSpan,
         condition: VecDeque<Lexed>,
-    ) -> Result<bool, ()> {
+    ) -> Result<bool, PreprocessorError> {
         use crate::ast::Expr;
         use crate::parser::Parse;
 
         let result = {
             let pp = self.clone_with(condition);
-            Expr::parse_tokens(self.reporter.clone(), pp)
+            Expr::parse_tokens(self.reporter.clone(), pp).map_err(|e| {
+                PreprocessorError::ParseError {
+                    span,
+                    inner: Box::new(e),
+                }
+            })?
         };
-        match evaluator::eval_expr(&result?, None) {
+        match evaluator::eval_expr(&result, None) {
             Ok(Literal::Atom(atom)) if atom == symbols::True => Ok(true),
             Ok(Literal::Atom(atom)) if atom == symbols::False => Ok(false),
-            Err(err) => {
-                self.reporter.error(err);
-                return Err(());
-            }
-            _other => {
-                self.reporter
-                    .error(PreprocessorError::InvalidConditional { span });
-                return Err(());
-            }
+            Err(err) => Err(err.into()),
+            _other => Err(PreprocessorError::InvalidConditional { span }),
         }
     }
 }
@@ -479,7 +460,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.next_token() {
-            Err(()) => Some(Err(())),
+            Err(err) => Some(Err(err)),
             Ok(None) => None,
             Ok(Some(token)) => Some(Ok(token.into())),
         }

@@ -102,6 +102,7 @@ impl ToDiagnostic for EvalError {
     }
 }
 
+#[allow(dead_code)]
 pub enum ResolveRecordIndexError {
     NoRecord,
     NoField,
@@ -110,22 +111,27 @@ pub enum ResolveRecordIndexError {
 #[derive(Debug, Clone, Default)]
 pub struct Bindings(BTreeMap<Ident, Expr>);
 impl Bindings {
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.0.clear();
     }
 
+    #[allow(dead_code)]
     pub fn get(&self, name: &Ident) -> Option<&Expr> {
         self.0.get(name)
     }
 
+    #[allow(dead_code)]
     pub fn add(&mut self, name: Ident, value: Expr) -> bool {
         self.0.insert(name, value).is_some()
     }
 
+    #[allow(dead_code)]
     pub fn remove(&mut self, name: &Ident) {
         self.0.remove(name);
     }
 
+    #[allow(dead_code)]
     pub fn merge(&self, other: &Self) -> Result<Self, ()> {
         use std::collections::btree_map::Entry;
 

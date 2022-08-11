@@ -69,7 +69,7 @@ pub enum PreprocessorError {
     #[error("call to builtin function failed")]
     BuiltinFailed {
         span: SourceSpan,
-        source: Box<dyn std::error::Error>,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
     #[error("found orphaned '-end.' directive")]
@@ -133,16 +133,10 @@ impl ToDiagnostic for PreprocessorError {
             },
             PreprocessorError::ParseError { span, inner } => {
                 let err = inner.to_diagnostic();
-                let mut labels = vec![
-                    Label::primary(span.source_id(), *span)
-                        .with_message("invalid constant expression")
-                ];
-                for label in err.labels {
-                    labels.push(label);
-                }
-                Diagnostic::error()
-                    .with_message(self.to_string())
-                    .with_labels(labels)
+                err.with_labels(vec![
+                    Label::secondary(span.source_id(), *span)
+                        .with_message("parsing of this expression failed when attempting to evaluate it as a constant")
+                ])
             }
             PreprocessorError::CompilerError { span: Some(span), reason } =>
                 Diagnostic::error()

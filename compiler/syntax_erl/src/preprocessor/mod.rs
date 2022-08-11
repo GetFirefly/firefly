@@ -19,6 +19,6 @@ use liblumen_diagnostics::SourceIndex;
 use crate::lexer::Token;
 
 /// The result produced by the preprocessor
-pub type Preprocessed = std::result::Result<(SourceIndex, Token, SourceIndex), ()>;
+pub type Preprocessed = std::result::Result<(SourceIndex, Token, SourceIndex), crate::ParserError>;
 
 type Result<T> = std::result::Result<T, PreprocessorError>;

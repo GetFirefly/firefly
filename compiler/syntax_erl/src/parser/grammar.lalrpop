@@ -4,12 +4,12 @@ use liblumen_intern::{Symbol, Ident};
 use liblumen_number::{Integer, Float};
 use liblumen_syntax_core::{self as syntax_core};
 
+use crate::ParserError;
 use crate::ast::*;
 use crate::lexer::{Token, DelayedSubstitution};
 use crate::parser::binary::specifier_from_parsed;
 
 grammar<'a>(reporter: &Reporter);
-
 
 // The following are _not_ non-terminals, but macros
 // which can be identified by the generic type parameter,
@@ -80,10 +80,7 @@ TopLevel: TopLevel = {
 
 FunctionDefinition: Function = {
     <l:@L> <clauses:Semi<FunctionHead>> "." <r:@R>
-        =>? match Function::new(reporter, span!(l, r), clauses) {
-                Ok(inner) => Ok(inner),
-                Err(()) => Err(to_lalrpop_err!(())),
-            },
+        =>? Function::new(reporter, span!(l, r), clauses).map_err(|e| e.into())
 };
 
 FunctionHead: (Option<Name>, Clause) = {
@@ -217,13 +214,12 @@ DeprecatedAttribute: Attribute = {
             }
             other => {
                 let span = span!(l, r);
-                reporter.diagnostic(Diagnostic::warning()
+                Err(ParserError::ShowDiagnostic { diagnostic: Diagnostic::warning()
                         .with_message("invalid deprecated attribute")
                         .with_labels(vec![
                             Label::primary(span.source_id(), span)
                                 .with_message("expected 'module', '{module, Flag}', 'Function/Arity', or '{Function/Arity, Flag}'")
-                        ]));
-                Err(to_lalrpop_err!(()))
+                        ])}.into())
             }
         }
     },
@@ -312,13 +308,12 @@ TypeGuard: TypeGuard = {
                 Ok(TypeGuard { span: span!(l, r), var, ty }),
             name => {
                 let span = span!(l, r);
-                reporter.diagnostic(Diagnostic::error()
+                Err(ParserError::ShowDiagnostic { diagnostic: Diagnostic::error()
                         .with_message("invalid type constraint")
                         .with_labels(vec![
                             Label::primary(span.source_id(), span)
                                 .with_message("expected constraint in the form `Name :: Type`")
-                        ]));
-                Err(to_lalrpop_err!(()))
+                        ])}.into())
             }
         }
     },
@@ -636,10 +631,7 @@ Fun: Expr = {
     <l:@L> "fun" <module:atom_or_var> ":" <function:atom_or_var> "/" <arity:arity_or_var> <r:@R> =>
         Expr::FunctionName(FunctionName::detect(span!(l, r), Some(module), function, arity)),
     <l:@L> "fun" <clauses:Semi<FunctionClause>> "end" <r:@R> =>? {
-        match Fun::new(reporter, span!(l, r), clauses) {
-            Ok(fun) => Ok(Expr::Fun(fun)),
-            Err(()) => Err(to_lalrpop_err!(())),
-        }
+        Fun::new(reporter, span!(l, r), clauses).map(Expr::Fun).map_err(|e| e.into())
     },
 };
 
@@ -1026,7 +1018,7 @@ Float: Float = {
 
 extern {
     type Location = SourceIndex;
-    type Error = ();
+    type Error = crate::ParserError;
 
     enum Token {
         // Docs

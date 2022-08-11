@@ -23,6 +23,16 @@ macro_rules! unwrap_or_bail {
             }
         }
     };
+
+    ($db:ident, $reporter:expr, $codemap:expr, $e:expr) => {
+        match $e {
+            Ok(result) => result,
+            Err(ref e) => {
+                $reporter.print($codemap);
+                bail!($db, "{}", e);
+            }
+        }
+    };
 }
 
 macro_rules! bail {
@@ -172,6 +182,7 @@ where
 {
     use liblumen_parser as parse;
 
+    let options = db.options();
     let codemap = db.codemap().clone();
     let config = db.parse_config();
     let reporter = if config.warnings_as_errors {
@@ -180,32 +191,25 @@ where
         Reporter::new()
     };
 
-    let result = match db.input_type(input) {
-        InputType::Erlang => {
-            let parser = parse::Parser::new(config, codemap.clone());
-            match db.lookup_intern_input(input) {
-                Input::File(ref path) => {
-                    parser.parse_file::<syntax_erl::ast::Module, &Path>(reporter.clone(), path)
-                }
-                Input::Str { ref input, .. } => {
-                    parser.parse_string::<syntax_erl::ast::Module, _>(reporter.clone(), input)
+    let result =
+        match db.input_type(input) {
+            InputType::Erlang => {
+                let parser = parse::Parser::new(config, codemap.clone());
+                match db.lookup_intern_input(input) {
+                    Input::File(ref path) => parser
+                        .parse_file::<syntax_erl::ast::Module, &Path, _>(reporter.clone(), path),
+                    Input::Str { ref input, .. } => parser
+                        .parse_string::<syntax_erl::ast::Module, _, _>(reporter.clone(), input),
                 }
             }
-        }
-        ty => bail!(db, "invalid input type: {}", ty),
-    };
+            ty => bail!(db, "invalid input type: {}", ty),
+        };
 
-    match result {
-        Ok(module) => {
-            let options = db.options();
-            db.maybe_emit_file_with_opts(&options, input, &module)?;
-            Ok(module)
-        }
-        Err(_) => {
-            reporter.print(&codemap);
-            bail!(db, "parsing failed")
-        }
-    }
+    let module = unwrap_or_bail!(db, reporter, &codemap, result);
+
+    db.maybe_emit_file_with_opts(&options, input, &module)?;
+
+    Ok(module)
 }
 
 pub(crate) fn input_cst<P>(
@@ -223,13 +227,14 @@ where
 
     // Run lowering passes
     let options = db.options();
+    let codemap = db.codemap().clone();
     let reporter = if options.warnings_as_errors {
         Reporter::strict()
     } else {
         Reporter::new()
     };
     let mut passes = AstToCst::new(reporter.clone());
-    let module = unwrap_or_bail!(db, passes.run(ast));
+    let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(ast));
 
     db.maybe_emit_file(input, &module)?;
 
@@ -251,13 +256,14 @@ where
 
     // Run lowering passes
     let options = db.options();
+    let codemap = db.codemap().clone();
     let reporter = if options.warnings_as_errors {
         Reporter::strict()
     } else {
         Reporter::new()
     };
     let mut passes = CstToKernel::new(reporter.clone());
-    let module = unwrap_or_bail!(db, passes.run(ast));
+    let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(ast));
 
     db.maybe_emit_file(input, &module)?;
 
@@ -279,14 +285,15 @@ where
 
     // Run lowering passes
     let options = db.options();
+    let codemap = db.codemap().clone();
     let reporter = if options.warnings_as_errors {
         Reporter::strict()
     } else {
         Reporter::new()
     };
 
-    let mut passes = KernelToCore::new(reporter);
-    let module = unwrap_or_bail!(db, passes.run(cst));
+    let mut passes = KernelToCore::new(reporter.clone());
+    let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(cst));
 
     db.maybe_emit_file(input, &module)?;
 

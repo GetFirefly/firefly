@@ -1484,6 +1484,134 @@ impl TranslateCst {
     }
 }
 
+#[derive(PartialEq, Eq)]
+enum MatchGroupKey {
+    Lit(Lit),
+    Arity(usize),
+    Bin(Option<Box<MatchGroupKey>>, BinaryEntrySpecifier),
+    Map(Vec<MapKey>),
+    Var(Symbol),
+}
+impl MatchGroupKey {
+    fn from(arg: &Expr, clause: &IClause) -> Self {
+        match arg {
+            Expr::Literal(Literal { value, .. }) => Self::Lit(value.clone()),
+            Expr::Tuple(Tuple { elements, .. }) => Self::Arity(elements.len()),
+            Expr::BinarySegment(BinarySegment { size, spec, .. })
+            | Expr::BinaryInt(BinarySegment { size, spec, .. }) => match size.as_deref() {
+                None => Self::Bin(None, *spec),
+                Some(Expr::Var(v)) => {
+                    let v1 = clause.isub.get_vsub(v.name());
+                    Self::Bin(Some(Box::new(Self::Var(v1))), *spec)
+                }
+                Some(Expr::Literal(Literal { value, .. })) => {
+                    Self::Bin(Some(Box::new(Self::Lit(value.clone()))), *spec)
+                }
+                _ => unimplemented!(),
+            },
+            Expr::Map(Map { pairs, .. }) => {
+                let mut keys = pairs.iter().map(MapKey::from).collect::<Vec<_>>();
+                keys.sort();
+                Self::Map(keys)
+            }
+            _ => unimplemented!(),
+        }
+    }
+}
+impl PartialOrd for MatchGroupKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for MatchGroupKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        match (self, other) {
+            (Self::Lit(x), Self::Lit(y)) => x.cmp(y),
+            (Self::Lit(x), Self::Arity(y)) => {
+                let lit = Lit::Integer(Integer::Small(*y as i64));
+                x.cmp(&lit)
+            }
+            (Self::Lit(_), _) => Ordering::Less,
+            (Self::Arity(x), Self::Arity(y)) => x.cmp(y),
+            (Self::Arity(x), Self::Lit(y)) => {
+                let x = Lit::Integer(Integer::Small(*x as i64));
+                x.cmp(y)
+            }
+            (_, Self::Lit(_)) => Ordering::Greater,
+            (_, Self::Arity(_)) => Ordering::Greater,
+            (Self::Var(x), Self::Var(y)) => x.cmp(y),
+            (Self::Var(_), _) => Ordering::Less,
+            (_, Self::Var(_)) => Ordering::Greater,
+            (Self::Bin(xs, xspec), Self::Bin(ys, yspec)) => {
+                xs.cmp(ys).then_with(|| xspec.cmp(yspec))
+            }
+            (Self::Bin(_, _), _) => Ordering::Less,
+            (_, Self::Bin(_, _)) => Ordering::Greater,
+            (Self::Map(xs), Self::Map(ys)) => xs.cmp(ys),
+            (Self::Map(_), _) => Ordering::Greater,
+            (_, Self::Map(_)) => Ordering::Less,
+        }
+    }
+}
+
+fn group_value(
+    ty: MatchType,
+    vars: Vec<Var>,
+    clauses: Vec<IClause>,
+) -> Vec<(Vec<Var>, Vec<IClause>)> {
+    match ty {
+        MatchType::Cons => vec![(vars, clauses)],
+        MatchType::Nil => vec![(vars, clauses)],
+        MatchType::Binary => vec![(vars, clauses)],
+        MatchType::BinaryEnd => vec![(vars, clauses)],
+        MatchType::BinarySegment => group_keeping_order(vars, clauses),
+        MatchType::BinaryInt => vec![(vars, clauses)],
+        MatchType::Map => group_keeping_order(vars, clauses),
+        _ => {
+            let mut map = group_values(clauses);
+            // We must sort the grouped values to ensure consistent order across compilations
+            let mut result = vec![];
+            while let Some((_, clauses)) = map.pop_first() {
+                result.push((vars.clone(), clauses));
+            }
+            result
+        }
+    }
+}
+
+fn group_values(mut clauses: Vec<IClause>) -> BTreeMap<MatchGroupKey, Vec<IClause>> {
+    use std::collections::btree_map::Entry;
+
+    let mut acc = BTreeMap::new();
+    for clause in clauses.drain(..) {
+        let key = MatchGroupKey::from(clause.arg(), &clause);
+        match acc.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(vec![clause]);
+            }
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().push(clause);
+            }
+        }
+    }
+    acc
+}
+
+fn group_keeping_order(vars: Vec<Var>, mut clauses: Vec<IClause>) -> Vec<(Vec<Var>, Vec<IClause>)> {
+    if clauses.is_empty() {
+        return vec![];
+    }
+    let clause = clauses.remove(0);
+    let v1 = MatchGroupKey::from(clause.arg(), &clause);
+    let (mut more, rest) = splitwith(clauses, |c| MatchGroupKey::from(c.arg(), c) == v1);
+    more.insert(0, clause);
+    let group = (vars.clone(), more);
+    let mut tail = group_keeping_order(vars, rest);
+    tail.insert(0, group);
+    tail
+}
+
 fn build_bin_seg_integer_recur(
     span: SourceSpan,
     annotations: Annotations,
@@ -2782,63 +2910,6 @@ impl From<&Expr> for MapKey {
     }
 }
 
-fn group_value(
-    ty: MatchType,
-    vars: Vec<Var>,
-    clauses: Vec<IClause>,
-) -> Vec<(Vec<Var>, Vec<IClause>)> {
-    match ty {
-        MatchType::Cons => vec![(vars, clauses)],
-        MatchType::Nil => vec![(vars, clauses)],
-        MatchType::Binary => vec![(vars, clauses)],
-        MatchType::BinaryEnd => vec![(vars, clauses)],
-        MatchType::BinarySegment => group_keeping_order(vars, clauses),
-        MatchType::BinaryInt => vec![(vars, clauses)],
-        MatchType::Map => group_keeping_order(vars, clauses),
-        _ => {
-            let mut map = group_values(clauses);
-            // We must sort the grouped values to ensure consistent order across compilations
-            let mut result = vec![];
-            while let Some((_, clauses)) = map.pop_first() {
-                result.push((vars.clone(), clauses));
-            }
-            result
-        }
-    }
-}
-
-fn group_values(mut clauses: Vec<IClause>) -> BTreeMap<Expr, Vec<IClause>> {
-    use std::collections::btree_map::Entry;
-
-    let mut acc = BTreeMap::new();
-    for clause in clauses.drain(..) {
-        let arg = clause.arg();
-        match acc.entry(arg.clone()) {
-            Entry::Vacant(entry) => {
-                entry.insert(vec![clause]);
-            }
-            Entry::Occupied(mut entry) => {
-                entry.get_mut().push(clause);
-            }
-        }
-    }
-    acc
-}
-
-fn group_keeping_order(vars: Vec<Var>, mut clauses: Vec<IClause>) -> Vec<(Vec<Var>, Vec<IClause>)> {
-    if clauses.is_empty() {
-        return vec![];
-    }
-    let clause = clauses.remove(0);
-    let v1 = clause.arg();
-    let (mut more, rest) = splitwith(clauses, |c| c.arg() == v1);
-    more.insert(0, clause);
-    let group = (vars.clone(), more);
-    let mut tail = group_keeping_order(vars, rest);
-    tail.insert(0, group);
-    tail
-}
-
 fn get_con(clauses: &[IClause]) -> &Expr {
     clauses.first().unwrap().arg().arg()
 }
@@ -3017,14 +3088,14 @@ impl TranslateCst {
                         au,
                     ))
                 }
-                Brk::Break(args) => {
-                    let span = args.first().map(|a| a.span()).unwrap_or_default();
-                    let au = lit_list_vars(args.as_slice());
+                Brk::Break(_) => {
+                    let span = values.first().map(|a| a.span()).unwrap_or_default();
+                    let au = lit_list_vars(values.as_slice());
                     Ok((
                         Expr::Break(Break {
                             span,
                             annotations,
-                            args,
+                            args: values,
                         }),
                         au,
                     ))

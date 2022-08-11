@@ -2813,7 +2813,7 @@ impl TranslateAst {
             body: vec![IExpr::PrimOp(IPrimOp::new(
                 span,
                 symbols::Raise,
-                vec![IExpr::Var(info.clone()), IExpr::Var(value.clone())],
+                vec![IExpr::Var(value.clone()), IExpr::Var(info.clone())],
             ))],
         });
         let handler = IExpr::Case(ICase {

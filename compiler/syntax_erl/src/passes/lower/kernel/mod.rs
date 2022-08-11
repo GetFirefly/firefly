@@ -252,10 +252,22 @@ impl<'m> LowerFunctionToCore<'m> {
                 Ok(())
             }
             KExpr::Break(k::Break { span, args, .. }) => {
-                let brk = self.brk.last().copied().expect("break target is missing");
-                let args = self.ssa_values(builder, args)?;
-                builder.ins().br(brk, args.as_slice(), span);
-                Ok(())
+                if builder.is_current_block_terminated() {
+                    let msg = format!(
+                        "break associated with this expression with args: {:#?}",
+                        &args
+                    );
+                    self.show_warning(
+                        "skipped generating break as block is already terminated",
+                        &[(span, msg.as_str())],
+                    );
+                    Ok(())
+                } else {
+                    let brk = self.brk.last().copied().expect("break target is missing");
+                    let args = self.ssa_values(builder, args)?;
+                    builder.ins().br(brk, args.as_slice(), span);
+                    Ok(())
+                }
             }
             KExpr::LetRecGoto(k::LetRecGoto {
                 span,
@@ -580,7 +592,6 @@ impl<'m> LowerFunctionToCore<'m> {
                 self.lower_guard_expr(builder, span, fail, arg)?;
                 self.brk.pop();
                 self.fail = old_fail;
-                builder.ins().br(final_block, &[], span);
                 builder.switch_to_block(final_block);
                 Ok(())
             }
@@ -846,7 +857,7 @@ impl<'m> LowerFunctionToCore<'m> {
         bif: k::Bif,
     ) -> anyhow::Result<()> {
         let span = bif.span();
-        let callee = builder.get_callee(bif.op).unwrap();
+        let callee = builder.get_or_register_callee(bif.op);
         match bif.op.function {
             op @ (symbols::MatchFail | symbols::Raise | symbols::RawRaise) => {
                 assert!(bif.ret.len() < 2);

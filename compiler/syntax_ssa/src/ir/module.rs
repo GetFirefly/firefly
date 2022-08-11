@@ -10,7 +10,7 @@ use liblumen_util::emit::Emit;
 
 use super::*;
 
-/// Represents a Core IR module
+/// Represents a SSA IR module
 ///
 /// This module is largely a container for functions, but it also acts
 /// as the owner for pooled resources available to functions:

@@ -7,7 +7,7 @@ use super::*;
 
 const COLLAPSE_MAX_SIZE_SEGMENT: usize = 1024;
 
-/// This pass transforms an AST function into its CST form for further analysis and eventual lowering to Core IR
+/// This pass transforms an AST function into its Core IR form for further analysis and eventual lowering to Kernel IR
 ///
 /// This pass performs numerous small transformations to normalize the structure of the AST
 pub struct AstToCst {

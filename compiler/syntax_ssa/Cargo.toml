@@ -1,5 +1,5 @@
 [package]
-name = "liblumen_syntax_core"
+name = "liblumen_syntax_ssa"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 readme = "README.md"

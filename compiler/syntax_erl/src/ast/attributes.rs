@@ -2,7 +2,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use liblumen_diagnostics::{SourceSpan, Span, Spanned};
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use super::{Expr, Ident, Name, Type};
 
@@ -155,7 +155,7 @@ pub enum Deprecation {
     Function {
         #[span]
         span: SourceSpan,
-        function: Span<syntax_core::FunctionName>,
+        function: Span<syntax_ssa::FunctionName>,
         flag: DeprecatedFlag,
     },
 }
@@ -214,15 +214,15 @@ pub enum Attribute {
     Spec(TypeSpec),
     Callback(Callback),
     Custom(UserAttribute),
-    ExportType(SourceSpan, Vec<Span<syntax_core::FunctionName>>),
-    Export(SourceSpan, Vec<Span<syntax_core::FunctionName>>),
-    Import(SourceSpan, Ident, Vec<Span<syntax_core::FunctionName>>),
-    Removed(SourceSpan, Vec<(Span<syntax_core::FunctionName>, Ident)>),
+    ExportType(SourceSpan, Vec<Span<syntax_ssa::FunctionName>>),
+    Export(SourceSpan, Vec<Span<syntax_ssa::FunctionName>>),
+    Import(SourceSpan, Ident, Vec<Span<syntax_ssa::FunctionName>>),
+    Removed(SourceSpan, Vec<(Span<syntax_ssa::FunctionName>, Ident)>),
     Compile(SourceSpan, Expr),
     Vsn(SourceSpan, Expr),
     Author(SourceSpan, Expr),
-    OnLoad(SourceSpan, Span<syntax_core::FunctionName>),
-    Nifs(SourceSpan, Vec<Span<syntax_core::FunctionName>>),
+    OnLoad(SourceSpan, Span<syntax_ssa::FunctionName>),
+    Nifs(SourceSpan, Vec<Span<syntax_ssa::FunctionName>>),
     Behaviour(SourceSpan, Ident),
     Deprecation(Vec<Deprecation>),
 }

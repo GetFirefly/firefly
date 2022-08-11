@@ -2,7 +2,7 @@ use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::*;
 use liblumen_intern::{Symbol, Ident};
 use liblumen_number::{Integer, Float};
-use liblumen_syntax_core::{self as syntax_core};
+use liblumen_syntax_ssa as syntax_ssa;
 
 use crate::ParserError;
 use crate::ast::*;
@@ -102,9 +102,9 @@ Guard: Guard = <l:@L> <conditions:Comma<Expr>> <r:@R>
     => Guard { span: span!(l, r), conditions };
 
 
-FunctionName: Span<syntax_core::FunctionName> = {
+FunctionName: Span<syntax_ssa::FunctionName> = {
     <l:@L> <function:atom> "/" <arity:arity> <r:@R> => {
-        Span::new(span!(l, r), syntax_core::FunctionName::new_local(function.name, arity))
+        Span::new(span!(l, r), syntax_ssa::FunctionName::new_local(function.name, arity))
     }
 };
 
@@ -147,10 +147,10 @@ RemovedAttribute: Attribute = {
         => Attribute::Removed(span!(l, r), rs),
 };
 
-Removed: (Span<syntax_core::FunctionName>, Ident) = {
+Removed: (Span<syntax_ssa::FunctionName>, Ident) = {
     <l:@L> "{" <function:atom> "," <arity:arity> "," <descr:StringLiteral> "}" <r:@R> => {
         let span = span!(l, r);
-        let f = Span::new(span, syntax_core::FunctionName::new_local(function.name, arity));
+        let f = Span::new(span, syntax_ssa::FunctionName::new_local(function.name, arity));
 
         (f, descr)
     },
@@ -236,7 +236,7 @@ Deprecation: Deprecation = {
         => Deprecation::Function { span: span!(l, r), function, flag },
     <l:@L> "{" <function:atom> "," <arity:arity> "," <flag:DeprecatedFlag> "}" <r:@R> => {
         let span = span!(l, r);
-        let f = Span::new(span, syntax_core::FunctionName::new_local(function.name, arity));
+        let f = Span::new(span, syntax_ssa::FunctionName::new_local(function.name, arity));
         Deprecation::Function { span, function: f, flag }
     }
 };

@@ -8,7 +8,7 @@ use liblumen_util::diagnostics::FileName;
 pub enum InputType {
     Erlang,
     AbstractErlang,
-    CoreIR,
+    SSA,
     MLIR,
     Unknown(Option<String>),
 }
@@ -16,7 +16,7 @@ impl InputType {
     const TYPES: &'static [InputType] = &[
         InputType::Erlang,
         InputType::AbstractErlang,
-        InputType::CoreIR,
+        InputType::SSA,
         InputType::MLIR,
     ];
 
@@ -28,7 +28,7 @@ impl InputType {
             None => false,
             Some("erl") => true,
             Some("abstr") => true,
-            Some("cir") => true,
+            Some("ssa") => true,
             Some("mlir") => true,
             Some(_) => false,
         }
@@ -42,7 +42,7 @@ impl InputType {
             None => false,
             Some("erl") if self == &Self::Erlang => true,
             Some("abstr") if self == &Self::AbstractErlang => true,
-            Some("cir") if self == &Self::CoreIR => true,
+            Some("ssa") if self == &Self::SSA => true,
             Some("mlir") if self == &Self::MLIR => true,
             Some(other) => match self {
                 Self::Unknown(None) => true,
@@ -65,7 +65,7 @@ impl fmt::Display for InputType {
         match self {
             Self::Erlang => f.write_str("erl"),
             Self::AbstractErlang => f.write_str("abstr"),
-            Self::CoreIR => f.write_str("cir"),
+            Self::SSA => f.write_str("ssa"),
             Self::MLIR => f.write_str("mlir"),
             Self::Unknown(None) => f.write_str("unknown (no extension)"),
             Self::Unknown(Some(ref ext)) => write!(f, "unknown ({})", ext),
@@ -99,7 +99,7 @@ impl Input {
             Input::File(ref file) => match file.extension().and_then(|ext| ext.to_str()) {
                 Some("erl") => InputType::Erlang,
                 Some("abstr") => InputType::AbstractErlang,
-                Some("cir") => InputType::CoreIR,
+                Some("ssa") => InputType::SSA,
                 Some("mlir") => InputType::MLIR,
                 Some(t) => InputType::Unknown(Some(t.to_string())),
                 None => InputType::Unknown(None),
@@ -109,8 +109,8 @@ impl Input {
                     InputType::Erlang
                 } else if name.ends_with(".abstr") {
                     InputType::AbstractErlang
-                } else if name.ends_with(".cir") {
-                    InputType::CoreIR
+                } else if name.ends_with(".ssa") {
+                    InputType::SSA
                 } else if name.ends_with(".mlir") {
                     InputType::MLIR
                 } else {

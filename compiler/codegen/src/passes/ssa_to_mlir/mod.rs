@@ -6,15 +6,15 @@ use liblumen_diagnostics::CodeMap;
 use liblumen_mlir::{self as mlir, Context, OwnedContext};
 use liblumen_pass::Pass;
 use liblumen_session::Options;
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 use log::debug;
 
-pub struct CoreToMlir<'a> {
+pub struct SsaToMlir<'a> {
     context: Context,
     codemap: &'a CodeMap,
     options: &'a Options,
 }
-impl<'a> CoreToMlir<'a> {
+impl<'a> SsaToMlir<'a> {
     pub fn new(context: &OwnedContext, codemap: &'a CodeMap, options: &'a Options) -> Self {
         Self {
             context: **context,
@@ -24,8 +24,8 @@ impl<'a> CoreToMlir<'a> {
     }
 }
 
-impl<'m> Pass for CoreToMlir<'m> {
-    type Input<'a> = syntax_core::Module;
+impl<'m> Pass for SsaToMlir<'m> {
+    type Input<'a> = syntax_ssa::Module;
     type Output<'a> = Result<mlir::OwnedModule, mlir::OwnedModule>;
 
     fn run<'a>(&mut self, module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {

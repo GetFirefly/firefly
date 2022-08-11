@@ -282,7 +282,7 @@ impl PartialOrd for TermType {
     }
 }
 
-/// This enumeration covers all the types representable in CoreIR.
+/// This enumeration covers all the types representable in SSA IR.
 ///
 /// In addition to Erlang terms, we also need to represent primitive types and certain
 /// internal runtime types which are used with primop instructions.

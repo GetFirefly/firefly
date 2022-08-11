@@ -5,7 +5,7 @@ include "mlir/IR/OpBase.td"
 
 def CIR_Dialect : Dialect {
     let name = "cir";
-    let summary = "A direct representation of Lumen's Core IR in the MLIR framework";
+    let summary = "A direct representation of Lumen's SSA IR in the MLIR framework";
     let description = [{
         This dialect is meant to be as direct a lowering as possible from Rust into
         MLIR, and is where the bulk of our optimizations and target-specific lowerings

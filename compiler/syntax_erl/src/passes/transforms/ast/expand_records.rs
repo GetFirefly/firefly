@@ -3,7 +3,7 @@ use anyhow::anyhow;
 use liblumen_diagnostics::{SourceSpan, Span};
 use liblumen_intern::{symbols, Ident};
 use liblumen_pass::Pass;
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use crate::ast::*;
 use crate::visit::ast::{self as visit, VisitMut};
@@ -43,7 +43,7 @@ struct ExpandRecordsVisitor<'m> {
 }
 impl<'m> ExpandRecordsVisitor<'m> {
     fn new(module: &'m Module, f: &Function) -> Self {
-        let record_info = syntax_core::FunctionName::new_local(symbols::RecordInfo, 2);
+        let record_info = syntax_ssa::FunctionName::new_local(symbols::RecordInfo, 2);
         let expand_record_info = module.functions.get(&record_info).is_none();
         Self {
             module,
@@ -316,7 +316,7 @@ impl<'m> ExpandRecordsVisitor<'m> {
         // The callee for pattern match failure
         let erlang_error = Expr::FunctionName(FunctionName::Resolved(Span::new(
             span,
-            syntax_core::FunctionName::new(symbols::Erlang, symbols::Error, 1),
+            syntax_ssa::FunctionName::new(symbols::Erlang, symbols::Error, 1),
         )));
         // The error reason
         let reason = Expr::Tuple(Tuple {
@@ -400,7 +400,7 @@ impl<'m> ExpandRecordsVisitor<'m> {
 
                     let callee = Expr::FunctionName(FunctionName::Resolved(Span::new(
                         span,
-                        syntax_core::FunctionName::new(symbols::Erlang, symbols::Setelement, 3),
+                        syntax_ssa::FunctionName::new(symbols::Erlang, symbols::Setelement, 3),
                     )));
                     let index = Expr::Literal(Literal::Integer(span, (position + 1).into()));
                     let value = update.value.as_ref().unwrap().clone();
@@ -420,7 +420,7 @@ impl<'m> ExpandRecordsVisitor<'m> {
         // The callee for pattern match failure
         let erlang_error = Expr::FunctionName(FunctionName::Resolved(Span::new(
             span,
-            syntax_core::FunctionName::new(symbols::Erlang, symbols::Error, 1),
+            syntax_ssa::FunctionName::new(symbols::Erlang, symbols::Error, 1),
         )));
         // The error reason
         let reason = Expr::Tuple(Tuple {

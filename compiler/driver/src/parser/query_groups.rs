@@ -5,8 +5,8 @@ use std::thread::ThreadId;
 use liblumen_llvm as llvm;
 use liblumen_mlir as mlir;
 use liblumen_session::{InputType, Options};
-use liblumen_syntax_core as syntax_core;
 use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
+use liblumen_syntax_ssa as syntax_ssa;
 
 use super::queries;
 use crate::diagnostics::ErrorReported;
@@ -67,13 +67,12 @@ pub trait Parser: CompilerOutput {
         input: InternedInput,
     ) -> Result<syntax_erl::kernel::Module, ErrorReported>;
 
-    /// Gets the syntax_core module associated with the given input, if it exists
+    /// Gets the SSA IR module associated with the given input, if it exists
     ///
-    /// If the input is not compatible with producing a syntax_core module, or an
+    /// If the input is not compatible with producing a SSA IR module, or an
     /// error occurs during parsing of the module, the result will be Err(ErrorReported).
-    #[salsa::invoke(queries::input_syntax_core)]
-    fn input_syntax_core(&self, input: InternedInput)
-        -> Result<syntax_core::Module, ErrorReported>;
+    #[salsa::invoke(queries::input_syntax_ssa)]
+    fn input_syntax_ssa(&self, input: InternedInput) -> Result<syntax_ssa::Module, ErrorReported>;
 
     /// Gets the mlir module associated with the given input, if it exists
     ///

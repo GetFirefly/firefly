@@ -42,7 +42,7 @@ pub enum OutputType {
     AST,
     CST,
     Kernel,
-    CoreIR,
+    SSA,
     /// Used to indicate a generic/unknown dialect
     MLIR,
     LLVMAssembly,
@@ -56,9 +56,9 @@ impl FromStr for OutputType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ast" => Ok(Self::AST),
-            "cst" => Ok(Self::CST),
+            "core" => Ok(Self::CST),
             "kernel" => Ok(Self::Kernel),
-            "core" => Ok(Self::CoreIR),
+            "ssa" => Ok(Self::SSA),
             "mlir" => Ok(Self::MLIR),
             "llvm-ir" | "ll" => Ok(Self::LLVMAssembly),
             "llvm-bc" | "bc" => Ok(Self::LLVMBitcode),
@@ -84,9 +84,9 @@ impl OutputType {
     pub fn as_str(&self) -> &'static str {
         match self {
             &Self::AST => "ast",
-            &Self::CST => "cst",
+            &Self::CST => "core",
             &Self::Kernel => "kernel",
-            &Self::CoreIR => "core",
+            &Self::SSA => "core",
             &Self::MLIR => "mlir",
             &Self::LLVMAssembly => "llvm-ir",
             &Self::LLVMBitcode => "llvm-bc",
@@ -101,7 +101,7 @@ impl OutputType {
             Self::AST,
             Self::CST,
             Self::Kernel,
-            Self::CoreIR,
+            Self::SSA,
             Self::MLIR,
             Self::LLVMAssembly,
             Self::LLVMBitcode,
@@ -120,9 +120,9 @@ impl OutputType {
          Supported output types:\n  \
            all       = Emit everything\n  \
            ast       = Abstract Syntax Tree\n  \
-           cst       = Core Syntax Tree\n  \
-           kernel    = Kernel Syntax Tree\n  \
-           core      = Core IR\n  \
+           core      = Core Erlang\n  \
+           kernel    = Kernel Erlang\n  \
+           ssa       = SSA IR\n  \
            mlir      = MLIR \n  \
            llvm-ir   = LLVM IR\n  \
            llvm-bc   = LLVM Bitcode (*)\n  \
@@ -136,9 +136,9 @@ impl OutputType {
     pub fn extension(&self) -> &'static str {
         match *self {
             Self::AST => "ast",
-            Self::CST => "cst",
+            Self::CST => "core",
             Self::Kernel => "kernel",
-            Self::CoreIR => "cir",
+            Self::SSA => "ssa",
             Self::MLIR => "mlir",
             Self::LLVMAssembly => "ll",
             Self::LLVMBitcode => "bc",
@@ -296,7 +296,7 @@ impl OutputTypes {
         self.0.len()
     }
 
-    pub fn should_generate_core(&self) -> bool {
+    pub fn should_generate_ssa(&self) -> bool {
         self.0.keys().any(|k| match *k {
             OutputType::AST | OutputType::CST | OutputType::Kernel => false,
             _ => true,
@@ -305,7 +305,7 @@ impl OutputTypes {
 
     pub fn should_generate_mlir(&self) -> bool {
         self.0.keys().any(|k| match *k {
-            OutputType::AST | OutputType::CST | OutputType::Kernel | OutputType::CoreIR => false,
+            OutputType::AST | OutputType::CST | OutputType::Kernel | OutputType::SSA => false,
             _ => true,
         })
     }
@@ -315,7 +315,7 @@ impl OutputTypes {
             OutputType::AST
             | OutputType::CST
             | OutputType::Kernel
-            | OutputType::CoreIR
+            | OutputType::SSA
             | OutputType::MLIR => false,
             _ => true,
         })
@@ -326,7 +326,7 @@ impl OutputTypes {
             OutputType::AST
             | OutputType::CST
             | OutputType::Kernel
-            | OutputType::CoreIR
+            | OutputType::SSA
             | OutputType::MLIR
             | OutputType::LLVMAssembly
             | OutputType::LLVMBitcode => false,

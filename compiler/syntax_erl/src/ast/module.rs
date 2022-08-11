@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::anyhow;
 
 use liblumen_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Span, Spanned};
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 use liblumen_util::emit::Emit;
 
 use super::*;
@@ -66,19 +66,19 @@ pub struct Module {
     pub vsn: Option<Expr>,
     pub author: Option<Expr>,
     pub compile: Option<CompileOptions>,
-    pub on_load: Option<Span<syntax_core::FunctionName>>,
-    pub nifs: HashSet<Span<syntax_core::FunctionName>>,
-    pub imports: HashMap<syntax_core::FunctionName, Span<syntax_core::Signature>>,
-    pub exports: HashSet<Span<syntax_core::FunctionName>>,
-    pub removed: HashMap<syntax_core::FunctionName, (SourceSpan, Ident)>,
-    pub types: HashMap<syntax_core::FunctionName, TypeDef>,
-    pub exported_types: HashSet<Span<syntax_core::FunctionName>>,
-    pub specs: HashMap<syntax_core::FunctionName, TypeSpec>,
+    pub on_load: Option<Span<syntax_ssa::FunctionName>>,
+    pub nifs: HashSet<Span<syntax_ssa::FunctionName>>,
+    pub imports: HashMap<syntax_ssa::FunctionName, Span<syntax_ssa::Signature>>,
+    pub exports: HashSet<Span<syntax_ssa::FunctionName>>,
+    pub removed: HashMap<syntax_ssa::FunctionName, (SourceSpan, Ident)>,
+    pub types: HashMap<syntax_ssa::FunctionName, TypeDef>,
+    pub exported_types: HashSet<Span<syntax_ssa::FunctionName>>,
+    pub specs: HashMap<syntax_ssa::FunctionName, TypeSpec>,
     pub behaviours: HashSet<Ident>,
-    pub callbacks: HashMap<syntax_core::FunctionName, Callback>,
+    pub callbacks: HashMap<syntax_ssa::FunctionName, Callback>,
     pub records: HashMap<Symbol, Record>,
     pub attributes: HashMap<Ident, UserAttribute>,
-    pub functions: BTreeMap<syntax_core::FunctionName, Function>,
+    pub functions: BTreeMap<syntax_ssa::FunctionName, Function>,
     // Used for module-level deprecation
     pub deprecation: Option<Deprecation>,
     // Used for function-level deprecation
@@ -104,12 +104,12 @@ impl Module {
         self.records.get(&name)
     }
 
-    pub fn is_local(&self, name: &syntax_core::FunctionName) -> bool {
+    pub fn is_local(&self, name: &syntax_ssa::FunctionName) -> bool {
         let local_name = name.to_local();
         self.functions.contains_key(&local_name)
     }
 
-    pub fn is_import(&self, name: &syntax_core::FunctionName) -> bool {
+    pub fn is_import(&self, name: &syntax_ssa::FunctionName) -> bool {
         let local_name = name.to_local();
         !self.is_local(&local_name) && self.imports.contains_key(&local_name)
     }
@@ -249,7 +249,7 @@ pub struct CompileOptions {
     // Prevents auto importing any functions
     pub no_auto_import: bool,
     // Prevents auto importing the specified functions
-    pub no_auto_imports: HashSet<syntax_core::FunctionName>,
+    pub no_auto_imports: HashSet<syntax_ssa::FunctionName>,
     // Warns if export_all is used
     pub warn_export_all: bool,
     // Warns when exported variables are used
@@ -259,7 +259,7 @@ pub struct CompileOptions {
     // Warns when a function is unused
     pub warn_unused_function: bool,
     // Disables the unused function warning for the specified functions
-    pub no_warn_unused_functions: HashSet<Span<syntax_core::FunctionName>>,
+    pub no_warn_unused_functions: HashSet<Span<syntax_ssa::FunctionName>>,
     // Warns about unused imports
     pub warn_unused_import: bool,
     // Warns about unused variables
@@ -279,7 +279,7 @@ pub struct CompileOptions {
     pub warn_obsolete_guard: bool,
     pub inline: bool,
     // Inlines the given functions
-    pub inline_functions: HashSet<Span<syntax_core::FunctionName>>,
+    pub inline_functions: HashSet<Span<syntax_ssa::FunctionName>>,
 }
 impl Default for CompileOptions {
     fn default() -> Self {
@@ -368,7 +368,7 @@ impl CompileOptions {
                         for (m, f, a) in funs.iter() {
                             self.inline_functions.insert(Span::new(
                                 option_name.span,
-                                syntax_core::FunctionName::new(
+                                syntax_ssa::FunctionName::new(
                                     Symbol::intern(m),
                                     Symbol::intern(f),
                                     *a,
@@ -513,7 +513,7 @@ impl CompileOptions {
                             Expr::Literal(Literal::Atom(name)),
                             Expr::Literal(Literal::Integer(_, arity)),
                         ) => {
-                            let name = syntax_core::FunctionName::new(
+                            let name = syntax_ssa::FunctionName::new(
                                 module.name,
                                 name.name,
                                 arity.to_arity(),
@@ -576,7 +576,7 @@ impl CompileOptions {
                         ) => {
                             let name = Span::new(
                                 tup.span,
-                                syntax_core::FunctionName::new(
+                                syntax_ssa::FunctionName::new(
                                     module.name,
                                     name.name,
                                     arity.to_arity(),

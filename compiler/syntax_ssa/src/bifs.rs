@@ -1,4 +1,4 @@
-///! This module contains the signatures of all BIFs in Core IR
+///! This module contains the signatures of all BIFs in SSA IR
 ///!
 ///! The purpose of this is to provide more precise type information to Erlang programs
 ///! by using the BIFs as a source of that information. This can be used to optimize

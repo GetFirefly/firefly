@@ -59,12 +59,12 @@ where
 
     // Bail early if we don't have artifacts to codegen
     if !options.output_types.should_generate_mlir() {
-        // However, since production of AST/CoreIR is driven by
+        // However, since production of AST/Kernel/SSA IR is driven by
         // queries for MLIR, we need to check if either of those
         // types were requested, and if so, execute the appropriate
         // query
-        if options.output_types.should_generate_core() {
-            db.input_syntax_core(input)?;
+        if options.output_types.should_generate_ssa() {
+            db.input_syntax_ssa(input)?;
         } else if options.output_types.contains_key(&OutputType::Kernel) {
             db.input_kernel(input)?;
         } else if options.output_types.contains_key(&OutputType::CST) {

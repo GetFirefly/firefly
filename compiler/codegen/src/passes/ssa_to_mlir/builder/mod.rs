@@ -4,7 +4,6 @@ use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
-use liblumen_rt::function::FunctionSymbol;
 use liblumen_diagnostics::{CodeMap, SourceSpan};
 use liblumen_intern::{symbols, Symbol};
 use liblumen_llvm::Linkage;
@@ -12,8 +11,9 @@ use liblumen_mlir as mlir;
 use liblumen_mlir::cir::{CirBuilder, DispatchTableOp};
 use liblumen_mlir::llvm::LlvmBuilder;
 use liblumen_mlir::{Builder, OpBuilder, Operation, OwnedOpBuilder, Variadic};
+use liblumen_rt::function::FunctionSymbol;
 use liblumen_session::Options;
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 /// This builder holds the state necessary to build an MLIR module
 /// from a CIR module.
@@ -24,12 +24,12 @@ use liblumen_syntax_core as syntax_core;
 pub struct ModuleBuilder<'m> {
     options: &'m Options,
     codemap: &'m CodeMap,
-    module: &'m syntax_core::Module,
+    module: &'m syntax_ssa::Module,
     mlir_module: mlir::OwnedModule,
     builder: OwnedOpBuilder,
     dispatch_table: DispatchTableOp,
-    // The current syntax_core block being translated
-    current_source_block: syntax_core::Block,
+    // The current syntax_ssa block being translated
+    current_source_block: syntax_ssa::Block,
     // The current MLIR block being built
     current_block: mlir::Block,
     // Used to track the set of atoms used in this module
@@ -39,14 +39,14 @@ pub struct ModuleBuilder<'m> {
     #[allow(dead_code)]
     symbols: HashSet<FunctionSymbol>,
     // Used to track the mapping of blocks in the current function being translated
-    blocks: HashMap<syntax_core::Block, mlir::Block>,
+    blocks: HashMap<syntax_ssa::Block, mlir::Block>,
     // Used to track the mapping of values in the current function being translated
-    values: HashMap<syntax_core::Value, mlir::ValueBase>,
+    values: HashMap<syntax_ssa::Value, mlir::ValueBase>,
 }
 impl<'m> ModuleBuilder<'m> {
     /// Creates a new builder for the given module, using the provided MLIR context
     pub fn new(
-        module: &'m syntax_core::Module,
+        module: &'m syntax_ssa::Module,
         codemap: &'m CodeMap,
         context: mlir::Context,
         options: &'m Options,
@@ -85,7 +85,7 @@ impl<'m> ModuleBuilder<'m> {
             mlir_module,
             builder,
             dispatch_table,
-            current_source_block: syntax_core::Block::default(),
+            current_source_block: syntax_ssa::Block::default(),
             current_block: mlir::Block::default(),
             atoms,
             symbols: HashSet::new(),
@@ -106,7 +106,7 @@ impl<'m> ModuleBuilder<'m> {
         CirBuilder::new(&self.builder)
     }
 
-    pub fn find_function(&self, f: syntax_core::FuncRef) -> syntax_core::Signature {
+    pub fn find_function(&self, f: syntax_ssa::FuncRef) -> syntax_ssa::Signature {
         self.module.call_signature(f).clone()
     }
 
@@ -152,7 +152,7 @@ impl<'m> ModuleBuilder<'m> {
         }
     }
 
-    /// Builds an MLIR module from the underlying syntax_core module, consuming the builder
+    /// Builds an MLIR module from the underlying syntax_ssa module, consuming the builder
     pub fn build(mut self) -> anyhow::Result<Result<mlir::OwnedModule, mlir::OwnedModule>> {
         use liblumen_mlir::{PassManager, PassManagerOptions};
 

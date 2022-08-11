@@ -1,6 +1,6 @@
 use liblumen_diagnostics::*;
 use liblumen_pass::Pass;
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use crate::ast::*;
 
@@ -19,7 +19,7 @@ impl Pass for AddAutoImports {
             }
 
             let span = module.name.span;
-            for sig in liblumen_syntax_core::bifs::all()
+            for sig in liblumen_syntax_ssa::bifs::all()
                 .iter()
                 .map(|sig| Span::new(span, sig.clone()))
             {
@@ -30,7 +30,7 @@ impl Pass for AddAutoImports {
             }
         } else {
             let span = module.name.span;
-            for sig in liblumen_syntax_core::bifs::all()
+            for sig in liblumen_syntax_ssa::bifs::all()
                 .iter()
                 .map(|sig| Span::new(span, sig.clone()))
             {
@@ -147,6 +147,6 @@ impl Pass for DefinePseudoLocals {
 }
 
 fn define_function(module: &mut Module, f: Function) {
-    let name = syntax_core::FunctionName::new_local(f.name.name, f.arity);
+    let name = syntax_ssa::FunctionName::new_local(f.name.name, f.arity);
     module.functions.insert(name, f);
 }

@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use liblumen_diagnostics::*;
 use liblumen_pass::Pass;
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use crate::ast::*;
 use crate::evaluator;

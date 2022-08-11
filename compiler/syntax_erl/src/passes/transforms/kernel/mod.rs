@@ -61,7 +61,7 @@ use liblumen_diagnostics::*;
 use liblumen_intern::{symbols, Ident, Symbol};
 use liblumen_number::Integer;
 use liblumen_pass::Pass;
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use crate::cst;
 use crate::kernel::{self, *};
@@ -84,7 +84,7 @@ struct FunctionContext {
     var_counter: usize,
     fun_counter: usize,
     args: Vec<Var>,
-    name: syntax_core::FunctionName,
+    name: syntax_ssa::FunctionName,
     funs: Vec<kernel::Function>,
     defined: RedBlackTreeSet<Ident>,
     free: RedBlackTreeMap<Name, Vec<Expr>>,
@@ -92,7 +92,7 @@ struct FunctionContext {
     ignore_funs: bool,
 }
 impl FunctionContext {
-    fn new(name: syntax_core::FunctionName, f: &cst::Function) -> Self {
+    fn new(name: syntax_ssa::FunctionName, f: &cst::Function) -> Self {
         Self {
             span: f.fun.span,
             var_counter: f.var_counter,
@@ -147,9 +147,7 @@ impl FunctionContext {
     }
 }
 
-/// This pass transforms an AST function into its CST form for further analysis and eventual lowering to Core IR
-///
-/// This pass performs numerous small transformations to normalize the structure of the AST
+/// This pass transforms a Core IR function into its Kernel IR form for further analysis and eventual lowering to SSA IR
 pub struct CstToKernel {
     reporter: Reporter,
 }
@@ -342,7 +340,7 @@ impl TranslateCst {
     fn gexpr_test_add(&mut self, expr: Expr) -> Expr {
         let span = expr.span();
         let annotations = expr.annotations().clone();
-        let op = syntax_core::FunctionName::new(symbols::Erlang, symbols::EqualStrict, 2);
+        let op = syntax_ssa::FunctionName::new(symbols::Erlang, symbols::EqualStrict, 2);
         let (expr, pre) = self.force_atomic(expr);
         let t = Expr::Literal(Literal::atom(span, symbols::True));
         pre_seq(
@@ -364,7 +362,7 @@ impl TranslateCst {
                 let arity = v.arity.unwrap();
                 let name = Name::from(&v);
                 let name = sub.get(name).unwrap_or(name);
-                let local = syntax_core::FunctionName::new_local(name.symbol(), arity as u8);
+                let local = syntax_ssa::FunctionName::new_local(name.symbol(), arity as u8);
                 Ok((Expr::Local(Span::new(span, local)), vec![]))
             }
             cst::Expr::Var(mut v) => {
@@ -656,7 +654,7 @@ impl TranslateCst {
             }) => {
                 let arity = args.len() as u8;
                 let (args, pre) = self.atomic_list(args, sub)?;
-                let op = syntax_core::FunctionName::new(symbols::Erlang, name, arity);
+                let op = syntax_ssa::FunctionName::new(symbols::Erlang, name, arity);
                 Ok((Expr::Bif(Bif::new(span, op, args)), pre))
             }
             cst::Expr::Try(cst::Try {
@@ -854,11 +852,7 @@ impl TranslateCst {
             Expr::Bif(Bif {
                 span,
                 annotations,
-                op: syntax_core::FunctionName::new(
-                    symbols::Erlang,
-                    symbols::MatchFail,
-                    arity as u8,
-                ),
+                op: syntax_ssa::FunctionName::new(symbols::Erlang, symbols::MatchFail, arity as u8),
                 args,
                 ret: vec![],
             }),
@@ -1070,7 +1064,7 @@ impl TranslateCst {
                 } else {
                     let arity = v.arity.unwrap();
                     let f1 = sub.get_fsub(f0, arity);
-                    let callee = syntax_core::FunctionName::new_local(f1, arity as u8);
+                    let callee = syntax_ssa::FunctionName::new_local(f1, arity as u8);
                     let call = Expr::Call(Call {
                         span,
                         annotations,
@@ -1653,8 +1647,8 @@ fn translate_attr(_key: Ident, _value: cst::Expr) -> Option<(Ident, kernel::Expr
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum CallType {
     Error,
-    Bif(syntax_core::FunctionName),
-    Static(syntax_core::FunctionName),
+    Bif(syntax_ssa::FunctionName),
+    Static(syntax_ssa::FunctionName),
     Dynamic,
 }
 
@@ -1662,7 +1656,7 @@ fn call_type(module: &cst::Expr, function: &cst::Expr, args: &[cst::Expr]) -> Ca
     let arity = args.len() as u8;
     match (module.as_atom(), function.as_atom()) {
         (Some(m), Some(f)) => {
-            let callee = syntax_core::FunctionName::new(m, f, arity);
+            let callee = syntax_ssa::FunctionName::new(m, f, arity);
             if callee.is_bif() {
                 CallType::Bif(callee)
             } else {
@@ -3152,7 +3146,7 @@ impl TranslateCst {
                 let arity = fun.vars.len();
                 let (body, _) = self.ubody(*fun.body, Brk::Return)?;
                 let arity = arity + free_vars.len();
-                let fname = syntax_core::FunctionName::new_local(name.name(), arity as u8);
+                let fname = syntax_ssa::FunctionName::new_local(name.name(), arity as u8);
                 let mut vars = fun.vars;
                 vars.extend(free_vars.iter().cloned());
                 let function = make_function(fun.span, fun.annotations, fname, vars, body);
@@ -3453,11 +3447,11 @@ impl TranslateCst {
                 };
                 vars.extend(free.iter().copied().map(|id| Var::new(id)));
                 // Create function definition
-                let fname = syntax_core::FunctionName::new_local(fname, arity as u8);
+                let fname = syntax_ssa::FunctionName::new_local(fname, arity as u8);
                 let function = make_function(span, annotations.clone(), fname, vars, b1);
                 self.add_local_function(function);
                 // Build bif invocation that creates the fun with the closure environment
-                let op = syntax_core::FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
+                let op = syntax_ssa::FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
                 let mut args = Vec::with_capacity(fvs.len() + 1);
                 args.push(Expr::Local(Span::new(span, fname)));
                 args.append(&mut fvs);
@@ -3484,11 +3478,11 @@ impl TranslateCst {
                     .map(|id| Expr::Var(Var::new(id)))
                     .collect::<Vec<_>>();
                 let num_free = fvs.len();
-                let op = syntax_core::FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
+                let op = syntax_ssa::FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
                 let mut args = Vec::with_capacity(arity + num_free);
                 args.push(Expr::Local(Span::new(
                     span,
-                    syntax_core::FunctionName::new_local(name.function, (arity + num_free) as u8),
+                    syntax_ssa::FunctionName::new_local(name.function, (arity + num_free) as u8),
                 )));
                 args.extend(fvs.iter().cloned());
                 Ok((
@@ -3766,7 +3760,7 @@ impl TranslateCst {
     fn bif_returns(
         &mut self,
         span: SourceSpan,
-        callee: syntax_core::FunctionName,
+        callee: syntax_ssa::FunctionName,
         mut ret: Vec<Expr>,
     ) -> Vec<Expr> {
         assert!(
@@ -3789,7 +3783,7 @@ impl TranslateCst {
 fn make_function(
     span: SourceSpan,
     annotations: Annotations,
-    name: syntax_core::FunctionName,
+    name: syntax_ssa::FunctionName,
     vars: Vec<Var>,
     body: Expr,
 ) -> Function {

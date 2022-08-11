@@ -6,7 +6,7 @@ use liblumen_diagnostics::*;
 use liblumen_intern::{symbols, Symbol};
 use liblumen_number::Integer;
 use liblumen_pass::Pass;
-use liblumen_syntax_core::*;
+use liblumen_syntax_ssa::*;
 use log::debug;
 use rpds::Stack;
 
@@ -16,16 +16,16 @@ use crate::kernel::{self as k, Expr as KExpr};
 mod builder;
 use self::builder::IrBuilder;
 
-/// This pass is responsible for transforming the processed AST to Core IR
-pub struct KernelToCore {
+/// This pass is responsible for transforming the processed Kernel IR to SSA IR for code generation
+pub struct KernelToSsa {
     reporter: Reporter,
 }
-impl KernelToCore {
+impl KernelToSsa {
     pub fn new(reporter: Reporter) -> Self {
         Self { reporter }
     }
 }
-impl Pass for KernelToCore {
+impl Pass for KernelToSsa {
     type Input<'a> = k::Module;
     type Output<'a> = Module;
 

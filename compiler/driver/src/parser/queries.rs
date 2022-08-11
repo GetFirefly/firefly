@@ -8,8 +8,8 @@ use liblumen_diagnostics::Reporter;
 use liblumen_llvm as llvm;
 use liblumen_mlir as mlir;
 use liblumen_session::{Input, InputType};
-use liblumen_syntax_core as syntax_core;
 use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
+use liblumen_syntax_ssa as syntax_ssa;
 use liblumen_util::diagnostics::FileName;
 
 use super::prelude::*;
@@ -270,15 +270,15 @@ where
     Ok(module)
 }
 
-pub(crate) fn input_syntax_core<P>(
+pub(crate) fn input_syntax_ssa<P>(
     db: &P,
     input: InternedInput,
-) -> Result<syntax_core::Module, ErrorReported>
+) -> Result<syntax_ssa::Module, ErrorReported>
 where
     P: Parser,
 {
     use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::KernelToCore;
+    use liblumen_syntax_erl::passes::KernelToSsa;
 
     // Get Kernel Erlang module
     let cst = db.input_kernel(input)?;
@@ -292,7 +292,7 @@ where
         Reporter::new()
     };
 
-    let mut passes = KernelToCore::new(reporter.clone());
+    let mut passes = KernelToSsa::new(reporter.clone());
     let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(cst));
 
     db.maybe_emit_file(input, &module)?;
@@ -308,7 +308,7 @@ pub(crate) fn input_mlir<P>(
 where
     P: Parser,
 {
-    use liblumen_codegen::passes::CoreToMlir;
+    use liblumen_codegen::passes::SsaToMlir;
     use liblumen_pass::Pass;
 
     let options = db.options();
@@ -329,13 +329,13 @@ where
                 }
             }
         }
-        InputType::Erlang | InputType::AbstractErlang | InputType::CoreIR => {
+        InputType::Erlang | InputType::AbstractErlang | InputType::SSA => {
             debug!("generating mlir for {:?} on {:?}", input, thread_id);
-            let module = db.input_syntax_core(input)?;
+            let module = db.input_syntax_ssa(input)?;
             let codemap = db.codemap();
             let context = db.mlir_context(thread_id);
 
-            let mut passes = CoreToMlir::new(&context, &codemap, &options);
+            let mut passes = SsaToMlir::new(&context, &codemap, &options);
             match unwrap_or_bail!(db, passes.run(module)) {
                 Ok(mlir_module) => mlir_module,
                 Err(mlir_module) => {

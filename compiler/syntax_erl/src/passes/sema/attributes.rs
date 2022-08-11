@@ -1,4 +1,4 @@
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use crate::ast::*;
 
@@ -54,11 +54,11 @@ impl SemanticAnalysis {
                     let import = local_import.resolve(from_module.name);
                     match module.imports.get(&local_import) {
                         None => {
-                            let sig = match liblumen_syntax_core::bifs::get(&import) {
+                            let sig = match liblumen_syntax_ssa::bifs::get(&import) {
                                 Some(sig) => sig.clone(),
                                 None => {
                                     // Generate a default signature
-                                    liblumen_syntax_core::Signature::generate(&import)
+                                    liblumen_syntax_ssa::Signature::generate(&import)
                                 }
                             };
                             module.imports.insert(*local_import, Span::new(span, sig));
@@ -133,7 +133,7 @@ impl SemanticAnalysis {
             Attribute::Type(ty) => {
                 let arity = ty.params.len();
                 let type_name =
-                    syntax_core::FunctionName::new_local(ty.name.name, arity.try_into().unwrap());
+                    syntax_ssa::FunctionName::new_local(ty.name.name, arity.try_into().unwrap());
                 match module.types.get(&type_name) {
                     None => {
                         module.types.insert(type_name, ty);
@@ -209,7 +209,7 @@ impl SemanticAnalysis {
                     }
                 }
                 // Check for redefinition
-                let cb_name = syntax_core::FunctionName::new(
+                let cb_name = syntax_ssa::FunctionName::new(
                     module.name(),
                     callback.function.name,
                     arity.try_into().unwrap(),
@@ -258,7 +258,7 @@ impl SemanticAnalysis {
                 }
 
                 // Check for redefinition
-                let spec_name = syntax_core::FunctionName::new(
+                let spec_name = syntax_ssa::FunctionName::new(
                     module.name(),
                     typespec.function.name,
                     arity.try_into().unwrap(),

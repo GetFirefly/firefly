@@ -2,7 +2,7 @@ use crate::ast::*;
 
 use liblumen_diagnostics::*;
 use liblumen_pass::Pass;
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use crate::visit::ast::{self as visit, VisitMut};
 
@@ -39,7 +39,7 @@ impl<'m> VisitMut for ExpandUnqualifiedCalls<'m> {
         let span = apply.callee.span();
         let name = match apply.callee.as_mut() {
             Expr::Literal(Literal::Atom(ident)) => {
-                let local = syntax_core::FunctionName::new_local(ident.name, arity);
+                let local = syntax_ssa::FunctionName::new_local(ident.name, arity);
                 if self.module.is_local(&local) {
                     FunctionName::Resolved(Span::new(span, local.resolve(self.module.name())))
                 } else if self.module.is_import(&local) {
@@ -74,7 +74,7 @@ impl<'m> VisitMut for ExpandUnqualifiedCalls<'m> {
                 let arity = local.arity;
                 *name = FunctionName::Resolved(Span::new(
                     span,
-                    syntax_core::FunctionName::new(self.module.name(), function, arity),
+                    syntax_ssa::FunctionName::new(self.module.name(), function, arity),
                 ));
             } else if self.module.is_import(local) {
                 let span = local.span();
@@ -83,7 +83,7 @@ impl<'m> VisitMut for ExpandUnqualifiedCalls<'m> {
                 let resolved = self.module.imports.get(local).unwrap();
                 *name = FunctionName::Resolved(Span::new(
                     span,
-                    syntax_core::FunctionName::new(resolved.module, function, arity),
+                    syntax_ssa::FunctionName::new(resolved.module, function, arity),
                 ));
             }
         }

@@ -18,7 +18,7 @@ liblumen_intern = { path = "../intern" }
 liblumen_number = { path = "../number" }
 liblumen_pass = { path = "../pass" }
 liblumen_parser = { path = "../parser" }
-liblumen_syntax_core = { path = "../syntax_core" }
+liblumen_syntax_ssa = { path = "../syntax_ssa" }
 liblumen_util = { path = "../util" }
 
 anyhow = "1.0"

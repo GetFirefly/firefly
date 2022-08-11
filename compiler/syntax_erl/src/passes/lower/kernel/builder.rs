@@ -4,7 +4,7 @@ use cranelift_entity::packed_option::PackedOption;
 
 use liblumen_diagnostics::SourceSpan;
 use liblumen_intern::Symbol;
-use liblumen_syntax_core::*;
+use liblumen_syntax_ssa::*;
 use log::debug;
 
 pub struct IrBuilder<'a> {

@@ -10,7 +10,7 @@ use std::fmt;
 use liblumen_binary::BinaryEntrySpecifier;
 use liblumen_diagnostics::{SourceSpan, Span, Spanned};
 use liblumen_intern::{symbols, Ident, Symbol};
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 use liblumen_util::emit::Emit;
 
 use crate::cst;
@@ -406,8 +406,8 @@ pub struct Module {
     pub annotations: Annotations,
     pub name: Ident,
     pub functions: Vec<Function>,
-    pub exports: HashSet<Span<syntax_core::FunctionName>>,
-    pub imports: HashMap<syntax_core::FunctionName, Span<syntax_core::Signature>>,
+    pub exports: HashSet<Span<syntax_ssa::FunctionName>>,
+    pub imports: HashMap<syntax_ssa::FunctionName, Span<syntax_ssa::Signature>>,
     pub attributes: HashMap<Ident, Expr>,
 }
 annotated!(Module);
@@ -435,7 +435,7 @@ pub struct Function {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
-    pub name: syntax_core::FunctionName,
+    pub name: syntax_ssa::FunctionName,
     pub vars: Vec<Var>,
     pub body: Box<Expr>,
 }
@@ -463,7 +463,7 @@ pub enum Expr {
     Map(Map),
     Literal(Literal),
     Var(Var),
-    Local(Span<syntax_core::FunctionName>),
+    Local(Span<syntax_ssa::FunctionName>),
     Remote(Remote),
     Alias(IAlias),
     Alt(Alt),
@@ -642,7 +642,7 @@ impl Expr {
         }
     }
 
-    pub fn as_local(&self) -> Option<syntax_core::FunctionName> {
+    pub fn as_local(&self) -> Option<syntax_ssa::FunctionName> {
         match self {
             Self::Local(name) => Some(name.item),
             _ => None,
@@ -769,7 +769,7 @@ impl Expr {
 
 #[derive(Debug, Clone, Spanned, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Remote {
-    Static(Span<syntax_core::FunctionName>),
+    Static(Span<syntax_ssa::FunctionName>),
     Dynamic(#[span] Box<Expr>, Box<Expr>),
 }
 impl_expr!(Remote);
@@ -1143,14 +1143,14 @@ pub struct Bif {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
-    pub op: syntax_core::FunctionName,
+    pub op: syntax_ssa::FunctionName,
     pub args: Vec<Expr>,
     pub ret: Vec<Expr>,
 }
 annotated!(Bif);
 impl_expr!(Bif);
 impl Bif {
-    pub fn new(span: SourceSpan, op: syntax_core::FunctionName, args: Vec<Expr>) -> Self {
+    pub fn new(span: SourceSpan, op: syntax_ssa::FunctionName, args: Vec<Expr>) -> Self {
         Self {
             span,
             annotations: Annotations::default(),
@@ -1193,13 +1193,13 @@ pub struct Test {
     #[span]
     pub span: SourceSpan,
     pub annotations: Annotations,
-    pub op: syntax_core::FunctionName,
+    pub op: syntax_ssa::FunctionName,
     pub args: Vec<Expr>,
 }
 annotated!(Test);
 impl_expr!(Test);
 impl Test {
-    pub fn new(span: SourceSpan, op: syntax_core::FunctionName, args: Vec<Expr>) -> Self {
+    pub fn new(span: SourceSpan, op: syntax_ssa::FunctionName, args: Vec<Expr>) -> Self {
         Self {
             span,
             annotations: Annotations::default(),
@@ -1240,7 +1240,7 @@ pub struct Call {
 annotated!(Call);
 impl_expr!(Call);
 impl Call {
-    pub fn new(span: SourceSpan, callee: syntax_core::FunctionName, args: Vec<Expr>) -> Self {
+    pub fn new(span: SourceSpan, callee: syntax_ssa::FunctionName, args: Vec<Expr>) -> Self {
         let callee = if callee.is_local() {
             Box::new(Expr::Local(Span::new(span, callee)))
         } else {
@@ -1255,7 +1255,7 @@ impl Call {
         }
     }
 
-    pub fn static_callee(&self) -> Option<syntax_core::FunctionName> {
+    pub fn static_callee(&self) -> Option<syntax_ssa::FunctionName> {
         match self.callee.as_ref() {
             Expr::Local(local) => Some(local.item),
             Expr::Remote(Remote::Static(remote)) => Some(remote.item),
@@ -1332,7 +1332,7 @@ impl Enter {
         }
     }
 
-    pub fn static_callee(&self) -> Option<syntax_core::FunctionName> {
+    pub fn static_callee(&self) -> Option<syntax_ssa::FunctionName> {
         match self.callee.as_ref() {
             Expr::Local(local) => Some(local.item),
             Expr::Remote(Remote::Static(remote)) => Some(remote.item),

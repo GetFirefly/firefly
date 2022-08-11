@@ -35,7 +35,7 @@ liblumen_mlir = { path = "../mlir" }
 liblumen_pass = { path = "../pass" }
 liblumen_parser = { path = "../parser" }
 liblumen_syntax_erl = { path = "../syntax_erl" }
-liblumen_syntax_core = { path = "../syntax_core" }
+liblumen_syntax_ssa = { path = "../syntax_ssa" }
 
 [build-dependencies]
 which = "4.0"

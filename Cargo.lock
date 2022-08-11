@@ -845,7 +845,7 @@ dependencies = [
  "liblumen_pass",
  "liblumen_rt",
  "liblumen_session",
- "liblumen_syntax_core",
+ "liblumen_syntax_ssa",
  "liblumen_target",
  "liblumen_util",
  "log",
@@ -872,8 +872,8 @@ dependencies = [
  "liblumen_parser",
  "liblumen_pass",
  "liblumen_session",
- "liblumen_syntax_core",
  "liblumen_syntax_erl",
+ "liblumen_syntax_ssa",
  "liblumen_target",
  "liblumen_util",
  "log",
@@ -1058,27 +1058,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "liblumen_syntax_core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bitflags",
- "cranelift-entity",
- "intrusive-collections",
- "lazy_static",
- "liblumen_arena",
- "liblumen_binary",
- "liblumen_compiler_macros",
- "liblumen_diagnostics",
- "liblumen_diagnostics_macros",
- "liblumen_intern",
- "liblumen_number",
- "liblumen_util",
- "paste",
- "thiserror",
-]
-
-[[package]]
 name = "liblumen_syntax_erl"
 version = "0.1.0"
 dependencies = [
@@ -1097,7 +1076,7 @@ dependencies = [
  "liblumen_number",
  "liblumen_parser",
  "liblumen_pass",
- "liblumen_syntax_core",
+ "liblumen_syntax_ssa",
  "liblumen_util",
  "log",
  "paste",
@@ -1120,6 +1099,27 @@ dependencies = [
  "liblumen_parser",
  "liblumen_syntax_erl",
  "liblumen_util",
+ "thiserror",
+]
+
+[[package]]
+name = "liblumen_syntax_ssa"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitflags",
+ "cranelift-entity",
+ "intrusive-collections",
+ "lazy_static",
+ "liblumen_arena",
+ "liblumen_binary",
+ "liblumen_compiler_macros",
+ "liblumen_diagnostics",
+ "liblumen_diagnostics_macros",
+ "liblumen_intern",
+ "liblumen_number",
+ "liblumen_util",
+ "paste",
  "thiserror",
 ]
 

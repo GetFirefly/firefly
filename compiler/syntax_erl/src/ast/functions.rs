@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use liblumen_diagnostics::{Diagnostic, Label, Reporter, SourceSpan, Span, Spanned};
 use liblumen_intern::Symbol;
 use liblumen_number::Integer;
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use super::{Arity, Clause, Expr, Ident, Literal, Name, TypeSpec, Var};
 use crate::ParserError;
@@ -33,8 +33,8 @@ impl PartialEq for Function {
     }
 }
 impl Function {
-    pub fn local_name(&self) -> syntax_core::FunctionName {
-        syntax_core::FunctionName::new_local(self.name.name, self.arity)
+    pub fn local_name(&self) -> syntax_ssa::FunctionName {
+        syntax_ssa::FunctionName::new_local(self.name.name, self.arity)
     }
 
     pub fn next_var(&mut self, span: Option<SourceSpan>) -> Ident {
@@ -342,12 +342,12 @@ impl PartialOrd for UnresolvedFunctionName {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash, Spanned)]
 pub enum FunctionName {
-    Resolved(Span<syntax_core::FunctionName>),
-    PartiallyResolved(Span<syntax_core::FunctionName>),
+    Resolved(Span<syntax_ssa::FunctionName>),
+    PartiallyResolved(Span<syntax_ssa::FunctionName>),
     Unresolved(UnresolvedFunctionName),
 }
-impl From<syntax_core::FunctionName> for FunctionName {
-    fn from(name: syntax_core::FunctionName) -> Self {
+impl From<syntax_ssa::FunctionName> for FunctionName {
+    fn from(name: syntax_ssa::FunctionName) -> Self {
         if name.is_local() {
             Self::PartiallyResolved(Span::new(SourceSpan::UNKNOWN, name))
         } else {
@@ -417,18 +417,18 @@ impl FunctionName {
     pub fn new(span: SourceSpan, module: Symbol, function: Symbol, arity: u8) -> Self {
         Self::Resolved(Span::new(
             span,
-            syntax_core::FunctionName::new(module, function, arity),
+            syntax_ssa::FunctionName::new(module, function, arity),
         ))
     }
 
     pub fn new_local(span: SourceSpan, function: Symbol, arity: u8) -> Self {
         Self::PartiallyResolved(Span::new(
             span,
-            syntax_core::FunctionName::new_local(function, arity),
+            syntax_ssa::FunctionName::new_local(function, arity),
         ))
     }
 
-    pub fn partial_resolution(&self) -> Option<Span<syntax_core::FunctionName>> {
+    pub fn partial_resolution(&self) -> Option<Span<syntax_ssa::FunctionName>> {
         match self {
             Self::PartiallyResolved(partial) => Some(*partial),
             Self::Unresolved(UnresolvedFunctionName {

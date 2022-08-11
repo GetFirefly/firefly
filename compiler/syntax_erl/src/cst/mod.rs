@@ -13,7 +13,7 @@ use liblumen_binary::{BinaryEntrySpecifier, BitVec};
 use liblumen_diagnostics::{SourceSpan, Span, Spanned};
 use liblumen_intern::{symbols, Ident, Symbol};
 use liblumen_number::{Float, Integer};
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 use liblumen_util::emit::Emit;
 
 use crate::ast;
@@ -268,12 +268,12 @@ pub struct Module {
     pub vsn: Option<Literal>,
     pub author: Option<Literal>,
     pub compile: Option<ast::CompileOptions>,
-    pub on_load: Option<Span<syntax_core::FunctionName>>,
-    pub imports: HashMap<syntax_core::FunctionName, Span<syntax_core::Signature>>,
-    pub exports: HashSet<Span<syntax_core::FunctionName>>,
+    pub on_load: Option<Span<syntax_ssa::FunctionName>>,
+    pub imports: HashMap<syntax_ssa::FunctionName, Span<syntax_ssa::Signature>>,
+    pub exports: HashSet<Span<syntax_ssa::FunctionName>>,
     pub behaviours: HashSet<Ident>,
     pub attributes: HashMap<Ident, Expr>,
-    pub functions: BTreeMap<syntax_core::FunctionName, Function>,
+    pub functions: BTreeMap<syntax_ssa::FunctionName, Function>,
 }
 annotated!(Module);
 impl fmt::Display for Module {

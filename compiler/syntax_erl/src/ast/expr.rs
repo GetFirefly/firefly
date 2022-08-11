@@ -7,7 +7,7 @@ use liblumen_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
 use liblumen_diagnostics::{SourceSpan, Spanned};
 use liblumen_intern::{symbols, Symbol};
 use liblumen_number::{Float, Integer, Number};
-use liblumen_syntax_core as syntax_core;
+use liblumen_syntax_ssa as syntax_ssa;
 
 use super::{Arity, Fun, FunctionName, Guard, Name, Type};
 use super::{BinaryOp, Ident, UnaryOp};
@@ -196,8 +196,8 @@ impl From<Arity> for Expr {
         }
     }
 }
-impl From<syntax_core::FunctionName> for Expr {
-    fn from(name: syntax_core::FunctionName) -> Self {
+impl From<syntax_ssa::FunctionName> for Expr {
+    fn from(name: syntax_ssa::FunctionName) -> Self {
         Self::FunctionName(name.into())
     }
 }
@@ -1040,13 +1040,13 @@ impl Remote {
     }
 
     /// Try to resolve this remote expression to a constant function reference of the given arity
-    pub fn try_eval(&self, arity: u8) -> Result<syntax_core::FunctionName, EvalError> {
+    pub fn try_eval(&self, arity: u8) -> Result<syntax_ssa::FunctionName, EvalError> {
         let span = self.span;
         let module = evaluator::eval_expr(self.module.as_ref(), None)?;
         let function = evaluator::eval_expr(self.function.as_ref(), None)?;
         match (module, function) {
             (Literal::Atom(m), Literal::Atom(f)) => {
-                Ok(syntax_core::FunctionName::new(m.name, f.name, arity))
+                Ok(syntax_ssa::FunctionName::new(m.name, f.name, arity))
             }
             _ => Err(EvalError::InvalidConstExpression { span }),
         }

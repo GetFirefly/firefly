@@ -229,15 +229,15 @@ MlirOperation mlirCirMallocOp(MlirOpBuilder bldr, MlirLocation location,
   return wrap(op);
 }
 
-MlirOperation mlirCirCaptureFunOp(MlirOpBuilder bldr, MlirLocation location,
-                                  MlirType funTy, MlirValue *env,
-                                  intptr_t arity) {
+MlirOperation mlirCirMakeFunOp(MlirOpBuilder bldr, MlirLocation location,
+                               MlirOperation fun, MlirValue *env,
+                               intptr_t arity) {
   OpBuilder *builder = unwrap(bldr);
-  CIRFunType calleeTy = unwrap(funTy).cast<CIRFunType>();
+  auto callee = cast<FuncOp>(unwrap(fun));
   SmallVector<Value, 1> operandStorage;
   ValueRange operands(unwrapList(arity, env, operandStorage));
   Operation *op =
-      builder->create<cir::CaptureFunOp>(unwrap(location), calleeTy, operands);
+      builder->create<cir::MakeFunOp>(unwrap(location), callee, operands);
   return wrap(op);
 }
 

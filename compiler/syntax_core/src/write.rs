@@ -153,6 +153,21 @@ fn write_operands(w: &mut dyn Write, dfg: &DataFlowGraph, inst: Inst) -> io::Res
         InstData::CallIndirect(CallIndirect { callee, args, .. }) => {
             write!(w, " {:?}({})", &callee, DisplayValues(args.as_slice(pool)))
         }
+        InstData::MakeFun(MakeFun { callee, env, .. }) => {
+            write!(w, " {}({})", &callee, DisplayValues(env.as_slice(pool)))
+        }
+        InstData::CondBr(CondBr {
+            cond,
+            then_dest,
+            else_dest,
+            ..
+        }) => {
+            write!(w, " {}, ", cond)?;
+            write!(w, "{}", then_dest.0)?;
+            write_block_args(w, then_dest.1.as_slice(pool))?;
+            write!(w, ", {}", else_dest.0)?;
+            write_block_args(w, else_dest.1.as_slice(pool))
+        }
         InstData::Br(Br {
             op,
             destination,

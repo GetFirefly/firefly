@@ -71,7 +71,7 @@ impl RewriteExports {
         let span = clause.span;
         let patterns = self.cpattern_list(clause.patterns)?;
         let (body, _) = self.cexprs(clause.body, exports)?;
-        let guard = self.cguard(span, clause.guards)?;
+        let guard = self.cguard(clause.guards)?;
         Ok(Clause {
             span,
             annotations: clause.annotations,
@@ -92,11 +92,7 @@ impl RewriteExports {
             .try_collect()
     }
 
-    fn cguard(
-        &mut self,
-        span: SourceSpan,
-        guards: Vec<IExpr>,
-    ) -> anyhow::Result<Option<Box<Expr>>> {
+    fn cguard(&mut self, guards: Vec<IExpr>) -> anyhow::Result<Option<Box<Expr>>> {
         if guards.is_empty() {
             return Ok(None);
         }

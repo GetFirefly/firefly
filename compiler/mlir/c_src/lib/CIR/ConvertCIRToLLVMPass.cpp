@@ -3028,7 +3028,7 @@ void ConvertCIRToLLVMPass::runOnOperation() {
   patterns.add<IsTupleOpLowering>(typeConverter);
   patterns.add<IsTaggedTupleOpLowering>(typeConverter);
   patterns.add<MallocOpLowering>(typeConverter);
-  // patterns.add<CaptureFunOpLowering>(typeConverter);
+  // patterns.add<MakeFunOpLowering>(typeConverter);
   patterns.add<ConsOpLowering>(typeConverter);
   patterns.add<HeadOpLowering>(typeConverter);
   patterns.add<TailOpLowering>(typeConverter);

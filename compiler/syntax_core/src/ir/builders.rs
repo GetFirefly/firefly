@@ -504,6 +504,16 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         dfg.first_result(inst)
     }
 
+    fn make_fun(mut self, callee: FuncRef, env: &[Value], span: SourceSpan) -> Inst {
+        let mut vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            vlist.extend(env.iter().copied(), pool);
+        }
+        self.MakeFun(Type::Term(TermType::Fun(None)), callee, vlist, span)
+            .0
+    }
+
     fn br(mut self, block: Block, args: &[Value], span: SourceSpan) -> Inst {
         let mut vlist = ValueList::default();
         {
@@ -535,8 +545,28 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self.Br(Opcode::BrUnless, ty, block, vlist, span).0
     }
 
-    fn switch(self, arg: Value, arms: Vec<(u32, Block)>, span: SourceSpan) -> Inst {
-        self.Switch(arg, arms, span).0
+    fn cond_br(
+        mut self,
+        cond: Value,
+        then_dest: Block,
+        then_args: &[Value],
+        else_dest: Block,
+        else_args: &[Value],
+        span: SourceSpan,
+    ) -> Inst {
+        let mut then_vlist = ValueList::default();
+        let mut else_vlist = ValueList::default();
+        {
+            let pool = &mut self.data_flow_graph_mut().value_lists;
+            then_vlist.extend(then_args.iter().copied(), pool);
+            else_vlist.extend(else_args.iter().copied(), pool);
+        }
+        self.CondBr(cond, then_dest, then_vlist, else_dest, else_vlist, span)
+            .0
+    }
+
+    fn switch(self, arg: Value, arms: Vec<(u32, Block)>, default: Block, span: SourceSpan) -> Inst {
+        self.Switch(arg, arms, default, span).0
     }
 
     fn ret(self, is_err: Value, returning: Value, span: SourceSpan) -> Inst {
@@ -1073,6 +1103,36 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
     }
 
     #[allow(non_snake_case)]
+    fn MakeFun(
+        self,
+        ty: Type,
+        callee: FuncRef,
+        env: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::MakeFun(MakeFun { callee, env });
+        self.build(data, ty, span)
+    }
+
+    #[allow(non_snake_case)]
+    fn CondBr(
+        self,
+        cond: Value,
+        then_dest: Block,
+        then_args: ValueList,
+        else_dest: Block,
+        else_args: ValueList,
+        span: SourceSpan,
+    ) -> (Inst, &'f mut DataFlowGraph) {
+        let data = InstData::CondBr(CondBr {
+            cond,
+            then_dest: (then_dest, then_args),
+            else_dest: (else_dest, else_args),
+        });
+        self.build(data, Type::Invalid, span)
+    }
+
+    #[allow(non_snake_case)]
     fn Br(
         self,
         op: Opcode,
@@ -1094,12 +1154,14 @@ pub trait InstBuilder<'f>: InstBuilderBase<'f> {
         self,
         arg: Value,
         arms: Vec<(u32, Block)>,
+        default: Block,
         span: SourceSpan,
     ) -> (Inst, &'f mut DataFlowGraph) {
         let data = InstData::Switch(Switch {
             op: Opcode::Switch,
             arg,
             arms,
+            default,
         });
         self.build(data, Type::Invalid, span)
     }

@@ -145,6 +145,7 @@ struct LowerFunctionToCore<'m> {
     // The current break label stack
     brk: Vec<Block>,
     // The current receive label stack
+    #[allow(dead_code)]
     recv: Stack<Block>,
 }
 impl<'m> Pass for LowerFunctionToCore<'m> {
@@ -217,23 +218,19 @@ impl<'m> LowerFunctionToCore<'m> {
                 ..
             }) => {
                 let brk = builder.create_block();
-                let mut rets = Vec::with_capacity(ret.len());
                 for v in ret.iter().map(|e| e.as_var().unwrap()) {
                     let value = builder.append_block_param(brk, Type::Term(TermType::Any), span);
                     builder.define_var(v.name(), value);
-                    rets.push(value);
                 }
                 self.brk.push(brk);
-                self.lower_match(builder, span, self.fail, body)?;
+                self.lower_match(builder, self.fail, body)?;
                 self.brk.pop();
                 builder.switch_to_block(brk);
                 Ok(())
             }
+            KExpr::If(expr) => self.lower_if(builder, expr),
             KExpr::Seq(k::Seq {
-                span,
-                box arg,
-                box body,
-                ..
+                box arg, box body, ..
             }) => {
                 self.lower(builder, arg)?;
                 self.lower(builder, body)
@@ -247,9 +244,21 @@ impl<'m> LowerFunctionToCore<'m> {
             KExpr::Put(put) => self.lower_put(builder, put),
             KExpr::Return(k::Return { span, mut args, .. }) => {
                 assert_eq!(args.len(), 1);
-                let value = self.ssa_value(builder, args.pop().unwrap())?;
-                builder.ins().ret_ok(value, span);
-                Ok(())
+                if builder.is_current_block_terminated() {
+                    let msg = format!(
+                        "return associated with this expression with args: {:#?}",
+                        &args
+                    );
+                    self.show_warning(
+                        "skipped generating return as block is already terminated",
+                        &[(span, msg.as_str())],
+                    );
+                    Ok(())
+                } else {
+                    let value = self.ssa_value(builder, args.pop().unwrap())?;
+                    builder.ins().ret_ok(value, span);
+                    Ok(())
+                }
             }
             KExpr::Break(k::Break { span, args, .. }) => {
                 if builder.is_current_block_terminated() {
@@ -270,7 +279,6 @@ impl<'m> LowerFunctionToCore<'m> {
                 }
             }
             KExpr::LetRecGoto(k::LetRecGoto {
-                span,
                 label,
                 vars,
                 box first,
@@ -278,7 +286,6 @@ impl<'m> LowerFunctionToCore<'m> {
                 ret,
                 ..
             }) => {
-                let vs = vars.iter().map(|v| v.name()).collect::<Vec<_>>();
                 let then_block = builder.create_block();
                 for v in vars.iter() {
                     let value =
@@ -316,28 +323,49 @@ impl<'m> LowerFunctionToCore<'m> {
         }
     }
 
+    fn lower_if<'a>(&mut self, builder: &'a mut IrBuilder, expr: k::If) -> anyhow::Result<()> {
+        let span = expr.span();
+        let cond = self.ssa_value(builder, *expr.cond)?;
+        let then_block = builder.create_block();
+        let else_block = builder.create_block();
+        let final_block = builder.create_block();
+        for v in expr.ret.iter().map(|e| e.as_var().unwrap()) {
+            let value = builder.append_block_param(final_block, Type::Term(TermType::Any), span);
+            builder.define_var(v.name(), value);
+        }
+        builder
+            .ins()
+            .cond_br(cond, then_block, &[], else_block, &[], span);
+        builder.switch_to_block(then_block);
+        self.brk.push(final_block);
+        self.lower(builder, *expr.then_body)?;
+        builder.switch_to_block(else_block);
+        self.lower(builder, *expr.else_body)?;
+        builder.switch_to_block(final_block);
+        self.brk.pop();
+        Ok(())
+    }
+
     ///  Generate code for a match tree.
     fn lower_match<'a>(
         &mut self,
         builder: &'a mut IrBuilder,
-        span: SourceSpan,
         fail: Block,
         body: KExpr,
     ) -> anyhow::Result<()> {
         match body {
             KExpr::Alt(k::Alt {
-                span: aspan,
                 box first,
                 box then,
                 ..
             }) => {
                 let then_blk = builder.create_block();
-                self.lower_match(builder, aspan, then_blk, first)?;
+                self.lower_match(builder, then_blk, first)?;
                 builder.switch_to_block(then_blk);
-                self.lower_match(builder, aspan, fail, then)
+                self.lower_match(builder, fail, then)
             }
             KExpr::Select(k::Select {
-                span: sspan,
+                span,
                 ref var,
                 mut types,
                 ..
@@ -349,16 +377,12 @@ impl<'m> LowerFunctionToCore<'m> {
                     .collect::<Vec<_>>();
                 blocks.push(fail);
                 for (ty, block) in types.drain(..).zip(blocks.drain(..)) {
-                    self.lower_select(builder, sspan, var, ty, block, fail)?;
+                    self.lower_select(builder, span, var, ty, block, fail)?;
                     builder.switch_to_block(block);
                 }
                 Ok(())
             }
-            KExpr::Guard(k::Guard {
-                span: gspan,
-                mut clauses,
-                ..
-            }) => {
+            KExpr::Guard(k::Guard { mut clauses, .. }) => {
                 let mut blocks = clauses
                     .iter()
                     .skip(1)
@@ -366,7 +390,7 @@ impl<'m> LowerFunctionToCore<'m> {
                     .collect::<Vec<_>>();
                 blocks.push(fail);
                 for (clause, block) in clauses.drain(..).zip(blocks.drain(..)) {
-                    self.lower_guard(builder, gspan, clause, block)?;
+                    self.lower_guard(builder, clause, block)?;
                     builder.switch_to_block(block);
                 }
                 Ok(())
@@ -476,13 +500,11 @@ impl<'m> LowerFunctionToCore<'m> {
                     .map(|(arity, _)| *arity)
                     .zip(blocks.iter().copied())
                     .collect::<Vec<_>>();
-                builder.ins().switch(arity32, arms, span);
-                builder.ins().br(value_fail, &[], span);
+                builder.ins().switch(arity32, arms, value_fail, span);
                 // Now, for each clause, lower the body of that clause in the appropriate block
                 for ((_, clause), block) in clauses.drain(..).zip(blocks.drain(..)) {
                     builder.switch_to_block(block);
                     // Bind tuple elemnts in this block
-                    let span = clause.span();
                     let KExpr::Tuple(tuple) = *clause.value else { unreachable!() };
                     for (i, elem) in tuple.elements.iter().enumerate() {
                         if elem.has_annotation(symbols::Unused) {
@@ -497,7 +519,7 @@ impl<'m> LowerFunctionToCore<'m> {
                         );
                         builder.define_var(var.name, elem);
                     }
-                    self.lower_match(builder, span, value_fail, *clause.body)?;
+                    self.lower_match(builder, value_fail, *clause.body)?;
                 }
                 Ok(())
             }
@@ -534,7 +556,7 @@ impl<'m> LowerFunctionToCore<'m> {
                     let is_eq = builder.ins().eq_exact(src, val, span);
                     builder.ins().br_if(is_eq, block, &[], span);
                     builder.switch_to_block(block);
-                    self.lower_match(builder, span, value_fail, *vclause.body)?;
+                    self.lower_match(builder, value_fail, *vclause.body)?;
                     builder.switch_to_block(current_block);
                 }
                 // If no test succeeds, branch to the value_fail block
@@ -553,24 +575,21 @@ impl<'m> LowerFunctionToCore<'m> {
     fn lower_guard<'a>(
         &mut self,
         builder: &'a mut IrBuilder,
-        span: SourceSpan,
         clause: k::GuardClause,
         fail: Block,
     ) -> anyhow::Result<()> {
-        self.lower_guard_expr(builder, span, fail, *clause.guard)?;
-        self.lower_match(builder, span, fail, *clause.body)
+        self.lower_guard_expr(builder, fail, *clause.guard)?;
+        self.lower_match(builder, fail, *clause.body)
     }
 
     fn lower_guard_expr<'a>(
         &mut self,
         builder: &'a mut IrBuilder,
-        span: SourceSpan,
         fail: Block,
         guard: KExpr,
     ) -> anyhow::Result<()> {
         match guard {
             KExpr::Try(k::Try {
-                span,
                 box arg,
                 vars,
                 body: box KExpr::Break(bbrk),
@@ -589,7 +608,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 let old_fail = self.fail;
                 self.fail = fail;
                 self.brk.push(final_block);
-                self.lower_guard_expr(builder, span, fail, arg)?;
+                self.lower_guard_expr(builder, fail, arg)?;
                 self.brk.pop();
                 self.fail = old_fail;
                 builder.switch_to_block(final_block);
@@ -599,13 +618,10 @@ impl<'m> LowerFunctionToCore<'m> {
                 self.lower_test(builder, span, op, args, fail)
             }
             KExpr::Seq(k::Seq {
-                span,
-                box arg,
-                box body,
-                ..
+                box arg, box body, ..
             }) => {
-                self.lower_guard_expr(builder, span, fail, arg)?;
-                self.lower_guard_expr(builder, span, fail, body)
+                self.lower_guard_expr(builder, fail, arg)?;
+                self.lower_guard_expr(builder, fail, body)
             }
             guard => self.lower(builder, guard),
         }
@@ -760,7 +776,7 @@ impl<'m> LowerFunctionToCore<'m> {
     }
 
     ///  Generate code for a guard BIF or primop.
-    fn lower_bif<'a>(&mut self, builder: &'a mut IrBuilder, bif: k::Bif) -> anyhow::Result<()> {
+    fn lower_bif<'a>(&mut self, builder: &'a mut IrBuilder, mut bif: k::Bif) -> anyhow::Result<()> {
         let span = bif.span();
         assert_eq!(bif.op.module, Some(symbols::Erlang));
         if bif.op.is_primop() {
@@ -781,31 +797,64 @@ impl<'m> LowerFunctionToCore<'m> {
                 let arity = arity.to_usize().unwrap();
                 self.lower_is_record_bif(builder, bif, tag, arity)
             }
-            _ if bif.op.is_safe() => {
-                // This bif can never fail, and has no side effects
-                let callee = builder.get_callee(bif.op).unwrap();
-                let args = self.ssa_values(builder, bif.args)?;
-                let inst = builder.ins().call(callee, args.as_slice(), span);
-                let result = builder.inst_results(inst)[1];
+            (symbols::MakeFun, [KExpr::Local(local), ..]) => {
+                // make_fun/3 requires special handling to convert to its corresponding core instruction
+                let callee = builder.get_callee(local.item).unwrap();
+                let env = self.ssa_values(builder, bif.args.split_off(1))?;
+                let inst = builder.ins().make_fun(callee, env.as_slice(), span);
+                let (is_err, result) = {
+                    let results = builder.inst_results(inst);
+                    (results[0], results[1])
+                };
+                let fail = self.fail_context();
+                builder.ins().br_if(is_err, fail.block(), &[result], span);
                 if !bif.ret.is_empty() {
                     builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), result);
                 }
                 Ok(())
             }
+            _ if bif.op.is_safe() => {
+                // This bif can never fail, and has no side effects
+                let callee = builder.get_or_register_callee(bif.op);
+                let args = self.ssa_values(builder, bif.args)?;
+                let inst = builder.ins().call(callee, args.as_slice(), span);
+                let mut results = builder.inst_results(inst).to_vec();
+                assert_eq!(bif.ret.len(), results.len());
+                for (ret, value) in bif
+                    .ret
+                    .iter()
+                    .map(|e| e.as_var().map(|v| v.name()).unwrap())
+                    .zip(results.drain(..))
+                {
+                    builder.define_var(ret, value);
+                }
+                Ok(())
+            }
             _ => {
                 // This bif is fallible, and may have side effects, so must be treated like a standard call
-                let callee = builder.get_callee(bif.op).unwrap();
+                let callee = builder.get_or_register_callee(bif.op);
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
                 let (is_err, result) = {
                     let results = builder.inst_results(inst);
+                    assert_eq!(
+                        results.len(),
+                        2,
+                        "bif {} is fallible, but has an incorrect number of results",
+                        &bif.op
+                    );
                     (results[0], results[1])
                 };
-                if !bif.ret.is_empty() {
-                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), result);
+                // If there are no rets, handle the thrown error implicitly
+                if bif.ret.is_empty() {
+                    let fail = self.fail_context();
+                    builder.ins().br_if(is_err, fail.block(), &[result], span);
+                } else {
+                    // If there are rets, we expect that _all_ of the op results are handled
+                    assert_eq!(bif.ret.len(), 2);
+                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), is_err);
+                    builder.define_var(bif.ret[1].as_var().map(|v| v.name()).unwrap(), result);
                 }
-                let fail = self.fail_context();
-                builder.ins().br_if(is_err, fail.block(), &[result], span);
                 Ok(())
             }
         }
@@ -833,7 +882,6 @@ impl<'m> LowerFunctionToCore<'m> {
         //     ...
         let tuple_type = Type::tuple(arity);
         let is_type = builder.ins().is_type(tuple_type.clone(), tuple, span);
-        let current_block = builder.current_block();
         let tag_check_block = builder.create_block();
         let final_block = builder.create_block();
         builder.append_block_param(final_block, Type::Term(TermType::Bool), span);
@@ -864,6 +912,9 @@ impl<'m> LowerFunctionToCore<'m> {
                 let args = self.ssa_values(builder, bif.args)?;
                 let inst = builder.ins().call(callee, args.as_slice(), span);
                 let exception = builder.first_result(inst);
+                if !bif.ret.is_empty() {
+                    builder.define_var(bif.ret[0].as_var().map(|v| v.name()).unwrap(), exception);
+                }
                 match self.fail_context() {
                     FailContext::Uncaught(_) => {
                         // This exception has no local handler, so raise directly to the caller
@@ -885,6 +936,13 @@ impl<'m> LowerFunctionToCore<'m> {
                     }
                 }
             }
+            symbols::RemoveMessage | symbols::RecvNext => {
+                // These ops have no arguments and no results, i.e. they are not fallible, but do have a side effect on the process mailbox
+                assert_eq!(bif.ret.len(), 0);
+                assert_eq!(bif.args.len(), 0);
+                builder.ins().call(callee, &[], span);
+                Ok(())
+            }
             symbols::RecvPeekMessage => {
                 assert_eq!(bif.ret.len(), 2);
                 // This op has a multi-value result. The first is a boolean indicating whether a message was available,
@@ -903,7 +961,7 @@ impl<'m> LowerFunctionToCore<'m> {
                 Ok(())
             }
             symbols::RecvWaitTimeout => {
-                assert_eq!(bif.args.len(), 0);
+                assert!(bif.args.len() <= 1);
                 assert_eq!(bif.ret.len(), 1);
                 // This op has a complex multi-value result that can produce branches in three directions:
                 //
@@ -1105,7 +1163,6 @@ impl<'m> LowerFunctionToCore<'m> {
             Immediate::Atom(symbols::EXIT),
             span,
         );
-        let two = builder.ins().int(2, span);
         let wrapped_reason = builder
             .ins()
             .set_element_mut(wrapped_reason, 2, exit_reason, span);
@@ -1368,62 +1425,6 @@ impl<'m> LowerFunctionToCore<'m> {
         }
     }
 
-    fn show_error(&mut self, message: &str, labels: &[(SourceSpan, &str)]) {
-        if labels.is_empty() {
-            self.reporter
-                .diagnostic(Diagnostic::error().with_message(message));
-        } else {
-            let labels = labels
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(i, (span, message))| {
-                    if i > 0 {
-                        Label::secondary(span.source_id(), span).with_message(message)
-                    } else {
-                        Label::primary(span.source_id(), span).with_message(message)
-                    }
-                })
-                .collect();
-            self.reporter.diagnostic(
-                Diagnostic::error()
-                    .with_message(message)
-                    .with_labels(labels),
-            );
-        }
-    }
-
-    fn show_error_annotated(
-        &mut self,
-        message: &str,
-        labels: &[(SourceSpan, &str)],
-        notes: &[&str],
-    ) {
-        if labels.is_empty() {
-            self.reporter
-                .diagnostic(Diagnostic::error().with_message(message));
-        } else {
-            let labels = labels
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(i, (span, message))| {
-                    if i > 0 {
-                        Label::secondary(span.source_id(), span).with_message(message)
-                    } else {
-                        Label::primary(span.source_id(), span).with_message(message)
-                    }
-                })
-                .collect();
-            self.reporter.diagnostic(
-                Diagnostic::error()
-                    .with_message(message)
-                    .with_labels(labels)
-                    .with_notes(notes.iter().map(|n| n.to_string()).collect()),
-            );
-        }
-    }
-
     fn show_warning(&mut self, message: &str, labels: &[(SourceSpan, &str)]) {
         if labels.is_empty() {
             self.reporter
@@ -1448,37 +1449,6 @@ impl<'m> LowerFunctionToCore<'m> {
             );
         }
     }
-
-    fn show_warning_annotated(
-        &mut self,
-        message: &str,
-        labels: &[(SourceSpan, &str)],
-        notes: &[&str],
-    ) {
-        if labels.is_empty() {
-            self.reporter
-                .diagnostic(Diagnostic::error().with_message(message));
-        } else {
-            let labels = labels
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(i, (span, message))| {
-                    if i > 0 {
-                        Label::secondary(span.source_id(), span).with_message(message)
-                    } else {
-                        Label::primary(span.source_id(), span).with_message(message)
-                    }
-                })
-                .collect();
-            self.reporter.diagnostic(
-                Diagnostic::warning()
-                    .with_message(message)
-                    .with_labels(labels)
-                    .with_notes(notes.iter().map(|n| n.to_string()).collect()),
-            );
-        }
-    }
 }
 
 // Select
@@ -1492,7 +1462,13 @@ impl<'m> LowerFunctionToCore<'m> {
         type_fail: Block,
         value_fail: Block,
     ) -> anyhow::Result<()> {
-        let src = builder.var(var.name()).unwrap();
+        let src = match builder.var(var.name()) {
+            Some(v) => v,
+            None => panic!(
+                "reference to variable `{}` that has not been defined yet",
+                var.name()
+            ),
+        };
         let ctx_var = value
             .value
             .as_binary()
@@ -1508,7 +1484,7 @@ impl<'m> LowerFunctionToCore<'m> {
         let bin = builder.ins().cast(bin, Type::MatchContext, span);
         builder.define_var(ctx_var, bin);
 
-        self.lower_match(builder, span, value_fail, *value.body)
+        self.lower_match(builder, value_fail, *value.body)
     }
 
     fn select_binary_segments<'a>(
@@ -1555,15 +1531,9 @@ impl<'m> LowerFunctionToCore<'m> {
                     self.select_extract_bin(builder, span, src, spec, size, fail)?;
                 builder.define_var(next, next_value);
                 builder.define_var(extracted, extracted_value);
-                self.lower_match(builder, span, fail, *clause.body)
+                self.lower_match(builder, fail, *clause.body)
             }
-            KExpr::BinaryInt(k::BinarySegment {
-                next,
-                value,
-                size,
-                spec,
-                ..
-            }) => {
+            KExpr::BinaryInt(k::BinarySegment { .. }) => {
                 //self.select_extract_int(builder, span, src, spec, size, value, fail)?;
                 //self.lower_match(builder, span, fail, *clause.body)
                 todo!()
@@ -1608,7 +1578,7 @@ impl<'m> LowerFunctionToCore<'m> {
             .ins()
             .bs_test_tail_imm(src, Immediate::Integer(0), span);
         builder.ins().br_if(is_err, type_fail, &[], span);
-        self.lower_match(builder, span, type_fail, *value.body)
+        self.lower_match(builder, type_fail, *value.body)
     }
 
     fn select_map<'a>(
@@ -1659,7 +1629,7 @@ impl<'m> LowerFunctionToCore<'m> {
             builder.define_var(value_var, result);
         }
 
-        self.lower_match(builder, span, value_fail, body)
+        self.lower_match(builder, value_fail, body)
     }
 
     fn select_cons<'a>(
@@ -1688,7 +1658,7 @@ impl<'m> LowerFunctionToCore<'m> {
         let tl = builder.ins().tail(list, span);
         builder.define_var(cons.tail.as_var().map(|v| v.name()).unwrap(), tl);
 
-        self.lower_match(builder, span, value_fail, *value.body)
+        self.lower_match(builder, value_fail, *value.body)
     }
 
     fn select_nil<'a>(
@@ -1704,7 +1674,7 @@ impl<'m> LowerFunctionToCore<'m> {
         let nil = builder.ins().nil(span);
         let is_nil = builder.ins().eq_exact(src, nil, span);
         builder.ins().br_unless(is_nil, type_fail, &[], span);
-        self.lower(builder, *value.body)
+        self.lower_match(builder, value_fail, *value.body)
     }
 
     fn select_literal<'a>(
@@ -1734,12 +1704,13 @@ impl<'m> LowerFunctionToCore<'m> {
                 KExpr::Tuple(tuple) => {
                     let tuple_type = Type::tuple(tuple.elements.len());
                     let is_tuple = builder.ins().is_type(tuple_type.clone(), src, span);
+                    builder.ins().br_unless(is_tuple, fail, &[], span);
                     let t = builder.ins().cast(src, tuple_type, span);
                     self.select_tuple_elements(builder, span, t, tuple.elements);
                 }
                 other => panic!("expected tuple or literal, got {:#?}", &other),
             };
-            self.lower_match(builder, span, value_fail, *value.body)?;
+            self.lower_match(builder, value_fail, *value.body)?;
             builder.switch_to_block(fail);
         }
         Ok(())

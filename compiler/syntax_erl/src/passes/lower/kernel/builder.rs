@@ -92,14 +92,6 @@ impl<'a> IrBuilder<'a> {
         FuncInstBuilder::new(self, block)
     }
 
-    pub(super) fn ensure_inserted_block(&mut self) {
-        let block = self.position.unwrap();
-        assert!(
-            self.func.dfg.is_block_inserted(block),
-            "current block is detached from the function!"
-        );
-    }
-
     pub(super) fn is_current_block_terminated(&self) -> bool {
         self.is_block_terminated(self.position.expand().unwrap())
     }

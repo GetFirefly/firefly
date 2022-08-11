@@ -249,11 +249,11 @@ MLIR_CAPI_EXPORTED MlirOperation mlirCirMallocOp(MlirOpBuilder builder,
                                                  MlirLocation location,
                                                  MlirType ty);
 
-MLIR_CAPI_EXPORTED MlirOperation mlirCirCaptureFunOp(MlirOpBuilder builder,
-                                                     MlirLocation location,
-                                                     MlirType funTy,
-                                                     MlirValue *env,
-                                                     intptr_t arity);
+MLIR_CAPI_EXPORTED MlirOperation mlirCirMakeFunOp(MlirOpBuilder builder,
+                                                  MlirLocation location,
+                                                  MlirOperation fun,
+                                                  MlirValue *env,
+                                                  intptr_t arity);
 
 MLIR_CAPI_EXPORTED MlirOperation mlirCirConsOp(MlirOpBuilder builder,
                                                MlirLocation location,

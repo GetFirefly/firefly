@@ -551,18 +551,32 @@ def CIR_MallocOp : CIR_Op<"malloc", [DeclareOpInterfaceMethods<InferTypeOpInterf
   }];
 }
 
-def CIR_CaptureFunOp : CIR_Op<"fun.capture", [DeclareOpInterfaceMethods<InferTypeOpInterface, ["inferReturnTypes"]>, MemoryEffects<[MemAlloc, MemWrite]>]> {
+def CIR_MakeFunOp : CIR_Op<"make_fun", [DeclareOpInterfaceMethods<InferTypeOpInterface, ["inferReturnTypes"]>, MemoryEffects<[MemAlloc, MemWrite]>]> {
   let summary = "Creates a closure representing the given fun type.";
   let description = [{
     This operation creates a closure object representing the given fun type,
     and using the provided values to fill the free variables of the closure env.
   }];
 
-  let arguments = (ins TypeAttr:$funType, Variadic<CIR_AnyTerm>:$operands);
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<CIR_AnyTerm>:$env);
   let results = (outs CIR_BoxOf<CIR_FunType>);
 
+  let builders = [
+    OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
+      auto calleeType = callee.getFunctionType();
+      SmallVector<Type, 1> envTypes;
+      for (auto operand : operands)
+        envTypes.push_back(operand.getType());
+      auto funTy = CIRFunType::get($_builder.getContext(), calleeType, envTypes);
+      $_state.addOperands(operands);
+      $_state.addAttribute("callee", SymbolRefAttr::get(callee));
+      $_state.addAttribute("funType", TypeAttr::get(funTy));
+      $_state.addTypes(CIRBoxType::get(funTy));
+    }]>,
+  ];
+
   let assemblyFormat = [{
-    $funType `(` $operands `)` attr-dict `:` functional-type($operands, results)
+    $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
 }
 

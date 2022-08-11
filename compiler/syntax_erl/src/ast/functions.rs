@@ -8,6 +8,7 @@ use liblumen_number::Integer;
 use liblumen_syntax_core as syntax_core;
 
 use super::{Arity, Clause, Expr, Ident, Literal, Name, TypeSpec, Var};
+use crate::ParserError;
 
 /// A top-level function definition
 #[derive(Debug, Clone, Spanned)]
@@ -54,7 +55,7 @@ impl Function {
         reporter: &Reporter,
         span: SourceSpan,
         clauses: Vec<(Option<Name>, Clause)>,
-    ) -> Result<Self, ()> {
+    ) -> Result<Self, ParserError> {
         debug_assert!(clauses.len() > 0);
 
         let head_pair = &clauses[0];
@@ -68,8 +69,8 @@ impl Function {
         let mut last_clause = head_span.clone();
         for (clause_name, clause) in clauses.iter().skip(1) {
             if clause_name.is_none() {
-                reporter.diagnostic(
-                    Diagnostic::error()
+                return Err(ParserError::ShowDiagnostic {
+                    diagnostic: Diagnostic::error()
                         .with_message("expected named function clause")
                         .with_labels(vec![
                             Label::primary(clause.span.source_id(), clause.span).with_message(
@@ -79,8 +80,7 @@ impl Function {
                                 "expected a clause with the same name as this clause",
                             ),
                         ]),
-                );
-                return Err(());
+                });
             }
 
             let clause_name = clause_name.clone().unwrap();
@@ -207,7 +207,7 @@ impl Fun {
         reporter: &Reporter,
         span: SourceSpan,
         mut clauses: Vec<(Option<Name>, Clause)>,
-    ) -> Result<Self, ()> {
+    ) -> Result<Self, ParserError> {
         debug_assert!(clauses.len() > 0);
         let head_clause = &clauses[0];
         let name = head_clause.0.clone();
@@ -219,8 +219,8 @@ impl Fun {
         let mut last_clause = head_span.clone();
         for (clause_name, clause) in clauses.iter().skip(1) {
             if name.is_some() && clause_name.is_none() {
-                reporter.diagnostic(
-                    Diagnostic::error()
+                return Err(ParserError::ShowDiagnostic {
+                    diagnostic: Diagnostic::error()
                         .with_message("expected named function clause")
                         .with_labels(vec![
                             Label::primary(clause.span.source_id(), clause.span.clone())
@@ -231,13 +231,12 @@ impl Fun {
                                 "expected a clause with the same name as this clause",
                             ),
                         ]),
-                );
-                return Err(());
+                });
             }
 
             if name.is_none() && clause_name.is_some() {
-                reporter.diagnostic(
-                    Diagnostic::error()
+                return Err(ParserError::ShowDiagnostic {
+                    diagnostic: Diagnostic::error()
                         .with_message("mismatched function clause")
                         .with_labels(vec![
                             Label::primary(clause.span.source_id(), clause.span.clone())
@@ -247,8 +246,7 @@ impl Fun {
                                 "but this clause is unnamed, all clauses must share the same name",
                             ),
                         ]),
-                );
-                return Err(());
+                });
             }
 
             if *clause_name != name {

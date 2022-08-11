@@ -36,9 +36,7 @@ impl<'m> Pass for ExpandRecords<'m> {
 
 struct ExpandRecordsVisitor<'m> {
     module: &'m Module,
-    name: Ident,
     var_counter: usize,
-    arity: u8,
     in_pattern: bool,
     in_guard: bool,
     expand_record_info: bool,
@@ -53,8 +51,6 @@ impl<'m> ExpandRecordsVisitor<'m> {
             in_guard: false,
             expand_record_info,
             var_counter: f.var_counter,
-            name: f.name,
-            arity: f.arity,
         }
     }
 

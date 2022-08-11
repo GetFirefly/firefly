@@ -414,7 +414,6 @@ impl TranslateCst {
                 ))
             }
             cst::Expr::Map(cst::Map {
-                span,
                 annotations,
                 box arg,
                 pairs,
@@ -471,10 +470,7 @@ impl TranslateCst {
                 ))
             }
             cst::Expr::Seq(cst::Seq {
-                span,
-                annotations,
-                box arg,
-                box body,
+                box arg, box body, ..
             }) => {
                 let (arg, mut pre) = self.body(arg, sub.clone())?;
                 let (body, mut pre2) = self.body(body, sub)?;
@@ -531,10 +527,7 @@ impl TranslateCst {
                 }
             }
             cst::Expr::Case(cst::Case {
-                span,
-                annotations,
-                box arg,
-                clauses,
+                box arg, clauses, ..
             }) => {
                 let (arg, mut pre) = self.body(arg, sub.clone())?;
                 let (vars, mut pre2) = self.match_vars(arg);
@@ -659,10 +652,7 @@ impl TranslateCst {
                 mut args,
             }) => self.translate_match_fail(span, annotations, args.pop().unwrap(), sub),
             cst::Expr::PrimOp(cst::PrimOp {
-                span,
-                annotations,
-                name,
-                args,
+                span, name, args, ..
             }) => {
                 let arity = args.len() as u8;
                 let (args, pre) = self.atomic_list(args, sub)?;
@@ -780,7 +770,7 @@ impl TranslateCst {
         sub: BiMap,
     ) -> Result<(Expr, Vec<Expr>), ExprError> {
         let label = var.name.name;
-        let arity = var.arity.unwrap();
+        assert_ne!(var.arity, None);
         let cst::Expr::Fun(fail) = fail else { panic!("unexpected letrec definition") };
         let fun_vars = fail.vars;
         let fun_body = fail.body;
@@ -832,9 +822,9 @@ impl TranslateCst {
     ) -> Result<(Expr, Vec<Expr>), ExprError> {
         let (args, annotations) = match arg {
             cst::Expr::Tuple(cst::Tuple {
-                span,
                 annotations,
                 elements,
+                ..
             }) => match &elements[0] {
                 cst::Expr::Literal(Literal {
                     value: Lit::Atom(symbols::FunctionClause),
@@ -843,9 +833,8 @@ impl TranslateCst {
                 _ => (elements, annotations),
             },
             cst::Expr::Literal(Literal {
-                span,
-                annotations: lanno,
                 value: Lit::Tuple(mut elements),
+                ..
             }) => match &elements[0].value {
                 Lit::Atom(symbols::FunctionClause) => {
                     let args = elements.drain(..).map(cst::Expr::Literal).collect();
@@ -1352,6 +1341,7 @@ impl TranslateCst {
             box value,
         } in pairs.drain(..)
         {
+            assert_eq!(op, MapOp::Exact);
             let (key, _) = self.expr(key, isub.clone())?;
             let (value, osub2) = self.pattern(value, isub.clone(), osub1)?;
             osub1 = osub2;
@@ -1549,7 +1539,6 @@ impl Ord for MatchGroupKey {
             (Self::Bin(_, _), _) => Ordering::Less,
             (_, Self::Bin(_, _)) => Ordering::Greater,
             (Self::Map(xs), Self::Map(ys)) => xs.cmp(ys),
-            (Self::Map(_), _) => Ordering::Greater,
             (_, Self::Map(_)) => Ordering::Less,
         }
     }
@@ -1754,7 +1743,7 @@ fn pre_seq(mut pre: Vec<Expr>, body: Expr) -> Expr {
 
 fn validate_bin_element_size(
     size: Option<&Expr>,
-    annotations: &Annotations,
+    _annotations: &Annotations,
 ) -> Result<(), ExprError> {
     match size {
         None | Some(Expr::Var(_)) => Ok(()),
@@ -2077,7 +2066,7 @@ impl TranslateCst {
                 let t = Expr::Var(tail.clone());
                 (Expr::Cons(Cons::new(span, h, t)), vec![head, tail])
             }
-            Expr::Binary(Binary { span, segment, .. }) => {
+            Expr::Binary(Binary { span, .. }) => {
                 let span = *span;
                 let v = self.context.next_var(Some(span));
                 (
@@ -2372,11 +2361,11 @@ fn is_select_bin_int_possible(clauses: &[IClause]) -> bool {
         return false;
     }
     // Use the first clause to determine how to check the rest
-    let mut match_bits = 0;
-    let mut match_size = 0;
-    let mut match_value = Integer::Small(0);
-    let mut match_signed = false;
-    let mut match_endianness = Endianness::Big;
+    let match_bits;
+    let match_size;
+    let match_value;
+    let match_signed;
+    let match_endianness;
     {
         match clauses[0].patterns.first().unwrap() {
             Expr::BinarySegment(BinarySegment {
@@ -2753,7 +2742,7 @@ fn combine_bin_segs(segment: Expr, bin: &mut BitVec) -> Result<(), ()> {
             },
             _ => Err(()),
         },
-        other => Err(()),
+        _other => Err(()),
     }
 }
 
@@ -3107,7 +3096,6 @@ impl TranslateCst {
             expr => match brk {
                 Brk::Return if expr.is_enter_expr() => self.uexpr(expr, Brk::Return),
                 Brk::Return => {
-                    let span = expr.span();
                     let (ea, pa) = self.force_atomic(expr);
                     self.ubody(pre_seq(pa, Expr::Values(kvalues!(ea))), Brk::Return)
                 }
@@ -3448,7 +3436,8 @@ impl TranslateCst {
                     .copied()
                     .map(|id| Expr::Var(Var::new(id)))
                     .collect::<Vec<_>>();
-                let arity = vars.len() + free.size();
+                let env_arity = free.size();
+                let arity = vars.len() + env_arity;
                 let fname = match annotations.get(symbols::Id) {
                     Some(Annotation::Term(Literal {
                         value: Lit::Tuple(es),
@@ -3468,11 +3457,7 @@ impl TranslateCst {
                 let function = make_function(span, annotations.clone(), fname, vars, b1);
                 self.add_local_function(function);
                 // Build bif invocation that creates the fun with the closure environment
-                let op = syntax_core::FunctionName::new(
-                    symbols::Erlang,
-                    symbols::MakeFun,
-                    (free.size() + 2) as u8,
-                );
+                let op = syntax_core::FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
                 let mut args = Vec::with_capacity(fvs.len() + 1);
                 args.push(Expr::Local(Span::new(span, fname)));
                 args.append(&mut fvs);
@@ -3499,11 +3484,7 @@ impl TranslateCst {
                     .map(|id| Expr::Var(Var::new(id)))
                     .collect::<Vec<_>>();
                 let num_free = fvs.len();
-                let op = syntax_core::FunctionName::new(
-                    symbols::Erlang,
-                    symbols::MakeFun,
-                    (num_free + 1) as u8,
-                );
+                let op = syntax_core::FunctionName::new(symbols::Erlang, symbols::MakeFun, 3);
                 let mut args = Vec::with_capacity(arity + num_free);
                 args.push(Expr::Local(Span::new(
                     span,
@@ -3580,7 +3561,6 @@ impl TranslateCst {
         // effects on the current context
         let context = self.context.clone();
         self.context.ignore_funs = true;
-        let span = body.span();
         let result = self.ubody(body, Brk::Return);
         self.context = context;
         result.map(|(_, used)| used)
@@ -3990,6 +3970,7 @@ fn pat_list_vars(patterns: &[Expr]) -> (RedBlackTreeSet<Ident>, RedBlackTreeSet<
         })
 }
 
+#[allow(dead_code)]
 fn integers(n: usize, m: usize) -> core::ops::RangeInclusive<usize> {
     if n > m {
         // This produces an empty iterator

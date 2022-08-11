@@ -280,12 +280,15 @@ impl<'m> ModuleBuilder<'m> {
             InstData::BinaryOpConst(op) => self.build_binary_op_const(dfg, inst, inst_span, op),
             InstData::Ret(op) => self.build_ret(dfg, inst, inst_span, op),
             InstData::RetImm(op) => self.build_ret_imm(dfg, inst, inst_span, op),
+            InstData::CondBr(op) => self.build_cond_br(dfg, inst, inst_span, op),
             InstData::Br(op) => self.build_br(dfg, inst, inst_span, op),
+            InstData::Switch(op) => self.build_switch(dfg, inst, inst_span, op),
             InstData::IsType(op) => self.build_is_type(dfg, inst, inst_span, op),
             InstData::PrimOp(op) => self.build_primop(dfg, inst, inst_span, op),
             InstData::PrimOpImm(op) => self.build_primop_imm(dfg, inst, inst_span, op),
             InstData::Call(op) => self.build_call(dfg, inst, inst_span, op),
             InstData::CallIndirect(op) => self.build_call_indirect(dfg, inst, inst_span, op),
+            InstData::MakeFun(op) => self.build_make_fun(dfg, inst, inst_span, op),
             InstData::SetElement(op) => self.build_setelement(dfg, inst, inst_span, op),
             InstData::SetElementImm(op) => self.build_setelement_imm(dfg, inst, inst_span, op),
             InstData::SetElementConst(op) => self.build_setelement_const(dfg, inst, inst_span, op),
@@ -1162,6 +1165,79 @@ impl<'m> ModuleBuilder<'m> {
         Ok(())
     }
 
+    fn build_switch(
+        &mut self,
+        _dfg: &DataFlowGraph,
+        _inst: Inst,
+        span: SourceSpan,
+        op: &Switch,
+    ) -> anyhow::Result<()> {
+        let loc = self.location_from_span(span);
+        let arg = self.values[&op.arg];
+        let builder = CirBuilder::new(&self.builder);
+        let mut mlir_op = builder.build_switch(loc, arg);
+        for (value, dest) in op.arms.iter() {
+            let dest = self.blocks[dest];
+            mlir_op.with_case(*value, dest, &[]);
+        }
+        let default = self.blocks[&op.default];
+        mlir_op.with_default(default, &[]);
+        mlir_op.build();
+        Ok(())
+    }
+
+    fn build_cond_br(
+        &mut self,
+        dfg: &DataFlowGraph,
+        _inst: Inst,
+        span: SourceSpan,
+        op: &CondBr,
+    ) -> anyhow::Result<()> {
+        let loc = self.location_from_span(span);
+        let then_dest = self.blocks[&op.then_dest.0];
+        let else_dest = self.blocks[&op.else_dest.0];
+        let then_args = op.then_dest.1.as_slice(&dfg.value_lists);
+        let else_args = op.else_dest.1.as_slice(&dfg.value_lists);
+        let builder = CirBuilder::new(&self.builder);
+        let i1ty = builder.get_i1_type().base();
+        let cond = self.values[&op.cond];
+        let cond = if cond.get_type() != i1ty {
+            let cond_cast = builder.build_cast(loc, cond, builder.get_i1_type());
+            cond_cast.get_result(0).base()
+        } else {
+            cond
+        };
+        let mut then_args_mapped = Vec::with_capacity(then_args.len());
+        for (i, mapped_arg) in then_args.iter().map(|a| self.values[a]).enumerate() {
+            let expected_ty = then_dest.get_argument(i).get_type();
+            if mapped_arg.get_type() == expected_ty {
+                then_args_mapped.push(mapped_arg.base());
+            } else {
+                let cast = builder.build_cast(loc, mapped_arg, expected_ty);
+                then_args_mapped.push(cast.get_result(0).base());
+            }
+        }
+        let mut else_args_mapped = Vec::with_capacity(else_args.len());
+        for (i, mapped_arg) in else_args.iter().map(|a| self.values[a]).enumerate() {
+            let expected_ty = else_dest.get_argument(i).get_type();
+            if mapped_arg.get_type() == expected_ty {
+                else_args_mapped.push(mapped_arg.base());
+            } else {
+                let cast = builder.build_cast(loc, mapped_arg, expected_ty);
+                else_args_mapped.push(cast.get_result(0).base());
+            }
+        }
+        builder.build_cond_branch(
+            loc,
+            cond,
+            then_dest,
+            then_args_mapped.as_slice(),
+            else_dest,
+            else_args_mapped.as_slice(),
+        );
+        Ok(())
+    }
+
     fn build_br(
         &mut self,
         dfg: &DataFlowGraph,
@@ -1353,6 +1429,29 @@ impl<'m> ModuleBuilder<'m> {
             other => unimplemented!("unrecognized primop immediate op: {}", other),
         };
 
+        let results = dfg.inst_results(inst);
+        for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
+            self.values.insert(value, op_result.base());
+        }
+        Ok(())
+    }
+
+    fn build_make_fun(
+        &mut self,
+        dfg: &DataFlowGraph,
+        inst: Inst,
+        span: SourceSpan,
+        op: &MakeFun,
+    ) -> anyhow::Result<()> {
+        let loc = self.location_from_span(span);
+        let sig = self.find_function(op.callee);
+        let name = sig.mfa().to_string();
+
+        let callee = self.get_or_declare_function(name.as_str()).unwrap();
+
+        let env = dfg.inst_args(inst);
+        let env = env.iter().map(|a| self.values[a]).collect::<Vec<_>>();
+        let mlir_op = self.cir().build_fun(loc, callee, env.as_slice());
         let results = dfg.inst_results(inst);
         for (value, op_result) in results.iter().copied().zip(mlir_op.results()) {
             self.values.insert(value, op_result.base());

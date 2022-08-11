@@ -14,6 +14,7 @@ use self::expand_substitutions::ExpandSubstitutions;
 use self::expand_unqualified_calls::ExpandUnqualifiedCalls;
 
 pub struct CanonicalizeSyntax {
+    #[allow(dead_code)]
     reporter: Reporter,
 }
 impl CanonicalizeSyntax {

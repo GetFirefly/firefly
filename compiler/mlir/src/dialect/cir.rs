@@ -1388,39 +1388,26 @@ impl<'a, B: OpBuilder> CirBuilder<'a, B> {
 /// Represents the construction of a fun/closure
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct CaptureFunOp(OperationBase);
-impl Operation for CaptureFunOp {
+pub struct MakeFunOp(OperationBase);
+impl Operation for MakeFunOp {
     fn base(&self) -> OperationBase {
         self.0
     }
 }
 impl<'a, B: OpBuilder> CirBuilder<'a, B> {
     #[inline]
-    pub fn build_fun(
-        &self,
-        loc: Location,
-        callee_type: FunType,
-        env: &[ValueBase],
-    ) -> CaptureFunOp {
+    pub fn build_fun(&self, loc: Location, callee: FuncOp, env: &[ValueBase]) -> MakeFunOp {
         extern "C" {
-            fn mlirCirCaptureFunOp(
+            fn mlirCirMakeFunOp(
                 builder: OpBuilderBase,
                 loc: Location,
-                callee_type: TypeBase,
+                callee: FuncOp,
                 env: *const ValueBase,
                 env_len: usize,
-            ) -> CaptureFunOp;
+            ) -> MakeFunOp;
         }
 
-        unsafe {
-            mlirCirCaptureFunOp(
-                self.base().into(),
-                loc,
-                callee_type.base(),
-                env.as_ptr(),
-                env.len(),
-            )
-        }
+        unsafe { mlirCirMakeFunOp(self.base().into(), loc, callee, env.as_ptr(), env.len()) }
     }
 }
 

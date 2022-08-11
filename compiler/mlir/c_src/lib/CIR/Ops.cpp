@@ -354,10 +354,10 @@ LogicalResult cir::MallocOp::inferReturnTypes(
 }
 
 //===----------------------------------------------------------------------===//
-// CaptureFunOp
+// MakeFunOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult cir::CaptureFunOp::inferReturnTypes(
+LogicalResult cir::MakeFunOp::inferReturnTypes(
     MLIRContext *context, llvm::Optional<Location> location,
     ValueRange operands, DictionaryAttr attributes, RegionRange regions,
     llvm::SmallVectorImpl<Type> &inferredReturnTypes) {

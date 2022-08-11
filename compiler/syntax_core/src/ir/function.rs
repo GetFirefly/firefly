@@ -154,7 +154,11 @@ impl FunctionName {
             | symbols::MatchFail
             | symbols::Raise
             | symbols::BuildStacktrace
-            | symbols::BitsInitWritable => true,
+            | symbols::BitsInitWritable
+            | symbols::RemoveMessage
+            | symbols::RecvNext
+            | symbols::RecvPeekMessage
+            | symbols::RecvWaitTimeout => true,
             _ => false,
         }
     }
@@ -163,7 +167,15 @@ impl FunctionName {
     ///
     /// NOTE: This function will panic if this function is not a BIF
     pub fn bif_values(&self) -> usize {
-        crate::bifs::get(self).unwrap().results.len()
+        let sig = crate::bifs::get(self).unwrap();
+        // RecvWaitTimeout produces two values, but only one of
+        // those is visible to Erlang code, the other is handled
+        // in the kernel lowering code to raise an error
+        if sig.name == symbols::RecvWaitTimeout {
+            1
+        } else {
+            sig.results.len()
+        }
     }
 
     /// Returns true if this function name is erlang:apply/2

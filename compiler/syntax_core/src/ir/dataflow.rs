@@ -334,9 +334,10 @@ impl DataFlowGraph {
                     self.append_result(inst, Type::Term(TermType::Any));
                     2
                 }
-                Opcode::MakeFun | Opcode::CaptureFun => {
-                    self.append_result(inst, Type::Term(TermType::Fun(None)));
-                    1
+                Opcode::MakeFun => {
+                    self.append_result(inst, Type::Primitive(PrimitiveType::I1));
+                    self.append_result(inst, Type::Term(TermType::Any));
+                    2
                 }
                 Opcode::RecvStart => {
                     // This primop returns a receive context

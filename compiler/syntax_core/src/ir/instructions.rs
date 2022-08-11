@@ -57,7 +57,9 @@ pub enum InstData {
     UnaryOpConst(UnaryOpConst),
     Call(Call),
     CallIndirect(CallIndirect),
+    MakeFun(MakeFun),
     Br(Br),
+    CondBr(CondBr),
     Switch(Switch),
     Ret(Ret),
     RetImm(RetImm),
@@ -82,7 +84,9 @@ impl InstData {
             | Self::UnaryOpConst(UnaryOpConst { ref op, .. }) => *op,
             Self::Call(_) => Opcode::Call,
             Self::CallIndirect(_) => Opcode::CallIndirect,
+            Self::MakeFun(_) => Opcode::MakeFun,
             Self::Br(Br { ref op, .. }) => *op,
+            Self::CondBr(_) => Opcode::CondBr,
             Self::Switch(Switch { ref op, .. }) => *op,
             Self::Ret(_) | Self::RetImm(_) => Opcode::Ret,
             Self::PrimOp(PrimOp { ref op, .. }) | Self::PrimOpImm(PrimOpImm { ref op, .. }) => *op,
@@ -106,7 +110,9 @@ impl InstData {
             Self::UnaryOpConst(UnaryOpConst { .. }) => &[],
             Self::Call(Call { ref args, .. }) => args.as_slice(pool),
             Self::CallIndirect(CallIndirect { ref args, .. }) => args.as_slice(pool),
+            Self::MakeFun(MakeFun { ref env, .. }) => env.as_slice(pool),
             Self::Br(Br { ref args, .. }) => args.as_slice(pool),
+            Self::CondBr(CondBr { ref cond, .. }) => core::slice::from_ref(cond),
             Self::Switch(Switch { ref arg, .. }) => core::slice::from_ref(arg),
             Self::Ret(Ret { ref args, .. }) => args.as_slice(),
             Self::RetImm(RetImm { ref arg, .. }) => core::slice::from_ref(arg),
@@ -132,7 +138,9 @@ impl InstData {
             Self::UnaryOpConst(UnaryOpConst { .. }) => &mut [],
             Self::Call(Call { ref mut args, .. }) => args.as_mut_slice(pool),
             Self::CallIndirect(CallIndirect { ref mut args, .. }) => args.as_mut_slice(pool),
+            Self::MakeFun(MakeFun { ref mut env, .. }) => env.as_mut_slice(pool),
             Self::Br(Br { ref mut args, .. }) => args.as_mut_slice(pool),
+            Self::CondBr(CondBr { ref mut cond, .. }) => core::slice::from_mut(cond),
             Self::Switch(Switch { ref mut arg, .. }) => core::slice::from_mut(arg),
             Self::Ret(Ret { ref mut args, .. }) => args.as_mut_slice(),
             Self::RetImm(RetImm { ref mut arg, .. }) => core::slice::from_mut(arg),
@@ -168,6 +176,14 @@ impl InstData {
                 BranchInfo::SingleDest(b.destination, b.args.as_slice(pool))
             }
             Self::Br(ref b) => BranchInfo::SingleDest(b.destination, &b.args.as_slice(pool)[1..]),
+            Self::CondBr(CondBr {
+                ref then_dest,
+                ref else_dest,
+                ..
+            }) => BranchInfo::MultiDest(vec![
+                JumpTable::new(then_dest.0, then_dest.1.as_slice(pool)),
+                JumpTable::new(else_dest.0, else_dest.1.as_slice(pool)),
+            ]),
             _ => BranchInfo::NotABranch,
         }
     }
@@ -191,6 +207,17 @@ impl InstData {
 pub enum BranchInfo<'a> {
     NotABranch,
     SingleDest(Block, &'a [Value]),
+    MultiDest(Vec<JumpTable<'a>>),
+}
+
+pub struct JumpTable<'a> {
+    pub destination: Block,
+    pub args: &'a [Value],
+}
+impl<'a> JumpTable<'a> {
+    pub fn new(destination: Block, args: &'a [Value]) -> Self {
+        Self { destination, args }
+    }
 }
 
 pub enum CallInfo<'a> {
@@ -252,6 +279,7 @@ pub enum Opcode {
     Bsr,
     Call,
     CallIndirect,
+    CondBr,
     BrIf,
     BrUnless,
     Br,
@@ -287,7 +315,6 @@ pub enum Opcode {
     BitsTestTail,
     // Closures
     MakeFun,
-    CaptureFun,
     // Primops
     MatchFail,
     RecvStart,
@@ -307,7 +334,9 @@ pub enum Opcode {
 impl Opcode {
     pub fn is_terminator(&self) -> bool {
         match self {
-            Self::Br | Self::Ret | Self::Raise | Self::MatchFail => true,
+            Self::Br | Self::CondBr | Self::Switch | Self::Ret | Self::Raise | Self::MatchFail => {
+                true
+            }
             _ => false,
         }
     }
@@ -386,13 +415,11 @@ impl Opcode {
             // Inserting/updating a map takes 3 arguments, map/key/value
             Self::MapPut | Self::MapPutMut | Self::MapUpdate | Self::MapUpdateMut => 3,
             // Creating a fun only requires the callee, the environment is variable-sized
-            Self::MakeFun => 1,
-            // Capturing a fun requires the module, function, and arity
-            Self::CaptureFun => 3,
+            Self::MakeFun => 0,
             // Calls are entirely variable
             Self::Call | Self::CallIndirect => 0,
             // Ifs have a single argument, the conditional
-            Self::BrIf | Self::BrUnless => 1,
+            Self::CondBr | Self::BrIf | Self::BrUnless => 1,
             // Unconditional branches have no fixed arguments
             Self::Br => 0,
             // Switches have a single argument, the input value
@@ -436,6 +463,7 @@ impl fmt::Display for Opcode {
             Self::Cast => f.write_str("cast"),
             Self::Trunc => f.write_str("trunc"),
             Self::Zext => f.write_str("zext"),
+            Self::CondBr => f.write_str("cond.br"),
             Self::Br => f.write_str("br"),
             Self::BrIf => f.write_str("br.if"),
             Self::BrUnless => f.write_str("br.unless"),
@@ -495,7 +523,6 @@ impl fmt::Display for Opcode {
             Self::SetElement => f.write_str("tuple.set"),
             Self::SetElementMut => f.write_str("tuple.set.mut"),
             Self::MakeFun => f.write_str("fun.make"),
-            Self::CaptureFun => f.write_str("fun.capture"),
             Self::MatchFail => f.write_str("match_fail"),
             Self::RecvStart => f.write_str("recv.start"),
             Self::RecvNext => f.write_str("recv.next"),
@@ -657,12 +684,21 @@ pub struct Br {
     pub args: ValueList,
 }
 
+/// Conditional Branch
+#[derive(Debug, Clone)]
+pub struct CondBr {
+    pub cond: Value,
+    pub then_dest: (Block, ValueList),
+    pub else_dest: (Block, ValueList),
+}
+
 /// Switch-case
 #[derive(Debug, Clone)]
 pub struct Switch {
     pub op: Opcode,
     pub arg: Value,
     pub arms: Vec<(u32, Block)>,
+    pub default: Block,
 }
 
 /// Return
@@ -699,6 +735,12 @@ pub struct PrimOpImm {
 pub struct IsType {
     pub arg: Value,
     pub ty: Type,
+}
+
+#[derive(Debug, Clone)]
+pub struct MakeFun {
+    pub callee: FuncRef,
+    pub env: ValueList,
 }
 
 #[derive(Debug, Clone)]

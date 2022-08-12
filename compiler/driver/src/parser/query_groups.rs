@@ -5,7 +5,9 @@ use std::thread::ThreadId;
 use liblumen_llvm as llvm;
 use liblumen_mlir as mlir;
 use liblumen_session::{InputType, Options};
+use liblumen_syntax_core as syntax_core;
 use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
+use liblumen_syntax_kernel as syntax_kernel;
 use liblumen_syntax_ssa as syntax_ssa;
 
 use super::queries;
@@ -47,32 +49,33 @@ pub trait Parser: CompilerOutput {
     #[salsa::invoke(queries::input_type)]
     fn input_type(&self, input: InternedInput) -> InputType;
 
-    /// Gets the syntax_erl::ast module associated with the given input, if it exists
+    /// Gets the syntax_erl module associated with the given input, if it exists
     ///
     /// If the input is not compatible with producing an AST module, or an
     /// error occurs during parsing of the module, the result will be Err(ErrorReported).
     #[salsa::invoke(queries::input_ast)]
-    fn input_ast(&self, input: InternedInput) -> Result<syntax_erl::ast::Module, ErrorReported>;
+    fn input_ast(&self, input: InternedInput) -> Result<syntax_erl::Module, ErrorReported>;
 
-    /// Gets the syntax_erl module associated with the given input, if it exists
+    /// Gets the syntax_core module associated with the given input, if it exists
     ///
-    /// If the input is not compatible with producing a syntax_erl module, or an
+    /// If the input is not compatible with producing a syntax_core module, or an
     /// error occurs during parsing of the module, the result will be Err(ErrorReported).
-    #[salsa::invoke(queries::input_cst)]
-    fn input_cst(&self, input: InternedInput) -> Result<syntax_erl::cst::Module, ErrorReported>;
+    #[salsa::invoke(queries::input_core)]
+    fn input_core(&self, input: InternedInput) -> Result<syntax_core::Module, ErrorReported>;
 
+    /// Gets the syntax_kernel module associated with the given input, if it exists
+    ///
+    /// If the input is not compatible with producing a syntax_kernel module, or an
+    /// error occurs during parsing of the module, the result will be Err(ErrorReported).
     #[salsa::invoke(queries::input_kernel)]
-    fn input_kernel(
-        &self,
-        input: InternedInput,
-    ) -> Result<syntax_erl::kernel::Module, ErrorReported>;
+    fn input_kernel(&self, input: InternedInput) -> Result<syntax_kernel::Module, ErrorReported>;
 
     /// Gets the SSA IR module associated with the given input, if it exists
     ///
     /// If the input is not compatible with producing a SSA IR module, or an
     /// error occurs during parsing of the module, the result will be Err(ErrorReported).
-    #[salsa::invoke(queries::input_syntax_ssa)]
-    fn input_syntax_ssa(&self, input: InternedInput) -> Result<syntax_ssa::Module, ErrorReported>;
+    #[salsa::invoke(queries::input_ssa)]
+    fn input_ssa(&self, input: InternedInput) -> Result<syntax_ssa::Module, ErrorReported>;
 
     /// Gets the mlir module associated with the given input, if it exists
     ///

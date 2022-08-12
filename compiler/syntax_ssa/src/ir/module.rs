@@ -6,6 +6,7 @@ use cranelift_entity::PrimaryMap;
 
 use liblumen_diagnostics::SourceSpan;
 use liblumen_intern::{Ident, Symbol};
+use liblumen_syntax_base::*;
 use liblumen_util::emit::Emit;
 
 use super::*;
@@ -17,7 +18,6 @@ use super::*;
 ///
 /// * Mapping from Signature to FuncRef
 /// * Mapping from FunctionName to FuncRef
-/// * Mapping from Annotation to AnnotationData
 /// * Constant pool
 #[derive(Debug, Clone)]
 pub struct Module {
@@ -29,8 +29,6 @@ pub struct Module {
     pub signatures: Rc<RefCell<PrimaryMap<FuncRef, Signature>>>,
     /// This map provides a quick way to look up function references given an MFA, useful when lowering
     pub callees: Rc<RefCell<BTreeMap<FunctionName, FuncRef>>>,
-    /// This map stores annotation data and provides a handle for associating to instructions
-    pub annotations: Rc<RefCell<PrimaryMap<Annotation, AnnotationData>>>,
     /// This pool contains de-duplicated constant values/data used in the current module
     pub constants: Rc<RefCell<ConstantPool>>,
 }
@@ -46,7 +44,7 @@ impl PartialEq for Module {
 }
 impl Emit for Module {
     fn file_type(&self) -> Option<&'static str> {
-        Some("core")
+        Some("ssa")
     }
 
     fn emit(&self, f: &mut std::fs::File) -> anyhow::Result<()> {
@@ -62,15 +60,11 @@ impl Emit for Module {
 }
 impl Module {
     pub fn new(name: Ident) -> Self {
-        let mut annotations = PrimaryMap::new();
-        // This should always be the first annotation so we can construct without interacting with the annotation map
-        annotations.push(AnnotationData::CompilerGenerated);
         Self {
             name,
             functions: vec![],
             signatures: Rc::new(RefCell::new(PrimaryMap::new())),
             callees: Rc::new(RefCell::new(BTreeMap::new())),
-            annotations: Rc::new(RefCell::new(annotations)),
             constants: Rc::new(RefCell::new(ConstantPool::new())),
         }
     }

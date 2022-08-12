@@ -39,7 +39,7 @@ use liblumen_parser::{Scanner, Source};
 pub type Parser = GParser<ParseConfig>;
 pub trait Parse<T> = GParse<T, Config = ParseConfig, Error = ParserError>;
 
-pub use crate::ast;
+use crate::ast;
 use crate::lexer::Lexer;
 use crate::preprocessor::{MacroContainer, Preprocessed, Preprocessor};
 

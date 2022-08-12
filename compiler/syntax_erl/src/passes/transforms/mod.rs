@@ -1,69 +1,45 @@
-mod ast;
-mod cst;
-mod kernel;
+mod expand_records;
+mod expand_substitutions;
+mod expand_unqualified_calls;
 
-pub use self::ast::CanonicalizeSyntax;
-pub use self::cst::AstToCst;
-pub use self::kernel::CstToKernel;
+use std::collections::BTreeMap;
 
-use crate::cst::Annotated;
-use liblumen_intern::Ident;
-use rpds::RedBlackTreeSet;
+use liblumen_diagnostics::*;
+use liblumen_pass::Pass;
 
-pub(self) fn used_in_any<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
-    iter: I,
-) -> RedBlackTreeSet<Ident> {
-    iter.fold(RedBlackTreeSet::new(), |used, annotated| {
-        union(annotated.used_vars(), used)
-    })
+use crate::ast;
+
+use self::expand_records::ExpandRecords;
+use self::expand_substitutions::ExpandSubstitutions;
+use self::expand_unqualified_calls::ExpandUnqualifiedCalls;
+
+pub struct CanonicalizeSyntax {
+    #[allow(dead_code)]
+    reporter: Reporter,
 }
-
-pub(self) fn new_in_any<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
-    iter: I,
-) -> RedBlackTreeSet<Ident> {
-    iter.fold(RedBlackTreeSet::new(), |new, annotated| {
-        union(annotated.new_vars(), new)
-    })
-}
-
-pub(self) fn new_in_all<'a, A: Annotated + 'a, I: Iterator<Item = &'a A>>(
-    iter: I,
-) -> RedBlackTreeSet<Ident> {
-    iter.fold(None, |new, annotated| match new {
-        None => Some(annotated.new_vars().clone()),
-        Some(ns) => Some(intersection(annotated.new_vars(), ns)),
-    })
-    .unwrap_or_default()
-}
-
-pub(self) fn union(x: RedBlackTreeSet<Ident>, y: RedBlackTreeSet<Ident>) -> RedBlackTreeSet<Ident> {
-    let mut result = x;
-    for id in y.iter().copied() {
-        result.insert_mut(id);
+impl CanonicalizeSyntax {
+    pub fn new(reporter: Reporter) -> Self {
+        Self { reporter }
     }
-    result
 }
+impl Pass for CanonicalizeSyntax {
+    type Input<'a> = ast::Module;
+    type Output<'a> = ast::Module;
 
-pub(self) fn subtract(
-    x: RedBlackTreeSet<Ident>,
-    y: RedBlackTreeSet<Ident>,
-) -> RedBlackTreeSet<Ident> {
-    let mut result = x;
-    for id in y.iter() {
-        result.remove_mut(id);
-    }
-    result
-}
+    fn run<'a>(&mut self, mut module: Self::Input<'a>) -> anyhow::Result<Self::Output<'a>> {
+        let mut functions = BTreeMap::new();
+        while let Some((key, mut function)) = module.functions.pop_first() {
+            // Prepare function for translation to CST
+            let mut pipeline = ExpandRecords::new(&module)
+                .chain(ExpandUnqualifiedCalls::new(&module))
+                .chain(ExpandSubstitutions);
+            pipeline.run(&mut function)?;
 
-pub(self) fn intersection(
-    x: RedBlackTreeSet<Ident>,
-    y: RedBlackTreeSet<Ident>,
-) -> RedBlackTreeSet<Ident> {
-    let mut result = RedBlackTreeSet::new();
-    for id in x.iter().copied() {
-        if y.contains(&id) {
-            result.insert_mut(id);
+            functions.insert(key, function);
         }
+
+        module.functions = functions;
+
+        Ok(module)
     }
-    result
 }

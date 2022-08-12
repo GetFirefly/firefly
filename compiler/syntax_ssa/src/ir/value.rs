@@ -1,7 +1,9 @@
 use cranelift_entity::{self as entity, entity_impl};
-use liblumen_diagnostics::SourceSpan;
 
-use super::{Block, Inst, Type};
+use liblumen_diagnostics::SourceSpan;
+use liblumen_syntax_base::Type;
+
+use super::{Block, Inst};
 
 pub type ValueList = entity::EntityList<Value>;
 pub type ValueListPool = entity::ListPool<Value>;

@@ -1,12 +1,13 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
-use crate::ast::{self, BinaryElement, BinaryOp, Expr, Literal, UnaryOp};
-
 use liblumen_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
 use liblumen_diagnostics::{Diagnostic, Label, SourceSpan, Spanned, ToDiagnostic};
 use liblumen_intern::{symbols, Ident};
 use liblumen_number::{f16, Integer, Number, ToPrimitive};
+use liblumen_syntax_base::{BinaryOp, UnaryOp};
+
+use crate::ast::{self, BinaryElement, Expr, Literal};
 
 #[derive(Debug, thiserror::Error, Spanned)]
 pub enum EvalError {

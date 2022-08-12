@@ -26,6 +26,7 @@ liblumen_pass = { path = "../pass" }
 liblumen_rt = { path = "../../library/rt" }
 liblumen_session = { path = "../session" }
 liblumen_syntax_ssa = { path = "../syntax_ssa" }
+liblumen_syntax_base = { path = "../syntax_base" }
 liblumen_target = { path = "../target" }
 liblumen_util = { path = "../util" }
 

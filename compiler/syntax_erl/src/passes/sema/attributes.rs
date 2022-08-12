@@ -1,4 +1,5 @@
-use liblumen_syntax_ssa as syntax_ssa;
+use liblumen_intern::Symbol;
+use liblumen_syntax_base::{bifs, CompileOptions, FunctionName, Signature};
 
 use crate::ast::*;
 
@@ -54,11 +55,11 @@ impl SemanticAnalysis {
                     let import = local_import.resolve(from_module.name);
                     match module.imports.get(&local_import) {
                         None => {
-                            let sig = match liblumen_syntax_ssa::bifs::get(&import) {
+                            let sig = match bifs::get(&import) {
                                 Some(sig) => sig.clone(),
                                 None => {
                                     // Generate a default signature
-                                    liblumen_syntax_ssa::Signature::generate(&import)
+                                    Signature::generate(&import)
                                 }
                             };
                             module.imports.insert(*local_import, Span::new(span, sig));
@@ -132,8 +133,7 @@ impl SemanticAnalysis {
             }
             Attribute::Type(ty) => {
                 let arity = ty.params.len();
-                let type_name =
-                    syntax_ssa::FunctionName::new_local(ty.name.name, arity.try_into().unwrap());
+                let type_name = FunctionName::new_local(ty.name.name, arity.try_into().unwrap());
                 match module.types.get(&type_name) {
                     None => {
                         module.types.insert(type_name, ty);
@@ -209,7 +209,7 @@ impl SemanticAnalysis {
                     }
                 }
                 // Check for redefinition
-                let cb_name = syntax_ssa::FunctionName::new(
+                let cb_name = FunctionName::new(
                     module.name(),
                     callback.function.name,
                     arity.try_into().unwrap(),
@@ -258,7 +258,7 @@ impl SemanticAnalysis {
                 }
 
                 // Check for redefinition
-                let spec_name = syntax_ssa::FunctionName::new(
+                let spec_name = FunctionName::new(
                     module.name(),
                     typespec.function.name,
                     arity.try_into().unwrap(),
@@ -279,12 +279,13 @@ impl SemanticAnalysis {
                 }
             }
             Attribute::Compile(_, compile) => match module.compile {
-                None => match CompileOptions::from_expr(module.name, &compile, &self.reporter) {
+                None => match compile_opts_from_expr(module.name, &compile, &self.reporter) {
                     Ok(opts) => module.compile = Some(opts),
                     Err(opts) => module.compile = Some(opts),
                 },
                 Some(ref mut opts) => {
-                    let _ = opts.merge_from_expr(module.name, &compile, &self.reporter);
+                    let _ =
+                        merge_compile_opts_from_expr(opts, module.name, &compile, &self.reporter);
                 }
             },
             Attribute::Deprecation(mut deprecations) => {
@@ -355,4 +356,349 @@ impl SemanticAnalysis {
             }
         }
     }
+}
+
+fn compile_opts_from_expr(
+    module: Ident,
+    expr: &Expr,
+    reporter: &Reporter,
+) -> Result<CompileOptions, CompileOptions> {
+    let mut opts = CompileOptions::default();
+    match merge_compile_opts_from_expr(&mut opts, module, expr, reporter) {
+        Ok(_) => Ok(opts),
+        Err(_) => Err(opts),
+    }
+}
+
+fn merge_compile_opts_from_expr(
+    options: &mut CompileOptions,
+    module: Ident,
+    expr: &Expr,
+    reporter: &Reporter,
+) -> Result<(), ()> {
+    set_compile_option(options, module, expr, reporter)
+}
+
+fn set_compile_option(
+    options: &mut CompileOptions,
+    module: Ident,
+    expr: &Expr,
+    reporter: &Reporter,
+) -> Result<(), ()> {
+    match expr {
+        // e.g. -compile(export_all).
+        &Expr::Literal(Literal::Atom(ref option_name)) => {
+            match option_name.as_str().get() {
+                "no_native" => (), // Disables hipe compilation, not relevant for us
+                "inline" => options.inline = true,
+
+                "export_all" => options.export_all = true,
+
+                "no_auto_import" => options.no_auto_import = true,
+
+                "report_errors" => options.report_errors = true,
+                "report_warnings" => options.report_errors = true,
+                "verbose" => options.verbose = true,
+
+                "inline_list_funcs" => {
+                    let funs = [
+                        ("lists", "all", 2),
+                        ("lists", "any", 2),
+                        ("lists", "foreach", 2),
+                        ("lists", "map", 2),
+                        ("lists", "flatmap", 2),
+                        ("lists", "filter", 2),
+                        ("lists", "foldl", 3),
+                        ("lists", "foldr", 3),
+                        ("lists", "mapfoldl", 3),
+                        ("lists", "mapfoldr", 3),
+                    ];
+                    for (m, f, a) in funs.iter() {
+                        options.inline_functions.insert(Span::new(
+                            option_name.span,
+                            FunctionName::new(Symbol::intern(m), Symbol::intern(f), *a),
+                        ));
+                    }
+                }
+
+                // Warning toggles
+                "warn_export_all" => options.warn_export_all = true,
+                "nowarn_export_all" => options.warn_export_all = false,
+
+                "warn_shadow_vars" => options.warn_shadow_vars = true,
+                "nowarn_shadow_vars" => options.warn_shadow_vars = false,
+
+                "warn_unused_function" => options.warn_unused_function = true,
+                "nowarn_unused_function" => options.warn_unused_function = false,
+
+                "warn_unused_import" => options.warn_unused_import = true,
+                "nowarn_unused_import" => options.warn_unused_import = false,
+
+                "warn_unused_type" => options.warn_unused_type = true,
+                "nowarn_unused_type" => options.warn_unused_type = false,
+
+                "warn_export_vars" => options.warn_export_vars = true,
+                "nowarn_export_vars" => options.warn_export_vars = false,
+
+                "warn_unused_vars" => options.warn_unused_var = true,
+                "nowarn_unused_vars" => options.warn_unused_var = false,
+
+                "warn_bif_clash" => options.warn_bif_clash = true,
+                "nowarn_bif_clash" => options.warn_bif_clash = false,
+
+                "warn_unused_record" => options.warn_unused_record = true,
+                "nowarn_unused_record" => options.warn_unused_record = false,
+
+                "warn_deprecated_function" => options.warn_deprecated_function = true,
+                "nowarn_deprecated_function" => options.warn_deprecated_function = false,
+
+                "warn_deprecated_type" => options.warn_deprecated_type = true,
+                "nowarn_deprecated_type" => options.warn_deprecated_type = false,
+
+                "warn_obsolete_guard" => options.warn_obsolete_guard = true,
+                "nowarn_obsolete_guard" => options.warn_obsolete_guard = false,
+
+                "warn_untyped_record" => options.warn_untyped_record = true,
+                "nowarn_untyped_record" => options.warn_untyped_record = false,
+
+                "warn_missing_spec" => options.warn_missing_spec = true,
+                "nowarn_missing_spec" => options.warn_missing_spec = false,
+
+                "warn_missing_spec_all" => options.warn_missing_spec_all = true,
+                "nowarn_missing_spec_all" => options.warn_missing_spec_all = false,
+
+                "warn_removed" => options.warn_removed = true,
+                "nowarn_removed" => options.warn_removed = false,
+
+                "warn_nif_inline" => options.warn_nif_inline = true,
+                "nowarn_nif_inline" => options.warn_nif_inline = false,
+
+                _name => {
+                    reporter.diagnostic(
+                        Diagnostic::warning()
+                            .with_message("invalid compile option")
+                            .with_labels(vec![Label::primary(
+                                option_name.span.source_id(),
+                                option_name.span,
+                            )
+                            .with_message("this option is either unsupported or unrecognized")]),
+                    );
+                    return Err(());
+                }
+            }
+        }
+        // e.g. -compile([export_all, nowarn_unused_function]).
+        &Expr::Cons(Cons {
+            ref head, ref tail, ..
+        }) => compiler_opts_from_list(options, module, to_list(head, tail), reporter),
+        // e.g. -compile({nowarn_unused_function, [some_fun/0]}).
+        &Expr::Tuple(Tuple { ref elements, .. }) if elements.len() == 2 => {
+            if let &Expr::Literal(Literal::Atom(ref option_name)) = &elements[0] {
+                let list = to_list_simple(&elements[1]);
+                match option_name.as_str().get() {
+                    "no_auto_import" => no_auto_imports(options, module, &list, reporter),
+                    "nowarn_unused_function" => {
+                        no_warn_unused_functions(options, module, &list, reporter)
+                    }
+                    "inline" => inline_functions(options, module, &list, reporter),
+                    // Ignored
+                    "hipe" => {}
+                    _name => {
+                        reporter.diagnostic(
+                            Diagnostic::warning()
+                                .with_message("invalid compile option")
+                                .with_labels(vec![Label::primary(
+                                    option_name.span.source_id(),
+                                    option_name.span,
+                                )
+                                .with_message(
+                                    "this option is either unsupported or unrecognized",
+                                )]),
+                        );
+                        return Err(());
+                    }
+                }
+            }
+        }
+        term => {
+            let term_span = term.span();
+            reporter.diagnostic(
+                Diagnostic::warning()
+                    .with_message("invalid compile option")
+                    .with_labels(vec![Label::primary(term_span.source_id(), term_span)
+                        .with_message(
+                            "unexpected expression: expected atom, list, or tuple",
+                        )]),
+            );
+            return Err(());
+        }
+    }
+
+    Ok(())
+}
+
+fn compiler_opts_from_list(
+    options: &mut CompileOptions,
+    module: Ident,
+    list: Vec<Expr>,
+    reporter: &Reporter,
+) {
+    for option in list.iter() {
+        let _ = set_compile_option(options, module, option, reporter);
+    }
+}
+
+fn no_auto_imports(
+    options: &mut CompileOptions,
+    module: Ident,
+    imports: &[Expr],
+    reporter: &Reporter,
+) {
+    for import in imports {
+        match import {
+            Expr::FunctionVar(FunctionVar::PartiallyResolved(name)) => {
+                options.no_auto_imports.insert(name.resolve(module.name));
+            }
+            Expr::Tuple(tup) if tup.elements.len() == 2 => {
+                match (&tup.elements[0], &tup.elements[1]) {
+                    (
+                        Expr::Literal(Literal::Atom(name)),
+                        Expr::Literal(Literal::Integer(_, arity)),
+                    ) => {
+                        let name = FunctionName::new(module.name, name.name, arity.to_arity());
+                        options.no_auto_imports.insert(name);
+                        continue;
+                    }
+                    _ => (),
+                }
+            }
+            other => {
+                let other_span = other.span();
+                reporter.diagnostic(
+                    Diagnostic::warning()
+                        .with_message("invalid compile option")
+                        .with_labels(vec![Label::primary(other_span.source_id(), other_span)
+                            .with_message(
+                                "expected function name/arity term for no_auto_imports",
+                            )]),
+                );
+            }
+        }
+    }
+}
+
+fn no_warn_unused_functions(
+    options: &mut CompileOptions,
+    _module: Ident,
+    funs: &[Expr],
+    reporter: &Reporter,
+) {
+    for fun in funs {
+        match fun {
+            Expr::FunctionVar(FunctionVar::PartiallyResolved(name)) => {
+                options.no_warn_unused_functions.insert(*name);
+            }
+            other => {
+                let other_span = other.span();
+                reporter.diagnostic(
+                    Diagnostic::warning()
+                        .with_message("invalid compile option")
+                        .with_labels(vec![Label::primary(other_span.source_id(), other_span)
+                            .with_message(
+                                "expected function name/arity term for no_warn_unused_functions",
+                            )]),
+                );
+            }
+        }
+    }
+}
+
+fn inline_functions(
+    options: &mut CompileOptions,
+    module: Ident,
+    funs: &[Expr],
+    reporter: &Reporter,
+) {
+    for fun in funs {
+        match fun {
+            Expr::FunctionVar(FunctionVar::PartiallyResolved(name)) => {
+                let name = Span::new(name.span(), name.resolve(module.name));
+                options.inline_functions.insert(name);
+                continue;
+            }
+            Expr::Tuple(tup) if tup.elements.len() == 2 => {
+                match (&tup.elements[0], &tup.elements[1]) {
+                    (
+                        Expr::Literal(Literal::Atom(name)),
+                        Expr::Literal(Literal::Integer(_, arity)),
+                    ) => {
+                        let name = Span::new(
+                            tup.span,
+                            FunctionName::new(module.name, name.name, arity.to_arity()),
+                        );
+                        options.inline_functions.insert(name);
+                        continue;
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
+
+        let fun_span = fun.span();
+        reporter.diagnostic(
+            Diagnostic::warning()
+                .with_message("invalid compile option")
+                .with_labels(vec![Label::primary(fun_span.source_id(), fun_span)
+                    .with_message("expected function name/arity term for inline")]),
+        );
+    }
+}
+
+fn to_list_simple(mut expr: &Expr) -> Vec<Expr> {
+    let mut list = Vec::new();
+    loop {
+        match expr {
+            Expr::Cons(cons) => {
+                list.push((*cons.head).clone());
+                expr = &cons.tail;
+            }
+            Expr::Literal(Literal::Nil(_)) => {
+                return list;
+            }
+            _ => {
+                list.push(expr.clone());
+                return list;
+            }
+        }
+    }
+}
+
+fn to_list(head: &Expr, tail: &Expr) -> Vec<Expr> {
+    let mut list = Vec::new();
+    match head {
+        &Expr::Cons(Cons {
+            head: ref head2,
+            tail: ref tail2,
+            ..
+        }) => {
+            let mut h = to_list(head2, tail2);
+            list.append(&mut h);
+        }
+        expr => list.push(expr.clone()),
+    }
+    match tail {
+        &Expr::Cons(Cons {
+            head: ref head2,
+            tail: ref tail2,
+            ..
+        }) => {
+            let mut t = to_list(head2, tail2);
+            list.append(&mut t);
+        }
+        &Expr::Literal(Literal::Nil(_)) => (),
+        expr => list.push(expr.clone()),
+    }
+
+    list
 }

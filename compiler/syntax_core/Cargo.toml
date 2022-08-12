@@ -1,0 +1,19 @@
+[package]
+name = "liblumen_syntax_core"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+readme = "README.md"
+publish = false
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+liblumen_binary = { path = "../binary" }
+liblumen_diagnostics = { path = "../diagnostics" }
+liblumen_intern = { path = "../intern" }
+liblumen_pass = { path = "../pass" }
+liblumen_syntax_base = { path = "../syntax_base" }
+liblumen_util = { path = "../util" }
+
+anyhow = "1.0"
+rpds = "0.12"

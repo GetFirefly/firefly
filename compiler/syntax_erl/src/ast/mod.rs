@@ -2,7 +2,6 @@ mod attributes;
 mod expr;
 mod functions;
 mod module;
-mod ops;
 mod types;
 
 use liblumen_diagnostics::{SourceIndex, Spanned};
@@ -12,7 +11,6 @@ pub use self::attributes::*;
 pub use self::expr::*;
 pub use self::functions::*;
 pub use self::module::*;
-pub use self::ops::*;
 pub use self::types::*;
 
 use crate::lexer::Token;

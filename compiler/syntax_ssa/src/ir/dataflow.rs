@@ -8,32 +8,30 @@ use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap};
 use intrusive_collections::UnsafeRef;
 
 use liblumen_diagnostics::{SourceSpan, Span};
+use liblumen_intern::Symbol;
+use liblumen_syntax_base::*;
 
 use super::*;
 
 #[derive(Clone)]
 pub struct DataFlowGraph {
-    pub annotations: Rc<RefCell<PrimaryMap<Annotation, AnnotationData>>>,
     pub signatures: Rc<RefCell<PrimaryMap<FuncRef, Signature>>>,
     pub callees: Rc<RefCell<BTreeMap<FunctionName, FuncRef>>>,
     pub constants: Rc<RefCell<ConstantPool>>,
     pub blocks: OrderedArenaMap<Block, BlockData>,
     pub insts: ArenaMap<Inst, InstNode>,
-    pub inst_annotations: SecondaryMap<Inst, AnnotationList>,
+    pub inst_annotations: SecondaryMap<Inst, Annotations>,
     pub results: SecondaryMap<Inst, ValueList>,
     pub values: PrimaryMap<Value, ValueData>,
-    pub annotation_lists: AnnotationListPool,
     pub value_lists: ValueListPool,
 }
 impl DataFlowGraph {
     pub fn new(
-        annotations: Rc<RefCell<PrimaryMap<Annotation, AnnotationData>>>,
         signatures: Rc<RefCell<PrimaryMap<FuncRef, Signature>>>,
         callees: Rc<RefCell<BTreeMap<FunctionName, FuncRef>>>,
         constants: Rc<RefCell<ConstantPool>>,
     ) -> Self {
         Self {
-            annotations,
             signatures,
             callees,
             constants,
@@ -42,7 +40,6 @@ impl DataFlowGraph {
             results: SecondaryMap::new(),
             blocks: OrderedArenaMap::new(),
             values: PrimaryMap::new(),
-            annotation_lists: AnnotationListPool::new(),
             value_lists: ValueListPool::new(),
         }
     }
@@ -138,24 +135,8 @@ impl DataFlowGraph {
         vlist.extend(args.iter().copied(), &mut self.value_lists);
     }
 
-    /// Create an annotation to be associated to entities in the module
-    pub fn make_annotation(&mut self, data: AnnotationData) -> Annotation {
-        self.annotations.borrow_mut().push(data)
-    }
-
-    pub fn annotate_inst(&mut self, inst: Inst, data: AnnotationData) -> Annotation {
-        // Since this is so common, we use the first
-        if data == AnnotationData::CompilerGenerated {
-            let anno = Annotation::COMPILER_GENERATED;
-            self.inst_annotations[inst].push(anno, &mut self.annotation_lists);
-            anno
-        } else {
-            let mut annos = self.annotations.borrow_mut();
-            let anno = annos.next_key();
-            let num = self.inst_annotations[inst].push(anno, &mut self.annotation_lists);
-            debug_assert!(num <= u16::MAX as usize, "too many annotations");
-            annos.push(data)
-        }
+    pub fn annotate_inst<A: Into<Annotation>>(&mut self, inst: Inst, key: Symbol, data: A) {
+        self.inst_annotations[inst].insert_mut(key, data);
     }
 
     pub fn make_inst_results(&mut self, inst: Inst, ty: Type) -> usize {

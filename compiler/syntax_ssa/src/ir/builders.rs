@@ -2,6 +2,7 @@ use liblumen_binary::{BinaryEntrySpecifier, BitVec};
 use liblumen_diagnostics::SourceSpan;
 use liblumen_intern::{Ident, Symbol};
 use liblumen_number::{BigInt, Integer};
+use liblumen_syntax_base::{PrimitiveType, TermType, Type};
 
 use super::*;
 

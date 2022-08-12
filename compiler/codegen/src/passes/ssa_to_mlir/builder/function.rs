@@ -5,8 +5,9 @@ use liblumen_mlir::cir::ICmpPredicate;
 use liblumen_mlir::llvm::LinkageAttr;
 use liblumen_mlir::*;
 use liblumen_number::Integer;
+use liblumen_syntax_base::{self as syntax_base, Signature};
 use liblumen_syntax_ssa::{self as syntax_ssa, ir::instructions::*, DataFlowGraph};
-use liblumen_syntax_ssa::{ConstantItem, Immediate, TermType};
+use liblumen_syntax_ssa::{ConstantItem, Immediate};
 
 use log::debug;
 
@@ -99,7 +100,7 @@ impl<'m> ModuleBuilder<'m> {
     pub(super) fn declare_function(
         &self,
         span: SourceSpan,
-        sig: &syntax_ssa::Signature,
+        sig: &Signature,
     ) -> anyhow::Result<FuncOp> {
         debug!("declaring function {}", sig.mfa());
         // Generate the symbol name for the function, e.g. module:function/arity
@@ -371,7 +372,7 @@ impl<'m> ModuleBuilder<'m> {
                 return Ok(());
             }
             Opcode::Zext => {
-                use liblumen_syntax_ssa::{PrimitiveType, Type as CoreType};
+                use liblumen_syntax_base::{PrimitiveType, Type as CoreType};
 
                 let builder = self.cir();
                 let result = dfg.first_result(inst);
@@ -905,6 +906,8 @@ impl<'m> ModuleBuilder<'m> {
         span: SourceSpan,
         op: &BinaryOpConst,
     ) -> anyhow::Result<()> {
+        use liblumen_syntax_base::TermType;
+
         let loc = self.location_from_span(span);
         let lhs = self.values[&op.arg];
         let results = dfg.inst_results(inst);
@@ -915,7 +918,7 @@ impl<'m> ModuleBuilder<'m> {
             }
             Opcode::GetElement => {
                 match dfg.constant_type(op.imm) {
-                    syntax_ssa::Type::Term(TermType::Integer) => {
+                    syntax_base::Type::Term(TermType::Integer) => {
                         let rhs = self.const_to_constant(loc, &dfg.constant(op.imm));
                         self.cir().build_get_element(loc, lhs, rhs).base()
                     }
@@ -986,31 +989,31 @@ impl<'m> ModuleBuilder<'m> {
             }
             Opcode::And => {
                 match dfg.constant_type(op.imm) {
-                    syntax_ssa::Type::Term(TermType::Bool) => self.cir().build_and(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_base::Type::Term(TermType::Bool) => self.cir().build_and(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, and requires a boolean constant"),
                 }
             }
             Opcode::AndAlso => {
                 match dfg.constant_type(op.imm) {
-                    syntax_ssa::Type::Term(TermType::Bool) => self.cir().build_andalso(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_base::Type::Term(TermType::Bool) => self.cir().build_andalso(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, andalso requires a boolean constant"),
                 }
             }
             Opcode::Or => {
                 match dfg.constant_type(op.imm) {
-                    syntax_ssa::Type::Term(TermType::Bool) => self.cir().build_or(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_base::Type::Term(TermType::Bool) => self.cir().build_or(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, or requires a boolean constant"),
                 }
             }
             Opcode::OrElse => {
                 match dfg.constant_type(op.imm) {
-                    syntax_ssa::Type::Term(TermType::Bool) => self.cir().build_orelse(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_base::Type::Term(TermType::Bool) => self.cir().build_orelse(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, orelse requires a boolean constant"),
                 }
             }
             Opcode::Xor => {
                 match dfg.constant_type(op.imm) {
-                    syntax_ssa::Type::Term(TermType::Bool) => self.cir().build_xor(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
+                    syntax_base::Type::Term(TermType::Bool) => self.cir().build_xor(loc, lhs, self.const_to_constant(loc, &dfg.constant(op.imm))).base(),
                     _ => panic!("invalid binary constant op, xor requires a boolean constant"),
                 }
             }
@@ -1310,7 +1313,7 @@ impl<'m> ModuleBuilder<'m> {
         span: SourceSpan,
         op: &IsType,
     ) -> anyhow::Result<()> {
-        use liblumen_syntax_ssa::Type as CoreType;
+        use liblumen_syntax_base::{TermType, Type as CoreType};
 
         let builder = CirBuilder::new(&self.builder);
         let loc = self.location_from_span(span);
@@ -1662,11 +1665,11 @@ fn translate_ir_type<'a, B: OpBuilder>(
     module: &syntax_ssa::Module,
     options: &Options,
     builder: &CirBuilder<'a, B>,
-    ty: &syntax_ssa::Type,
+    ty: &syntax_base::Type,
 ) -> TypeBase {
-    use liblumen_syntax_ssa::Type as CoreType;
+    use liblumen_syntax_base::Type as CoreType;
 
-    debug!("translating syntax_ssa type {:?} to mlir type", ty);
+    debug!("translating syntax_base type {:?} to mlir type", ty);
     match ty {
         CoreType::Invalid | CoreType::NoReturn => builder.get_cir_none_type().base(),
         CoreType::Primitive(ref ty) => translate_primitive_ir_type(builder, ty),
@@ -1686,9 +1689,9 @@ fn translate_ir_type<'a, B: OpBuilder>(
 
 fn translate_primitive_ir_type<'a, B: OpBuilder>(
     builder: &CirBuilder<'a, B>,
-    ty: &syntax_ssa::PrimitiveType,
+    ty: &syntax_base::PrimitiveType,
 ) -> TypeBase {
-    use liblumen_syntax_ssa::PrimitiveType;
+    use liblumen_syntax_base::PrimitiveType;
     match ty {
         PrimitiveType::Void => builder.get_none_type().base(),
         PrimitiveType::I1 => builder.get_i1_type().base(),
@@ -1720,8 +1723,10 @@ fn translate_term_ir_type<'a, B: OpBuilder>(
     module: &syntax_ssa::Module,
     options: &Options,
     builder: &CirBuilder<'a, B>,
-    ty: &syntax_ssa::TermType,
+    ty: &syntax_base::TermType,
 ) -> TypeBase {
+    use liblumen_syntax_base::TermType;
+
     let use_boxed_floats = !options.target.term_encoding().is_nanboxed();
     match ty {
         TermType::Any => builder.get_cir_term_type().base(),
@@ -1756,7 +1761,8 @@ fn translate_term_ir_type<'a, B: OpBuilder>(
         TermType::Pid => builder.get_cir_pid_type().base(),
         TermType::Fun(None) => builder.get_cir_term_type().base(),
         TermType::Fun(Some(func)) => {
-            let sig = module.call_signature(*func).clone();
+            let func = syntax_ssa::FuncRef::from_u32(*func);
+            let sig = module.call_signature(func).clone();
             signature_to_fn_type(module, options, builder, &sig).base()
         }
     }
@@ -1767,7 +1773,7 @@ fn signature_to_fn_type<'a, B: OpBuilder>(
     module: &syntax_ssa::Module,
     options: &Options,
     builder: &CirBuilder<'a, B>,
-    sig: &syntax_ssa::Signature,
+    sig: &Signature,
 ) -> FunctionType {
     debug!(
         "translating syntax_ssa signature {} to mlir function type",

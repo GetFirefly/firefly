@@ -6,10 +6,9 @@ use std::io::{self, Write};
 use liblumen_binary::{BitVec, Bitstring};
 use liblumen_intern::{symbols, Symbol};
 use liblumen_number::{Float, Integer, Number};
+use liblumen_syntax_base::{TermType, Type};
 
 use cranelift_entity::entity_impl;
-
-use super::{TermType, Type};
 
 /// A handle that references a constant in the current context
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -8,7 +8,9 @@ use liblumen_diagnostics::Reporter;
 use liblumen_llvm as llvm;
 use liblumen_mlir as mlir;
 use liblumen_session::{Input, InputType};
+use liblumen_syntax_core as syntax_core;
 use liblumen_syntax_erl::{self as syntax_erl, ParseConfig};
+use liblumen_syntax_kernel as syntax_kernel;
 use liblumen_syntax_ssa as syntax_ssa;
 use liblumen_util::diagnostics::FileName;
 
@@ -176,7 +178,7 @@ where
 pub(crate) fn input_ast<P>(
     db: &P,
     input: InternedInput,
-) -> Result<syntax_erl::ast::Module, ErrorReported>
+) -> Result<syntax_erl::Module, ErrorReported>
 where
     P: Parser,
 {
@@ -191,19 +193,20 @@ where
         Reporter::new()
     };
 
-    let result =
-        match db.input_type(input) {
-            InputType::Erlang => {
-                let parser = parse::Parser::new(config, codemap.clone());
-                match db.lookup_intern_input(input) {
-                    Input::File(ref path) => parser
-                        .parse_file::<syntax_erl::ast::Module, &Path, _>(reporter.clone(), path),
-                    Input::Str { ref input, .. } => parser
-                        .parse_string::<syntax_erl::ast::Module, _, _>(reporter.clone(), input),
+    let result = match db.input_type(input) {
+        InputType::Erlang => {
+            let parser = parse::Parser::new(config, codemap.clone());
+            match db.lookup_intern_input(input) {
+                Input::File(ref path) => {
+                    parser.parse_file::<syntax_erl::Module, &Path, _>(reporter.clone(), path)
+                }
+                Input::Str { ref input, .. } => {
+                    parser.parse_string::<syntax_erl::Module, _, _>(reporter.clone(), input)
                 }
             }
-            ty => bail!(db, "invalid input type: {}", ty),
-        };
+        }
+        ty => bail!(db, "invalid input type: {}", ty),
+    };
 
     let module = unwrap_or_bail!(db, reporter, &codemap, result);
 
@@ -212,15 +215,15 @@ where
     Ok(module)
 }
 
-pub(crate) fn input_cst<P>(
+pub(crate) fn input_core<P>(
     db: &P,
     input: InternedInput,
-) -> Result<syntax_erl::cst::Module, ErrorReported>
+) -> Result<syntax_core::Module, ErrorReported>
 where
     P: Parser,
 {
     use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::AstToCst;
+    use liblumen_syntax_erl::passes::AstToCore;
 
     // Get Erlang AST
     let ast = db.input_ast(input)?;
@@ -233,7 +236,7 @@ where
     } else {
         Reporter::new()
     };
-    let mut passes = AstToCst::new(reporter.clone());
+    let mut passes = AstToCore::new(reporter.clone());
     let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(ast));
 
     db.maybe_emit_file(input, &module)?;
@@ -244,15 +247,15 @@ where
 pub(crate) fn input_kernel<P>(
     db: &P,
     input: InternedInput,
-) -> Result<syntax_erl::kernel::Module, ErrorReported>
+) -> Result<syntax_kernel::Module, ErrorReported>
 where
     P: Parser,
 {
     use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::CstToKernel;
+    use liblumen_syntax_kernel::passes::CoreToKernel;
 
     // Get Core AST
-    let ast = db.input_cst(input)?;
+    let ast = db.input_core(input)?;
 
     // Run lowering passes
     let options = db.options();
@@ -262,7 +265,7 @@ where
     } else {
         Reporter::new()
     };
-    let mut passes = CstToKernel::new(reporter.clone());
+    let mut passes = CoreToKernel::new(reporter.clone());
     let module = unwrap_or_bail!(db, reporter, &codemap, passes.run(ast));
 
     db.maybe_emit_file(input, &module)?;
@@ -270,7 +273,7 @@ where
     Ok(module)
 }
 
-pub(crate) fn input_syntax_ssa<P>(
+pub(crate) fn input_ssa<P>(
     db: &P,
     input: InternedInput,
 ) -> Result<syntax_ssa::Module, ErrorReported>
@@ -278,7 +281,7 @@ where
     P: Parser,
 {
     use liblumen_pass::Pass;
-    use liblumen_syntax_erl::passes::KernelToSsa;
+    use liblumen_syntax_kernel::passes::KernelToSsa;
 
     // Get Kernel Erlang module
     let cst = db.input_kernel(input)?;
@@ -331,7 +334,7 @@ where
         }
         InputType::Erlang | InputType::AbstractErlang | InputType::SSA => {
             debug!("generating mlir for {:?} on {:?}", input, thread_id);
-            let module = db.input_syntax_ssa(input)?;
+            let module = db.input_ssa(input)?;
             let codemap = db.codemap();
             let context = db.mlir_context(thread_id);
 

@@ -13,6 +13,7 @@ use liblumen_mlir::llvm::LlvmBuilder;
 use liblumen_mlir::{Builder, OpBuilder, Operation, OwnedOpBuilder, Variadic};
 use liblumen_rt::function::FunctionSymbol;
 use liblumen_session::Options;
+use liblumen_syntax_base::Signature;
 use liblumen_syntax_ssa as syntax_ssa;
 
 /// This builder holds the state necessary to build an MLIR module
@@ -106,7 +107,7 @@ impl<'m> ModuleBuilder<'m> {
         CirBuilder::new(&self.builder)
     }
 
-    pub fn find_function(&self, f: syntax_ssa::FuncRef) -> syntax_ssa::Signature {
+    pub fn find_function(&self, f: syntax_ssa::FuncRef) -> Signature {
         self.module.call_signature(f).clone()
     }
 

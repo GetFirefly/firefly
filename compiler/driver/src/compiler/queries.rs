@@ -64,11 +64,11 @@ where
         // types were requested, and if so, execute the appropriate
         // query
         if options.output_types.should_generate_ssa() {
-            db.input_syntax_ssa(input)?;
+            db.input_ssa(input)?;
         } else if options.output_types.contains_key(&OutputType::Kernel) {
             db.input_kernel(input)?;
-        } else if options.output_types.contains_key(&OutputType::CST) {
-            db.input_cst(input)?;
+        } else if options.output_types.contains_key(&OutputType::Core) {
+            db.input_core(input)?;
         } else if options.output_types.contains_key(&OutputType::AST) {
             db.input_ast(input)?;
         }

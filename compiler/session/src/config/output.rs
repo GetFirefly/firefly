@@ -40,7 +40,7 @@ impl FromStr for OutputTypeSpec {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub enum OutputType {
     AST,
-    CST,
+    Core,
     Kernel,
     SSA,
     /// Used to indicate a generic/unknown dialect
@@ -56,7 +56,7 @@ impl FromStr for OutputType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "ast" => Ok(Self::AST),
-            "core" => Ok(Self::CST),
+            "core" => Ok(Self::Core),
             "kernel" => Ok(Self::Kernel),
             "ssa" => Ok(Self::SSA),
             "mlir" => Ok(Self::MLIR),
@@ -84,7 +84,7 @@ impl OutputType {
     pub fn as_str(&self) -> &'static str {
         match self {
             &Self::AST => "ast",
-            &Self::CST => "core",
+            &Self::Core => "core",
             &Self::Kernel => "kernel",
             &Self::SSA => "core",
             &Self::MLIR => "mlir",
@@ -99,7 +99,7 @@ impl OutputType {
     pub fn variants() -> &'static [OutputType] {
         &[
             Self::AST,
-            Self::CST,
+            Self::Core,
             Self::Kernel,
             Self::SSA,
             Self::MLIR,
@@ -136,7 +136,7 @@ impl OutputType {
     pub fn extension(&self) -> &'static str {
         match *self {
             Self::AST => "ast",
-            Self::CST => "core",
+            Self::Core => "core",
             Self::Kernel => "kernel",
             Self::SSA => "ssa",
             Self::MLIR => "mlir",
@@ -298,14 +298,14 @@ impl OutputTypes {
 
     pub fn should_generate_ssa(&self) -> bool {
         self.0.keys().any(|k| match *k {
-            OutputType::AST | OutputType::CST | OutputType::Kernel => false,
+            OutputType::AST | OutputType::Core | OutputType::Kernel => false,
             _ => true,
         })
     }
 
     pub fn should_generate_mlir(&self) -> bool {
         self.0.keys().any(|k| match *k {
-            OutputType::AST | OutputType::CST | OutputType::Kernel | OutputType::SSA => false,
+            OutputType::AST | OutputType::Core | OutputType::Kernel | OutputType::SSA => false,
             _ => true,
         })
     }
@@ -313,7 +313,7 @@ impl OutputTypes {
     pub fn should_generate_llvm(&self) -> bool {
         self.0.keys().any(|k| match *k {
             OutputType::AST
-            | OutputType::CST
+            | OutputType::Core
             | OutputType::Kernel
             | OutputType::SSA
             | OutputType::MLIR => false,
@@ -324,7 +324,7 @@ impl OutputTypes {
     pub fn should_codegen(&self) -> bool {
         self.0.keys().any(|k| match *k {
             OutputType::AST
-            | OutputType::CST
+            | OutputType::Core
             | OutputType::Kernel
             | OutputType::SSA
             | OutputType::MLIR

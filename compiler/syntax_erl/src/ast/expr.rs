@@ -5,12 +5,11 @@ use std::hash::{Hash, Hasher};
 
 use liblumen_binary::{BinaryEntrySpecifier, BitVec, Bitstring};
 use liblumen_diagnostics::{SourceSpan, Spanned};
-use liblumen_intern::{symbols, Symbol};
+use liblumen_intern::{symbols, Ident, Symbol};
 use liblumen_number::{Float, Integer, Number};
-use liblumen_syntax_ssa as syntax_ssa;
+use liblumen_syntax_base::{self as syntax_base, Annotations, BinaryOp, FunctionName, UnaryOp};
 
-use super::{Arity, Fun, FunctionName, Guard, Name, Type};
-use super::{BinaryOp, Ident, UnaryOp};
+use super::{Arity, Fun, FunctionVar, Guard, Name, Type};
 
 use crate::evaluator::{self, EvalError};
 use crate::lexer::DelayedSubstitution;
@@ -22,7 +21,7 @@ pub enum Expr {
     Var(Var),
     // Literal values
     Literal(Literal),
-    FunctionName(FunctionName),
+    FunctionVar(FunctionVar),
     // Delayed substitution of macro
     DelayedSubstitution(#[span] SourceSpan, DelayedSubstitution),
     // The various list forms
@@ -61,10 +60,10 @@ impl Expr {
         match callee {
             Expr::Remote(remote) => match (remote.module.as_ref(), remote.function.as_ref()) {
                 (Expr::Literal(Literal::Atom(m)), Expr::Literal(Literal::Atom(f))) => {
-                    let name = FunctionName::new(remote.span, m.name, f.name, arity);
+                    let name = FunctionVar::new(remote.span, m.name, f.name, arity);
                     Expr::Apply(Apply {
                         span,
-                        callee: Box::new(Expr::FunctionName(name)),
+                        callee: Box::new(Expr::FunctionVar(name)),
                         args,
                     })
                 }
@@ -196,9 +195,9 @@ impl From<Arity> for Expr {
         }
     }
 }
-impl From<syntax_ssa::FunctionName> for Expr {
-    fn from(name: syntax_ssa::FunctionName) -> Self {
-        Self::FunctionName(name.into())
+impl From<FunctionName> for Expr {
+    fn from(name: FunctionName) -> Self {
+        Self::FunctionVar(name.into())
     }
 }
 impl TryInto<Literal> for Expr {
@@ -623,6 +622,51 @@ impl From<bool> for Literal {
         }
     }
 }
+impl Into<syntax_base::Literal> for Literal {
+    fn into(self) -> syntax_base::Literal {
+        match self {
+            Self::Atom(id) => syntax_base::Literal::atom(id.span, id.name),
+            Self::Char(span, c) => syntax_base::Literal::integer(span, c as i64),
+            Self::Integer(span, i) => syntax_base::Literal::integer(span, i),
+            Self::Float(span, f) => syntax_base::Literal::float(span, f),
+            Self::Nil(span) => syntax_base::Literal::nil(span),
+            Self::String(id) => {
+                let span = id.span;
+                id.as_str()
+                    .get()
+                    .chars()
+                    .rev()
+                    .map(|c| syntax_base::Literal::integer(span, c as i64))
+                    .rfold(syntax_base::Literal::nil(span), |c, tl| {
+                        syntax_base::Literal::cons(span, c, tl)
+                    })
+            }
+            Self::Cons(span, head, tail) => {
+                syntax_base::Literal::cons(span, (*head).into(), (*tail).into())
+            }
+            Self::Tuple(span, mut elements) => {
+                syntax_base::Literal::tuple(span, elements.drain(..).map(Self::into).collect())
+            }
+            Self::Map(span, mut map) => {
+                let mut new_map: BTreeMap<syntax_base::Literal, syntax_base::Literal> =
+                    BTreeMap::new();
+                while let Some((k, v)) = map.pop_first() {
+                    new_map.insert(k.into(), v.into());
+                }
+                syntax_base::Literal {
+                    span,
+                    annotations: Annotations::default(),
+                    value: syntax_base::Lit::Map(new_map),
+                }
+            }
+            Self::Binary(span, bin) => syntax_base::Literal {
+                span,
+                annotations: Annotations::default(),
+                value: syntax_base::Lit::Binary(bin),
+            },
+        }
+    }
+}
 impl PartialEq for Literal {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
@@ -986,7 +1030,7 @@ impl Apply {
     pub fn remote(span: SourceSpan, module: Symbol, function: Symbol, args: Vec<Expr>) -> Self {
         Self {
             span,
-            callee: Box::new(Expr::FunctionName(FunctionName::new(
+            callee: Box::new(Expr::FunctionVar(FunctionVar::new(
                 span,
                 module,
                 function,
@@ -999,7 +1043,7 @@ impl Apply {
     pub fn local(span: SourceSpan, function: Symbol, args: Vec<Expr>) -> Self {
         Self {
             span,
-            callee: Box::new(Expr::FunctionName(FunctionName::new_local(
+            callee: Box::new(Expr::FunctionVar(FunctionVar::new_local(
                 span,
                 function,
                 args.len().try_into().unwrap(),
@@ -1040,14 +1084,12 @@ impl Remote {
     }
 
     /// Try to resolve this remote expression to a constant function reference of the given arity
-    pub fn try_eval(&self, arity: u8) -> Result<syntax_ssa::FunctionName, EvalError> {
+    pub fn try_eval(&self, arity: u8) -> Result<FunctionName, EvalError> {
         let span = self.span;
         let module = evaluator::eval_expr(self.module.as_ref(), None)?;
         let function = evaluator::eval_expr(self.function.as_ref(), None)?;
         match (module, function) {
-            (Literal::Atom(m), Literal::Atom(f)) => {
-                Ok(syntax_ssa::FunctionName::new(m.name, f.name, arity))
-            }
+            (Literal::Atom(m), Literal::Atom(f)) => Ok(FunctionName::new(m.name, f.name, arity)),
             _ => Err(EvalError::InvalidConstExpression { span }),
         }
     }

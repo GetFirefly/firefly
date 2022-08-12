@@ -2,7 +2,7 @@ use std::collections::btree_map::Entry;
 
 use liblumen_diagnostics::*;
 use liblumen_intern::symbols;
-use liblumen_syntax_ssa as syntax_ssa;
+use liblumen_syntax_base::*;
 
 use crate::ast::*;
 
@@ -10,8 +10,7 @@ use super::*;
 
 impl SemanticAnalysis {
     pub(super) fn analyze_function(&mut self, module: &mut Module, mut function: Function) {
-        let resolved_name =
-            syntax_ssa::FunctionName::new(module.name(), function.name.name, function.arity);
+        let resolved_name = FunctionName::new(module.name(), function.name.name, function.arity);
         let local_resolved_name = resolved_name.to_local();
         let warn_missing_specs = module
             .compile

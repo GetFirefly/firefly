@@ -845,6 +845,7 @@ dependencies = [
  "liblumen_pass",
  "liblumen_rt",
  "liblumen_session",
+ "liblumen_syntax_base",
  "liblumen_syntax_ssa",
  "liblumen_target",
  "liblumen_util",
@@ -872,7 +873,10 @@ dependencies = [
  "liblumen_parser",
  "liblumen_pass",
  "liblumen_session",
+ "liblumen_syntax_base",
+ "liblumen_syntax_core",
  "liblumen_syntax_erl",
+ "liblumen_syntax_kernel",
  "liblumen_syntax_ssa",
  "liblumen_target",
  "liblumen_util",
@@ -1058,29 +1062,74 @@ dependencies = [
 ]
 
 [[package]]
+name = "liblumen_syntax_base"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "lazy_static",
+ "liblumen_binary",
+ "liblumen_compiler_macros",
+ "liblumen_diagnostics",
+ "liblumen_intern",
+ "liblumen_number",
+ "rpds 0.12.0",
+ "thiserror",
+]
+
+[[package]]
+name = "liblumen_syntax_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "liblumen_binary",
+ "liblumen_diagnostics",
+ "liblumen_intern",
+ "liblumen_pass",
+ "liblumen_syntax_base",
+ "liblumen_util",
+ "rpds 0.12.0",
+]
+
+[[package]]
 name = "liblumen_syntax_erl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "cranelift-entity",
- "either",
  "itertools",
  "lalrpop",
  "lalrpop-util",
  "lazy_static",
  "liblumen_binary",
- "liblumen_compiler_macros",
  "liblumen_diagnostics",
- "liblumen_diagnostics_macros",
  "liblumen_intern",
  "liblumen_number",
  "liblumen_parser",
  "liblumen_pass",
- "liblumen_syntax_ssa",
+ "liblumen_syntax_base",
+ "liblumen_syntax_core",
  "liblumen_util",
  "log",
  "paste",
  "pretty_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "liblumen_syntax_kernel"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cranelift-entity",
+ "liblumen_binary",
+ "liblumen_diagnostics",
+ "liblumen_intern",
+ "liblumen_number",
+ "liblumen_pass",
+ "liblumen_syntax_base",
+ "liblumen_syntax_core",
+ "liblumen_syntax_ssa",
+ "liblumen_util",
+ "log",
  "rpds 0.12.0",
  "thiserror",
 ]
@@ -1107,20 +1156,16 @@ name = "liblumen_syntax_ssa"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bitflags",
  "cranelift-entity",
  "intrusive-collections",
- "lazy_static",
  "liblumen_arena",
  "liblumen_binary",
- "liblumen_compiler_macros",
  "liblumen_diagnostics",
- "liblumen_diagnostics_macros",
  "liblumen_intern",
  "liblumen_number",
+ "liblumen_syntax_base",
  "liblumen_util",
  "paste",
- "thiserror",
 ]
 
 [[package]]
